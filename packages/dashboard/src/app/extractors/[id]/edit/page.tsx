@@ -3,6 +3,9 @@ import Link from "next/link";
 import { api } from "@/trpc/server";
 import { ExtractorForm } from "@/components/extractor-form";
 import { updateExtractor } from "../../actions";
+import { db } from "@robot/db";
+import { robotOverrides } from "@robot/db";
+import { eq, and } from "drizzle-orm";
 
 export default async function EditExtractorPage({
   params,
@@ -21,6 +24,17 @@ export default async function EditExtractorPage({
     notFound();
   }
 
+  // Load domain defaults from robot_overrides
+  const override = await db.query.robotOverrides.findFirst({
+    where: and(
+      eq(robotOverrides.domainId, extractor.domainId),
+      eq(robotOverrides.country, extractor.country),
+    ),
+  });
+
+  const domainDefaults =
+    (override?.parameterOverrides as Record<string, unknown>) ?? {};
+
   return (
     <div>
       <div className="mb-6 flex items-center gap-4">
@@ -37,6 +51,7 @@ export default async function EditExtractorPage({
         <ExtractorForm
           orgs={orgs}
           domains={domains}
+          domainDefaults={domainDefaults}
           extractor={extractor}
           action={updateExtractor}
         />
