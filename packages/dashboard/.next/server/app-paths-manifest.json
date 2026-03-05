@@ -1,7 +1,0 @@
-{
-  "/domains/page": "app/domains/page.js",
-  "/extractors/[id]/page": "app/extractors/[id]/page.js",
-  "/domains/[id]/page": "app/domains/[id]/page.js",
-  "/extractors/[id]/edit/page": "app/extractors/[id]/edit/page.js",
-  "/extractors/page": "app/extractors/page.js"
-}
