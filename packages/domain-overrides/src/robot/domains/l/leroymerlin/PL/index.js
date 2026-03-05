@@ -1,0 +1,38 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'PL',
+    loadedSelector: null,
+    noResultsXPath: '//h1[contains(text(),"404")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsTocClickOn: [],
+    loadingTimeout: 5000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'multiPages',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    enableAutoTable: true,
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      infiniteScroll: null,
+      openSearchDefinition: null,
+    },
+    domain: 'leroymerlin',
+  },
+};

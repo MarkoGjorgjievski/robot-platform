@@ -1,0 +1,16 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//div[@id="contents"]//div/a[@title and not(contains(@href, "evento-composto"))]'
+fields:
+  - name: eventURL
+    xpath: '@href'
+    regExp: (.{1,})
+    regExpReplace: 'https://www.ticket360.com.br/$1'
+  - name: eventUniqueId
+    xpath: '@href'
+    regExp: 'evento\/(\d+)\/.*'
+    regExpReplace: '$1'
+
+
+#if sold out - ispublicpurchase = 1

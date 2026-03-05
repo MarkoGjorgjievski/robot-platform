@@ -1,0 +1,43 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'UK',
+    loadedSelector: null,
+    waitForSelectorToLoad: 'div.cm_secondary_button',
+    noResultsXPath: '//h1[contains(text(),"404")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: ['div button#age-gate-confirmation'],
+    loadingTimeout: 70000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'multiPages',
+    mergeType: 'APPEND',
+    maxScrolls: 0,
+    arrayOfInputFieldNamesToAdd: [],
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'juul',
+  },
+};

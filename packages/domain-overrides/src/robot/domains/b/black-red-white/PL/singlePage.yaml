@@ -1,0 +1,105 @@
+singleRecord: true
+fields:
+  - name: main_image
+    xpath: (//div[@class="main-product-slider"]//figure[not(contains(@class, "small-zoom"))]//img)[1]/@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //div[contains(@class,'images-wrapper')]//div[contains(@class,'thumbnails-list')]//img/@src
+
+  - name: average_rating
+    xpath: //div[@class="name-and-rating"]//meta[@itemprop="ratingValue"]/@content
+
+  - name: colour
+    xpath: (//div[contains(@class, "product-features-sidebar")]//div[@class="features-group"]//div[@class="item"][.//span[text()="Kolor"]]/span[@class="value"])[1]
+
+  - name: depth
+    xpath: (//div[@class="dimensions"])[1]//div[@class="item"][.//span[text()="Głębokość"]]/span[@class="value"]
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+
+  - name: width
+    xpath: (//div[@class="dimensions"])[1]//div[@class="item"][.//span[contains(text(),"Szerokość")]]/span[@class="value"]
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+  
+  - name: length
+    xpath: (//div[@class="dimensions"])[1]//div[@class="item"][.//span[contains(text(),"Długość")]]/span[@class="value"]
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+
+  - name: height
+    xpath: (//div[@class="dimensions"])[1]//div[@class="item"][.//span[contains(text(),"Wysokość")]]/span[@class="value"]
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+
+  - name: weight
+    xpath: (//div[@class="dimensions"])[1]//div[@class="item"][.//span[text()="Waga"]]/span[@class="value"]
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+  
+  - name: diameter
+    xpath: (//div[@class="dimensions"])[1]//div[@class="item"][.//span[contains(text(),"Średnica")]]/span[@class="value"]
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+
+  - name: description
+    xpath: //div[contains(@class,"main-content-wrapper")]//div[@class="desc"]
+
+  - name: listing_id
+    xpath: //meta[@property="og:url"]/@content
+    regExp: ',([0-9]+)'
+    regExpReplace: $1
+
+  - name: original_price
+    xpath: //meta[@property="product:original_price:amount"]/@content
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+    defaultValue: "0"
+
+  - name: product_title
+    xpath: //h1[@itemprop="name"]
+
+  - name: offer_price
+    xpath: //meta[@property="product:sale_price:amount"]/@content
+    regExp: (\d+([\,\.]\d+)?)
+    regExpReplace: $1
+
+  - name: platform_category
+    xpath: //div[@class="breadcrumbs"]//li[last() -1]//span[@itemprop="name"]
+
+  - name: product_variations
+    xpath: //div[@class="combined-products" or @class="connected-products"]//a/@href
+    regExp: (.+)
+    regExpReplace: https://brw.pl$1
+
+  - name: sold_out
+    xpath: //div[@class="product-sold-out"]/@class
+
+  - name: unavailable_in_shipping_warehouse
+    xpath: //div[@class="not-available-in-shipping-warehouse"]/@class
+
+  - name: stock_availability
+    xpath: //div[@class="temporarily-unavailable"]/@class
+    jq: if . == "temporarily-unavailable" then "no" else "yes" end
+    defaultValue: "yes"
+
+  - name: pack_size
+    xpath: (//div[contains(@class, "product-features-sidebar")]//div[@class="features-group"]//div[@class="item"][.//span[text()="Liczba elementów w zestawie"]]/span[@class="value"])[1]
+    defaultValue: "1"
+
+  - name: user_reviews
+    xpath: //meta[@itemprop="reviewCount"]/@content
+
+  - name: dimensions
+    defaultValue: "cm"
+
+  - name: weight_unit
+    defaultValue: "kg"
+
+  - name: materials
+    xpath: (//div[contains(@class, "product-features-sidebar")]//div[@class="features-group"]//strong[text()="Materiał"])[1]/../div[@class="list-group"]
+
+  - name: product_details
+    xpath: (//div[contains(@class, "product-features-sidebar")]//div[@class="content"])[1]
+    defaultValue: ""

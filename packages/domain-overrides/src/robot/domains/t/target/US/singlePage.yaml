@@ -1,0 +1,100 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_name
+    xpath: //h1
+  - name: product_description
+    xpath: //div[@data-test="item-details-description"]
+  - name: product_feature_bullets
+    xpath: //h4[contains(text(), 'Highlights')]/following-sibling::ul[1]//span | //h2[contains(text(), 'Fit & style')]/following-sibling::ul[1]//span
+  - name: product_features
+    xpath: //div[@data-test="item-details-specifications"]/div
+  - name: collected_product_features
+    defaultValue: '0'
+
+  - name: product_url
+    xpath: (//link[@rel='canonical']/@href)[1]
+    # jq: '.raw'
+  - name: product_price
+    xpath: //*[@data-test='product-price']
+    regExp: '[\d.,\s]+'
+  - name: product_currency
+    defaultValue: 'USD'
+  # - name: images_transform
+  #   defaultValue: '0'
+  # - name: product_images_ordered
+  #   xpath: //section[@aria-label='Image gallery']//img/@src
+  - name: product_images
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.item.enrichment.images | .primary_image_url, (.alternate_image_urls[])'
+  - name: product_images_variations
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.children'
+  - name: product_images_high_quality
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.item.enrichment.images | .primary_image_url + "?wid=2000", (.alternate_image_urls[] + "?wid=2000")'
+  - name: product_videos
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.item.enrichment.videos | map(.video_files[0].video_url) | .[]'
+  - name: product_model_number
+    defaultValue: '0'
+  - name: product_mpn
+    defaultValue: '0'
+  - name: product_sku
+    defaultValue: '0'
+  - name: product_brand
+    xpath: //a[@data-test='shopAllBrandLink']/span
+  - name: product_hierarchy_transform
+    defaultValue: '0'
+  - name: product_hierarchy
+    xpath: //div[contains(@data-test, 'readcrumb')]//span[@itemprop='name']
+
+  - name: UPC
+    xpath: //div[b[text()='UPC']]/text()
+  - name: GTIN
+    xpath: //div[b[text()='TCIN']]/text()
+  - name: EAN
+    xpath: 
+  - name: DCIN
+    xpath: //div[b[contains(text(), 'Item Number')]]/text()
+  - name: product_barcodes
+    defaultValue: '0'
+
+  - name: allergens
+    xpath: //h4[contains(text(),'Allergens')][not(name() = 'script')]/parent::div
+  - name: calories
+    xpath: //span[contains(text(),'Calories:')][not(name() = 'script')]/following-sibling::span
+  - name: disclaimer
+    xpath: //b[contains(text(),'Disclaimer')][not(name() = 'script')]/following-sibling::div
+  - name: ingredients
+    xpath: //*[contains(text(),'Ingredients:')][not(name() = 'script')]/following-sibling::div
+  - name: serving_size
+    xpath: //b[contains(text(),'Serving Size')][not(name() = 'script')]/parent::p
+  - name: product_grocery_attributes
+    defaultValue: '0'
+
+  - name: product_rating
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.ratings_and_reviews.statistics.rating.average'
+  - name: product_reviews_count
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.ratings_and_reviews.statistics.rating.count'
+  - name: product_questions_count
+    xpath: //*[@data-test='questionsCountLink']
+  - name: product_enhanced_content_available
+    xpath: boolean(//div[@id='ManufacturerNotes'][./*/*])
+  - name: product_purchasable
+    xpath: //button[contains(@id, "addToCartButtonOrTextIdFor") and not(@disabled) and not(ancestor::div[@data-test='soldOutBlock'])]
+    defaultValue: 'false'
+  - name: seller_name
+    xpath: //a[contains(@aria-label, 'partner details')]//div[contains(text(), 'shipped by')]/following-sibling::div
+  # seller_id might exist even if target is the seller, for some reason, so the logic is made in the transform based on the existence of seller_name
+  - name: seller_id
+    xpath: //*[@id='api-data']
+    jq: '.__PRELOADED_QUERIES__.queries | map(select(.[1].product))[0][1].product.item.product_vendors[0].id'
+
+
+  - name: product_offers
+    defaultValue: '0'

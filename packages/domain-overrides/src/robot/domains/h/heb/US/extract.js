@@ -1,0 +1,12 @@
+const { transformValues } = require('./transform.js');
+
+module.exports = {
+  implements: 'robots/san-antonio/extract',
+  parameterValues: {
+    country: 'US',
+    store: null,
+    transform: transformValues,
+    domain: 'heb',
+    schemaYAML: 'singlePage',
+  },
+};

@@ -1,0 +1,86 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@data-purpose, 'productName.heading')]
+  - name: listing_id
+    xpath: //div[contains(@data-purpose, 'product.productNumber')]
+    regExp: (\d+)
+  - name: offer_price
+    xpath: (//div[contains(@data-purpose, 'product.price.old')]//ancestor::div[contains(@data-purpose, 'productDetailPage.data.rightContainer')]//div[contains(@data-purpose, 'product.price.current')])[1]
+    regExp: (\d{1,3}(?:\s\d{3})*)
+  - name: original_price
+    xpath: (//*[contains(@data-purpose, 'product.price.old')]/s | //*[contains(@data-purpose, 'product.price.current')])[1]
+    regExp: (\d{1,3}(?:\s\d{3})*)
+  - name: platform_category
+    xpath: (//nav[contains(@aria-label, 'breadcrumbs')]//li)[2]
+  - name: product_variations
+    xpath: //fieldset//input/@value
+    regExp: '[^,]+'
+  - name: stock_availability
+    xpath: (//div[contains(@data-purpose, 'productDetailPage.data.rightContainer')]//button[contains(@data-purpose, 'checkout.addtocart')])[1]/@disabled
+    defaultValue: 'yes'
+  - name: main_image
+    xpath: (//img[contains(@data-purpose, 'imageSlider.stageImage')])[1]/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: (//img[contains(@data-purpose, 'imageSlider.stageImage')])[position() > 1]/@src
+  - name: description
+    xpath: //div[contains(@class, 'rah-static--height')]
+  - name: pack_size
+    xpath: //section//div[contains(@class, 'rah')]
+    defaultValue: '1'
+#  - name: user_reviews
+#    xpath: (//div[contains(@class, 'tf-based')])[1]
+#    regExp: '(\d+)'
+#  - name: average_rating
+#    xpath: //div[contains(@class, 'tf-score')]//div[contains(@class, 'tf-rating')]
+#  #  - name: dimensions
+#  #    xpath:
+#  #    defaultValue: 'in sub fieldss'
+
+
+
+  - name: dimensions_unit
+    defaultValue: 'cm'
+#  - name: dimensions
+#    xpath: //div[contains(text(), 'Méret')]//ancestor::li//ul
+#  - name: height
+#    xpath: (//li[contains(translate(text(), 'Magasság', 'magasság'), 'magasság kb.:')])[1]
+#    defaultValue: 'empty'
+#    regExp: \d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?
+#  - name: width
+#    xpath: (//li[contains(translate(text(), 'Szélesség', 'szélesség'), 'szélesség kb.:')])[1]
+#    regExp: \d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?
+#    defaultValue: 'empty'
+#  - name: length
+#    xpath: (//li[contains(translate(text(), 'Hosszúság', 'hosszúság'), 'hosszúság kb.:')])[1]
+#    regExp: \d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?
+#    defaultValue: 'empty'
+#  - name: depth
+#    xpath: (//li[contains(translate(text(), 'Mélység', 'mélység'), 'mélység kb.:')])[1]
+#    regExp: \d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?
+#    defaultValue: 'empty'
+
+  - name: height
+    xpath: //div[contains(text(), 'Méret')]//ancestor::li//ul
+  - name: width
+    xpath: //div[contains(text(), 'Méret')]//ancestor::li//ul
+  - name: length
+    xpath: //div[contains(text(), 'Méret')]//ancestor::li//ul
+  - name: depth
+    xpath: //div[contains(text(), 'Méret')]//ancestor::li//ul
+
+
+  - name: diameter
+    xpath: (//li[contains(translate(text(), 'ÁTMÉRŐ', 'átmérő'), 'átmérő')])[1]
+    regExp: \d{1,3}(?:[.,]\d{3})*(?:[.,]\d+)?
+  - name: materials
+    xpath: (//li[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), translate('anyag:', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'))])[1]
+  - name: colour
+    xpath: (//li[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÖŐÚÜŰ', 'abcdefghijklmnopqrstuvwxyzáéíóöőúüű'), 'szín:')])[1]
+  #    regExp: 'Szín: (.+)'
+  - name: product_details
+    xpath: //section[contains(@data-purpose, 'modal.body')]

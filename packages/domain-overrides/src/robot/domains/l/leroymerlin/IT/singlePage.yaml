@@ -1,0 +1,141 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+ 
+  - name: product_title
+    xpath: //*[@id="product-name"]
+  
+  - name: listing_id
+    xpath: //link[@rel="canonical"]/@href
+    regExp: -(\d+)\.html
+    regExpReplace: $1
+  
+  - name: original_price
+    xpath: //div[@data-cerberus="ELEM_productadditionalinfo"]//div[@id="product-price"]//*[@data-cerberus="CROSSED_PRICE"] | //div[@data-cerberus="ELEM_productadditionalinfo"]//div[@id="product-price"][not(.//*[@data-cerberus="CROSSED_PRICE"])]//*[@data-cerberus="ELEM_PRIX"]
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: offer_price
+    xpath: //div[@data-cerberus="ELEM_productadditionalinfo"]//div[@id="product-price"][.//*[@data-cerberus="CROSSED_PRICE"]]//*[@data-cerberus="ELEM_PRIX"]
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+  
+  - name: platform_category
+    xpath: //li[contains(@class, "mc-breadcrumb__item")][contains(@class, "is-active")]
+  
+  - name: product_variations
+    xpath: //li[contains(@class, "product-variants__item")][not(contains(@class, "current"))]/a/@href
+    regExp: (.+)
+    regExpReplace: https://leroymerlin.it$1
+
+  - name: stock_availability
+    xpath: boolean(//button[@data-cerberus="BTN_addtocart"])
+
+  - name: main_image
+    xpath: //*[@data-index="0"]//img[contains(@class, "m-carousel-main__image")]/@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //section[contains(@class, "kl-swiper__slider-container m-carousel-main")]//li[contains(@class,"kl-swiper__slider-item")]//img/@src
+
+
+  - name: description
+    xpath: //div[contains(@class, "o-product-detail-informations__description")]
+ 
+  - name: pack_size
+    xpath: //th[contains(text(), "Numero di") or contains(text(), "Numero pezzi")][not(contains(text(), "vasche"))]/following-sibling::td
+  
+  - name: user_reviews
+    xpath: //*[contains(@class, "o-reviews__label")]
+    regExp: (\d+)
+    regExpReplace: $1
+
+  
+  - name: average_rating
+    xpath: //*[contains(@class, "m-review__rating-average-note")]/span
+
+
+  # - name: dimensions_raw
+  #   xpath: //div[contains(@class, "o-product-detail-informations__description")]
+  #   regExp: Dimensioni[^:]*:\s*([\d.,]+)(\s*x\s*([\d,.]+))?(\s*x\s*([\d,.]+))?
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+    defaultValue: empty
+    xpath: //th[contains(text(), "Altezza")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: height_backup
+    xpath: //div[contains(@class, "o-product-detail-informations__description")]    
+    regExp: Altezza[^\d]*\s(\d+([,.]\d+)?)
+    regExpReplace: $1
+    
+    
+  - name: length
+    defaultValue: empty
+    xpath: //th[contains(text(), "Lunghezza")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: length_backup
+    xpath: //div[contains(@class, "o-product-detail-informations__description")]    
+    regExp: Lunghezza[^\d]*\s(\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: depth  
+    xpath: //th[contains(text(), "Profondità")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: depth_backup
+    xpath: //div[contains(@class, "o-product-detail-informations__description")]    
+    regExp: Profondità[^\d]*\s(\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  
+  - name: width
+    defaultValue: empty
+    xpath: //th[contains(text(), "Larghezza")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: width_backup
+    xpath: //div[contains(@class, "o-product-detail-informations__description")]    
+    regExp: Larghezza[^\d]*\s(\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: diameter
+    xpath: //th[contains(text(), "Diametro")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  - name: volume
+    xpath: //th[contains(text(), "Formato")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+
+  
+  - name: weight_raw
+    xpath: //th[contains(text(), "Peso netto")]/following-sibling::td
+    regExp: (\d+([,.]\d+)?)
+    regExpReplace: $1
+  
+
+
+  - name: materials
+    xpath: //th[contains(text(), "Materiale")]/following-sibling::td
+
+  - name: colour
+    xpath: //th[contains(text(), "Colore")]/following-sibling::td
+
+  - name: product_details
+    xpath: //div[contains(@class, "o-product-detail-informations__accordion-content")]/table
+
+  - name: currency
+    xpath: EUR
+

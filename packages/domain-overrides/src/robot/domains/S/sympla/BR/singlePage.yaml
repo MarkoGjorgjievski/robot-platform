@@ -1,0 +1,25 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id="carouselWrapper"]/div
+fields:
+  - name: eventName
+    xpath: ancestor::html//script[contains(@class, "structured-event-data")]
+    jq: '.name'
+  - name: eventDateTime
+    xpath: //script[contains(@class, "structured-event-data")]
+    jq: '.startDate'
+  - name: venueName
+    xpath: ancestor::html//script[contains(@class, "structured-event-data")]
+    jq: '.location.name'
+  - name: venueCity
+    xpath: ancestor::html//script[contains(@class, "structured-event-data")]
+    jq: '.location.address.addressLocality'
+  - name: venueAddress
+    xpath: ancestor::html//script[contains(@class, "structured-event-data")]
+    jq: '.location.address.streetAddress'
+  # - name: dateTime
+  #   xpath: //div[contains(@class, "time")]
+  # - name: date
+  #   xpath: //text()
+    

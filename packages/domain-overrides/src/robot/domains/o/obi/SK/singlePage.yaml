@@ -1,0 +1,89 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1
+
+  - name: listing_id
+    xpath: //span[contains(@class, 'article-number')]
+    regExp: \d+
+
+  # - name: offer_price
+
+  - name: original_price
+    xpath: //span[@data-ui-name='ads.price.strong']
+
+  - name: platform_category
+    xpath: //li[contains(@class, 'breadcrumb__dropdown__wrapper')]//a[contains(@class, 'active')]
+
+  - name: product_variations
+    xpath: //ul[contains(@class, "dropdown-menu")]/li[not(contains(@class,'disabled'))]/a/@href
+
+  - name: stock_availability
+    xpath: //a[contains(@class, 'js-add-to-cart')]
+    regExp: Do nákupného košíka
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: main_image
+    xpath: //div[@data-slick-index="0"]//div[contains(@class, "pinch-zoom-container")]//img//@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //div[@data-slick-index!="0"]//div[contains(@class, "pinch-zoom-container")]//img//@src
+
+  - name: description
+    xpath: //p[@data-ui-name="ads.description-text.product-details.p"]
+
+  # - name: pack_size
+  # xpath:
+
+  - name: user_reviews
+    xpath: //div[contains(@class,'bv_numReviews_text')]
+    regExp: \d+
+
+  - name: average_rating
+    xpath: //div[contains(@class, 'bv_avgRating_component_container')]
+
+  - name: dimensions_unit
+    xpath: //tr//td[contains(@data-label, "Výška")]
+    regExp: \[a-z]+
+
+  - name: weight_unit
+    xpath: //tr//td[contains(@data-label, "Hmotnosť")]
+    regExp: ([a-z]+)
+    regExpReplace: $1
+
+  - name: weight_raw
+    xpath: //tr//td[contains(@data-label, "Hmotnosť")]
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: height
+    xpath: //tr//td[contains(@data-label, "Výška")]
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: width
+    xpath: //tr//td[contains(@data-label, "Šírka")]
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: length
+    xpath: //tr//td[contains(@data-label, "Dĺžka")]
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: depth
+    xpath: //tr//td[contains(@data-label, "Hĺbka")]
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: diameter
+    xpath: //ul[contains(@class,'overview__detail-list')]//li[contains(text(),'Priemer')]//text()
+    regExp: \d+\.*,*\d+
+
+  - name: materials
+    xpath: //tr//td[contains(@data-label, "Materiál")] | //tr//td[contains(@data-label, "materiál")]
+
+  - name: colour
+    xpath: //tr//td[contains(@data-label, "Farba")]//text() | //div[contains(@class,'selectboxes')]//p[.//strong[contains(text(),'Farba')]]//following-sibling::div[1]//span[contains(@class,'button__txt')]//text() | //ul[contains(@class,'overview__detail-list')]//li[contains(text(),'Farba')]//text()
+  - name: product_details
+    xpath: //div[contains(@class, 'overview__details')]

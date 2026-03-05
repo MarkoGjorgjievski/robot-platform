@@ -1,0 +1,48 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: availability
+    xpath: //p[contains(@class,'StockNotifier')]
+
+  - name: code
+    xpath: //*[@id='__input']
+    regExp: (?<=productURL":"https:\/\/www\.wrightdental\.co\.uk\/p\/)[^?]+
+
+  - name: description
+    xpath: //h1[contains(text(), 'Product Overview')]/parent::header/following-sibling::div
+
+  - name: image
+    xpath: //img[contains(@class, 'MainImage')]/@src
+    regExp: (.+)
+    regExpReplace: https://www.wrightdental.co.uk$1
+
+  - name: MPN
+    xpath: //p[contains(text(), 'Manufacturer Code:')]/following-sibling::p | //p[contains(text(), 'Manufacturer code')]/following-sibling::p
+
+  - name: MPNBackup
+    xpath: //p[contains(text(), 'Manufacturer Code:')]/following-sibling::p | //p[contains(text(), 'Manufacturer code')]/following-sibling::p
+
+  - name: name
+    xpath: //h1[contains(@class, 'ProductTitle')]
+
+  - name: price
+    xpath: //span[contains(@class, 'ProductPrice')]/text()
+    regExp: \d+(\.\d+)?
+
+  - name: sourceURL
+    xpath: //*[@id='__input']
+    regExp: (?<=productURL":")[^"]+
+
+  - name: specialPrice
+    xpath: 
+
+  - name: uom
+    xpath: //p[contains(text(), 'Pack contents')]/following-sibling::p | //span[contains(text(),'Pack Size')]/following-sibling::span
+    regExp: \d+
+
+  - name: uomBackup
+    xpath: //h1[contains(text(), 'Product Overview')]/parent::header/following-sibling::div
+    regExp: '[pP]ack[s]? of (\d+)'
+    regExpReplace: $1

@@ -1,0 +1,31 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [
+      // '<font|stylesheet>',
+    ],
+    setBlockAds: false,
+    setBypassCSP: true,
+    setLoadAllResources: true,
+    setLoadImages: true,
+    setCssEnabled: true,
+    applyIgnoreVBAndCookies: null,
+    rawOptions: { checkBlocked: true },
+    optTags: null,
+    timeout: 60000,
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+    captchaSelectors: {},
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'PL',
+    domain: 'black-red-white',
+    schemaYAML: 'multiPages',
+  },
+};

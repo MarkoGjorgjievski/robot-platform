@@ -1,0 +1,39 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1
+  - name: listing_id
+    xpath: //tr[th[contains(text(), "Dollarama Number")]]/td
+  - name: original_price
+    xpath: //div[contains(@class, "infos")]/div[contains(@class, "price-")]/div[contains(@class, "price--current")]
+  - name: platform_category
+    xpath: //div[@class='dol-breadcrumb-list']/text()[last()]
+  - name: stock_availability
+    defaultValue: '1'
+  - name: main_image
+    xpath: //div[@class="image-displayer--selector"]/div[contains(@class, "selected")]/img/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[@class="image-displayer--selector"]/div[not(contains(@class, "selected"))]/img/@src
+  - name: description
+    xpath: //ul[contains(@class, "infos")]/li[1]/text()
+  - name: pack_size
+    xpath: //div[contains(@class, "detail-page--infos--price--details--case")]/text()
+  - name: width
+    xpath: //tr[th[contains(text(), "Dimensions")]]/td
+  - name: length
+    xpath: //tr[th[contains(text(), "Dimensions")]]/td
+  - name: height
+    xpath: //tr[th[contains(text(), "Dimensions")]]/td
+  - name: dimensions_unit
+    defaultValue: 'inches'
+  - name: weight_raw
+    xpath: //tr[th[contains(text(), "Weight")]]/td
+  - name: weight_unit
+    defaultValue: 'lbs'
+  - name: product_details
+    xpath: //tr[th[contains(text(), "Brand")]]/td
+  

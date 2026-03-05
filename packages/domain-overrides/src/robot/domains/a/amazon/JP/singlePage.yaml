@@ -1,0 +1,60 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: name
+    xpath: (//span[contains(@class, "list-item")]//a[contains(@class, "product-link")]//span[contains(@class, "full")])[1]
+
+  - name: productId
+    xpath: //div[contains(@data-name, "Items")]//div[@data-asin]//@data-asin
+
+  - name: priceOverride
+    xpath: //div[contains(@class, "price-to-pay")]//span[contains(@class, "product-price")]
+    regExp: ([\d,.]+)
+
+  - name: resellerId
+    xpath: //a[contains(@aria-label, "Ouvre une nouvelle page")]/@href
+    regExp: (?<=seller=)(.+)(?=&is)
+    regExpReplace: $1
+
+  - name: resellerName
+    xpath: //span[contains(., "Satıcı")]//a//text()
+
+  - name: resellerLink
+    xpath: //span[contains(., "Satıcı")]//a//@href
+    regExp: (.+)
+    regExpReplace: https://www.amazon.com.tr$1
+    defaultValue: 'https://www.amazon.com.tr'
+
+  - name: test
+    xpath: //span[contains(@class, "product-price")]
+
+  - name: test2
+    xpath: //div[contains(@class, "price-to-pay")]
+
+  - name: test3
+    xpath: (//span[contains(text(), "TL")])[1]
+
+  # - name: resellerLimit #What is it?
+  #   xpath:
+
+  - name: domain
+    defaultValue: 'https://www.amazon.com.tr'
+
+  - name: firstDepthURL
+    xpath: //input[@id="add-to-cart-button"]
+
+  # - name: productStock
+  #   xpath: //div[contains(@class, "sc-grid-content-tail")]//span[contains(@class, "sc-product-scarcity")]
+  #   regExp: (\d+)
+
+  - name: productStock
+    xpath: (//html//*[@import="element"]/@quantity | (//html//*[@import="element"]//input[contains(@name, "quantity") and not(contains(@type, "hidden"))])[1]/@value)[1] | (//input[contains(@name, "quantity") and not(contains(@type, "hidden"))]/@value)[1]
+
+  # - name: 'productStock'
+  #   xpath: //*[@id='requestData']
+    # jq: '.nav-cart'
+
+  - name: priceCurrencyOverride
+    defaultValue: 'TRY'

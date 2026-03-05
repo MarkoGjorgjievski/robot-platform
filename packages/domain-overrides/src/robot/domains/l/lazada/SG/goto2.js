@@ -1,0 +1,33 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [
+      '<font|stylesheet>',
+    ],
+    setBlockAds: false,
+    setBypassCSP: false,
+    setLoadAllResources: true,
+    setLoadImages: true,
+    setCssEnabled: true,
+    applyIgnoreVBAndCookies: null,
+    firstRequestTimeout: 60000,
+    optTags: null,
+    timeout: 60000,
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: null,
+    captchaSelectors: { RECAPTCHA: 'div#captcha' },
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'SG',
+    gotoRetries: null,
+    rawOptions: {},
+    domain: 'lazada',
+    schemaYAML: 'singlePage',
+  },
+};

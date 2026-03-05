@@ -1,0 +1,24 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //article[contains(@class, "mainWrapper")]/article/article
+fields:
+  - name: category
+    xpath: ancestor::html//article[contains(@class, "mainWrapper")]/h1/text()
+  - name: price
+    xpath: .//div[contains(@class, "item-price")]
+    regExp: \d+.\d+
+  - name: currency
+    xpath: .//div[contains(@class, "item-price")]
+    regExp: (.)\d+.\d+
+    regExpReplace: $1
+  - name: product_code
+    xpath: .//div[contains(@class, "item-item")]
+  - name: product_name
+    xpath: .//div[contains(@class, "item-desc")]
+  - name: product_url
+    xpath: concat("https://shop.montepkg.com", ./form/@action)
+  - name: unit
+    xpath: .//div[contains(@class, "item-price")]
+    regExp: \$\d+(\.\d{2})?\s+(.*)
+    regExpReplace: $2

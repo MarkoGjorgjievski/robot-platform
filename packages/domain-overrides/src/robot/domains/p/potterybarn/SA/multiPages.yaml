@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "//div[contains(@class, 'c-products__item') and contains(@class, 'views-row')][not(@__extracted)]"
+fields:
+  - name: productURL
+    xpath: //*[contains(@class, 'field--name-name')]/a/@href
+    regExp: (.+)
+    regExpReplace: https://www.potterybarn.com.sa$1
+  

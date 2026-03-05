@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class, 's-result-item')]//*[contains(@class, 'sg-col-inner')]//div[contains(@class, 's-widget-container')]
+fields:
+  - name: productURL
+    xpath: //span[contains(@data-component-type, 's-product-image')]/a/@href
+    regExp: '(^(?!https).*)'
+    regExpReplace: https://www.amazon.fr$1

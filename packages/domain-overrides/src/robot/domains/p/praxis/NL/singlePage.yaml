@@ -1,0 +1,52 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h2[@itemprop="name"]/text()
+  - name: listing_id
+    xpath: //script[@type="application/ld+json"][contains(text(), "availability")]
+    jq: .sku
+  - name: original_price
+    xpath: //div[contains(@class, "mxd-product-detail-layout-info")]//div[not(ancestor::div[contains(@class, "basket-container")])]//div[@data-react-id="price"]//del | //div[contains(@class, "mxd-product-detail-layout-info")]//div[not(ancestor-or-self::div[@id='basket-container'])]//ins[not(preceding-sibling::del)]
+  - name: offer_price
+    xpath: //div[contains(@class, "mxd-product-detail-layout-info")]//div[not(ancestor-or-self::div[@id='basket-container'])]//ins[preceding-sibling::del]
+  - name: platform_category
+    xpath: //ul/li[@itemprop="itemListElement"][last()]/a/span/text()
+  - name: stock_availability
+    xpath: //script[@type="application/ld+json"][contains(text(), "availability")]
+    defaultValue: '1'
+    jq: .offers.availability
+  - name: main_image
+    xpath: //script[@type="application/ld+json"][contains(text(), "availability")]
+    downloadContent: 'text'
+    jq: .image
+  - name: alternative_images
+    xpath: //div[contains(@class, "thumbsWrapper")]//img/@src
+  - name: description
+    xpath: //div[contains(@class, "mxd-description-container")]
+  - name: user_reviews
+    xpath: //script[@type="application/ld+json"][contains(text(), "reviewCount")]
+    jq: .aggregateRating.reviewCount
+  - name: average_rating
+    xpath: //script[@type="application/ld+json"][contains(text(), "reviewCount")]
+    jq: .aggregateRating.ratingValue
+  - name: colour
+    xpath: //div[h2[(contains(text(), "Specificaties"))]]//ul//div[dt[text()="Kleur"]]/dd/text()
+  - name: product_details
+    xpath: //script[@type="application/ld+json"][contains(text(), "availability")]
+    jq: .gtin13
+  - name: height
+    xpath: //div[h2[(contains(text(), "Specificaties"))]]//ul//div[dt[text()="Hoogte"]]/dd/text()
+  - name: width
+    xpath: //div[h2[(contains(text(), "Specificaties"))]]//ul//div[dt[contains(text(), "Breedte")]]
+  - name: materials
+    xpath: //div[h2[(contains(text(), "Specificaties"))]]//ul//div[dt[contains(text(), "Materiaal")]]
+  - name: depth
+    xpath: //div[h2[(contains(text(), "Specificaties"))]]//ul//div[dt[contains(text(), "Diepte")]]/dd/text()
+  - name: pack_size
+    xpath: //h2[@itemprop="name"]/text()
+  - name: diameter
+    xpath: //script[@type="application/ld+json"][contains(text(), "availability")] 
+    jq: .description

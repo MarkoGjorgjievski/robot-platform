@@ -1,0 +1,8 @@
+singleRecord: false 
+regionsSelector: null
+recordXPath: null
+fields:
+  - name: firstDepthURL
+    xpath: //ul[contains(@data-csa-c-func-deps,"aui-da-a-button-group")]//li[contains(@class,'swatch')]/@data-defaultasin | //th[contains(text(),'ASIN')]/following-sibling::td
+    regExp: (.+)
+    regExpReplace: https://www.amazon.co.uk/dp/$1

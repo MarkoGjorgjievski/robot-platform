@@ -1,0 +1,18 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:    
+  - name: variant
+    xpath: //script[@type="application/ld+json"]
+    jq: .hasVariant[].productID
+  - name: country_lowercase
+    xpath: //link[@rel="canonical"]/@href
+    regExp: bol\.com\/(\w+)\/
+    regExpReplace: $1
+  - name: country
+    xpath: //link[@rel="canonical"]/@href
+    regExp: bol\.com\/(\w+)\/
+    regExpReplace: $1
+      
+    

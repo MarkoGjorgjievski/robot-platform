@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@class="tmb_tn_ev"]//a
+fields:
+  - name: eventUniqueId
+    xpath: //@href
+    regExp: ([^/]+)$
+    regExpReplace : $1
+  - name: eventURL
+    xpath: //@href
+    regExp: ^(.*)$
+    regExpReplace: https://timable.com$1

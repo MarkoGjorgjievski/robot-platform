@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, "Grid")]//ul/li[contains(@class, "Item")][not(.//*[@__extracted])]
+fields:
+  - name: productURL
+    xpath: //a/@href
+    regExp: (.+)
+    regExpReplace: https://www.mio.se$1

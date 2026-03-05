@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'TrackedProductCardWrapper-extendedInView')]
+fields:
+  - name: productURL
+    xpath: //*[@class='TrackedProductCardWrapper-inView']//a/@href

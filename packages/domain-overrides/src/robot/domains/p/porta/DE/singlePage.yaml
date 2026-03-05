@@ -1,0 +1,124 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: '//h1[contains(@class, "productTitle")]'
+
+
+  - name: 'listing_id'
+    xpath: '//div[@id="product-summary"]//p[@class="screen-reader-only"]//text()[last()]'
+    regExp: '(\d+(\.\d+)?)'
+
+
+  - name: 'offer_price'
+    xpath: (//*[@data-testid="crossed-price"] | //*[@data-testid="price"])[2]
+    regExp: '\d+(?:),\d+'
+
+
+  - name: 'original_price'
+    xpath: (//*[@data-testid="crossed-price"] | //*[@data-testid="price"])[1]
+    regExp: '\d+(?:),\d+'
+
+
+  - name: 'platform_category'
+    xpath: //*[contains(@class, 'CategoryBreadcrumbs_breadcrumbs')]/child::*[last()]//span/a
+
+#   - name: 'product_variations'
+#   - name: 'product_variations_1'
+#     xpath: '//div[contains(@class, "SelectOption__Variants")]//a/@href'
+#     regExp: '(.+)'
+#     regExpReplace: 'https://porta.de$1'
+
+
+#   - name: 'product_variations_2'
+#     xpath: '//div[contains(@class, "ColorPicker")]/div[contains(@class, "ColorLink")]//a/@href'
+#     regExp: '(.+)'
+#     regExpReplace: 'https://porta.de$1'
+# #    | //div[contains(@class, "ColorPicker")]/div[contains(@class, "ColorLink")]//a/@href
+# #  //div[contains(@class, "SelectOption__Variants")]//a/@href
+
+
+  - name: 'stock_availability'
+    xpath: 'not(//button[contains(@class, "BorderButtonOrLink")]//@disabled)'
+    regExp: '(.+)'
+    regExpReplace: 'false'
+    defaultValue: 'true'
+
+
+  - name: 'main_image'
+    xpath: '(//div[contains(@class, "swiper-slide-active")])[1]//img/@src'
+    downloadContent: 'text'
+
+
+  - name: 'alternative_images'
+    xpath: //*[@data-testid="thumbnail-image-buttons"]/img/@src
+
+
+  - name: 'description'
+    xpath: //div[@data-testid="product-description-text"]
+
+
+  - name: 'pack_size'
+    defaultValue: '1'
+    # xpath: '(//div[contains(@class, "ProductDetailsProductTags")]/div)[last() and not((contains(text(), "Rabatt")))]'
+    # regExp: '([\d]+)'
+
+
+  # - name: 'dimensions_unit'
+  #   xpath: '//button/div[contains(text(), "Maße & Ausstattung")]/parent::button/following-sibling::div//span[contains(text(), "Höhe") or contains(text(), "höhe")][1]'
+  #   regExp: '(\d+(\.\d+)?)\s*(cm|m|mm)'
+  #   regExpReplace: '$3'
+
+
+  - name: 'height'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Höhe:")]
+    regExp: '(\d+(\.\d+)?)'
+
+
+  - name: 'diameter'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Durchmesser:")]
+    regExp: '(\d+(\.\d+)?)'
+
+
+  - name: 'width'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Breite:")]
+    regExp: '(\d+(\.\d+)?)'
+
+
+  - name: 'length'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Länge:")]
+    regExp: '(\d+(\.\d+)?)'
+
+
+  - name: 'depth'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Tiefe")]
+    regExp: '(\d+(\.\d+)?)'
+
+
+  # - name: 'weight_unit'
+  #   xpath: '//span[contains(text(), "Gewicht")]'
+  #   regExp: '(\d+(?:,\d*)?)(?:\.(\d+))?\s*(\D+)'
+  #   regExpReplace: '$3'
+
+
+  - name: 'weight_raw'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Gewicht")]
+    regExp: '(\d+(\.\d+)?)'
+
+
+  - name: 'materials'
+    xpath: //*[contains(@class, 'ProductDetails')]//*[contains(text(), "Material:")]
+
+
+  - name: 'colors'
+    xpath: '//span[not(ancestor::u)][contains(text(), "Hauptfarbe") or contains(text(), "Farbe") or contains(text(), "Farbton")]'
+
+    
+  - name: 'product_details'
+    xpath: //div[@data-testId="product-details"]//div[contains(@data-testid, "product-facts-accordion-item")]
+
+
+
+

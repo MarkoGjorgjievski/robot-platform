@@ -1,0 +1,23 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'İT',
+    loadedSelector: 'div.content-container, .detail-container',
+    waitForSelectorToLoad: 'div.detail-images-container, .detail-container',
+    noResultsXPath: '//h1[contains(text(),"404")] | //div[contains(@class, "product-no-visible-container")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: ['button.onetrust-close-btn-handler', 'itx-button[callback="dialogCtrl.resolve()"] button', 'div.button-mas-info div:first-child', '[ng-if="itxProductAddToCartSelectorCtrl.showOtherSizesToggle"]', '.mas-info-link'],
+    loadingTimeout: 15000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'multiPages',
+    mergeType: 'APPEND',
+    maxScrolls: 50,
+    arrayOfInputFieldNamesToAdd: null,
+    enableAutoTable: true,
+    domain: 'zarahome',
+  },
+};

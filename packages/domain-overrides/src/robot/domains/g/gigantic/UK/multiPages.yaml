@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: firstDepthURL
+    xpath: //div[contains(@class, "g-homepage-item")]//a/@href
+  - name: eventURL
+    xpath: //div[contains(@class, "g-event-list-item") and .//*[contains(text(), "Book Tickets") or contains(text(), "Join waiting list")]]//div[@class="g-event-list-details"]//a/@href

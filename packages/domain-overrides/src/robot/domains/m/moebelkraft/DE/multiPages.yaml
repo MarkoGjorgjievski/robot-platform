@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@data-testid='highlights']/../a
+fields:
+  - name: productURL
+    xpath: "@href"
+    regExp: (.+)
+    regExpReplace: https://www.moebel-kraft.de$1

@@ -1,0 +1,17 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //div[contains(@data-component-type, 'search-result') and not(ancestor::div[contains(@cel_widget_id, 'MAIN-SEARCH_RESULTS')])]//h2/a/@href
+    regExp: (.+)
+    regExpReplace: https://www.amazon.co.uk$1
+
+  - name: productReviewsURL
+    xpath: //div[contains(@data-component-type, 'search-result') and not(ancestor::div[contains(@cel_widget_id, 'MAIN-SEARCH_RESULTS')])]/@data-asin
+    regExp: (.+)
+    regExpReplace: https://www.amazon.co.uk/product-reviews/$1
+
+
+

@@ -1,0 +1,19 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "//div[contains(@class, 'mxd-product-area')]/div[not(contains(@class, 'banner'))]"
+fields:
+  - name: productURL
+    xpath: //a/@href
+    regExp: (.+)
+    regExpReplace: https://www.praxis.nl$1
+
+  - name: productReviewsURL
+    xpath: //meta/@data-product-id
+    regExp: (.+)
+    regExpReplace: https://api.bazaarvoice.com/data/reviews.json?resource=reviews&action=REVIEWS_N_STATS&filter=productid%3Aeq%3A$1&filteredstats=reviews&Stats=Reviews&limit=8&offset=0&limit_comments=3&sort=relevancy%3Aa1&passkey=caBgNK4T1xkB0M3TE5vmAeRUaFiA6FwP2LwOm9flYLuME&apiversion=5.5&displaycode=15784-nl_nl
+
+
+
+  
+

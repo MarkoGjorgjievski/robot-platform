@@ -1,0 +1,50 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'br',
+    // loadedSelector: '.event-page, #menu',
+    loadedXpath: '//*[contains(@class,"event-page")][.//a[@id="portal-event-btn-buy"][not(contains(text(), "Cancelado"))]] | //div[@class="seatsio-loading-screen light-bg hide"] | //div[@id="section-buy"]', // //div[@id="section-buy"]//*[contains(text(), "Setores")] |
+    waitForSelectorToLoad: null,
+    noResultsXPath: '//h1[contains(text(),"404")] | //a[@id="portal-event-btn-buy"][contains(text(), "Cancelado")] | //div[@class="event-details"]//p/strong[text()="R$ 0,00"] ',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: [],
+    loadingTimeout: 5000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    enableAutoTable: true,
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      infiniteScroll: {
+        maxScrolls: null,
+        stopXPath: null,
+        waitTime: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'uhuu',
+  },
+};

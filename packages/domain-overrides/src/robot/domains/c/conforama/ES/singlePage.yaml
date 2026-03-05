@@ -1,0 +1,113 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+ 
+  - name: product_title
+    xpath: //h1[contains(@class, "name")]
+  
+  - name: listing_id
+    xpath: //div[contains(@class,  "ref")]/text()
+  
+  - name: list_price
+    xpath: //div[contains(@class, "nosto_product")]/span[@class="list_price"]
+    regExp: ([\d.]+)
+    regExpReplace: $1
+
+  - name: price
+    xpath: //div[contains(@class, "nosto_product")]/span[@class="price"]
+    regExp: ([\d.]+)
+    regExpReplace: $1
+
+  - name: original_price
+    xpath: //div[contains(@class, "price-before")]/span
+
+  - name: offer_price
+    xpath: //div[contains(@class, "price-after")]
+  
+  - name: platform_category
+    xpath: //section[contains(@class, "breadcrumbs")]/a[last()]
+  
+  - name: product_variations
+    xpath: //figure/@data-itemreference
+
+  - name: stock_availability
+    defaultValue: 'no'
+    xpath: //div[contains(@class, "ref")]//span[contains(@class, "avail")]/@data-avail
+    regExp: >-
+      ^available
+    regExpReplace: 'yes'
+
+
+  - name: main_image
+    xpath: //div[contains(@class, "image")]//a[1]/picture/img/@src
+    downloadContent: 'text'
+  
+  - name: alternative_images
+    xpath: //div[contains(@class, "image")]//picture/img/@src
+  
+  - name: description
+    xpath: //div[contains(@class, "info")]/div[contains(@class, "show")]
+ 
+  - name: pack_size
+    xpath: //dl[contains(@class, "charac")]/dt[contains(text(), "Número de piezas")][1]/following-sibling::dd[1]
+  
+  # NOT FOUND
+  # - name: user_reviews
+  #   defaultValue: '0'
+  
+  # - name: average_rating
+  #   defaultValue: '0'
+
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+    xpath: //dl[contains(@class, "dimen")]/dt[contains(text(), "Alto")][1]/following-sibling::dd[1]
+    regExp: (\d+),?(\d*)
+    regExpReplace: $1.$20
+  
+  - name: width
+    xpath: //dl[contains(@class, "dimen")]/dt[contains(text(), "Ancho")][1]/following-sibling::dd[1]
+    regExp: (\d+),?(\d*)
+    regExpReplace: $1.$20
+
+  - name: length
+    xpath: //dl[contains(@class, "dimen")]/dt[contains(text(), "Fondo")][1]/following-sibling::dd[1]
+    regExp: (\d+),?(\d*)
+    regExpReplace: $1.$20
+
+  # - name: weight
+  #   defaultValue: "null"
+
+  - name: weight_unit
+    defaultValue: "kg"
+
+  - name: weight_raw
+    xpath: //dl[contains(@class, "dimen")]/dt[contains(text(), "Peso")][1]/following-sibling::dd[1]
+    regExp: (\d+),?(\d*)
+    regExpReplace: $1.$20
+
+  - name: materials
+    xpath: //dl[contains(@class, "charac")]/dt[contains(text(), "Material")][1]/following-sibling::dd[1] | //dl[contains(@class, "charac")]/dt[contains(text(), "Composición")][1]/following-sibling::dd[1]
+    defaultValue: 'null'
+
+  - name: materials_backup
+    xpath:  //div[contains(@class, "info")]/div[contains(@class, "show")]
+    # regExp: 'Material(\s.*)?:\s*(.+?)(?:-|\.|\n|:|Medidas)'
+    regExp: '(Material([^:\d.]*)?:\s*(.(?!Medidas|Diseño|Color|-|\.|\n|:))+.)'
+    regExpReplace: $1
+
+  - name: colour
+    xpath: //div[contains(@class, "desc") and contains(text(), "Color")]/@data-dimension | //div[ @data-color ]/@data-color
+
+  - name: product_details
+    xpath: //dl[contains(@class, "charac")] | //dl[contains(@class, "dimen")] | //dl[contains(@class, "pack")] | //a[contains(@class, "tech")]/@href | //a[contains(@class, "assembly")]/@href
+
+  - name: currency
+    # xpath: 
+  
+  - name: listing_url
+    xpath: //meta[contains(@property, "og:url")]/@content

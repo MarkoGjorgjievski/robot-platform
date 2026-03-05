@@ -1,0 +1,40 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: chkDte
+    xpath: //tr[th[a[contains(text(), 'Check Date')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Check Date')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: chkNo
+    xpath: //tr[th[a[contains(text(), 'Check Number')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Check Number')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: invDte
+    xpath: //tr[th[a[contains(text(), 'Invoice/ DM Date')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Invoice/ DM Date')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: invNo
+    xpath: "//tr[th[a[contains(text(), 'Invoice/ DM #')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Invoice/ DM #')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]"
+
+  - name: dueDte
+    xpath: //tr[th[a[contains(text(), 'Estimated Due Date')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Estimated Due Date')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: poNo
+    xpath: //tr[th[a[contains(text(), 'Purchase Order')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Purchase Order')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: grossAmt
+    xpath: //tr[th[a[contains(text(), 'Invoice/ DM Amount')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Invoice/ DM Amount')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: invStatus
+    xpath: //tr[th[a[contains(text(), 'Status')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Status')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]
+
+  - name: srchStatus
+    xpath: "//tr[th[a[contains(text(), 'Invoice/ DM #')]]]/following-sibling::tr/td[position()=count(//th[a[contains(text(), 'Invoice/ DM #')]]/preceding-sibling::th)+1][not(contains(text(),'{{'))]"
+    regExp: (.+)
+    regExpReplace: 'Invoice Found'
+    defaultValue: 'Invoice Not Found'
+
+  - name: notFoundSrchStatus
+    xpath: //div[@id='notFound']
+
+  - name: dummyField
+    xpath: //h1

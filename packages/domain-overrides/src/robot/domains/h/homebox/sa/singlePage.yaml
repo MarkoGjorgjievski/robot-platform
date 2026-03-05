@@ -1,0 +1,110 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    jq: '.name'
+
+  - name: listing_id
+    xpath: //input[@name="baseProduct"]//@value
+
+  - name: offer_price
+    xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    jq: '.offers.price'
+
+  - name: original_price
+    xpath: //div[@class="product-price"]//del[@id="products-details-price-old-01"]
+    regExp: (\d+.\d{1,2})|(\d+)
+
+  - name: platform_category
+    xpath: //ol[@id="breadcrumb"]//li[last()]//text()
+
+  - name: product_variations
+    xpath: //div[contains(@class, "desktop-ext-size")]//li[contains(@class, "list")][not(contains(@class, "selected"))]/@value 
+    regExp: '\/(homebox|p)\/(\d+)'
+    regExpReplace: 'https://www.homeboxstores.com/sa/en/p/$2'
+  #   xpath: //li[@class="list-item"]//a//@href
+  #   regExp: '(\/[^"]{1,})'
+  #   regExpReplace: 'https://www2.hm.com$1'
+
+  - name: stock_availability
+    xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    jq: 'if .offers.availability  == "inStock" then 1 else 0 end'
+
+  - name: main_image
+    xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    jq: '.image'
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //ol[@id="carousel-indicators"]//li[position() > 1]//img[contains(@class, "visible")]//@src
+
+  - name: description
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//p[@id="product-summary-v2"]
+
+  - name: pack_size
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="row"]//*[contains(., 'Unit Components')]//following-sibling::div
+    regExp: (\d+)
+    regExpReplace: $1
+  
+
+  - name: user_reviews
+    xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    jq: '.aggregateRating.reviewCount'
+    defaultValue: "0"
+
+  - name: average_rating
+    xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    jq: '.aggregateRating.ratingValue'
+    defaultValue: "0.0"
+
+  - name: product_details
+    xpath: (//div[contains(@id, "product-overview")])[1]//div[contains(@class, "row")] | //div[@id="setproduct-dimension-list"]
+
+  
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Height') or contains(., 'height')]//following-sibling::p
+
+  - name: width
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Width') or contains(., 'width')]//following-sibling::p
+
+  - name: length
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Length') or contains(., 'length')]//following-sibling::p
+
+  - name: depth
+    xpath: >
+      //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Thickness') or contains(., 'thickness')]//following-sibling::p
+      |
+      //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Depth') or contains(., 'depth')]//following-sibling::p
+
+  - name: diameter
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Diameter') or contains(., 'diameter')]//following-sibling::p
+
+  - name: dimensions_raw
+    xpath: //div[contains(@id, "setproduct-dimension-list")]//li/text()[1]
+  # - name: weight_unit
+  #   xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Weight') or contains(., 'weight')]
+  #   regExp: ([a-zA-Z]{1,10}$)
+  #   defaultValue: "kg"
+
+  - name: weight_raw
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="attribute-group-desc-horizontal1"]//p[contains(., 'Weight') or contains(., 'weight')]//following-sibling::p
+
+  - name: materials
+    xpath: //div[@id="product-details-text"][contains(@class, "visible")]//div[@class="row"]//*[contains(., 'Material') or contains(., 'material')]//following-sibling::div
+
+  - name: colour
+    xpath: //label[contains(@id, "color")][contains(@class, "active")]/@data-product-basecolor
+    # This one doesn't match the selected colour:
+    # xpath: //main[@id="main-part"]//script[@type="application/ld+json"]
+    # jq: '.color'
+
+  - name: listing_url
+    xpath: //link[@rel="canonical"]/@href
+

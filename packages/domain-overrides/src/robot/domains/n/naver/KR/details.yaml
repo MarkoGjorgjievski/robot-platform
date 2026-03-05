@@ -1,0 +1,16 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: details
+    xpath: //pre
+  - name: channel
+    xpath: //pre
+    jq: .channel.channelUid
+  - name: category
+    xpath: //pre
+    jq: .category.wholeCategoryId
+  - name: productNo
+    xpath: //pre
+    jq: .productNo

@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //button[contains(@class,'button--info')]/@value
+    regExp: (.+)
+    regExpReplace: https://eplus.jp/$1

@@ -1,0 +1,77 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //script[@type="application/ld+json"]
+    jq: .name
+  - name: listing_id
+    xpath: //script[@type="application/ld+json"]
+    jq: .sku
+  - name: offer_price
+    xpath: //script[@type="application/ld+json"]
+    jq: .offers.price
+  - name: original_price
+    xpath: //div[contains(@class, "_b1G4uUQ2rF3fublj")]//div[contains(text(), "predtým")]
+    regExp: '(\d+,\d+)|(\d+),|(\d+.\d+)|(\d+).'
+    regExpReplace: '$1$2$3$4'
+  - name: platform_category
+    xpath: (//a[@data-purpose="productBreadcrumbs.link"])[1]/@title
+  - name: stock_availability
+    xpath: //script[@type="application/ld+json"]
+    jq: .offers.availability
+  - name: main_image
+    xpath: //script[@type="application/ld+json"]
+    jq: .image
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[@role="presentation"]/img/@src
+  - name: description
+    xpath: //script[@type="application/ld+json"]
+    jq: .description
+  - name: pack_size
+    defaultValue: '1'
+    xpath: //div[contains(text(), "Výrobok sa skladá")]/following-sibling::ul/li[contains(text(), "skladá z:")]
+    regExp: '[0-9]+'
+  - name: dimensions_raw
+    xpath: (//div[contains(text(), "Rozmer")][not(contains(text(),"balenia"))])[1]/following-sibling::ul/li | //div[contains(text(), "Všeobecné informácie")]/following-sibling::ul/li[contains(text(), "/")]
+  - name: dimensions_unit
+    xpath: //div[contains(text(), "Vlastnosti produktu")]/following-sibling::ul/li[contains(text(),"šírka cca")]
+    regExp: '[a-z]+$'
+  - name: height
+    xpath: //div[contains(text(), "Vlastnosti produktu")]/following-sibling::ul/li[contains(text(),"výška cca")]
+    regExp: '[0-9,.]+'
+  - name: width
+    xpath: //div[contains(text(), "Vlastnosti produktu")]/following-sibling::ul/li[contains(text(),"šírka cca")]
+    regExp: '[0-9,.]+'
+  - name: length
+    xpath: //div[contains(text(), "Vlastnosti produktu")]/following-sibling::ul/li[contains(text(),"dĺžka cca")]
+    regExp: '[0-9,.]+'
+  - name: depth
+    xpath: //div[contains(text(), "Vlastnosti produktu")]/following-sibling::ul/li[contains(text(),"hĺbka cca")]
+    regExp: '[0-9,.]+'
+  - name: diameter
+    xpath: //div[contains(text(), "Vlastnosti produktu")]/following-sibling::ul/li[contains(text(),"priemer cca")]
+    regExp: '([0-9,.]+)'
+  - name: weight_raw
+    xpath: (//div[contains(text(), "Rozmery balenia")])/following-sibling::ul/li[contains(text(),"hmotnosť")]
+    regExp: '([0-9,.]+)\s?(kg)|([0-9,.]+)\s?(g)$'
+    regExpReplace: '$1'
+  - name: volume
+    xpath: (//div[contains(text(), "Technické informácie")])/following-sibling::ul/li[contains(text(),"objem")] | (//div[contains(text(), "Všeobecné informácie")])/following-sibling::ul/li[contains(text(),"liter")]
+    regExp: '[0-9,.]+'
+  - name: weight_unit
+    xpath: (//div[contains(text(), "Rozmery balenia")])/following-sibling::ul/li[contains(text(),"hmotnosť")]
+    regExp: '(kg)$|(g)$'
+    regExpReplace: '$1$2'
+  - name: materials
+    xpath: //div[contains(text(), "Materiál")]/following-sibling::ul | (//div[contains(text(), "Všeobecné informácie")])/following-sibling::ul/li[contains(text(), "materiál")] | //div/following-sibling::ul/li[contains(text(), "materiál")]
+  - name: colour
+    xpath: (//div[contains(text(), "Farby")])/following-sibling::ul | (//div[contains(text(), "Všeobecné informácie")])/following-sibling::ul/li[contains(text(), "farba")]
+  - name: colour_backup
+    xpath: //script[@type="application/ld+json"]
+    jq: .color
+  - name: product_details
+    xpath: (//div[contains(text(), "Vlastnosti produktu")])/following-sibling::ul | (//div[contains(text(), "Upozornenie pre zákazníkov")])/following-sibling::ul | (//div[contains(text(), "Detailné informácie")])/following-sibling::ul
+  

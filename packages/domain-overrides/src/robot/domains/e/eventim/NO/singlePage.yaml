@@ -1,0 +1,69 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+
+  - name: eventName
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_name'
+
+  - name: venueName
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_venue_name'
+
+  - name: venueCity
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_city_name'
+
+  - name: eventDate
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_date'
+
+  - name: eventTime
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_date'
+
+  - name: isDateTimeTBA
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_date'
+
+  - name: isPublicPurchase
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_tickets_available'
+  
+  - name: publicPurchaseOverride
+    xpath: boolean(//div[contains(@class, "ticket-type-unavailable-sec")][contains(text(), "not available") or contains(text(),  "No longer deliverable" )])
+
+  - name: eventNote
+    xpath: //div[contains(@class, "alert-warning")]//div[contains(@class, "moretext-teaser")]
+
+  - name: postalCode
+    xpath: //script[@id="event-data"]
+    jq: '.[0].event_postal_code'
+
+  - name: venueAddress
+    defaultValue: 'null'
+    xpath: //div[@class="venue-address"]/p
+
+  - name: venueAddressBackup
+    xpath: //span[@data-qa="event-venue"]
+    regExp: '\| (.+),'
+    regExpReplace: $1
+# Not requested 
+  # - name: venueAmenities
+  #   xpath: //div[@class="detailed-rating"]//div[@class="detailed-rating-item"]
+
+  - name: onSaleDate
+    xpath: //section[@data-c="onsalehint"]//h2
+
+  - name: firstDepthURL
+    xpath: //td[@class="link depth_1"] | //a[contains(@id,"item")][contains(@class,"theme-button")]/@href
+
+  - name: eventURL
+    xpath: //a[@data-qa="continue-button"]/@href
+
+  - name: eventUniqueId
+    xpath: //meta[@property="og:url"]/@content
+    regExp: '-(\d+)/'
+    regExpReplace: $1

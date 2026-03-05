@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: url
+    xpath: //*[@id="smartstoreUrl"]
+    jq: .url

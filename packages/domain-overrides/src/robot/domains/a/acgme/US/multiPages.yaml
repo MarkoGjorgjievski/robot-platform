@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//tr[contains(@class, "listview-row")]'
+fields:
+  - name: prgCNT
+    xpath: count(./preceding-sibling::tr | ./parent::tbody)

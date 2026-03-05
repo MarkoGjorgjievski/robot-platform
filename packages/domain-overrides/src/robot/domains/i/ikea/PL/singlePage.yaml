@@ -1,0 +1,92 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+fields:
+
+  - name: 'product_title'
+    xpath: //*[contains(@class, "title--big")]
+
+  - name: 'listing_id'
+    xpath: (//span[contains(@class, 'pip-product-identifier__value')])[1]
+
+  - name: 'offer_price'
+    xpath: (//div[contains(@class,"buy-module-content")]//div[contains(@class,"primary-currency-price")]/*[self::span or self::em])[2]
+    regExp: '(\d+(?:\s\d{1,3})?(?:\.\d{1,2})?)'
+    # regExp: '(\d+(\.\d{1,2})?)'
+    # regExpReplace: '$1'
+
+  - name: 'original_price'
+    xpath: (//div[contains(@class,"buy-module-content")]//div[contains(@class,"primary-currency-price")]/*[self::span or self::em])[1]
+    regExp: '(\d+(?:\s\d{1,3})?(?:\.\d{1,2})?)'
+
+  - name: 'platform_category'
+    xpath: //ol[contains(@class, 'breadcrumb')]//li[last()]
+
+  - name: 'product_variations'
+    xpath: (//*[contains(@class, 'rec-product-fragment--no-bottom-padding')]//@href)[position() mod 2 = 1]
+
+  - name: 'stock_availability'
+    xpath: 
+    defaultValue: 'yes'
+
+  - name: 'main_image'
+    xpath: (//span[contains(@class, 'main')]/img)[1]/@src
+    downloadContent: 'text'
+
+  - name: 'alternative_images'
+    xpath: (//span[contains(@class, 'media-image')]//img/@src)[position() > 1]
+
+  - name: 'description' 
+    xpath: //*[contains(@class, 'pip-product-summary__description')]
+
+  - name: 'pack_size'
+    xpath: (//*[contains(text(), "Ilość w opakowaniu")])[1]/following-sibling::text()[1]
+    regExp: '(\d+)'
+    defaultValue: 1
+
+  - name: 'user_reviews'
+    xpath: (//*[contains(@class, "pip-rating__label")])[1]
+
+  - name: 'average_rating'
+    xpath: //div[@data-product-rating]/@data-product-rating
+
+  - name: 'dimensions_unit'
+    xpath: (//*[contains(text(), "Szerokość")])[1]/following-sibling::text()[1]
+
+  - name: 'height'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Wysokość')]/following-sibling::text()[1]
+    regExp: '(\d+)'
+  
+  - name: 'diameter'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Średnica')]/following-sibling::text()[1]
+    regExp: '(\d+)'
+
+  - name: 'depth'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Głębokość')]/following-sibling::text()[1]
+    regExp: '(\d+)'
+
+  - name: 'width'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Szerokość')]/following-sibling::text()[1]
+    regExp: '(\d+)'
+
+  - name: 'length'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Długość')]/following-sibling::text()[1]
+    regExp: '(\d+)'
+
+  - name: 'weight_unit'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Waga')]/following-sibling::text()[1]
+    regExp: '(\d+(\.\d+)?)\s*(\D+)?'
+
+  - name: 'weight_raw'
+    xpath: //div[contains(@class, 'pip-product-dimensions__dimensions-container')]//span[contains(text(), 'Waga')]/following-sibling::text()[1]
+    regExp: '(\d+)'
+
+  - name: 'materials'
+    xpath: //div[contains(@class, 'pip-product-details__container')]//dl
+
+  - name: 'colour'
+    # xpath: (//span[contains(@class, 'description-text')])[1] 
+    xpath: //div[@class="pip-product-styles__style-picker"]//span[@class="pip-list-view-item__addon"]
+  
+  - name: 'product_details'
+    xpath: //div[contains(@class, 'pip-product-details__container')]

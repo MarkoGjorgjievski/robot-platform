@@ -1,0 +1,51 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//article'
+fields:
+- name: aggregateRating
+  xpath: 'ancestor::html//script[@id="__NEXT_DATA__"]'
+  jq: '.props.pageProps.content.page.sections[0].primaryProduct.ratingCount'
+- name: commentCount
+- name: reviewDate #
+  xpath: '//div[1]/div[3]'
+- name: user #
+  xpath: '//div[1]/div[1]'
+- name: brand
+  defaultValue: 'Blu'
+- name: productRange #
+  description: Product range
+  xpath: 'ancestor::html//script[@id="__NEXT_DATA__"]'
+  jq: '.props.pageProps.content.page.sections[0].primaryProduct.productRange'
+- name: productFamily 
+  description: Product family
+  xpath: '//link[@rel="canonical"]/@href'
+  regExp: '(.+)(de-DE.)(.+)'
+- name: colour
+- name: flavour #
+  xpath: 'ancestor::html//script[@id="__NEXT_DATA__"]'
+  jq: '.props.pageProps.content.page.sections[0].primaryProduct.flavorCollection'
+- name: sku #
+  singleValue: true
+  xpath: 'ancestor::html//script[@id="__NEXT_DATA__"]'
+  jq: '.props.pageProps.content.page.sections[0].primaryProduct.productKey'
+- name: reviewText #
+  xpath: '//p'
+- name: reviewTitle #
+  xpath: '//h5'
+- name: mediaURL
+  xpath: 'ancestor::html//div[@aria-label="slide 1 out of 2"]/div/img/@src'
+- name: location
+  defaultValue: DE
+- name: helpful
+  xpath: '//div[@id="my-reviews"]/@helpful'
+- name: verifiedPurchase
+- name: rating
+  singleValue: true
+  xpath: '//div[contains (@id, "width-pct")]'
+- name: pageTitle
+  xpath: 'ancestor::html//script[@id="__NEXT_DATA__"]'
+  jq: .props.pageProps.content.page.sections[0].subtitle
+  # singleValue: true
+- name: sourceUrl #
+  xpath: 'ancestor::html//link[@rel="canonical"]/@href'

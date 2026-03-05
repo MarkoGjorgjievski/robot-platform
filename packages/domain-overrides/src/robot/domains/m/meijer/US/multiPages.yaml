@@ -1,0 +1,44 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //table[contains(@id,'tblResults')]//tr[td[contains(text(),' ') and not(contains(@style,'font-weight:bold;'))]] | //*[contains(@id,"NotFound")]
+fields:
+  - name: srchStatus 
+    xpath: ancestor::html//*[@id='srchStatus']
+    defaultValue: 'Vendor Not Found'
+    
+  - name: vndName
+    xpath: ancestor::html//span[contains(@id,"VndrName")]
+
+  - name: chkDte
+    xpath: ancestor::html//span[contains(@id,"CheckDt")]
+
+  - name: chkNo
+    xpath: ancestor::html//span[contains(@id,"CheckNbr")]
+
+  - name: invDte
+    xpath: //td[position()=count(//th[contains(text(), 'Date') and not(contains(text(),'Due'))]/preceding-sibling::th)+1][not(contains(@style,'font-weight:bold;'))][not(ancestor::div[@aria-hidden="true"])]//text()
+
+  - name: invNo
+    xpath: //td[position()=count(//th[contains(text(), 'Invoice') and not(contains(text(), 'Date'))]/preceding-sibling::th)+1][not(contains(@style,'font-weight:bold;'))][not(ancestor::div[@aria-hidden="true"])]
+
+  - name: dueDte
+    xpath: //td[position()=count(//th[contains(text(), 'Due Date')]/preceding-sibling::th)][not(contains(@style,'font-weight:bold;'))][not(ancestor::div[@aria-hidden="true"])]//text()
+
+  - name: poNo
+    xpath: //td[position()=count(//th[contains(text(), 'PO')]/preceding-sibling::th)+1][not(contains(@style,'font-weight:bold;'))][not(ancestor::div[@aria-hidden="true"])]//text()
+
+  - name: grossAmt
+    xpath: //td[position()=count(//th[contains(text(), 'Gross')]/preceding-sibling::th)+1][not(contains(@style,'font-weight:bold;'))][not(ancestor::div[@aria-hidden="true"])]
+ 
+  - name: discAmt
+    xpath: //td[position()=count(//th[contains(text(), 'Discount')]/preceding-sibling::th)+1][not(contains(@style,'font-weight:bold;'))][not(ancestor::div[@aria-hidden="true"])]
+ 
+  - name: chkAmt
+    xpath: ancestor::html//td[contains(text(),"Total Net")]/following-sibling::td
+ 
+  - name: netAmt
+    xpath: //td[position()=count(//th[contains(text(), 'Net Cost')]/preceding-sibling::th)+1][not(contains(@style,'font-weight:bold;'))][not(ancestor::html//span[contains(@id,"CheckDt")])][not(ancestor::div[@aria-hidden="true"])]
+
+  - name: invStatus
+    xpath: 

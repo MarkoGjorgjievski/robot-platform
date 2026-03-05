@@ -1,0 +1,51 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: blank
+    xpath: //*[@id='blank']
+    jq: .blank
+    defaultValue: "blank"
+  - name: blocked
+    xpath: //div[@class="module_error"]//strong[@class="title_error"]
+
+  - name: benefits
+    xpath: //pre[@id="benefits"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefits"]/@content
+
+  - name: benefitsDelivery
+    xpath: //pre[@id="benefDelivery"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefDelivery"]/@content
+
+  - name: benefitsMain
+    xpath: //pre[@id="benefMain"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefMain"]/@content
+
+  - name: inflowBenefits
+    xpath: //pre[@id="benefInflow"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefInflow"]/@content
+
+  - name: gradeBenefits
+    xpath: //pre[@id="benefGrade"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefGrade"]/@content
+
+  - name: benefitsByProducts
+    xpath: //pre[@id="benefByProducts"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefByProducts"]/@content
+
+  - name: benefitsOptions1
+    xpath: //pre[@id="benefOption1"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefOption1"]/@content
+
+  - name: benefitsOptions2
+    xpath: //pre[@id="benefOption2"]
+  - name: fetchedURL
+    xpath: //meta[@name="fetchURL"][@id="benefOption2"]/@content

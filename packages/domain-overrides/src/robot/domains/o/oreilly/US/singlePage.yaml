@@ -1,0 +1,110 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  
+- name: sku
+  xpath: //*[contains(@class, "product-line-code")]
+
+- name: sku2
+  xpath:  //*[contains(@class, "product-line-number")]
+
+- name: productName
+  xpath: //h1
+    
+- name: manufacturerPartNumber
+  xpath: //*[contains(@class, "product-line-number")]
+
+- name: productVariant
+
+  
+- name: masterBrand
+  xpath: //*[contains(@class, "product-line-code")]
+
+
+  
+- name: brand
+  xpath: //h1
+  regExp: (John Deere|O'Reilly|Pennzoil|Super Tech|Valvoline|Castrol|Quaker State|Motorcraft|Lucas|Shell|Mobil Delvac|Havoline|Royal Purple|Delo|Chevron|Liqui Moly|Ambrosia|Briggs & Stratton|Mobil 1|Yamaha|Kawasaki|Hyper Tough|Quicksilver|DELO|ACDelco|Mobil|Pentosin|Red Line|Syntec|SYNTEC|Sierra|Mystik|Prime Line|Pure Guard|Amalie Mineral|Phillips|Champion|VP Racing Fuels|MasterPro|Supreme|Comp Cams)
+  regExpReplace: $1
+  defaultValue: empty
+  
+- name: brandVariant
+  
+- name: viscosity
+  xpath: //span[contains(., "Viscosity Grade")]/following-sibling::strong
+
+- name: packSize
+  xpath: //span[contains(., "Size")]/following-sibling::strong
+  regExp: (\d+(.\d+)?)
+  regExpReplace: $1
+  
+- name: packSizeUnit
+  xpath: //span[contains(., "Size")]/following-sibling::strong
+  regExp: (\d+(.\d+)?)\s*(.+)
+  regExpReplace: $3
+
+# so far no bundles encountered
+- name: quantity
+  defaultValue: 1
+  
+  # TODO: fix in transform
+- name: RRP_Was
+  xpath: //*[contains(@class, "pricing_price-was")]
+  regExp: (\d[\d.]*)
+  defaultValue: 'empty'
+
+- name: startingPriceType
+  defaultValue: Was
+
+- name: retailPrice
+  xpath:  //*[contains(@class, "pricing_price")]
+  regExp: (\d[\d.]*)
+  # so far not seen
+- name: promotionDescription
+  xpath: (//div[contains(@class, "header-banner__text")])[1]
+  defaultValue: dummy
+
+- name: promotionDescription2
+  xpath: //div[contains(@class, "product-rebates")]
+
+- name: inStockStoreRaw
+  xpath: //div[@class="availability-option"][contains(., "Pick Up")]
+
+- name: inStockStore
+  xpath: //div[@class="availability-option"][contains(., "Pick Up")]
+  regExp: '[Tt]oday'
+  regExpReplace: 'yes'
+  defaultValue: 'no'
+
+- name: inStockOnlineRaw
+  xpath: //fieldset/div[@class="avail_option"][2]
+
+- name: inStockOnline
+  xpath: //button[contains(@class, "atc_btn")][not(@disabled)]
+  regExp: '.*'
+  regExpReplace: 'yes'
+  defaultValue: 'no'
+  # regExp: '[Tt]oday'
+  # regExpReplace: 'yes'
+  # defaultValue: 'no'
+
+- name: productDescription
+  xpath: //h3[contains(., "Detailed Description")]/following-sibling::div
+
+- name: specificationProfile
+  xpath: //h3[contains(., "Product Information")]/following-sibling::div
+
+- name: productRating
+  xpath: //*[@itemprop="ratingValue"]
+
+- name: ratingCount
+  xpath: //*[@class="bv_numReviews_text"]
+  regExp: (\d+)
+
+- name: rawAvailabilityMessage
+  xpath: //fieldset[contains(@class, "availability")]
+  
+
+

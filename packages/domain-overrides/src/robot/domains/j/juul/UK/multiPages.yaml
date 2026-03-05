@@ -1,0 +1,56 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//div[contains(@class, "yotpo-reviews")]'
+fields:
+  - name: aggregateRating
+    xpath: ancestor::html//span[contains(@class,"avg-score")]
+  - name: name
+    xpath: ancestor::html//h1[@class="product-information__header__title__name heading--large"]
+  - name: commentCount
+    singleValue: true
+  - name: reviewDate
+    xpath: //div[@class="footer-additional-actions"]/span[@class="y-label yotpo-review-date"]
+  - name: user
+    xpath: //div[@class="yotpo-header-element "]/span[contains(@class,"yotpo-user-name")]
+  - name: brand
+    xpath: ancestor::html//meta[@name="application-name"]/@content
+  - name: productRange
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: https://www.juul.co.uk/shop/(.*)/
+    regExpReplace: $1
+  - name: productFamily
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: https://www.juul.co.uk/(.*)
+    regExpReplace: $1
+  - name: colour
+  - name: flavour
+    xpath: ancestor::html//h1[@class="product-information__header__title__name heading--large"]
+  - name: sku
+    xpath: ancestor::html//div[@class="product-page-sections"]/@data-sku | ancestor::html//h1[@class="product-information__header__title__name heading--large"] | ancestor::html//div[@class="product-page__reviews"]/div[@data-product-id]/@data-product-id
+  - name: reviewText
+    singleValue: false
+    xpath: //div[@class="content-review"]
+  - name: reviewTitle
+    xpath: //div[@class="content-title yotpo-font-bold"]
+  - name: mediaURL
+    xpath: ancestor::html//img[@class='hero__single-image']//@src
+    regExp: (.+)&q.*
+    regExpReplace: $1
+  - name: location
+    defaultValue: UK
+  - name: helpful
+    xpath: //span[@data-type="up"]
+  - name: verifiedPurchase
+    xpath: //span/@aria-describedby
+    regExp: (.+)
+    regExpReplace: 'Yes'
+    defaultValue:  'No'
+  - name: rating
+    xpath: //span[@class="sr-only"]
+    regExp: ([0-9\.]{1,}) star rating
+    regExpReplace: $1
+  - name: pageTitle
+    xpath: ancestor::html//meta[@property="og:title"]/@content
+  - name: sourceUrl
+    xpath: ancestor::html//meta[@property="og:url"]/@content

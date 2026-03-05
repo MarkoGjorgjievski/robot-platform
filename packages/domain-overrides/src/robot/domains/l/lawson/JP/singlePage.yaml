@@ -1,0 +1,78 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //section[contains(@class, "Accordion")][contains(@class, "AccordionBox")] | //div[@class="Container narrow"]
+fields:
+  - name: eventName
+    xpath: ancestor::html//h2[contains(@class, "TicketTitle")]//text()
+  - name: eventDate
+    xpath: //p[@class="AccordionBox__date"]/text()
+    regExp: '(\d{4})\/(\d{1,2})\/(\d{1,2})'
+    regExpReplace: '$1-$2-$3'
+  - name: isPublicPurchase
+    xpath: ancestor::html//h3[text()='受付期間']/following-sibling::p/text()
+    regExp: '(\d{4})\/(\d{1,2})\/(\d{1,2})\(.+?\) (\d{1,2}:\d{2}).+?～'
+    regExpReplace: '$1-$2-$3'
+  - name: eventTime
+    xpath: //li[@class="AccordionBox__start"]/text()
+    regExp: '(\b\d{1,2}:\d{2}\b)'
+    regExpReplace: '$1'
+  - name: eventDateTime
+    xpath: //p[@class="AccordionBox__date"]/text()
+    regExp: '(\d{4})\/(\d{1,2})\/(\d{1,2})'
+    regExpReplace: '$1-$2-$3'
+  - name: isDateTimeTBA
+    xpath: //li[@class="AccordionBox__start"]/text()
+    # regExp: '(\b\d{1,2}:\d{2}\b)'
+    # regExpReplace: '0'
+  # - name: eventNotes
+  #   xpath: ancestor::html//script[@id="form-data" and @type="application/json"]
+  #   jq: .evCmntList[].detailRmrks
+  - name: eventNote
+    xpath: ancestor::html//div[@id="detailRmrks"]
+  - name: onSaleDateTime
+    xpath: ancestor::html//h3[text()='受付期間']/following-sibling::p/text()
+    regExp: '(\d{4})\/(\d{1,2})\/(\d{1,2})\(.+?\) (\d{1,2}:\d{2}).+?～'
+    regExpReplace: '$1-$2-$3T$4+09:00'
+  - name: eventUniqueId
+    xpath: //header[@class="AccordionBox__header"]/parent::section/@data-prfkey
+
+  - name: unavailable
+    defaultValue: 0
+    xpath: //p[@class="AccordionBox__label"][contains(text(), "払戻対象公演")]/text() | //p[@class="AccordionBox__label"][contains(text(), "販売中止")]/text()
+    regExp: '払戻対象公演|販売中止'
+    regExpReplace: '1'
+
+
+  - name: venueCode
+    xpath: //header[@class="AccordionBox__header"]/parent::section/@data-venuecode
+  - name: venueName
+    xpath: ancestor::html//h2[contains(@class, "SectionTitle")][contains(@class, "-with-icon")]/text()
+  - name: venueAddress
+    xpath: ancestor::html//section[@class="Section mt-24"]/div/div/p[1]/text()
+    regExp: '(\d{3}-\d{4}) (.{3}|)(.+?市|.+?区|.+?郡)(.+)'
+    regExpReplace: '$2$4'
+  - name: venueCity
+    xpath: ancestor::html//section[@class="Section mt-24"]/div/div/p[1]/text()
+    regExp: '(\d{3}-\d{4}) (.{3}|)(.+?市|.+?区|.+?郡)(.+)'
+    regExpReplace: '$3'
+  - name: postalCode
+    xpath: ancestor::html//section[@class="Section mt-24"]/div/div/p[1]/text()
+    regExp: '(\d{3}-\d{4}) (.{3}|)(.+?市|.+?区|.+?郡)(.+)'
+    regExpReplace: '$1'
+
+  # - name: gLcode
+  #   xpath: ancestor::html//meta[@property="og:url"]/@content
+  #   regExp: '\?gLcode=(\d+)&gScheduleNo=(\d+)'
+  #   regExpReplace: '$2'
+  # - name: gScheduleNo
+  #   xpath: ancestor::html//meta[@property="og:url"]/@content
+  #   regExp: '\?gLcode=(\d+)&gScheduleNo=(\d+)'
+  #   regExpReplace: '$2'
+  # - name: gPfKey
+  #   xpath: //header[@class="AccordionBox__header"]/parent::section/@data-prfkey
+  # - name: gBaseVenueCd
+  #   xpath: //header[@class="AccordionBox__header"]/parent::section/@data-venuecode
+
+  # - name: eventURL
+  #   xpath: ancestor::html//link[@rel="canonical"]/@href

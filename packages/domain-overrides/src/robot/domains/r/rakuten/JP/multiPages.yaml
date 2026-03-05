@@ -1,0 +1,31 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,"dui-card searchresultitem")] | //div[@class="revRvwUserSec"]
+fields:
+  - name: brandText
+  - name: name
+    # xpath: //a[@data-track-trigger="title"]
+    xpath: //div[contains(@class, "title")]/h2
+  - name: productUrl
+    # xpath: //a[@data-track-trigger="title"]/@href
+    xpath: //div[contains(@class, "title")]/h2//@href
+  - name: reviewCount
+    # xpath: //a[@data-track-action="review"]/span[last()]
+    xpath: //span[contains(@class, "score")]/following::span[contains(@class, "legend")]
+    regExp: (\d+)
+    regExpReplace: $1
+  - name: sku
+    xpath: //div[@class="dui-card searchresultitem"]/@data-id
+  - name: helpfulCount
+  - name: reviewRating
+    xpath: //span[contains(@class,"revUserRvwerNum")]
+  - name: reviewDate
+    type: DATETIME
+    xpath: //span[contains(@class,"revUserEntryDate")]
+  - name: reviewDateRaw
+    xpath: //span[contains(@class,"revUserEntryDate")]
+  - name: reviewText
+    xpath: //dl[contains(@class,"revRvwUserEntryInr")]//dd[contains(@class,"revRvwUserEntryCmt")]
+  - name: reviewTitle
+    xpath: //dl[contains(@class,"revRvwUserEntryInr")]//dt[contains(@class,"revRvwUserEntryTtl")]

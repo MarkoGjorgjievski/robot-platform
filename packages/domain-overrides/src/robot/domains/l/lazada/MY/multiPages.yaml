@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,"RfADt")]
+fields:
+  - name: productURL
+    xpath: //div[contains(@class,"RfADt")]/a/@href
+    regExp: '(.+)'
+    regExpReplace: 'https:$1'
+  - name: productName
+    xpath: //div[contains(@class,"RfADt")]/a/@title

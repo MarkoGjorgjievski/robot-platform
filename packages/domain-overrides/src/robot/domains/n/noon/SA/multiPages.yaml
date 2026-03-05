@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'productURL'
+    xpath: '//span[contains(@class, "productContainer")]//a/@href'
+    regExp: '(.+)'
+    regExpReplace: 'https://www.noon.com/$1'
+

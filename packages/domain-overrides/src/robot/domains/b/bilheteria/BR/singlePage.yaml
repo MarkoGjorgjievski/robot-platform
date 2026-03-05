@@ -1,0 +1,33 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: id_base
+    xpath: //td[@class="id_base depth_0"]
+  - name: codPeca
+    xpath: //td[@class="CodPeca depth_0"]
+  - name: eventName
+    xpath: //td[@class="NomPeca depth_0"]
+  - name: eventDate
+    xpath: //td[@class="day depth_0"] # how to add //td[@class="day depth_0"] + //td[@class="year depth_0"] ? 
+  - name: eventYear
+    xpath: //td[@class="year depth_0"] # add to eventDate in transform.js
+  - name: isPublicPurchase
+    xpath: //td[@class="active_external_buy_button depth_0"]
+  - name: eventTime
+    xpath: //td[@class="HorSessao depth_0"]
+  - name: venueName
+    xpath: //td[@class="ds_local_evento depth_0"]
+  - name: venueCity
+    xpath: //td[@class="ds_municipio depth_0"]
+  - name: venueAddress
+    xpath: //td[@class="address depth_0"] # update in transform.js
+  - name: postalCode
+    xpath: //td[@class="address depth_0"] # update in transform.js
+  - name: eventUrl
+    xpath: 'URL'
+  - name: eventUniqueId
+    xpath: //td[@class="id_evento depth_0"]
+  - name: uniqueKey
+    xpath: //td[@class="key depth_0"]

@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, 'product-item-info')]/a
+fields:
+  - name: productURL
+    xpath: "@href"
+    regExp: (.+)
+    regExpReplace: $1

@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //*[contains(@class, 'product-row-row-tile js-product-tile')]//*[contains(@class, 'product-tile-content') and not(contains(., 'Start nu'))]//..//*[contains(@class, 'click-mask')]/@href
+  - name: urlSubTemplate
+    xpath: //*[contains(@class, 'category-tile')]//*[contains(@class, 'link-no-underline')]/@href
+    regExp: (.+)
+    regExpReplace: https://www.karwei.nl$1

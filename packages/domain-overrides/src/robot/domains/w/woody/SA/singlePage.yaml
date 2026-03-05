@@ -1,0 +1,60 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@class, 'product_title')]
+  - name: listing_id
+    xpath: //span[@class="sku"]
+  - name: offer_price
+    xpath: //p[@class="price"]//ins//bdi/text()
+  - name: original_price
+    xpath: (//p[@class="price"]/del//bdi/text() | //p[@class="price"]//bdi/text())[1]
+  - name: platform_category
+    xpath: //a[@class="breadcrumb-link breadcrumb-link-last"]//text()
+  - name: product_variations
+    defaultValue: null 
+  - name: stock_availability
+    xpath: //form[@class="cart"]/input//@value
+    jq: 'if .stockstatus  == "instock" then 1 else 0 end'
+  - name: stock_info
+    xpath: //div[contains(@class, 'woocommerce-product-gallery')]//span[contains(@class, 'out-of-stock')]
+  - name: main_image
+    xpath: //div[contains(@class, 'wd-carousel-wrap')]/div[@class='wd-carousel-item wd-active']//figure//a//@href
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[contains(@class, 'wd-carousel-wrap')]//div[not(contains(@class, 'wd-active'))]//figure//@href
+  - name: description
+    xpath: //div[contains(@class ,'woocommerce-product-details__short-description')]
+  - name: pack_size
+    defaultValue: 1
+  - name: user_reviews
+    defaultValue: '0'
+  - name: average_rating
+    defaultValue: null 
+  - name: dimensions_unit
+    defaultValue: 'cm'
+  - name: height
+    defaultValue: 1
+  - name: diameter
+    defaultValue: 1
+  - name: depth
+    defaultValue: 1
+  - name: width
+    defaultValue: 1
+  - name: length
+    defaultValue: 1
+  - name: weight_unit
+    defaultValue: 'kg'
+  - name: volume
+    defaultValue: 1
+  - name: weight_raw
+    defaultValue: 1
+  - name: materials
+    defaultValue: null
+  - name: colour
+    xpath: //tr[contains(@class,'woocommerce-product-attributes-item--attribute_pa_color')]/td[@class='woocommerce-product-attributes-item__value']/p/text()
+    defaultValue: null
+  - name: product_details
+    xpath: //div[@class='woocommerce-product-details__short-description']/text()

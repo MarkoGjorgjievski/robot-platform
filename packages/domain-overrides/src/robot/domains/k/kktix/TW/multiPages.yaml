@@ -1,0 +1,33 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@class, "events")]/li | //div[contains(@class, "content container")]
+fields:
+  - name: eventName
+    xpath: //div[@class="event-title"]/h2 | //div[@class="header-title"]/h1
+  - name: firstDepthURL
+    xpath: //a[@class="cover"]/@href
+  - name: eventURL
+    xpath: //div[@class="event-info"]/h2/a/@href | //li[@class="type-selling"]/a/@href | //div[@class="tickets"]/a/@href
+  - name: eventDate
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span
+  - name: eventTime
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span
+  - name: venueName
+    xpath: //table[@class="info-table"]//tr[2]/td/text() | //div[@class="event-info"]/ul/li[2]/span
+  - name: venueAddress
+    xpath: //table[@class="info-table"]//tr[2]/td/text() | //div[@class="event-info"]/ul/li[2]/span
+  - name: venueCity
+    xpath: //table[@class="info-table"]//tr[2]/td/text() | //div[@class="event-info"]/ul/li[2]/span
+  - name: eventUniqueId
+    xpath: //div[@class="event-info"]/h2/a/@href | //li[@class="type-selling"]/a/@href | //div[@class="tickets"]/a/@href
+  - name: onSaleDateTime
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span
+  - name: eventDateLowPriority
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span
+  - name: eventDateHighPriority
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span
+  - name: eventUniqueId
+    xpath: //meta[@property="og:url"]
+
+

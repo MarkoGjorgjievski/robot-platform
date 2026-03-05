@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, "product-card__inner")]
+fields:
+  - name: productURL
+    xpath: //div[contains(@class, "product-card__header")]//@href
+    # regExp: '(\/[^"]{1,})'
+    # regExpReplace: 'https://www.kondela.sk$1'

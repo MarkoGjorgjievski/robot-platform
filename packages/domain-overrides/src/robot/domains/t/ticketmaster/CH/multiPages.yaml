@@ -1,0 +1,16 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//td[@class="events depth_0"]/table/tbody/tr[td[@class="partnerEvent depth_1"][contains(text(),"false")]][td[@class="cancelled depth_1"][contains(text(),"false")]][td[@class="url depth_1"][starts-with(text(), "/event")]]'
+fields:
+  - name: eventURL
+    xpath: '//td[@class="url depth_1"]'
+    regExp: '\/event.*'
+  - name: isCancelled
+    xpath: '//td[@class="cancelled depth_1"][contains(text(), "true")]'
+  - name: isPostponed
+    xpath: '//td[@class="postponed depth_1"][contains(text(), "true")]'
+  - name: onSaleDate
+    xpath: '//td[@class="onsaleDate depth_1"]//td[@class="localDate depth_2"]'
+  - name: isPublicPurchase
+    defaultValue: '1'

@@ -1,0 +1,77 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//*[contains(@class,"accordion-container")]//ul[@class="event-date-container"]//li[contains(@class,"btn")] |  //*[contains(@class,"accordions-container")]/*[contains(text(),"not on sale")] | (//*[contains(@class,"seat-select__header")]//*[contains(@class,"promocode")][not(contains(@class,"promocodecontainer"))])[last()] | //*[@class="book-now"] | //td[@class="time depth_7"]' #table reduced to take only the first year //td[@class="years depth_0"]/table/tbody/tr/td[1]//td[@class="time depth_7"]
+fields:
+  - name: firstDepthURL 
+    xpath: //a/@href
+  - name: eventURL 
+    xpath: //a/@href
+  - name: eventCalendarID 
+    xpath: //a[./ancestor::html//*[@class="book-now"]]/@href
+    regExp: '[A-Za-z0-9]*([a-zA-Z]+[0-9]+|[0-9]+[a-zA-Z]+)'
+  - name: prependDomain
+    xpath: ancestor::html//*[@class="book-now"]//a
+    jq: '"https://booking.theticketfactory.com/api/calendar/"'
+  - name: urlSubTemplate
+    xpath: ancestor::html//*[@class="book-now"]//a
+    regExp: '(.*)'
+    regExpReplace: '{host}{eventCalendarID}/?start_date={today}#[!opt!]{"type":"json"}[/!opt!]'
+    defaultValue: '{url}'
+  - name: eventDateTime
+    xpath: //*[./ancestor::html//*[contains(@class,"seat-select__header")]]//p | //*[./ancestor::html//*[contains(@class,"seat-select__header")]]//option[@selected="selected"]
+  - name: eventDateTimeDummy
+    defaultValue: 'dummy'
+  - name: eventDateTopLevel
+    xpath: ancestor::*[./li[@class="event-date-container__event-time"] or .//*[@itemprop="startDate"]][1]//*[@class="event-date-container__event-time" or @itemprop="startDate"]
+  - name: eventTimeTopLevel
+    xpath: ancestor::ul/li[@class="event-date-container__event-detail"] 
+  - name: eventName
+    xpath: ancestor::html//*[contains(@class,"header")]//h1 | ancestor::html//*[contains(@class,"event-heading")]//h1
+  - name: eventNameTopLevel
+    xpath: ancestor::html//*[@class="banner-content-container-event-info__placeholder-copy" or @itemprop="performer name"][string-length(text())>1][last()]
+  - name: venueName
+    xpath: ancestor::html//*[contains(@class,"header")]/h1/following-sibling::p | ancestor::*[./*[contains(@class,"accordion-container")] or .//*[contains(@class,"banner")]][1]//*[@itemprop="location"]
+  - name: venueCity
+    xpath: ancestor::html//*[contains(@class,"header")]/h1/following-sibling::p | ancestor::*[./*[contains(@class,"accordion-container")] or .//*[contains(@class,"banner")]][1]//*[@itemprop="location"]
+  - name: venueNameJQ
+    xpath: ancestor::html//*[@id="booking-data"]
+    jq: '.bookingData.venueData.name'
+  - name: venueNameJQ
+    xpath: ancestor::html//script[@type="application/ld+json"]
+    jq: '.[0].location.name'
+  - name: postalCodeReg
+    xpath: ancestor::html//script[@type="application/ld+json"]
+    jq: 'if .[0].location.address == "" then .[0].location.name else .[0].location.address end'
+  - name: postalCodeJQ
+    xpath: ancestor::html//*[@id="booking-data"]
+    jq: '.bookingData.venueData.zip'
+  - name: venueCityJQ
+    xpath: ancestor::html//*[@id="booking-data"]
+    jq: 'if .bookingData.venueData.city == "None" then "London" else .bookingData.venueData.city end'
+  - name: eventNameJQ
+    xpath: ancestor::html//*[@id="booking-data"]
+    jq: '.bookingData.eventData.name'
+  - name: eventNameJQ
+    xpath: ancestor::html//script[@type="application/ld+json"]
+    jq: '.[0].name'
+  - name: venueAddress
+    xpath: ancestor::html//*[@id="map"]//*[@class="address"]/p
+  - name: eventTimeJSON
+    xpath: //*[.//*[contains(@class,"depth_1")]]//text()
+  - name: eventDayJSON
+    xpath: ancestor::table[2]/ancestor::td[1][contains(@class,"depth_")]/@class
+  - name: eventMonthJSON
+    xpath: ancestor::table[4]/ancestor::td[1][contains(@class,"depth_")]/@class
+  - name: eventYearJSON
+    xpath: ancestor::table[6]/ancestor::td[1][contains(@class,"depth_")]/@class
+  - name: eventNotes
+    xpath: ancestor::html//*[@class="restrictions-container"]//span | ancestor::html//*[./div/*[contains(@class,"fal fa-ban")]] | ancestor::html//dt[contains(text(),"uitable")][contains(text(),"hildren")]/following-sibling::dd[1] | //div[@class="sponsors-sidebar__item--content"][contains(., "Resale Policy")] | //div[@id="booking-info"]//p[contains(., "Ticket Resale Restrictions")]/following-sibling::p[1]
+  - name: isPublicPurchase
+    defaultValue: '1'
+    xpath: //*[.//*[contains(@class,"accordions-container")]/p[contains(text(),"not on sale")]]//text() | //*[ancestor::html//*[contains(@class,"accordions-container")]]//span[contains(text(),"On Sale")]
+  - name: onSaleDate
+    xpath:  ancestor::html//*[contains(@class, "e-marketing__form-container")]//*[self::p or self::span][contains(., "General Sale on")]//text()[1][contains(., " at")] | ancestor::html//*[contains(@class, "e-marketing__form-container")]//*[self::p or self::span][contains(., "General Sale on")]//text()[contains(., " at")]
+  - name: preSaleDate
+    xpath: ancestor::html//*[contains(@class, "e-marketing__form-container")]//*[self::p or self::span][contains(., "Presale")]//text()[2]
+     

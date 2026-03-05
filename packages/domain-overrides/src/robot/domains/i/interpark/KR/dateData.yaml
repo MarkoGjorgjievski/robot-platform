@@ -1,0 +1,11 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+
+
+  # - name: eventTime
+  #   xpath:  //*[contains(text(), '공연시간 정보')]/following-sibling::*//*[@class='contentDetailList']/div/text()
+
+

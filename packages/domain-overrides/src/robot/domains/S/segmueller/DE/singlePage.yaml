@@ -1,0 +1,76 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //*[contains(@data-testid, "product-name")]
+ 
+  - name: original_price
+    xpath: //script[contains(text(), "var dataLayer")]
+    regExp: \[(.+)\]
+    jq: '.[1].ecommerce.detail.products[0].price'
+    defaultValue: 0
+ 
+  - name: platform_category
+    xpath: //script[contains(text(), "var dataLayer")]
+    regExp: \[(.+)\]
+    jq: '.[1].ecommerce.detail.products[0].category'
+ 
+  - name: stock_availability
+    xpath: //script[contains(text(), "var dataLayer")]
+    regExp: \[(.+)\]
+    jq: '.[1].ecommerce.detail.products[0].available'
+ 
+  - name: main_image
+    # xpath: //*[contains(@class, "product-gallery__slide") and not(contains(@class, "duplicate "))][contains(@class, 'active')]//source[1]/@srcset
+    xpath: //*[contains(@class, "product-gallery__slide") and not(contains(@class, "duplicate "))][contains(@class, 'active')]//img/@src
+    downloadContent: 'text'
+ 
+  - name: alternative_images
+    xpath: //*[contains(@class, "product-gallery__slide")][@data-swiper-slide-index][not(contains(@class, "active"))]//source[1]/@srcset
+ 
+  - name: materials
+    xpath: //script[contains(text(), "var dataLayer")]
+    regExp: \[(.+)\]
+    jq: '.[1].ecommerce.detail.products[0].material'
+ 
+  - name: pack_size
+    xpath: //script[contains(text(), "var dataLayer")]
+    regExp: \[(.+)\]
+    jq: '.[1].ecommerce.detail.products[0].quantity'
+
+  - name: product_details
+    xpath: //*[contains(@data-qa, "component product-details-accordion")]
+ 
+  - name: description
+    xpath: //*[contains(@data-qa, "component product-description-accordion")]
+ 
+  - name: colour
+    xpath: //*[contains(@class, 'variant-slider')]//*[contains(@class, 'variant-slider__header')][contains(., 'Farbe')]//*[not(contains(text(), 'Farbe'))] | //*[contains(@class, 'product-configurator js-product-configurator')]//*[contains(@class, 'product-attributes__item') and contains(., 'Farbe') and not(contains(@class, 'bold'))]/text()
+
+  - name: allDimensions
+    xpath: //*[contains(@class, "product-attributes__item") and not(contains(@class, "bold"))][contains(., "Größe")]
+ 
+  - name: listing_id
+    xpath: //script[contains(text(), "var dataLayer")]
+    regExp: \[(.+)\]
+    jq: '.[1].ecommerce.detail.products[0].id'
+ 
+  - name: shippingWeight
+    xpath: //*[contains(@data-qa, "component product-shipping-accordion")]
+ 
+  - name: variationsValue
+    xpath: //*[contains(@class, "variant-slider-item__input")]/@value
+ 
+  - name: variationsName
+    xpath: //*[contains(@class, "variant-slider-item__input")]/@name
+ 
+  - name: queryID
+    xpath: //*[contains(@name, "queryID")]/@value
+
+  - name: urlBase
+    xpath: //*[contains(@rel, "canonical")]/@href
+ 
+  - name: productDetailsDimensions
+    xpath: //*[contains(@data-qa, "component product-details-accordion")]

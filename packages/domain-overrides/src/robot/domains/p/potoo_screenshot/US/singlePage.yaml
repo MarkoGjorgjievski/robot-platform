@@ -1,0 +1,19 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: screenshot
+    screenCapture: 'png'
+    downloadContent: true
+  - name: title
+    xpath: //body//h1
+# xpath: //xpath
+# jq: jq | filter
+# regExp: (reg)*p
+# regExpReplace: website$1$2
+# defaultValue: hardcoded value if nothing matches
+# manualSelector: css#selector
+# screenCapture: png
+# downloadContent: text
+# type: NUMBER | BOOLEAN | STRING (default if omitted)

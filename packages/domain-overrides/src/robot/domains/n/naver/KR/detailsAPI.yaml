@@ -1,0 +1,89 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+# utils
+  - name: blocked
+    xpath: //div[@class="module_error"]//strong[@class="title_error"]
+  - name: blank
+    xpath: //*[@id='blank']
+    jq: .blank
+    defaultValue: "blank"
+  - name: productURL
+    xpath: //*[@id="__input"]
+    jq: .url
+  - name: useBrowserFetch
+    xpath: (//*[@id="__input"])[1]
+    jq: if .collectedDomain == "smartstore.naver" then "true" else "false" end
+  - name: useGotofetch
+    xpath: (//*[@id="__input"])[1]
+    jq: if .collectedDomain == "smartstore.naver" then "true" else "false" end
+  - name: getExtras
+    # xpath: (//*[@id="__input"])[1]
+    # jq: if .collectedDomain == "smartstore.naver" then "true" else "" end
+    defaultValue: 'true'
+  - name: getByProducts
+    xpath: (//*[@id="__input"])[1]
+    jq: if .collectedDomain == "smartstore.naver" then "i" elif .collectedDomain == "brand.naver" then  "n" else "" end
+
+
+# full details
+  - name: details
+    xpath: //pre[@id="reviews" or not(@id)]//text()
+    jq: if length > 1 then (.) else (.[]) end
+
+# specific details elements
+  - name: salePrice
+    xpath: //pre[@id="reviews" or not(@id)]//text()
+    jq: .[].salePrice?  // .salePrice
+  - name: lastCategoryID
+    xpath: //pre[@id="reviews" or not(@id)]//text()
+    jq: .[].category? .categoryId  // .category.categoryId
+  - name: channel
+    xpath: //pre[@id="brand"]//text()
+    jq: .channel.channelUid
+  - name: category
+    xpath: //pre[@id="reviews" or not(@id)]//text()
+    jq: .[].category? .wholeCategoryId  // .category.wholeCategoryId
+  - name: productNOnotID
+    xpath: //pre[@id="reviews" or not(@id)]//text()
+    jq: .[].productNo?  // .productNo
+  - name: accountNo
+    xpath: //pre[@id="reviews" or not(@id)]//text()
+    jq: .[].channel? .channelNo // .channel.channelNo // .channelNo
+
+  
+
+
+  - name: subTemplate
+    xpath: (//*[@id="__input"])[1]
+    jq: if .collectedDomain == "smartstore.naver" then "https://smartstore.naver.com/i/v1/smart-stores?url={brand}" else "https://shopping.naver.com/shopv/v1/logistics/products/{id}/detail" end
+  - name: detailsSubTemplate
+    xpath: (//*[@id="__input"])[1]
+    jq: if .collectedDomain == "smartstore.naver" then "https://smartstore.naver.com/i/v2/channels/{channel}/review-products/?productNos={id}" else "https://shopping.naver.com/shopv/v1/logistics/products/{id}/detail" end
+  
+  - name: benefitsMainSubTemplate
+    xpath: (//*[@id="__input"])[1]
+    jq: 'if .collectedDomain == "shopping.naver" then "https://smartstore.naver.com/i/v1/pay/optimize-benefits-main" elif .collectedDomain == "brand.naver" then "https://brand.naver.com/n/v1/pay/optimize-benefits-main" else "https://smartstore.naver.com/i/v1/pay/optimize-benefits-main" end'
+    # "{host}/shopv/v1/benefit/optimization-main"
+  - name: benefitsOptionsSubTemplate
+    xpath: (//*[@id="__input"])[1]
+    # "https://{collectedDomain}.com/shopv/v1/benefit/optimization-options"
+    jq: 'if .collectedDomain == "shopping.naver" then "https://smartstore.naver.com/i/v1/pay/optimize-benefits-options" elif .collectedDomain == "brand.naver" then "https://brand.naver.com/n/v1/pay/optimize-benefits-options" else "https://{collectedDomain}.com/i/v1/pay/optimize-benefits-options" end'
+  - name: benefitsDeliverySubTemplate
+    xpath: (//*[@id="__input"])[1]
+    jq: 'if .collectedDomain == "shopping.naver" then "https://{collectedDomain}.com/shopv/v1/accounts/{accountNo}/coupons/delivery?categoryId={lastCategoryID}&channelProductNo={accountNo}&productNo={productNOnotID}&salePrice={salePrice}" elif .collectedDomain == "brand.naver" then "https://{collectedDomain}.com/n/v2/channels/{channel}/benefits/coupons/delivery?isTalkTalk=false&categoryId={lastCategoryID}&channelProductNo={accountNo}&productNo={productNOnotID}&salePrice={salePrice}" else "https://{collectedDomain}.com/i/v2/channels/{channel}/benefits/coupons/delivery?isTalkTalk=false&categoryId={lastCategoryID}&channelProductNo={accountNo}&productNo={productNOnotID}&salePrice={salePrice}" end'
+
+
+
+
+  - name: bodyOptimizeBenefitsMain
+    xpath:  //pre[@id="reviews" or not(@id)]//text()
+    jq: 'if length > 1 then (.) else (.[]) end | {"cardPromotionPolicies":[],"immediateDiscounts":(if .benefitsPolicy.sellerImmediateDiscountValue then ([{"deviceType":"PC","discountProviderType":"SELLER","discountType":"IMMEDIATE","discountUnitType":"AMOUNT","discountValue": .benefitsPolicy.sellerImmediateDiscountValue}]) else [] end),"items":[{"price":0,"quantity":1,"productClassType":"SINGLE","itemNo": (.id | tostring)}],"deviceType":"PC","productNo":(.id | tostring),"merchantNo":((.channel.naverPaySellerNo // .channel.channelNo) | tostring),"salePrice":.salePrice,"wholeCategoryId":.category.wholeCategoryId,"isSellerSubscriptionAvailable":true}'
+  - name: bodyOptimizeBenefitsOptions1
+    xpath:  //pre[@id="reviews" or not(@id)]//text()
+    jq: 'if length > 1 then (.) else (.[]) end | {"immediateDiscounts":(if .benefitsPolicy.sellerImmediateDiscountValue then ([{"deviceType":"PC","discountProviderType":"SELLER","discountType":"IMMEDIATE","discountUnitType":"AMOUNT","discountValue": .benefitsPolicy.sellerImmediateDiscountValue}]) else [] end),"items":[{"price":0,"quantity":1,"productClassType":"SINGLE","itemNo": (.id | tostring)}],"deviceType":"PC","productNo":(.id | tostring),"merchantNo":((.channel.naverPaySellerNo // .channel.channelNo) | tostring),"salePrice":.salePrice,"wholeCategoryId":.category.wholeCategoryId,"isSellerSubscriptionAvailable":true,"includeIssuableCouponsYn":true}'
+  - name: bodyOptimizeBenefitsOptions2
+    xpath:  //pre[@id="reviews" or not(@id)]//text()
+    jq: 'if length > 1 then (.) else (.[]) end | {"immediateDiscounts":(if .benefitsPolicy.sellerImmediateDiscountValue then ([{"deviceType":"PC","discountProviderType":"SELLER","discountType":"IMMEDIATE","discountUnitType":"AMOUNT","discountValue": .benefitsPolicy.sellerImmediateDiscountValue}]) else [] end),"items":[{"price":0,"quantity":1,"productClassType":"SINGLE","itemNo": (.id | tostring)}],"deviceType":"PC","productNo":(.id | tostring),"merchantNo":((.channel.naverPaySellerNo // .channel.channelNo) | tostring),"salePrice":.salePrice,"wholeCategoryId":.category.wholeCategoryId,"isSellerSubscriptionAvailable":true,"includeIssuableCouponsYn":false}'

@@ -1,0 +1,90 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: '//*[contains(@class, "pip-header-section__title--big")]'   
+
+  - name: 'listing_id'
+    xpath: '(//span[contains(@class, "pip-product-identifier__value")])[1]'   
+
+  - name: 'offer_price'
+    xpath: ""
+    defaultValue: null
+
+  - name: 'original_price'   
+    xpath: '(//span[contains(@class, "pip-temp-price__integer")])[1]'
+
+  - name: 'platform_category' 
+    xpath: "//ol[contains(@class, 'breadcrumb')]//li[last()-1]/a/span"  
+
+  - name: 'product_variations'
+    xpath: '//div[@class="pip-product-styles__style-picker"]//a/@href | //div[contains(@class,"pip-product-variation")]//@href'  
+    defaultValue: null 
+
+  - name: 'stock_availability'
+    xpath: "" 
+    defaultValue: 'yes'  
+
+  - name: 'main_image'
+    xpath: '//div[@data-type="MAIN_PRODUCT_IMAGE"]//img/@src'   
+    downloadContent: 'text'
+
+  - name: 'alternative_images'
+    xpath: '//button[@class="pip-media-grid__image-button"]/span/img/@src'  
+
+  - name: 'description'
+    xpath:  '//p[contains(@class, "pip-product-summary__description")]'  
+
+  - name: 'pack_size'
+    xpath: '(//*[contains(text(), "Antal i förpackning")])[1]/following-sibling::text()[1]'  
+    defaultValue: 1
+
+  - name: 'user_reviews'
+    xpath: '//div[@id="pip-buy-module-content"]//span[@class="pip-rating__label"]//text()'
+    defaultValue: '0'    
+
+  - name: 'average_rating'
+    xpath: '//div[@data-product-rating]/@data-product-rating'
+    defaultValue: null 
+
+  - name: 'dimensions_unit'
+    xpath: '(//*[contains(text(), "Höjd")])[1]/following-sibling::text()[1] | //*[contains(@class,"pip-product-dimensions__dimensions-container")]//span[contains(text(),"Ytterdiameter")]/../text() | //*[contains(@class,"pip-product-dimensions__dimensions-container")]//span[contains(text(),"Diameter")]/../text()'       
+
+  - name: 'height'
+    xpath: //*[contains(@class,'pip-product-dimensions__dimensions-container')]//span[contains(text(),'Höjd')]/../text()
+    defaultValue: null  
+
+  - name: 'width'
+    xpath: '(//*[contains(text(), "Bredd")])[1]/following-sibling::text()[1]' 
+
+  - name: length
+    xpath: //*[contains(@class,'pip-product-dimensions__dimensions-container')]//span[contains(text(),'Längd')]/../text()
+    regExp: \d+\.*\d*
+
+  - name: diameter
+    xpath: //*[contains(@class,'pip-product-dimensions__dimensions-container')]//span[contains(text(),'Ytterdiameter')]/../text() | //*[contains(@class,'pip-product-dimensions__dimensions-container')]//span[contains(text(),'Diameter')]/../text()
+    regExp: \d+\.*\d*
+
+  - name: 'depth'
+    xpath: //*[contains(@class,'pip-product-dimensions__dimensions-container')]//span[contains(text(),'Depth')]/../text()
+
+  - name: 'weight_unit'
+    defaultValue: 'kg'
+
+  - name: 'weight_raw_data'
+    xpath: //div[contains(@class,'product-dimensions__measurement-container')]//span[contains(text(), "Vikt")]/following-sibling::text()
+    regExp:  \d+\.*\d*
+
+  - name: 'weight_raw'
+    defaultValue: 'dummy'
+
+  - name: 'materials'
+    xpath: '//span[@class="pip-product-details__material-header"]/following-sibling::div//dd'
+
+  - name: 'colour'
+    xpath: '//div[@class="pip-product-styles__style-picker"]//span[@class="pip-list-view-item__addon"]'
+
+  - name: 'product_details'
+    xpath: '//p[@class="pip-product-details__paragraph"]'

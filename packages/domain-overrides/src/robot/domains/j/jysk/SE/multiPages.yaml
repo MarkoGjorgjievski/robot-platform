@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//div[contains(@class, "product-container")]'
+fields:
+  - name: productURL
+    xpath: '//a[contains(@class, "product-teaser-title")]/@href'
+    regExp: (.+)
+    regExpReplace: https://jysk.se$1

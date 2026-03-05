@@ -1,0 +1,24 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: notShopping
+    xpath: //pre[contains(text(),"Not Found")]
+  - name: shoppingURL
+    xpath: //pre[not(contains(text(),"Not Found"))]
+    jq: '"https://shopping.naver.com/logistics/products/" + .id'
+  - name: smartStoreURL
+    xpath: //*[@id="smartstoreUrl"]
+    jq: .raw
+  - name: brandSmart
+    xpath: //*[@id="smartstoreUrl"]
+    regExp: '(?<=\.com\/)[^\/]+(?=\/products)'
+  - name: brandURL
+    xpath: //*[@id="brandUrl"]
+    jq: .raw
+  - name: brandBrand
+    xpath: //*[@id="brandUrl"]
+    regExp: '(?<=\.com\/)[^\/]+(?=\/products)'
+  - name: landedOnBrand
+    xpath: //body/div/div[contains(@class,"DETAIL")]/@class

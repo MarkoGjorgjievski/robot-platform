@@ -1,0 +1,43 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@data-qe-id='productCard']
+fields:
+  - name: aboveFold
+    xpath: ancestor::html//*[@data-qe-id="productCardContainer"]/div[position()<6]
+  - name: keyword
+  - name: productPriceCurrency
+    defaultValue: "USD"
+  - name: productListPriceCurrency
+    defaultValue: "USD"
+  - name: searchResultBadges
+    xpath: //*[@data-qe-id='productCard']/a/div/div[1]/div[2]/div/span
+  - name: rank
+    xpath: count(//*[@data-qe-id="productCardContainer"]/div[@data-qe-id="productCard"]/preceding-sibling::div[@data-qe-id="productCard"])+1
+  - name: name
+    xpath: //div[@data-qe-id='productTitle']/span
+  - name: id
+    xpath: //*[@data-qe-id='productCard']//a/@href
+    regExp: /([^/]+)$
+    regExpReplace: $1
+  - name: pageNo
+    defaultValue: "1"
+  - name: productUrl
+    xpath: //*[@data-qe-id='productCard']//a/@href
+    regExp: (.+)
+    regExpReplace: https://www.heb.com$1
+  - name: productUrlCanonical
+    xpath: //*[@data-qe-id='productCard']//a/@href
+    regExp: (.+)
+    regExpReplace: https://www.heb.com$1
+  - name: price2
+    xpath: //div[@data-qe-id='productPrice']/span[1]
+    regExp: \d+\.\d+
+  - name: listPrice2
+    xpath: //div[@data-qe-id='productPrice']/span[1]
+    regExp: \d+\.\d+
+  - name: searchResultType
+    xpath: //*[@data-qe-id='productCard']//a/div/div[2]/p
+    defaultValue: "organic"
+  - name: thumbnail
+    xpath: //*[@data-qe-id='productCard']/a/div/div[1]/div/picture/img/@src

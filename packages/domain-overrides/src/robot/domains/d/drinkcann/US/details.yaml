@@ -1,0 +1,31 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id='storeData-container']/div[@class='store']
+fields:
+  - name: store
+    xpath: //div[contains(@class,'store-name')]
+
+  - name: address
+    xpath: //div[contains(@class,'store-address')]
+
+  - name: city
+    xpath: //div[contains(@class,'store-city')]
+
+  - name: state
+    xpath: //div[contains(@class,'store-state')]
+
+  - name: postal_code
+    xpath: //div[contains(@class,'store-postal-code')]
+
+  - name: store_id
+    xpath: //div[contains(@class,'store-id')]
+
+  - name: phone
+    xpath: //div[contains(@class,'store-phone')]
+
+  - name: email
+    xpath: //div[contains(@class,'store-email')]
+
+  - name: website
+    xpath: //div[contains(@class,'store-website')]

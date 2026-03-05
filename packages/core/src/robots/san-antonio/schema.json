@@ -1,0 +1,118 @@
+[
+  {
+    "name": "singleRecord",
+    "type": "boolean",
+    "description": "Forces all the collected rows to generate a single output record.",
+    "default": false,
+    "advanced": true
+  },
+  {
+    "name": "extends",
+    "type": "string",
+    "description": "Can be used to build a template file out of another file.",
+    "default": null,
+    "hide": true
+  },
+  {
+    "name": "regionsSelector",
+    "type": "string",
+    "default": null,
+    "hide": true
+  },
+  {
+    "name": "recordXPath",
+    "type": "xpath",
+    "description": "For each match of this selector a new record is generated with scoped extraction relative to the match",
+    "default": null,
+    "advanced":true
+  },
+  {
+    "name": "recordSelector",
+    "type": "css",
+    "description": "For each match of this selector a new record is generated with scoped extraction relative to the match",
+    "default": null,
+    "advanced":true
+  },
+  {
+    "name": "fields",
+    "type": "array",
+    "description": "A list of fields that need to be extracted from the page.",
+    "default": [],
+    "records": [{
+      "name": "field",
+      "type": "object",
+      "records": [
+        {
+          "name": "name",
+          "type": "string",
+          "default": null,
+          "special": true
+        },
+        {
+          "name": "xpath",
+          "type": "xpath",
+          "default": null
+        },
+        {
+          "name": "manualSelector",
+          "type": "css",
+          "default": null,
+          "extra": true
+        },
+        {
+          "name": "jq",
+          "type": "string",
+          "description": "A valid JQ filter. Not all JQ features are currently supported. Only works on text nodes - cannot be used for attributes.",
+          "default": null,
+          "extra": true
+        },
+        {
+          "name": "regExp",
+          "type": "regex",
+          "description": "A valid regular expression. The value returned for this field will be the complete regex match unless regExpReplace is used.",
+          "default": null,
+          "extra": true
+        },
+        {
+          "name": "regExpReplace",
+          "description": "Use $1, $2, ..$N to inject the regex group capture inside a new recomposed result.",
+          "type": "string",
+          "default": null,
+          "extra": true
+        },
+        {
+          "name": "defaultValue",
+          "type": "string",
+          "description": "Populate the field when the used selector did not match. However a default value will only be generated if a record is generated.",
+          "default": null,
+          "extra": true
+        },
+        {
+          "name": "screenCapture",
+          "type": "enum",
+          "description": "Generates a field with a screenshot of the page.",
+          "default": null,
+          "records": [null, "png"],
+          "extra": true
+        },
+        {
+          "name": "type",
+          "type": "enum",
+          "description": "Specify a type casting for the field value.",
+          "default": "STRING",
+          "records": ["STRING", "BOOLEAN", "NUMBER"],
+          "extra": true,
+          "hide": true
+        },
+        {
+          "name": "downloadContent",
+          "type": "string",
+          "description": "The part of the collected node which contains the url to download the desired item. In doubt use 'text'.",
+          "default": null,
+          "extra": true
+        }
+      ]
+    }]
+  }
+]
+

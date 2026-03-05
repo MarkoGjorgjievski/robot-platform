@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //div[contains(@class,'product-item-size')]//a/@href
+
+  - name: firstDepthUrl
+    xpath: //main/@data-currency-iso-code

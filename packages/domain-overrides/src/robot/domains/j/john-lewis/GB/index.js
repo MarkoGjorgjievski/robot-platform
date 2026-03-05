@@ -1,0 +1,23 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'GB',
+    // loadedSelector: '#main-content',
+    waitForSelectorToLoad: null,
+    noResultsXPath: '//h1[contains(text(),"404")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: [],
+    loadingTimeout: 50000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'multiPages',
+    mergeType: 'APPEND',
+    maxScrolls: 0,
+    arrayOfInputFieldNamesToAdd: null,
+    enableAutoTable: true,
+    domain: 'john-lewis',
+  },
+};

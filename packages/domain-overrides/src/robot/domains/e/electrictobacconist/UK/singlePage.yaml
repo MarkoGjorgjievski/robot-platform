@@ -1,0 +1,99 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id="script-review"]
+fields:
+  - name: reviewTitle
+    singleValue: false
+    description: The title of the review
+    xpath: ancestor::html//div[@class="u-marginBottom--md"]//div[contains(@class, "R-TextHeading")]
+  - name: reviewRating
+    singleValue: false
+    xpath: //@rating
+  - name: reviewDate
+    singleValue: false
+    description: Date the review was made
+    xpath: //@reviewDate
+  - name: sourceUrl
+    singleValue: false
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+  - name: mediaUrl
+    description: product media url
+    xpath: ancestor::html//div[contains(@class, 'slick-slide')]//a[contains(@class, 'product__image__zoom-link')]//img/@src | //ancestor::html//a[@id='product-image']//figure/img//@src
+  - name: flavour
+    singleValue: false
+    xpath: ancestor::html//div[contains(@class,"product-tabs__content__cms")]//*[contains(text(),"Flavor Profile:")] | ancestor::html//div[contains(@class,"product-tabs__content__cms")]//*[contains(text(),"Flavor profile:")] | ancestor::html//div[contains(@class,"product-tabs__content__cms")]//*[contains(text(),"Flavour Profile:")] | ancestor::html//div[contains(@class,"product-tabs__content__cms")]//*[contains(text(),"Flavour profile:")]
+    regExp: >-
+      (?<=: )(.+)
+  - name: pageTitle
+    singleValue: false
+    xpath: ancestor::html//head/title
+  - name: productRange
+    singleValue: false
+    xpath: ancestor::html//meta[@itemprop="position" and @content="2"]//parent::li/a | ancestor::html//*[contains(@class,'breadcrumbs')]//li[2]//span[not(contains(.,'/'))]
+  - name: productFamily
+    singleValue: false
+    xpath: ancestor::html//div[@class="breadcrumb--container"] | ancestor::html//*[contains(@class,'breadcrumbs')]//li//span[not(contains(.,'/'))]//text()
+  - name: helpfulCount
+    singleValue: false
+    type: NUMBER
+    description: Number of people who said the review was helpful
+  - name: commentCount
+    singleValue: false
+    type: NUMBER
+    description: Number of comments on the review
+  - name: brand
+    singleValue: false
+    description: Product brand shown - this may actually NOT be just a brand name,
+      e.g. "Visit the Gillette Store"
+    xpath: ancestor::html//span[contains(@class,"title--brand")] | ancestor::html//div[contains(@class,'leading-tight')]//a
+  - name: name
+    singleValue: false
+    description: The product name
+  - name: sku
+    singleValue: false
+    description: The store-specific product identifier
+    xpath: ancestor::html//span[@id="js-product-reference"]/@data-ref | ancestor::html//div[@data-sku]//@data-sku
+  - name: reviewCount
+    singleValue: false
+    description: The store-specific product identifier
+    xpath: ancestor::html//span[contains(@class,"product-content__review-stars__title")]
+  - name: reviewText
+    singleValue: false
+    description: The text of the review
+    xpath: //div[@id="script-review"]
+  - name: reviewTitle
+    singleValue: false
+    description: The title of the review
+  - name: reviewerTags
+    singleValue: falsee
+    description: The tags a reviewer has
+  - name: gtin
+    singleValue: false
+    description: GTIN code (includes UPC/EAN)
+  - name: productUrl
+    singleValue: false
+    description: The url of the product details page
+  - name: verifiedPurchase
+    singleValue: false
+    type: BOOLEAN
+    description: Whether this of an item the reviewer purchased. "Yes" if true else ""
+  - name: manufacturerResponse
+    singleValue: false
+    description: The response of the manufacturer (if any)
+  - name: syndicatedFrom
+    singleValue: false
+    description: Stated place the review was syndicated from
+  - name: reviewUrl
+    singleValue: false
+    description: A direct link to the review
+  - name: reviewedSku
+    singleValue: false
+    description: The SKU of the item that was reviewed (may be different from the
+      sku the review was shown on). 1 if sku == reviewedSku else 0. Get sku
+      value, transform will handle the value.
+  - name: user
+    description: The user name of the reviewer
+    type: TEXT
+  - name: aggregateRating
+    description: The product rating

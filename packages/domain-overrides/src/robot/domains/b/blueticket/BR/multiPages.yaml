@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //table/tbody/tr[./td[@class="categoria depth_0"][contains(text(), "Teatros") or contains(text(), "Shows") or contains(text(), "Infantil") or contains(text(), "Baladas") or contains(text(), "Esportivos")] and ./td[@class="msg_sales_closed depth_0"][not(contains(text(), "cancelado"))]]
+fields:
+  - name: eventID
+    xpath: //td[@class='codigo depth_0']
+  - name: eventCategory
+    xpath: td[@class="categoria depth_0"]

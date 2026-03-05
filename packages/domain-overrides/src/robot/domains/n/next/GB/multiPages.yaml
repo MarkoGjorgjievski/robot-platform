@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, "sofa-background")]/@href | //a[contains(@class, "MuiCardMedia-root")]/@href

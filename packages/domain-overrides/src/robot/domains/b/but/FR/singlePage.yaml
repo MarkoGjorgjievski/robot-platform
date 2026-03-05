@@ -1,0 +1,83 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //*[contains(@class, 'product-visual-infos')]//*[contains(@class, 't-1')]
+
+  - name: listing_id
+    # xpath: //span[contains(text(), 'EAN')]/following-sibling::span
+    xpath: //meta[@property='og:url']/@content
+    regExp: 'https:\/\/www\.but\.fr\/produits\/(\d+)\/'
+    regExpReplace: $1
+    
+
+  - name: offer_price
+    xpath: (//*[contains(@class, 'price-payment')]//*[contains(@class, 'reduce-bloc')]//*[contains(@class, 'old-price')] | (//*[contains(@class, 'price-payment')]/descendant::*[contains(@class, 'current-price')])[1] )[2]
+    regExp: '(\d+,\d+)'
+
+  - name: original_price
+    xpath: (//*[contains(@class, 'price-payment')]//*[contains(@class, 'reduce-bloc')]//*[contains(@class, 'old-price')] | (//*[contains(@class, 'price-payment')]/descendant::*[contains(@class, 'current-price')])[1] )[1]
+    regExp: '(\d+,\d+)'
+    defaultValue: '0'
+
+  - name: platform_category
+    xpath: //*[@class='breadcrumb']//a[last()]/text()
+
+  - name: product_variations
+
+  - name: stock_availability
+    xpath: //*[contains(text(), 'Disponible')]
+    regExp: '(.+)'
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: main_image
+    xpath: //*[@id='main-product-sheet']//*[@id='main-product-visu']/a/@href
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //*[@class='mcs-items-container']//a/@href
+
+  - name: description
+    xpath: //*[contains(@id, 'feature-product')]
+
+  - name: pack_size
+    xpath: //span[contains(text(), 'Nombre de pièces')]/following-sibling::*
+
+  - name: user_reviews
+    xpath: //*[contains(@class, 'nbre-avis')]//span
+    regExp: '(\d+)'
+
+  - name: average_rating
+    xpath: //p[contains(@class, 'note-moy')]//span
+
+  - name: height
+    xpath: (//span[contains(text(), 'Dimensions (en cm)')]/following-sibling::* | //span[contains(text(), 'Dimensions en cm')]/following-sibling::* | //span[contains(text(), 'Hauteur')]/following-sibling::*)[last()]
+
+  - name: diameter
+    xpath: (//span[contains(text(), 'Dimensions (en cm)')]/following-sibling::* | //span[contains(text(), 'Dimensions en cm')]/following-sibling::*)[last()]
+
+
+  - name: depth
+    xpath: (//span[contains(text(), 'Dimensions (en cm)')]/following-sibling::* | //span[contains(text(), 'Dimensions en cm')]/following-sibling::*)[last()]
+
+  - name: width
+    xpath: (//span[contains(text(), 'Dimensions (en cm)')]/following-sibling::* | //span[contains(text(), 'Dimensions en cm')]/following-sibling::* | //span[contains(text(), 'Largeur')]/following-sibling::*)[last()]
+
+  - name: length
+    xpath: (//span[contains(text(), 'Longueur')]/following-sibling::* | //span[contains(text(), 'Dimensions (en cm)')]/following-sibling::* | //span[contains(text(), 'Dimensions en cm')]/following-sibling::*)[last()]
+
+  - name: volume
+
+  - name: weight_raw
+
+  - name: materials
+    xpath: (//span[contains(text(), 'Matière')][not(@id="__input")]/following-sibling::*)[1]
+
+  - name: colour
+    xpath: //*[contains(text(), 'Couleur du produit')]/following-sibling::span | //*[contains(text(), 'Coloris')]/following-sibling::span
+
+  - name: product_details
+    xpath: //div[@class='table-heading-product']

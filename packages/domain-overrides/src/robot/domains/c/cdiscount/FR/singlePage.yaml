@@ -1,0 +1,247 @@
+#As of January 2024 CDiscount is undergoing a website redesign, two themes are server randomly thus selectors have to handle both
+
+singleRecord: true
+fields:
+
+  #base fields for both themes
+
+  - name: product_title
+    xpath: //h1[@itemprop="name"] | //div[contains(@class,"c-fp-heading")]//h1
+    # xpath: //*[@type="application/ld+json"][2]
+    # jq: .name
+
+  - name: description
+    xpath: >
+      (
+      //p[contains(@class, "js-read-more")] 
+      |
+      //div[@id = "fpBulletPointReadMore"]//ul
+      |
+      //div[contains(@id, "presContent")] 
+      | 
+      //div[contains(@class, "productHighlights")]//p[contains(@class, "read-more")]
+      )[1]
+
+  #works on both themes
+  #can also be found through canonical link
+  - name: listing_id
+    xpath: concat("f-", //input[@id="TechFormDepartmentId"]/@value, "-", //input[@id="TechFormProductId"]/@value)
+
+  # this returns only other  variants (eg. color) and othersubvariants (eg. size) of current product, not all possible variants. 
+  # for new theme current variant urls are returned as well
+  # https://www.cdiscount.com/maison/decoration-accessoires/plante-artificielle-en-pot-150cm-art-faux-bonsai-d/f-117636104-auc0617748465611.html
+  - name: product_variations
+    xpath: //div[@id="fpVariationGroupSelector"]//a[@class]/@href | //a[contains(@class, "js-variant__option")]/@href
+    regExp: (.+)
+    regExpReplace: $1
+
+  ##################################################################################################################################################################
+  
+  #images
+
+  - name: main_image
+    xpath: //meta[@property="og:image"]/@content
+    # xpath: //img[@id="mainImage"]/@src
+    downloadContent: "text"
+
+  #TODO FIX this extracts only thumbnail!!!
+  #TODO new skin
+  - name: alternative_images
+    xpath: //div[contains(@class, "fpThumbnailsWrapper")]//li/img/@src
+    regExp: (https.+)
+    regExpReplace: $1
+
+  ##################################################################################################################################################################
+
+  #ratings xpaths for both themes
+
+  - name: average_rating
+    xpath: //div[contains(@class, "mainRating")]//span[contains(@itemprop, "ratingValue")] | //span[contains(@class, "c-product-reviews__item ")]//span[contains(@class, "c-stars-rating__note")]
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+  - name: user_reviews
+    xpath: //div[contains(@class, "mainRating")]//span[contains(@itemprop, "ratingCount")] | //span[contains(@class, "c-product-reviews__item ")]//span[contains(@class, "c-stars-rating__label")]
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  ##################################################################################################################################################################
+
+  #attribute list xpaths for both old and new themes
+
+  - name: colour
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Couleur")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Couleur")]]/td
+
+  - name: depth
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Profondeur")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Profondeur")]]/td
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  - name: width
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Largeur")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Largeur")]]/td
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  - name: length
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Longueur")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Longueur")]]/td
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  - name: height
+    xpath: (//div[@id="descContent"]//tr[.//th[contains(text(),"Hauteur")]]/td | //div[@id="presContent"]//p[contains(text(), "Hauteur du produit")])[1] | (//ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Hauteur")]]/td | //div[@id="ourOpinion"]//p[contains(text(), "Hauteur du produit")])[1]
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+
+  - name: weight_unit
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Poids")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Poids")]]/td
+    regExp: (kg|g|lbs|oz|m[lL]|L|c[lL])
+    regExpReplace: $1
+    defaultValue: "kg"
+  - name: weight
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Poids")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Poids")]]/td
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  - name: diameter
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Diamètre")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Diamètre")]]/td
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  #prioritize exact field over name variations
+  - name: materials
+    xpath: >
+      //div[@id="descContent"]//tr[.//th[text() = "Matière"]]/td 
+      |
+      //ul[@id="ProductSheetAccordion"]//tr[.//th[text() = "Matière"]]/td
+
+  - name: materialsFallback
+    xpath: >
+      //div[@id="descContent"]//tr[.//th[contains(text(),"Matériaux à travailler") or contains(text(),"Matière")]]/td 
+      |
+      //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Matériaux à travailler") or contains(text(),"Matière")]]/td
+
+  - name: materialsComposition
+    xpath: >
+      //div[@id="descContent"]//tr[.//th[text() = "Composition"]]/td 
+      |
+      //ul[@id="ProductSheetAccordion"]//tr[.//th[text() = "Composition"]]/td
+
+  - name: materialsCompositionFallback
+    xpath: >
+      //div[@id="descContent"]//tr[.//th[contains(text(),"Composition")][not(contains(text(), "lot"))]]/td 
+      |
+      //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Composition")][not(contains(text(), "lot"))]]/td
+
+  - name: materialsFromBulletPoints
+    xpath: >
+      //div[@id = "fpBulletPointReadMore"]//li[contains(text(), "Matériaux")] |
+      //div[@id = "fpBulletPointReadMore"]//li[contains(text(), "Matières")] |
+      //div[@id = "fpBulletPointReadMore"]//li[contains(text(), "Matière")]
+      |
+      //dl[contains(@class,"c-productHighlights__list")]//div[.//dt[text() = "Matériaux"]]/dd |
+      //dl[contains(@class,"c-productHighlights__list")]//div[.//dt[text() = "Matières"]]/dd |
+      //dl[contains(@class,"c-productHighlights__list")]//div[.//dt[text() = "Matière"]]/dd
+
+
+  ##################################################################################################################################################################
+
+  - name: original_price
+    #old skin: striken price or current price if fpNoStrikedPrice class present
+    #new skin: striked price or current price if not preceeded by striken price
+    xpath: >
+      (
+        //div[contains(@class, "c-price--mention") and contains(@class, "hideFromPro")]//s 
+        | 
+        //div[contains(@class, "fpNoStrikedPrice")]//span[@itemprop="price" and contains(@class, "jsProductPrice") and not(contains(@class, "displayToPro"))]/@content
+      ) 
+      | 
+      (
+        //input[@id="strikedprice"]/@value
+        | 
+        //input[@id="price"][not(preceding-sibling::input[@id="strikedprice"])]/@value
+      )
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  - name: offer_price
+    #old skin: current price if fpNoStrikedPrice class not present
+    #new skin: current price if strikedprice present
+    xpath: >
+      (
+        //div[contains(@class, "fpPriceBloc") and not(contains(@class, "fpNoStrikedPrice"))]//span[@itemprop="price" and not(contains(@class, "displayToPro"))]/@content
+      ) 
+      | 
+      (
+        //input[@id="strikedprice"]/following-sibling::input[@id="price"]/@value
+      )
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+
+  ##################################################################################################################################################################
+
+  - name: platform_category
+    #old skin: second-to-last breadcrumb
+    #new skin: same as old
+    xpath: (//li[contains(@class, "o-breadcrumb__item") and not(contains(@class, "current"))][last()]//span)
+
+  - name: stock_availability
+    xpath: boolean(//input[contains(@value, "Ajouter au panier")][not(@disabled)])
+    # xpath: //script[contains(text(), "displayedStock")][contains(text(), "in_stock") or contains(text(), "InStock")]
+    # regExp: (in_stock|InStock)
+    # regExpReplace: "yes"
+    # defaultValue: "no" #TODO test what should be default
+
+  - name: pack_size
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"pièces")][not(contains(text(), "durée"))]]/td
+    regExp: (\d+)
+    regExpReplace: $1
+    defaultValue: "1"
+
+  - name: product_details
+    xpath: //div[@id="descContent"]|//div[@id="ourOpinion"]|//div[@id="ProductSheetAccordion-content-2"]
+
+  ##################################################################################################################################################################
+
+  #Fallback fields to extract dimensions from
+  #Last to execute transform on those field after all other
+
+  #some products have dedicated dimensions attribute
+  #prioritize exact attribute over naming variation
+  - name: dimensionsAttribute
+    xpath: >
+      (//div[@id="descContent"]//tr[.//th[text(),"Dimensions"]]/td) 
+      |
+      //ul[@id="ProductSheetAccordion"]//tr[.//th[text(),"Dimensions"]]/td
+  - name: dimensionsAttributeFallback
+    xpath: >
+      (//div[@id="descContent"]//tr[.//th[contains(text(),"Dimensions")]]/td) 
+      |
+      //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Dimensions")]]/td
+
+  #some products have dimensions inside of a dedicated name attribute
+  - name: dimensionsNameAttribute
+    xpath: //div[@id="descContent"]//tr[.//th[contains(text(),"Nom du produit")]]/td | //ul[@id="ProductSheetAccordion"]//tr[.//th[contains(text(),"Nom du produit")]]/td
+    regExp: (\d+([\.,]\d+)?)
+    regExpReplace: $1
+  #some products have dimensions inside of a dedicated name attribute
+  - name: dimensionsInDescription
+    xpath: >
+      //div[@id = "ourOpinion"]//li[contains(text(), "Dimensions : ")] |
+      //div[@id = "wppc"]//li[contains(text(), "Dimensions : ")]
+
+  #some products have dimensions inside of a description
+  #top description
+  - name: dataFromDescriptionA
+    xpath: //p[contains(@class, "read-more js-read-more")] | //div[contains(@id, "presContent")] | //div[contains(@class, "productHighlights")]//p[contains(@class, "read-more")]
+  #new theme detail descriptions
+  - name: dataFromDescriptionB
+    xpath: //div[@id="ourOpinion"] | //*[@id="description-accordion"]/following-sibling::div//div[@class="o-text"]
+  #old skin details descriptions
+  - name: dataFromDescriptionC
+    xpath: //div[@id="descContent"]//div[contains(@class, "fpMb")] | //div[@id="presContent"]//div[contains(@class, "fpMb")]
+  - name: dataFromDescriptionBulletList
+    xpath: //div[@id = "fpBulletPointReadMore"]//ul | //dl[contains(@class,"c-productHighlights__list")]
+
+  #some products have dimensions inside of a title, but not every have all dimensions listed there so Descriptions are parsed first
+  - name: dimensionFromTitle
+    xpath: //h1[@itemprop="name"] | //div[contains(@class,"c-fp-heading")]//h1

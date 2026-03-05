@@ -1,0 +1,87 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+#  - name: product_title
+#    xpath: //h1[contains(@class, 'MuiTypography-ro')]
+  - name: product_title
+    xpath: (//div[contains(@class, 'MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12')])[1]
+  - name: listing_id
+    xpath: //span[contains(text(), 'Art.nr')]
+#  - name: offer_price
+#    xpath: (//div[contains(@class, 'MuiTypography-root')]//div[contains(text(), 'kr')])[1]
+#    regExp: \d[\d\s,\.]*\d[\d\s,\.]*(?<=\d)
+#  - name: original_price
+#    xpath: //div[contains(@data-testid, 'ProductDetailsBlockTestIds_price')]//div[2]
+#    regExp: \d[\d\s,\.]*\d[\d\s,\.]*(?<=\d)
+  - name: offer_price
+    xpath: (//div[contains(@data-testid, 'ProductDetailsBlockTestIds_price')]//*[contains(text(), 'kr')])[2]//ancestor::div[contains(@data-testid, 'ProductDetailsBlockTestIds_price')]//div[contains(text(), 'kr')]
+    regExp: \d[\d\s,\.]*\d[\d\s,\.]*(?<=\d)
+  - name: original_price
+    xpath: (//div[contains(@data-testid, 'ProductDetailsBlockTestIds_price')]//*[contains(text(), 'kr')])[2] | //div[contains(@data-testid, 'ProductDetailsBlockTestIds_price')]//div[contains(text(), 'kr') and not(//div[contains(@data-testid, 'ProductDetailsBlockTestIds_price')]//div[2])]
+    regExp: \d[\d\s,\.]*\d[\d\s,\.]*(?<=\d)
+    defaultValue: '-'
+  - name: platform_category
+    xpath: (//ol)[1]//li[not(@aria-hidden)][last()-1]
+  - name: product_variations
+#    xpath: //img[contains(@data-nimg, 'fill') and not(@draggable)]/ancestor::a[1]/@href
+#    xpath: //script[contains(@id,'NEXT_DATA')]
+    defaultValue: 'dummy'
+  - name: variations_data
+    xpath: //script[contains(@id,'NEXT_DATA')]
+  - name: stock_availability
+    xpath: //*[contains(text(), 'I lager')]
+    defaultValue: 'no'
+  - name: main_image
+    xpath: (//img[contains(@data-nimg, 'fill')])[1]/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //img[contains(@draggable, 'false')]/@src
+  - name: description
+    xpath: //span[contains(@data-testid, 'false')]
+  - name: pack_size
+    xpath: //h6[contains(text(), 'PCS')]
+    regExp: '(\d+)'
+  - name: user_reviews
+    xpath: (//div[contains(@class, 'tf-based')])[1]
+    regExp: '(\d+)'
+  - name: average_rating
+    xpath: //div[contains(@class, 'tf-score')]//div[contains(@class, 'tf-rating')]
+  #  - name: dimensions
+  #    xpath:
+  #    defaultValue: 'in sub fieldss'
+  - name: dimensions_unit
+    xpath: //div[contains(@class, 'content')]//div[contains(@class, 'extract')]
+    regExp: '(\D+)$'
+    defaultValue: 'cm'
+  - name: height
+    xpath: //span[contains(text(), 'Beskrivning')]/parent::*
+#    xpath: //span[contains(@data-testid, 'false') and (contains(text(), 'Höjd') or contains(text(), 'höjd')) and not(contains(text(), 'höjder'))]
+  - name: width
+    xpath: //span[contains(@data-testid, 'false') and (contains(text(), 'Bredd') or contains(text(), 'bredd'))]
+  - name: length
+    xpath: //span[contains(@data-testid, 'false') and (contains(text(), 'Längd') or contains(text(), 'längd')) and not(contains(text(), 'justerbar längd'))]
+  #  - name: weight
+  #    xpath:
+  #    defaultValue: 'weight is not set'
+  #  - name: weight_unit
+  #    xpath:
+  #    defaultValue: 'weight is not set'
+  - name: weight_raw
+    xpath: //span[contains(text(), 'Beskrivning')]/parent::*
+  - name: diameter
+    xpath: //span[contains(@data-testid, 'false')]
+#    regExp: 'Diameter (\d+(\.\d+)?) cm'
+  - name: materials
+    xpath: //*[contains(text(), 'Material')]//ancestor::div[contains(@class, 'MuiAccordion-root')][1]//div[contains(@id, 'pdpAccordionDetails')]
+  - name: colour
+    xpath: //aside//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'färg:')]
+    regExp: :(.*)
+  - name: product_details
+    xpath: //a[contains(@rel, 'noopener noreferrer')]/span
+
+
+
+
+#some product does not contains user reviews, avarage rating, materials,

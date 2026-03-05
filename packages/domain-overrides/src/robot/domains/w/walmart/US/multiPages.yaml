@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //script[contains(@id, "itemsData_")]
+fields:
+  - name: productURL
+    xpath: //text()
+    jq: .canonicalUrl

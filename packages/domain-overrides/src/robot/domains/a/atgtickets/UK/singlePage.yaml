@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, "ShowLink__LinkContainer")]
+fields:
+  - name: eventURL
+    xpath: //a/@href
+    jq: '"https://www.atgtickets.com" + .'

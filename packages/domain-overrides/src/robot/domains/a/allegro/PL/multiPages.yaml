@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //article//div[contains(@class, "m7er_k4")]/h2[contains(@class, "mgn2_14")]/a[contains(@class, "mp0t_0a")]/@href

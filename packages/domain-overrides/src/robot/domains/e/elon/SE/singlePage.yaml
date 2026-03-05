@@ -1,0 +1,85 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: "//h1[@class='page-title']/span" 
+
+  - name: 'listing_id'
+    xpath: //div[@class='sku-details']/span/span/text()   
+
+  - name: 'offer_price'
+    xpath: //div[@class='price-group']//span[@class='special-price']//span[@data-price-amount]/@data-price-amount
+    defaultValue: null
+
+  - name: 'original_price'    
+    xpath: //div[@class='product-view-info']//span[contains(@class, 'price-final_price') and not(ancestor::span[@class='special-price'])]/span[@data-price-amount]/@data-price-amount
+    defaultValue: null
+
+  - name: 'platform_category' 
+    xpath: //div[@class='breadcrumbs ']/ul/li[position() = last() - 1]/a 
+
+  - name: 'product_variations'
+    xpath: //div[contains(@class,'products--variant')]//a/@href  
+    
+  - name: 'stock_availability'
+    xpath: boolean(//ul[@class='stores-stock-search']//li[@class='stock available'] | //div//*[contains(@class,'checkmark--green')]) 
+
+  - name: 'main_image'
+    xpath: //div[contains(@class,'gallery-wrap')]/img/@src
+    downloadContent: 'text'
+
+  - name: 'alternative_images'
+    xpath: //div[contains(@class, 'thumbs-wrap')]//img/@src
+
+  - name: 'description'
+    xpath: //div[contains(@class,'product') and contains(@class,' description')]
+
+  - name: 'pack_size'
+    xpath: ""  
+    defaultValue: 1
+
+  - name: 'user_reviews'
+    xpath: //div[contains(@class, 'tf-count')]
+    regExp: \d+
+    
+  - name: 'average_rating'
+    xpath: (//div[@class='tf-rating'])[1]
+    
+  - name: 'dimensions_unit'
+    xpath: ""     
+    defaultValue: 'mm'  
+
+  - name: 'height'
+    xpath: //td[contains(@data-th,'Höjd')]
+    regExp: '[0-9,.]+'
+    
+  - name: 'width'
+    xpath: //td[contains(@data-th,'Bredd')]
+    regExp: '[0-9,.]+'
+
+  - name: 'diameter'
+    xpath: //td[contains(@data-th,'Diameter')]
+    regExp: '[0-9,.]+'
+
+  - name: 'depth'
+    xpath: //td[contains(@data-th,'Djup')]
+    regExp: '[0-9,.]+'
+
+  - name: 'weight_unit'
+    xpath: ""  
+    defaultValue: 'kg'   
+
+  - name: 'weight_raw'
+    xpath: //td[contains(@data-th,'Vikt')]
+    regExp: '[0-9,.]+'
+
+  - name: 'materials'
+    xpath: //td[contains(@data-th,'Material')]
+
+  - name: 'colour'
+    xpath: //td[contains(@data-th,'Färg')]
+
+  - name: 'product_details'
+    xpath: //p[@class='ng-binding']

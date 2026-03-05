@@ -1,0 +1,86 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@class, "title")]
+    # xpath: //script[@type="application/ld+json"][2]
+    # jq: '.offers[0].url'
+
+  - name: listing_id
+    xpath: //script[@type="application/ld+json"][contains(., Product)][2]
+    jq: .productID
+
+  - name: listing_url
+    xpath: //link[@hreflang="sk"]//@href
+
+  - name: offer_price
+    xpath: //div[contains(@class, "product-detail")]//span[contains(@class, "product-prices")][contains(@class, "price-value")]
+    regExp: (\d+.\d{1,2})|(\d+)
+
+  - name: original_price
+    xpath: //div[contains(@class, "product-detail")]//s[contains(@class, "product-prices")][contains(@class, "price-value")]
+    regExp: (\d+.\d{1,2})|(\d+)
+
+  - name: platform_category
+    xpath: //ol[contains(@class, "breadcrumb-menu")]//li[position() = last()-1]//@title
+
+  - name: product_variations
+    xpath: //div[contains(@class, "product-detail")]//div[contains(@class, "product-variant")][contains(@class, "body")]//li//a//@href
+    # regExp: '(\/[^"]{1,})'
+    # regExpReplace: 'https://www.kondela.sk$1'
+
+  - name: stock_availability
+    xpath: //script[@type="application/ld+json"][contains(., Product)][2]
+    jq: 'if .offers.availability == "https:\/\/schema.org\/InStock" then 1 else 0 end'
+
+  - name: main_image
+    xpath: (//div[contains(@class, "gallery")]//picture//@src)[1]
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: (//div[contains(@class, "gallery")]//picture//@src)[position() > 1]
+
+  - name: description
+    xpath: //div[contains(@class, "tab-pane")][contains(@class, "text")]//p//text()
+
+  # - name: pack_size
+  #   No pack size
+
+  # - name: user_reviews
+  #   No user reviews
+
+  # - name: average_rating
+  #   No user reviews
+
+  - name: product_properties
+    xpath: //div[contains(@class, "tab-pane")][contains(@class, "text")]//table
+
+  - name: product_details_raw
+    xpath: //div[@class="text"]//span | //div[@class="text"]//ul
+
+  - name: description_properties
+    xpath: //div[@id="produkt-detailny-popis"]//div[@class="product-description__content"]//div[@class="row"] | //div[@class="text"]//span | //div[@class="text"]//ul
+    
+  - name: dimensions
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+
+  - name: width
+
+  - name: length
+
+  - name: weight
+
+  - name: weight_unit
+    defaultValue: "kg"
+
+  - name: weight_raw
+
+  - name: materials
+
+  - name: colour

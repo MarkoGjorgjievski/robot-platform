@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //li[contains(@class,'list-group-item')]//a/@href | //meta[contains(@property,'url')]/@content

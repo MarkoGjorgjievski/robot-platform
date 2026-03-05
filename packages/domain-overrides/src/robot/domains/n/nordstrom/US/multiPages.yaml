@@ -1,0 +1,37 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //table[contains(@id, "dtgDocuments")]//tr[not(contains(@align,'center'))] | //div[contains(@id,'noData')]
+fields:
+  - name: srchStatus
+    xpath: ancestor::html//*[@id='srchStatus']
+  
+  - name: vndName
+    xpath: ancestor::html//h3[contains(text(), "Document List:")]/span
+
+  - name: chkDte
+    xpath: //td[position()=count(//td[a[contains(text(),'Check Date')]]/preceding-sibling::td) + 1]
+
+  - name: chkNo
+    xpath: '//td[position()=count(//td[a[contains(text(),"Check #")]]/preceding-sibling::td) + 1]'
+
+  - name: invDte
+    xpath: //td[position()=count(//td[a[contains(text(),'Document Date')or contains(text(),'Invoice Date')]]/preceding-sibling::td) + 1]
+
+  - name: invNo
+    xpath: '//td[position()=count(//td[a[contains(text(),"Invoice #")]]/preceding-sibling::td) + 1]'
+
+  - name: dueDte
+    xpath: //td[position()=count(//td[a[contains(text(),'Due Date')]]/preceding-sibling::td) + 1]
+
+  - name: grossAmt
+    xpath: //td[position()=count(//td[a[contains(text(),'Cost')]]/preceding-sibling::td) + 1]
+
+  - name: discAmt
+    xpath: //td[position()=count(//td[a[contains(text(),'Discount')]]/preceding-sibling::td) + 1]
+
+  - name: invStatus
+    xpath: //td[position()=count(//td[a[contains(text(),'Invoice Status') or contains(text(),'Document Status')]]/preceding-sibling::td) + 1]
+
+  - name: chkAmt
+    xpath: //td[position()=count(//td[a[contains(text(),'Check Amount')]]/preceding-sibling::td) + 1]

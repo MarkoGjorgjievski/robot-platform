@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: offer_code
+    xpath: //div[@class="le-figaro-coupon-code"]
+  - name: offer
+    xpath: //div[@class="le-figaro-coupon-title"]
+  - name: merchant
+    xpath: //div[contains(@class, "le-figaro-content-area")]/main/h1/strong

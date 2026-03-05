@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //td[@class="events depth_0"]/table/tbody/tr
+fields:
+  - name: eventID
+    xpath: //td[@class="buyUrl depth_1"]
+    regExp: (\d+)

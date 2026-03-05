@@ -1,0 +1,100 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: //div[contains(@class, 'itemName')]
+
+  - name: 'listing_id'
+    xpath: (//span[contains(@class, 'item-code')])[1]
+
+  - name: 'offer_price'
+    xpath: (//div[contains(@class,'itemPriceBox')])[1]//*[contains(@class, 'itemLowerPrice') or contains(@class, 'itemOfferPrice')]
+    regExp: '[0-9,.]+'
+
+  - name: 'original_price'
+    xpath: (//div[contains(@class,'itemPriceBox')])[1]//*[contains(@class, 'itemOldPrice') or contains(@class, 'itemNormalPrice') or contains(@class, 'itemBTI')]
+    regExp: '[0-9,.]+'
+
+  - name: 'platform_category'
+    xpath: //ol[contains(@class, 'breadcrumb')]//li[last()-1]
+
+  - name: 'product_variations'
+    xpath: //*[contains(@id, 'keen-slider-color')]//a/@href
+    regExp: '(.+)'
+    regExpReplace: https://www.ikea.com.hk/en$1
+
+  - name: 'stock_availability'
+    xpath: 
+    defaultValue: 'yes'
+
+  - name: 'description' 
+    xpath: //div[contains(@class, 'tabs-info-wrap')]//div[contains(@class, 'product-desc-wrapper')]
+
+  - name: 'pack_size'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Package quantity:')]/following-sibling::td)[1]
+    regExp: '(\d+)'
+    defaultValue: 1
+
+  - name: 'main_image'
+    xpath: (//a[contains(@class, 'slideImg')]/img/@src)[1]
+    downloadContent: 'text'
+
+  - name: 'alternative_images'
+    xpath: (//div[contains(@class, 'thumbnails-secction ')]//div[contains(@class,'img_wrappper')])[position() > 1]
+
+  - name: 'user_reviews'
+    xpath: //a[contains(@class, 'pr-snippet-review-count')]
+    regExp: '[0-9,.]+'
+    defaultValue: 0
+
+  - name: 'average_rating'
+    xpath: //div[contains(@id, 'pr-reviewsnippet')]//div[contains(@class, 'pr-snippet-rating-decimal')]
+
+  - name: 'dimensions_unit'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Width') or contains(text(), 'Height')]/following-sibling::td)[1]
+    regExp: '[A-Za-z]+'
+    defaultValue: 'cm'
+
+  - name: 'width'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Width')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+
+  - name: 'height'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Height')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+
+  - name: 'length'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Length')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+
+  - name: 'depth'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Depth')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+
+  - name: 'diameter'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Diameter')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+
+  - name: 'weight_raw'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Weight')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+  
+  - name: 'weight_unit'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Weight')]/following-sibling::td)[1]
+    regExp: '[A-Za-z]+'
+
+  - name: 'volume'
+    xpath: (//div[contains(@class, 'measurements-container')]//td[contains(text(), 'Volume')]/following-sibling::td)[1]
+    regExp: '[0-9,.]+'
+
+  - name: 'materials'
+    xpath: //div[contains(@class, 'card-body')]//*[contains(text(), 'Materials')]/following-sibling::div
+    # jq: '.card-body | select(.. | .text? == "Materials") | .following_sibling.customer_material'
+
+  - name: 'colour'
+    xpath: //span[contains(@id,"variation-selected-subtitle")]
+  
+  - name: 'product_details'
+    xpath: //div[contains(@class, 'product-desc-wrapper mb-4')]//p

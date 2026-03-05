@@ -1,0 +1,109 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+orderedSelectorTocClickOn: '.store-stock-button'
+fields:
+  - name: "product_title"
+    xpath: //meta[contains(@name,'title')]/@content | //h1[contains(@class,'title')] | (//h2[contains(@class,'title')])[1]
+
+  - name: "listing_id"
+    xpath: > 
+      (//dt[contains(.,'Product code')]/following-sibling::dd)[1] 
+      | 
+      //p[contains(@class,'productCode')] 
+      | 
+      //p[contains(@class,'product-code')] 
+      | 
+      //strong[contains(text(),'Product Code')]/following-sibling::p 
+      | 
+      (//dt[contains(.,'Product code')]/following-sibling::dd)[1] 
+      | 
+      //strong[contains(text(),'Product code')]
+      |
+      (//dt[contains(.,'Product Code')]/following-sibling::dd)[1]
+    regExp: \d+
+
+  - name: "offer_price"
+    xpath: '//div[@id="detail-container"]//div[@data-testid="product:promotional-messages"]/parent::div/parent::div/div[contains(@class ,"Header_priceRatingWrapper__vVHdc")]//div[contains(@class, "Price_base__MlwTe")]//span[@data-testid="product:price"]'
+    regExp: '(\d+[\.,]?\d*)'
+
+  - name: "original_price"
+    xpath: (//span[contains(@data-testid,"product:price:reduced")])[1] | //*[contains(@aria-label,"Price now")] | //*[@data-testid="product:price"] | (//p[contains(@class,'price')])[1]
+    # xpath: '//div[@id="detail-container"]//div[not(*)]/parent::div/div[contains(@class ,"Header_priceRatingWrapper__vVHdc")]//div[contains(@class, "Price_base__MlwTe")]//span[@data-testid="product:price"] | (//span[contains(@data-testid,"product:price")])[2] |  (//div[contains(@class, "prices-container")]/p[contains(@class, "price")])[1] | (//section[contains(@class, "ProductPrice_product-prices-container")]//span[@data-test="product-price"]/span)[1] | //ul[contains(@class,"ProductPrice")]/li'
+    regExp: '(\d+[\.,]?\d*)'
+
+  - name: "platform_category"
+    xpath: '//div[contains(@class, "breadcrumbs-carousel--container")]/ol/li[contains(@class, "breadcrumbs-carousel--crumb-item")][last()-1]'
+
+  - name: "product_variations"
+    xpath: '//div[contains(@class, "ColourSelector_colourSelector__dXxJt")]/div/ul/li/span/noscript/text()'
+    regExp: '<a\s+href="([^"]+)"'
+    regExpReplace: 'https://www.johnlewis.com$1'
+
+  - name: "stock_availability"
+    xpath: 'boolean(//*[contains(text(), "Currently in stock online")])'
+
+  - name: "main_image"
+    xpath: '//div[@id="mainImage"]/following-sibling::div[1]/div[1]/img/@src | (//div[contains(@class,"ProductImage")]/img/@src)[1]'
+    regExp: (.+)
+    regExpReplace: https:$1
+    downloadContent: 'text'
+
+  - name: "alternative_images"
+    xpath: '//div[@data-testid="standard:gallery:thumbnails:track"]/button/img/@src'
+
+  - name: "description"
+    xpath: '//details[@id="accordion-description"]//div[@data-testid="description:content"]/p/text()'
+
+  - name: "pack_size"
+    xpath: '//dl[@data-testid="product:specification:list"]//dd/span[contains(text(), "Number in Pack")]/parent::dd/parent::div/dt'
+    defaultValue: '1'
+
+  - name: "average_rating"
+    xpath: '//div[@data-testid="container:header:mobile"]//div[@data-testid="product:starRatings"]/@title'
+    regExp: '^[^\s]*'
+
+  - name: 'user_reviews'
+    xpath: '//div[@data-testid="container:header:mobile"]//div[@data-testid="product:starRatings"]/button'
+    regExp: '\d+'
+
+  - name: "diameter"
+    xpath: //dd[contains(.,'Dimensions')]/following-sibling::dt | //li[contains(.,'Dimensions')]
+
+  - name: "depth"
+    xpath: //dd[contains(.,'Dimensions')]/following-sibling::dt | //li[contains(.,'Dimensions')]
+
+  - name: "dimensions_unit"
+    xpath: //dd[contains(.,'Dimensions')]/following-sibling::dt | //li[contains(.,'Dimensions')]
+    regExp: '[a-zA-Z]{2}$'
+
+  - name: "height"
+    xpath: //dd[contains(.,'Dimensions')]/following-sibling::dt | //li[contains(.,'Dimensions')]
+
+  - name: "width"
+    xpath: //dd[contains(.,'Dimensions')]/following-sibling::dt | //li[contains(.,'Dimensions')]
+
+  - name: "length"
+    xpath: //dd[contains(.,'Dimensions')]/following-sibling::dt | //li[contains(.,'Dimensions')]
+
+  - name: "weight_raw"
+    xpath: '//dl[@data-testid="product:specification:list"]//dd/span[contains(text(), "Weight") and not(contains(text(), "User"))]/parent::dd/parent::div/dt'
+    regExp: '([\d.]+)'
+    regExpReplace: '$1'
+
+  - name: 'materials'
+    xpath: >
+      //dd[contains(.,'Material')]/following-sibling::dt 
+      | 
+      (//dt[contains(.,'Material')]/following-sibling::dd)[1]
+      |
+      (//dt[contains(.,'material')]/following-sibling::dd)[1]
+      |
+      //dd[contains(.,'Composition')]/following-sibling::dt 
+
+  - name: 'colour'
+    xpath: //span[contains(@data-testid,'currentVariantColour')]
+
+  - name: 'product_details'
+    xpath: //section[contains(@class,'detail')]

@@ -1,0 +1,31 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [
+      '<font|stylesheet>',
+    ],
+    setBlockAds: true,
+    setBypassCSP: true,
+    setLoadAllResources: true,
+    setLoadImages: false,
+    setCssEnabled: false,
+    applyIgnoreVBAndCookies: null,
+    optTags: null,
+    timeout: 60000,
+    force200: true,
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: null,
+    captchaSelectors: {},
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'US',
+    domain: 'freida',
+    schemaYAML: 'singlePage',
+  },
+};

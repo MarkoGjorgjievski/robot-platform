@@ -1,0 +1,48 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+#  - name: brandRaw
+#    xpath: (//tbody//*[contains(text(), 'Brand')]//ancestor::tr//span[contains(@class, 'word')] | //div[@id = 'centerCol']//a[contains(text(), 'Brand:')])[1] | //div[contains(@data-hook, "product-byline")]//a | //div[contains(@class, 'brand-name-container')]
+  - name: brandRaw
+    xpath: (//span[contains(@class, 'brand-desktop')])[1] | //a[contains(@id, 'bylineInfo')] | (//div[contains(@class, 'brand-name')])[1] | //div[contains(@id, 'bondByLine_feature_div')]
+#    regExp: Brand:\s*(\S.+)
+#  - name: brandCurated
+#    xpath: //tbody//*[contains(text(), 'Brand')]//ancestor::tr//span[contains(@class, 'word')] | //div[@id = 'centerCol']//a[contains(text(), 'Brand:')]
+  - name: imageURL
+    xpath: //li[contains(@data-csa-c-action, 'main-image')]//img/@src
+  - name: ingredients
+    xpath: //div[contains(@id, 'centerCol')]//span[contains(text(), 'Ingredients')]//ancestor::tr//span[contains(@class, 'break-word') and not(//div[contains(@id, 'important-information')]//h4[contains(text(), 'Ingredients')]/following-sibling::p[normalize-space()])] | //div[contains(@id, 'important-information')]//h4[contains(text(), 'Ingredients')]/following-sibling::p[normalize-space()]
+  - name: price
+    xpath: (//span[contains(@class, '-offscreen')])[1][contains(text(), '$')]
+  - name: productReviewURL
+    xpath: (//a[@data-hook='see-all-reviews-link-foot'])[1]/@href
+    defaultValue: null
+#    regExp: (.*)
+#    regExpReplace: 'https://www.amazon.com$1'
+  - name: reviewScore
+    xpath: (//span[contains(@class, 'reviewCountTextLinked')]//i)[1]
+#    regExp: ^(.*?)out
+  - name: size
+    xpath: //span[contains(@id, 'selected_size_name')] | (//div[contains(@class, 'centerCol')])[1]//label[contains(text(), 'Size:')]/following-sibling::span | (//div[contains(@class, 'centerCol')]//*[contains(text(), 'Unit Count')]//ancestor::tr//span)[last()] | //td//span[contains(text(), 'volume')]//ancestor::tr//span[contains(@class, 'word')]  | //div[contains(@id, 'bondByLine_feature_div')] | (//span[contains(@id, 'productTitle')])[1][not(ancestor::body//span[contains(@id, 'selected_size_name')] | (//div[contains(@class, 'centerCol')])[1]//label[contains(text(), 'Size:')]/following-sibling::span | (//div[contains(@class, 'centerCol')]//*[contains(text(), 'Unit Count')]//ancestor::tr//span)[last()] | //td//span[contains(text(), 'volume')]//ancestor::tr//span[contains(@class, 'word')]  | //div[contains(@id, 'bondByLine_feature_div')])]
+#    regExp: (^\d*\.?\d+)s
+  - name: titleRaw
+    xpath: (//span[contains(@id, 'productTitle')])[1] | //div[contains(@id, 'bondByLine_feature_div')]
+#  - name: titleCurated
+#    xpath: //span[contains(@data-action, 'ssf-share-icon')]/@data-ssf-share-icon
+#    jq: .title
+#    regexp: ^(.*?),
+  - name: uom
+    xpath: //span[contains(@id, 'selected_size_name')] | (//div[contains(@class, 'centerCol')])[1]//label[contains(text(), 'Size:')]/following-sibling::span | (//div[contains(@class, 'centerCol')]//*[contains(text(), 'Unit Count')]//ancestor::tr//span)[last()] | //td//span[contains(text(), 'volume')]//ancestor::tr//span[contains(@class, 'word')]  | //div[contains(@id, 'bondByLine_feature_div')] | (//span[contains(@id, 'productTitle')])[1][not(ancestor::body//span[contains(@id, 'selected_size_name')] | (//div[contains(@class, 'centerCol')])[1]//label[contains(text(), 'Size:')]/following-sibling::span | (//div[contains(@class, 'centerCol')]//*[contains(text(), 'Unit Count')]//ancestor::tr//span)[last()] | //td//span[contains(text(), 'volume')]//ancestor::tr//span[contains(@class, 'word')]  | //div[contains(@id, 'bondByLine_feature_div')])]
+#    regExp: (?<=\s)(.*?)(?=\s*\()
+  - name: modifier
+    xpath: (//span[contains(@class, 'brand-desktop')])[1] | //a[contains(@id, 'bylineInfo')] | (//div[contains(@class, 'brand-name')])[1] | //div[contains(@id, 'bondByLine_feature_div')]
+  - name: modifier_2
+    xpath: (//span[contains(@id, 'productTitle')])[1] | //div[contains(@id, 'bondByLine_feature_div')]
+  - name: sizeModifier
+    xpath: //span[contains(@id, 'selected_size_name')] | (//div[contains(@class, 'centerCol')])[1]//label[contains(text(), 'Size:')]/following-sibling::span | (//div[contains(@class, 'centerCol')]//*[contains(text(), 'Unit Count')]//ancestor::tr//span)[last()] | //td//span[contains(text(), 'volume')]//ancestor::tr//span[contains(@class, 'word')]  | //div[contains(@id, 'bondByLine_feature_div')] | (//span[contains(@id, 'productTitle')])[1][not(ancestor::body//span[contains(@id, 'selected_size_name')] | (//div[contains(@class, 'centerCol')])[1]//label[contains(text(), 'Size:')]/following-sibling::span | (//div[contains(@class, 'centerCol')]//*[contains(text(), 'Unit Count')]//ancestor::tr//span)[last()] | //td//span[contains(text(), 'volume')]//ancestor::tr//span[contains(@class, 'word')]  | //div[contains(@id, 'bondByLine_feature_div')])]
+  - name: productDescription
+    xpath: //div[(@id='productDescription')]
+  - name: aboutThisItem
+    xpath: //div[@id = 'feature-bullets']

@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, "_66091259")]/@href
+  - name: urlSubTemplate
+    xpath: //section/div/div/div/div/a/@href

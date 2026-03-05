@@ -1,0 +1,99 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: description
+    xpath: //div[contains(@class,'pdp_description') or contains(@class,'pdp_selling-points')][1]
+
+  - name: product_details
+    xpath: //div[contains(@class,'pdp_details__characteristics-html')]/table/tbody
+    
+  - name: product_title
+    xpath: //*[@data-qa='variationName']
+
+  - name: offer_price
+    xpath: //div[contains(@class,'js_pdp_price__price')]//span[contains(@class, 'js_pdp_price__retail-price')]//text()
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: original_price
+    xpath: //span[contains(@class,'pdp_price__discount') and not(contains(@class,'pl_hidden'))]//span[contains(@class, 'pdp_price__strike')]//text() | //div[contains(@class,'js_pdp_price__price')]//span[contains(@class, 'js_pdp_price__retail-price')]//text()
+    regExp: \d{1,3}(?:[,.]\d{3})*(?:[,.]\d+)?
+
+  - name: main_image
+    xpath: //a[contains(@class,'pl_carousel__slide js_pdp_main-image__slide pl_carousel__slide--active')]/@href
+    downloadContent: 'text'
+
+  - name: listing_id
+    xpath: //div[contains(@class,'js_pdp_ui-aggregator')]/@data-product-id
+
+  - name: user_reviews
+    xpath: //div[contains(@class,'cr_ratingContainer')]/span[@data-qa='cr-aggregations-approved']
+    regExp: \d+
+
+  - name: alternative_images
+    xpath: //div/ul/li[contains(@class,'js_pdp_alternate-images__thumbnail')][@data-index != 0]/@data-img-src
+
+  - name: average_rating
+    xpath: //h1[contains(@class,'pl_headline300 pl_mr25')]
+
+  - name: product_category
+    xpath: //ul[contains(@class,'nav_grimm-breadcrumb')]/li[last()]
+
+  - name: product_variations
+    xpath: //*[@id="js_pdp_variationTrackingData"]
+    jq: .[].id
+
+  - name: product_link
+    xpath: //link[@rel='canonical']/@href | /html/head/meta[@property='og:url']/@content
+
+  - name: stock_availability
+    defaultValue: "yes"
+
+
+  - name: details 
+    xpath: //div[contains(@class,'pdp_details__characteristics-html')] 
+
+  - name: product_dimensions
+    xpath: //*[@data-qa='variationName'] | //ul[contains(@class,'pl_list--unordered')]//li[contains(text(),'ABMESSUNGEN')]
+    regExp: \b(\d{1,3}\s*x\s*\d{1,3}\s*x\s*\d{1,3})\b
+
+  - name: colour
+    xpath: //tr[.//*[text()='Farbe']]//td[2] | //div[@data-dim-type="color"]/div/div/span
+    
+  - name: weight
+    xpath: //tr[.//*[contains(text(),'Gewicht')]]//td[2]
+    regExp: \d+\.*,*\d*
+    defaultValue: '-1'
+
+  - name: height
+    xpath: //tr[.//*[text()='Höhe']]//td[2]
+    regExp: \d+
+    defaultValue: '-1'
+
+  - name: width
+    xpath: //tr[.//*[text()='Breite']]//td[2]
+    regExp: \d+
+    defaultValue: '-1'
+
+  - name: length
+    xpath: //tr[.//*[text()='Länge']]//td[2]
+    regExp: \d+
+    defaultValue: '-1'
+
+  - name: diameter
+    xpath: //tr[.//*[contains(text(), 'Durchmesser')]]//td[2]
+    regExp: \d+
+    defaultValue: '-1'
+
+  - name: materialsLeft
+    xpath: //table[.//caption[contains(text(),"Material")]]//tr//td[1]
+
+  - name: materialsRight
+    xpath: //table[.//caption[contains(text(),"Material")]]//tr//td[2]
+
+  - name: captions
+    xpath: //div[contains(@class,'pdp_details__characteristics-html')]/table/caption
+
+  - name: pack_size
+    defaultValue: "1"

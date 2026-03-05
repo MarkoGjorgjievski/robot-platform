@@ -1,0 +1,14 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'productURL'
+    xpath: //*[contains(@class, "kl-tile--h-to-v ")][not(.//*[@__extracted])]//a/@href
+    regExp: '(.+)'
+    regExpReplace: https://www.leroymerlin.it$1
+    
+  # - name: 'secondPageURL'
+  #   xpath: //a[contains(@class, "js-next")][not(contains(@class, "is-disabled"))]/@href
+  #   regExp: '(.+)'
+  #   regExpReplace: https://www.leroymerlin.it$1

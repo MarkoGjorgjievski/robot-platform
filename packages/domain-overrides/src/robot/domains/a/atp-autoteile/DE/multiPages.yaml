@@ -1,0 +1,18 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //li[contains(@class,"product-hit")]/a/@href
+    regExp: (.+)
+    regExpReplace: https://www.atp-autoteile.de$1
+
+# jq: jq | filter
+# regExp: (reg)*p
+# regExpReplace: website$1$2
+# defaultValue: hardcoded value if nothing matches
+# manualSelector: css#selector
+# screenCapture: png
+# downloadContent: text
+# type: NUMBER | BOOLEAN | STRING (default if omitted)

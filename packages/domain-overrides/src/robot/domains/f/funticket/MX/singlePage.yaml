@@ -1,0 +1,32 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:  
+  - name: eventName
+    xpath: //*[contains(@id, "event_details")]
+    jq: .attributes.titulo + .attributes.subtitulo
+
+  - name: eventDate 
+    xpath: //*[contains(@id, "event_details")]
+    jq: .attributes.fecha
+  
+  - name: eventTime
+    xpath: //*[contains(@id, "event_details")]
+    jq: if .attributes.hora then .attributes.hora else null end
+
+  - name: venueName
+    xpath: //*[contains(@id, "event_details")]
+    jq: .attributes.lugar.data.attributes.nombre
+  
+  - name: venue_full_address
+    xpath: //*[contains(@id, "event_details")]
+    jq: .attributes.lugar.data.attributes.direccion
+
+  - name: isPublicPurchase
+    xpath: (//a[.//text() ="Comprar boletos"])[1]//span
+    jq: if . == "Comprar boletos" then "1" else "0" end
+  
+  - name: countryCode
+    defaultValue: "MX"
+

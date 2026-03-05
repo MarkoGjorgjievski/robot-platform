@@ -1,0 +1,127 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+ 
+  - name: product_title
+    xpath: //h1[contains(@class, "m-typo_primary")]
+  
+  - name: listing_id
+    xpath: //p[contains(@class, "m-typo_tertiary")]
+    regExp: ([\d-]+)
+    regExpReplace: $1
+  
+  - name: original_price
+    xpath: //meta[contains(@property, "product:original_price:amount")]/@content
+  
+  - name: offer_price
+    xpath: //meta[contains(@property, "product:price:amount")]/@content
+  
+  - name: platform_category
+    xpath: //meta[contains(@property, "product:category")]/@content
+  
+  - name: product_variations
+    xpath: //a[contains(@class, "m-offerColors_item")]/@href | //div[contains(@class, "b-offer_data")]//div[contains(@class, "selectric-hide-select")]//option/@data-link
+    regExp: (.+)
+    regExpReplace: https://www.agatameble.pl$1
+
+
+  - name: stock_availability
+    xpath: //a[contains(@class, "ga_AddToCart_product")]
+    defaultValue: 'no'
+    regExp: (.+)
+    regExpReplace: 'yes'
+
+  - name: main_image
+    # xpath: //div[contains(@class, "slick-track")]/div[1]/img[contains(@class, "m-offerGallery_picture")][1]/@src
+    xpath: //div/div[1]/img[contains(@class, "m-offerGallery_picture") and not(contains(@class, "mobile"))]/@src
+    # regExp: ^([^?]+)
+    downloadContent: 'text'
+    # regExpReplace: https://agatameble.pl$1
+  
+  - name: alternative_images
+    xpath: //img[contains(@class, "m-offerGallery_picture")]/@src
+    regExp: (.+)
+    regExpReplace: https://agatameble.pl$1
+  
+  - name: description
+    xpath: //div[contains(@class, "is-description")]/div/div/div/div[contains(@class,  "cells_holder clearfix2")]
+ 
+  - name: pack_size
+    xpath: //dt[p[contains(text(), "Ilość elementów")]]/following-sibling::dd/p
+  
+  # NOT FOUND
+  # - name: user_reviews
+    
+  #   xpath: //strong[contains(@class, "snrs-social-proof__metrics")]
+  #   regExp: (\d+)
+  #   regExpReplace: $1
+    # Number of people who liked this product
+
+  # - name: average_rating
+    
+
+
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: length
+    # xpath: //dt[p[ normalize-space(text()) = 'Długość']]/following-sibling::dd/p
+    xpath: //dt[p[ contains(normalize-space(text()), 'Długość')]]/following-sibling::dd/p
+    regExp: (\d+([.,]\d+)?)
+    regExpReplace: $1
+
+  - name: height
+    # xpath: //dt[p[ normalize-space(text()) = 'Wysokość']]/following-sibling::dd/p
+    xpath: //dt[p[ contains(normalize-space(text()), 'Wysokość')]]/following-sibling::dd/p
+    regExp: (\d+([.,]\d+)?)
+    regExpReplace: $1 
+  
+  - name: width
+    # xpath: //dt[p[ normalize-space(text()) = 'Szerokość']]/following-sibling::dd/p
+    xpath: //dt[p[ contains(normalize-space(text()), 'Szerokość')]]/following-sibling::dd/p
+    regExp: (\d+([.,]\d+)?)
+    regExpReplace: $1
+
+  - name: depth
+    # xpath: //dt[p[ normalize-space(text()) = 'Głębokość']]/following-sibling::dd/p
+    xpath: //dt[p[ contains(normalize-space(text()), 'Głębokość')]]/following-sibling::dd/p
+    regExp: (\d+([.,]\d+)?)
+    regExpReplace: $1
+
+  - name: diameter
+    # xpath: //dt[p[ normalize-space(text()) = 'Średnica']]/following-sibling::dd/p
+    xpath: //dt[p[ contains(normalize-space(text()), 'Średnica')]]/following-sibling::dd/p
+    regExp: (\d+([.,]\d+)?)
+    regExpReplace: $1
+
+
+  - name: weight_unit
+    defaultValue: "kg"
+
+  - name: weight_raw
+    xpath: //dt[p[contains(text(), "Waga towaru z opakowaniem")]]/following-sibling::dd/p
+    regExp: (\d+\.?\d*)
+    regExpReplace: $1
+
+
+  - name: materials
+  #     xpath: //dt[ p[contains(text(), "Materiał")] | p[contains(text(), "Wykończenie")] | p[ contains(text(), "Wykonanie")] | p[contains(text(), "Konstrukcja")] | p[contains(text(), "Uchwyty")] | p[contains(text(), "Nogi")]]/following-sibling::dd/p
+    xpath: //dt[ p[contains(text(), "Materiał")] |p[ contains(text(), "Wykonanie")] | p[contains(text(), "Konstrukcja")]]/following-sibling::dd/p
+  # NOT FOUND
+  # - name: colour
+  #   xpath: //a[contains(@class, "m-offerColors_item is-active")]/span/@style
+  #   regExp: url\(([^\(]+)\)
+  #   regExpReplace: $1
+  #  # lacks propper color name, extracting link to color icon
+
+  - name: product_details
+    xpath: //div[contains(@class, "b-offer_tabsDesc")]//div[ contains(@class, "m-offerShowData_item js-offerShowData_item") and not(contains(@class, "is-description")) and not(contains(@class, "is-files"))] | //a[contains(@class, "m-filesList_item")]/@href
+
+  - name: currency
+    xpath: //div/span[contains(@itemprop, "priceCurrency")]
+  
+  - name: listing_url
+    # xpath: 

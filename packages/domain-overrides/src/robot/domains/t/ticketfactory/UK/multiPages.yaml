@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//*[contains(@class,"slider-default__slider--item")][contains(@class,"slick-slide")] | //*[contains(@class,"feature-grid-container__item")][@data-url] | //*[contains(@class,"city-attraction")][not(@id)]'
+fields:
+  - name: eventURL
+    singleValue: true
+    xpath: //a/@href

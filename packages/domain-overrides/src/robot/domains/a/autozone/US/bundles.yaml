@@ -1,0 +1,123 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@id,'dealsData')]//li
+fields:
+  - name: isBundle 
+    xpath: //text()[not(contains(.,'recordXPath'))]
+    regExp: (.+)
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: bundleSKU2 
+    xpath: //text()[not(contains(.,'recordXPath'))]
+    regExp: (.+)
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: bundleSKU3
+    xpath: //text()[not(contains(.,'recordXPath'))]
+    jq: .description
+
+  - name: brand
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .brand
+
+  - name: brandVariant
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .brandVariant
+
+  - name: inStockOnline
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .inStockOnline
+
+  - name: inStockStore
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .inStockStore
+
+  - name: manufacturerPartNumber
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .manufacturerPartNumber
+
+  - name: masterBrand
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .masterBrand
+
+  - name: mutlipackFlag
+    defaultValue: 'no data found'
+  
+  - name: mutlipackQuantity
+    defaultValue: 'no data found'
+
+  - name: packSize
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .packSize
+
+  - name: packSizeUnit
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .packSizeUnit
+
+  - name: productDescription
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .productDescription
+
+  - name: productName
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .productName
+
+  - name: productRating
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .productRating
+
+  - name: productVariant
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .productVariant
+
+  - name: promotionDescription
+    defaultValue: 'no data found'
+    jq: .promotionDescription
+
+  - name: quantity
+    defaultValue: '1'
+
+  - name: ratingCount
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .ratingCount
+
+  - name: retailPrice
+    xpath: //text()[contains(.,'brand')]
+    jq: .retailPrice
+    defaultValue: 'bundlePrice'
+
+  - name: retailPriceBundle
+    xpath: //text()[not(contains(.,'recordXPath'))]
+    jq: .description
+
+  - name: RRP_Was
+    xpath: //text()[contains(.,'brand')]
+    jq: .RRP_Was
+
+  - name: sku
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .sku
+  
+  - name: specificationProfile
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .specificationProfile
+
+  - name: startingPriceType
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .startingPriceType
+
+  - name: viscosity
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .viscosity
+
+  - name: rawAvailabilityMessage
+    xpath: ancestor::html//li//text()[contains(.,'brand')]
+    jq: .rawAvailabilityMessage
+
+  # - name: originalURL
+  #   xpath: ancestor::html//li//text()[contains(.,'brand')]
+  #   jq: .productURL
+  

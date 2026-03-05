@@ -1,0 +1,64 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'KR',
+    loadedSelector: '.productMain, .mainContents',
+    waitForSelectorToLoad: '',
+    noResultsXPath: '//h1[contains(text(),"404")]',
+    accessDeniedXPath: '//h1[contains(text(),"403")]',
+    orderedSelectorsToClickOn: [
+      // ".popupCloseBtn.is-bottomBtn"
+    ],
+    orderedActionsToPerform: [],
+    loadingTimeout: 100000,
+    checkXpathBeforeExtract: null,
+    URLTemplate: null,
+    setZipCode: {
+      checkZipCodeSelectorOrXPath: null,
+      maxTries: 1,
+      setZipWithUI: {
+        beforeInputSelectorOrXpathArray: null,
+        inputSelectorOrXPath: null,
+        afterInputSelectorOrXPathArray: null,
+        wait: 3000,
+      },
+    },
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    addAttributeToExtractedRecords: null,
+    enableAutoTable: true,
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      infiniteScroll: {
+        maxScrolls: null,
+        stopXPath: null,
+        waitTime: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'interpark',
+  },
+};

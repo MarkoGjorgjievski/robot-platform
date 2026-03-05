@@ -1,0 +1,49 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventName
+    xpath: //article//h1
+
+  - name: venueData
+    xpath: (//p//i[contains(@class,'icon-01')]/following-sibling::text())[1]
+
+  - name: venueName
+    xpath: (//p//i[contains(@class,'icon-01')]/following-sibling::text())[1]
+    regExp: '^([^,]*)'
+
+  - name: venueAddress
+    xpath: (//p//i[contains(@class,'icon-01')]/following-sibling::text())[1]
+
+  - name: venueCity
+    xpath: (//p//i[contains(@class,'icon-01')]/following-sibling::text())[1]
+    regExp: ',([^,]+)$'
+
+  - name: postalCode
+    xpath: (//p//i[contains(@class,'icon-01')]/following-sibling::text())[1]
+    regExp: (?<=,)\s*(\d+\s*)*$
+    defaultValue: 'dummy'
+
+  - name: venueCountryCode
+    defaultValue: 'SK'
+
+  - name: eventDate
+    xpath: //script[contains(@type,'application')]
+    regExp: '"startDate": "([^"]+)"'
+
+  - name: eventTime
+    defaultValue: 'dummy'
+
+  - name: isPublicPurchase
+    xpath: boolean(//button[contains(@id,'addtocart')] | //button[contains(@class,'place_select')])
+
+  - name: eventURL
+    xpath: //meta[contains(@property,'url')]/@content
+
+  - name: eventNote
+    xpath: //div[contains(@class,'event__detail')]
+
+  - name: isDateTimeTBA
+    defaultValue: '0'
+

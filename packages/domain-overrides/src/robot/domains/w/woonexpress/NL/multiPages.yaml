@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ol//li[contains(@class,"product-item")]
+fields:
+  - name: productURL
+    xpath: //a[contains(@class,'catalog-grid-item__link')]//@href

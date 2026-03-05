@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'product-item__image')]
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, 'product_tracking_target')]/@href
+    regExp: (.+)
+    regExpReplace: https://www.bol.com/$1

@@ -1,0 +1,50 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'CA',
+    loadedSelector: 'head', // only head canonical link is required
+    waitForSelectorToLoad: null,
+    noResultsXPath: "//body//div[contains(@id, 'pagenotfound-widget')]",
+    accessDeniedXPath: '//h2[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: [],
+    loadingTimeout: 5000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    addAttributeToExtractedRecords: null,
+    enableAutoTable: true,
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      infiniteScroll: {
+        maxScrolls: null,
+        stopXPath: null,
+        waitTime: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'sleepcountry',
+  },
+};

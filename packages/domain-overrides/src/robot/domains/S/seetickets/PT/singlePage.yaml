@@ -1,0 +1,40 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[@type="application/ld+json"][contains(text(),"addressCountry")][(contains(text(),'addressCountry":"PT'))]
+accessDeniedXPath: //p[contains(text(), "maximum possible number of bookings")]
+noResultsXPath: //span[@class="seat-icon"]
+fields:
+  - name: eventName
+    xpath: 'ancestor::html//h1'
+  - name: venueName
+    xpath: '//text()'
+    jq: '.location.name'
+  - name: venueCity
+    xpath: '//text()'
+    jq: '.location.address.addressLocality'
+  - name: eventDateTime
+    xpath: '//text()'
+    jq: '.startDate'
+  - name: eventUrl
+    xpath: '//text()'
+  - name: postalCode
+    xpath: '//text()'
+    jq: '.location.address.postalCode'
+  - name: venueAddress
+    xpath: '//text()'
+    jq: '.location.address.streetAddress'
+  - name: venueCountryCode
+    xpath: '//text()'
+    jq: '.location.address.addressCountry'
+  - name: eventNote
+    xpath: 'ancestor::html//section[@class="g-ui-box"]/p'
+  - name: sourceCountryCode
+    defaultValue: PT
+  - name: eventUniqueId
+    xpath: 'ancestor::html//meta[@property="og:url"]/@content'
+  - name: isPublicPurchase
+    xpath: 'ancestor::html//button[@id="buyTickets"]/span[contains(text(), "Continuar")] | ancestor::html//td[contains(@class, "quantity")][contains(text(), "Esgotado")]'
+    defaultValue: 0
+    regexReplace: 1
+ 

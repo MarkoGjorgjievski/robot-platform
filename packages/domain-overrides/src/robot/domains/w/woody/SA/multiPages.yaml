@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@class='product-wrapper']
+fields:
+  - name: productURL
+    xpath: //a[@class='product-image-link']/@href

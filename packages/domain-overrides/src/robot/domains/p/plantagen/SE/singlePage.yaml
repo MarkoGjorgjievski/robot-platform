@@ -1,0 +1,88 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: "//h1[contains(@class, 'product-name')]"   
+
+  - name: 'listing_id'
+    xpath: "//td[contains(text(), 'Artikelnummer')]/following-sibling::td"  
+
+  - name: 'offer_price_text'
+    xpath: //div[contains(@class,'js-product-information-panel')]//div[@class='price']//span[contains(@class,'is-low-price')]//text()
+    defaultValue: null
+
+  - name: offer_price
+    defaultValue: 'dummy'
+
+  - name: 'original_price_text'     
+    xpath: "//div[contains(@class,'js-product-information-panel')]//div[@class='price']//text()" 
+
+  - name: 'original_price'  
+    xpath: //div[contains(@class,'js-product-information-panel')]//div[@class='price']/span[contains(@class,'strike-through')]//span/@content 
+    defaultValue: 'dummy'
+
+  - name: 'platform_category' 
+    xpath: "//ol[@class='breadcrumb']/li[last()]/a/text()"     
+
+  - name: 'product_variations'
+    xpath: ''  
+    defaultValue: null 
+
+  - name: 'stock_availability'
+    xpath: "boolean(//span[contains(@class,'js-store-availability')]//*[@alt='I lager'])"   
+
+  - name: 'main_image'
+    xpath: //div[contains(@class,'product-detail__left-panel')]//div[contains(@class,'carousel-item active')]//img/@data-src
+    downloadContent: 'text'    
+
+  - name: 'alternative_images'
+    xpath: "//div[contains(@class,'thumb')]//img/@data-src"      
+
+  - name: 'description'
+    xpath: "//div[contains(@class,'short-desc-container')]//text()"   
+
+  - name: 'pack_size'
+    xpath: ""  
+    defaultValue: 1
+
+  - name: 'user_reviews'
+    xpath: "(//div[@class='tf-count'])[1]/text()" 
+    defaultValue: '0'    
+
+  - name: 'average_rating'
+    xpath: "(//div[@class='tf-rating'])[1]/text()" 
+    defaultValue: null 
+
+  - name: 'dimensions_unit'
+    xpath: ""     
+    defaultValue: 'cm'  
+
+  - name: 'height'
+    xpath: "//td[contains(text(), 'Höjd')]/following-sibling::td"   
+    defaultValue: null  
+
+  - name: 'width'
+    xpath: "//td[contains(text(), 'Bredd')]/following-sibling::td"     
+
+  - name: 'depth'
+    xpath: "//td[contains(text(), 'Djup')]/following-sibling::td"
+
+  - name: 'diameter'
+    xpath: //span[contains(@class,'js-product-variant-name')]
+
+  - name: 'weight_unit'
+    xpath: "substring-after(//td[contains(text(), 'Vikt')]/following-sibling::td, ' ')"  
+
+  - name: 'weight_raw'
+    xpath: "//td[contains(text(), 'Vikt')]/following-sibling::td"
+
+  - name: 'materials'
+    xpath: "//td[contains(text(), 'Material')]/following-sibling::td"     
+
+  - name: 'colour'
+    xpath: "//td[contains(text(), 'Färg')]/following-sibling::td"
+
+  - name: 'product_details'
+    xpath: //div[contains(@class,'product-attributes')]/div

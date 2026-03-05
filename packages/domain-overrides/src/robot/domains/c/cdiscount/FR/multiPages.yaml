@@ -1,0 +1,18 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+# there appears to be no html changes on category listing between ol dand new themes
+# but the situation has to be monitored regardless
+recordXPath: null #'//*[@id="lpBloc"]//li/a |  //*[@class="vignettes-AR"]//a'
+fields:
+  - name: productURL
+    # xpath: '//*[@id="lpBloc"]//li/a/@href | //a[contains(@class, "prdtBILA")]/@href | //a[contains(@class, "o-card__link")]/@href | //div[text() = "Les bonnes raisons de faire appel à nous"]/preceding-sibling::div[contains(@class, "hubImgListNowWithoutTitleBis")]//a/@href'
+    xpath: '//*[@id="lpBloc"]//li/a/@href | //a[contains(@class, "prdtBILA")]/@href |//div[@class="o-block"][not(contains(@id, "qTopQuestion"))][not(.//div[contains(text(), "Inspiré de vos visites")])]//a[contains(@class, "o-card__link")]/@href | //div[text() = "Les bonnes raisons de faire appel à nous"]/preceding-sibling::div[contains(@class, "hubImgListNowWithoutTitleBis")]//a/@href'
+
+    regExp: (http.*)
+    regExpReplace: $1
+  
+  - name: nestedCategories
+    xpath: '//*[@class="vignettes-AR"]//a/@href'
+    regExp: (http.*)
+    regExpReplace: $1

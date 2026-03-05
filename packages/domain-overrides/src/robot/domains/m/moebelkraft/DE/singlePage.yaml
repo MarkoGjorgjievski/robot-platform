@@ -1,0 +1,69 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //span[contains(@class,"articleFullName__articleInformationInfoBlock")]
+    defaultValue: "Product Title Not Available"
+  - name: listing_id
+    xpath: //div[contains(@class, "articleInformation__articleNr")]/text()
+    regExp: :\s*([^\s:]+)
+    regExpReplace: $1
+  - name: original_price_tmp
+    xpath: concat(//div[contains(@class, 'articlePresentationNew__infoBlockWrapper')]//div[contains(@class, 'articlePricesNew__price--original') or contains(@class, 'articlePricesNew__price--single')]/descendant::text()[not(ancestor::span[contains(@class, 'priceNew__currency')])][1],'',  //div[contains(@class, 'articlePresentationNew__infoBlockWrapper')]//div[contains(@class, 'articlePricesNew__price--original') or contains(@class, 'articlePricesNew__price--single')]/descendant::span[contains(@class, 'priceNew__fraction')]/text()[1])
+  - name: original_price
+  - name: offer_price
+    xpath: //div[@itemprop="offers"]//span[@itemprop="price"]/@content
+  - name: platform_category
+    xpath: //ul[@itemscope="itemscope"]//li[position() = (last()-1)]/a[@itemprop="item"]
+  - name: product_variations
+    xpath: //ul[@class="configurationOverlayOptions__options"]/li[not(contains(@class, "configurationOverlayOptions__option--active"))]/button/@data-target
+    regExp: (.+)
+    regExpReplace: https://www.moebel-kraft.de/artikel/$1
+  - name: stock_availability_tmp
+    xpath: //meta[@itemprop="availability"]//@content
+  - name: stock_availability
+  - name: main_image
+    xpath: (//div[@class="articlePresentation"]//div[contains(@class, "articleImageForADS") and contains(@class, "swiper-wrapper")]//div[@data-swiper-slide-index="0"]/div[contains(@class, "articleImageForADS__image")]/a/@href)[1] | //div[@id="articleImageContainer"]//div[@class="articleImageForADS__image" and @data-image-index="0"]/a/@href
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[@id="articleImageContainer"]//div[@class="articleImageForADS__image" and not(@data-image-index="0") or (@data-fancybox="gallery")]/a/@href | //div[@class="articlePresentation"]//div[contains(@class, "articleImageForADS") and contains(@class, "swiper-wrapper")]//div[not(@data-swiper-slide-index=0) and not(contains(@class, "swiper-slide-duplicate-prev"))]/div[contains(@class, "articleImageForADS__image")]/a/@href
+  - name: description
+    xpath: //div[@data-testid="articleDataDescription"]//div[contains(@class, "description")]
+  - name: pack_size
+    xpath: //div[@class='articleFeatures__elements']//div[contains(@class, 'articleFeature__element') and div[@class='articleFeature__subElement' and text()='Anzahl Packstücke:']]/div[@class='articleFeature__subElement']/div[@class='articleFeature__subElementValue']/text()
+  - name: user_reviews
+    xpath: //div[@class="averageRating__numberOfRatings"]
+    regExp: (\d+(\.\d+)?)
+    regExpReplace: $1
+    defaultValue: "0"
+  - name: average_rating
+    xpath: //div[@class="averageRating__number"]
+    regExp: (\d+(\.\d+)?)
+    regExpReplace: $1
+    defaultValue: "0.0"
+  - name: dimensions
+  - name: dimensions_unit
+  - name: height
+    xpath: //div[@class='articleFeatures__elements']//div[contains(@class, 'articleFeature__element') and div[@class='articleFeature__subElement' and text()='Gesamthöhe:']]/div[@class='articleFeature__subElement']/div[@class='articleFeature__subElementValue']/text()
+    regExp: (\d+(\.\d+)?)
+    regExpReplace: $1
+  - name: width
+    xpath: //div[@class='articleFeatures__elements']//div[contains(@class, 'articleFeature__element') and div[@class='articleFeature__subElement' and text()='Gesamtbreite:']]/div[@class='articleFeature__subElement']/div[@class='articleFeature__subElementValue']/text()
+    regExp: (\d+(\.\d+)?)
+    regExpReplace: $1
+  - name: length
+    xpath: //div[@class='articleFeatures__elements']//div[contains(@class, 'articleFeature__element') and div[@class='articleFeature__subElement' and (text()='Gesamttiefe:' or text()='Gesamtlänge:')]]/div[@class='articleFeature__subElement']/div[@class='articleFeature__subElementValue']/text()
+    regExp: (\d+(\.\d+)?)
+    regExpReplace: $1
+  - name: weight
+  - name: weight_unit
+  - name: weight_raw
+  - name: materials
+    xpath: //div[contains(@class, 'articleFeature__element') and contains(div[@class='articleFeature__subElement'], 'Material')]/div[@class='articleFeature__subElement']/div[@class='articleFeature__subElementValue']/text()
+  - name: colour
+    xpath: //div[contains(@class, 'articleFeature__element') and contains(div[@class='articleFeature__subElement'], 'Farbe')]/div[@class='articleFeature__subElement']/div[@class='articleFeature__subElementValue']/text()
+  - name: properties_tmp
+    xpath: //div[contains(@class, 'articleFeatures__elements')]/div[contains(@class, 'headline') and text()='Merkmale']/following-sibling::div[@class='articleFeature__element'] 
+  - name: product_details

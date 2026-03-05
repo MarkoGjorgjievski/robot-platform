@@ -1,0 +1,30 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //meta[@property="og:url"] | //base
+  - name: eventDate
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span/text()[1] | //ul[@class="info"]/li[1]//span[@class="info-desc"]/text() | //span[contains(@class, "info-desc")]/span[contains(@class, "timezoneSuffix")]
+  - name: eventTime
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span/text()[1] | //ul[@class="info"]/li[1]//span[@class="info-desc"]/text() | //span[contains(@class, "info-desc")]/span[contains(@class, "timezoneSuffix")]
+  - name: addressData
+    xpath: >
+      //table[@class="info-table"]//tr[2]/td/text() 
+      | 
+      //div[@class="event-info"]/ul/li[2]/span/text() 
+      | 
+      //ul[@class="info"]/li[2]//span[@class="info-desc"]
+    regExp: (.*\/.*)
+    regExpReplace: $1
+  - name: eventUniqueId
+    xpath: //div[@class="event-info"]/h2/a/@href | //li[@class="type-selling"]/a/@href | //div[@class="tickets"]/a/@href |  //base/@href
+  - name: isPublicPurchase
+    xpath: //table[@class="info-table"]//tr[1]/td/text() | //div[@class="event-info"]/ul/li[1]/span/text()[1] | //ul[@class="info"]/li[1]//span[@class="info-desc"]/text() | //span[contains(@class, "info-desc")]/span[contains(@class, "timezoneSuffix")]
+  - name: eventUniqueId
+    xpath: //meta[@property="og:url"] |  //base/@href
+  - name: eventName
+    xpath: //div[@class="event-title"]/h2 | //div[@class="header-title"]/h1
+  - name: firstOnSaleDateTime
+    xpath: ((//div[@class="tickets"]//span[@class="period-time"])[1]//span[@class="timezoneSuffix"])[1]/text()

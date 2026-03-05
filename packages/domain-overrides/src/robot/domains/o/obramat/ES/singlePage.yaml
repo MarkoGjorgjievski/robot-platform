@@ -1,0 +1,64 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //*[contains(@class, 'product-title-container')]//*[contains(@data-cy, "product-name")]
+
+  - name: original_price
+    xpath: //*[@id = 'precioconivapdp']
+
+  - name: platform_category
+    xpath: //*[contains(@class, 'q-breadcrumbs container q-my-sm breadcrumbs-container')]//*[contains(@class, 'flex items-center q-breadcrumbs--last')]//*
+
+  - name: stock_availability
+    xpath: boolean(//*[contains(@class, 'col stock-font product-card-info-stock')]//*[@id = 'enstockpdp' and contains(text(), 'En stock')])
+
+  - name: main_image
+    xpath: //*[contains(@class, 'magnifier-image')]/@src
+    regExp: (.*)
+    regExpReplace: https://www.obramat.es$1
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //*[contains(@class, 'desktop extra-large base-gallery')]//*[contains(@class, 'base-thumbnails__container')]//*[position() > 1]/@src
+    regExp: (.*)
+    regExpReplace: https://www.obramat.es$1
+
+  - name: materials
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Material')]/text()
+
+  - name: product_details
+    xpath: //*[@id = 'customdimensionpdp']
+
+  - name: description
+    xpath: //*[@id = 'descripcionpdp']
+
+  - name: colour
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Color')]/text()
+  
+  - name: listing_id
+    xpath: //*[contains(@class, 'product-title-container')]//*[contains(@data-cy, "product-ref")]
+    regExp: (?<=REF\s:\s)(.*)
+
+  - name: weight_raw
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Peso')]
+
+  - name: volume
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Volumen')]
+
+  - name: height
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Altura')]
+      
+  - name: diameter
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Diámetro')]
+
+  - name: depth
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Profundidad')]
+
+  - name: width
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Anchura')]
+
+  - name: length
+    xpath: //*[@id = 'customdimensionpdp']//p[contains(., 'Longitud')]

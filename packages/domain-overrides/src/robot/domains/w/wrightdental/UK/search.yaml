@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //div[contains(@class,'PublicProductListItemContainer')]/a/@href
+    regExp: \/p\/([^\/?]+)
+    regExpReplace: https://www.wrightdental.co.uk/api/itcpgw/site_apis/product/variants?$product-ids=$1%20&$usage=SEE_THE_RANGE

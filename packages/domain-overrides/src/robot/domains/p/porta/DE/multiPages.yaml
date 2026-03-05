@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//div[contains(@class,"Result")][contains(@class,"productItem")]'
+fields:
+  - name: 'productURL'
+    xpath: '//div[contains(@class,"Result")][contains(@class,"productItem")]//a//@href'
+    regExp: '(\/[^"]{1,})'
+    regExpReplace: 'https://porta.de$1'

@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, "_66091259")][not((//section//h2[contains(text(), "Nos produits")]/parent::div/parent::div/following-sibling::div)[1]/div/div/div/a)]/@href
+  - name: urlSubTemplate
+    xpath: (//section//h2[contains(text(), "Nos produits")]/parent::div/parent::div/following-sibling::div)[1]/div/div/div/a/@href

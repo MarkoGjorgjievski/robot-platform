@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: profileURL
+    xpath: //a[contains(@class, "user-item")]/@href
+    regExp: (.+)
+    regExpReplace: https://imginn.com$1
+  - name: productURL
+    xpath: //div[@class="item"]/div[@class="img"]/a/@href
+    regExp: (.+)
+    regExpReplace: https://instagram.com$1

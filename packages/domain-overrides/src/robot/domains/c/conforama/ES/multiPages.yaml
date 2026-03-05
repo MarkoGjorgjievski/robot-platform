@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //div[contains(@class, "product-container-wrapper")]/a/@href
+    # jq: jq | filter
+    # regExp: (reg)*p
+    # regExpReplace: website$1$2
+    # defaultValue: hardcoded value if nothing matches
+    # manualSelector: css#selector
+    # type: NUMBER | BOOLEAN | STRING (default if omitted)

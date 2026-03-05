@@ -1,0 +1,38 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'event-page')][not(./div[contains(@class,'row')]//div[contains(@class,'ticket-price')][text()='0 lei'])]
+fields:
+  - name: eventStrongName
+    xpath: //div[contains(@class,'header-text')]//h1//strong//text()
+  - name: eventNormalName
+    xpath: //div[contains(@class,'header-text')]//h1//text()
+  - name: venueName
+    xpath: //div[contains(@class,'main-content')]//div[contains(@class, 'location')]//a//text()
+  - name: postalCode
+    xpath: //div[contains(@class,'main-content')]//div[contains(@class, 'location')]//span[2]
+    regExp: \d{6}
+  - name: venueCity
+    xpath: //div[contains(@class,'main-content')]//div[contains(@class, 'location')]//span[1]
+  - name: venueAddress
+    xpath: //div[contains(@class,'main-content')]//div[contains(@class, 'location')]//span[2]
+  - name: venueCountryCode
+    defaultValue: 'RO'
+  - name: eventDate
+    xpath: //div[contains(@class,'date')]//meta//@content
+  - name: eventTime
+    xpath: //div[contains(@class,'date')]//text()
+    regExp: ora (\d*:\d*)
+    regExpReplace: $1
+    defaultValue: '-1'
+  - name: isPublicPurchase
+    xpath: //div[contains(@class,'submit-button-container')]//button//text() | //div[contains(@class,'not-booking')]//text()
+  # - name: eventURL
+  #   xpath: //div[contains(@class,'order-form-widget')]//@data-return-url
+  #   regExp: https:\/\/www.iabilet.ro\/\D+\d*\D*\d*\/
+  - name: eventNote
+    xpath: //div[contains(@class,'main-content')]//div[contains(@class, 'short-desc')]/text() | //div[contains(@class,'main-content')]//div[contains(@class, 'short-desc')]/a/text() | //div[contains(@class,'event-detail')]//text()
+  - name: eventUniqueId
+    xpath: //div[contains(@class,'order-form-widget')]//@data-return-url
+    regExp: \d{5}
+  

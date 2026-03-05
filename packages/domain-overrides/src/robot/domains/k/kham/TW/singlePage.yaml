@@ -1,0 +1,44 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//table[@class="eventTABLE"]/tbody/tr | //div[@class="showDetail"] | //div[@class="seatINFO"]'
+fields:
+  - name: eventName
+    xpath: //div[@class="eventTitle"]/text()
+  - name: eventDate
+    xpath: //td[1]/text()
+    regExp: '(\d{4}/\d{2}/\d{2})\([^)]+\)(\d{2}:\d{2})'
+    regExpReplace: '$1'
+  - name: eventTime
+    xpath: //td[1]/text()
+    regExp: '(\d{4}/\d{2}/\d{2})\([^)]+\)(\d{2}:\d{2})'
+    regExpReplace: '$2'
+  - name: isPublicPurchase
+    xpath: //div[@class="showDetail"]//*[contains(text(), "開賣日期")]/text()
+    regExp: '\d{4}/\d{2}/\d{2}'
+    regExpReplace: '$1'
+    #defaultValue: '1'
+    #xpath: //td[3]//*[text()='0']
+    #regExp: '([^\s]+ [^\s]+)'
+    #regExpReplace: '0'
+  - name: venueName
+    xpath: //span[@id="PLACE_NAME"]/text()[1]
+  - name: venueAddress
+    xpath: //span[@id="PLACE_NAME"]/text()[2]
+  - name: venueCity
+    xpath: //span[@id="PLACE_NAME"]/text()[2]
+    regExp: '^.{3}'
+  - name: onSaleDateTime
+    xpath: //div[@class="showDetail"]//*[contains(text(), "開賣日期")]/ancestor::li
+    regExp: '(\d{4})\/(\d{2})\/(\d{2}).+?(..)(\d{1,2})'
+    regExpReplace: '$1-$2-$3T$5:00+08:00$4'
+  - name: productID
+    xpath: //input[@id="PRODUCT_ID"]/@value
+  - name: performanceID
+    xpath: //td[4]/a/button/@onclick
+    regExp: "PERFORMANCE_ID=([^&]+)"
+    regExpReplace: '$1'
+  - name: eventURL
+    xpath: //input[@id="PRODUCT_ID"]/@value
+    regExp: "(.+)"
+    regExpReplace: 'https://kham.com.tw/application/UTK02/UTK0201_00.aspx?PRODUCT_ID=$1'

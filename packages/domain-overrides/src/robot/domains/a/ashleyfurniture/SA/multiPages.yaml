@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@id,'category_products_list') and not(contains(@id,'mobile'))]//div[contains(@class,'img')]
+fields:
+  - name: productURL
+    xpath: //a/@href

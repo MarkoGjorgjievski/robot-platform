@@ -1,0 +1,35 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //tr[contains(@class,"_row")]
+fields:
+  - name: vndID
+    xpath: //span[contains(@id,"_ctl01_L") or contains(@id,"_ctl01_l")]
+  - name: vndName
+    xpath: //span[contains(@id,"_ctl00_L") or contains(@id,"_ctl00_l")]
+  - name: chkDte # mm/dd/yy on the website, transform needed.
+    xpath: //span[contains(@id,"_ctl14_L") or contains(@id,"_ctl14_l")]
+  - name: chkNo
+    xpath: //a[contains(@id,"_ctl15_l") or contains(@id,"_ctl15_H")]
+  - name: invDte # mm/dd/yy on the website, transform needed.
+    xpath: //span[contains(@id,"_ctl07_L") or contains(@id,"_ctl07_l")]
+  - name: invNo
+    xpath: //span[contains(@id,"_ctl06_L") or contains(@id,"_ctl06_l")]
+  - name: dueDte # mm/dd/yy on the website, transform needed.
+    xpath: //span[contains(@id,"_ctl13_L") or contains(@id,"_ctl13_l")]
+  - name: poNo
+    xpath: //span[contains(@id,"_ctl04_L") or contains(@id,"_ctl04_l")]
+  - name: grossAmt # transform needed. No "$" and no comma(s) – decimal only.
+    xpath: //span[contains(@id,"_ctl10_L") or contains(@id,"_ctl10_l")]
+  - name: discAmt # transform needed. No "$" and no comma(s) – decimal only.
+    xpath: //span[contains(@id,"_ctl11_L") or contains(@id,"_ctl11_l")]
+  - name: adjReas
+    xpath: //a[contains(@id,"_ctl16_l") or contains(@id,"_ctl16_H")] | //span[contains(@id,"_ctl16_L") or contains(@id,"_ctl16_l")]
+  - name: invStatus
+    xpath: //span[contains(@id,"_ctl02_L") or contains(@id,"_ctl02_l")]
+    # jq: jq | filter
+    # regExp: (reg)*p
+    # regExpReplace: website$1$2
+    # defaultValue: hardcoded value if nothing matches
+    # manualSelector: css#selector
+    # type: NUMBER | BOOLEAN | STRING (default if omitted)

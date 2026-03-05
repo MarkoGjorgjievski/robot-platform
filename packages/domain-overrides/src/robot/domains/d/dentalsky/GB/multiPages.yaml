@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ol[contains(@class, "product-items")]/li
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, "product-item-link")]/@href
+
+  - name: "firstDepthURL"
+    xpath: //div[@id="amasty-shopby-product-list"]//div[contains(@class, "toolbar-products")]//div[contains(@class, "pages")]//ul/li[contains(@class, "current")]/following-sibling::li/a/@href

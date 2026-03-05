@@ -1,0 +1,51 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@data-review-id]
+fields:
+  # - name: json
+  #   xpath: ancestor::html//script[@type="application/ld+json"]
+  #   jq: .review
+    
+  - name: currentUrl
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: ([^#]+)#?.*
+    regExpReplace: $1
+
+  - name: review_id
+    xpath: '@data-review-id'
+
+  - name: review_title # no specific title present
+  
+  - name: review_body
+    xpath: .//*[contains(@class, "Review__body")]
+  
+  - name: username
+    xpath: .//*[contains(@class, "Review__author")]
+  
+  - name: review_date
+    xpath: .//*[contains(@class, "Review__date")]
+  
+  - name: stars # transform
+    xpath: .//*[contains(@class, "stars__icon")]/@class
+  
+  - name: rating
+    defaultValue: dummy
+
+  
+  - name: tags 
+    xpath:  .//*[contains(@class, "BadgeElement__text")]
+  
+  - name: images
+    xpath: .//img/@src
+  
+  - name: response_text #not found
+  
+  - name: response_date #not found
+  
+  - name: trustscore #not for this page
+  
+  - name: location # not found
+  
+  - name: helpfulness_count # not found
+  

@@ -1,0 +1,15 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "//*[@data-auto='product-tile']"
+fields:
+  - name: productURL
+    xpath: //h3/a/@href
+    regExp: (.+)
+    regExpReplace: https://bevasarlas.tesco.hu$1
+    # jq: jq | filter
+    # regExp: (reg)*p
+    # regExpReplace: website$1$2
+    # defaultValue: hardcoded value if nothing matches
+    # manualSelector: css#selector
+    # type: NUMBER | BOOLEAN | STRING (default if omitted)

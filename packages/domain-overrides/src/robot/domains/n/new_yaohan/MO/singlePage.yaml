@@ -1,0 +1,62 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //span[@data-ui-id="page-title-wrapper"]/text()
+#  - name: listing_id
+#    xpath: //meta[@property="og:url"]/@content
+#    regExp: (\d+)\.html$
+#    regExpReplace: $1
+  - name: listing_id
+    xpath: //div[contains(@itemprop,'sku')]
+  - name: offer_price
+    xpath: //div[contains(@class, 'product-info-main')]//span[contains(@data-price-type, 'oldPrice')]/ancestor::div[contains(@class, 'product-info-main')]//span[contains(@data-price-type, 'finalPrice')]/@data-price-amount
+  - name: original_price
+    xpath: //div[contains(@class, 'product-info-main')]//span[contains(@data-price-type, 'oldPrice')]/@data-price-amount | //div[not(.//span[@data-price-type='oldPrice'])]//span[@data-price-type='finalPrice']/@data-price-amount
+  - name: platform_category
+    xpath: (//div[contains(@class, "breadcrumbs")]//ul[@class='items']/li)[last()-1]/a/span/text()
+#  - name: product_variations
+  - name: stock_availability
+    xpath: //button[@type='submit'  and contains(@class, 'tocart') and @id='product-addtocart-button' and not(@disabled)]/span/text()
+    defaultValue: "no"
+  - name: main_image
+    xpath: (//div[contains(@class, 'fotorama__stage__frame') and @href])[1]//img/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: (//div[contains(@class, 'fotorama__stage__frame') and @href])[position()>1]//img/@src
+  - name: description
+    xpath: //meta[@name="description"]/@content
+#  - name: pack_size
+#    defaultValue: "1"
+#  - name: user_reviews
+#    defaultValue: "0"
+#  - name: average_rating
+#    defaultValue: "0.0"
+#  - name: dimensions
+  - name: dimensions_unit
+    defaultValue: "cm"
+  - name: height
+    xpath: //table[@id='product-attribute-specs-table']//th[text()='尺寸']//ancestor::tr//td
+  - name: width
+    xpath: //table[@id='product-attribute-specs-table']//th[text()='尺寸']//ancestor::tr//td
+  - name: length
+    xpath: //table[@id='product-attribute-specs-table']//th[text()='尺寸']//ancestor::tr//td
+#    defaultValue: 0
+#  - name: depth
+#    defaultValue: 0
+#  - name: weight
+#    defaultValue: 0
+  - name: weight_unit
+    defaultValue: "g"
+  - name: weight_raw
+    xpath: //div[contains(@class, 'description')]
+  - name: color2
+    xpath: //p[contains(text(), '顏色')]
+  - name: colorMod
+    defaultValue: "dummy"
+  - name: colour
+    xpath: //td[contains(@data-th, '顏色')]
+  - name: product_details
+    xpath: //div[contains(@class, "container")]//div[contains(@id, "additional")]

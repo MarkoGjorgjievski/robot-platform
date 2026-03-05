@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@class,"event")]//li[not(.//*[@class="event-status"]/a/span[contains(text(),"Cancelled")])]
+fields:
+  - name: eventURL
+    xpath: '(//a)[1]/@href'
+  - name: isPublicPurchase
+    xpath: '//*[contains(@class,"event-status")]/a//*[contains(text(),"Currently Not Available Through TicketWeb")]'
+    defaultValue: '1'

@@ -1,0 +1,17 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //section[@class="box-repertoires-list"]//div[contains(@class, "repertoires-list")]//div[@class="col"]
+fields:
+  - name: eventURL
+    xpath: //a[1]//@href
+    regExp: '(\/[^"]{1,})'
+    regExpReplace: 'https://www.bilety24.pl$1'
+  - name: isPublicPurchase
+    xpath: //a[@class="kupinfo opener"]|//a[@class="kupinfo"]
+    jq: 'if (. == "info") then "0" else "1" end'
+  - name: eventUniqueId
+    xpath: //a[1]//@href
+    regExp: '(?<=id=)(\d+)'
+  - name: venueCountryCode
+    defaultValue: "PL"

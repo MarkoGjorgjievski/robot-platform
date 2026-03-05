@@ -1,0 +1,41 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: vndID
+    xpath: //span[contains(@id,"_lblVendor")]
+    regExp: \d+
+  - name: vndName
+    xpath: //span[contains(@id,"_lblVendor")]
+    regExp: \d+\W+(.+$)
+    regExpReplace: $1
+  - name: chkDte
+    xpath: //span[@id="lblChkDateVal"]
+  - name: chkNo
+    xpath: //span[contains(@id,"_number") and not(contains(@id,"po_"))]//ancestor::html//span[@id="lblCheckVal"]
+  - name: invDte
+    xpath: //span[contains(@id,"_date")]
+  - name: invNo
+    xpath: //span[contains(@id,"_number") and not(contains(@id,"po_"))]
+  - name: poNo
+    xpath: //span[contains(@id,"po_")]
+  - name: grossAmt
+    xpath: //span[contains(@id,"amount") and not(contains(@id,"_disc")) and not(contains(@id,"amount_pd"))]
+  - name: discAmt
+    xpath: //span[contains(@id,"_disc")]
+  - name: chkAmt
+    xpath: //span[@id="lblTotPdAmt"]
+  - name: netAmt
+    xpath: //span[contains(@id,"amount_pd")]
+  - name: strNo
+    xpath: //span[contains(@id,"amount_pd")]//ancestor::tr/preceding-sibling::tr//span[contains(@id,"_lblProcessSet") and not(contains(@id,"Amt")) and not(contains(@id,"SetTot"))]
+
+# jq: jq | filter
+# regExp: (reg)*p
+# regExpReplace: website$1$2
+# defaultValue: hardcoded value if nothing matches
+# manualSelector: css#selector
+# screenCapture: png
+# downloadContent: text
+# type: NUMBER | BOOLEAN | STRING (default if omitted)

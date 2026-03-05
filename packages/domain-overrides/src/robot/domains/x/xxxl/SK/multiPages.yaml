@@ -1,0 +1,18 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: (//*[@data-purpose='category.container']//article)[not(@__extracted)]|//div[./div/div/a[@data-purpose="categoryList.mainCategory.link.image"]]
+fields:
+  - name: productURL
+    xpath: //*[@data-purpose='productTile.link.product']/@href
+    # xpath: //div[@data-purpose='listing.productsContainer'][not(//div[@data-purpose="listing.productsContainer.divider"])]//article//*[@data-purpose='productTile.link.product']/@href|//div[@data-purpose='listing.productsContainer']//div[@data-purpose="listing.productsContainer.divider"][last()]//following-sibling::div/article//*[@data-purpose='productTile.link.product']/@href  
+    regExp: (.+)
+    regExpReplace: https://www.xxxlutz.sk$1
+
+  - name: subCategory
+    xpath: ancestor::html//main[not(./section[@data-purpose='category.container'])]//a[@data-purpose="categoryList.mainCategory.link.image"]/@href
+    regExp: \/(.+)
+    regExpReplace: $1
+
+
+

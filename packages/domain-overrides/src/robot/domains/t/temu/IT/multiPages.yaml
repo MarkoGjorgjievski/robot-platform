@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'autoFitList')]/div//a[not(@__extracted)]
+fields:
+  - name: productURL
+    xpath: "@href"
+    regExp: (.+)
+    regExpReplace: https://temu.com$1

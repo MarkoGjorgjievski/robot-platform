@@ -1,0 +1,107 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.name'
+
+  - name: listing_id
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.sku'
+
+  - name: listing_url
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.offers[0].url'
+
+  - name: offer_price
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.offers[0].price'
+
+  - name: original_price
+    xpath: //hm-product-price[@id="product-price"]//span[last()]
+    regExp: (\d*\S\d{1,2})|(\d*)|(\d*\s\d*\S\d{1,2})
+
+  - name: platform_category
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.category.name'
+
+  - name: product_variations
+    xpath: //li[@class="list-item"]//a//@href
+    regExp: '(\/[^"]{1,})'
+    regExpReplace: 'https://www2.hm.com$1'
+
+  - name: stock_availability
+    xpath: //script[@type="application/ld+json"][2]
+    jq: 'if .offers[0].availability  == "http://schema.org/InStock" then 1 else 0 end'
+
+  - name: main_image
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.image'
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //figure[@class="pdp-secondary-image pdp-image"]//img//@src
+
+  - name: description
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.description'
+
+  # - name: pack_size
+  #   xpath: >
+  #    //li[@class="b815ab"][2]
+
+  - name: user_reviews
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.aggregateRating.reviewCount'
+    defaultValue: "0"
+
+  - name: average_rating
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.aggregateRating.ratingValue'
+    defaultValue: "0.0"
+
+  - name: dimensions_tmp
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.description'
+
+  - name: size_tmp
+    xpath: //span[@class="message"]
+
+  - name: dimensions
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+
+  - name: width
+
+  - name: length
+
+  - name: diameter
+
+  - name: weight
+  #   xpath: //dt[contains(.,"Gewicht")]//following-sibling::dd
+  #   regExp: (\d{1,10}.\d{0,2})
+
+  - name: weight_unit
+    xpath: //dt[contains(.,"Peso")]//following-sibling::dd
+    regExp: ([a-zA-Z]{1,10}$)
+    defaultValue: "kg"
+
+  - name: weight_raw
+    xpath: //dt[contains(.,"Peso")]//following-sibling::dd
+    regExp: (\d{1,10}.\d{0,2})
+
+  - name: materials
+    xpath: //div[@id="section-materialsAndSuppliersAccordion"]//p
+
+  - name: colour
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.color'
+
+  - name: currency
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.offers[0].priceCurrency'

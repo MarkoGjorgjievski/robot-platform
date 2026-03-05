@@ -1,0 +1,15 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //*[contains(@class,"listing-item")]//a[contains(@class,"listing-item__name")]/@href
+    # jq: jq | filter
+    # regExp: (reg)*p
+    # regExpReplace: website$1$2
+    # defaultValue: hardcoded value if nothing matches
+    # manualSelector: css#selector
+    # screenCapture: png
+    # downloadContent: text
+    # type: NUMBER | BOOLEAN | STRING (default if omitted)

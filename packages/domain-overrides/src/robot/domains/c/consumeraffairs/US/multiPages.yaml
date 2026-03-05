@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id="target_url"]
+fields:
+  - name: targetURL
+    xpath: '@href'

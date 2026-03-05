@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //table/tbody//td[@class = "data depth_0"]/table//tbody/tr[./td[@class="primary_genre depth_1"][contains(text(), "Concert") or contains(text(), "Musical") or contains(text(), "Theatre") or contains(text(), "Comedy") or contains(text(), "Sports") or contains(text(), "Dance") or contains(text(), "Family Entertainment") or contains(text(), "Orchestra")] and ./td[@class="title depth_1"][not(contains(text(), "CANCELLED"))] and ./td[@class="title depth_1"][not(contains(text(), "Cancelled"))] and ./td[@class="price depth_1"][contains(text(), "S")]] 
+fields:
+  - name: eventID
+    xpath: //td[@class="alias depth_1"]

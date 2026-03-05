@@ -1,0 +1,14 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //div[contains(@class, 'tkt-artist-list-image-item')]/a/@href | //section[@id="footer"]/div/div[1]/a/@href
+    jq: '"https://www.ticketek.com.ar/" + .'
+  - name: firstDepthURL
+    xpath: //section[@id="right-sidebar"]/div[contains(@class, 'category-subcategories')]/div[2]/a/@href | //div[contains(@class, 'tkt-artist-list-image-item')]/a[not(contains(@href, '/'))]/@href
+    jq: '"https://www.ticketek.com.ar/" + .'
+  - name: secondDepthURL
+    xpath: //div[contains(@class, 'tkt-artist-list-image-item')]/a/@href
+    jq: '"https://www.ticketek.com.ar/" + .'

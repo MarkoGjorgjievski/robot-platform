@@ -1,0 +1,150 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@data-testid="variantGroup"]/div[count(./a) > 2]//a[@link-identifier="Generic Name"][position() > 1]|//html[@lang="en-US"][not(//div[@data-testid="variantGroup"]/div[count(./a) > 2])]//meta[@property="og:url"]
+fields:
+  - name: startingPriceType
+    defaultValue: 'Was'
+
+  - name: variantURL
+    xpath: '@href'
+    regExp: (?:https:\/\/www\.walmart\.com)?(.+)
+    regExpReplace: https://www.walmart.com$1
+
+  - name: isBundle
+    defaultValue: 'No'
+    
+  - name: categoryChain
+    # xpath: ancestor::html//nav[@aria-label="breadcrumb"]//li/a[not(contains(@class, "black"))]/span/text()
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.category.path[0:-1][].name
+
+  - name: manufacturerPartNumber
+    xpath: ancestor::html//*[@id="product-description-atf"]
+    regExp: 'Manufacturer Part Number: (\w+)'
+    regExpReplace: $1
+    defaultValue: 'empty'
+
+  - name: manufacturerPartNumber_backup
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.manufacturerProductId
+  #   defaultValue: empty
+
+  - name: sku
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: \/(\d+)$
+    regExpReplace: $1
+
+  - name: URL
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    
+
+  - name: hasVariant
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.variantsMap | map(.productUrl) | join(", ")
+
+  #  all the variant fields are generated from those 3 fields in transform:
+  - name: productName
+    xpath: ancestor::html//h1
+
+  - name: brand
+    xpath: ancestor::html//h1
+    regExp: (John Deere|Pennzoil|Super Tech|Valvoline|Castrol|Quaker State|Motorcraft|Lucas Oil|Shell|Mobil Delvac|Havoline|Royal Purple|Delo|Chevron|Liqui Moly|Ambrosia|Briggs & Stratton|Mobil 1|Yamaha|Kawasaki|Hyper Tough|Quicksilver|DELO)
+    regExpReplace: $1
+    defaultValue: empty
+  - name: brand_backup
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.brand
+
+
+  
+  - name: viscosity
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.viscosity
+
+  - name: packSize
+    xpath: ancestor::html//h1
+    regExp: ([.\d]+\s*-?\s*(?:oz|Quarts?|Gallons?|Gal|GAL|OZ|PT|qt|QT|Qt|cc|Ounces?|Pints?|pt|gal|Liters?)|(?:Quart|Gallon|Ounce|Pint))
+    regExpReplace: $1
+    defaultValue: empty
+  
+  - name: packSize_backup
+    xpath: ancestor::html//div[@data-testid="product-description-content"]
+    regExp: ([.\d]+\s*-?\s*(?:oz|Quarts?|Gallons?|Gal|GAL|OZ|PT|qt|QT|Qt|cc|Ounces?|Pints?|pt|gal|Liters?)|(?:Quart|Gallon|Ounce|Pint))
+    regExpReplace: $1
+  
+  - name: packSize_backup2
+    xpath: ancestor::html//span[contains(@class, "b")][contains(., "Size")]/following-sibling::span
+    regExp: ([.\d]+\s*-?\s*(?:oz|Quarts?|Gallons?|Gal|GAL|OZ|PT|qt|QT|Qt|cc|Ounces?|Pints?|pt|gal|Liters?)|(?:Quart|Gallon|Ounce|Pint))
+    regExpReplace: $1
+    
+  - name: pricePerOunce
+    xpath: ancestor::html//span[@data-testid="price-wrap"]//following-sibling::span[contains(text(), "¢/fl oz")]
+    regExp: ([.\d]+)\s*¢\/fl oz
+    regExpReplace: $1
+    # xpath: ancestor::html//script[@id="__NEXT_DATA__"]  
+    # jq: '.props.pageProps.initialData.data.product.groupMetaData?.groupComponents[]? // [{quantity: 1}][] | [.quantity] | add'
+
+  - name: pricePerQuart
+    xpath: ancestor::html//span[@data-testid="price-wrap"]//following-sibling::span[contains(text(), "/qt")]
+    regExp: ([.\d]+)\s*\/qt
+    regExpReplace: $1
+
+  - name: retailPrice
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.priceInfo.currentPrice.price
+
+  - name: RRP_Was
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: '.props.pageProps.initialData.data.product.priceInfo.wasPrice.price'
+    defaultValue: empty
+
+  - name: quantity
+    xpath: ancestor::html//h1
+    regExp: \(Pack of (\d+)|(\d+)\s*pack\)
+    regExpReplace: $1$2
+  
+  # American website so it doesn't have VAT
+  # - name: priceNoVAT
+  #   defaultValue: empty
+  
+
+
+  - name: promoPrice
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.priceInfo.savingsAmount.amount
+
+  - name: inStockOnline
+    xpath: ancestor::html//script[@type="application/ld+json"][contains(text(), "Product")]
+    jq: .offers.availability
+    regExp: 'OUT_OF_STOCK'
+    regExpReplace: 'no'
+    defaultValue: 'yes'
+
+  - name: inStockStore
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.product.fulfillmentOptions[] | select(.type=="PICKUP") | .availabilityStatus
+    regExp: 'OUT_OF_STOCK'
+    regExpReplace: 'no'
+    defaultValue: 'yes'
+
+  - name: specificationProfile
+    # xpath: ancestor::html//div[./h2[contains(., "Specifications")]]/following-sibling::div
+    xpath: ancestor::html//div[@data-testid="product-description-content"]
+
+  - name: productDescription
+    xpath: ancestor::html//div[@data-testid="product-description-content"]
+    # xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    # jq: .props.pageProps.initialData.data.idml | "\(.shortDescription) \(.longDescription)"
+
+  - name: productRating
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.reviews.roundedAverageOverallRating
+    # jq: .props.pageProps.initialData.data.reviews.customerReviews[] | "\(.reviewTitle//"")\n\(.reviewText)"
+
+  - name: ratingCount
+    xpath: ancestor::html//script[@id="__NEXT_DATA__"]
+    jq: .props.pageProps.initialData.data.reviews.totalReviewCount
+
+  - name: rawAvailabilityMessage
+    xpath: ancestor::html//label[./*[@id="fulfillment-Pickup"]]

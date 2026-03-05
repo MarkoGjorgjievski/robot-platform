@@ -1,0 +1,141 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null  # //*[contains(@class,"product-choose-size__item")]//label | //body
+fields:
+  - name: sku
+    xpath: //*[contains(text(),'"sku":')]
+    jq: .sku
+  - name: productName
+    xpath: //h1[contains(@class,'title')]
+  - name: manufacturerPartNumber
+    xpath: //*[contains(@class,"product-block__article") and contains(text(),"Artikelnummer")]
+    regExp: ':?\s(.+)'
+    regExpReplace: $1
+
+  - name: productVariant
+    xpath: //h1[contains(@class,"product-block__title")]
+    # regExp: \s{1}(\D+.+$)
+    
+  - name: productName
+    xpath: //h1[contains(@class,'title')]
+
+  - name: manufacturerPartNumber
+    xpath: //*[contains(@class,"product-block__article") and contains(text(),"Artikelnummer")]
+    regExp: ':\s*(.+)'
+    regExpReplace: $1
+
+  - name: productVariant
+    xpath: //*[contains(text(),'"sku":')]
+    jq: .name
+
+  - name: masterBrand
+    xpath: //*[contains(text(),'"sku":')]
+    jq: .brand.name
+
+  - name: brand
+    xpath: //span[contains(@class,"product-description__item-title")][contains(text(),"Produktreihe:")]/following-sibling::span
+
+  - name: brandVariant
+    xpath: //h1[contains(@class,'title')]
+  # - name: brandVariant
+  #   xpath: //span[contains(@class,"product-description__item-title")][contains(text(),"Produktreihe:")]/following-sibling::span
+    jq: .name
+
+  - name: brandVariant
+    xpath: //*[contains(text(),'"sku":')]
+    jq: .name
+
+  - name: checkIfMobil1
+    xpath: //span[contains(@class,"product-description__item-title")][contains(text(),"Produktreihe:")]/following-sibling::span[contains(text(),'MOBIL 1')] | //span[contains(@class,"product-description__item-title")][contains(text(),"Produktreihe:")]/following-sibling::span[contains(text(),'Mobil 1')]
+
+  - name: viscosity
+    xpath: //h1[contains(@class,'title')]
+    # //span[contains(@class,"product-description__item-title")][contains(text(),"Viskositätsklasse SAE:")]/following-sibling::span | //h1[contains(@class,'title')]
+    regExp: \s?(\d+\D+-\d+|SAE\s?\d+)\,
+    regExpReplace: $1
+    defaultValue: 'dummy'
+
+  - name: viscosity_backup
+    xpath: //span[contains(text(),'SAE') and contains(@class,'product-description')]/following-sibling::span
+    regExp: \b\d{1,2}W\d{0,2}\b
+
+  - name: packSize
+    xpath: //span[contains(@class,'product-description') and contains(text(),'Inhalt')]/following-sibling::span
+    regExp: (.+)
+    regExpReplace: $1
+  - name: packSizeUnit
+    xpath: //span[contains(@class,'product-description') and contains(text(),'Inhalt')]
+    regExp: Inhalt?\s\[(.+)\]
+    regExpReplace: $1
+  - name: quantity
+    xpath: //*[contains(@data-motoroil-switch,"")]/@data-motoroil-switch
+
+  - name: quantity
+    xpath: //button[contains(@data-popup-show,'add-to-cart')]
+    regExp: (.+)
+    regExpReplace: '1'
+
+  - name: RRP_Was
+    xpath: //div[contains(@class,"product-retail-price__old_price")]/*[contains(@class,"product-retail-price__title")]
+    regExp: (\d+),(\d+)
+    regExpReplace: $1.$2
+    defaultValue: 'dummy'
+  - name: RRP_WasWithoutVat
+    xpath: //div[contains(@class,"product-retail-price__old_price")]/*[contains(@class,"product-retail-price__title")]
+    regExp: (\d+),(\d+)
+    regExpReplace: $1.$2
+    defaultValue: 'dummy'
+  - name: inStockOnline # transform
+    xpath: //*[contains(text(),"Auf Lager")]
+  - name: inStockStore
+    defaultValue: "no"
+
+  - name: inStockOnline # transform
+    xpath: //*[contains(@class,"text--availability")]
+
+  - name: inStockStore
+    defaultValue: "no"
+
+  - name: retailPrice #transform
+    xpath: //span[contains(@class,"product-description__item-title")][contains(text(),"Unser Preis:")]/following-sibling::span
+    regExp: (\d+),(\d+)
+    regExpReplace: $1.$2
+  - name: retailPriceWithoutVAT # transform
+    xpath: //span[contains(@class,"product-description__item-title")][contains(text(),"Unser Preis:")]/following-sibling::span
+    regExp: (\d+),(\d+)
+    regExpReplace: $1.$2
+  - name: startingPriceType
+    xpath: //div[contains(@class,"product-retail-price__old_price")]/*[contains(@class,"product-retail-price__title")]
+
+  - name: startingPriceType
+    xpath: //div[contains(@class,"product-retail-price__old_price")]/*[contains(@class,"product-retail-price__title")]
+    defaultValue: 'RRP'
+
+  - name: VAT
+    defaultValue: '19%'
+
+  - name: productRating
+    xpath: //*[contains(@class,"product-rate__total")]
+    defaultValue: "0"
+
+  - name: ratingCount
+    xpath: //span[contains(@class,'product-block__review-count')]
+    regExp: \d+
+
+  - name: specificationProfile
+    xpath: //*[contains(@class,"product-block__description")]
+  - name: productDescription
+    xpath: //ul[contains(@class,'brand-description-list')] | //*[contains(@class,"product-block__description")]
+
+  - name: specificationProfile
+    xpath: //div[contains(@class,'product-block__seo-info-text')]
+
+  - name: specProfile
+    xpath: //span[contains(text(),'Herstellerfreigabe') and contains(@class,'product-description')]/following-sibling::span | //span[contains(text(),'Spezifikation') and contains(@class,'product-description')]/following-sibling::span | //div[contains(@class,'product-block__seo-info-text')]
+
+  - name: bundle
+    defaultValue: 'no'
+  
+  - name: rawAvailabilityMessage
+    xpath: //*[contains(@class,"text--availability")]

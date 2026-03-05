@@ -1,0 +1,167 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+# target only the selected size, or all unavailable products if last available is selected, or disabled size picker (for products with one size)
+recordXPath: //form[@name="size-picker-form"]/div/div[@data-is-selected="true"] | //*[@name="size-picker-form"]//label[@data-testid!="pdp-stockAvailable-label"][./ancestor::body//*[@name="size-picker-form"]/div/div[.//label[@data-testid="pdp-stockAvailable-label"]][last()][@data-is-selected="true"]]| //button[@id="picker-trigger"][@disabled]
+
+
+
+fields:
+  - name: images
+    xpath: ancestor::html//script[@type="application/ld+json"][@data-trckng-component]
+    jq: .image[]
+
+
+  # - name: offerPrice
+  #   xpath: ancestor::html//x-wrapper-re-1-4/h1/following-sibling::div[1]
+  #   regExp: ^(Vanaf\s)?€\s*([\d.,]+)
+
+  # - name: listPrice
+  #   xpath: ancestor::html//x-wrapper-re-1-4/h1/following-sibling::div[1]
+  #   regExp: Origineel:€\s+([\d.,]+)
+  #   regExpReplace: $1
+
+  # - name: offerPrice
+  #   xpath: //label[@data-testid="pdp-stockAvailable-label"]
+
+  - name: offerPrice_raw
+    xpath: ancestor::html//*[@re-hydration-id]/h1/following-sibling::div[1]
+    regExp: .*[$€£¥¢₽][\S\s]*
+
+  - name: listPrice
+    xpath: ancestor::html//*[@re-hydration-id]/h1/following-sibling::div[1]
+    regExp: .*[$€£¥¢₽][\S\s]*
+
+  #  In case we have to collect offerPrice for oos
+  # - name: offerPrice
+  #   xpath: ancestor::html//x-wrapper-re-1-4/h1/following-sibling::div[1]
+  #   regExp: .*[$€£¥¢₽][\S\s]*
+
+  # - name: price
+  #   xpath: ancestor::html//x-wrapper-re-1-4/h1/following-sibling::div[1]
+  #   regExp: .*[$€£¥¢₽][\S\s]*
+
+
+    
+  - name: shippingCost
+    xpath: ancestor::html//div[@data-testid="pdp-delivery-info"]/following-sibling::div/p[1]
+    regExp: ([\d,.]+)
+    regExpReplace: $1
+    defaultValue: '0'
+
+  - name: brandText
+    xpath: ancestor::html//a/span/h3
+
+  - name: sku
+    xpath: //label/@for
+    regExp: size-picker-(.+)
+    regExpReplace: $1
+    defaultValue: empty
+
+  - name: productSKU
+    xpath: //label/@for
+    regExp: size-picker-(.+)
+    regExpReplace: $1
+    defaultValue: empty
+
+    # products with one size don't have sku in size picker, it's extracted from the url's end with 0ONE000 appended
+  - name: oneSizeSku
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: -([^-]+-[^-]+)\.html
+    regExpReplace: $10ONE000
+  
+  - name: productId
+    # CHANGEME "Artikelnummer" to the "Ariticle number" label in your language
+    xpath: ancestor::html//*[@role="term"][contains(text(), "Artikelnummer")]/following-sibling::*[@role="definition"]
+
+  - name: name
+    xpath: ancestor::html//h1
+
+
+
+  - name: resellerId
+    xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button
+    defaultValue: Zalando
+
+  - name: resellerIdMap
+    xpath: ancestor::html//*[@id='resellerID_MAP']
+
+  - name: resellerName
+    xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button
+    # xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button[not(./span[text()="Brand"])]
+    defaultValue: Zalando
+
+  - name: resellerNameFallback
+    xpath: //h1/..//h3
+
+  - name: unitsStock
+    # CHANGEME "Nog" to something that matches the "Only x products left" in your language
+    # xpath: //label//span[contains(text(), "Nog")]
+    xpath: ancestor::html//button[@id="picker-trigger"]
+    regExp: Nog (\d+) artikel(en)? beschikbaar
+    regExpReplace: $1
+    defaultValue: empty
+    
+  - name: unitsStock_backup
+    # CHANGEME "Bestel nu!" to "Add to cart" in your language
+    xpath: ancestor::html//button/span[contains(text(), "Bestel nu!")]
+    regExp: (.+)
+    regExpReplace: '999'
+    defaultValue: '0'
+
+  - name: outOfStock
+    xpath: //label[@data-testid!="pdp-stockAvailable-label"]
+
+  # not in schema yet
+  - name: variantSize
+    xpath: //span/div
+
+  # not in schema yet
+  - name: productDescription
+    xpath: ancestor::html//script[@type="application/ld+json"][@data-trckng-component]
+    jq: .description
+
+  # not in schema yet
+  - name: productStyle
+    # CHANGEME "Kleur" to "Color" in your language
+    xpath: ancestor::html//span[contains(text(),'Kleur')]/parent::span/following-sibling::span
+
+  # always Zalando
+  - name: fullfillmentBy
+    defaultValue: Zalando
+
+  - name: productURL
+    xpath: //meta[@property="og:url"]
+    regExp: (.+)
+    regExpReplace: https://zalando.nl$1
+  
+  - name: currencyOverride
+    defaultValue: EUR
+  # empty in exaple 
+  # - name: aggregateRating
+  #   xpath: '@ratingvalue'
+
+  # empty in exaple
+  # - name: reviewCount
+  #   xpath: '@reviewcount'
+
+  # empty in exaple
+  # - name: resellerReviewCount
+  #   xpsth: ancestor::html//div[@role="modal"]//div[contains(text(),"eviews") or contains(text(), "undenbewertungen") or contains(text(), "undenmeinungen") or contains(text(), "Avis")]
+  #   regExp: \d+
+
+  # empty in exaple
+  # - name: resellerAggregateRating
+  #   xpath: ancestor::html//div[@role="modal"]//div[contains(text(),"eviews") or contains(text(), "undenbewertungen") or contains(text(), "undenmeinungen") or contains(text(), "Avis")]/parent::div/div[2]//@aria-label
+  #   regExp: ^[0-9\.]+
+
+  # empty in exaple
+  # - name: resellerLink
+  #   defaultValue: https://www.zalando.nl
+    # xpath: ancestor::html//a[span[h3]]/@href
+
+  # empty in schema
+  # - name: deliveryDateFallback
+  #   xpath: ancestor::html//div[@data-trckng-component]/div[contains(.,"working") or contains(.,"days") or contains(.,"Werktage") or contains(.,"jours ou") or contains(.,"werkdagen")]//div[1]/span[1]
+
+

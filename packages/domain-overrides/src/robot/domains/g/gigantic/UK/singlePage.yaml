@@ -1,0 +1,47 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+    - name: eventName
+      xpath: //head/title
+      regExp: '^(.*?)\s*(?=Tickets - )'
+      singleValue: true
+    - name: venueName
+      xpath: //head/title
+      regExp: '(?<=Tickets - )(.*?)(?=,)'
+      singleValue: true
+    - name: venueCity
+      xpath:  //head/title
+      regExp: '(?<=, )(.*?)(?= -)'
+    - name: venueAddress
+      xpath:  //script[contains(text(),"PostalAddress")]
+      jq: '(.location.name // "") + " " + (.location.address.streetAddress // "") + " " (.location.address.addressLocality // "")'
+    - name: eventDate
+      xpath: //head/title
+      regExp: '([0-9]{2,})\/([0-9]{2})\/([0-9]{4})'
+      regExpReplace: $3-$2-$1
+    - name: eventTime
+      xpath: //head/title
+      regExp: ([0-9]{1,2}):([0-9]{1,2})
+      singleValue: true
+    - name: isPublicPurchase
+      xpath: boolean(//p[@class="g-hero-cta"]//a[contains(text(), "Select Tickets")] | //div[@class="g-ticket-cost"] | //div[@id="ticket-selection"]//h3[not(contains(text(), "This event is not on sale yet."))])
+    - name: eventNotesJQ
+      xpath: //script[contains(text(),"MusicEvent")]
+      jq: '.typicalAgeRange'
+    - name: eventNoteInfos
+      xpath: //*[@id="g-important-info--overlay"]//p
+    - name: postalCode
+      xpath: //script[contains(text(),"PostalAddress")]
+      jq: '.location.address.postalCode'
+    - name: eventUrl
+      xpath: //link[@rel="canonical"]/@href
+    - name: onSaleDate
+      xpath: //script[@id="on-sale-date"]
+    - name: onSaleDateTime
+      xpath: //script[@id="on-sale-date"]
+    - name: venueCountryCode
+      xpath: //script[contains(text(),"PostalAddress")]
+      jq: '.location.address.addressCountry'
+      defaultValue: 'GB'

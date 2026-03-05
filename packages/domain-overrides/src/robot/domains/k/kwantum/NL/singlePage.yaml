@@ -1,0 +1,107 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  #- name: json_data
+  #  xpath: //script[contains(@id, '__NEXT_DATA__')][1]
+  - name: product_title
+    xpath: //main/div/h1
+
+  - name: listing_id
+    xpath: //p[contains(text(), 'Artikelnummer')]/following-sibling::span/text()
+
+  - name: offer_price
+    xpath: //script[contains(text(), '"@type":"Product"')]
+    jq: .offers.price
+
+  - name: original_price
+    xpath: //span[@class="css-lt05q4"]
+    regExp: (\d+\.\d+)|(\d+)(?=\.[-])
+
+  - name: platform_category
+    xpath: //script[contains(text(), '"@type":"BreadcrumbList')]
+    jq: .itemListElement[-2].name
+
+  - name: product_variations
+    xpath: //div[@class='css-p635iy']//a/@href
+    regExp: (.+)
+    regExpReplace: https://www.kwantum.nl$1
+
+  - name: stock_availability
+    xpath: //script[contains(text(), '"@type":"Product"')]
+    jq: .offers.availability == "http://schema.org/InStock" | if . then 1 else 0 end
+
+  - name: main_image
+    xpath: (//div[@class="css-4rv544"]//img/@src)[1]
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: (//ul[@class="css-1ivm34v"]//img/@src)[position() > 1]
+
+  - name: description    
+    xpath: //div[@itemprop="description"]/text()
+
+  - name: pack_size
+    xpath: //p[contains(text(), 'Aantal stuks')]/following-sibling::span/text()
+    regExp: (\d+)
+    defaultValue: "1"
+
+  - name: user_reviews
+    xpath: //script[@id="bv-jsonld-aggregate-rating-data"]
+    jq: .aggregateRating.reviewCount
+    defaultValue: "0"
+
+  - name: average_rating
+    xpath: //script[@id="bv-jsonld-aggregate-rating-data"]
+    jq: .aggregateRating.ratingValue
+    defaultValue: "0.0"
+
+  - name: dimensions
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+    xpath: //p[contains(text(), 'Hoogte')]/following-sibling::span/text()
+    regExp: (\d+(?:[.,]\d+)?)
+    defaultValue: 0
+
+  - name: width
+    xpath: //p[contains(text(), 'Breedte')]/following-sibling::span/text()
+    regExp: (\d+(?:[.,]\d+)?)
+    defaultValue: 0
+
+  - name: length
+    xpath: //p[contains(text(), 'Lengte')]/following-sibling::span/text()
+    regExp: (\d+(?:[.,]\d+)?)
+    defaultValue: 0
+
+  - name: depth
+    xpath: //p[contains(translate(text(), 'D', 'd'), 'diepte')]/following-sibling::span/text()
+    regExp: (\d+(?:[.,]\d+)?)
+    defaultValue: 0
+
+  - name: weight
+    xpath: //p[contains(text(), 'Gewicht')]/following-sibling::span/text()
+    regExp: (\d+(?:[.,]\d+)?)
+    defaultValue: 0
+
+  - name: weight_unit
+    defaultValue: "kg"
+
+  - name: weight_raw
+
+  - name: materials_tmp
+    xpath: //script[contains(text(), '"@type":"Product"')]
+    jq: .material | split(", ")
+
+  - name: materials
+
+  - name: colour
+    xpath: //p[text() = 'Kleur']/following-sibling::span/text()
+
+  - name: product_details_tmp
+    xpath: //div[@class="css-1onm2ex"]
+
+  - name: product_details

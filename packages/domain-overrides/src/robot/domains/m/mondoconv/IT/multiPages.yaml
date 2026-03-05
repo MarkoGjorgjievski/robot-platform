@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //a[contains(@class, "ProductCardDetails-Link")]
+
+fields:
+  - name: productURL
+    xpath: ./@href

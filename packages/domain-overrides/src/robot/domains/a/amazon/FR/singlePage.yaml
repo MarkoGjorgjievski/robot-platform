@@ -1,0 +1,94 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title 
+    xpath: //*[@id='titleSection'] | //*[@id='productTitle']
+
+  - name: listing_id
+    xpath: //input[@id="ASIN"]/@value | //th[contains(text(),'ASIN')]/following-sibling::td
+
+  - name: offer_price
+    xpath: //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"]//div[@id="corePriceDisplay_desktop_feature_div" or @id="corePrice_desktop"][//span[@data-a-strike="true"]]//span[contains(@class, "priceToPay") or contains(@class, "apexPriceToPay")]/span[1] | //div[@id="Northstar-Buybox"][//span[@id="listPrice"]]//span[@id="price"]
+    regExp: (\d+[\.,]?\d*)
+
+  - name: original_price
+    xpath: //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePriceDisplay_desktop_feature_div"]//span[contains(@class, "basisPrice")]/span/span[1] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"][not(.//div[@id="apex_desktop_usedAccordionRow"])]//div[@id="corePriceDisplay_desktop_feature_div"]/div[contains(@class, "aok-relative")]/span[contains(@class, "aok-offscreen")] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"]//div[@id="corePriceDisplay_desktop_feature_div"][not(.//span[@data-a-strike="true"])]//span[contains(@class, "priceToPay")]/span[1] | //div[@id="corePrice_desktop" or @id="corePriceDisplay_desktop_feature_div"][//span[@data-a-strike="true"]]//span[@data-a-strike="true"]/span[1] | //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePrice_desktop"][not(.//span[@data-a-strike="true"])]//span[contains(@class, "apexPriceToPay")]/span[1] | //div[@id="Northstar-Buybox"][not(.//span[@id="listPrice"])]//div[@id="corePrice_feature_div"]//span[contains(@class, "a-price")]/span | //div[@id="Northstar-Buybox"][//span[@id="listPrice"]]//span[@id="listPrice"]
+    regExp: (\d+[\.,]?\d*)
+    defaultValue: null
+
+  - name: platform_category
+    xpath: //div[contains(@class,'breadcrumb')]//ul/li[last()]
+
+  - name: product_variations
+    xpath: //*[@id='twisterContainer']//*[contains(@class, 'swatchAvailable')]/@data-csa-c-item-id
+    regExp: '(.+)'
+    regExpReplace: https://www.amazon.fr/dp/$1
+
+  - name: stock_availability
+    xpath: //span[text()='En stock']
+    regExp: '(.+)'
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: main_image
+    xpath: (//*[@id='main-image-container']//img/@src[contains(.,'media-amazon')])[1]
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //*[@id='altImages']//img/@src
+
+  - name: description
+    xpath: //meta[contains(@name, 'description')]/@content
+
+  - name: pack_size
+    xpath: //*[contains(text(), "Nombre d'éléments")]/following-sibling::*
+    defaultValue: '1'
+
+  - name: user_reviews
+    xpath: //span[contains(text(), 'évaluations globales')]
+    regExp: '(\d+)'
+
+  - name: average_rating
+    xpath: //span[@data-hook='rating-out-of-text']
+    regExp: \d+
+
+  # - name: dimensions
+  #   xpath: //div[contains(@id,'prodDetails')]//*[contains(text(),'Dimensions')]/following-sibling::*
+    # xpath: //*[contains(text(), 'Dimensions du produit')]/following-sibling::* | (//tr[contains(@class,'dimensions')]//td)[2] | (//tr[contains(@class,'ength_width_height')]//td)[2]
+
+  - name: height
+    xpath: //div[contains(@id,'prodDetails')]//*[contains(text(),'Dimensions')]/following-sibling::*
+
+  - name: diameter
+
+  - name: depth
+
+  - name: width
+    xpath: //div[contains(@id,'prodDetails')]//*[contains(text(),'Dimensions')]/following-sibling::*
+
+  - name: length
+    xpath: //div[contains(@id,'prodDetails')]//*[contains(text(),'Dimensions')]/following-sibling::*
+
+  - name: 'weight_unit'
+    xpath: //th[contains(text(), 'Poids')]/following-sibling::*
+    regExp: '[a-zA-Z]'
+
+  - name: weight_raw
+    xpath: //th[contains(text(), 'Poids')]/following-sibling::* | //*[contains(text(),'grammes')]
+    # regExp: '(\d+(?:,\d+)?)'
+
+  - name: materials
+    xpath: (//div[contains(@id, 'productDetails')]//*[contains(text(),'Matériau')]/following-sibling::*)[1] | (//div[contains(@id, 'productDetails')]//*[contains(text(),'Matériaux')]/following-sibling::*)[1] | (//div[contains(@id, 'productDetails')]//*[contains(text(),'matériau')]/following-sibling::*)[1]
+    defaultValue: 'dummy'
+
+  - name: materials_backup
+    xpath: (//div[contains(@id, 'productDetails')]//*[contains(text(),'Matière')]/following-sibling::*)[1] | (//span[contains(text(), 'Matériau')]/parent::td/following-sibling::td)[1]
+
+  - name: colour
+    xpath: "(//*[contains(text(), 'Couleur') and not(parent::label)])[1]/following-sibling::* | (//*[contains(text(), 'Couleur')])[1]/parent::*/following-sibling::*"
+    regExp: '\b[A-Z][a-z]+\b$'
+
+  - name: product_details
+    xpath: //*[@id='prodDetails']

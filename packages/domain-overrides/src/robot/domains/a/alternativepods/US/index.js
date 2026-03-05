@@ -1,0 +1,22 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'US',
+    loadedSelector: '#content',
+    waitForSelectorToLoad: null,
+    noResultsXPath: '//div[contains(@class, "error-page-404")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: ['.close.cookie-accept', '#newsletter-popup .box-inset a.close'],
+    loadingTimeout: 5000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    domain: 'alternativepods',
+  },
+};
