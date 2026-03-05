@@ -2,9 +2,21 @@
   "name": "@robot/config",
   "version": "0.0.1",
   "private": true,
-  "main": "src/index.js",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "seed": "tsx src/seed.ts"
+  },
   "dependencies": {
-    "yaml": "^2.4.2",
-    "zod": "^3.24.0"
+    "@robot/db": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "yaml": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
   }
 }
