@@ -47,11 +47,9 @@ export function NestedObjectField({ name, label, description, value, defaultValu
               value={obj[field.name]}
               defaultValue={defaults[field.name]}
               onChange={(v) => {
-                const next = { ...obj, [field.name]: v };
-                // Clean up undefined values
-                Object.keys(next).forEach((k) => {
-                  if (next[k] === undefined) delete next[k];
-                });
+                const next = Object.fromEntries(
+                  Object.entries({ ...obj, [field.name]: v }).filter(([, val]) => val !== undefined)
+                );
                 onChange(Object.keys(next).length === 0 ? undefined : next);
               }}
             />

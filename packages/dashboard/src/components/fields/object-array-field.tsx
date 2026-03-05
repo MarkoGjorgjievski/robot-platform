@@ -58,7 +58,7 @@ export function ObjectArrayField({ name, label, description, value, defaultValue
                   onChange(next.length === 0 ? undefined : next);
                 }}
               >
-                <XIcon />
+                <XIcon /><span className="sr-only">Remove item</span>
               </Button>
             </div>
             <CollapsibleContent>

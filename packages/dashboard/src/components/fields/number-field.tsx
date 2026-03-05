@@ -35,7 +35,8 @@ export function NumberField({ name, label, description, value, defaultValue, onC
           placeholder={defaultValue !== undefined ? String(defaultValue) : ""}
           onChange={(e) => {
             const v = e.target.value;
-            onChange(v === "" ? undefined : Number(v));
+            const num = Number(v);
+            onChange(v === "" || Number.isNaN(num) ? undefined : num);
           }}
         />
         {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
