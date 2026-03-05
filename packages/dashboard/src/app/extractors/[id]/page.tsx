@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { api } from '@/trpc/server';
+import { createRun } from '@/app/runs/actions';
 
 export default async function ExtractorDetailPage({
   params,
@@ -13,6 +14,8 @@ export default async function ExtractorDetailPage({
   if (!extractor) {
     notFound();
   }
+
+  const recentRuns = await api.runs.list({ extractorId: id });
 
   return (
     <div>
@@ -40,6 +43,15 @@ export default async function ExtractorDetailPage({
         >
           {extractor.isActive ? 'Active' : 'Inactive'}
         </span>
+        <form action={createRun}>
+          <input type="hidden" name="extractorId" value={extractor.id} />
+          <button
+            type="submit"
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700"
+          >
+            Run
+          </button>
+        </form>
         <a
           href={`/api/extractors/${extractor.id}/yaml`}
           className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
@@ -161,6 +173,82 @@ export default async function ExtractorDetailPage({
                   className="px-6 py-8 text-center text-sm text-gray-500"
                 >
                   No credentials found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      {/* Recent Runs */}
+      <section className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Runs</h2>
+        </div>
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Input
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Started
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Completed
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                Details
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {recentRuns.map((run) => (
+              <tr key={run.id}>
+                <td className="whitespace-nowrap px-6 py-4 text-sm">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                      run.status === 'completed'
+                        ? 'bg-green-100 text-green-800'
+                        : run.status === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : run.status === 'running'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {run.status}
+                  </span>
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
+                  {run.inputLabel ?? '—'}
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                  {run.startedAt ? new Date(run.startedAt).toLocaleString() : '—'}
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                  {run.completedAt ? new Date(run.completedAt).toLocaleString() : '—'}
+                </td>
+                <td className="whitespace-nowrap px-6 py-4 text-sm">
+                  <Link
+                    href={`/runs/${run.id}`}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    View
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {recentRuns.length === 0 && (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-6 py-8 text-center text-sm text-gray-500"
+                >
+                  No runs yet. Click &quot;Run&quot; to start one.
                 </td>
               </tr>
             )}
