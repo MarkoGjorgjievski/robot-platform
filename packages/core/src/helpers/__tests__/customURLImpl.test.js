@@ -1,4 +1,4 @@
-const { implementation } = require('../customURLImpl.js');
+const { implementation } = require('../customURLImpl');
 
 describe('customURLImpl', () => {
   it('parses protocol, hostname, and pathname from a basic URL', () => {

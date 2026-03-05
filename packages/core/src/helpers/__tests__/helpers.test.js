@@ -8,7 +8,7 @@ vi.mock('../../navigation/navigationHelperLibrary', () => ({
   },
 }));
 
-const { Helpers } = require('../helpers');
+const { Helpers } = require('../helpersIndex.js');
 const { createMockContext } = require('../../__mocks__/context');
 
 // ============================================================
