@@ -6,8 +6,9 @@
 packages/
   core/        — Original robot-library source (CJS + TS hybrid)
   db/          — Drizzle ORM schema, PostgreSQL migrations
-  api/         — tRPC v11 routers (orgs, extractors, domains, inputs, credentials)
+  api/         — tRPC v11 routers (orgs, extractors, domains, inputs, credentials, runs)
   config/      — YAML parser, DB seed script, YAML exporter
+  runner/      — Standalone Playwright worker (executes extractors)
   dashboard/   — Next.js 15 app (App Router, Tailwind v4, port 3456)
   domain-overrides/  — (exists, minimal)
 ```
@@ -39,9 +40,17 @@ packages/
 - **Schema**: UUID PKs, JSONB for parameters/inputData/extraFields, cascading deletes
 - **Migration**: `drizzle/0000_tan_retro_girl.sql`
 
+### @robot/runner
+- Standalone worker process with Playwright chromium
+- PlaywrightContext wraps Playwright Page → IContext interface
+- Executor: load config → launch browser → navigate → validate → capture → update DB
+- Worker: polls runs table every 5s, processes sequentially
+- Entry: `pnpm --filter @robot/runner worker` (via tsx)
+- See [runner-service.md](runner-service.md) for full details
+
 ### @robot/api
 - tRPC v11 + superjson + Zod
-- 5 routers with full CRUD: orgs, extractors, domains, inputs, credentials
+- 6 routers with full CRUD: orgs, extractors, domains, inputs, credentials, runs
 - Server-side caller via `createCallerFactory`
 
 ### @robot/config
@@ -55,16 +64,17 @@ packages/
 - Server Components + Server Actions (no client-side tRPC provider needed)
 - `transpilePackages: ['@robot/api', '@robot/config', '@robot/db']`
 - Sidebar navigation component
-- Pages: home (stats), orgs (list/detail/new/edit), extractors (list/detail/new/edit), domains (list/detail/new/edit)
+- Pages: home (stats), orgs (list/detail/new/edit), extractors (list/detail/new/edit), domains (list/detail/new/edit), runs (detail)
 - YAML export: `/api/extractors/[id]/yaml` route
+- Run button on extractor detail → creates queued run → redirects to run detail page
 
 ## File Renames Done (Phase 3)
 - 16 navigation files: .js → .ts
 - 4 captcha files: .js → .ts
 - 3 robot files: .js → .ts
 
-## What's Left (Future Phases)
-- Phase 5: Runner service (execute extractors via Playwright)
-- Phase 6: CI/CD, deployment
+## What's Left
+- Polish/refine all phases
+- CI/CD, deployment
 - DI string system migration (deferred — needs local DI resolver)
 - require.cache introspection migration (deferred — platform-level change)

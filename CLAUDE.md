@@ -5,7 +5,7 @@ Migrating `robot-library` (CommonJS web scraping framework on Import.io) into `r
 
 - **Source repo**: `../robot-library` (branch: DDF-679)
 - **Monorepo**: pnpm workspaces + Turborepo
-- **Detailed docs**: [docs/migration-architecture.md](docs/migration-architecture.md), [docs/technical-gotchas.md](docs/technical-gotchas.md)
+- **Detailed docs**: [docs/migration-architecture.md](docs/migration-architecture.md), [docs/technical-gotchas.md](docs/technical-gotchas.md), [docs/runner-service.md](docs/runner-service.md)
 
 ## Migration Status
 
@@ -15,7 +15,7 @@ Migrating `robot-library` (CommonJS web scraping framework on Import.io) into `r
 | 2. Test Coverage | Done | 207 tests (vitest), 13 test files |
 | 3. TypeScript Migration | Done | helpers split into 8 sub-modules, .js→.ts renames |
 | 4. Database + Dashboard | Done | db, api, config, dashboard packages |
-| 5. Runner Service | Not started | Execute extractors via Playwright |
+| 5. Runner Service | Done | @robot/runner with Playwright, worker poll loop, dashboard integration |
 | 6. CI/CD + Deployment | Not started | |
 
 ## Package Map
@@ -24,8 +24,9 @@ Migrating `robot-library` (CommonJS web scraping framework on Import.io) into `r
 |---------|---------|----------|
 | `@robot/core` | Original robot-library source | CJS+TS hybrid, vitest |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
-| `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
+| `@robot/api` | Type-safe API | tRPC v11, Zod, superjson, 6 routers |
 | `@robot/config` | YAML parser, seeder, exporter | Parses 615 extractors from robot-library |
+| `@robot/runner` | Execute extractors | Playwright, standalone worker, DB poll |
 | `@robot/dashboard` | Web UI | Next.js 15, Tailwind v4, port 3456 |
 
 ## Key Technical Decisions
@@ -41,6 +42,8 @@ Migrating `robot-library` (CommonJS web scraping framework on Import.io) into `r
 - `pnpm --filter @robot/core test` — run core tests (202 tests)
 - `pnpm --filter @robot/config seed` — seed DB from YAML configs
 - `pnpm --filter @robot/dashboard dev` — start dashboard on :3456
+- `pnpm --filter @robot/runner worker` — start runner worker (polls for queued runs)
+- `HEADFUL=1 pnpm --filter @robot/runner worker` — runner with visible browser
 - `tsc --noEmit` — type check (core has ~164 acceptable `any` errors)
 
 ## Conventions
