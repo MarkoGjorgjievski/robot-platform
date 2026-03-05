@@ -1,0 +1,14 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: venueStateProvince
+    xpath: //h3[contains(text(),'住所')]/following-sibling::div[contains(@class,'text')]
+
+  - name: venueCity
+    xpath: //h3[contains(text(),'住所')]/following-sibling::div[contains(@class,'text')]
+
+  - name: venueAddress
+    xpath: //h3[contains(text(),'住所')]/following-sibling::div[contains(@class,'text')]
+    regExp: (?<=.{6}).*

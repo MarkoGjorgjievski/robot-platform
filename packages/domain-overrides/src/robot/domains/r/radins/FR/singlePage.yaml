@@ -1,0 +1,30 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //html[not(.//*[contains(@data-testid,"codeHolder")])]//*[@data-id][(@data-attribute = '0' or @data-attribute = '5')] | //*[contains(@data-testid,"slideShow")]/div[1]/*[@class="Home"]//*[contains(@data-testid,"codeHolder")]//h4 | //div[contains(@id, 'item-list')]//div[contains(@class, "datalayer")] | //body/table
+fields:
+  - name: offer_code
+    xpath: //td[contains(@class,"code depth_0")]
+  - name: offer
+    xpath: //td[contains(@class,"title depth_0")]
+  - name: merchant
+    xpath: //td[contains(@class,"name depth_1")]
+  - name: Exclusive
+    xpath: //td[contains(@class,"title depth_0")]
+  - name: voucherURL
+    xpath: //div[contains(@class, "datalayer")]/@data-eventlabel
+  - name: shopName
+    xpath: //div[contains(@class, "datalayer")]/@data-eventlabel
+  - name: id
+    xpath: //div[contains(@class, "datalayer")]/@id
+    regExp: .*?(\d+).*
+  - name: new_offer_code_id
+    xpath: //div[contains(@class, "_1abe9s9b")][.//div[contains(text(), "Voir le code")]]/div[1]/@data-id
+  - name: offerCodeTransformed
+    xpath: //span[contains(@data-testid, "voucherPopup-codeHolder-voucherType-code")]/h4
+    regExp: (\d+)
+
+    
+    
+
+

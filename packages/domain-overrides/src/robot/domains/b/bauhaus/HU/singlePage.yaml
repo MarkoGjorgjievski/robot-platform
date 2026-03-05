@@ -1,0 +1,74 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: //h1[contains(@class,'page-title')]
+
+  - name: 'listing_id'
+    xpath: //div[contains(@itemprop,"sku")]   
+
+  - name: 'offer_price'
+    xpath: ''
+
+  - name: 'original_price'    
+    xpath: //meta[contains(@property,"product:price:amount")]/@content
+
+  - name: 'platform_category' 
+    xpath: //div[contains(@class,"breadcrumbs")]/ul/li[position() = last() - 1] 
+
+  - name: 'product_variations'
+    xpath: ''  
+
+  - name: 'stock_availability'
+    xpath: boolean(//div[contains(@class,'box-tocart') and not(contains(@style,'none'))]//button[contains(@id,'product-addtocart-button')]) 
+
+  - name: 'main_image'
+    xpath: //div[contains(@class,"fotorama__active")]/img/@src
+    downloadContent: 'text'     
+
+  - name: 'alternative_images'
+    xpath: //div[contains(@class,"fotorama__thumb")]/img/@src
+
+  - name: 'description'
+    xpath: //div[contains(@class,"description") and contains(@class,'attribute')]
+
+  - name: 'pack_size'
+    xpath: ''
+    defaultValue: '1'
+
+  - name: 'user_reviews'
+    xpath: "" 
+
+  - name: 'average_rating'
+    xpath: "" 
+
+  - name: 'dimensions_unit'
+    xpath: (//div[contains(text(),"Szállítási ")])[1]     
+    regExp: \b(?:cm|mm|inch)\b
+
+  - name: 'width'
+    xpath: //div[contains(text(),'szélesség') and not((contains(text(),'Szállítási')))]/following-sibling::div
+
+  - name: 'length'
+    xpath: //div[contains(text(),'hosszúság') and not((contains(text(),'Szállítási')))]/following-sibling::div | //div[contains(text(),'hossz') and not((contains(text(),'Szállítási')))]/following-sibling::div
+
+  - name: 'height'
+    xpath: //div[contains(text(),'magasság') and not((contains(text(),'Szállítási')))]/following-sibling::div
+
+  - name: 'weight_unit'
+    xpath: //div[contains(text(),'súly ') and not(contains(text(),'Szállítási'))]
+    regExp: \b(?:kg|lb)\b
+
+  - name: 'weight_raw'
+    xpath: //div[contains(text(),'súly ') and not((contains(text(),'Szállítási')))]/following-sibling::div
+
+  - name: 'materials'
+    xpath: //div[contains(text(),'anyaga')]/following-sibling::div  
+
+  - name: 'colour'
+    xpath: //div[contains(text(),'színe')]/following-sibling::div
+
+  - name: 'product_details'
+    xpath: //div[contains(@class,'product-attribute-list')]

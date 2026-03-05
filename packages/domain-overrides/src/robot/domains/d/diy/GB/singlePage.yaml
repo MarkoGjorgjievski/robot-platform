@@ -1,0 +1,150 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+ 
+  - name: product_title
+    xpath: //h1[@id="product-title"]
+  
+  - name: listing_id
+    xpath: //th[contains(text(), "Product code")]/following-sibling::td
+  
+  - name: original_price
+    defaultValue: "0"
+  
+  - name: offer_price
+    defaultValue: "0"
+  
+  - name: was_price
+    xpath:  //div[@id="product-availability"]//div[@data-test-id="was-price-block"]/span[2]
+    regExp: ([\d.]+)
+    regExpReplace: $1
+  
+  - name: primary_price
+    xpath: //div[@id="product-availability"]//div[@data-test-id="product-primary-price"]/div
+    regExp: ([\d.]+)
+    regExpReplace: $1
+  
+  - name: platform_category
+    xpath: //div[@data-test-id="bread-crumbs"]/div[last()]//p
+  
+
+  - name: product_variations
+    
+    xpath: //div[contains(@data-test-id, 'multi-sku-variants-panel')]//select/option/@value
+    
+  - name: variant_ids
+    xpath: //div[contains(@data-test-id, 'multi-sku-variants-panel')]//select/option/@value
+
+  - name: variant_urls
+    xpath: //h2[contains(@data-test-id, "related-products-container-title") and contains(text(), "Similar")]/following-sibling::div//a[contains(@data-test-id, "product-panel-main-section")]/@href
+    regExp: (.+)
+    regExpReplace: https://www.diy.com$1
+
+  - name: listing_url
+    xpath: //link[@rel='canonical']/@href
+
+  - name: stock_availability
+    defaultValue: "no"
+    xpath: //button[contains(@data-test-id,"add-to-basket-button") and not(@disabled)]
+    regExp: (.+)
+    regExpReplace: "yes"
+
+  - name: main_image
+    xpath: //div[contains(@class,"slick-track")]/div[contains(@class,"slick-slide")][1]//div[contains(@class, "_6f215126 acbda437")]//picture/img/@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //div[contains(@class,"slick-track")]/div[contains(@class,"slick-slide")]//div[contains(@class, "_6f215126 acbda437")]//picture/img/@src
+  
+  - name: description
+    xpath: //meta[@name="description"]/@content
+ 
+  - name: pack_size
+    xpath: //th[contains(text(), "Pack quantity")]/following-sibling::td
+  
+  - name: user_reviews
+    xpath: //script[@id="bv-jsonld-aggregate-rating-data"]
+    # jq: .aggregateRating.reviewCount
+    regExp: '"reviewCount":([\d.]+)'
+    regExpReplace: $1
+  
+  - name: average_rating
+    xpath: //script[@id="bv-jsonld-aggregate-rating-data"]
+    # jq: .aggregateRating.ratingValue
+    regExp: '"ratingValue":"([\d.]+)"'
+    regExpReplace: $1
+
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+    xpath: //th[contains(text(), "Height")]/following-sibling::td | //th[contains(text(), "height")]/following-sibling::td | //th[contains(text(), "Width")]/following-sibling::td |  //th[contains(text(), "width")]/following-sibling::td |  //th[contains(text(), "Length")]/following-sibling::td | //th[contains(text(), "length")]/following-sibling::td
+    regExp: (mm|cm|m)
+    regExpReplace: $1
+
+  - name: height
+    xpath: //th[contains(text(), "Height")]/following-sibling::td | //th[contains(text(), "Product height")]/following-sibling::td | //th[contains(text(), "Frame height")]/following-sibling::td 
+    regExp: ([\d.]+)
+    regExpReplace: $1
+  
+  - name: width
+    xpath: //th[contains(text(), "Width")]/following-sibling::td |  //th[contains(text(), "Product width")]/following-sibling::td | //th[contains(text(), "Frame width")]/following-sibling::td 
+    regExp: ([\d.]+)
+    regExpReplace: $1
+    
+  - name: length
+    xpath: //th[contains(text(), "Length")]/following-sibling::td | //th[contains(text(), "Product length")]/following-sibling::td | //th[contains(text(), "Frame length")]/following-sibling::td 
+    regExp: ([\d.]+)
+    regExpReplace: $1
+
+  - name: depth
+    xpath: //th[contains(text(), "Depth")]/following-sibling::td |  //th[contains(text(), "Product depth")]/following-sibling::td
+    regExp: ([\d.]+)
+    regExpReplace: $1
+    
+  - name: diameter
+    xpath: //th[contains(text(), "Diameter")]/following-sibling::td | //th[contains(text(), "Product diameter")]/following-sibling::td 
+    regExp: ([\d.]+)
+    regExpReplace: $1 
+
+  
+    
+
+  - name: weight_unit
+    defaultValue: "kg"
+    xpath: //th[contains(text(), "Weight")]/following-sibling::td | //th[contains(text(), "Product weight")]/following-sibling::td
+    regExp: ([a-z]+)
+    regExpReplace: $1
+
+  - name: weight_raw
+    xpath: //th[contains(text(), "Weight")]/following-sibling::td | //th[contains(text(), "Product weight")]/following-sibling::td
+    regExp: ([\d.]+)
+    regExpReplace: $1
+
+  - name: materials
+    defaultValue: 'null'
+    xpath: //th[contains(text(), "Material")]/following-sibling::td | //th[contains(text(), "material")]/following-sibling::td
+    
+  - name: materials_backup
+    xpath: //div[contains(@id, 'product-details')]//section/section
+    regExp: '[Mm]aterial:\s*([\w%,''\/ ]*\w\b(?!:•))'
+    regExpReplace: $1
+    
+
+  - name: colour
+    defaultValue: 'null'
+    xpath: //th[contains(text(), "Colour")]/following-sibling::td
+
+  - name: colour_backup
+    xpath: //div[contains(@id, 'product-details')]//section/section
+    regExp: 'Colour:\s*([\w ]*\w)'
+    regExpReplace: $1
+
+  - name: product_details
+    xpath: //div[contains(@id, 'product-details')]//section/section
+
+  - name: currency
+    # xpath: 
+  
+

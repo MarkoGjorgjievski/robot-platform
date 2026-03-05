@@ -1,0 +1,42 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventName
+    xpath: //td[@class = "title depth_0"]
+  - name: eventDate
+    xpath: //td[@class = "event_date depth_0"]
+  - name: ticketButtonValue
+    xpath: //td[@class = "buy_tickets_button_value depth_0"]
+  - name: buyPackageStatus
+    xpath: //td[@class = "buy_package_status depth_0"]
+  - name: isPublicPurchase
+    defaultValue: '0'
+  - name: eventTime
+    xpath: //td[@class = "event_date_notes depth_0"]
+    defaultValue: '15:00'
+  - name: venueName
+    xpath: //td[@class = "venue_name depth_0"]//tbody//td[@class = "name depth_1"]
+  - name: venueCity
+    defaultValue: 'Singapore'
+  - name: eventNotes
+    xpath: '//strong[contains(text(),"Age restrictions")]//parent::li | //td[@class = "tabs depth_0"]//td[@class = "title depth_1"][contains(text(), "Admission Rules")]//following-sibling::td | //td[@class = "tabs depth_0"]//td[@class = "title depth_1"][contains(text(), "Admission Notice")]//following-sibling::td'
+  - name: fullAddress
+    xpath: //td[@class = "data depth_0"]//td[@class = "address depth_1"]/p[1]
+  - name: venueAddress
+    xpath: //td[@class = "data depth_0"]//td[@class = "address depth_1"]/p[1]
+  - name: onSaleDateTime
+    xpath: '//td[@class="description depth_1"]//strong[contains(text(),"Start Sales")]//parent::p | //td[@class="description depth_1"]//u[contains(text(),"Start Sales")]//parent::strong/parent::p | //td[contains(@class, "description")]/preceding-sibling::td[contains(text(), "Details")]//parent::tr/td[contains(@class, "description")]/p'
+    defaultValue: '0000-00-00 00:00:00'
+  - name: publicSaleDateTime
+    xpath: '//td[@class="description depth_1"]//strong[contains(text(),"Public Sale")]//parent::p | //td[@class="description depth_1"]//strong[contains(text(),"Public Sale")]//parent::u/parent::p'
+  - name: postalCode
+    xpath: //td[@class = "data depth_0"]//td[@class = "address depth_1"]
+  - name: eventVenue
+    xpath: //td[@class = "venue_name depth_0"]/table/tbody/tr/td[@class = "name depth_1"]
+  - name: venueId
+    xpath: //td[@class = "venue_name depth_0"]//tbody//td[@class = "id depth_1"]
+  - name: countryId
+    xpath: //td[@class = "venue_name depth_0"]//tbody//td[@class = "country depth_1"]
+  - name: eventID

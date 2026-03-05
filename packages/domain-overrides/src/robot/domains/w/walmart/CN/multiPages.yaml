@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: 
+fields:
+  - name: productURL
+    xpath: //div[contains(@class, "relative")]/div/section//div[@role="group"]/a/@href
+  - name: ID
+    xpath: //div[contains(@class, "relative")]/div/section//div[@role="group"]/a/@href

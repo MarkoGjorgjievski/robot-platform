@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "//div[contains(@class, 'image-container')]"
+fields:
+  - name: 'productURLs'
+    xpath: '//a/@href'
+  - name: 'productURL'
+    defaultValue: 'dummy'
+  - name: 'totalProduct'
+    xpath: 'ancestor::html//div[contains(@class,"filter-wrap")]//*[contains(text(), "Produkter")]/parent::span'
+    regExp: '\d+'
+    defaultValue: 1000

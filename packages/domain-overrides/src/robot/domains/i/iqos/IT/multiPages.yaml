@@ -1,0 +1,50 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//section[contains(@id,"product-grid")]//div[contains(@class,"product-details")] | //td[@class="Results depth_0"]/table/tbody/tr'
+fields:
+  - name: 'name'
+    xpath: '//div[contains(@class,"product-title")]/a'
+  - name: 'productUrl'
+    xpath: '//div[contains(@class,"product-title")]/a/@href'
+  - name: 'reviewCount' 
+    xpath: '//meta[@itemprop="reviewCount"]/@content'
+  - name: 'sku'
+  - name: helpfulCount
+    singleValue: false
+    description: Number of people who said the review was helpful
+    xpath: "./@helpful-count"
+    type: TEXT
+  - name: input_brandTextN
+    singleValue: false
+    description: The brand of the product
+    defaultValue: "IQOS"
+    type: TEXT
+  - name: country
+    singleValue: false
+    description: Location of the website
+    xpath: '//td[@class="ContentLocale depth_1"]'
+    type: TEXT
+  - name: reviewDate
+    type: DATETIME
+    singleValue: false
+    description: Date the review was made
+    xpath: '//td[@class="SubmissionTime depth_1"]'
+  - name: reviewDateRaw
+    xpath: "./@review-date"
+    type: TEXT
+  - name: reviewRating
+    singleValue: false
+    description: Rating normalized to be out of 5
+    xpath: '//td[@class="Rating depth_1"]'
+    type: TEXT
+  - name: reviewText
+    singleValue: false
+    description: The text of the review
+    xpath: '//td[@class="ReviewText depth_1"]'
+    type: TEXT
+  - name: reviewTitle
+    singleValue: false
+    description: The title of the review
+    xpath: '//td[@class="Title depth_1"]'
+    type: TEXT

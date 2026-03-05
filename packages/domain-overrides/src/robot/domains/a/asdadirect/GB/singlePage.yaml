@@ -1,0 +1,126 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null #//div[@class="main-page-wrapper"]
+#selecting single item from array (eg. [.[].price.list.value][0])  is not workign due to JQ implementation bug
+#such access thus has to be peformed in transform.js
+fields:
+
+  - name: product_title
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .name end'
+    #xpath: //h1[@class="product__title"]
+  - name: description
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .longDescription end'
+  - name: listing_id
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .id end'
+  - name: listing_url
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .URL  end'
+  - name: product_variations
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .variants[] | URL end'
+  - name: individualProducts
+    xpath: //script[@id="productData"]
+    #run:remote timeouts if there are too many individual products to paginate over, full run needs Workbench
+    jq: 'if (.individualProducts) then .individualProducts[:99][] | .URL else (empty) end'
+
+  - name: stock_availability
+    xpath: //script[@id="priceData"]
+    jq: 'if (.individualProducts) then (empty) else [.[].availability.instock] end'
+
+  - name: currency
+    xpath: //script[@id="priceData"]
+    jq: 'if (.individualProducts) then (empty) else [.[].price.list.currency] end'
+
+  - name: original_price
+    xpath: //script[@id="priceData"]
+    jq: 'if (.individualProducts) then (empty) else [.[].price.list.value] end'
+
+  - name: offer_price
+    xpath: //script[@id="priceData"]
+    jq: 'if (.individualProducts) then (empty) else [.[].price.sale.value] end'
+
+  - name: colour
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Colour").value end'
+  - name: materials
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Material").value end'
+  - name: fabricComposition #fallback field for some textile products
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Fabric Composition").value end'
+
+  - name: weight
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Weight").value end'
+  - name: weight_unit
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Weight").value end'
+    defaultValue: "kg"
+
+  #.jpg appended at end of url to fix image download bug affecting extension-less urls and JQ
+  - name: main_image
+    # can also be selected with (//img[@class="primary-image"])[1]/@src
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else [.media.images | .[] | .image.url + ".jpg"][:1].[] end'
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else [.media.images | .[] | .image.url][1:].[] end'
+    #Alternative image download disabled as per Guillame directive
+    #downloadContent: 'text'
+
+  #some products have dedicated fields for those values  
+  - name: width
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Width").value end'
+  - name: depth
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Width").value end'
+  - name: height
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Width").value end'
+  - name: length
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Length").value end'
+
+  - name: average_rating
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .reviews.AverageOverallRating end'
+  - name: user_reviews
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .reviews.TotalReviewCount end'
+
+  #Order matters! Those fields will be transformed into width/height/depth. Transformation is executed in order of occurence of fields here
+  #various size/dimmension fields available  
+  - name: dimension3D
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Dimensions (WxDxH in cm)").value end'
+    #https://direct.asda.com/george/home/bathroom/bathroom-accessories/natural-bamboo-3-drawer-bathroom-storage/051210347,default,pd.html?cgid=D26M07G07C02
+    #Dimensions (WxDxH in cm) = 19 x 21 x 62cm
+    #https://direct.asda.com//george/baby/baby-towels/natural-bear-hooded-towel/051268022,default,pd.html?cgid=D5M17G1C4
+    #Dimensions (WxDxH in cm) = 75 x 75cm
+  - name: dimensionFolded
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Dimensions (Folded)").value end'
+    #https://direct.asda.com/george/baby/sleeping-bags/natural-bear-3d-sleep-bag-25-tog/GEM955119,default,pd.html?cgid=D5M11G1C17
+    #Dimensions (Folded) = 71 x 41 cm
+  - name: dimensionSize
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else .attributes[] | select(.key == "Size").value end'
+    #https://direct.asda.com/george/home/curtains-blinds/eyelet-curtains-voiles/grey-woven-check-print-eyelet-curtains/050162926,default,pd.html?cgid=D26M01G01C04
+    #Size = W 228cm (90 Inch) x D 228cm (90 Inch)
+    #Size often is text description
+  - name: dimensionSizeVariantInStock
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else (.variants[] | select(.quantity.inStockQuantity > 0 ) | .variationAttributes.size.displayValue) end'
+  - name: dimensionSizeVariantAny
+    xpath: //script[@id="productData"]
+    jq: 'if (.individualProducts) then (empty) else (.variants[] | .variationAttributes.size.displayValue) end'
+    #https://direct.asda.com/george/home/curtains-blinds/eyelet-curtains-voiles/faux-silk-eyelet-curtains-natural/GEM446578,default,pd.html?cgid=D26M01G01C04
+    #Size 
+    #Size = W 228cm (90 Inch) x D 228cm (90 Inch)
+    #Size often is text description

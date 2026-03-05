@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class, 'product-card-container product-card-border rounded-borders')]
+fields:
+  - name: productURL
+    xpath: //@href

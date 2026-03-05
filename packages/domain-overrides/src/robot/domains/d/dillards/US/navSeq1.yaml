@@ -1,0 +1,48 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: vndID
+    xpath: //b[contains(text(),"Vendor Number")]/following-sibling::u
+
+  - name: vndName
+
+  - name: chkDte
+
+  - name: chkNo
+    xpath: //th[contains(text(),"Check Number")]/following-sibling::td
+  - name: invDte
+    xpath: //*[contains(text(),"Invoice Date:")]/parent::td
+    regExp: (\d+)-(\d+)-(\d+)
+    regExpReplace: $1$2$3
+  - name: invNo
+    xpath: //*[contains(text(),"Invoice Number:")]/parent::td
+    regExp: \:\s(.+)$
+    regExpReplace: $1
+  - name: dueDte
+    xpath: //*[contains(text(),"Due Date:")]/parent::td
+    regExp: (\d+)-(\d+)-(\d+)
+    regExpReplace: $1$2$3
+  - name: poNo
+    xpath: //*[contains(text(),"P.O. Number:")]/following-sibling::td
+  - name: grossAmt
+    xpath: //*[contains(text(),"Cost:")]/following-sibling::td
+    regExp: \$(.+)$
+    regExpReplace: $1
+
+  - name: discAmt
+
+  - name: chkAmt
+
+  - name: netAmt
+    xpath: //*[contains(text(),"Net Invoice Amount:")]/following-sibling::td
+    regExp: \$(.+)$
+    regExpReplace: $1
+
+  - name: strNo
+  
+  - name: invStatus
+    xpath: //*[contains(@class,"form-check")]//input[@checked=""]/following-sibling::label
+  - name: srchStatus
+    xpath: //div[@id="srchStatus"]/@text

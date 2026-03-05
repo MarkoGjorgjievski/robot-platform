@@ -1,0 +1,80 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //div[contains(@class, 'product-details-tile__title')]
+
+
+  - name: listing_id
+
+
+  - name: offer_price
+
+
+  - name: original_price
+    xpath: //*[contains(@class, 'price-per-quantity-weight')]//*[@data-auto='price-value']
+
+
+  - name: platform_category
+    xpath: //*[contains(@class, 'breadcrumbs__content')]//li[last()-1]
+
+
+  - name: product_variations
+
+
+
+  - name: stock_availability
+    defaultValue: 'yes'
+
+
+  - name: main_image
+    xpath: //*[contains(@class, 'product-image__container')]/img/@src
+
+
+  - name: alternative_images
+
+
+  - name: description
+    xpath: //*[contains(@class, 'brand-bank')]
+
+
+  - name: pack_size
+    xpath: //*[contains(@class, 'price-per-quantity-weight')]//*[contains(@class, 'weight')]
+
+
+  - name: user_reviews
+
+
+  - name: average_rating
+
+
+  - name: height
+
+
+  - name: diameter
+
+
+  - name: depth
+
+
+  - name: width
+
+  - name: length
+
+  - name:  weight_unit
+    xpath: //*[contains(@class, 'price-per-quantity-weight')]//*[contains(@class, 'weight')]
+
+  - name: volume
+
+  - name: weight_raw
+    xpath: //*[contains(@class, 'price-per-quantity-weight')]//*[contains(@class, 'weight')]
+
+  - name: materials
+
+  - name: colour
+
+  - name: product_details
+    xpath: //*[contains(@class, 'brand-bank')]
+

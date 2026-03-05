@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productUrl
+    singleValue: false
+    xpath: //div[contains(@class, 'h-full')]/div[@class='h-full']/div//span[1]/a/@href

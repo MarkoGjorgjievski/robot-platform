@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id='productList']//div[contains(@class, 'panel-body')]
+fields:
+  - name: productURL
+    xpath: //div[contains(@class,'leftContent')]/a/@href
+   

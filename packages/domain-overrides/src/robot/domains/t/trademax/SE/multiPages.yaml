@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //main[@id="maincontent"]//ul//li//a
+fields:
+  - name: productURL
+    xpath: "@href"
+    regExp: (.+)
+    regExpReplace: https://www.trademax.se$1

@@ -1,0 +1,72 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@class, 'product_title')]
+  - name: listing_id
+    xpath: //span[@class='sku']
+  - name: offer_price
+    xpath: (//span[contains(@class, 'woocommerce-Price-amount amount')])[2]
+    regExp: '[\d,]+(?:\.\d+)?'
+  - name: original_price
+    xpath: (//span[contains(@class, 'woocommerce-Price-amount amount')])[1]
+    regExp: '[\d,]+(?:\.\d+)?'
+  - name: platform_category
+    xpath: (//div[contains(@class, 'la-breadcrumb-content')]//div[contains(@class, 'la-breadcrumb-item')]//a)[last()]
+#  - name: product_variations
+#    xpath: //img[contains(@data-nimg, 'fill') and not(@draggable)]/ancestor::a[1]/@href
+  - name: stock_availability
+    xpath: //p[contains(@class, 'stock')]
+  - name: main_image
+#    xpath: (//img[contains(@role, 'presentation')]/@src)[1]
+    xpath: (//div[contains(@class, 'woocommerce-product-gallery__image')])[1]//a/@href
+    downloadContent: 'text'
+  - name: alternative_images
+#    xpath: (//img[contains(@role, 'presentation')])[position()>1]/@src
+    xpath: (//div[contains(@class, 'woocommerce-product-gallery__image')])[position()>1]//a/@href
+  - name: description
+    xpath: (//div[contains(@class, 'tab-content')])[1] | //div[contains(@class, 'woocommerce-product-details__short-description')]
+#  - name: pack_size
+#    xpath: //h6[contains(text(), 'PCS')]
+#    regExp: '(\d+)'
+#  - name: user_reviews
+#    xpath: (//div[contains(@class, 'tf-based')])[1]
+#    regExp: '(\d+)'
+#  - name: average_rating
+#    xpath: //div[contains(@class, 'tf-score')]//div[contains(@class, 'tf-rating')]
+#  #  - name: dimensions
+#  #    xpath:
+#  #    defaultValue: 'in sub fieldss'
+#  - name: dimensions_unit
+#    xpath: //div[contains(@class, 'content')]//div[contains(@class, 'extract')]
+#    regExp: '(\D+)$'
+#    defaultValue: 'cm'
+#  - name: height
+#    xpath: //span[contains(text(), 'Beskrivning')]/parent::*
+#  #    xpath: //span[contains(@data-testid, 'false') and (contains(text(), 'Höjd') or contains(text(), 'höjd')) and not(contains(text(), 'höjder'))]
+#  - name: width
+#    xpath: //span[contains(@data-testid, 'false') and (contains(text(), 'Bredd') or contains(text(), 'bredd'))]
+#  - name: length
+#    xpath: //span[contains(@data-testid, 'false') and (contains(text(), 'Längd') or contains(text(), 'längd')) and not(contains(text(), 'justerbar längd'))]
+#  #  - name: weight
+#  #    xpath:
+#  #    defaultValue: 'weight is not set'
+#  #  - name: weight_unit
+#  #    xpath:
+#  #    defaultValue: 'weight is not set'
+#  - name: weight_raw
+#    xpath: //span[contains(text(), 'Beskrivning')]/parent::*
+#  - name: materials
+#    xpath: //div[contains(@id, '1pdpAccordionDetails')]
+#  - name: colour
+#    xpath: //*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'färg:')]
+#    regExp: :(.*)
+#  - name: product_details
+#    xpath: //a[contains(@rel, 'noopener noreferrer')]/span
+
+
+
+
+#some product does not contains user reviews, avarage rating, materials,

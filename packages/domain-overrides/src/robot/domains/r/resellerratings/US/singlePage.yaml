@@ -1,0 +1,46 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'store-review')]
+fields:
+  - name: helpfulness_count
+    xpath: //span[contains(@class,'helpful-amount')]
+    
+  - name: images
+    xpath: //xpath
+    
+  - name: location
+    xpath: //xpath
+    
+  - name: rating
+    xpath: //span[contains(@class,'starRating')]
+    regExp: ^\s*(\d+)\s*\/.*
+    regExpReplace: $1
+    
+  - name: response_date
+    xpath: //div[contains(@class,'commentAdmin')]//text()[contains(.,'Posted')]/following-sibling::text()
+    
+  - name: response_text
+    xpath: //div[contains(@class,'commentAdmin')]//div[contains(@class,'user')]/following-sibling::div[not(contains(@class,'separator'))]
+    
+  - name: review_body
+    xpath: //div[contains(@class,'review-body')]
+    
+  - name: review_date
+    xpath: //div[contains(@class,'store-review')]//span[contains(@class,'date')]
+    
+  - name: review_id
+    xpath: ./@id
+    
+  - name: review_title
+    xpath: //div[contains(@class,'review-title')]
+    
+  - name: tags
+    xpath: //p[contains(@class,'verified')]
+    
+  - name: username
+    xpath: //div[contains(@class,'user-name')]
+    
+  - name: pageURL
+    xpath: ancestor::html//*[@id='pageURL']
+    

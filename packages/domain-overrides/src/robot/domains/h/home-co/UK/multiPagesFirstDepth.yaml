@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class,"country-heading")]/following-sibling::ul[contains(@class,"bullet-list")]/li
+fields:
+  - name: State
+    xpath: parent::ul/preceding-sibling::h2[1]
+
+  - name: County
+    xpath: //a
+    
+  - name: urlToCounty
+    xpath: //a/@href

@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXpath: //ol[@id='product-list-plp']//div[@class='product-item-info product-card'] | //div[contains(@class,'item-root')]
+fields:
+  - name: productUrl
+    singleValue: false
+    xpath: //ol[@id='product-list-plp']//div[@class='product-item-info product-card']/a/@href | //div[contains(@class,'item-root')]//section//a//@href
+    regExp: (https:\/\/www.vuse.com)?(.+)
+    regExpReplace: https://www.vuse.com$2

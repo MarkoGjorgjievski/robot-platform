@@ -1,0 +1,112 @@
+singleRecord: false
+regionsSelector: null
+recordXPath: //div[@id="a-page"]
+fields:
+  - name: product_title
+    xpath: //h1[@id="title"] | //h1[@id="title"]/span
+
+  - name: listing_id
+    xpath: //input[@id="ASIN"]/@value | //*[@id="averageCustomerReviews"][@data-asin]/@data-asin
+
+  - name: offer_prices
+    xpath: //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePrice_desktop"][//span[@data-a-strike="true"]]//span[contains(@class, "apexPriceToPay")]/span[1] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"]//div[@id="corePriceDisplay_desktop_feature_div" or @id="corePrice_desktop"][//span[@data-a-strike="true"]]//span[contains(@class, "priceToPay") or contains(@class, "apexPriceToPay")]/span[1]
+    regExp: (\d+[\.,]?\d*)
+
+  - name: original_price
+    xpath: //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePriceDisplay_desktop_feature_div"]//span[contains(@class, "basisPrice")]/span/span[1] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"][not(.//div[@id="apex_desktop_usedAccordionRow"])]//div[@id="corePriceDisplay_desktop_feature_div"]/div[contains(@class, "aok-relative")]/span[contains(@class, "aok-offscreen")] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"]//div[@id="corePriceDisplay_desktop_feature_div"][not(.//span[@data-a-strike="true"])]//span[contains(@class, "priceToPay")]/span[1] | //div[@id="corePrice_desktop" or @id="corePriceDisplay_desktop_feature_div"][//span[@data-a-strike="true"]]//span[@data-a-strike="true"]/span[1] | //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePrice_desktop"][not(.//span[@data-a-strike="true"])]//span[contains(@class, "apexPriceToPay")]/span[1]
+    regExp: (\d+[\.,]?\d*)
+    defaultValue: '0'
+  
+  - name: platform_category
+    xpath: //div[@id="wayfinding-breadcrumbs_feature_div"]/ul/li[last()]/span/a
+  
+  - name: select_variations
+    xpath: //form[@id="twister"]//select/option/@value
+  
+  - name: tile_variations
+    xpath: //form[@id="twister"]//li[@data-dp-url]/@data-dp-url | //div[@id="tp-inline-twister-dim-values-container"]/ul//li[@data-asin]/@data-asin
+  
+  - name: product_vars
+    defaultValue: 'pv'
+  
+  - name: stock_availability
+    xpath: //input[@id="add-to-cart-button"]/@value | //div[@id="availability"]/span[contains(@class, "a-color-success")]
+    defaultValue: 'no'
+  
+  - name: main_image
+    xpath: //div[@id="main-image-container"]//li[contains(@class, "selected")]//div[contains(@class, "imgTagWrapper")]/img/@src | //li[@data-csa-c-action="image-block-main-image-hover" and contains(@class, "itemNo0")]//div[@id="imgTagWrapperId"][1]//img/@src
+    downloadContent: 'text'
+  
+  - name: alternative_images
+    xpath: //div[@id="altImages"]/ul/li[contains(@class, "imageThumbnail") or contains(@class, "item")]//img/@src
+  
+  - name: description
+    xpath: //div[@id="feature-bullets"]/ul/li/span | //div[@id="drengr_desktopTabbedDescriptionOverviewContent_feature_div"]//span | //div[@id="productDescription_feature_div"]//p//span/text()
+  
+  - name: pack_size
+    xpath: //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Numero di articoli")]/following-sibling::td | //table//tr[contains(@class, "po-number_of_items")]/td[last()]/span | //td[contains(@class, "product-comparison-desktop") and contains(@class, "tableAttributeName")][./span[contains(text(), "conteggio unità")]]/following-sibling::td[1] | //td[contains(@class, "product-comparison-desktop") and contains(@class, "tableAttributeName")][./span[contains(text(), "numero di pezzi")]]/following-sibling::td[1]
+    # defaultValue: '1'
+    regExp: \d+
+  
+  - name: user_reviews
+    xpath: //div[@id="averageCustomerReviews_feature_div"]//span[@id="acrCustomerReviewText"]
+    regExp: (\d+[\.,]?\d*)
+  
+  - name: average_rating
+    xpath: //div[@id="averageCustomerReviews_feature_div"]//span[@id="acrPopover"]/@title
+    regExp: (\d+[\.,]?\d*)
+    regExpReplace: $1
+  
+  - name: dimensions
+    xpath: //table//tr[contains(@class, "po-item_dimensions")]/td[last()]/span | //table//tr[contains(@class, "po-item_width_height")]/td[last()]/span | //table//tr[contains(@class, "po-item_length_width_height")]/td[last()]/span | //table//tr[contains(@class, "po-item_depth_width_height")]/td[last()]/span | //table//tr[contains(@class, "po-item_length_width_thickness")]/td[last()]/span
+  
+  - name: dimensions_unit
+    xpath:
+    defaultValue: 'cm'
+  
+  - name: height
+    xpath:
+  
+  - name: diameter_dimension
+    xpath: //table[@id="productDetails_techSpec_section_1"]//tr[th[contains(text(), "Diametro")]]/td
+  
+  - name: depth
+    xpath:
+  
+  - name: width
+    xpath:
+  
+  - name: length
+    xpath:
+  
+  - name: weight_unit
+    xpath: //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Peso articolo")]/following-sibling::td | //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Peso articolo")]/following-sibling::td
+    regExp: ([a-zA-Z]+)
+  
+  - name: weight_raw
+    xpath: //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Peso articolo")]/following-sibling::td | //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Peso articolo")]/following-sibling::td
+    regExp: (\d+[\.,]?\d*)
+  
+  - name: materials
+    xpath: //table//tr[contains(@class, "po-material")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Materiale") or contains(text(), "materiale")]/following-sibling::td  | //div[@id="productOverview_feature_div"]//td[span[contains(text(), "Materiale")]]/span[last()]
+  
+  - name: colours
+    xpath: //table//tr[contains(@class, "po-color")]/td[last()]/span | //span[@id="inline-twister-expanded-dimension-text-color_name"] | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Colore del paralume")]/following-sibling::td
+  
+  - name: product_details
+    xpath: //div[@id="productOverview_feature_div"]//table//tr | //table[@id="productDetails_techSpec_section_1"]//tr
+  
+  - name: link
+    xpath: //link[@rel="canonical"]/@href
+  
+  - name: qid
+    xpath: //input[@id="qid"]/@value
+  
+  - name: product_dimensions
+    xpath: //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Dimensioni prodotto")]/following-sibling::td
+  
+  - name: package_dimensions
+    xpath: //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Dimensioni del collo")]/following-sibling::td
+
+  - name: size
+    xpath: //div[@id="variation_size_name"]//span[contains(@class, "selection")]

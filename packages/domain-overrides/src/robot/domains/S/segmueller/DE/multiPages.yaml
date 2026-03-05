@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //*[contains(@class, "js-product-card OGridResults_product__qxnRB")]//*[contains(@class, 'MProductCard_productCardImageBox__Lq6_x')]/@href
+  - name: urlSubTemplate
+    xpath: //*[contains(@class, 'CategoryOverview_category__tKwK_')]//a/@href

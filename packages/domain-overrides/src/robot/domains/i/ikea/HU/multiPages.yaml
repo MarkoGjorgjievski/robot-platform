@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'plp-mastercard__price')]
+fields:
+  - name: productURL
+    xpath: //a[contains(@class,'plp-price-link-wrapper')][not(@__extracted)]//@href

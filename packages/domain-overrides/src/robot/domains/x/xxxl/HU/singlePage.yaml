@@ -1,0 +1,99 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@data-purpose,'productName')]/span
+
+  - name: listing_id
+    xpath: //*[@data-purpose='product.productNumber']
+    regExp: '\d+'
+
+  - name: offer_price
+    xpath: //div[contains(@data-purpose,'product.promotion.message')]/ancestor::html//meta[contains(@property,"product:price:amount")]/@content
+
+  - name: original_price
+    xpath: //meta[contains(@property,"price:standard_amount")]/@content | //meta[contains(@property,"product:price:amount")]/@content
+
+  - name: platform_category
+    xpath: (//*[@data-purpose='productBreadcrumbs.link'])[1]
+
+  - name: 'product_variations'
+    xpath: (//*[@data-purpose='productDetailPage.data.rightContainer']//fieldset/input/@value)[position() > 1]
+    regExp: (^.*)
+    regExpReplace: https://www.xxxlutz.hu$1
+
+  - name: stock_availability
+    xpath: boolean(//button[contains(@data-purpose,'addtocart')])
+
+  - name: main_image
+    xpath: (//*[@data-testid='slider-clipper']//*[@data-purpose='imageSlider.stageImage']/@src)[1]
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: (//*[@data-testid='slider-clipper']//*[@data-purpose='imageSlider.stageImage']/@src)[position() > 1]
+
+  - name: description
+    xpath: //div[contains(text(),'Általános leírás')]/following-sibling::ul | //div[contains(text(),'ermékjellemzők')]/following-sibling::ul
+
+  - name: pack_size
+    defaultValue: 1
+
+  - name: user_reviews
+
+  - name: average_rating
+
+  - name: width
+    xpath: //span[contains(text(), 'szélesség')]
+    regExp: (?<=:\s)[^\sa-zA-Z]+
+
+  - name: height
+    xpath: //span[contains(text(), 'magasság')]
+    regExp: (?<=:\s)[^\sa-zA-Z]+
+
+  - name: depth
+    xpath: //span[contains(text(), 'mélység')]
+    regExp: (?<=:\s)[^\sa-zA-Z]+
+
+  - name: length
+    xpath: //span[contains(text(), 'hosszúság')]
+    regExp: (?<=:\s)[^\sa-zA-Z]+
+
+  - name: diameter
+    xpath: //span[contains(text(), 'átmérő')]
+    regExp: \b\d+(?:[.,]\d+)?\b
+
+  - name: volume
+
+  - name: weight_unit
+    # xpath: (//*[@data-purpose='modal.sidebar.wrapper']//*[contains(text(), 'súlya')])[1]
+
+  - name: weight_raw
+    # xpath: (//*[@data-purpose='modal.sidebar.wrapper']//*[contains(text(), 'súlya')])[1]
+    # regExp: 'súlya:(.*)'
+
+  - name: materials
+    xpath: //li[contains(text(),"anyag:")]
+    regExp: 'anyag: (.+)'
+    regExpReplace: $1
+
+  - name: colour
+    xpath: (//*[@data-purpose='modal.sidebar.wrapper']//*[contains(text(), 'Szín:') or contains(text(), 'szín')])[1]
+    # xpath: //*[@data-purpose='modal.body']//*[contains(text(), 'szín:')]//text()
+    # regExp: 'Szín: (.+)'
+    # regExpReplace: $1
+
+  - name: product_details
+    xpath: //div[contains(text(),'Műszaki adatok')]/following-sibling::ul | //div[contains(text(),'tájékoztatók')]/following-sibling::ul
+  
+
+
+
+
+
+
+  
+
+
+  

@@ -1,0 +1,82 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id="a-page"]
+fields:
+  - name: product_title
+    xpath: //h1[@id="title"] | //h1[@id="title"]/span
+  - name: listing_id
+    xpath: //input[@id="ASIN"]/@value
+  - name: offer_prices
+    xpath: //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePrice_desktop"][//span[@data-a-strike="true"]]//span[contains(@class, "apexPriceToPay")]/span[1] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"]//div[@id="corePriceDisplay_desktop_feature_div" or @id="corePrice_desktop"][//span[@data-a-strike="true"]]//span[contains(@class, "priceToPay") or contains(@class, "apexPriceToPay")]/span[1] | //div[@id="Northstar-Buybox"][//span[@id="listPrice"]]//span[@id="price"]
+    regExp: (\d+[\.,]?\d*)
+  - name: original_price
+    xpath: //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePriceDisplay_desktop_feature_div"]//span[contains(@class, "basisPrice")]/span/span[1] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"][not(.//div[@id="apex_desktop_usedAccordionRow"])]//div[@id="corePriceDisplay_desktop_feature_div"]/div[contains(@class, "aok-relative")]/span[contains(@class, "aok-offscreen")] | //div[@id="apex_desktop_newAccordionRow" or @id="apex_desktop"]//div[@id="corePriceDisplay_desktop_feature_div"][not(.//span[@data-a-strike="true"])]//span[contains(@class, "priceToPay")]/span[1] | //div[@id="corePrice_desktop" or @id="corePriceDisplay_desktop_feature_div"][//span[@data-a-strike="true"]]//span[@data-a-strike="true"]/span[1] | //div[@id="apex_desktop_newAccordionRow"]//div[@id="corePrice_desktop"][not(.//span[@data-a-strike="true"])]//span[contains(@class, "apexPriceToPay")]/span[1] | //div[@id="Northstar-Buybox"][not(.//span[@id="listPrice"])]//div[@id="corePrice_feature_div"]//span[contains(@class, "a-price")]/span | //div[@id="Northstar-Buybox"][//span[@id="listPrice"]]//span[@id="listPrice"]
+    regExp: (\d+[\.,]?\d*)
+    defaultValue: '0'
+  - name: platform_category
+    xpath: //div[@id="wayfinding-breadcrumbs_feature_div"]/ul/li[last()]/span/a
+  - name: select_variations
+    xpath: //form[@id="twister"]//select/option/@value
+  - name: tile_variations
+    xpath: //form[@id="twister"]//li[@data-dp-url]/@data-dp-url | //div[@id="tp-inline-twister-dim-values-container"]/ul//li[@data-asin]/@data-asin
+  - name: product_vars
+    defaultValue: 'pv'
+  - name: stock_availability
+    xpath: //input[@id="add-to-cart-button"]/@value | //div[@id="availability"]/span[contains(@class, "a-color-success")]
+    defaultValue: 'no'
+  - name: main_image
+    xpath: //div[@id="main-image-container"]//li[contains(@class, "selected")]//div[contains(@class, "imgTagWrapper")]/img/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[@id="altImages"]/ul/li[contains(@class, "imageThumbnail") or contains(@class, "item")]//img/@src
+  - name: description
+    xpath: //div[@id="feature-bullets"]/ul/li/span | //div[@id="productInfoTabExpander0"]//p/span | //div[@id="productFactsDesktopExpander"]//ul//li/span | //div[@id="drengr_desktopTabbedDescriptionOverviewContent_feature_div"]/span | //div[@id="productDescription_feature_div"]//p/span | //div[@id="aplus_feature_div"]//ul/li | //div[@id="bookDescription_feature_div"]//p/span | //div[@id="bookDescription_feature_div"]/div/div/span
+  - name: pack_size
+    xpath: //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Number of Pieces")]/following-sibling::td | //table//tr[contains(@class, "po-number_of_items")]/td[last()]/span
+    defaultValue: '1'
+    regExp: \d+
+  - name: user_reviews
+    xpath: //div[@id="averageCustomerReviews_feature_div"]//span[@id="acrCustomerReviewText"]
+    regExp: (\d+[\.,]?\d*)
+  - name: average_rating
+    xpath: //div[@id="averageCustomerReviews_feature_div"]//span[@id="acrPopover"]/@title
+    regExp: (\d+[\.,]?\d*)
+    regExpReplace: $1
+  - name: dimensions
+    xpath: //table//tr[contains(@class, "po-item_dimensions")]/td[last()]/span | //table//tr[contains(@class, "po-item_width_height")]/td[last()]/span | //table//tr[contains(@class, "po-item_length_width_height")]/td[last()]/span | //table//tr[contains(@class, "po-item_depth_width_height")]/td[last()]/span | //table//tr[contains(@class, "po-item_length_width_thickness")]/td[last()]/span
+  - name: dimensions_unit
+    xpath:
+    defaultValue: 'cm'
+  - name: height
+    xpath:
+  - name: diameter_dimension
+    xpath: //table[@id="productDetails_techSpec_section_1"]//tr[th[contains(text(), "Diameter")]]/td
+  - name: depth
+    xpath:
+  - name: width
+    xpath:
+  - name: length
+    xpath:
+  - name: weight_unit
+    xpath: //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Item Weight")]/following-sibling::td | //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Item Weight")]/following-sibling::td
+    regExp: ([a-zA-Z]+)
+  - name: weight_raw
+    xpath: //table//tr[contains(@class, "po-item_weight")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Item Weight")]/following-sibling::td
+    regExp: (\d+[\.,]?\d*)
+#  - name: materials
+#    xpath: //table//tr[contains(@class, "po-material")]/td[last()]/span | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Material Type") or contains(text(), "Material") or contains(text(), "material")]/following-sibling::td
+  - name: materials
+    xpath: //table//tr[contains(@class, "po-material")]/td[last()]/span[1] | (//table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Material Type") or contains(text(), "Material") or contains(text(), "material")]/following-sibling::td)[not((//table//tr[contains(@class, "po-material")]/td[last()]/span)[1])]
+  - name: colours
+    xpath: //table//tr[contains(@class, "po-color")]/td[last()]/span | //span[@id="inline-twister-expanded-dimension-text-color_name"] | //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Colour")]/following-sibling::td
+  - name: product_details
+    xpath: //div[@id="poExpander"]//table//tr | //table[@id="productDetails_techSpec_section_1"]
+  - name: link
+    xpath: //link[@rel="canonical"]/@href
+  - name: qid
+    xpath: //input[@id="qid"]/@value
+  - name: product_dimensions
+    xpath: //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Product Dimensions")]/following-sibling::td
+  - name: package_dimensions
+    xpath: //table[@id="productDetails_techSpec_section_1"]//th[contains(text(), "Package Dimensions")]/following-sibling::td

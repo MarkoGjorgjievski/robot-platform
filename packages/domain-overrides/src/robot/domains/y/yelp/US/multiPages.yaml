@@ -1,0 +1,48 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@data-testid,"review-summary")]/following-sibling::ul/li[*]
+fields:
+  - name: helpfulness_count
+    xpath: //div[@role="button"]//span[contains(text(),'Helpful')]/following-sibling::span[not(parent::div[contains(@aria-hidden,"true")])]
+    
+  - name: images
+    xpath: //img[not(parent::a)][not(parent::div[contains(@class,'reaction')])]/@src
+    
+  - name: location
+    xpath: //div[contains(@data-testid,'UserPassportInfoTextContainer')]
+    
+  - name: rating
+    xpath: //div[contains(@aria-label,'star rating')]/@aria-label
+    regExp: \d+
+    
+  - name: response_date
+    xpath: //xpath
+    
+  - name: response_text
+    xpath: //xpath
+    
+  - name: review_body
+    xpath: //p[contains(@class,'comment')]
+    
+  - name: review_date
+    xpath: //div[contains(@aria-label,'star rating')]/ancestor::div[contains(@class,'arrange-unit')]/following-sibling::div/span[contains(text(),'20')]
+    
+  - name: review_id #can't find id or link
+    xpath: 
+    
+  - name: review_title
+    xpath: //xpath
+    
+  - name: tags
+    xpath: //xpath
+    
+  - name: trustscore
+    xpath: ancestor::html//a[contains(@href,'#reviews')]/parent::span/preceding-sibling::span
+    
+  - name: username
+    xpath: //div[contains(@class,'user-passport-info')]//a[contains(@href,'/user_details')]
+ 
+  # - name: pageURL
+  #   xpath: ancestor::html//meta[contains(@property,'url')]/@content
+    

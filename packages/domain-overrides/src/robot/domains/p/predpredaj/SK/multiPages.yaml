@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'col')]//div[contains(@class,'box-content')]
+fields:
+  - name: firstDepthURL
+    xpath: //a[not(contains(@href,'https'))]/@href

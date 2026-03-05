@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //article[.//div[contains(@class, "product-add-selector-container")]]//ul[contains(@class,"photo-container")]/li[not(@__extracted)][1]
+fields:
+  - name: productURL
+    xpath: //a/@href

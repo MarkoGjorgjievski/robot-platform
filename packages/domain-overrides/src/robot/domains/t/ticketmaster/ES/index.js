@@ -1,0 +1,43 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'ES',
+    loadedSelector: '#__NEXT_DATA__',
+    waitForSelectorToLoad: null,
+    noResultsXPath: '//div[@data-testid="404page"]',
+    accessDeniedXPath: '//*[@id="t1" and text()="Pardon the Interruption"]',
+    orderedSelectorsToClickOn: null,
+    loadingTimeout: 5000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'ticketmaster',
+  },
+};

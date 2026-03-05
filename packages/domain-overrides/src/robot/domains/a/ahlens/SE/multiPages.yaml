@@ -1,0 +1,20 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+#recordXPath: //*[not(@__extracted)]//div[@data-testid="ProductList_list"]//div[contains(@class,"MuiGrid-item")]
+recordXPath: //div[@data-testid="ProductList_list"]//div[contains(@class,"MuiGrid-item")][not(@__extracted)]
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, "MuiCardActionArea-root")][1]/@href
+#recordXPath: //div[contains(@data-testid, 'ProductList_list')]
+#fields:
+#  - name: productURL
+#    xpath: //a[contains(@class, "MuiCardActionArea-root")][1]/@href
+
+#    URLTemplate: 'https://w3439ecd3.api.esales.apptus.cloud/api/v2/queries/landing-page#[!opt!]{"method": "POST", "body": {"market": "SE", "customerKey": "02203953-09e4-484f-8b49-5d89d93951bb", "sessionKey": "82fab9e5-d03e-4689-b638-815267797d20", "touchpoint": "desktop", "limit": 24, "pageId": "/inredning/nyheter-310630", "skip": 24, "sort": "RELEVANCE", "channels": ["ONLINE"]}}[/!opt!]'
+#    jq: jq | filter
+#    regExp: (reg)*p
+#    regExpReplace: website$1$2
+#    defaultValue: hardcoded value if nothing matches
+#    manualSelector: css#selector
+#    type: NUMBER | BOOLEAN | STRING (default if omitted)

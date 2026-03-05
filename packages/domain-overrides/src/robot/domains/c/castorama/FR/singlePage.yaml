@@ -1,0 +1,72 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[@id="product-title"]
+  - name: listing_id
+    xpath: //td[@data-test-id="product-ean-spec"]
+  - name: offer_price
+    xpath: //div[contains(@class, "_29c81449")]/div[@data-test-id="productPrice"][contains(@class, "_36cb0914")]/div/div[@data-test-id="product-primary-price"]
+    regExp: '\d+,*\d*'
+  - name: original_price
+    xpath: //div[contains(@class, "_29c81449")]/div[@data-test-id="productPrice"][contains(@class, "_36cb0914")]//span[@data-test-id="previous-price"]
+    regExp: '\d+,*\d*'
+  - name: platform_category
+    xpath: //div[@data-test-id="bread-crumbs"]/div[last()]//p
+  - name: stock_availability
+    defaultValue: 'no'
+    xpath: //span[contains(text(), "Disponible")]
+    regExp: '.*'
+    regExpReplace: 'yes'
+  - name: main_image
+    xpath: (//div[contains(@class, "c1725634")]/picture[@data-test-id="picture-wrapper"]/img)[1]/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[contains(@class, "_91709346")]//div[contains(@class, "c1725634")]//picture[@data-test-id="picture-wrapper"]//img/@src
+  - name: description
+    xpath: (//p[contains(@class, "_49e8bd5b")])[1]
+  - name: pack_size
+    xpath: //th[contains(text(), "Quantité par pack")]/following-sibling::td
+  - name: user_reviews
+    xpath: (//span[@data-test-id="RatingTotalReviews"])[1]
+    regExp: '\d+'
+  - name: average_rating
+    defaultValue: '0'
+
+  - name: stars
+    xpath: //div[contains(@class, "_7c363cbd")]//i/@aria-label
+
+  - name: dimensions_unit
+    xpath: //th[contains(text(), "Hauteur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td/parent::tr/parent::tbody/tr/th[contains(text(), "Épaisseur")]/following-sibling::td | //th[contains(text(), "Hauteur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td | //th[contains(text(), "Largeur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td | //th[contains(text(), "Longueur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td
+    regExp: '[A-z]+$'
+  - name: height
+    xpath: //th[contains(text(), "Hauteur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td/parent::tr/parent::tbody/tr/th[contains(text(), "Épaisseur")]/following-sibling::td | //th[contains(text(), "Hauteur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: width
+    xpath: //th[contains(text(), "Largeur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: length
+    xpath: //th[contains(text(), "Longueur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: depth
+    xpath: //th[contains(text(), "Profondeur")][not(contains(text(), "du"))][not(contains(text(), "de"))]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: diameter
+    xpath: //title[contains(text(), "Ø")]
+    regExp: 'Ø(\d+\.*\d*)'
+    regExpReplace: '$1'
+
+  - name: weight_unit
+    xpath: (//th[contains(text(), "Poids")][not(contains(text(), "du"))][not(contains(text(), "de"))])[1]/following-sibling::td
+    regExp: '[A-z]+$'
+  - name: weight_raw
+    xpath: (//th[contains(text(), "Poids")][not(contains(text(), "du"))][not(contains(text(), "de"))])[1]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: materials
+    xpath: //th[contains(text(), "Matière")]/following-sibling::td
+  - name: colour
+    xpath: //th[contains(text(), "Couleur")]/following-sibling::td
+  - name: product_details
+    xpath: (//p[contains(@class, "_49e8bd5b")])[2] | //h3[contains(text(), "Caractéristiques et avantages")]/parent::div

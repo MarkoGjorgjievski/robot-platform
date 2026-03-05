@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //img[@class="event-poster"]/@title

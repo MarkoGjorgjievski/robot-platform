@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: something
+    xpath: //xpath
+    jq: 'jq | filter'
+    regExp: '(reg)*p'
+    manualSelector: css#selector

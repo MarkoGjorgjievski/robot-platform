@@ -1,0 +1,104 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  # - name: listing_id
+  #   xpath: //div[contains(@class,"productFullDetail-title_right")]/span
+  #   regExp: 'Product number: (.+)'
+  #   regExpReplace: $1
+
+# extract from this: https://www.jhceshop.com/fy-d11399
+  - name: listing_id
+    xpath: //*[@property="og:url"]/@content
+    regExp:  https://www.jhceshop.com/(.*)
+    regExpReplace: $1
+  
+  - name: platform_category
+    xpath: //div[contains(@class, "productFullDetail-breadcrumbs_root")]//a[last()]
+
+  - name: main_image
+    xpath: //*[@property="og:image"]/@content
+    downloadContent: 'text'
+  
+  - name: product_title
+    xpath: //*[@name="description"]/@content
+
+  - name: alternative_images
+    xpath: //div[contains(@class, "carousel-slickthumbnailList")]//img[2]/@src | //span[contains(@class, "thumbnail-root-FXf")]//img[contains(@loading, "lazy")]/@src
+    regExp: (.+)
+    regExpReplace: https://www.jhceshop.com$1
+  
+  - name: description
+    xpath: //section[contains(@class,"productFullDetail-description")]//div
+  
+  - name: dimensionsDescription
+    xpath: //section[contains(@class,"productFullDetail-label") and ./span/text() = "Size"]/span[2]
+    regExp: \((.*)\)
+    regExpReplace: $1
+  
+  - name: dimensionsDescriptionExtra
+    xpath: //section[contains(@class,"productFullDetail-description")]//div
+    regExp: '([\d.,x×X*WLDHwldh ]*(cm)|(CM)|(mm)|(MM))'
+    regExpReplace: $1
+
+  - name: dimensionsText
+    xpath: //section[contains(@class,"productFullDetail-label") and ./span/text() = "Size"]/span[2]
+    regExp: (.*)\(
+    regExpReplace: $1
+ 
+  - name: dimensions_unit
+    defaultValue: "cm"
+    xpath: //section[contains(@class,"productFullDetail-label") and ./span/text() = "Size"]/span[2]
+    regExp: ([cmCM]+)\(
+    regExpReplace: $1
+
+  - name: old_price
+    xpath: //div[contains(@class,"productFullDetail-discount_price")]
+    regExp: ([\d\.,]+)
+    regExpReplace: $1
+
+  - name: current_price
+    xpath: //div[contains(@class,"productFullDetail-price-")]
+    regExp: ([\d\.,]+)
+    regExpReplace: $1
+  
+  - name: stock_availability
+    xpath: (//section[contains(@class, 'productFullDetail-actButton')])[1]//span/text()
+    jq: if . == "Add to Cart" then "yes" else "no" end
+    defaultValue: "yes"
+  - name: materials
+    xpath: //section[contains(@class,"productFullDetail-description")]//div
+    regExp: '[mM]aterial:\s([^\n.]+)'
+    regExpReplace: $1
+  - name: colour
+    xpath: //section[contains(@class,"productFullDetail-description")]//div
+    regExp: '[cC]olou?r:\s([^\n.]+)'
+    regExpReplace: $1
+
+  - name: weight_raw
+    xpath: //section[contains(@class,"productFullDetail-label") and ./span/text() = "Weight"]/span[2]
+    regExp: ([\d.]+)
+    regExpReplace: $1
+  - name: weight_unit
+    defaultValue: "kg"
+    xpath: //section[contains(@class,"productFullDetail-label") and ./span/text() = "Weight"]/span[2]
+    regExp: ([kgKG]+)
+    regExpReplace: $1
+  - name: volume 
+    xpath: //section[contains(@class,"productFullDetail-label") and ./span/text() = "Volume"]/span[2]
+    
+  
+  # Set of:
+  # https://www.jhceshop.com/hk_en/2000102181063.html
+  - name: pack_size_from_title
+    xpath: //*[@name="description"]/@content
+
+  - name: pack_size 
+    defaultValue: "1"
+  
+  - name: user_reviews
+    defaultValue: null
+  
+  - name: average_rating
+    defaultValue: null

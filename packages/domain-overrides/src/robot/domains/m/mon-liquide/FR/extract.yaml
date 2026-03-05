@@ -1,0 +1,65 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //script[contains(@id, 'combinationsFromController_')]
+fields:
+  - name: ProductID
+    xpath: ancestor::html//input[@name="id_product"]/@value
+  - name: Brand
+    xpath: ancestor::html//div[@itemprop='brand']
+  - name: ProductName
+    xpath: ancestor::html//h1[@itemprop="name"]
+  - name: ProductDescription
+    xpath: ancestor::html//div[@id="learnmore"]
+  - name: PrePromoPrice
+    xpath: ancestor::html//span[@id='old_price']
+  - name: CurrentPrice
+    xpath: ancestor::html//span[@id='our_price_display'][contains(@class, "price")]
+  - name: Colour #
+    xpath: //text()
+    jq: .value | .attributes_values | ."5"
+  - name: FlavourDescription
+    xpath: ancestor::html//div[@id='short_description_block']//p[.//*[contains(text(), 'dominantes')] or contains(text(), 'dominantes')]//span | ancestor::html//div[@id='short_description_block']//p[.//*[contains(text(), 'Saveur :')] or contains(text(), 'Saveur :')]//span | ancestor::html//div[@id="characteristics"]//table//td[contains(.,'Saveur')]//following::td[1]
+  - name: Strength #
+    xpath: //text()
+    jq: .value | .attributes_values | ."4"
+  - name: pg #
+    #xpath: //text() | ancestor::html//tr[.//td[contains(text(), 'Taux PG/VG')]]/td[2] 
+    #jq: (.value? // .) | (.attributes_values? // .) | (."16"? // .) | .[0:2]?
+    xpath: ancestor::html//tr[.//td[contains(text(), 'Taux PG/VG')]]/td[2]/text()
+    regExp: \/(\d{1,2})
+    regExpReplace: $1
+  - name: vg #
+    #xpath: //text() | ancestor::html//tr[.//td[contains(text(), 'Taux PG/VG')]]/td[2]
+    #jq: (.value? // .) | (.attributes_values? // .) | (."16"? // .) | .[3:5]?
+    xpath: ancestor::html//tr[.//td[contains(text(), 'Taux PG/VG')]]/td[2]/text()
+    regExp: (\d{1,2})\/
+    regExpReplace: $1
+  - name: Producer
+    #xpath: ancestor::html//div[@itemprop='brand']
+  - name: RatingReviewScore
+    xpath: ancestor::html//meta[@itemprop="ratingValue"]/@content
+  - name: RatingReviewCount
+    xpath: ancestor::html//meta[@itemprop="reviewCount"]/@content
+  - name: BundleQuantity
+    xpath: ancestor::html//div[@id='short_description_block']//p[.//*[contains(text(), 'endu par ')] or contains(text(), 'endu par ')]/text()
+    defaultValue: "1"
+    regex: \d{1,2}
+  - name: PackSize
+  - name: PromotionalInformation
+    xpath: ancestor::html//div[@id='loyalty']/text()
+  - name: SubscriptionText
+  - name: InStockOnline #
+    xpath: //text()
+    jq: .value | .quantity > 0
+  - name: StockQuantityOnline #
+    xpath: //text()
+    jq: .value | .quantity
+  - name: breadcrumbs
+    xpath: ancestor::html//span[@class="navigation_page"]//a//text() | ancestor::html//span[@class="navigation_page"]/text()
+  - name: kitInfoArray
+    xpath: ancestor::html//p[@id='package_content']//text() | ancestor::html//div[@id='short_description_block']//p[.//*[contains(text(), 'se compose')] or contains(text(), 'se compose')]//text()
+  - name: Currency
+    xpath: ancestor::html//meta[@itemprop="priceCurrency"]/@content
+  - name: measurement #
+    xpath: ancestor::html//div[@id="characteristics"]//table//td[contains(.,'Contenance')]//following::td[1]

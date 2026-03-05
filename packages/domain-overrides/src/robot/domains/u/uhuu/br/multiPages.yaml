@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@class="item card-evento"]
+fields:
+  - name: eventURL
+    xpath: //a/@href

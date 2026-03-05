@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //div[contains(@data-selector,"prd-description-holder")]//a/@href
+    regExp: (.+)
+    regExpReplace: https://www.lowes.com$1

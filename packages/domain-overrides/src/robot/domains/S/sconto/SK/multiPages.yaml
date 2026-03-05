@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "//div[@class = 'list-products__item__in']"
+fields:
+  - name: productURL
+    xpath: //a[contains(@class, 'list-products__item__block')]/@href
+#    jq: jq | filter
+#    regExp: (reg)*p
+#    regExpReplace: website$1$2
+#    defaultValue: hardcoded value if nothing matches
+#    manualSelector: css#selector
+#    type: NUMBER | BOOLEAN | STRING (default if omitted)

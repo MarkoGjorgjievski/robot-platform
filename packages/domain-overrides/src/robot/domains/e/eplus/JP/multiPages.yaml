@@ -1,0 +1,12 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //a[contains(@class,'ticket-item')][not(@__extracted)]/@href 
+    regExp: ^([^\-]*)
+
+  - name: eventUniqueId
+    xpath: //a[contains(@class,'ticket-item')][not(@__extracted)]/@href
+    regExp: /(?<=-)(.*?)(?=\?|$)/

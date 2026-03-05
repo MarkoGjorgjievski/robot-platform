@@ -1,0 +1,66 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@class, 'page-title')]
+  - name: listing_id
+    xpath: //div[contains(@class, 'product-info-main')]//div[@class='value']
+    regExp: '(\d+)'
+  - name: offer_price
+    xpath: //div[contains(@class, 'product-info-price')]//*[contains(@class, 'old-price')]/../span[contains(@class, 'special-price')]
+    regExp: '(\d+,\d+)'
+  - name: original_price
+    xpath: "//div[contains(@class, 'product-info-price')]//*[contains(@class, 'special-price')]/../span[contains(@class, 'old-price')] | //div[contains(@class, 'product-info-price') and not(descendant::*[contains(@data-price-type, 'oldPrice')])]//*[contains(@data-price-type, 'finalPrice')]"
+    regExp: '(\d+,\d+)'
+  - name: platform_category
+    xpath: (//ul[contains(@class, 'items')])//li[last()-1]
+#  - name: product_variations
+#    xpath:
+#    defaultValue: null
+  - name: stock_availability
+    xpath: (//div[contains(@class, 'stock')])[2]
+    defaultValue: 'no'
+  - name: main_image
+    xpath: (//div[contains(@class, 'fotorama__stage__frame')])[1]//img[@aria-hidden='false']/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[contains(@class, 'fotorama__nav-wrap')]//div[contains(@class, 'fotorama__loaded--img')]//img/@src
+  - name: description
+    xpath: //div[contains(@class, 'detailed')]
+#  - name: pack_size
+#    xpath:
+#    defaultValue: '1'
+#  - name: user_reviews
+#    xpath:
+#    defaultValue: null
+#  - name: average_rating
+#    xpath:
+#    defaultValue: null
+#  - name: dimensions
+#    xpath: //tr//*[contains(text(), 'Wymiar')]/ancestor::tr/td
+  - name: dimensions_unit
+    xpath: //tr//*[contains(text(), 'Wymiar')]/ancestor::tr/td
+    regExp: '(\bcm|\bmm|\bin|\bft|\bm)\b'
+  - name: height
+    xpath: //tr//*[contains(text(), 'Wysokość')]/ancestor::tr/td
+  - name: width
+    xpath: //tr//*[contains(text(), 'Szerokość')]/ancestor::tr/td
+  - name: diameter
+    xpath: //tr//*[contains(text(), 'Średnica')]/ancestor::tr/td
+  - name: length
+    xpath: //tr//*[contains(text(), 'Długość')]/ancestor::tr/td
+  - name: weight
+    xpath: //tr//*[contains(text(), 'Waga')]/ancestor::tr/td
+  - name: weight_unit
+    xpath: //tr//*[contains(text(), 'Waga')]
+    regExp: \[(.*?)]
+  - name:  weight_raw
+    xpath: //tr//*[contains(text(), 'Waga')]/ancestor::tr/td
+  - name: materials
+    xpath: //tr//*[contains(text(), 'Materiał')]/ancestor::tr/td
+  - name: colour
+    xpath: //tr//*[contains(text(), 'Kolor')]/ancestor::tr/td
+  - name: product_details
+    xpath: //tr//*[contains(text(), 'Dane dodatkowe')]/ancestor::tr/td | //tr//*[contains(text(), 'Gwarancja')]/ancestor::tr/td

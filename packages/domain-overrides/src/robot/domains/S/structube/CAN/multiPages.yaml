@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@class='item-module-root-mIK']
+fields:
+  - name: 'productURL'
+    xpath: //a[contains(@class,'item-module-images-1cT')]/@href

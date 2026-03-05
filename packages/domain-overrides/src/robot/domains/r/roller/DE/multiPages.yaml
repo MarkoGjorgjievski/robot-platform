@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "//*[contains(@data-id, 'cms-category-page-products--page-section')]//a"
+fields:
+  - name: productURL
+    xpath: //@href
+    regExp: (.+)
+    regExpReplace: https://www.roller.de$1
+

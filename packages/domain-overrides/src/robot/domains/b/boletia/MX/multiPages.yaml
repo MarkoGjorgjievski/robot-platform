@@ -1,0 +1,23 @@
+# Record xpath:
+# if event has is_season empty => go to the event and check if has free ticket, if no, then go up to the event again and get subdomain
+
+# if event has is_season true => go to the event and check if has free ticket, if no, then go up to the event again and get subdomain on the next level
+
+singleRecord: false
+regionsSelector: null
+recordXPath: >
+ //td[@class="is_season depth_4" and not(text())]
+ /parent::tr//td[text()!="0.00"]
+ /ancestor::td[@class="_source depth_3"]
+ //td[@class="subdomain depth_4"]
+ |
+ //td[@class="is_season depth_4" and text()="true"]
+ /parent::tr//td[text()!="0.00"]
+ /ancestor::td[@class="_source depth_3"]
+ //td[@class="subdomain depth_5"]
+
+fields:
+  - name: eventURL
+    xpath: //text()
+    regExp: (.+)
+    regExpReplace: https://$1.boletia.com/

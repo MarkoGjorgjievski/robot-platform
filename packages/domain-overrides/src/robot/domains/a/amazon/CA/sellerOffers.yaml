@@ -1,0 +1,105 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@id,'offer-list')]/div[contains(@id,'offer') and not(.//text()[contains(., 'cannot be shipped')])] | //div[contains(@id,'aod-pinned-offer') and contains(@class,'aod-pinned-offer')][contains(@id,'offer') and not(.//text()[contains(., 'cannot be shipped')])and not(.//text()[contains(., 'No featured offers')])]
+fields:
+  - name: name
+    xpath: ancestor::html//div[@id="aod-pinned-offer"]//h5[@id="aod-asin-title-text"]
+
+  - name: getInventory
+    xpath:
+    defaultValue: 0
+
+  - name: reviewCount
+    xpath: ancestor::html//span[@id="aod-asin-reviews-count-title"]
+    regExp: '([.,\d]+)'
+    defaultValue: 0
+
+  - name: resellerReviewCount
+    xpath: //span[contains(@id, "seller-rating-count")]/span/text()[1]
+    defaultValue: '0'
+
+  - name: resellerAggregateRating
+    xpath: //span[@id="seller-rating-count-{iter}"]/span
+    regExp: (\d+)%
+    regExpReplace: $1
+    defaultValue: '0'
+
+  - name: resellerFeedbackPercent
+    xpath: //span[@id="seller-rating-count-{iter}"]/span
+    regExp: (\d+)%
+    regExpReplace: $1
+    defaultValue: '0'
+
+  - name: fullfillmentBy
+    xpath: //span[contains(text(), "Ships from")]/parent::div/following-sibling::div/span
+
+  # the other one just in case
+  - name: fulfillmentBy
+    xpath: //span[contains(text(), "Ships from")]/parent::div/following-sibling::div/span
+
+  - name: aggregateRating 
+    xpath: ancestor::html//table[@id="productDetails_detailBullets_sections1"]//tr[.//div[@id="averageCustomerReviews"]]/td/text()[last()] | ancestor::html//span[@id="acrPopover"]//a/span
+    regExp: ([\d,.]+)
+    regExpReplace: $1
+
+  - name: image
+    xpath: ancestor::html//img[@id="aod-asin-image-id"]/@src
+
+  - name: resellerName
+    xpath: //div[@id="aod-offer-soldBy"]//span[@class="a-size-small a-color-base"][not(contains(.,"rating"))] | //a[contains(@aria-label, "Opens a new page")]//text()
+
+  - name: resellerId
+    xpath: //a[contains(@aria-label, "Opens a new page")]//@href
+    regExp: (?<=seller=)(.+)(?=&is)
+
+  - name: deliveryDate
+    xpath: //span[@data-csa-c-delivery-time]/@data-csa-c-delivery-time
+
+  - name: shippingCost
+    xpath: //span[@data-csa-c-delivery-price]/@data-csa-c-delivery-price
+
+  - name: shippingCostCurrency
+    defaultValue: 'USD'
+
+  - name: productId
+    xpath: ancestor::html//div[@id="companyCompliancePolicies_feature_div"]//@data-csa-c-asin
+
+  - name: price
+    xpath: //span[contains(@id, "aod-price")]
+
+  - name: brandText
+    xpath: ancestor::html//tr[contains(@class, "po-brand")]/td[2]/span | //a[@id="bylineInfo"]
+    regExp: (visit the )?(.+)
+    regExpReplace: $2
+
+  - name: resellerLink
+    xpath: //div[@id="aod-offer-soldBy"]//a/@href
+    regExp: (.+)
+    regExpReplace: https://www.amazon.ca$1
+
+  - name: domain
+    defaultValue: 'https://www.amazon.ca'
+    
+  - name: productURL
+    xpath: ancestor::html//link[@rel="canonical"]
+
+  - name: currencyOverride
+    defaultValue: 'USD'
+
+  - name: productDescription
+    xpath: ancestor::html//div[@data-feature-name="productDescription"]//div[@id="productDescription"]//span
+
+  - name: redirectedASIN
+    xpath: ancestor::html//span[contains(text(),'ASIN')]/following-sibling::span | ancestor::html//th[contains(text(),'ASIN')]/following-sibling::td
+    defaultValue: 'dummy'
+
+  - name: redirectedASINBackup
+    xpath: ancestor::html//a[contains(@href,'redirectAsin')]/@href
+    regExp: redirectAsin=([A-Z0-9]{10})
+    regExpReplace: $1
+    defaultValue: 'dummy'
+
+  - name: productASIN
+    xpath: ancestor::html//script[contains(@data-a-state,'atwl') and contains(text(),'asin')]
+    jq: .asin

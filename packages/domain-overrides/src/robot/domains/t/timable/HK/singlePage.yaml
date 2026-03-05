@@ -1,0 +1,24 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id="detail"]/div[span[@itemProp="startDate"]]/span[not(@itemProp="location" or @class="gmap_set")]
+fields:
+  - name: eventName
+    xpath: ancestor::html//h1[@itemprop="name"]
+  - name: venueName 
+    xpath: ancestor::html//span[@itemprop="location"]/a/span[@itemprop="name"]
+  - name: venueAddress
+    xpath: ancestor::html//span[@itemprop="location"]/span[@itemprop="address"]
+  - name: eventNotes
+    xpath: ancestor::html//div[@itemprop="description"]//text()
+    defaultValue: ""
+  - name: venueCity
+    defaultValue: Hong Kong
+  - name: eventDateTimeText
+    xpath: //text()
+  - name: firstTicketingPublicSaleDateTimeText
+    xpath: (ancestor::html//*[contains(text(),"public sale")])[1]/following-sibling::span
+  - name : firstTicketingDateTimeText
+    xpath: (//div[@id="ticketing"]//span[contains(text(), "|")])[1]/following-sibling::span
+  - name: isPublicPurchase
+    defaultValue: "0"

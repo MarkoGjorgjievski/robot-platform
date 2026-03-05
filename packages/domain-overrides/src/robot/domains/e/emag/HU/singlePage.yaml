@@ -1,0 +1,130 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@class,'page-title')]
+
+  - name: listing_id
+    xpath: //span[contains(@class,'product-code-display')]
+    regExp: Termékkód:\s*(.+)
+    regExpReplace: $1
+
+  - name: offer_price
+    xpath: //div[contains(@class,'product-page-pricing')]//div[contains(@class,'pricing-block')]//p[contains(@class,'has-deal')]
+    regExp: (\d+[\.,]?\d*)
+
+  - name: original_price
+    xpath: //div[contains(@class,'product-page-pricing')]//div[contains(@class,'pricing-block')]//p[contains(@class,'product-new-price') and not(contains(@class,'has-deal'))] | //div[contains(@class,'product-page-pricing')]//p[contains(@class,'pricing')]
+    regExp: (\d+[\.,]?\d*)
+
+  - name: platform_category
+    xpath: //ol[contains(@class,'breadcrumb')]//li[last()-1]//a//text()
+
+  - name: product_variations
+    xpath: //ul[@id='product_colors']//li//a[not(contains(@class,'active'))]//@href
+    defaultValue: null
+
+  - name: stock_availability
+    xpath: boolean(//div[contains(@class,'product-buy-area')])
+
+  - name: main_image
+    xpath: //div[@id='product-gallery']//div[contains(@class,'ph-body')]//div[@data-ph-id='image-0']//img//@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //div[contains(@class,'multimedia-gallery')]//img//@src
+
+  - name: description
+    xpath: //div[@id='description-body']
+
+  - name: pack_size
+    xpath: //span[contains(text(),'Package quantity')]/../text()
+    regExp: \d+
+
+  - name: user_reviews
+    xpath: //div[contains(@class,'reviews-general-rating')]//div[not(contains(@class,'verified'))]//p[contains(text(),'értékelés')]
+    regExp: \d+
+    defaultValue: 0
+
+  - name: average_rating
+    xpath: //p[contains(@class,'review-rating-data')]//text()
+    defaultValue: 0
+
+  - name: dimensions_unit 
+    xpath: //td[contains(text(),'Magasság')]//ancestor-or-self::tr//td[2]//text()
+    regExp: ([a-z]+)
+    regExpReplace: $1
+    defaultValue: 'cm'
+
+  - name: height
+    xpath: //td[contains(text(),'Magasság')]//ancestor-or-self::tr//td[2]//text()
+    regExp: \d+\.*,*\d*
+    defaultValue: 'dummy'
+
+  - name: height_backup
+    xpath: //div[@id='description-body']
+    regExp: Magasság:\s*(\d+(?:\.\d+)?)\s*cm
+    regExpReplace: $1
+
+  - name: diameter
+    xpath: //td[contains(text(),'Átmérő')]//ancestor-or-self::tr//td[2]//text()
+    regExp: \d+\.*,*\d*
+
+  - name: length
+    xpath: //td[contains(text(),'Hosszúság')]//ancestor-or-self::tr//td[2]//text()
+    regExp: \d+\.*,*\d*
+    defaultValue: 'dummy'
+
+  - name: length_backup
+    xpath: //div[@id='description-body']
+    regExp: Hosszúság:\s*(\d+(?:\.\d+)?)\s*cm
+    regExpReplace: $1
+
+  - name: width
+    xpath: //td[contains(text(),'Szélesség')]//ancestor-or-self::tr//td[2]//text()
+    regExp: \d+\.*,*\d*
+    defaultValue: 'dummy'
+
+  - name: width_backup
+    xpath: //div[@id='description-body']
+    regExp: Szélesség:\s*(\d+(?:\.\d+)?)\s*cm
+    regExpReplace: $1
+
+  - name: depth
+    xpath: //td[contains(text(),'Mélység')]//ancestor-or-self::tr//td[2]//text()
+    regExp: \d+\.*,*\d*
+    defaultValue: 'dummy'
+
+  - name: depth_backup
+    xpath: //div[@id='description-body']
+    regExp: Mélység:\s*(\d+(?:\.\d+)?)\s*cm
+    regExpReplace: $1
+
+  - name: dimensions_backup
+    xpath: //div[@id='description-body']
+    regExp: érete:\s*((?:\d+\s*x\s*)+\d+)\s*?[cm||mm]
+    regExpReplace: $1
+
+  - name: dimensions_from_title
+    xpath: //h1[contains(@class,'page-title') and (contains(text(),'cm') or contains(text(),'mm'))]
+    regExp: \d+(?:[.,]\d+)?(?:\s*[xX]\s*\d+(?:[.,]\d+)?)*
+
+  - name: weight_unit
+    xpath: //td[contains(text(),'Súly')]//ancestor-or-self::tr//td[2]//text()
+    regExp: ([a-z]+)
+    regExpReplace: $1
+
+  - name: weight_raw
+    xpath: //td[contains(text(),'Súly')]//ancestor-or-self::tr//td[2]//text()
+    regExp: \d+\.*,*\d*
+
+  - name: materials
+    xpath: //td[contains(text(),'Anyag')]//ancestor-or-self::tr
+
+  - name: colour
+    xpath: //td[contains(text(),'Szín')]//ancestor-or-self::tr//td[2]//text()
+
+  - name: product_details
+    xpath: //div[@id='specifications-body']//p[text()='Általános jellemzők']/following-sibling::table[1]//tr

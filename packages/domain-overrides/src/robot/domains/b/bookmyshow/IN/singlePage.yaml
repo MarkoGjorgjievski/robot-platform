@@ -1,0 +1,38 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//a[@title][not(@rel)] | //*[contains(@id, "eventURLDATA")]'
+# //div[@id='app'][.//button[@id='synopsis-book-button'][text()='Book']]
+fields:
+  - name: eventNote
+    xpath: ancestor::html//*[contains(@id, 'eventFullData')]
+    jq: '.eventInfo.settings.ageRestrictions'
+  - name: venueName
+    xpath: //text()
+    jq: '.VenueName'
+  - name: venueAddress
+    xpath: //text()
+    jq: '.VenueAddress'
+  - name: eventData
+    xpath: //text()
+    jq: '.'
+  - name: eventFullData
+    xpath: ancestor::html//*[contains(@id, 'eventFullData')]
+  - name: eventRawDate
+    xpath: //text()
+    jq: '.dateValue'
+  - name: eventRawTime
+    xpath: //text()
+    jq: '.dateTimeValue'
+    defaultValue: '-1'
+  - name: eventName
+    xpath: ancestor::html//*[contains(@id, 'eventFullData')]
+    jq: '.eventInfo.title'
+  - name: isTBA
+    defaultValue: '0'
+  - name: subEventsURL
+    xpath: //@href
+    regExp: (.+)
+    regExpReplace: 'https://in.bookmyshow.com$1'
+  - name: isPublicPurchase
+    defaultValue: '1'

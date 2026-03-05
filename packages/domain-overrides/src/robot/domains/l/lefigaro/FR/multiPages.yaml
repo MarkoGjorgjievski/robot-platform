@@ -1,0 +1,22 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: shopRouteName
+    xpath: //td[contains(@class,"deals")]//td[contains(@class, "shopRouteName")]
+  - name: id
+    xpath: //td[contains(@class,"deals")]/table/tbody/tr/td[contains(@class, "id")]
+  - name: offer_code
+    xpath: //div[@class="le-figaro-coupon-code"]
+  - name: offer
+    xpath: //div[@class="le-figaro-coupon-title"]
+  - name: merchant
+    xpath: //div[contains(@class, "le-figaro-content-area")]/main/h1/strong
+  - name: Exclusive
+    xpath: //td[contains(@class,"deals")]/table/tbody/tr/td[contains(@class, "exclusive")]
+    
+    
+  - name: voucherURL
+    defaultValue: 'https://codespromo.lefigaro.fr/code-promo/'
+    

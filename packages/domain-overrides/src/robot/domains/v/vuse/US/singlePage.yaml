@@ -1,0 +1,44 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id='added-reviews']/div[@id="review"]
+fields:
+  - name: helpfulCount
+    singleValue: false
+    description: Number of people who said the review was helpful
+    xpath: ./@helpful-count
+  - name: reviewDate
+    type: DATETIME
+    singleValue: false
+    description: Date the review was made
+    xpath: ./@review-date
+  - name: reviewDateRaw
+    xpath: ./@review-date
+  - name: rating
+    singleValue: false
+    description: Rating normalized to be out of 5
+    xpath: ./@review-rating
+  - name: reviewText
+    singleValue: false
+    description: The text of the review
+    xpath: ./@review-text
+  - name: reviewTitle
+    singleValue: false
+    description: The title of the review
+    xpath: ./@review-title
+  - name: pageTitle
+    singleValue: false
+    xpath: ancestor::html//h1[contains(@class,'Name')]
+  - name: sku
+    singleValue: false
+    xpath: ancestor::html//div[@class="product-add-form"]//form/@data-product-sku
+  - name: mediaURL
+    singleValue: false
+    xpath: ancestor::html//div[contains(@class,'carousel-image')]//img[contains(@src,'https')]/@src
+  - name: brand
+    singleValue: false
+    xpath: (//script[@type="application/ld+json"])[last()]
+    regExp: (.name.)(.+)(vuse)
+    regExpReplace: $3
+    defaultValue: VUSE
+    

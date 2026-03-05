@@ -1,0 +1,31 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[@id="date-prices"]/div | //*[@id="left-sidebar"]/div[2]/div[contains(@class, "tkt-show-ticket")]/div[2]/a | //*[@id="left-sidebar"]/div[contains(@class, "tkt-show-buy")]
+fields:
+  - name: isSinglePageExtraction
+    defaultValue: true
+    xpath: ancestor::html/@lang
+  - name: eventName
+    xpath: ancestor::html//*[@id="big-top-content"]/div/div/div[1]/h4
+  - name: eventDateTime
+    xpath: (ancestor::html//*[@id="left-sidebar"]/div[2]/div/div[3]/div[2]/strong | a[contains(@class, 'collapsed')]/text())[last()]
+  - name: isPublicPurchase
+    defaultValue: '0'
+    xpath: ancestor::html//section[not(@id="footer")]/descendant-or-self::div[contains(@class, 'show-buy')]/a[contains(text(), 'Comprar')] | ancestor::html//div[contains(@class, 'tkt-ticket-button')]/a[contains(text(), 'Comprar')]
+    jq: 'if . == "Comprar" then 1 else 0 end'
+  - name: venueName
+    xpath: ancestor::html//div[contains(@class, 'tkt-show-widget')]/a/h4/text()
+  - name: venueCity
+    xpath: ancestor::html//div[contains(@class, 'tkt-show-widget') and @data-city]/@data-city
+  - name: eventNote
+    xpath: normalize-space(
+      ancestor::html//*[@id="right-sidebar"]/div/div/h4[text()='IMPORTANTE' or text()='Importante']/parent::div )
+  - name: venueAddress
+    xpath: concat(ancestor::html//*[@id="left-sidebar"]/descendant-or-self::div[contains(@class, 'tkt-show-widget-content')]/div[1]/text(), ', ', ancestor::html//*[@id="left-sidebar"]/descendant-or-self::div[contains(@class, 'tkt-show-widget-content')]/div[2]/text(), ', ', ancestor::html//*[@id="left-sidebar"]/descendant-or-self::div[contains(@class, 'tkt-show-widget-content')]/div[3]/text())
+  - name: jsonData
+    xpath: ancestor::html//*[@id="json-ld-music-group"]
+    jq: '.'
+  - name: jsonEventDate
+    xpath: ancestor::html//*[@id="json-ld-music-group"]
+    jq: 'if . | length > 1 then "" else .[0].startDate end'

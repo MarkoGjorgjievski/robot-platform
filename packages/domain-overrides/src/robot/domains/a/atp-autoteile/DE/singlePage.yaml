@@ -1,0 +1,119 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: sku
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].sku
+  - name: productName
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].name
+  - name: manufacturerPartNumber
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].mpn
+  - name: productVariant
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].name
+  - name: masterBrand
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].brand.name
+  - name: brand
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].name
+  - name: brandVariant
+    xpath: //*[contains(text(),'"@graph":')]
+    jq: ."@graph"[0].name
+
+  - name: checkIfMobil1
+    xpath: //span[contains(@class,"product-description__item-title")][contains(text(),"Produktreihe:")]/following-sibling::span[contains(text(),'MOBIL 1')] | //span[contains(@class,"product-description__item-title")][contains(text(),"Produktreihe:")]/following-sibling::span[contains(text(),'Mobil 1')]
+
+  - name: viscosity
+    xpath: //tbody//td[contains(text(),'Viskosität')]/following-sibling::td
+  
+  - name: packSize
+    xpath: //ul[contains(@class, "bb-list-bull")][contains(., "Inhalt:")][not(./li)] | //li[contains(text(), "Inhalt:")]
+    defaultValue: empty
+    
+  - name: packSizeBackup
+    xpath: //td[text()="Liter"]/following-sibling::td|//td[text()="Inhalt [Liter]"]/following-sibling::td
+    
+    
+    # xpath: //*[contains(text(),'"@graph":')]
+    # jq: ."@graph"[0].name
+  
+  - name: packSizeUnit
+    # xpath: //ul[contains(@class, "bb-list-bull")][contains(., "Inhalt:")][not(./li)] | //li[contains(text(), "Inhalt:")]
+    # xpath: //*[contains(text(),'"@graph":')]
+    # jq: ."@graph"[0].name
+    xpath: //td[text()="Liter"]/following-sibling::td|//td[text()="Inhalt [Liter]"]/following-sibling::td
+    regExp: (.+)
+    regExpReplace: 'Liter'
+  
+  - name: quantity
+    xpath: //input[contains(@class,"amount")]/@data-amount
+  - name: RRP_Was
+    xpath: //*[contains(@class,"price-section-wrapper")]//*[contains(@class,"product-price")]
+    # regExp: (\d+),(\d+)
+    # regExpReplace: $1.$2
+    # defaultValue: 'dummy'
+  - name: RRP_WasWithoutVat
+    xpath: //*[contains(@class,"price-section-wrapper")]//*[contains(@class,"product-price")]
+    # regExp: (\d+),(\d+)
+    # regExpReplace: $1.$2
+    # defaultValue: 'dummy'
+  - name: startingPriceType
+    xpath: //*[contains(@class,"price-section-wrapper")]//*[contains(@class,"product-price")]
+  - name: retailPrice #transform
+    xpath: //*[contains(@class,"price-section-wrapper")]//*[contains(@class,"product-price")]
+    # regExp: (\d+),(\d+)
+    # regExpReplace: $1.$2
+  - name: retailPriceWithoutVAT # transform
+    xpath: //*[contains(@class,"price-section-wrapper")]//*[contains(@class,"product-price")]
+    # regExp: (\d+),(\d+)
+    # regExpReplace: $1.$2
+  - name: VAT
+    defaultValue: '19%'
+  - name: multipackFlag
+    xpath: //ul[contains(@class, "bb-list-bull")][contains(., "Inhalt:")][not(./li)][contains(text(), "x")] | //li[contains(text(), "Inhalt:")][contains(text(), "x")]
+    defaultValue: 'no'
+  - name: multipackQuantity
+    xpath: //ul[contains(@class, "bb-list-bull")][contains(., "Inhalt:")][not(./li)][contains(text(), "x")] | //li[contains(text(), "Inhalt:")][contains(text(), "x")]
+    regExp: 'Inhalt:\s*(.+)'
+    regExpReplace: $1
+
+  - name: productRating
+    xpath: //*[contains(text(),'"ratingValue":')]
+    regExp: ratingValue\"\:\s?\"(\d(?:\.\d{2})?)
+    regExpReplace: $1
+    defaultValue: ''
+  - name: ratingCount
+    xpath: //*[contains(text(),'"ratingValue":')]
+    jq: .aggregateRating.reviewCount
+    defaultValue: ''
+  - name: inStockOnline # transform
+    xpath: //*[contains(@class,"add-to-cart-new")]//*[contains(text(),"In den Warenkorb")]
+    defaultValue: 'no'
+  - name: inStockStore
+    defaultValue: 'no'
+  - name: promotionDescription
+    xpath: //*[contains(@class,"price-section-wrapper")]//*[contains(@class,"product-price")]
+    regExp: -\d+\%
+    defaultValue: ''
+  - name: productDescription
+    xpath: //*[contains(@class,"technical-info")]/*[contains(@class,"description-content")]//li | //*[contains(@class,"hint")]/*[contains(@class,"description-content")]//li
+  - name: specProfile
+    xpath: //*[contains(@class,"limitations")]//*[contains(@class,"description-content")]//ul[contains(@class,"bb-list-bull")]//li | //*[contains(@class,"spec")]//*[contains(@title,"Verwendbar für")]/following-sibling::td | //*[contains(@class,"specs")]//*[contains(text(),"Verwendbar für")]/following-sibling::td
+  - name: rawAvailabilityMessage
+    xpath: //*[contains(@class,"right-section-top-content")]//*[contains(@id,"addToCart")]
+
+
+  # xpath: //xpath
+  # jq: jq | filter
+  # regExp: (reg)*p
+  # regExpReplace: website$1$2
+  # defaultValue: hardcoded value if nothing matches
+  # manualSelector: css#selector
+  # screenCapture: png
+  # downloadContent: text
+  # type: NUMBER | BOOLEAN | STRING (default if omitted)

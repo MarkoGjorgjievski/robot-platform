@@ -1,0 +1,10 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: tokenURL
+    xpath: //pre[contains(text(),"token")]
+    jq: .access_token
+  - name: authSuccess
+    xpath: //pre[contains(text(),"id")][contains(text(),"name")]

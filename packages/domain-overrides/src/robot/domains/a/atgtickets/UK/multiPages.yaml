@@ -1,0 +1,59 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//div[contains(@class, "SetSeriesCollectionList__ListContainer")] | //*[contains(@class,"[automation]default-summary")]//*[@class="[automation]buy-tickets"]/button/ancestor::html//script[@type="application/ld+json"][contains(text(), "TheaterEvent")][1] | //div[@id="root"]//h2[contains(@class, "MuiTypography-alignCenter")] | //*[@data-testid="calendar"] | //*[@data-testid="calendar"]/ancestor::html//script[@type="application/ld+json"][contains(text(), "TheaterEvent")]  | //div[@role="main"]//div[@class="performance-info"]'
+fields:
+  - name: firstDepthURL
+    xpath: ancestor::html//a[contains(@class, "CardCta__CardLink")]/@href | ancestor::html//script[@type="application/ld+json"][contains(text(), "TheaterEvent")][1]
+    jq: '.url? // ("https://www.atgtickets.com" + .)'
+    # jq: ' if (type == "array" or type == "object") then .url else "https://www.atgtickets.com" + . end'
+  # - name: secondDepthURL
+  #   xpath: ancestor::html//div[@id="content"]//a[contains(@class, "[automation]buy-tickets")]/@href
+  #   jq: '"https://www.atgtickets.com" + .'
+  - name: secondDepthURL
+    xpath: ancestor::html//a[@title="View the full calendar"]/@href | ancestor::html//script[@type="application/ld+json"][contains(text(), "TheaterEvent")][1]
+    jq: '.url? // ("https://www.atgtickets.com" + .)'
+    regExp: '^(.*?\/calendar\/\/?|.*$)'
+  - name: thirdDepthURL
+    xpath: ancestor::html//a[@title="View the full calendar"]/@href
+    jq: '"https://www.atgtickets.com" + .'
+    regExp: '^(.*?\/calendar\/\/?|.*$)'
+  - name: venueAmenitiesArray
+    xpath: ancestor::html//div[contains(@class, "AboutPanel__Amenities")]//div[contains(@class, "Text-sc")]
+  - name: eventName
+    xpath: '//div[./ancestor::html//div[@id="content"]]//text()'
+    jq: '.name'
+  - name: venueName
+    xpath: //div[./ancestor::html//div[@id="content"]]//text()
+    jq: '.location.name'
+  - name: venueCity
+    xpath: ancestor::html//div[@id="preloaded-state"]//text()
+    jq: '.show.showData.city'
+  - name: onSaleDate
+    xpath: ancestor::html//div[@id="preloaded-state"]//text()
+    jq: '.show.showData.onSaleStartDate'
+  - name: venueAddress
+    xpath: //div[./ancestor::html//div[@id="content"]]//text()
+    jq: '.location.address'
+  - name: eventNotes
+    xpath: ancestor::html//div[contains(@class, "default__Fixed")]//div[contains(@class, "SideInfoPanel__PanelSection")]//div[contains(text(), "Age guidance")] | ancestor::html//div[contains(@class, "ReactModal__Content")]//p
+  - name: isPublicPurchase
+    xpath: ancestor::html//div[contains(@class,"[automation]default-summary")]//a[@class="[automation]buy-tickets"]//button//div[contains(text(), "Buy Tickets")]
+    jq: 'if . == "Buy Tickets" then 1 else 0 end'
+  - name: eventDateTime
+    xpath: //div[./ancestor::html//div[@data-testid="calendar"]]//text()
+    jq: '.startDate'
+  - name: eventEndDate
+    xpath: //div[./ancestor::html//div[@data-testid="calendar"]]//text()
+    jq: '.endDate'
+  - name: eventDate
+    xpath: //div[@id="root"]//h2[contains(@class, "MuiTypography-alignCenter")] | //div[@id="item-description"]//span
+    regExp: '\b(\d+\s+\w+\s+\d+)\b'
+  - name: eventTime
+    xpath: //div[@id="root"]//h2[contains(@class, "MuiTypography-alignCenter")] | //div[@id="item-description"]//span
+    regExp: '\b(\d+:\d+)\b'
+  - name: eventURL
+    xpath: ancestor::html//link[@rel="canonical"]/@href
+  - name: duration
+    xpath: //div[./ancestor::html//div[@data-testid="calendar"]]//text()
+    jq: '.duration'

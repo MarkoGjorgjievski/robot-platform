@@ -1,0 +1,54 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //div[contains(@class,'product-info-main')]//h1[contains(@class,'page-title')]//span//text()
+  - name: listing_id
+    xpath: //*[text()='Artikelnummer']//..//td//text()
+  - name: offer_price
+    xpath: //div[@class='product-info-price']//span[@data-price-type='finalPrice']//@data-price-amount
+  - name: original_price
+    xpath: //div[@class='product-info-price']//span[contains(@class,'old-price')]//span[@data-price-amount]//@data-price-amount
+    defaultValue: '-1'
+  - name: platform_category
+    xpath: //div[contains(@class,'breadcrumb')]//ul//li[descendant::a][last()]//a//text()
+  - name: product_variations
+    xpath: //div[@id='product_switcher']//a//@href
+  - name: stock_availability
+    xpath: boolean(//div[contains(@class,'product-info-main')]//div[contains(@class,'delivery--green')])
+  - name: main_image
+    xpath: //div[contains(@class,'gallery__main')]//div[contains(@class,'swiper-wrapper')]//div[position()=1]//a//img//@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[contains(@class,'gallery__main')]//div[contains(@class,'swiper-wrapper')]//div[position()!=1]//a//img//@src
+  - name: description
+    xpath: //div[@id='description']//div[contains(@class,'read-more')]//text()
+  - name: pack_size
+    defaultValue: '1'
+    xpath: //div[contains(@class,'product-info-main')]//h1[contains(@class,'page-title')]//span//text()
+    regExp: '\(set (\d+) stuks\)'
+    regExpReplace: $1
+  - name: dimensions_unit
+    xpath: //div[contains(@class,'main')]//*[contains(text(),'Afmeting')]//..//td//text()
+    regExp: '\d+ ([a-z]{2})'
+    regExpReplace: $1
+    defaultValue: 'cm'
+  - name: diameter
+    xpath: //div[contains(@class,'product-info-main')]//h1[contains(@class,'page-title')]//span//text() | //div[contains(@class,'product-extra-description')]//ul//li[contains(text(),'Ø')]
+    regExp: 'Ø\s*(\d+[,.]?\d+)'
+    regExpReplace: $1
+  - name: dimension_string
+    xpath: //div[contains(@class,'main')]//*[contains(text(),'Afmeting')]//..//td//text()
+  - name: weight_unit
+    xpath: //div[contains(@class,'main')]//th[contains(text(),'Gewicht')]..//td//text()
+    regExp: ([a-z]+)
+    regExpReplace: $1
+  - name: weight_raw
+    xpath: //div[contains(@class,'main')]//th[contains(text(),'Gewicht')]//..//td//text()
+    regExp: (\d+\.*\d*) | (\d+,*\d*)
+  - name: materials
+    xpath: //div[contains(@class,'main')]//th[contains(text(),'Materiaal')]//..//td//text()
+  - name: colour
+    xpath: //div[contains(@class,'main')]//th[contains(text(),'Kleur')]//..//td//text()

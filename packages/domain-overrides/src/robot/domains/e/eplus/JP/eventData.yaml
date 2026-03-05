@@ -1,0 +1,49 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //article[.//span[contains(@class, 'article__date')] and .//a[contains(@class, 'place')]]
+fields:
+  - name: eventURL
+    xpath: ancestor::html//meta[contains(@property,'url')]/@content
+
+  - name: eventName
+    xpath: ancestor::html//h1[contains(@class,'main-title')]
+  
+  - name: eventDate
+    xpath: //*[contains(@class,'ticket-article__date')]
+
+  - name: eventTime
+    xpath: //*[contains(@class,'ticket-article__time')]
+
+  - name: isDateTimeTBA
+    defaultValue: '0'
+
+  - name: isPublicPurchase
+    defaultValue: '1'
+
+  - name: venueName
+    xpath: //a[contains(@class,'place')]
+
+  - name: onSaleDateTime
+    xpath: //section[not(contains(@class,'hidden'))]//p[contains(@class,'ticket__time')]
+
+  - name: eventNote
+    xpath: //section[not(contains(@class,'hidden'))]//div[contains(@class,'ticket-detail__content')]
+
+  - name: venueCountryCode
+    defaultValue: 'JP'
+
+# Venue page navigation
+  - name: venueURL
+    xpath: //a[contains(@class,'block-ticket-article__place')]/@href
+
+# Venue page data fields
+  - name: venueStateProvince
+    xpath: //h3[contains(text(),'住所')]/following-sibling::div[contains(@class,'text')]
+
+  - name: venueCity
+    xpath: //h3[contains(text(),'住所')]/following-sibling::div[contains(@class,'text')]
+
+  - name: venueAddress
+    xpath: //h3[contains(text(),'住所')]/following-sibling::div[contains(@class,'text')]
+    regExp: (?<=.{6}).*

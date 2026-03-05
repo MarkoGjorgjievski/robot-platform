@@ -1,0 +1,23 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //td[contains(@class, "locations depth_1")]/table/tbody/tr
+fields:
+  - name: store 
+    xpath: td[contains(@class, "name")][not(contains(@class, "type"))]
+  - name: address
+    xpath: td[contains(@class, "address")]
+  - name: city
+    xpath: td[contains(@class, "city")]
+  - name: state
+    xpath: td[contains(@class, "state")]
+  - name: postal_code
+    xpath: td[contains(@class, "postcode")]
+  - name: store_id
+    xpath: td[contains(@class, "id")]
+  - name: phone
+    xpath: td[contains(@class, "phone")]
+  - name: email
+    xpath: td[contains(@class, "email")]
+  - name: website
+    xpath: td[contains(@class, "url")]

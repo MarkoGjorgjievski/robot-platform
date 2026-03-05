@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: PaginationUrl
+    xpath: '//td[contains(@class, "secondaryFilters")]//td[contains(@class, "activateLink")] | //td[contains(@class, "primaryFilters")]//td[contains(@class, "active") and contains(text(), "true")]/preceding-sibling::td[2][not(//td[contains(@class, "secondaryFilters")]//td[contains(@class, "activateLink")])]'
+  - name: firstDepthURL
+    xpath: '//script[@id="__NEXT_DATA__"]'
+    jq: '"https://dice.fm/_next/data/" + .buildId + (.props.pageProps.primaryFilters[] | .activateLink + "/" ) + ".json"'

@@ -1,0 +1,24 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventName
+    xpath: //h1[contains(@class, "module_show_performance_h1")]
+  - name: venueName
+    xpath: //p[@itemprop="location"]//span[@itemprop="name"]/text()
+  - name: venueAddress
+    xpath: //span[@itemprop="address"]/span[@itemprop="streetAddress"]/text()
+  - name: venueCity
+    xpath: //span[@itemprop="address"]/span[@itemprop="addressLocality"]/text()
+  - name: postalCode
+    xpath: //span[@itemprop="address"]/span[@itemprop="postalCode"]/text()
+  - name: venueCountryCode
+    defaultValue: 'DE'
+  - name: eventDate
+    xpath: //meta[@itemprop="startDate"]/@content
+  - name: eventTime
+    xpath: //meta[@itemprop="startDate"]/@content
+    defaultValue: '13:00'
+  - name: isPublicPurchase
+    xpath: //div[contains(@class, "show_detail_infos")]/a[contains(@class, "salesstatus")]

@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@aria-label,"Available colours")]/li | //h1[not(ancestor::html//ul[contains(@aria-label, "Available colours")]/li)]
+fields:
+  - name: defaultURL
+    xpath: ancestor::html//meta[contains(@property,'og:url')]/@content
+    regExp: (.+)
+    regExpReplace: https://www.zalando.de/$1
+
+  - name: subTemplate
+    xpath: //a/@href
+    defaultValue: '{defaultURL}'

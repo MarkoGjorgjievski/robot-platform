@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,"PodTile_infoWrapper___buAS")]
+fields:
+  - name: productUrl
+    type: STRING
+    description: The URL for the product details page
+    xpath: //h2//a/@href
+    regExp: (\/en-GB)(.+)
+    regExpReplace: $2

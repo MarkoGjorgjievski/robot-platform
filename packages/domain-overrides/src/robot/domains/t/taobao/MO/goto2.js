@@ -1,0 +1,28 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [],
+    setBlockAds: true,
+    setBypassCSP: true,
+    setLoadAllResources: null,
+    setLoadImages: true,
+    setCssEnabled: null,
+    applyIgnoreVBAndCookies: null,
+    optTags: null,
+    timeout: 60000,
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: '.J_MIDDLEWARE_FRAME_WIDGET > img',
+    captchaSelectors: {},
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'MO',
+    domain: 'taobao',
+    schemaYAML: 'multiPages',
+  },
+};

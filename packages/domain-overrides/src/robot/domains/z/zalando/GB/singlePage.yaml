@@ -1,0 +1,106 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+# recordXPath: //form[contains(@name,"size-picker-form")]//label
+recordXPath: //form[@name="size-picker-form"]/div/div[@data-is-selected="true"] | //*[@name="size-picker-form"]//label[@data-testid!="pdp-stockAvailable-label"][./ancestor::body//*[@name="size-picker-form"]/div/div[.//label[@data-testid="pdp-stockAvailable-label"]][last()][@data-is-selected="true"]]| //button[@id="picker-trigger"][@disabled]
+fields:
+  - name: image
+    xpath: ancestor::html//script[@type="application/ld+json"][@data-trckng-component]
+    jq: .image[0]
+
+  - name: images
+    xpath: ancestor::html//script[@type="application/ld+json"][@data-trckng-component]
+    jq: .image[]
+
+  - name: offerPrice
+    xpath: ancestor::html//h1/following-sibling::div[1]/div/div
+    # regExp: ^([\d.,]+)
+
+  - name: listPrice
+    xpath: ancestor::html//h1/following-sibling::div[1]/div/div
+    # regExp: ([\d.,]+)\s+[$€£¥¢₽]-
+    # regExpReplace: $1
+
+  - name: brandText
+    xpath: ancestor::html//script[@type="application/ld+json"][@data-trckng-component]
+    jq: .brand.name
+
+  - name: sku
+    xpath: //label/@for
+    regExp: (?<=size-picker-)[\w-]+
+    defaultValue: 'empty'
+
+  - name: oneSizeSku
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: -([^-]+-[^-]+)\.html
+    regExpReplace: $10ONE000
+
+  - name: productId
+    xpath: ancestor::html//*[@role="term"][contains(text(), "Article number")]/following-sibling::*[@role="definition"]
+
+  - name: name
+    xpath: ancestor::html//h1
+
+  - name: resellerId
+    xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button
+    defaultValue: Zalando
+
+  - name: resellerIdMap
+    xpath: ancestor::html//*[@id='resellerID_MAP']
+
+  - name: resellerName
+    xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button
+    defaultValue: Zalando
+
+  - name: resellerNameFallback
+    xpath: //h1/..//h3
+
+  - name: productDescription
+    xpath: ancestor::html//script[@type="application/ld+json"][@data-trckng-component]
+    jq: .description
+
+  - name: fulfillmentBy
+    defaultValue: Zalando
+
+  - name: resellerLink
+    defaultValue: ''
+
+  - name: shippingCost
+    xpath: ancestor::html//div[@data-testid="pdp-delivery-info"]/following-sibling::div/p[1]
+    regExp: ([\d,.]+)
+
+  - name: unitsStock
+    xpath: ancestor::html//button[@id="picker-trigger"]
+    regExp: Only (\d+) left
+    regExpReplace: $1
+    defaultValue: empty
+    
+  - name: unitsStock_backup
+    # CHANGEME "Bestel nu!" to "Add to cart" in your language
+    xpath: ancestor::html//button/span[contains(text(), "Add to cart")]
+    regExp: (.+)
+    regExpReplace: '999'
+    defaultValue: '0'
+
+  - name: outOfStock
+    xpath: //label[@data-testid!="pdp-stockAvailable-label"] | ancestor::html//h2[contains(text(),'Out of stock')]
+
+  - name: outOfStockBackup
+    xpath: ancestor::html//h2[contains(text(),'Out of stock')]
+
+  - name: productStyle
+    xpath: ancestor::html//span[contains(text(),'Colour')]/parent::span/following-sibling::span
+
+  - name: size
+    xpath: //span/div
+
+  - name: currencyOverride
+    defaultValue: 'GBP'
+
+  - name: internationalSales
+    defaultValue: false
+
+  - name: productURL
+    xpath: ancestor::html//meta[@property="og:url"]
+    regExp: (.+)
+    regExpReplace: https://zalando.co.uk$1

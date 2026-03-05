@@ -1,0 +1,40 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventName
+    xpath: //script[@type="application/ld+json"]
+    jq: '.name'
+  - name: eventNote
+    xpath: //div[@class="info-extra"]/div/h5[contains(text(), "Classificação Etária")]/following-sibling::span
+  # - name: eventDateTime
+  #   xpath: //script[@type="application/ld+json"]
+  #   jq: '.startDate'
+  - name: eventDate
+    xpath: //script[@type="application/ld+json"]
+    jq: '.startDate'
+  - name: eventTime
+    defaultValue: '0'
+    xpath: //div[@class="proxima-sessao"]/span/text()
+    regExp: '(\d{2}:\d{2})'
+  - name: venueName
+    xpath: //script[@type="application/ld+json"]
+    jq: '.location.name'
+  - name: venueAddress
+    xpath: //div[contains(@class, "localizacao-entidade")]//div[contains(@class, "col-sm-6")]/div/text()
+    regExp: '^([\s\S]*?)\s*(\d{4}-\d{3})\s*([\s\S]*)$'
+    regExpReplace: '$1'
+  - name: postalCode
+    xpath: //div[contains(@class, "localizacao-entidade")]//div[contains(@class, "col-sm-6")]/div/text()
+    regExp: '^([\s\S]*?)\s*(\d{4}-\d{3})\s*([\s\S]*)$'
+    regExpReplace: '$2'
+  - name: venueCity
+    xpath: //div[contains(@class, "localizacao-entidade")]//div[contains(@class, "col-sm-6")]/div/text()
+    regExp: '^([\s\S]*?)\s*(\d{4}-\d{3})\s*([\s\S]*)$'
+    regExpReplace: '$3'
+  - name: isPublicPurchase
+    defaultValue: '0'
+    xpath: //div[contains(@class, "detalhes")]//li[contains(@class, "comprar") or contains(@class, "assistirStream")]
+  
+# //ul[@class="list-inline list-inline-pipe"]/li[contains(text(), "  0€")]

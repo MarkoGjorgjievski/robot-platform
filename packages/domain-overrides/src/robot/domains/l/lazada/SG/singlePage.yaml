@@ -1,0 +1,119 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: (//script[contains(@id, "moduleData-skuInfos")])[position() > 1]
+fields:
+- name: name
+  xpath: ancestor::html//script[@id="moduleData-product"]
+  jq: .title
+
+- name: aggregateRating
+  xpath: ancestor::html//script[@id="moduleData-product"]
+  jq: .rating.score
+
+- name: reviewCount
+  xpath: ancestor::html//script[@id="moduleData-product"]
+  jq: .rating.total
+
+- name: resellerName
+  xpath: ancestor::html//script[@id="moduleData-seller"] 
+  jq: .name
+  defaultValue: Lazada
+
+- name: resellerId
+  xpath: ancestor::html//script[@id="moduleData-seller"]  
+  jq: .shopId
+
+- name: resellerLink
+  xpath: ancestor::html//script[@id="moduleData-seller"]  
+  jq: .url
+
+- name: resellerAggregateRating
+  xpath: ancestor::html//script[@id="moduleData-seller"]  
+  jq: .percentRate
+
+- name: resellerFeedbackPercent
+  xpath: ancestor::html//script[@id="moduleData-seller"]  
+  jq: .percentRate  
+
+- name: shippingCostSku
+  xpath: '.'
+  jq: .key
+
+- name: deliveryDateSku
+  xpath: '.'
+  jq: .key
+
+- name: imagesSku
+  xpath: '.'
+  jq: .key
+
+- name: productId
+  xpath: '.'
+  jq: .value.itemId
+
+- name: offerPrice
+  xpath: '.'
+  jq: .value.price.salePrice.value
+
+- name: unitsStock
+  xpath: '.'
+  jq: .value.stock
+
+- name: brandText
+  xpath: '.'
+  jq: .value.dataLayer.brand_name
+
+- name: listPrice
+  xpath: '.'
+  jq: .value.price.originalPrice.value
+
+- name: productDescription
+  xpath: ancestor::html//script[@id="moduleData-product"]
+  jq: .desc
+
+- name: productHighlights
+  xpath: ancestor::html//script[@id="moduleData-product"]
+  jq: .highlights
+
+- name: productSKU
+  xpath: '.'
+  jq: .value.skuId
+
+- name: parentCategory
+  # UPDATEME
+  xpath: ancestor::html//ul/li[contains(@class, "breadcrumb_item")][last()-2]//a
+
+- name: childCategory
+  # UPDATEME
+  xpath: ancestor::html//ul/li[contains(@class, "breadcrumb_item")][last()-1]//a  
+
+- name: itemNumber
+  xpath: '.'
+  jq: .value.itemId
+
+- name: productURL
+  xpath: '.'
+  jq: .key
+
+- name: productStyle
+  xpath: '.'
+  jq: .key
+
+- name: skuMap
+  xpath: ancestor::html//script[@id="moduleData-skus"]
+
+- name: propertyMap    
+  xpath: ancestor::html//script[@id="moduleData-properties"]
+
+- name: imagesMap
+  xpath: ancestor::html//script[@id="moduleData-skuGalleries"]
+
+- name: deliveryMap
+  xpath: ancestor::html//script[@id="moduleData-deliveryOptions"]
+
+- name: country
+  defaultValue: "SG"
+    
+- name: currencyOverride
+  defaultValue: "SGD"

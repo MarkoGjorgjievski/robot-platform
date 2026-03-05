@@ -1,0 +1,87 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: 'product_title'
+    xpath: //h1[contains(@class,'product-name')]  
+
+  - name: 'listing_id'
+    xpath: (//span[contains(@class,'sku')])[1]   
+    regExp: \d+
+
+  - name: 'offer_price'
+    xpath: //meta[@itemprop="price"]/@content
+
+  - name: 'original_price'    
+    xpath: //div[contains(@class,'promo--details')]//span[contains(@class,'strikeThroughPrice')]
+    defaultValue: 'dummy'
+
+  - name: 'platform_category' 
+    xpath: //ol[contains(@class,'breadcrumb')]/li[a][last()]
+
+  - name: 'product_variations'
+    xpath: ''
+
+  - name: 'stock_availability'
+    xpath: boolean(//span[contains(@class,'stock--status') and not(contains(@class,'out--of--stock'))])  
+
+  - name: 'main_image'  
+    xpath: (//div[contains(@class,'owl-stage-outer')]//div[contains(@class,'owl-item active')]//a)[1]/img/@src
+    downloadContent: 'text'     
+
+  - name: 'alternative_images'
+    xpath: //div[contains(@class,'owl-stage-outer')]//div[contains(@class,'owl-item')]//a/img/@src
+
+  - name: 'description'
+    xpath: //div[contains(@class,'tab-details')]
+
+  - name: 'pack_size'
+    xpath: "" 
+    defaultValue: 1 
+
+  - name: 'user_reviews'
+    xpath: "" 
+
+  - name: 'average_rating'
+    xpath: //div[contains(@class,'rating-stars')]/@data-rating
+    regExp: \d+
+
+  - name: 'dimensions_unit'
+    xpath: //td[contains(text(),'Height')]/following-sibling::td
+
+  - name: 'width'
+    xpath: //td[contains(text(),'Width')]/following-sibling::td | //td[contains(text(),'WIDTH')]/following-sibling::td
+    regExp: \d+
+    defaultValue: 'dummy'
+
+  - name: 'length'
+    xpath: //td[contains(text(),'Length')]/following-sibling::td | //td[contains(text(),'LENGTH')]/following-sibling::td
+    regExp: \d+
+
+  - name: 'depth'
+    defaultValue: 'dummy'
+
+  - name: 'height'
+    xpath: //td[contains(text(),'Height')]/following-sibling::td | //td[contains(text(),'HEIGHT')]/following-sibling::td
+    regExp: \d+
+    defaultValue: 'dummy'
+
+  - name: dimensions_data
+    xpath: //td[contains(text(),'Dimensions')]/following-sibling::td | //td[contains(text(),'DIMENSIONS')]/following-sibling::td | //td[contains(text(),'Size')]/following-sibling::td
+
+  - name: 'weight_unit'
+    xpath: //td[contains(text(),'Weight')]/following-sibling::td
+
+  - name: 'weight_raw'
+    xpath: //td[contains(text(),'Weight')]/following-sibling::td    
+    regExp: \d+(\.\d+)
+
+  - name: 'materials'
+    xpath: //td[contains(text(),'MATERIAL')]/following-sibling::td | //td[contains(text(),'Material')]/following-sibling::td  
+
+  - name: 'colour'
+    xpath: //td[contains(text(),'Color')]/following-sibling::td   
+
+  - name: 'product_details'
+    xpath: //div[contains(@class,'product-classifications')]

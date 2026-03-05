@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    # extract second link, the first is just the image
+    xpath: //div[contains(@class, "item-container")]/a[2]/@href

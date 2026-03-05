@@ -1,0 +1,65 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class, "page-main")]
+fields:
+  - name: listing_id
+    xpath: //*[@itemprop="sku"]
+  - name: offer_price
+    xpath: //script[contains(text(), "initPrice")]
+  - name: original_price
+    xpath: ancestor::html//script[contains(text(), "getCurrentProductDataForRecentlyViewedList")]
+  - name: product_variations
+    xpath: //div[@class="product-family-select"]//select/option/@value
+  - name: product_title
+    xpath: //span[@data-ui-id="page-title-wrapper"]
+  - name: stock_availability
+    xpath: //div[contains(@class, "tocart-container")]//div[contains(@class, "stock") and contains(@class, "available") and contains(@class, "flex")]
+    defaultValue: "no"
+  - name: source_url
+    xpath: //link[@rel="canonical"]/@href
+  - name: main_image
+    xpath: //script[contains(text(), "initGallery")]
+    regExp: \[\{\"thumb\"\:.*?\]
+    jq: '.[] | select(.isMain==true) | .img'
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //script[contains(text(), "initGallery")]
+    regExp: \[\{\"thumb\"\:.*?\]
+    jq: '.[] | select(.isMain==false) | .img'
+  - name: description
+    xpath: //div[contains(@class, "product") and contains(@class, "description")]
+  - name: pack_size
+    xpath: //span[@data-ui-id="page-title-wrapper"]
+    defaultValue: 1
+  - name: user_reviews
+    xpath: //script[contains(text(), "initAheadworksAdvancedReviewsReviewSummary")]
+  - name: average_rating
+    xpath: //script[contains(text(), "initAheadworksAdvancedReviewsReviewSummary")]
+  - name: width
+    xpath: //div[@id="product-attributes"]//th[(contains(text(), "Measurements")) and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: height
+    xpath: //div[@id="product-attributes"]//th[(contains(text(), "Measurements")) and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: length
+    xpath: //div[@id="product-attributes"]//th[(contains(text(), "Measurements")) and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: depth
+    xpath: //div[@id="product-attributes"]//th[(contains(text(), "Measurements")) and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: diameter
+    xpath: //div[@id="product-attributes"]//th[(contains(text(), "Measurements")) and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: weight
+    xpath: //div[@id="product-attributes"]//th[contains(text(), "Weight") and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: package_weight
+    xpath: //div[@id="product-attributes"]//th[contains(text(), "Package weight") and @class!='product-attribute-value']/following::td[1]
+    defaultValue: "0"
+  - name: materials
+    xpath: //div[@id="product-attributes"]//th[contains(text(), "aterial") and @class!='product-attribute-value']/following::td[1]
+  - name: colour
+    xpath: //div[@id="product-attributes"]//th[not(contains(@class, "product-attribute-value")) and contains(text(), "Colour") and @class!='product-attribute-value']/following::td[1]
+  - name: product_details
+    xpath: //div[@id="product-attributes"]

@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: unit
+    xpath: //div[contains(@class, 'size') and not(*) and normalize-space()]
+    defaultValue: ""
+    # xpath: //*[contains(@class,"product-main-info")]//div[@class="size"][contains(text(), " of")]
+    # defaultValue: ""

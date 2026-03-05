@@ -1,0 +1,29 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: name
+    xpath: //h1[contains(@itemprop,'name')]
+  - name: code
+    xpath: //input[contains(@id,'SKUID')]/@value
+  - name: category
+    xpath: //div[contains(@class,'breadcrumb')]/a[last()]
+  - name: price
+    xpath: //span[contains(@class,'price')]/@content
+  - name: description
+    xpath: //div[contains(@itemprop,'description')]/p
+  - name: MPNBackup
+    xpath: //div[contains(text(),'Ref')]
+    regExp: (\d+)(?=_)
+  - name: specialPrice
+    xpath: //xpath
+  - name: uom
+    xpath: //div[contains(@itemprop,'size-information')]/p
+  - name: availability
+    xpath: //div[contains(@id,'StockMsg')]
+  - name: image
+    xpath: //img[contains(@class,'main-image')]/@src
+  - name: sourceURL
+    xpath: //div[@id='pageURLData']
+    

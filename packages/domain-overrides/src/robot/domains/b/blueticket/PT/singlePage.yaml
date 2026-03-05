@@ -1,0 +1,23 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //td[@class="sessionlist depth_1"]/table/tbody/tr
+fields:
+  - name: eventName
+    xpath: ancestor::html//td[@class="title depth_0"]
+  - name: venueName
+    xpath: ancestor::html//td[@class="local depth_0"]
+  - name: eventDate
+    xpath: //td[@class="dateList depth_2"]//tr/td[@class="date depth_3"]
+  - name: eventTime
+    xpath: //td[@class="dateList depth_2"]//tr/td[@class="date depth_3"]
+  - name: sessionDateID
+    xpath: //td[@class="id depth_2"]
+  - name: venueCountryCode
+    defaultValue: 'PT'
+  - name: isPublicPurchase
+    defaultValue: 1
+  - name: sellingType
+    xpath: //td[@class="sellingtype depth_2"]
+  - name: venueCity
+    defaultValue: 'none'

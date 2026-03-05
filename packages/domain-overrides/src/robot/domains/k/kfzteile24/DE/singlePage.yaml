@@ -1,0 +1,119 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: brand
+    xpath: //div[contains(@class,'art-name')]/span[1]
+    regExp: '"([^"]+)"'
+    regExpReplace: $1
+
+  - name: brandVariant
+    xpath: //div[contains(@class,'art-name')]/span[1]
+    regExp: '"([^"]+)"'
+    regExpReplace: $1
+
+  - name: inStockOnline
+    xpath: //button[contains(@class,'addToCart') and not(@disabled)]
+    regExp: (.*)
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: inStockStore #need to set store to check availability
+
+  - name: isBundle
+    defaultValue: 'no data found'
+
+  - name: manufacturerPartNumber
+    xpath: //script[contains(@id, "brandData")]
+    jq: .products[0].nr
+
+  - name: masterBrand
+    xpath: //script[contains(@id, "brandData")]
+    jq: .products[0].brand
+
+  - name: mutlipackFlag
+    defaultValue: 'no data found'
+  
+  - name: mutlipackQuantity
+    defaultValue: 'no data found'
+
+  - name: packSize
+    xpath: //div[contains(@class,'artInfoContent')]//span[contains(.,'Inhalt')]/following-sibling::span
+    regExp: \d+(\.\d+)?
+
+  - name: packSizeUnit
+    xpath: //div[contains(@class,'artInfoContent')]//span[contains(.,'Inhalt')]/following-sibling::span
+    regExp: :\s*\d*\s*([A-Za-z]+)
+    regExpReplace: $1
+
+  - name: productDescription
+    xpath: //div[contains(@class,'artInfoContent')]
+
+  - name: productName
+    xpath: //div[contains(@class,'art-name')]/span[1]
+    regExp: '"([^"]+)"'
+    regExpReplace: $1
+
+  - name: productRating
+    defaultValue: 'no data found'
+
+  - name: productVariant
+    xpath: //div[contains(@class,'art-name')]/span[1]
+    regExp: '"([^"]+)"'
+    regExpReplace: $1
+
+  - name: promotionDescription
+    defaultValue: 'no data found'
+
+  - name: quantity
+    xpath: //script[contains(@id, "brandData")]
+    jq: .products[0].quantity
+    defaultValue: '1'
+
+  - name: ratingCount
+    defaultValue: 'no data found'
+
+  - name: retailPrice
+    xpath: //script[contains(@id, "brandData")]
+    jq: .products[0].price
+
+  # - name: retailPriceWithoutVAT
+  #   xpath: //script[contains(@id, "brandData")]
+  #   jq: .products[0].price
+
+  - name: RRP_Was
+    xpath: //div[contains(@class,'art-uvp')]//span[contains(@class,'priceTypeGross')]
+    defaultValue: 'dummy'
+
+  # - name: RRP_WasWithoutVat
+  #   xpath: //div[contains(@class,'art-uvp')]//span[contains(@class,'priceTypeGross')]
+  #   defaultValue: 'dummy'
+
+  - name: sku
+    xpath: 
+  
+  # - name: specificationProfile #need some adjustment
+  #   defaultValue: 'no data found'
+
+  - name: specProfile
+    xpath: //div[contains(@class,'artInfoContent')]//span[contains(.,'Spezifikation')]/following-sibling::span
+    regExp: 'Spezifikation:\s(.+)'
+    regExpReplace: $1
+    defaultValue: 'no data found'
+
+  - name: startingPriceType
+    xpath: //div[contains(@class,'art-uvp')]//span[contains(@class,'priceTypeGross')]
+    regExp: (.+)
+    regExpReplace: 'Was'
+    defaultValue: 'RRP'
+
+  - name: VAT
+    defaultValue: '19%'
+
+  - name: viscosity
+    xpath: //div[contains(@class,'artInfoContent')]//span[contains(.,'SAE')]/following-sibling::span
+    regExp: \d+W-\d+
+
+  - name: rawAvailabilityMessage
+    xpath: //div[contains(@class,'articleAvailability')]

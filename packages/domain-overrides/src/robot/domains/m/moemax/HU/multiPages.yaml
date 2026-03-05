@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@data-purpose="listing.productsContainer"]//article[.//*[not(@__extracted)]]
+fields:
+  - name: productURL
+    xpath: //a[not(@__extracted)]/@href

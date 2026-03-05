@@ -1,0 +1,20 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: true,
+    setBlockAds: true,
+    setBypassCSP: false,
+    setLoadAllResources: true,
+    setLoadImages: true,
+    setCssEnabled: true,
+    applyIgnoreVBAndCookies: false,
+    optTags: '',
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: '#onetrust-accept-btn-handler',
+    captchaSelectors: false,
+    waitAfterNavObject: false,
+    store: 'snusbolaget',
+    country: 'SE',
+    domain: 'snusbolaget',
+  },
+};

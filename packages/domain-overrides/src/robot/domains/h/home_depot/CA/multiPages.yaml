@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class, "acl-product-card__header")]
+fields:
+  - name: productURL
+    xpath: //*[contains(@class, "acl-product-card__image")]/@href

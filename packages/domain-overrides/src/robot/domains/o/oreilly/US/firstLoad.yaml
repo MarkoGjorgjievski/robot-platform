@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  
+- name: firstDepthURL
+  xpath: //a[contains(@class, "category-link")]/@href

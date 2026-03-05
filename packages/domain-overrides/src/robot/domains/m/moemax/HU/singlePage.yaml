@@ -1,0 +1,75 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: 
+fields:
+  - name: json_data
+    xpath: //script[@type="application/ld+json"]
+  - name: product_title
+    xpath: //a[@data-purpose="product.backToTop.image"]/@title
+  - name: listing_id
+    xpath: //a[@data-purpose="product.backToTop.image"]/@href
+    # regExp: (\d{5,})
+  - name: offer_price
+    xpath: //div[@data-purpose="productDetailPage.data.rightContainer"]//article[//div[contains(@aria-describedby, "extendedCurrentPrice")]]//div[@data-purpose="product.price.current"]
+    regExp: ^[^,]*
+  - name: original_price
+    xpath: //div[@data-purpose="productDetailPage.data.rightContainer"]//article//div[contains(@aria-describedby, "extendedCurrentPrice")]/s | //div[@data-purpose="productDetailPage.data.rightContainer"]//article//div[not(contains(@aria-describedby, "extendedCurrentPrice")) and contains(@id, extendedCurrentPrice)]//div[@data-purpose="product.price.current"]
+    regExp: ^[^,]*
+  - name: platform_category
+    xpath: //nav[@aria-label="breadcrumbs"]//ol//li[1]/a/span
+  - name: product_variations
+    xpath: //fieldset[legend[contains(text(), "Színek")]]//a[@title]/@href | //fieldset[legend[contains(text(), "Méret kb.")]]//input[@data-purpose="product.variantItem"]/@value
+    regExp: (^.*)
+    regExpReplace: https://www.moemax.hu$1
+  - name: stock_availability
+    xpath: //button[@data-purpose="checkout.addtocart"]/span
+    defaultValue: 'no'
+  - name: main_image
+    xpath: //section[@data-purpose="imageSlider.clipper"]//div[@aria-roledescription="slide"]//img[@fetchpriority="high"]/@src
+    downloadContent: "text"
+  - name: alternative_images
+    xpath: //section[@aria-roledescription="carousel"]//div[@data-purpose="imageSlider.thumbnail"]//img/@src
+  - name: description
+    xpath: //section[//h2]//div[@data-testid="text"]/div
+  - name: pack_size
+    xpath: //h1[@data-purpose="productName.heading-2-h1"]/text()
+  - name: user_reviews
+    xpath:
+  - name: average_rating
+    xpath:
+  - name: dimensions_unit
+    xpath:
+  - name: height
+    xpath: //div[@id="modal"]//li[contains(text(), "Magasság kb")]/text()
+    regExp: :\s*([\d,\.]+)
+    regExpReplace: $1
+  - name: diameter
+    xpath:
+  - name: depth
+    xpath:
+  - name: width
+    xpath:
+  - name: length
+    xpath:
+  - name: weight
+    xpath: //div[@id="modal"]//li[contains(text(), "termék nettó tömege:")] | //div[@id="modal"]//li[contains(text(), "Anyag súlya:")]
+  - name: weight_unit
+    xpath: //div[@id="modal"]//li[contains(text(), "termék nettó tömege:")] | //div[@id="modal"]//li[contains(text(), "Anyag súlya:")]
+    regExp: \d+\s*([a-zA-Z]+)
+    regExpReplace: $1
+  - name: volume
+    xpath:
+  - name: weight_raw
+    xpath: //div[@id="modal"]//li[contains(text(), "termék nettó tömege:")] | //div[@id="modal"]//li[contains(text(), "Anyag súlya:")]
+    regExp: ([\d,\.]+)
+  - name: materials
+    xpath: //div[@id="modal"]//li[contains(text(), "anyaga:")]/text() | //div[@id="modal"]//li[not(contains(text(), "Párna"))]//li[contains(text(), "anyag:")]/text()
+    regExp: :\s*(.*)
+    regExpReplace: $1
+  - name: colour
+    xpath: //div[@id="root"][//fieldset[legend[contains(text(), "Színek")]]]//fieldset[legend[contains(text(), "Színek")]]/preceding-sibling::div/span | //div[@id="root"][not(//fieldset[legend[contains(text(), "Színek")]])]//header//div[@data-purpose="product.productAttributes"]/span[1]
+  - name: product_details
+    xpath: //*[.//h3[contains(text(), "Termékadatok")]]//section[@data-purpose="modal.body"]/ul/li/ul/li/text()
+  - name: dimensions
+    xpath: //header//div[@data-purpose="product.productAttributes"]/span[last()]

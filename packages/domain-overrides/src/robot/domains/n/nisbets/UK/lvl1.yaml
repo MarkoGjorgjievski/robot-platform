@@ -1,0 +1,48 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@class, "brand-index__list")]/li | //div[@id="showAll"] | //div[@id="product-results-list" and contains(@name, "import")]//*[contains(@class,"product-list-grid-item") and (contains(@class, "default-item") or contains(@class, "parent-item"))]
+fields:
+  - name: url1
+    xpath: ./a/@href
+    regExp: (https:\/\/nisbets\.co\.uk)?(.+)
+    regExpReplace: $2
+  - name: category
+    xpath: ancestor::html//*[contains(@class,"product-item-container")]//ancestor::html//ol[contains(@class,"breadcrumb-list")]/li
+  - name: hidden_product_name
+    xpath: .//*[contains(@class, "product-name hidden-xs") and contains(@class, "product-name--flex")]
+  - name: including_excluding_vat
+    xpath: .//*[contains(@class, "price--field") and contains(@class, "vat")]
+  - name: old_price
+    # xpath: .//*[contains(@class, "was-price") and cont/ains(@class, "recsBlockPriceWas")]
+    xpath: .//div[contains(@class, "reduced-prices")]//tbody/tr[1]/td[1]
+    regExp: £?([\d.,]+)
+    regExpReplace: $1
+  - name: old_price_2
+    # xpath: .//*[contains(@class, "was-price") and cont/ains(@class, "recsBlockPriceWas")]
+    xpath: .//input[@name="wasPrice"]/@value
+    regExp: £?([\d.,]+)
+    regExpReplace: $1
+  - name: price
+    xpath: .//*[contains(@class, "price--main")]
+    regExp: £?([\d.,]+)
+    regExpReplace: $1
+  - name: currency
+    xpath: .//*[contains(@class, "price--main")]
+    regExp: (.)\d+.\d+
+  - name: product_code
+    xpath: .//*[contains(@class,"product-code")][contains(@class,"ng-star-inserted")]//ancestor::div[contains(@class,"product-item-container")]//input[@name="productCodeTracking"]/@value
+    # regExp: 'Code:\S([a-zA-Z0-9].+)'
+    # regExpReplace: $1
+  - name: product_name
+    xpath: .//*[contains(@class, "product-name") and contains(@class, "visible-xs")]
+  - name: product_url
+    xpath: .//*[contains(@class, "product-name") and contains(@class, "visible-xs")]//a/@href
+    regExp: (.+)
+    regExpReplace: https://www.nisbets.co.uk$1
+  - name: rating
+    xpath: .//div[contains(@class, "bv-off-screen")][not(contains(text(),"0.0"))]
+    regExp: '[\d.]+'
+    defaultValue: null
+  - name: reduced_flag
+    xpath: .//*[contains(@class, "reduced-prices") and contains(@class, "ng-star-inserted")]

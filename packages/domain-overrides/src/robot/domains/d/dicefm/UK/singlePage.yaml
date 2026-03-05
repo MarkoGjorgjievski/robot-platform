@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventUrl
+    singleValue: false
+    description: URL of the main product image
+    xpath: //div[contains(@class, "EventCard__Even")]/a//div[contains(@class, "_Price") and not(contains(text(), "Free"))]/ancestor::a/@href
+    regExp: (.+)
+    regExpReplace: https://dice.fm$1

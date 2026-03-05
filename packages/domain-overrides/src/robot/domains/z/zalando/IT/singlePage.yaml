@@ -1,0 +1,129 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //form[@name="size-picker-form"]/div/div[@data-is-selected="true"] | //*[@name="size-picker-form"]//label[@data-testid!="pdp-stockAvailable-label"][./ancestor::body//*[@name="size-picker-form"]/div/div[.//label[@data-testid="pdp-stockAvailable-label"]][last()][@data-is-selected="true"]] | //button[@id="picker-trigger"][@disabled]
+fields:
+  - name: images
+    xpath: ancestor::html//*[@type="application/ld+json"][@data-trckng-component]
+    jq: .image[0]
+
+  - name: offerPrice
+    xpath: (ancestor::html//*[@re-hydration-id]//h1/following-sibling::div[1]//div//p[contains(., "€")])[1]
+    regExp: ([\d,.]+)
+
+  # - name: offerPrice_raw
+  #   xpath: ancestor::html//x-wrapper-re-1-4/h1/following-sibling::div[1]
+  #   regExp: .*[$€£¥¢₽][\S\s]*
+
+  - name: listPrice
+    xpath: (ancestor::html//*[@re-hydration-id]//h1/following-sibling::div[1]//div//p[contains(., "€")])[last()]
+    regExp: ([\d,.]+)
+
+  - name: shippingCost
+    xpath: ancestor::html//div[@data-testid="pdp-delivery-info"]/following-sibling::div/p[1]
+    regExp: ([\d,.]+)
+    regExpReplace: $1
+    defaultValue: '0'
+
+  - name: brandText
+    xpath: ancestor::html//a/span/h3
+
+  - name: sku
+    xpath: //label/@for[contains(.,"size-picker")]
+    regExp: size-picker-(.+)
+    regExpReplace: $1
+    defaultValue: empty
+
+  - name: productSKU
+    xpath: //label/@for[contains(.,"size-picker")]
+    regExp: size-picker-(.+)
+    regExpReplace: $1
+    defaultValue: empty
+
+  - name: oneSizeSku
+    xpath: ancestor::html//meta[@property="og:url"]/@content
+    regExp: -([^-]+-[^-]+)\.html
+    regExpReplace: $10ONE000
+
+  - name: productId
+    xpath: ancestor::html//*[@role="term"][contains(text(), "Codice articolo")]/following-sibling::*[@role="definition"]
+
+  - name: name
+    xpath: ancestor::html//h1
+
+  - name: resellerId
+    xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button
+    defaultValue: Zalando
+
+  - name: resellerIdMap
+    xpath: ancestor::html//*[@id='resellerID_MAP']
+
+  - name: resellerName
+    xpath: ancestor::html//*[@data-testid="banner-cta-block"]/following-sibling::*[not(@data-trckng-component)]//div[not(@data-testid)]/span//button
+    defaultValue: Zalando
+
+  - name: resellerNameFallback
+    xpath: //h1/..//h3
+
+  - name: unitsStock
+    xpath: (//span[contains(., "Articoli disponibili")] | //span[contains(., "articolo disponibile")])[last()]
+    regExp: (\d+)
+    regExpReplace: $1
+    defaultValue: empty
+
+  - name: unitsStock_backup
+    xpath: ancestor::html//button/span[contains(text(), "Aggiungi al carrello")]
+    regExp: (.+)
+    regExpReplace: '999'
+    defaultValue: '0'
+
+  - name: outOfStock
+    xpath: //label[@data-testid!="pdp-stockAvailable-label"]
+
+  - name: variantSize
+    xpath: //span/div
+
+  - name: productDescription
+    xpath: ancestor::html//*[@type="application/ld+json"][@data-trckng-component]
+    jq: .description
+
+  - name: productStyle
+    xpath: ancestor::html//span[contains(text(),'Colore')]/parent::span/following-sibling::span
+
+  - name: fulfillmentBy
+    defaultValue: Zalando
+
+  - name: productURL
+    xpath: //meta[@property="og:url"]
+    regExp: (.+)
+    regExpReplace: https://zalando.it$1
+
+  - name: currencyOverride
+    defaultValue: EUR
+
+  # empty in exaple 
+  # - name: aggregateRating
+  #   xpath: '@ratingvalue'
+
+  # empty in exaple
+  # - name: reviewCount
+  #   xpath: '@reviewcount'
+
+  # empty in exaple
+  # - name: resellerReviewCount
+  #   xpsth: ancestor::html//div[@role="modal"]//div[contains(text(),"eviews") or contains(text(), "undenbewertungen") or contains(text(), "undenmeinungen") or contains(text(), "Avis")]
+  #   regExp: \d+
+
+  # empty in exaple
+  # - name: resellerAggregateRating
+  #   xpath: ancestor::html//div[@role="modal"]//div[contains(text(),"eviews") or contains(text(), "undenbewertungen") or contains(text(), "undenmeinungen") or contains(text(), "Avis")]/parent::div/div[2]//@aria-label
+  #   regExp: ^[0-9\.]+
+
+  # empty in exaple
+  # - name: resellerLink
+  #   defaultValue: https://www.zalando.nl
+    # xpath: ancestor::html//a[span[h3]]/@href
+
+  # empty in schema
+  # - name: deliveryDateFallback
+  #   xpath: ancestor::html//div[@data-trckng-component]/div[contains(.,"working") or contains(.,"days") or contains(.,"Werktage") or contains(.,"jours ou") or contains(.,"werkdagen")]//div[1]/span[1]

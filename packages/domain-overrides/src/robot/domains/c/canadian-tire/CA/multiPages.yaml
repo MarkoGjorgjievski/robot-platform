@@ -1,0 +1,14 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //li[@data-testid="product-grids"]
+fields:
+  - name: productURL
+    xpath: //a/@href
+    regExp: (.+)
+    regExpReplace: https://www.canadiantire.ca$1
+  
+  - name: listing_id
+    xpath: //a/@href
+    regExp: .*-(\d+)p.html.*
+    regExpReplace: $1

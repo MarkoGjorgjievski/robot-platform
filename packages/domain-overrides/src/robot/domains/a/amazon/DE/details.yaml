@@ -1,0 +1,144 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@id,'aod-offer') and contains(@class,'aod-information-block')] | //div[@id='aod-pinned-offer']
+fields:
+  - name: brand
+    xpath: ancestor::html//h1[contains(@id,'title')]
+
+  - name: brandVariant
+    xpath: ancestor::html//h1[contains(@id,'title')]
+
+  - name: inStockOnline
+    xpath: //input[contains(@name,'submit.addToCart')]
+    regExp: (.+)
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: inStockStore
+
+  - name: isBundle
+    xpath: ancestor::html//h1[contains(@id,'title')]
+    regExp: \+
+    regExpReplace: 'Yes'
+    defaultValue: 'No'
+
+  - name: manufacturerPartNumber
+    xpath: ancestor::html//th[contains(text(),'Manufacturer part number')]/following-sibling::td | ancestor::html//th[contains(text(),'Manufacturer Part Number')]/following-sibling::td | ancestor::html//th[contains(text(),'Artikelnummer')]/following-sibling::td
+
+  - name: masterBrand
+    xpath: ancestor::html//span[contains(text(),'Manufacturer')]/parent::td/following-sibling::td | ancestor::html//th[contains(text(),'Brand')]/following-sibling::td[1] | ancestor::html//span[contains(text(),'Brand')]/parent::td/following-sibling::td | ancestor::html//th[contains(text(),'Marke')]/following-sibling::td[1] | ancestor::html//span[contains(text(),'Marke')]/parent::td/following-sibling::td
+
+  - name: multipackFlag
+    xpath: ancestor::html//div[contains(@id,'feature-bullets')]/ul | ancestor::html//h1[contains(@id,'title')]
+    regExp: \b\d+\s*x\s*\d+\b
+    regExpReplace: 'Yes'
+    defaultValue: 'No'
+  
+  - name: multipackQuantity
+    xpath: ancestor::html//div[contains(@id,'feature-bullets')]/ul
+    regExp: \b\d+\s*x\s*\d+\b
+    defaultValue: 'no data found'
+
+  - name: packSize
+    xpath: ancestor::html//span[contains(text(),'Sıvı Hacmi')]/following-sibling::span | ancestor::html//span[contains(text(),'Sıvı Hacmi')]/ancestor::td/following-sibling::td
+    regExp: \d+(\.\d+)?
+    defaultValue: 'dummy'
+
+  - name: packSizeBackup
+    xpath: ancestor::html//h1[contains(@id,'title')] | ancestor::html//span[contains(text(),'Sıvı Hacmi')]/following-sibling::span | ancestor::html//span[contains(text(),'Sıvı Hacmi')]/ancestor::td/following-sibling::td
+    regExp: \b(\d+(\.\d+)?)\s*(L|gal|oz|ml|l|GAL|OZ|ML|Litre|Litres|litre|litres)\b
+    regExpReplace: $1
+
+  - name: packSizeUnit
+    xpath: ancestor::html//span[contains(text(),'Sıvı Hacmi')]/following-sibling::span | ancestor::html//span[contains(text(),'Sıvı Hacmi')]/parent::td/following-sibling::td
+    regExp: '[a-zA-Z]+'
+    defaultValue: 'dummy'
+
+  - name: packSizeUnitBackup
+    xpath: ancestor::html//h1[contains(@id,'title')] | ancestor::html//span[contains(text(),'Sıvı Hacmi')]/following-sibling::span | ancestor::html//span[contains(text(),'Sıvı Hacmi')]/ancestor::td/following-sibling::td
+    regExp: \b(?:\d+(?:\.\d+)?)\s*(L|gal|oz|ml|l|GAL|OZ|ML|Litre|Litres|litre|litres)\b
+    regExpReplace: $1
+
+  - name: productDescription
+    xpath: ancestor::html//div[contains(@id,'feature-bullets')]/ul
+
+  - name: productName
+    xpath: ancestor::html//h1[contains(@id,'title')]
+
+  - name: productRating
+    xpath: ancestor::html//div[@id="averageCustomerReviews_feature_div"]//span[@id="acrPopover"]/@title
+    regExp: (\d+[\.,]?\d*)
+    regExpReplace: $1
+
+  - name: productVariant
+    xpath: ancestor::html//h1[contains(@id,'title')]
+
+  - name: promotionDescription
+    defaultValue: 'no data found'
+
+  - name: quantity
+    xpath: ancestor::html//div[contains(@id,'feature-bullets')]/ul
+    regExp: \b\d+\s*x\s*\d+\b
+    defaultValue: '1'
+
+  - name: ratingCount
+    xpath: ancestor::html//div[@id="averageCustomerReviews_feature_div"]//span[@id="acrCustomerReviewText"]
+    regExp: (\d+[\.,]?\d*)
+
+  - name: retailPrice
+    xpath: //span[contains(@class,'price-whole')]
+  - name: retailPriceFraction
+    xpath: //span[contains(@class,'price-fraction')]
+
+  - name: RRP_Was
+    xpath: //span[contains(text(),'RRP')]//span[contains(@class,'price')]/span[contains(text(),'€')] | //span[contains(text(),'UVP')]//span[contains(@class,'price')]/span[contains(text(),'€')] | //span[contains(text(),'Was:')]//span[contains(@class,'price')]/span[contains(text(),'€')] | //span[contains(text(),'Statt:')]//span[contains(@class,'price')]/span[contains(text(),'€')]
+    regExp: ([\d,.]+)
+
+  - name: sku
+    xpath: ancestor::html//link[contains(@rel,'canonical')]/@href
+    regExp: \/dp\/([A-Z0-9]+)
+    regExpReplace: $1
+  
+  - name: specificationProfile'
+  
+  - name: specProfile
+    xpath: ancestor::html//span[contains(text(),'specifications') and not(ancestor::div[contains(@id,'productDescription')])] | ancestor::html//span[contains(text(),'Specifications') and not(ancestor::div[contains(@id,'productDescription')])] | ancestor::html//span[contains(text(),'Approvals') and not(ancestor::div[contains(@id,'productDescription')])] | ancestor::html//span[contains(text(),'approvals') and not(ancestor::div[contains(@id,'productDescription')])] | ancestor::html//span[contains(text(),'ACEA') and not(ancestor::div[contains(@id,'productDescription')])]
+
+  - name: startingPriceType
+    xpath: //span[contains(text(),'RRP')]//span[contains(@class,'price')] | //span[contains(text(),'UVP')]//span[contains(@class,'price')] | //span[contains(text(),'Was:')]//span[contains(@class,'price')] | //span[contains(text(),'Statt:')]//span[contains(@class,'price')]
+    regExp: (.+)
+    regExpReplace: 'Was'
+    defaultValue: 'RRP'
+
+  - name: approvals
+    xpath: ancestor::html//span[contains(text(),'Approvals')]/parent::p/following-sibling::ul[1] | ancestor::html//div[contains(@id,'productDescription')]//span
+    regExp: 'Approvals: (.+?)\\n'
+
+  - name: VAT
+    defaultValue: '19%'
+
+  - name: viscosity
+    xpath: ancestor::html//span[contains(text(),'Viscosity')]/parent::td/following-sibling::td | ancestor::html//th[contains(text(),'Viscosity')]/following-sibling::td | ancestor::html//h1[contains(@id,'title')]
+    regExp: \d+\s*[wW]\s*[-\/ ]?\s*\d+
+    defaultValue: 'dummy'
+
+  - name: viscosityBackup
+    xpath: ancestor::html//span[contains(text(),'Viscosity')]/parent::td/following-sibling::td | ancestor::html//th[contains(text(),'Viscosity')]/following-sibling::td
+
+  - name: rawAvailabilityMessage
+    xpath: ancestor::html//span[contains(text(),'No featured offers')] | ancestor::html//div[@id='availability']
+
+  - name: soldBy
+    xpath: //span[contains(text(),'Sold by')]/parent::div/following-sibling::div/*[contains(@aria-label,'new page')] | //span[contains(text(),'Verkäufer')]/parent::div/following-sibling::div/*[contains(@aria-label,'Öffnet')]
+    defaultValue: 'Amazon'
+    
+  - name: dispatchesFrom
+    xpath: //span[contains(text(),'Dispatches')]/parent::div/following-sibling::div[not(ancestor::div[contains(@style,"display:none;")])][not(ancestor::div[contains(@id, 'fulfillerInfo')])] | //span[contains(text(),'Versand')]/parent::div/following-sibling::div[not(ancestor::div[contains(@style,"display:none;")])][not(ancestor::div[contains(@id, 'fulfillerInfo')])]
+    defaultValue: 'Amazon'
+    
+  - name: pagePosition
+    xpath: //div[contains(@class,'pinned-offer-inner')]
+    regExp: (.+)
+    regExpReplace: 'Buy box'
+    defaultValue: 'Other sellers'

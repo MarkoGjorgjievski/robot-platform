@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class,'card-v2-info')]
+fields:
+  - name: productURL
+    xpath: //a[@data-zone='thumbnail']//@href
+  - name: nextPage
+    xpath: //a[@aria-label]//@href
+  - name: category
+    xpath: //*[@data-category][contains(@class,"search")]/@data-category

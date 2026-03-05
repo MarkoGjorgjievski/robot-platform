@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //p[contains(text(),"Estate agent listings are available for the locations listed below.")]/following-sibling::ul[contains(@class,"bullet-list")]/li
+fields:
+  - name: urlToCity
+    xpath: //a/@href
+  - name: dummyField
+    xpath: //div[contains(@id, 'homeco_top_logo_right')]

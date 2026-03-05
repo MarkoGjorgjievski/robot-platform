@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //a[@data-test-id="product-panel-main-section"]/@href
+    
+# import-io extractor:run:local -o ikea1 -e domains/d/diy/GB/san-antonio/multiPages

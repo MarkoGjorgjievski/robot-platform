@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: "(//*[@data-purpose='category.container']//article)[not(@__extracted)]"
+fields:
+   - name: productURL
+     xpath: //*[@data-purpose='productTile.link.product']/@href
+     regExp: (.+)
+     regExpReplace: https://www.xxxlutz.hu$1

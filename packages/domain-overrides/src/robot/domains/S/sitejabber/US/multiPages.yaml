@@ -1,0 +1,48 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@id,'ReviewRow')]
+fields:
+  - name: helpfulness_count
+    xpath: //span[contains(@class,'helpful__count')]
+    regExp: \d+
+    
+  - name: images
+    xpath: //img[not(contains(@class,'profile-picture'))]/@data-src
+    
+  - name: location
+    xpath: //div[contains(@class,'review__author__level__text')]
+    
+  - name: rating
+    xpath: //div[contains(@class,'review__stars')]/div/@data-rating
+    
+  - name: response_date
+    xpath: //time[contains(@class,'comment__date')]/@datetime
+    
+  - name: response_text
+    xpath: //div[contains(@class,'comment__content')]
+    
+  - name: review_body
+    xpath: //div[contains(@class,'review__text')]
+    
+  - name: review_date
+    xpath: //div[contains(@class,'review__date')]
+    
+  - name: review_id
+    xpath: ./@id
+    
+  - name: review_title
+    xpath: //span[contains(@class,'review__title__text')]
+    
+  - name: tags
+    xpath: //xpath
+    
+  - name: trustscore
+    xpath: ancestor::html//span[contains(@class,'average_rating')]
+    
+  - name: username
+    xpath: //div[contains(@class,'review__author__name')]
+ 
+  - name: pageURL
+    xpath: ancestor::html//*[@id='pageURL']
+    

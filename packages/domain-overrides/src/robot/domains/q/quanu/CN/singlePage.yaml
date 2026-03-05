@@ -1,0 +1,139 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+
+  - name: AAA
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      .globalData.product.price.productLadderPrices
+      | sort_by(.min)[0]
+      | .dollarPrice 
+  - name: BBB
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      [.globalData.product.price.productLadderPrices
+      | sort_by(.min)[0]
+      | .dollarPrice ]
+  - name: CCC
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      [.globalData.product.price.productLadderPrices
+      | sort_by(.min)[0]
+      | { text: .dollarPrice } ]
+  - name: DDD
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      [.globalData.product.price.productLadderPrices
+      | sort_by(.min)[0]
+      | { text: .dollarPrice } ].[]
+  - name: EE
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      .globalData.product.price.productLadderPrices
+  - name: EEE
+    xpath: //*[contains(@id, "detailData")]
+    jq: '.globalData.product.price.productLadderPrices[0]'
+  - name: EEEEEE
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      .globalData.product.price.productLadderPrices[0].dollarPrice | tostring
+
+  - name: FFF
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      .scVersion
+  - name: FFFFFF
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      .scVersion | tostring
+
+  - name: colors
+    xpath: //*[contains(@id, "detailData")]
+    #select all available colors as list
+    #TODO consult if this is okay, there is no option to have per-color url
+    jq: >
+      [ .globalData.product.sku.skuAttrs.[] | { name: .name, values: .values } 
+      | select(.name == "Color") 
+      | .values.[] 
+      | .name ]
+      | join(",")
+
+  - name: product_title
+    xpath: //div[contains(@class, "product-title-container")]//h1
+  - name: average_rating
+    xpath: //div[contains(@class, "detail-star detail-separator")]/text()
+  - name: user_reviews
+    xpath: //span[contains(@class, "detail-review")]
+    regExp: '[0-9]+'
+    regExpReplace: $1
+
+  #TODO remove currency symbol from price?
+  #TODO consult which price should be picked (varying price depending on order quantity)
+  #TODO do something with dot/comma separators varying on language
+  #There are no convienient class tags in price spans, first is current price
+  #second is original price, presetn if there is discount
+  - name: original_price
+    #xpath: (//div[contains(@class, "product-price")]//div[contains(@class, "price")]/span[last()])[1]
+    #extract DollarPrice directly from JS dat instead of html, skipping formatting and localization issues alltogether
+    xpath: //*[contains(@id, "detailData")]
+    # sort by minimum order amount, to select most retail-like price
+    # price in currently selected currency is in .price
+    jq: >
+      .globalData.product.price.productLadderPrices
+      | sort_by(.min)[0]
+      | .price
+
+  - name: offer_price
+    #xpath: (//div[contains(@class, "product-price")]//div[contains(@class, "price")]/span[2]/preceding-sibling::span[1])[1]
+    #extract DollarPrice directly from JS dat instead of html, skipping formatting and localization issues alltogether
+    xpath: //*[contains(@id, "detailData")]
+    # sort by minimum order amount, to select most retail-like price
+    # price in currently selected currency is in .promotionPrice
+    jq: >
+      .globalData.product.price.productLadderPrices
+      | sort_by(.min)[0]
+      | .promotionPrice
+
+  #TODO consult what to do with multiple size, variants can't be split with URL
+  #Attribute name is dependent on offer/seller template, it can be different for another seller
+  - name: raw_size
+    #xpath: //div[contains(@class, "sku-info")]//h4[contains(text(), "Size")]/following-sibling::div[contains(@class, "info-item")]//span
+    xpath: //*[contains(@id, "detailData")]
+    jq: >
+      [ .globalData.product.sku.skuAttrs.[] | { name: .name, values: .values } 
+      | select(.name == "Size") 
+      | .values.[] 
+      | .name ]
+      | join(",")
+
+  - name: width
+    xpath: (//div[contains(@class, "sku-info")]//h4[contains(text(), "Size")]/following-sibling::div[contains(@class, "info-item")]//span)[1]
+    # first number
+    regExp: (\d+)(.*|$)
+    regExpReplace: $2
+  - name: depth
+    xpath: (//div[contains(@class, "sku-info")]//h4[contains(text(), "Size")]/following-sibling::div[contains(@class, "info-item")]//span)[1]
+    # second number
+    regExp: (\d+)[^\d]+(\d+)(.*|$)
+    regExpReplace: $2
+  - name: height
+    xpath: (//div[contains(@class, "sku-info")]//h4[contains(text(), "Size")]/following-sibling::div[contains(@class, "info-item")]//span)[1]
+    # third number
+    regExp: (\d+)[^\d]+(\d+)[^\d]+(\d+)(.*|$)
+    regExpReplace: $3
+
+  - name: dimensions_units
+    xpath: (//div[contains(@class, "sku-info")]//h4[contains(text(), "Size")]/following-sibling::div[contains(@class, "info-item")]//span)[1]
+    # whatever is not a number at the end of dimension string
+    regExp: '[^\d]+$'
+    regExpReplace: $1
+    defaultValue: 'mm'
+
+
+  #extract productId from url
+  - name: listing_id
+    xpath: //div[contains(@class, "product-company-info")]//a/@href
+    regExp: '(?:productId=)(\d+)'
+    regExpReplace: $1

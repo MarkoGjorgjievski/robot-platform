@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: blank
+    xpath: //*[@id='blank']
+    jq: .blank
+    defaultValue: "blank"

@@ -1,0 +1,28 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [],
+    setBlockAds: false,
+    setBypassCSP: true,
+    setLoadAllResources: true,
+    setLoadImages: true,
+    setCssEnabled: true,
+    applyIgnoreVBAndCookies: null,
+    optTags: null,
+    timeout: 60000,
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: 'div.b-cookies-informer__nav > button:nth-child(2)',
+    captchaSelectors: {},
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'US',
+    domain: 'onlyfans',
+    schemaYAML: 'singlePage',
+  },
+};

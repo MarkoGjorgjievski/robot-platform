@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@data-event-list='item']
+fields:
+  - name: eventURL
+    xpath: //div[contains(@class,'title')]//a//@href

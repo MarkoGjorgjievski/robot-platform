@@ -1,0 +1,18 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //body[.//ul[contains(@class, "hs-categories")]]//div[@class="categories"]/div[@id="divCatToClone"]//div[@class="divSubcatToClone"]/div[@class="divCatRows"]/ul/li/a/@href
+  
+  - name: category
+    xpath: //body[.//ul[contains(@class, "hs-categories")]]//div[@class="categories"]/div[@id="divCatToClone"]//div[@class="divSubcatToClone"]/div[@class="divCatRows"]/ul/li/a
+  # - name: category
+  #   xpath: //span[contains(@class, "key-term")]
+    
+  # - name: subcategoryURL
+  #   xpath: //div[@class="categories"]/div[@id="divCatToClone"]//div[@class="divSubcatToClone"]/div[@class="divCatRows"][1]/ul[1]/li[1]/a/@href
+  
+  # - name: productURL
+  #   xpath: //a[@class="clear-all"]/@href

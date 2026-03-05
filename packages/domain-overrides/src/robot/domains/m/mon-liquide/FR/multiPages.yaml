@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@class, "product_list")]/li
+fields:
+  - name: productUrl
+    xpath: //a[@title][contains(@class, "product-name")]/@href
+
+ 

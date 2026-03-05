@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //table/tbody/tr
+fields:
+  - name: eventID
+    xpath: //td[@class="uri depth_0"]

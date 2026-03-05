@@ -1,0 +1,42 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //td[contains(text(), ':')]//ancestor::div[contains(@class, 'table')]/preceding-sibling::h3[not(contains(., 'Performance canceled')) and not(contains(., '公演中止'))]//following-sibling::*[1]//td[contains(text(), ':')]
+fields:
+  - name: eventTime
+    xpath: //text()
+    defaultValue: '13:00'
+  - name: venueCity
+    xpath: ancestor::div[contains(@class, 'table')]/preceding-sibling::h3[1][not(contains(., 'Performance canceled')) and not(contains(., '公演中止'))]
+    regExp: '\[(.*?)\]'
+  - name: nameTitle
+    xpath: ancestor::body//h1[contains(@class, 'detail__ttl')]
+  - name: nameTitle2
+    xpath: ancestor::body//div[contains(@class, 'detail__cast')]
+  - name: eventName
+    xpath: ancestor::body//h1[contains(@class, 'detail__ttl')]
+#  - name: eventDate
+#    xpath: parent::tr[not(./td[contains(@class, "text-bold")])]/preceding-sibling::tr[./td[contains(@class, "text-bold")]] | parent::tr[./td[contains(@class, "text-bold")]]
+  - name: eventDate
+    xpath: preceding-sibling::td | ancestor::tr[not(descendant::*[contains(@class, 'bold')])]/preceding-sibling::tr[1]//td[contains(@class, 'bold')]
+  - name: venueName
+    xpath: ancestor::div[contains(@class, 'table')]/preceding-sibling::h3[1][not(contains(., 'Performance canceled')) and not(contains(., '公演中止'))]
+    regExp: '((?<=\])[^\[\]]+)'
+  - name: isTBA
+    xpath: //text()
+    defaultValue: '1'
+  - name: isPublicPurchase
+    xpath: ancestor::body//div[contains(@id, 'ticket')]//div[contains(@class, 'ticket__release')][contains(@class, 'before')]
+    defaultValue: '1'
+  - name: isPublicPurchaseModifier
+    xpath: ancestor::body//div[contains(@id, 'ticket')]//div[contains(@class, 'ticket__release')][contains(@class, 'before')]
+    defaultValue: '1'
+  - name: ticketData
+    xpath: ancestor::body//div[contains(@id, 'ticket')]//div[contains(@class, 'ticket__release')][contains(@class, 'before')]//parent::div[contains(@class, 'ticket__block')]
+  - name: ticket
+    xpath: ancestor::body//div[contains(@id, 'ticket')]//div[contains(@class, 'ticket__release')][contains(@class, 'before')]//parent::div[contains(@class, 'ticket__block')]
+  - name: venueString
+    xpath: ancestor::div[contains(@class, 'table')]/preceding-sibling::h3[1][not(contains(., 'Performance canceled')) and not(contains(., '公演中止'))]
+  - name: onSaleDate
+    xpath: ancestor::body//div[contains(@id, 'ticket')]//div[contains(@class, 'ticket__release')][contains(@class, 'before')]//parent::div[contains(@class, 'ticket__block')]
+

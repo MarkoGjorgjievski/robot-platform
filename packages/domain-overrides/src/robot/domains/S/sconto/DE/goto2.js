@@ -1,0 +1,31 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [
+      // '<xhr|script|font|stylesheet>',
+    ],
+    setBlockAds: false,
+    setBypassCSP: false,
+    setLoadAllResources: true,
+    setLoadImages: true,
+    setCssEnabled: true,
+    applyIgnoreVBAndCookies: null,
+    optTags: null,
+    timeout: 60000,
+    waitUntil: 'networkidle0',
+    acceptCookiesCSSSelector: '.consentForm__acceptButton',
+    captchaSelectors: {},
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'DE',
+    domain: 'sconto',
+    schemaYAML: 'multiPages',
+  },
+};
+// acceptCookiesCSSSelector: ".consentForm__acceptButton button[class='button']",

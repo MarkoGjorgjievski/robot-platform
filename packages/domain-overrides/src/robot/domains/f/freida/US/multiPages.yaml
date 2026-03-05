@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//a[contains(@class,"search-result")]'
+fields:
+  - name: url
+    xpath: //a/@href

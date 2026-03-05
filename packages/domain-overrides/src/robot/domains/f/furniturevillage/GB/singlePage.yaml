@@ -1,0 +1,83 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: (//*[contains(@class, 'right-pdp-column') and contains(@class, 'col-xs-12') and contains(@class, 'col-md-4')]//span[@itemprop='name'])[1]
+
+  - name: listing_id
+    xpath: //div[contains(text(), 'Item code:')]/span
+
+  - name: offer_price
+    xpath: ((//*[contains(@class, 'right-pdp-column') and contains(@class, 'col-xs-12') and contains(@class, 'col-md-4')]//*[@itemprop='offers'])[1]//span[contains(@class, 'price-value')] | (//*[contains(@class, 'right-pdp-column')]//span[contains(text(), 'Was')]/following-sibling::span[1])[1] | (//*[contains(@class, 'right-pdp-column')]//span[contains(text(), 'RRP')]/following-sibling::span[1])[1] | (//*[contains(@class, 'right-pdp-column')]//span[contains(text(), 'Sale Price')]/following-sibling::span[1])[1])[2]
+    regExp: "£(.+)"
+    regExpReplace: $1
+
+  - name: original_price
+    xpath: ((//*[contains(@class, 'right-pdp-column') and contains(@class, 'col-xs-12') and contains(@class, 'col-md-4')]//*[@itemprop='offers'])[1]//span[contains(@class, 'price-value')] | (//*[contains(@class, 'right-pdp-column')]//span[contains(text(), 'Was')]/following-sibling::span[1])[1] | (//*[contains(@class, 'right-pdp-column')]//span[contains(text(), 'RRP')]/following-sibling::span[1])[1] | (//*[contains(@class, 'right-pdp-column')]//span[contains(text(), 'Sale Price')]/following-sibling::span[1])[1])[1]
+    regExp: "£(.+)"
+    regExpReplace: $1
+    defaultValue: "0"
+
+  - name: platform_category
+    xpath: (//div[@itemprop='breadcrumb']//*[@itemprop='itemListElement'])[2]//span
+
+  - name: product_variations
+    xpath: //div[@id='fv-sidebar-body']//a/@href
+
+  - name: stock_availability
+    xpath: //*[@id='add-to-cart' and @disabled]
+    regExp: (.+)
+    regExpReplace: "no"
+    defaultValue: "yes"
+
+  - name: main_image
+    xpath: ((//div[contains(@class, 'amplience-inner')]//div[contains(@class, 'amp-zoom-overflow')])//img/@src)[1]
+    regExp: (.+)
+    regExpReplace: $1.jpg
+    downloadContent: "text"
+
+  - name: alternative_images
+    xpath: (//div[contains(@class, 'amplience-inner')]//div[contains(@class, 'amp-zoom-overflow')])//img/@src
+
+  - name: description
+    xpath: //div[@id='product-details']//div[@itemprop='description']
+
+  - name: pack_size
+    defaultValue: 1
+
+  - name: user_reviews
+    xpath: //*[@class='bv_main_container_row_flex']
+    regExp: "Read (.+) Reviews"
+    regExpReplace: $1
+
+  - name: average_rating
+    xpath: //button[contains(@class, 'bv_main_container_row_flex')]/@aria-label
+    regExp: "^(.*?)(?= out)"
+
+  - name: height
+    xpath: //li[contains(text(), 'Height:')]
+    regExp: '^\D*(\d+)'
+    regExpReplace: $1
+
+  - name: width
+    xpath: //li[contains(text(), 'Height:')]
+    regExp: '^\D*(\d+)'
+    regExpReplace: $1
+
+  - name: depth
+    xpath: //li[contains(text(), 'Depth:')]
+    regExp: '^\D*(\d+)'
+    regExpReplace: $1
+
+  - name: diameter
+    xpath: //li[contains(text(), 'Diameter:')]
+    regExp: '^\D*(\d+)'
+    regExpReplace: $1
+
+  - name: colour
+    xpath: //*[@data-name='Colour']//b
+
+  - name: product_details
+    xpath: //div[@id='delivery-content']

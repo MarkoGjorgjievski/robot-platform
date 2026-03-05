@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div/article
+fields:
+  - name: productURL
+    xpath: //a[contains(@data-card-type,"media") and contains(@href,'https')]/@href

@@ -1,0 +1,25 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventName
+    xpath: '//h1'
+  - name: venueName
+    xpath: '//*[@type="application/ld+json"][contains(text(), "location")]  '
+    jq: '.location.name'
+  - name: venueCity
+    xpath: '//*[@type="application/ld+json"][contains(text(), "location")]'
+    jq: '.location.address.addressLocality'
+  # - name: eventDate
+  #   xpath: '//*[@type="application/ld+json"][contains(text(), "startDate")]'
+  #   jq: '.startDate'
+  - name: eventDateTime
+    xpath: '//input[@name="Event.Starts"]/@value'
+  - name: eventNotes
+    xpath: '//section[@class="g-ui-box"]/p | //section[@class="g-ui-box g-event-narratives"]/div'
+  - name: onSaleDateTime
+    xpath: '//script[@type="application/ld+json"][contains(text(), "eventStatus")]'
+    jq: 'if .offers[0].availabilityStarts == "0001-01-01T00:00:00Z" then null else .offers[0].availabilityStarts end'
+  - name: isPublicPurchase
+    xpath: 'boolean(//span[@class="buy-tickets-button__text"] or //a[contains(text(), "Join Waiting List")][not(//div[@id="pricesTab"]/p[contains(text(), "Cancelled") or contains(text(), "Postponed")])])'

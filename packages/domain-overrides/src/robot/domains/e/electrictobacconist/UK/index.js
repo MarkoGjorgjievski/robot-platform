@@ -1,0 +1,43 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'UK',
+    loadedSelector: null,
+    waitForSelectorToLoad: null,
+    noResultsXPath: '//h1[contains(text(),"404")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    orderedSelectorsToClickOn: ['span[data-tab="reviews"]'],
+    loadingTimeout: 5000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'multiPages',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: [],
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'electrictobacconist',
+  },
+};

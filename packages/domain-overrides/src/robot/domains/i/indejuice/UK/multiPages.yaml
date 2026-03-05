@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@id, "productData_") or contains(@id, "productBrandData_")]
+fields:
+  - name: productUrl
+    xpath: //text()
+    jq: '"https://indejuice.com" + [.value][0].link'

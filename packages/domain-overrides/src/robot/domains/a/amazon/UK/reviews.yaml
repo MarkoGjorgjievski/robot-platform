@@ -1,0 +1,33 @@
+singleRecord: false
+regionsSelector: null
+recordXPath: //div[@data-hook="review"]
+fields:
+  - name: reviewer_name
+    xpath: //span[contains(@class, 'profile-name') and not(ancestor::div[contains(@class,'preload')])]
+
+  - name: review_date
+    xpath: //span[contains(@data-hook, 'review-date')]
+
+  - name: body_content_review
+    xpath: //span[contains(@data-hook, 'review-body')]
+
+  - name: location_of_reviewer
+    xpath: ancestor::div[contains(@class, 'reviews')]//h3[contains(@data-hook, 'reviews-header')]
+    regExp: "((?<=From ).*)"
+
+  - name: paint_name
+    xpath: ancestor::body//a[@data-hook="product-link"]
+
+  - name: ranking
+    xpath: //i[contains(@data-hook, 'star-rating')]
+#    regExp: (.*?(?=out))
+
+  - name: review_title
+    xpath: //span[contains(@data-hook,"review-title")] | //a[@data-hook="review-title"]/span/following-sibling::span
+    defaultValue: 'null'
+    
+  - name: url
+    xpath: ancestor::body//a[@data-hook="product-link"]/@href
+    regExp: (.+)
+    regExpReplace: https://www.amazon.co.uk$1
+

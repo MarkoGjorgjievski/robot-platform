@@ -1,0 +1,30 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventName
+    xpath: '(//div[@id="cntInnCont"]//script[@type="application/ld+json"])[1]'
+    jq: '.name'
+  - name: textDateTime
+    xpath: '//tbody[@id="product"]//div[@class="baseInfo"]//h2[@class="text_p margin-bottom"]'
+  - name: eventDate
+    defaultValue: '0'
+  - name: eventDate
+    xpath: '(//div[@id="cntInnCont"]//script[@type="application/ld+json"])[1]'
+    jq: '.startDate'
+  - name: eventTime
+    defaultValue: '0'
+  - name: eventTime
+    xpath: '(//div[@id="cntInnCont"]//script[@type="application/ld+json"])[1]'
+    jq: '.startDate'
+  - name: venueName
+    xpath: '(//div[@id="cntInnCont"]//script[@type="application/ld+json"])[1]'
+    jq: '.location.name'
+  - name: venueCountryCode
+    defaultValue: 'IT'
+  - name: venueCity
+    xpath: '(//div[@id="cntInnCont"]//script[@type="application/ld+json"])[1]'
+    jq: '.location.address.addressLocality'
+  - name: eventNotes
+    xpath: '//p[@class="text_p margin-bottom"]'

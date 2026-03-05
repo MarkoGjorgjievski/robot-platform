@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@data-module-name, "Product List")]//li//*[contains(@class, "co-item__col2")]
+fields:
+  - name: productURL
+    xpath: //@href

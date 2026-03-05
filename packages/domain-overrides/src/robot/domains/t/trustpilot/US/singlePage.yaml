@@ -1,0 +1,61 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@id, "review_data")]
+fields:
+  # - name: data_json
+  #   xpath: //script[@type="application/json"][@id="__NEXT_DATA__"]
+  #   jq: '.props.pageProps.reviews[]'
+  # - name: review_id
+  #   xpath: //script[@type="application/json"][@id="__NEXT_DATA__"]
+  #   jq: '.props.pageProps.reviews[].id'
+  # - name: username
+  #   xpath: //script[@type="application/json"][@id="__NEXT_DATA__"]
+  #   jq: '.props.pageProps.reviews[].consumer.displayName'
+  - name: review_id
+    xpath: text()
+    jq: .id
+  - name: username
+    xpath: text()
+    jq: .consumer.displayName
+  - name: review_date
+    xpath: text()
+    jq: .dates.publishedDate
+  - name: rating
+    xpath: text()
+    jq: .rating
+  - name: review_title
+    xpath: text()
+    jq: .title
+  - name: review_body
+    xpath: text()
+    jq: .text
+  - name: trustscore
+    xpath: ancestor::html//script[@type="application/json"][@id="__NEXT_DATA__"]
+    jq: .props.pageProps.businessUnit.trustScore
+  - name: location
+    xpath: text()
+    jq: .consumer.countryCode
+  - name: tags
+    xpath: text()
+    jq: .labels.verification.isVerified
+  - name: helpfulness_count
+    xpath: text()
+    jq: .likes
+  - name: response_text
+    xpath: text()
+    jq: .reply.message
+  - name: response_date
+    xpath: text()
+    jq: .reply.publishedDate
+
+  - name: verified_user
+    xpath: text()
+    jq: .consumer.isVerified
+  - name: invited_user
+    xpath: text()
+    jq: .labels.verification.verificationLevel
+
+
+  # - name: review_id
+    # xpath: //div[contains(@class, "reviewContent")]//p

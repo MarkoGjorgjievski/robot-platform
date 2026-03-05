@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //div[@id="content"]//div[@id="DIV_CATEGORY"]/a/@href
+    regExp: '(\/[^"]{1,})'
+    regExpReplace: 'https://kham.com.tw/application$1'

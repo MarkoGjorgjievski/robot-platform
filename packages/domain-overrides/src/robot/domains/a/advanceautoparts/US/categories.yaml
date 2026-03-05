@@ -1,0 +1,17 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //p[contains(@title,"")]/ancestor::div/ancestor::a[contains(@href,"/p/")]/@href
+    regExp: (.+)\?
+    regExpReplace: https://shop.advanceautoparts.com$1
+# jq: jq | filter
+# regExp: (reg)*p
+# regExpReplace: https://shop.advanceautoparts.com/$1
+# defaultValue: hardcoded value if nothing matches
+# manualSelector: css#selector
+# screenCapture: png
+# downloadContent: text
+# type: NUMBER | BOOLEAN | STRING (default if omitted)

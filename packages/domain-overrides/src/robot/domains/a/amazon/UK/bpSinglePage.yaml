@@ -1,0 +1,77 @@
+singleRecord: true 
+regionsSelector: null
+recordXPath: null
+fields:
+  - name: categoryChain
+    xpath: //div[contains(@id,'breadcrumbs_container')]//li[not(contains(@class,'divider'))]
+
+  - name: sku
+    xpath: //th[contains(text(),'Manufacturer part number')]/following-sibling::td
+    defaultValue: 'dummy'
+  - name: skuBackup
+    xpath: //th[contains(text(),'Item model number')]/following-sibling::td | //span[contains(text(),'Identification Number')]/parent::td/following-sibling::td | //th[contains(text(),'ASIN')]/following-sibling::td
+
+  - name: productName
+    xpath: //h1[contains(@id,'title')]
+    regExp: ^(?:(?:Liqui\s*Moly|LIQUI\s*MOLY|Shell|Motul|Castrol|Mannol|Mobil\s*1|Mobil|Redex|REDEX|MANNOL|RS|Selenia|SELENIA|Carlube|Dynamax|febi|Comma|Lubrisolve|Lucas\s*Oil)\s*)?(.*)
+    regExpReplace: $1
+
+  - name: productVariant
+    xpath: //h1[contains(@id,'title')]
+
+  - name: brand
+    xpath: //th[contains(text(),'Brand')]/following-sibling::td
+    defaultValue: 'dummy'
+  - name: checkIfMobil1
+    xpath: //h1[contains(@id,'title')]
+    regExp: \bMobil 1\b
+
+  - name: brandVariant
+    xpath: //h1[contains(@id,'title')]
+    regExp: ^(?:(?:Liqui\s*Moly|LIQUI\s*MOLY|Shell|Motul|Castrol|Mannol|Mobil\s*1|Mobil|MANNOL|Redex|REDEX|RS|Selenia|SELENIA|Carlube|Dynamax|febi|Comma|Lubrisolve|Lucas\s*Oil)\s*)?(.*)
+    regExpReplace: $1
+
+  - name: viscocity
+    xpath: //th[contains(text(),'Viscosity')]/following-sibling::td | //span[contains(text(),'Viscosity')]/parent::td/following-sibling::td
+
+  - name: packSize
+    xpath: //span[contains(text(),'Liquid volume')]/following-sibling::span | //span[contains(text(),'Unit count')]/parent::td/following-sibling::td
+    defaultValue: 'dummy'
+
+  - name: price
+    xpath: //span[contains(@id,'total_price')]/span[contains(text(),'£')]
+    regExp: (\d+[\.,]?\d*)
+
+  - name: promoPrice
+    xpath: //span[contains(@class,'savingsPercentage')]
+    regExp: \b\d+%
+
+  - name: RRP
+    xpath: (//span[contains(text(),'RRP')])[1] | (//span[contains(text(),'Was:')])[1]
+    regExp: (\d+[\.,]?\d*)
+    defaultValue: 'dummy'
+
+  - name: inStockOnline
+    xpath: //div[contains(@id,'availabilityInsideBuyBox')]
+    regExp: (.+)
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: inStockStore
+    xpath: 
+
+  - name: specificationProfile
+    xpath: //table[contains(@id,'productDetails_techSpec')]
+
+  - name: productReviews
+    xpath: //div[@id="averageCustomerReviews_feature_div"]//span[@id="acrPopover"]/@title
+    regExp: (\d+[\.,]?\d*)
+
+  - name: bundle
+    xpath: //div[contains(@class,'bundle-title')]
+    regExp: (.+)
+    regExpReplace: 'yes'
+    defaultValue: 'no'
+
+  - name: URL
+    xpath: //link[contains(@rel,'canonical')]/@href

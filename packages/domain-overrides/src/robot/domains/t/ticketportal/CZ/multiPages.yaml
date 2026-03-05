@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, "thumbnail")]/div[@class="caption"]/table[@class="table"]
+fields:
+  - name: eventURL
+    xpath: '//a/@href'
+    regExp: (.+)
+    regExpReplace: https:$1

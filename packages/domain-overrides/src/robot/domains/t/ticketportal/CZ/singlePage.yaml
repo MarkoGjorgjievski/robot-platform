@@ -1,0 +1,40 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class, "ticket-cover") and not(.//*[contains(text(),"ZRUŠENO")])][//link[contains(@href,"event")]][//div[@itemprop="startDate"]/@content][not(.//div[contains(@class, "popiska") and contains(text(), "MEET & GREET")])]/../.. | //*[@class="fa fa-map-o"]//parent::a//parent::td//parent::tr | //*[contains(@class,"panel panel-default ticket-item")]
+fields:
+  - name: eventName
+    xpath: //*[@class="event"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]/text()
+  - name: eventDateTime
+    xpath: //div[@itemprop="startDate"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]/@content
+  - name: isDateTimeTBA
+    xpath: //div[@class="time"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]
+    default: '0'
+  - name: venueName
+    xpath: //div[@itemprop="location"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]/a/span[@itemprop="name"]
+  - name: venueAddress
+    xpath: //*[@class="fa fa-map-o"]//parent::a//parent::td
+  - name: venueCity
+    xpath: //*[@itemprop="addressLocality"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]
+  - name: isPublicPurchase
+    xpath: //*[contains(@class,"btn btn-buy flex-c")][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]
+  - name: purchaseInfo
+    xpath: //*[@class="status"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]
+    defaultValue: "0"
+  - name: venueId
+    xpath: //div[@itemprop="location"][//*[contains(@property, "og:url") and contains(@content, "event") and not(contains(@content, "?secondTime"))]]/a/@href
+    regExp: (?!.*\/).+
+  - name: eventURL
+    xpath: ancestor::html//*[contains(@property, "og:url") and contains(@content, "event") and not(contains(@content, "?secondTime"))]/@content
+  - name: evenNametURL
+    xpath: ancestor::html//*[contains(@property, "og:url") and contains(@content, "event") and not(contains(@content, "?secondTime"))]/@content
+    regExp: (?<=.cz\W).*$
+  - name: prevURL
+    xpath: ancestor::html//*[@id="prevURL"]
+    jq: '.val'
+  - name: venueIdSecondTime
+    xpath: //div[@itemprop="location"][//*[contains(@property, "og:url") and contains(@content, "event") and contains(@content, "?secondTime")]]/a/@href
+    regExp: (?!.*\/).+
+  - name: eventUniqueId
+    xpath: //@performance
+    regExp: \d+

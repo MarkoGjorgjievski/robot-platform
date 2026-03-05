@@ -1,0 +1,11 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    # xpath: //article[@role="link"]/a/@href
+    xpath: //article[@role="link"]//div/a/@href
+    regExp: .+\.html
+  # - name: brand
+  #   xpath: //div[@id="main-content"]/preceding-sibling::div//div[@id="title-wrapper"]/div/h2[1]

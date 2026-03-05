@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //div[contains(@class, "normalcommon-offer-card")][not(contains(@class, "ad-item"))]//div[contains(@class, "title")]/a/@href| //a[contains(@class, "search-offer-wrapper")]/@href
+  - name: dummyField
+    xpath: //div[@id="pc-new-live-box"]//a[contains(@class, "mainTitle")]/@href
+    

@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, 'js-list__items')]/div[contains(@class, 'list-item')]
+fields:
+  - name: productURL
+    xpath: //a/@href
+    regExp: (.+)
+    regExpReplace: https://www.rusta.com$1

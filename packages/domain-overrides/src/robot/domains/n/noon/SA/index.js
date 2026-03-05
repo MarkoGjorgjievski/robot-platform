@@ -1,0 +1,23 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'SA',
+    loadedSelector: '',
+    waitForSelectorToLoad: '.productContainer',
+    noResultsXPath: '//h1[contains(text(),"404")] | //p[contains(text(), "Uh-oh, something went wrong here")]',
+    accessDeniedXPath: '//h1[contains(text(),"Denied")]',
+    // orderedSelectorsToClickOn: ['.sc-13c73e1d-0'],
+    loadingTimeout: 30000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    enableAutoTable: true,
+    domain: 'noon',
+  },
+};

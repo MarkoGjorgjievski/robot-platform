@@ -1,0 +1,96 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: platform_category
+    xpath: //*[contains(@data-hb-namespace, "breadcrumb")]//*//*/li[last()]//a
+
+  - name: product_details
+    xpath: //*[@id="attribute"]//li
+
+  - name: product_title
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").title else .[]|select(.__typename=="Product").title end
+
+  - name: listing_id
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").abstractProductId else .[]|select(.__typename=="Product").abstractProductId end
+ 
+  - name: original_price
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").defaultPrice.price else .[]|select(.__typename=="Product").defaultPrice.price end
+    defaultValue: 0
+ 
+  - name: stock_availability
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").offerDV.canBeAddedToCart else .[]|select(.__typename=="Product").offerDV.canBeAddedToCart end
+
+  - name: main_image
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").mainImage.url else .[]|select(.__typename=="Product").mainImage.url end
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").mediaList[].url else .[]|select(.__typename=="Product").mediaList[].url end
+
+  - name: description
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").description else .[]|select(.__typename=="Product").description end
+ 
+  - name: materials
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Materiál")), (.key|contains("materiál"))).value else .[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Materiál")), (.key|contains("materiál"))).value end
+ 
+  - name: colour
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Farba")), (.key|contains("farba"))).value else .[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Farba")), (.key|contains("farba"))).value end
+ 
+  - name: user_reviews
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").rating.reviewCount else .[]|select(.__typename=="Product").rating.reviewCount end
+ 
+  - name: average_rating
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").rating.averageRating else .[]|select(.__typename=="Product").rating.averageRating end
+
+  - name: allDimension
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Rozmery")), (.key|contains("rozmery"))).value else .[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Rozmery")), (.key|contains("rozmery"))).value end
+
+  - name: allDimensionKey
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Rozmery")), (.key|contains("rozmery"))).key else .[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Rozmery")), (.key|contains("rozmery"))).key end
+
+  - name: allDimensionOverall
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Celkový rozmer")).value else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Celkový rozmer")).value end
+
+  - name: allDimensionKeyOverall
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Celkový rozmer")).key else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Celkový rozmer")).key end
+
+  - name: weight_raw
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Hmotnosť")), (.key|contains("hmotnosť"))).value else .[]|select(.__typename=="Product").attributeList[]|select((.key|contains("Hmotnosť")), (.key|contains("hmotnosť"))).value end
+ 
+  - name: height
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Výška")).value else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Výška")).value end
+
+  - name: depth
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Hĺbka")).value else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Hĺbka")).value end
+
+  - name: length
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Dĺžka")).value else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Dĺžka")).value end
+
+  - name: width
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Šírka")).value else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Šírka")).value end 
+
+  - name: diameter
+    xpath: //*[contains(@id,"scriptDate")]
+    jq: if .[]|.__typename == "Merchant" then .[]|with_entries( select(.key|contains("product"))).[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Priemer")).value else .[]|select(.__typename=="Product").attributeList[]|select(.key|contains("Priemer")).value end

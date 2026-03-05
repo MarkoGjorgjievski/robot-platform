@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //li//article
+fields:
+  - name: productURL
+    xpath: //div/a/@href
+    # regExp: '(\/[^"]{1,})'
+    # regExpReplace: 'https://www2.hm.com$1'

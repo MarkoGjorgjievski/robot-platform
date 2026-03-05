@@ -1,0 +1,8 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@id, "passedInputs")]
+fields:
+  - name: id
+    xpath: //text()
+    regExp: \d+

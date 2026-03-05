@@ -1,0 +1,116 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1//text()
+    defaultValue: 'empty'
+
+  - name: listing_id
+    xpath: //p[contains(@class,"sku-mobile")]//strong[contains(.,"Varukod")]/../text()
+
+  - name: listing_url
+    xpath: //script[@type="application/ld+json"][2]
+    jq: '.url'
+
+  - name: product_details
+    xpath: //div[@class="product-features__long-description"]
+
+  - name: product_details_dimensions
+    xpath: //div[@class="product-features__long-description"]
+
+  - name: offer_price
+    xpath: //elk-price[contains(@class,"buy-box__price")]//span[contains(@class,"price__value")]//span[@class="ng-star-inserted"]//text()
+
+  - name: original_price
+    xpath: //div[@class="buy-box__top ng-star-inserted"]//span[contains(@class, "price__old-value")]//text()
+    defaultValue: '0'
+
+  - name: platform_category
+    xpath: //li[contains(@class,"breadcrumb__item")][last()]//a//text()
+
+  # - name: product_variations
+  #   xpath: //li[@class="list-item"]//a//@href
+  #   regExp: '(\/[^"]{1,})'
+  #   regExpReplace: 'https://www2.hm.com$1'
+
+  - name: stock_availability
+    xpath: //script[@type="application/ld+json"][contains(text(),"Product")]
+    jq: 'if .offers.availability  == "https://schema.org/InStock" then 1 else 0 end'
+    defaultValue: '1'
+
+  - name: main_image
+    xpath: //div[contains(@class,'pdp__media-intro')]//div[@data-swiper-slide-index='0']//img//@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //div[contains(@class,'pdp__media-intro')]//div[@data-swiper-slide-index!='0']//img//@src
+
+  - name: description
+    xpath: //elk-product-features/div[contains(@class,'description')]//text()
+
+  # - name: pack_size
+
+  - name: user_reviews
+    xpath: //script[@type="application/ld+json"][contains(text(),"Product")]
+    jq: '.aggregateRating.reviewCount'
+    defaultValue: '0'
+
+  - name: average_rating
+    xpath: //script[@type="application/ld+json"][contains(text(),"Product")]
+    jq: '.aggregateRating.ratingValue'
+    defaultValue: '0.0'
+
+  # - name: dimensions_tmp
+  #   xpath: //script[@type="application/ld+json"][2]
+  #   jq: '.description'
+
+  - name: dimensions_unit
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Höjd') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: \(([a-z]+)\)
+    regExpReplace: $1
+    defaultValue: 'cm'
+
+  - name: height
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Höjd') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: '(\d+\.+\d{1,2})|((\d+))'
+
+  - name: width
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Bredd') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: '(\d+\.+\d{1,2})|((\d+))'
+
+  - name: length
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Längd') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: '(\d+\.+\d{1,2})|((\d+))'
+
+  - name: diameter
+    xpath:
+
+  - name: volume
+    xpath: //h5[contains(text(),'Nyckelspecifikation')]//..//td[contains(text(),'Nettovolym')]//..//td[2]//text()
+    regExp: '(\d+\.+\d{1,2})|((\d+))'
+
+  - name: depth
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Djup') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: '(\d+\.+\d{1,2})|((\d+))'
+
+  - name: weight_unit
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Vikt') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: \(([a-z]+)\)
+    regExpReplace: $1
+    defaultValue: 'kg'
+
+  - name: weight_raw
+    xpath: //h5[contains(text(),'Mått & vikt')]//..//td[contains(text(),'Vikt') and not(contains(text(),'inkl'))]//..//td[2]//text()
+    regExp: '(\d+\.+\d{1,2})|((\d+))'
+
+  - name: materials
+    xpath: //li[contains(@class, "product-attributes")][last()]//td[contains(@class, "cell--name")][contains(text(), "Material")]//following-sibling::td//text()
+
+  - name: colour
+    xpath: //li[contains(@class, "product-attributes")][last()]//td[contains(@class, "cell--name")][contains(text(), "Färg")]//following-sibling::td//text()
+
+  - name: currency
+    xpath: //script[@type="application/ld+json"][contains(text(),"Product")]
+    jq: '.offers.priceCurrency'

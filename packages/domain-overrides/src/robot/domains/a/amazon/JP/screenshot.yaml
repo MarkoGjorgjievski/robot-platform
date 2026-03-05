@@ -1,0 +1,25 @@
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[@id="aod-container"]//div[@id="aod-offer"] | //div[@id="aod-container"]//div[@id="aod-pinned-offer"][not(contains(., "No featured offers available"))] | //link[@rel="canonical"][./ancestor::html[not(.//*[@id="aod-offer"])][not(.//*[@id="aod-pinned-offer"])]] | //div[@id="aod-container"][.//span[contains(@class, "aod-no-offer")]][.//span[contains(text(), "No featured offers available")]]
+fields:
+  - name: screenshot
+    screenCapture: 'png'
+    downloadContent: true
+
+  - name: resellerName
+    xpath: //*[@id="aod-offer-soldBy"]//*[@aria-label]/text()
+    
+  - name: outOfStockDummy
+    xpath: //span[contains(text(), "No featured offers available")]
+
+  - name: resellerLink
+    xpath: //*[@id="aod-offer-soldBy"]//a[@aria-label]/@href
+
+  - name: resellerId
+    xpath: //*[@id="aod-offer-soldBy"]//a[@aria-label]/@href
+    regExp: (?<=seller=)[^&]+
+
+  - name: firstDepthURL
+    xpath: '@href'
+  - name: firstDepthURL
+    xpath: //@href

@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //*[contains(@class, "product-box ")]
+fields:
+  - name: productURL
+    xpath: //@href

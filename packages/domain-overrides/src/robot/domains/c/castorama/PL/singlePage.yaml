@@ -1,0 +1,64 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[@id="product-title"]
+  - name: listing_id
+    xpath: //td[@data-test-id="product-ean-spec"]
+  - name: offer_price
+    xpath: //div[contains(@class, "_29c81449")]/div[@data-test-id="productPrice"][contains(@class, "_36cb0914")]/div/div[@data-test-id="product-primary-price"]
+    regExp: '\d+,*\d*'
+  - name: original_price
+    xpath: //div[contains(@class, "_29c81449")]/div[@data-test-id="productPrice"][contains(@class, "_36cb0914")]//span[@data-test-id="previous-price"]
+    regExp: '\d+,*\d*'
+  - name: platform_category
+    xpath: //div[@data-test-id="bread-crumbs"]/div[last()]//p
+  - name: stock_availability
+    defaultValue: 'no'
+    xpath: //i[@aria-label="Dostępna"]
+    regExp: '.*'
+    regExpReplace: 'yes'
+  - name: main_image
+    xpath: (//div[contains(@class, "c1725634")]/picture[@data-test-id="picture-wrapper"]/img)[1]/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[contains(@class, "_91709346")]//div[contains(@class, "c1725634")]//picture[@data-test-id="picture-wrapper"]//img/@src
+  - name: description
+    xpath: (//p[contains(@class, "_49e8bd5b")])[1]
+  - name: pack_size
+    xpath: //th[contains(text(), "Liczba sztuk w opakowaniu")]/following-sibling::td
+  - name: user_reviews
+    xpath: (//span[@data-test-id="RatingTotalReviews"])[1]
+    regExp: '\d+'
+  - name: average_rating
+    defaultValue: '0'
+
+  - name: stars
+    xpath: //div[contains(@class, "_7c363cbd")]//i/@aria-label
+
+  - name: dimensions_unit
+    xpath: //th[contains(text(), "Wysokość")]/following-sibling::td | //th[contains(text(), "Szerokość")]/following-sibling::td | //th[contains(text(), "Długość")][not(contains(text(), "życia"))]/following-sibling::td
+    regExp: '[A-z]+$'
+  - name: height
+    xpath: //th[contains(text(), "Wysokość produktu")]/following-sibling::td | //th[contains(text(), "Wysokość (cm)")]/following-sibling::td | //th[contains(text(), "Wysokość")]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: width
+    xpath: //th[contains(text(), "Szerokość produktu")]/following-sibling::td | //th[contains(text(), "Szerokość (cm)")]/following-sibling::td | //th[contains(text(), "Szerokość")]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: length
+    xpath: //th[contains(text(), "Długość produktu")]/following-sibling::td | //th[contains(text(), "Długość (cm)")]/following-sibling::td | //th[contains(text(), "Długość")][not(contains(text(), "życia"))]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: weight_unit
+    xpath: (//th[contains(text(), "Waga")])[1]/following-sibling::td
+    regExp: '[A-z]+$'
+  - name: weight_raw
+    xpath: (//th[contains(text(), "Waga")])[1]/following-sibling::td
+    regExp: '\d+\.*\d*'
+  - name: materials
+    xpath: //th[contains(text(), "Materiał")]/following-sibling::td
+  - name: colour
+    xpath: //th[contains(text(), "Kolor")]/following-sibling::td | //th[contains(text(), "Grupa kolorystyczna")]/following-sibling::td
+  - name: product_details
+    xpath: (//p[contains(@class, "_49e8bd5b")])[2] | //h3[contains(text(), "Cechy")]/following-sibling::ul

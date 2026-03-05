@@ -1,0 +1,15 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    defaultValue: 'https://l-tike.com/order/'
+  - name: gLcode
+    xpath: //div[@class="ResultBox__tableBody"]/a/@data-lcode
+  - name: gPfKey
+    xpath: //div[@class="ResultBox__tableBody"]/a/@data-pfkeys
+  - name: gBaseVenueCd
+    xpath: //div[@class="ResultBox__tableBody"]/a/@data-basevenuecd
+  - name: gScheduleNo
+    xpath: //div[@class="ResultBox__tableBody"]/a/@data-schduleno

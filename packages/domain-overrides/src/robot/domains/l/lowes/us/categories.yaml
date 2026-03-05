@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@data-selector,'pag-lst')]/li
+fields:
+  - name: categoryURL
+    xpath: //a[not(contains(@class, 'arrow'))]/@href

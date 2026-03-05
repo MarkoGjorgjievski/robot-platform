@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: productURL
+    xpath: //main//h4/a/@href
+
+
+# import-io extractor:run:remote -o ikea1 -e domains/h/home-you/PL/san-antonio/multiPages 

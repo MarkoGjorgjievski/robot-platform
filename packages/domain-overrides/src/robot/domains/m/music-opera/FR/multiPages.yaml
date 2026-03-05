@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //div[@class="top-sec"]//h3//a/@href
+  - name: venueCountryCode
+    xpath: //div[@class="top-sec"]//div[@class="info"]
+    regExp: (?<=- )([A-Za-z- ]+)

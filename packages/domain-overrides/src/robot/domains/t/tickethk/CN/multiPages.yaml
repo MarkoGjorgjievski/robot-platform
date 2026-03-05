@@ -1,0 +1,14 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //div[@class="resultBuyNow"]/a/@href
+    regExp: (.+sh=[^&\s]+)
+    regExpReplace: https://premier.hkticketing.com$1
+  - name: eventUniqueId
+    xpath: //div[@class="resultBuyNow"]/a/@href
+    regExp: sh=([^&\s]+)
+    regExpReplace: $1
+

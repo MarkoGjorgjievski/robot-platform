@@ -1,0 +1,10 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //ul[contains(@class,"search-results")]//li[not(.//span[contains(text(),"Cancelado")])] 
+fields:
+  - name: eventURL
+    xpath: '//a[@class]/@href'
+  - name: isPublicPurchase
+    xpath: '//*[contains(@class,"g-blocklist-action")][contains(text(),"No disponible")]'
+    defaultValue: '1'

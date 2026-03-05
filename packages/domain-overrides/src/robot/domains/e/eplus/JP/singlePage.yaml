@@ -1,0 +1,14 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //select[contains(@name,'koenbi_list') and not(ancestor::div[contains(@class,'hidden')])]/option[not(contains(text(),'全公演'))] | //article[.//span[contains(@class, 'article__date')] and .//a[contains(@class, 'place')]]
+fields:
+  - name: eventURL
+    xpath: ancestor::html//meta[contains(@property,'url')]/@content
+    
+  - name: subTemplate
+    xpath: //@value[not(contains(.,"販売ページ")) and not(contains(.,"-"))]
+    regExp: (.+)
+    regExpReplace: '{eventURL}?block=true&P60=$1'
+    defaultValue: '{eventURL}'
+  

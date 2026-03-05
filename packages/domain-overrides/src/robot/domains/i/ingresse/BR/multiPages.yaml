@@ -1,0 +1,9 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //td[contains(@class, "slug depth_3")]
+  - name: eventUniqueId
+    xpath: //td[contains(@class, "slug depth_3")]

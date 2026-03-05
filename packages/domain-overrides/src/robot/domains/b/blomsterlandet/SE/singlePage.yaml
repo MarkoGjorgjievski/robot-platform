@@ -1,0 +1,84 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //h1[contains(@class, 'ProductDetailsstyled__Name')]
+  - name: listing_id
+    xpath: //*[contains(text(), 'Art nr')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+#  - name: offer_price
+#    xpath: (//div[contains(@class, 'VariantOfferstyled__Offer')])[1]/span and not  (//div[contains(@class, 'VariantOfferstyled__Offer')])[1]//*[contains(text(), 'Ord')]/../span
+#    regExp: '(\d+)'
+#  - name: original_price
+#    xpath: (//div[contains(@class, 'VariantOfferstyled__Offer')])[1]/span
+#    regExp: '(\d+)'
+  - name: offer_price
+    xpath: (//input[@type='radio' and @checked]/../..//div[contains(@class, 'VariantOfferstyled__Offer')])[1]//*[contains(text(), 'Ord')]/../span
+    regExp: '(\d+,?\d+)'
+  - name: original_price
+    xpath: (//input[@type='radio' and @checked]/../../..//div[contains(@class, 'VariantOfferstyled__Offer')])[1]//*[contains(text(), 'Ord')] | (//input[@type='radio' and @checked]/../..//div[contains(@class, 'VariantOfferstyled__Offer') and not ((//div[contains(@class, 'VariantOfferstyled__Offer')])[1]//*[contains(text(), 'Ord')])])
+    regExp: '(\d+,?\d+)'
+  - name: platform_category
+    xpath: (//li[contains(@class, 'Breadcrumbsstyled__Item')])[last()]//a
+  - name: product_variations
+    xpath: //div[contains(@class, 'ProductDetailsstyled__ColorPickerContainer')]//a/@href
+  - name: stock_availability
+    xpath: //button[contains(@class, 'ProductControlsstyled__OpenQuantityPickerButton') and @disabled]
+    defaultValue: 'yes'
+  - name: main_image
+    xpath: //div[contains(@class, 'ProductDetailPagestyled__DesktopContainer')]//img/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //div[contains(@class, 'SmallImageGalleryBlockstyled__Container')]//img/@src
+  - name: description
+    xpath: //div[contains(@class, 'ProductDetailsstyled__Description')]
+  - name: pack_size
+    xpath: //*[contains(text(), 'Förpackningsantal')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+    regExp: '(\d+)'
+  #  - name: user_reviews
+  #    xpath: //div[contains(@class, 'averageRating__numberOfRatings')]
+  #    #    defaultValue: 'no user_reviews on this specific product'
+  #    regExp: '(\d+)'
+  #  - name: average_rating
+  #    xpath: (//div[contains(@class, 'averageRating__number')])[1]
+  #    regExp: '^(\d+(\.\d+)?)'
+  #    defaultValue: 'no average_rating on this specific product'
+  #  - name: dimensions
+  #    xpath:
+  #    defaultValue: 'in sub fields'
+  - name: dimensions_unit
+    xpath: //dd[contains(@class, 'KeyValueListItemstyled__Value')]
+    regExp: '(\D+)$'
+    defaultValue: 'cm'
+  - name: height
+    xpath: //*[contains(text(), 'Höjd')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+    regExp: (\d+\,?\d+)
+  - name: width
+    xpath: //*[contains(text(), 'Bredd')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+    regExp: (\d+\,?\d+)
+  - name: volume
+    xpath: //*[contains(text(), 'Volym')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+    regExp: (\d+\,?\d+)
+  - name: length
+    xpath: //*[contains(text(), 'Längd')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+  - name: diameter
+    xpath: //div[contains(@class, 'AccordionItemstyled__Body')]//*[contains(text(), 'Diameter')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+    regExp: (\d+\,?\d+)
+  #  - name: weight
+  #    xpath:
+  #    defaultValue: 'weight is not set'
+  #  - name: weight_unit
+  #    xpath:
+  #    defaultValue: 'weight is not set'
+  #  - name: weight_raw
+  #    xpath:
+  #    defaultValue: 'weight is not set'
+  - name: materials
+    xpath: //*[contains(text(), 'Material')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+  - name: colour
+    xpath: //*[contains(text(), 'Färg')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')] | //*[contains(text(), 'Bladfärg')]//ancestor::div[contains(@class, 'KeyValueListItems')]//dd[contains(@class, 'KeyValueListItemstyled__Value')]
+  - name: product_details
+    xpath: //div[contains(@class, 'ProductInformationstyled__Container')]//div[contains(@id, 'ProductInformation')]
+#  - name: on_product_variations
+#    xpath: //*[contains(text(),"nameVariants")]

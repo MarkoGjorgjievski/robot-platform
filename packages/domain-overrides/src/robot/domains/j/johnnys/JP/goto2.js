@@ -1,0 +1,31 @@
+module.exports = {
+  implements: 'navigation/goto2',
+  parameterValues: {
+    blockUnnecessaryRequests: [
+      // '<xhr|script|font|stylesheet>',
+    ],
+    setBlockAds: true,
+    setBypassCSP: false,
+    setLoadAllResources: false,
+    setLoadImages: true,
+    setCssEnabled: true,
+    applyIgnoreVBAndCookies: null,
+    optTags: null,
+    timeout: 60000,
+    waitUntil: 'load',
+    // acceptCookiesCSSSelector: 'button#agreement-btn, label.checkbox-contract-label, div.btn-wrap-short >  button',
+    acceptCookiesCSSSelector: 'button#agreement-btn',
+    captchaSelectors: {},
+    submitCaptchaButtonCSS: null,
+    waitAfterNavObject: {
+      wrongRedirectSelector: '',
+      selector: '',
+      selectorType: '',
+      delay: null,
+    },
+    store: null,
+    country: 'JP',
+    domain: 'johnnys',
+    schemaYAML: 'multipages',
+  },
+};

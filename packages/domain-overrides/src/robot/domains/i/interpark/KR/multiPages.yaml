@@ -1,0 +1,13 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: ""
+recordXPath: '//*[contains(@id, "productURL")] |
+  //div[contains(@class, "listContainer")]//a'
+
+fields:
+  - name: eventURL
+    xpath: //@href
+
+  - name: eventURLJQ
+    xpath: //text()
+    jq: ".goodsCode"

@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //div[contains(@class, "modul-wewnatrz")]//div[contains(@class, "sklep-produkt") and contains(@class, "jq-produkt")]
+fields:
+  - name: productURL
+    xpath: //a/@href

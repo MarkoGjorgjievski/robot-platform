@@ -1,0 +1,33 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: //script[contains(@id,'calendar-data_')]
+fields:
+  - name: eventName
+    xpath: ancestor::html//div[@class="product-title"]
+  - name: venueName
+    xpath: ancestor::html//div[@class="product-location"]
+    regExp: '^(.*?)\s*(?= - )'
+  - name: venueCity
+    xpath: ancestor::html//div[@class="product-location"]
+    regExp: '(?<= - )(.*)'
+  - name: postalCode
+    xpath: ancestor::html//script[contains(text(), 'postalCode')]
+    jq: .location.address.postalCode
+  - name: venueAddress
+    xpath: ancestor::html//script[contains(text(), 'postalCode')]
+    jq: .location.address.streetAddress
+  - name: venueCapacity
+    xpath: ancestor::html//div[contains(@class, 'content')]//li//span
+    regExp: '(?<=: )(.*)'
+  - name: eventUrl
+    xpath: ancestor::html//meta[@property='og:url']/@content    
+  - name: isPublicPurchase
+    xpath: //text()
+    jq: .products | map(if .not_for_sale == 1 then 0 else 1 end)[0]
+  - name: eventDateTime
+    xpath: //text()
+    jq: .date_db
+  - name: artistNames
+    xpath: ancestor::html//script[contains(text(), 'MusicGroup')]
+    jq: '.performer[] | select(.["@type"] == "MusicGroup") | .name'

@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: eventURL
+    xpath: //article//a[.//p[@class="descripcion"][not(text()[contains(.,"Experiencia")])]]/@href

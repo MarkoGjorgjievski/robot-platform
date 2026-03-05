@@ -1,0 +1,136 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+ 
+  - name: product_title
+    xpath: //h1[contains(@itemprop, "name")]
+  
+  - name: listing_id
+    xpath: //span[contains(@itemprop, "sku")]
+  
+  - name: original_price
+    xpath: //script[contains(@type, "application/ld+json") and contains(text(), "price")]
+   # jq: .offers.price[:-2]
+    regExp: '"price": "([\d.]+)00"'
+    regExpReplace: $1
+  
+  # - name: price
+  #   xpath: //script[@id="event-data"]
+  #   jq: '.[].productPrice | select(. != null)'
+  
+  # TODO: if value equals original, set this to null in transform
+  - name: offer_price
+    xpath: //span[@itemprop="price"]/@content
+
+  - name: platform_category
+    xpath: //li[contains(@class, "crumb")][last()]
+  
+  - name: product_variations
+    # xpath: 
+
+  - name: stock_availability
+    defaultValue: 'no'
+    xpath: //div[contains(@class, "add-to-cart") and not( contains(@style, "none") )]
+    regExp: (.+)
+    regExpReplace: 'yes'
+
+  - name: main_image
+    xpath: //img[contains(@id, "product-image")]/@src
+    downloadContent: 'text'
+
+  - name: alternative_images
+    xpath: //div[contains(@class, "slide-image")]//img/@src
+
+  - name: description
+    xpath: //div[contains(@class, "product-intro")]
+ 
+  - name: pack_size
+    defaultValue: 'null'
+    xpath:  //div[contains(@class, "product-intro")]
+    regExp: Lot de (\d+)
+    regExpReplace: $1
+  
+  - name: pack_size_backup
+    xpath: //h1[contains(@itemprop, "name")]
+    regExp: \sx\s?(\d+)\s*$
+    regExpReplace: $1
+
+  # COULDN'T FIND 
+  # - name: user_reviews
+  #   # xpath: 
+  
+  # - name: average_rating
+  #   # xpath: 
+
+  - name: dimensions_raw
+    xpath: //div[contains(@class, "product-intro")] | //div[@itemprop="description"]
+    regExp: '[Dd]im[^:]*:(.+)|Taille\s*:(.+)'
+    regExpReplace: $1$2
+
+  - name: dimensions_raw_backup
+    xpath: //div[@itemprop="description"]
+
+
+  - name: dimensions_unit
+    defaultValue: "cm"
+
+  - name: height
+    defaultValue: 'null'
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: '(Hauteur|Hauteur coffret)\s*: (\d+([,.]\d+)?)'
+    regExpReplace: $2 
+  
+  - name: width
+    defaultValue: 'null'
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: '(Largeur|Largeur coffret)\s*: (\d+([,.]\d+)?)'
+    regExpReplace: $2 
+
+  - name: length
+    defaultValue: 'null'
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: '(Longueur|Longueur coffret)\s*: (\d+([,.]\d+)?)'
+    regExpReplace: $2 
+    
+  - name: depth
+    defaultValue: 'null'
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: 'Profondeur\s*: (\d+([,.]\d+)?)'
+    regExpReplace: $1  
+
+  - name: diameter
+    defaultValue: 'null'
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: 'Diamètre\s*: (\d+([,.]\d+)?)'
+    regExpReplace: $1  
+
+
+  - name: weight_unit
+    defaultValue: "kg"
+
+  - name: weight_raw
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: 'Poids\s*:[^\d]*(\d+([,.]\d+)?)'
+    regExpReplace: $1
+
+
+  - name: materials
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: '(Matériel|Matière|Matériaux)[^:]*:\s?(.+)'
+    regExpReplace: $2 
+
+  - name: colour
+    xpath: //div[contains(@class, "product-intro")]
+    regExp: '([Cc]ouleur.*|Coloris ): (.+)'
+    regExpReplace: $2
+
+  - name: product_details
+    xpath: //div[contains(@id, "detailed-description")]
+
+  - name: currency
+    # xpath: 
+  
+  - name: listing_url
+    # xpath: 

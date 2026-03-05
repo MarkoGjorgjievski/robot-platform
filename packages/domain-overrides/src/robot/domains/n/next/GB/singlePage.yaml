@@ -1,0 +1,51 @@
+singleRecord: true
+regionsSelector: null
+recordSelector: null
+recordXPath: null
+fields:
+  - name: product_title
+    xpath: //section[contains(@class, 'details')]/h2 | //div[contains(@class, "Title")]/h1
+  - name: listing_id
+    xpath: //section[contains(@class, 'details')]/h2 | //div[contains(@class, "ItemNumber")]
+  - name: original_price
+    xpath: //section[contains(@class, "tabbedContent")]//div[contains(@class, "selectedPrice")]//span[contains(@class, "price")] | //div[contains(@class, "nowPrice")]/span | //div[contains(@class, "wasPrice")]
+  - name: offer_price
+    xpath: //div[contains(@class, "highlightPrice")]/span/text()
+  - name: colour
+    xpath: //span[contains(@class, "colourChipNameLabel")]
+  - name: product_variations
+    xpath: //a[contains(@class, "item toolTip")]
+  - name: stock_availability
+    defaultValue: '1'
+  - name: main_image
+    xpath: //ul[contains(@class, "images")]/li[1] | //div[@id="ShotView"]/img/@src
+    downloadContent: 'text'
+  - name: alternative_images
+    xpath: //ul[contains(@class, "images")]/li[position() > 1] | //div[contains(@class, "ThumbNailNavClip")]//li[not(contains(@class, "first"))]//img/@src
+  - name: description
+    xpath: //section[contains(@class, "aboutSection")]//p | //div[contains(@class, "partial-description-text")] | //div[@id="ToneOfVoice"]/text() | //div[contains(@class, "StyleContent")]//text()
+  - name: dimensions_unit
+    defaultValue: cm
+  - name: height
+    xpath: //section[contains(@class, "productSpec")]//tr[th[contains(text(), "Dimensions")]]/td | //div[@id="Measurements"]/text()[contains(., "Length")] | //div[@id="Measurements"]//text()[contains(., "Height")]
+  - name: width
+    xpath: //section[contains(@class, "productSpec")]//tr[th[contains(text(), "Dimensions")]]/td | //div[@id="Measurements"]/text()[contains(., "Width")] | //div[@id="Measurements"]//text()[contains(., "Width")]
+  - name: depth
+    xpath: //section[contains(@class, "productSpec")]//tr[th[contains(text(), "Dimensions")]]/td | //div[@id="Measurements"]/text()[contains(., "Depth")] | //div[@id="Measurements"]//text()[contains(., "Depth")]
+  - name: diameter
+    xpath: //section[contains(@class, "productSpec")]//tr[th[contains(text(), "Diameter")]]/td | //div[@id="Measurements"]/text()[contains(., "Diameter")] | //div[@id="Measurements"]//text()[contains(., "Diameter")]
+  - name: length
+    xpath: //section[contains(@class, "productSpec")]//tr[th[contains(text(), "Dimensions")]]/td | //div[@id="Measurements"]/text()[contains(., "Length")] | //div[@id="Measurements"]//text()[contains(., "Length")]
+  - name: average_rating
+    xpath: //span[contains(@class, "reviewStars")]/@title | //span[contains(@class, "reviewStars")]/@data-starrating
+  - name: user_reviews
+    xpath: //div/@data-reviewscount
+  - name: pack_size
+    xpath: //section[contains(@class, 'details')]/h2 | //div[contains(@class, "Title")]/h1
+  - name: product_variations
+    xpath: //li[contains(@class, 'chipItem')][not(contains(@class, 'active'))]/following::script[@type='application/ld+json']
+    jq: .offers.url
+  - name: volume
+    xpath: //li/text()[contains(., "Litre capacity")]
+  - name: product_details
+    xpath: //div[contains(text(), "Delivered")] | //div[@id="ProductInformationList"]//text() | //section[contains(@class, "productSpec")]//tr[th[contains(text(), "Fabric")]]/td | //div[@id="Composition"]

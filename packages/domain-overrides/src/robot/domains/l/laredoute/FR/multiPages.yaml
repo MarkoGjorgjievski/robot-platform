@@ -1,0 +1,7 @@
+singleRecord: false
+regionsSelector: null
+recordSelector: null
+recordXPath: '//div[contains(@class,"pl-product-content")]'
+fields:
+  - name: 'productURL'
+    xpath: '//a/@href'

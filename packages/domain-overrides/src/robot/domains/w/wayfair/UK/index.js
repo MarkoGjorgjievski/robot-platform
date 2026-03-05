@@ -1,0 +1,53 @@
+module.exports = {
+  implements: 'robots/san-antonio',
+  parameterValues: {
+    resultsTarget: null,
+    country: 'UK',
+    loadedSelector: '',
+    waitForSelectorToLoad: '.Specifications-descriptionList',
+    noResultsXPath: '',
+    accessDeniedXPath: '//h1[contains(text(),"Blocked")] | //div[contains(@class,"captcha-container")]',
+    orderedSelectorsToClickOn: [
+      'button[data-enzyme-id="BannerAcceptAll"]',
+      '.ProductDetailInfoBlock-header-manu',
+      "div[data-enzyme-id='PriceBlock']",
+    ],
+    loadingTimeout: 60000,
+    URLTemplate: null,
+    zipcode: null,
+    storeID: null,
+    useGoto2: true,
+    schemaYAML: 'singlePage',
+    mergeType: 'APPEND',
+    maxScrolls: 3,
+    arrayOfInputFieldNamesToAdd: null,
+    enableAutoTable: true,
+    paginate: {
+      stopConditionSelectorOrXpath: null,
+      nestedPagination: {
+        nextDepthURLFieldName: null,
+        paginate: null,
+      },
+      nextLink: {
+        nextLinkSelectorOrXpath: null,
+        mutationSelectorOrXpath: null,
+        spinnerSelectorOrXpath: null,
+        nextLinkTimeout: null,
+        waitForXpath: null,
+      },
+      infiniteScroll: {
+        maxScrolls: null,
+        stopXPath: null,
+        waitTime: null,
+      },
+      openSearchDefinition: {
+        template: null,
+        pageStartNb: null,
+        indexOffset: null,
+        pageOffset: null,
+        pageIndexMultiplier: null,
+      },
+    },
+    domain: 'wayfair',
+  },
+};
