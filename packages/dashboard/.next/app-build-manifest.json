@@ -30,6 +30,26 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/domains/page.js"
+    ],
+    "/orgs/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/orgs/[id]/page.js"
+    ],
+    "/extractors/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/extractors/[id]/page.js"
+    ],
+    "/api/extractors/[id]/yaml/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/extractors/[id]/yaml/route.js"
+    ],
+    "/domains/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/domains/[id]/page.js"
     ]
   }
 }

@@ -1,5 +1,19 @@
 {
-  "node": {},
+  "node": {
+    "40ef92fe4868d1163cbf70d86c55de3cd71e71df70": {
+      "workers": {
+        "app/extractors/[id]/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fruns%2Factions.ts%22%2C%5B%7B%22id%22%3A%2240ef92fe4868d1163cbf70d86c55de3cd71e71df70%22%2C%22exportedName%22%3A%22createRun%22%2C%22filename%22%3A%22app%2Fruns%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/extractors/[id]/page": "rsc"
+      },
+      "filename": "app/runs/actions.ts",
+      "exportedName": "createRun"
+    }
+  },
   "edge": {},
   "encryptionKey": "VOaB7zq/rHKYOpp4qcJ1cNurVL3/vEdsLvi4uN3Iwlc="
 }

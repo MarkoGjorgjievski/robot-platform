@@ -1,7 +1,9 @@
 {
-  "/runs/[id]/page": "app/runs/[id]/page.js",
-  "/page": "app/page.js",
-  "/orgs/page": "app/orgs/page.js",
   "/domains/page": "app/domains/page.js",
-  "/extractors/page": "app/extractors/page.js"
+  "/orgs/page": "app/orgs/page.js",
+  "/page": "app/page.js",
+  "/domains/[id]/page": "app/domains/[id]/page.js",
+  "/extractors/page": "app/extractors/page.js",
+  "/orgs/[id]/page": "app/orgs/[id]/page.js",
+  "/extractors/[id]/page": "app/extractors/[id]/page.js"
 }
