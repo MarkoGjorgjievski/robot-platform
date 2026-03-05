@@ -1,0 +1,9 @@
+{
+  "/orgs/page": "app/orgs/page.js",
+  "/domains/page": "app/domains/page.js",
+  "/domains/new/page": "app/domains/new/page.js",
+  "/extractors/page": "app/extractors/page.js",
+  "/orgs/[id]/page": "app/orgs/[id]/page.js",
+  "/extractors/[id]/page": "app/extractors/[id]/page.js",
+  "/runs/[id]/page": "app/runs/[id]/page.js"
+}

@@ -1,0 +1,107 @@
+{
+  "node": {
+    "404e8b3b3194736c6a31b07a9fdc5fefabf34c1cb8": {
+      "workers": {
+        "app/extractors/[id]/edit/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fextractors%2Factions.ts%22%2C%5B%7B%22id%22%3A%22404e8b3b3194736c6a31b07a9fdc5fefabf34c1cb8%22%2C%22exportedName%22%3A%22createExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%2C%7B%22id%22%3A%2240dc9a57e1b89799435e31a1f46ad62804dbc65e30%22%2C%22exportedName%22%3A%22updateExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        },
+        "app/extractors/new/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fextractors%2Factions.ts%22%2C%5B%7B%22id%22%3A%22404e8b3b3194736c6a31b07a9fdc5fefabf34c1cb8%22%2C%22exportedName%22%3A%22createExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%2C%7B%22id%22%3A%2240dc9a57e1b89799435e31a1f46ad62804dbc65e30%22%2C%22exportedName%22%3A%22updateExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/extractors/[id]/edit/page": "rsc",
+        "app/extractors/new/page": "rsc"
+      },
+      "filename": "app/extractors/actions.ts",
+      "exportedName": "createExtractor"
+    },
+    "40dc9a57e1b89799435e31a1f46ad62804dbc65e30": {
+      "workers": {
+        "app/extractors/[id]/edit/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fextractors%2Factions.ts%22%2C%5B%7B%22id%22%3A%22404e8b3b3194736c6a31b07a9fdc5fefabf34c1cb8%22%2C%22exportedName%22%3A%22createExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%2C%7B%22id%22%3A%2240dc9a57e1b89799435e31a1f46ad62804dbc65e30%22%2C%22exportedName%22%3A%22updateExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        },
+        "app/extractors/new/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fextractors%2Factions.ts%22%2C%5B%7B%22id%22%3A%22404e8b3b3194736c6a31b07a9fdc5fefabf34c1cb8%22%2C%22exportedName%22%3A%22createExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%2C%7B%22id%22%3A%2240dc9a57e1b89799435e31a1f46ad62804dbc65e30%22%2C%22exportedName%22%3A%22updateExtractor%22%2C%22filename%22%3A%22app%2Fextractors%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/extractors/[id]/edit/page": "rsc",
+        "app/extractors/new/page": "rsc"
+      },
+      "filename": "app/extractors/actions.ts",
+      "exportedName": "updateExtractor"
+    },
+    "40146adeab843de163635ba0cfefc9540c10b18c65": {
+      "workers": {
+        "app/domains/new/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fdomains%2Factions.ts%22%2C%5B%7B%22id%22%3A%2240146adeab843de163635ba0cfefc9540c10b18c65%22%2C%22exportedName%22%3A%22createDomain%22%2C%22filename%22%3A%22app%2Fdomains%2Factions.ts%22%7D%2C%7B%22id%22%3A%22407868b11dd4cd8cfc829b320a8364ae22f4de1389%22%2C%22exportedName%22%3A%22updateDomain%22%2C%22filename%22%3A%22app%2Fdomains%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/domains/new/page": "rsc"
+      },
+      "filename": "app/domains/actions.ts",
+      "exportedName": "createDomain"
+    },
+    "407868b11dd4cd8cfc829b320a8364ae22f4de1389": {
+      "workers": {
+        "app/domains/new/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fdomains%2Factions.ts%22%2C%5B%7B%22id%22%3A%2240146adeab843de163635ba0cfefc9540c10b18c65%22%2C%22exportedName%22%3A%22createDomain%22%2C%22filename%22%3A%22app%2Fdomains%2Factions.ts%22%7D%2C%7B%22id%22%3A%22407868b11dd4cd8cfc829b320a8364ae22f4de1389%22%2C%22exportedName%22%3A%22updateDomain%22%2C%22filename%22%3A%22app%2Fdomains%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/domains/new/page": "rsc"
+      },
+      "filename": "app/domains/actions.ts",
+      "exportedName": "updateDomain"
+    },
+    "4006d1f16f8ac451679fed956223ea2afb0db10bc1": {
+      "workers": {
+        "app/orgs/new/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Forgs%2Factions.ts%22%2C%5B%7B%22id%22%3A%224006d1f16f8ac451679fed956223ea2afb0db10bc1%22%2C%22exportedName%22%3A%22createOrg%22%2C%22filename%22%3A%22app%2Forgs%2Factions.ts%22%7D%2C%7B%22id%22%3A%22408ec1358408a80cd8400818c19a62d0bc8f61e160%22%2C%22exportedName%22%3A%22updateOrg%22%2C%22filename%22%3A%22app%2Forgs%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/orgs/new/page": "rsc"
+      },
+      "filename": "app/orgs/actions.ts",
+      "exportedName": "createOrg"
+    },
+    "408ec1358408a80cd8400818c19a62d0bc8f61e160": {
+      "workers": {
+        "app/orgs/new/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Forgs%2Factions.ts%22%2C%5B%7B%22id%22%3A%224006d1f16f8ac451679fed956223ea2afb0db10bc1%22%2C%22exportedName%22%3A%22createOrg%22%2C%22filename%22%3A%22app%2Forgs%2Factions.ts%22%7D%2C%7B%22id%22%3A%22408ec1358408a80cd8400818c19a62d0bc8f61e160%22%2C%22exportedName%22%3A%22updateOrg%22%2C%22filename%22%3A%22app%2Forgs%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/orgs/new/page": "rsc"
+      },
+      "filename": "app/orgs/actions.ts",
+      "exportedName": "updateOrg"
+    },
+    "40ef92fe4868d1163cbf70d86c55de3cd71e71df70": {
+      "workers": {
+        "app/extractors/[id]/page": {
+          "moduleId": "(rsc)/../../node_modules/.pnpm/next@15.5.12_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fmarko%2FDocuments%2Frobot-platform%2Fpackages%2Fdashboard%2Fsrc%2Fapp%2Fruns%2Factions.ts%22%2C%5B%7B%22id%22%3A%2240ef92fe4868d1163cbf70d86c55de3cd71e71df70%22%2C%22exportedName%22%3A%22createRun%22%2C%22filename%22%3A%22app%2Fruns%2Factions.ts%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/extractors/[id]/page": "rsc"
+      },
+      "filename": "app/runs/actions.ts",
+      "exportedName": "createRun"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "VOaB7zq/rHKYOpp4qcJ1cNurVL3/vEdsLvi4uN3Iwlc="
+}
