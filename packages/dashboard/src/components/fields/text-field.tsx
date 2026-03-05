@@ -37,7 +37,7 @@ export function TextField({ name, label, description, value, defaultValue, onCha
         placeholder={defaultValue ?? ""}
         onChange={(e) => {
           const v = e.target.value;
-          onChange(v === "" && defaultValue === "" ? undefined : v);
+          onChange(v === "" ? undefined : v);
         }}
         className={monospace ? "font-mono text-xs" : undefined}
       />
