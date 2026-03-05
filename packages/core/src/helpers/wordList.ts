@@ -1,5 +1,5 @@
-module.exports.wordList = class {
-  static stringWords = {
+export class wordList {
+  static stringWords: { allWords: Record<string, number> } = {
     // eslint-disable-next-line sonarjs/no-nested-template-literals
     allWords: JSON.parse(`{${`"Dom":27
     "Rambling":27
@@ -2002,11 +2002,11 @@ module.exports.wordList = class {
     "32LK610BPUA":27`.split('\n').map(w => w.trim()).filter(w => w).join(',')}}`),
   };
 
-  static frequencies = Object.values(this.stringWords.allWords);
+  static frequencies: number[] = Object.values(this.stringWords.allWords);
 
-  static list = Object.keys(this.stringWords.allWords);
+  static list: string[] = Object.keys(this.stringWords.allWords);
 
-  static cumulFrequency = this.frequencies.reduce((acc, elem, index) => {
+  static cumulFrequency: number[] = this.frequencies.reduce((acc, elem, index) => {
     acc.push(index === 0 ? elem : acc[index - 1] + elem);
     return acc;
   }, []);

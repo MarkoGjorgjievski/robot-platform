@@ -1,4 +1,4 @@
-const { implementation } = require('../parseURL.js');
+const { implementation } = require('../parseURL');
 
 describe('parseURL', () => {
   const mockCustomImplementation = vi.fn();

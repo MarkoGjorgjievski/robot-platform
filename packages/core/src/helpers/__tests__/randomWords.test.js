@@ -1,5 +1,5 @@
-const { Randomizer } = require('../randomWords.js');
-const { wordList } = require('../wordList.js');
+const { Randomizer } = require('../randomWords');
+const { wordList } = require('../wordList');
 
 describe('Randomizer', () => {
   describe('boxMuller', () => {

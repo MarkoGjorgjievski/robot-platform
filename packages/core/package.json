@@ -12,6 +12,7 @@
     "yaml": "^2.4.2"
   },
   "devDependencies": {
+    "@types/node": "^25.3.3",
     "vitest": "^3.0.0"
   }
 }

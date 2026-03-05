@@ -1,4 +1,4 @@
-const { DataModifier } = require('../data.js');
+const { DataModifier } = require('../data');
 
 // Helper to build a data structure matching the expected shape:
 // data = [{ group: [ { fieldName: [{ text, xpath?, ... }] } ] }]

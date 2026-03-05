@@ -14,14 +14,19 @@ dependencies: {
 
 */
 
-module.exports.Randomizer = class {
+interface WordObj {
+  list: string[];
+  cumulFrequency: number[];
+}
+
+export class Randomizer {
   static maxWordCount = 24;
 
   static minWordCount = 4;
 
   static skewWordCount = 0.9;
 
-  static boxMuller(minimum, maximum, skewness) {
+  static boxMuller(minimum?: number, maximum?: number, skewness?: number): number {
     const min = minimum || this.minWordCount;
     const max = maximum || this.maxWordCount;
     const skew = skewness || this.skewWordCount;
@@ -42,10 +47,10 @@ module.exports.Randomizer = class {
   }
 
   // Utility function to find index of {random} in array[start..end]
-  static findRandomInPrefixArray(arr, random, start, end) {
+  static findRandomInPrefixArray(arr: number[], random: number, start: number, end: number): number {
     let newStart = start;
     let newEnd = end;
-    let mid;
+    let mid: number;
     while (newStart < newEnd) {
       mid = Math.floor((newStart + newEnd) / 2);
       if (random > arr[mid]) {
@@ -59,7 +64,7 @@ module.exports.Randomizer = class {
 
   // Utility which returns a random item from array[]
   // according to distribution array defined by frequency[].
-  static getWord = (array, cumul) => {
+  static getWord = (array: string[], cumul: number[]): string => {
     const size = array.length;
 
     // Generate a random number with
@@ -71,9 +76,9 @@ module.exports.Randomizer = class {
     return array[index];
   };
 
-  static generateSlug(wordObj) {
+  static generateSlug(wordObj: WordObj): string {
     const randomWordCount = this.boxMuller();
     const strn = [...Array(randomWordCount - 1).fill('-'), ''];
-    return strn.reduce((acc, delim) => `${acc}${this.getWord(wordObj.list, wordObj.cumulFrequency)}${delim}`, '');
+    return strn.reduce((acc: string, delim: string) => `${acc}${this.getWord(wordObj.list, wordObj.cumulFrequency)}${delim}`, '');
   }
-};
+}
