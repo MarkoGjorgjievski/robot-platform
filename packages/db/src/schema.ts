@@ -109,6 +109,7 @@ export const robotOverrides = pgTable('robot_overrides', {
   hasExtract: boolean('has_extract').default(false).notNull(),
   hasTransform: boolean('has_transform').default(false).notNull(),
   schemas: jsonb('schemas'),
+  jsOverrides: jsonb('js_overrides'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [

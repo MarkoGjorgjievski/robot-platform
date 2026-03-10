@@ -1,6 +1,6 @@
 "use client";
 
-import type { FieldDefinition } from "@robot/config";
+import type { FieldDefinition } from "@robot/config/parameters";
 import { TextField } from "./text-field";
 import { NumberField } from "./number-field";
 import { CheckboxField } from "./checkbox-field";
