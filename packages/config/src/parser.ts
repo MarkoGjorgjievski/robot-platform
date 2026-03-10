@@ -119,6 +119,68 @@ async function parseExtractorDir(
   };
 }
 
+export type ParsedDomainFiles = {
+  schemas: Record<string, unknown>;
+  jsOverrides: Record<string, string>;
+  parameterOverrides: Record<string, unknown>;
+  hasGoto2: boolean;
+  hasBeforeExtract: boolean;
+  hasExtract: boolean;
+  hasTransform: boolean;
+};
+
+/**
+ * Parse a domain directory (e.g. san-antonio/domains/a/amazon/US/) for schemas and JS overrides.
+ */
+export async function parseDomainFiles(domainDir: string): Promise<ParsedDomainFiles> {
+  const schemas: Record<string, unknown> = {};
+  const jsOverrides: Record<string, string> = {};
+  let parameterOverrides: Record<string, unknown> = {};
+
+  const entries = await safeReaddir(domainDir);
+
+  for (const entry of entries) {
+    const filePath = join(domainDir, entry);
+    if (await isDirectory(filePath)) continue;
+
+    if (entry.endsWith('.yaml')) {
+      const name = entry.replace('.yaml', '');
+      const content = await readYAMLFile(filePath);
+      if (content) schemas[name] = content;
+    } else if (entry.endsWith('.js') && !entry.startsWith('.')) {
+      try {
+        const src = await readFile(filePath, 'utf-8');
+        const name = entry.replace('.js', '');
+        jsOverrides[name] = src;
+
+        // Extract parameterValues from index.js
+        if (entry === 'index.js') {
+          const match = src.match(/parameterValues\s*:\s*\{/);
+          if (match) {
+            try {
+              const mod = await import(filePath);
+              const values = mod?.default?.parameterValues ?? mod?.parameterValues;
+              if (values && typeof values === 'object') {
+                parameterOverrides = values;
+              }
+            } catch { /* skip if can't import */ }
+          }
+        }
+      } catch { /* skip unreadable */ }
+    }
+  }
+
+  return {
+    schemas,
+    jsOverrides,
+    parameterOverrides,
+    hasGoto2: 'goto2' in jsOverrides,
+    hasBeforeExtract: 'beforeExtract' in jsOverrides,
+    hasExtract: 'extract' in jsOverrides,
+    hasTransform: 'transform' in jsOverrides,
+  };
+}
+
 /**
  * Parse the entire src/orgs/ directory structure into ParsedExtractor objects.
  * Structure: orgs/{org}/domains/{letter}/{domain}/{country}/{robot}/{variant}/

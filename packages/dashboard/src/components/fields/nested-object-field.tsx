@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ChevronDownIcon } from "lucide-react";
 import { FieldRenderer } from "./field-renderer";
-import type { FieldDefinition } from "@robot/config";
+import type { FieldDefinition } from "@robot/config/parameters";
 
 interface NestedObjectFieldProps {
   name: string;

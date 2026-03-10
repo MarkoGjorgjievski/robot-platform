@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ParameterForm } from "@/components/parameter-form";
-import { PARAMETER_DEFINITIONS, PARAMETER_GROUPS } from "@robot/config";
+import { PARAMETER_DEFINITIONS, PARAMETER_GROUPS } from "@robot/config/parameters";
 
 type Props = {
   orgs: { id: string; name: string }[];

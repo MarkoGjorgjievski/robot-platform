@@ -5,6 +5,7 @@ import { domainsRouter } from './domains';
 import { inputsRouter } from './inputs';
 import { credentialsRouter } from './credentials';
 import { runsRouter } from './runs';
+import { overridesRouter } from './overrides';
 
 export const appRouter = router({
   orgs: orgsRouter,
@@ -13,6 +14,7 @@ export const appRouter = router({
   inputs: inputsRouter,
   credentials: credentialsRouter,
   runs: runsRouter,
+  overrides: overridesRouter,
 });
 
 export type AppRouter = typeof appRouter;

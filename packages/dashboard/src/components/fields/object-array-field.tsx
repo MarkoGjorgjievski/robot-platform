@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { FieldRenderer } from "./field-renderer";
-import type { FieldDefinition } from "@robot/config";
+import type { FieldDefinition } from "@robot/config/parameters";
 
 interface ObjectArrayFieldProps {
   name: string;
