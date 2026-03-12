@@ -1,8 +1,6 @@
 "use client";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { RotateCcwIcon } from "lucide-react";
 
 interface SelectFieldProps {
   name: string;
@@ -19,40 +17,34 @@ export function SelectField({ name, label, description, value, defaultValue, opt
   const displayValue = value ?? defaultValue ?? "";
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label htmlFor={name}>{label}</Label>
-        {isOverridden ? (
-          <Badge variant="default" className="text-[10px] px-1.5 py-0">overridden</Badge>
-        ) : value !== undefined ? (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">inherited</Badge>
-        ) : null}
-      </div>
-      <Select
-        value={displayValue}
-        onValueChange={(v) => {
-          onChange(v === defaultValue ? undefined : v);
-        }}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder={defaultValue ?? "Select..."} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((opt) => (
-            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="ws-field-row" data-overridden={isOverridden}>
       {isOverridden && (
         <button
           type="button"
+          className="ws-field-reset"
           onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          title="Reset to default"
         >
-          Reset to default
+          <RotateCcwIcon className="size-2.5" />
         </button>
       )}
-      <p className="text-xs text-muted-foreground">{description}</p>
+      <label className="ws-field-label" title={description} htmlFor={name}>
+        {label}
+      </label>
+      <select
+        id={name}
+        value={displayValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === defaultValue ? undefined : v);
+        }}
+        className="w-full rounded px-2 py-1"
+      >
+        <option value="">{defaultValue ? `${defaultValue} (default)` : "Select..."}</option>
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
     </div>
   );
 }

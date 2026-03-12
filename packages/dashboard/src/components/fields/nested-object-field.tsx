@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 import { FieldRenderer } from "./field-renderer";
 import type { FieldDefinition } from "@robot/config/parameters";
 
@@ -26,20 +22,36 @@ export function NestedObjectField({ name, label, description, value, defaultValu
   const defaults = defaultValue ?? {};
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="flex items-center gap-2">
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="icon-xs">
-            <ChevronDownIcon className={`transition-transform ${open ? "rotate-180" : ""}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <Label>{label}</Label>
-        {isOverridden ? (
-          <Badge variant="default" className="text-[10px] px-1.5 py-0">overridden</Badge>
-        ) : null}
+    <div style={{ borderBottom: '1px solid var(--ws-border-subtle)' }}>
+      {/* Header row */}
+      <div
+        className="ws-field-row"
+        data-overridden={isOverridden}
+        style={{ cursor: 'pointer', borderBottom: open ? '1px solid var(--ws-border-subtle)' : undefined }}
+        onClick={() => setOpen(!open)}
+      >
+        {isOverridden && (
+          <button
+            type="button"
+            className="ws-field-reset"
+            onClick={(e) => { e.stopPropagation(); onChange(undefined); }}
+            title="Reset to default"
+          >
+            <RotateCcwIcon className="size-2.5" />
+          </button>
+        )}
+        <label className="ws-field-label flex items-center gap-1" title={description}>
+          {open ? <ChevronDownIcon className="size-3 shrink-0" /> : <ChevronRightIcon className="size-3 shrink-0" />}
+          {label}
+        </label>
+        <span className="ws-badge ws-badge-gray" style={{ justifySelf: 'start', marginTop: 3 }}>
+          object
+        </span>
       </div>
-      <CollapsibleContent>
-        <div className="ml-4 border-l pl-4 pt-2 space-y-3">
+
+      {/* Nested fields */}
+      {open && (
+        <div style={{ paddingLeft: 8, background: 'var(--ws-surface-raised)' }}>
           {fields.map((field) => (
             <FieldRenderer
               key={field.name}
@@ -55,17 +67,7 @@ export function NestedObjectField({ name, label, description, value, defaultValu
             />
           ))}
         </div>
-      </CollapsibleContent>
-      {isOverridden && (
-        <button
-          type="button"
-          onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground ml-7"
-        >
-          Reset to default
-        </button>
       )}
-      <p className="text-xs text-muted-foreground ml-7">{description}</p>
-    </Collapsible>
+    </div>
   );
 }

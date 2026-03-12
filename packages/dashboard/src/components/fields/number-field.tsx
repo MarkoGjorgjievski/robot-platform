@@ -1,8 +1,6 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { RotateCcwIcon } from "lucide-react";
 
 interface NumberFieldProps {
   name: string;
@@ -18,17 +16,22 @@ export function NumberField({ name, label, description, value, defaultValue, onC
   const isOverridden = value !== undefined && value !== defaultValue;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label htmlFor={name}>{label}</Label>
-        {isOverridden ? (
-          <Badge variant="default" className="text-[10px] px-1.5 py-0">overridden</Badge>
-        ) : value !== undefined ? (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">inherited</Badge>
-        ) : null}
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
+    <div className="ws-field-row" data-overridden={isOverridden}>
+      {isOverridden && (
+        <button
+          type="button"
+          className="ws-field-reset"
+          onClick={() => onChange(undefined)}
+          title="Reset to default"
+        >
+          <RotateCcwIcon className="size-2.5" />
+        </button>
+      )}
+      <label className="ws-field-label" title={description} htmlFor={name}>
+        {label}
+      </label>
+      <div className="flex items-center gap-1.5">
+        <input
           id={name}
           type="number"
           value={value ?? ""}
@@ -38,19 +41,14 @@ export function NumberField({ name, label, description, value, defaultValue, onC
             const num = Number(v);
             onChange(v === "" || Number.isNaN(num) ? undefined : num);
           }}
+          className="w-full rounded px-2 py-1"
         />
-        {suffix && <span className="text-sm text-muted-foreground">{suffix}</span>}
+        {suffix && (
+          <span className="shrink-0 text-[0.6rem]" style={{ color: 'var(--ws-text-dim)' }}>
+            {suffix}
+          </span>
+        )}
       </div>
-      {isOverridden && (
-        <button
-          type="button"
-          onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          Reset to default
-        </button>
-      )}
-      <p className="text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }
