@@ -1,9 +1,6 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { RotateCcwIcon } from "lucide-react";
 
 interface TextFieldProps {
   name: string;
@@ -16,41 +13,49 @@ interface TextFieldProps {
   monospace?: boolean;
 }
 
-export function TextField({ name, label, description, value, defaultValue, onChange, multiline, monospace }: TextFieldProps) {
+export function TextField({ name, label, description, value, defaultValue, onChange, multiline }: TextFieldProps) {
   const isOverridden = value !== undefined && value !== defaultValue;
   const displayValue = value ?? "";
-  const Comp = multiline ? Textarea : Input;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label htmlFor={name}>{label}</Label>
-        {isOverridden ? (
-          <Badge variant="default" className="text-[10px] px-1.5 py-0">overridden</Badge>
-        ) : value !== undefined ? (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">inherited</Badge>
-        ) : null}
-      </div>
-      <Comp
-        id={name}
-        value={displayValue}
-        placeholder={defaultValue ?? ""}
-        onChange={(e) => {
-          const v = e.target.value;
-          onChange(v === "" ? undefined : v);
-        }}
-        className={monospace ? "font-mono text-xs" : undefined}
-      />
+    <div className="ws-field-row" data-overridden={isOverridden}>
       {isOverridden && (
         <button
           type="button"
+          className="ws-field-reset"
           onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          title="Reset to default"
         >
-          Reset to default
+          <RotateCcwIcon className="size-2.5" />
         </button>
       )}
-      <p className="text-xs text-muted-foreground">{description}</p>
+      <label className="ws-field-label" title={description} htmlFor={name}>
+        {label}
+      </label>
+      {multiline ? (
+        <textarea
+          id={name}
+          value={displayValue}
+          placeholder={defaultValue ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange(v === "" ? undefined : v);
+          }}
+          rows={2}
+          className="w-full resize-y rounded px-2 py-1"
+        />
+      ) : (
+        <input
+          id={name}
+          value={displayValue}
+          placeholder={defaultValue ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange(v === "" ? undefined : v);
+          }}
+          className="w-full rounded px-2 py-1"
+        />
+      )}
     </div>
   );
 }

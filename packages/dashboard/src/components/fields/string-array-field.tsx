@@ -1,10 +1,6 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon, RotateCcwIcon } from "lucide-react";
 
 interface StringArrayFieldProps {
   name: string;
@@ -21,57 +17,57 @@ export function StringArrayField({ name, label, description, value, defaultValue
   const isOverridden = value !== undefined;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label>{label}</Label>
-        {isOverridden ? (
-          <Badge variant="default" className="text-[10px] px-1.5 py-0">overridden</Badge>
-        ) : null}
-      </div>
-      <div className="space-y-1.5">
+    <div className="ws-field-row" data-overridden={isOverridden} style={{ alignItems: 'start' }}>
+      {isOverridden && (
+        <button
+          type="button"
+          className="ws-field-reset"
+          onClick={() => onChange(undefined)}
+          title="Reset to default"
+        >
+          <RotateCcwIcon className="size-2.5" />
+        </button>
+      )}
+      <label className="ws-field-label" title={description}>
+        {label}
+        <span className="ml-1 text-[0.55rem]" style={{ color: 'var(--ws-text-dim)' }}>
+          [{items.length}]
+        </span>
+      </label>
+      <div className="space-y-1">
         {items.map((item, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <Input
+          <div key={i} className="flex items-center gap-1">
+            <input
               value={item}
               onChange={(e) => {
                 const next = [...items];
                 next[i] = e.target.value;
                 onChange(next);
               }}
-              className={monospace ? "font-mono text-xs" : undefined}
+              className="w-full rounded px-2 py-1"
             />
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon-xs"
               onClick={() => {
                 const next = items.filter((_, j) => j !== i);
                 onChange(next.length === 0 && (!defaultValue || defaultValue.length === 0) ? undefined : next);
               }}
+              className="shrink-0 rounded p-0.5 transition-colors"
+              style={{ color: 'var(--ws-text-dim)' }}
             >
-              <XIcon /><span className="sr-only">Remove item</span>
-            </Button>
+              <XIcon className="size-3" />
+            </button>
           </div>
         ))}
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => onChange([...items, ""])}
-      >
-        <PlusIcon /> Add item
-      </Button>
-      {isOverridden && (
         <button
           type="button"
-          onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => onChange([...items, ""])}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.6rem] transition-colors"
+          style={{ color: 'var(--ws-text-muted)', background: 'var(--ws-surface-hover)' }}
         >
-          Reset to default
+          <PlusIcon className="size-2.5" /> Add
         </button>
-      )}
-      <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
     </div>
   );
 }

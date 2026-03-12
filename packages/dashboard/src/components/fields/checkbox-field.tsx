@@ -1,8 +1,6 @@
 "use client";
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { RotateCcwIcon } from "lucide-react";
 
 interface CheckboxFieldProps {
   name: string;
@@ -18,33 +16,44 @@ export function CheckboxField({ name, label, description, value, defaultValue, o
   const checked = value ?? defaultValue ?? false;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <Checkbox
-          id={name}
-          checked={checked}
-          onCheckedChange={(c) => {
-            const boolVal = c === true;
-            onChange(boolVal === defaultValue ? undefined : boolVal);
-          }}
-        />
-        <Label htmlFor={name} className="cursor-pointer">{label}</Label>
-        {isOverridden ? (
-          <Badge variant="default" className="text-[10px] px-1.5 py-0">overridden</Badge>
-        ) : value !== undefined ? (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">inherited</Badge>
-        ) : null}
-      </div>
+    <div className="ws-field-row" data-overridden={isOverridden}>
       {isOverridden && (
         <button
           type="button"
+          className="ws-field-reset"
           onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          title="Reset to default"
         >
-          Reset to default
+          <RotateCcwIcon className="size-2.5" />
         </button>
       )}
-      <p className="text-xs text-muted-foreground">{description}</p>
+      <label className="ws-field-label" title={description} htmlFor={name}>
+        {label}
+      </label>
+      <div className="flex items-center py-1">
+        <button
+          id={name}
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          onClick={() => {
+            const next = !checked;
+            onChange(next === defaultValue ? undefined : next);
+          }}
+          className="relative h-4 w-7 rounded-full transition-colors"
+          style={{
+            background: checked ? 'var(--ws-accent)' : 'var(--ws-surface-hover)',
+          }}
+        >
+          <span
+            className="absolute top-0.5 left-0.5 h-3 w-3 rounded-full transition-transform"
+            style={{
+              background: '#fff',
+              transform: checked ? 'translateX(12px)' : 'translateX(0)',
+            }}
+          />
+        </button>
+      </div>
     </div>
   );
 }
