@@ -1,12 +1,7 @@
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { JetBrains_Mono } from 'next/font/google';
 import { Sidebar } from '@/components/sidebar';
 import './globals.css';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-});
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -24,10 +19,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
+    <html lang="en" className="dark">
+      <body
+        className={`${jetbrainsMono.variable} workspace antialiased`}
+        style={{ fontFamily: "var(--font-mono), 'JetBrains Mono', monospace" }}
+      >
         <Sidebar />
-        <main className="ml-64 min-h-screen bg-gray-50 p-8">
+        <main className="ml-12 min-h-screen p-6" style={{ background: 'var(--ws-bg)', color: 'var(--ws-text)' }}>
           {children}
         </main>
       </body>

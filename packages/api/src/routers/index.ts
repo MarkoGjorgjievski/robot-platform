@@ -1,5 +1,8 @@
 import { router } from '../trpc';
 import { orgsRouter } from './orgs';
+import { projectsRouter } from './projects';
+import { collectionsRouter } from './collections';
+import { sourcesRouter } from './sources';
 import { extractorsRouter } from './extractors';
 import { domainsRouter } from './domains';
 import { inputsRouter } from './inputs';
@@ -9,6 +12,9 @@ import { overridesRouter } from './overrides';
 
 export const appRouter = router({
   orgs: orgsRouter,
+  projects: projectsRouter,
+  collections: collectionsRouter,
+  sources: sourcesRouter,
   extractors: extractorsRouter,
   domains: domainsRouter,
   inputs: inputsRouter,

@@ -20,7 +20,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { ChevronDownIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { updateSchema } from "@/app/extractors/actions";
+import { updateSchema } from "@/app/legacy/extractors/actions";
 
 interface SchemaField {
   name: string;

@@ -14,6 +14,81 @@ export const orgs = pgTable('orgs', {
 
 export const orgsRelations = relations(orgs, ({ many }) => ({
   extractors: many(extractors),
+  projects: many(projects),
+}));
+
+// ─── Projects ───────────────────────────────────────────────────────────────
+
+export const projects = pgTable('projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('projects_org_id_idx').on(table.orgId),
+  uniqueIndex('projects_org_slug_idx').on(table.orgId, table.slug),
+]);
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  org: one(orgs, { fields: [projects.orgId], references: [orgs.id] }),
+  collections: many(collections),
+}));
+
+// ─── Collections ────────────────────────────────────────────────────────────
+
+export const collections = pgTable('collections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull(),
+  description: text('description'),
+  schema: jsonb('schema'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('collections_project_id_idx').on(table.projectId),
+  uniqueIndex('collections_project_slug_idx').on(table.projectId, table.slug),
+]);
+
+export const collectionsRelations = relations(collections, ({ one, many }) => ({
+  project: one(projects, { fields: [collections.projectId], references: [projects.id] }),
+  sources: many(sources),
+}));
+
+// ─── Sources (new extractors) ───────────────────────────────────────────────
+
+export const sources = pgTable('sources', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  collectionId: uuid('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  domainId: uuid('domain_id').references(() => domains.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  slug: varchar('slug', { length: 255 }).notNull(),
+  country: varchar('country', { length: 10 }).notNull(),
+  locale: varchar('locale', { length: 10 }),
+  currency: varchar('currency', { length: 10 }),
+  dataCenter: varchar('data_center', { length: 10 }),
+  proxyType: varchar('proxy_type', { length: 50 }),
+  loginPool: varchar('login_pool', { length: 100 }),
+  maximumInputs: integer('maximum_inputs'),
+  domain: varchar('domain', { length: 50 }),
+  robotTemplate: varchar('robot_template', { length: 255 }).notNull().default('robots/san-antonio'),
+  variant: varchar('variant', { length: 50 }).notNull().default('default'),
+  parameters: jsonb('parameters').notNull().default({}),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('sources_collection_id_idx').on(table.collectionId),
+  index('sources_domain_id_idx').on(table.domainId),
+  uniqueIndex('sources_collection_slug_idx').on(table.collectionId, table.slug),
+]);
+
+export const sourcesRelations = relations(sources, ({ one }) => ({
+  collection: one(collections, { fields: [sources.collectionId], references: [collections.id] }),
+  domain: one(domains, { fields: [sources.domainId], references: [domains.id] }),
 }));
 
 // ─── Domains ─────────────────────────────────────────────────────────────────
