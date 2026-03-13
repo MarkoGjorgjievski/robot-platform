@@ -9,7 +9,7 @@ import {
   RotateCcwIcon,
   SearchIcon,
 } from "lucide-react";
-import { updateSchema } from "@/app/extractors/actions";
+import { updateSchema } from "@/app/legacy/extractors/actions";
 
 interface SchemaField {
   name: string;

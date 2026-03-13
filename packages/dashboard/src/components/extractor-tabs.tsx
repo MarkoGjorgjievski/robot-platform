@@ -4,7 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ExtractorForm } from "@/components/extractor-form";
 import { SchemaEditor } from "@/components/schema-editor";
 import { CodeViewer } from "@/components/code-viewer";
-import { updateExtractor } from "@/app/extractors/actions";
+import { updateExtractor } from "@/app/legacy/extractors/actions";
 
 interface ExtractorTabsProps {
   extractor: {

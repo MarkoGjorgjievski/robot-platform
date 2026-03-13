@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { FieldRenderer } from "@/components/fields";
 import { CodeEditor } from "./code-editor";
-import { updateExtractor } from "@/app/extractors/actions";
+import { updateExtractor } from "@/app/legacy/extractors/actions";
 import type { FieldDefinition } from "@robot/config/parameters";
 import { PARAMETER_DEFINITIONS, PARAMETER_GROUPS } from "@robot/config/parameters";
 import { GOTO2_DEFINITIONS, GOTO2_GROUPS } from "@robot/config/goto2";
