@@ -1,7 +1,6 @@
 import { api } from '@/trpc/server';
 import { notFound } from 'next/navigation';
 import { SourcesLayout } from './sources-layout';
-import { createSource } from './actions';
 
 export default async function SourcesPage({
   params,
@@ -36,11 +35,5 @@ export default async function SourcesPage({
     updatedAt: s.updatedAt,
   }));
 
-  return (
-    <SourcesLayout
-      items={items}
-      collectionId={collection.id}
-      onSubmit={createSource}
-    />
-  );
+  return <SourcesLayout items={items} />;
 }
