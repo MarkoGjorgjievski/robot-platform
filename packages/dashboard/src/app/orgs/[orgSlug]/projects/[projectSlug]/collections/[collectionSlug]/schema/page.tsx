@@ -33,7 +33,7 @@ export default async function SchemaPage({
     : [];
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       {schemaFields.length === 0 && (
         <div
           className="mb-4 flex items-center gap-2 rounded px-3 py-2"

@@ -1,7 +1,8 @@
 import { api } from "@/trpc/server";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { CollectionTabs } from "./collection-tabs";
+import { CollectionShell } from "./collection-shell";
+import { createSource } from "./sources/actions";
 
 export default async function CollectionLayout({
   params,
@@ -17,11 +18,33 @@ export default async function CollectionLayout({
     .catch(() => null);
   if (!collection) notFound();
 
+  const sourcesData = await api.sources
+    .listByCollection({ collectionId: collection.id })
+    .catch(() => []);
+
   const hasSchema = Array.isArray(collection.schema) && collection.schema.length > 0;
   const basePath = `/orgs/${orgSlug}/projects/${projectSlug}/collections/${collectionSlug}`;
+  const sourcesBasePath = `${basePath}/sources`;
 
-  return (
-    <div>
+  const sources = sourcesData.map((s) => ({
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    href: `${sourcesBasePath}/${s.slug}`,
+    country: s.country,
+    locale: s.locale,
+    currency: s.currency,
+    domain: s.domain,
+    dataCenter: s.dataCenter,
+    proxyType: s.proxyType,
+    loginPool: s.loginPool,
+    maximumInputs: s.maximumInputs,
+    isActive: s.isActive,
+    updatedAt: s.updatedAt,
+  }));
+
+  const header = (
+    <>
       <Breadcrumbs
         items={[
           { label: "Organizations", href: "/orgs" },
@@ -43,10 +66,19 @@ export default async function CollectionLayout({
           </p>
         )}
       </div>
+    </>
+  );
 
-      <CollectionTabs basePath={basePath} hasSchema={hasSchema} />
-
+  return (
+    <CollectionShell
+      sources={sources}
+      collectionId={collection.id}
+      basePath={basePath}
+      hasSchema={hasSchema}
+      onCreateSource={createSource}
+      header={header}
+    >
       {children}
-    </div>
+    </CollectionShell>
   );
 }
