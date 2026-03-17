@@ -13,8 +13,18 @@ export async function createSource(data: {
   proxyType?: string | null;
   loginPool?: string | null;
   maximumInputs?: number | null;
-  domain?: string | null;
+  runnerFramework?: string | null;
+  domainId?: string | null;
+  variant?: string;
+  robotTemplate?: string;
+  schemaValues?: Record<string, string>;
 }): Promise<{ slug: string }> {
   const source = await api.sources.create(data);
   return { slug: source.slug };
+}
+
+export async function createDomain(name: string): Promise<{ id: string; name: string }> {
+  const prefix = name.charAt(0).toLowerCase();
+  const domain = await api.domains.create({ name, prefix });
+  return { id: domain.id, name: domain.name };
 }

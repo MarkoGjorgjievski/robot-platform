@@ -73,7 +73,8 @@ export const sources = pgTable('sources', {
   proxyType: varchar('proxy_type', { length: 50 }),
   loginPool: varchar('login_pool', { length: 100 }),
   maximumInputs: integer('maximum_inputs'),
-  domain: varchar('domain', { length: 50 }),
+  runnerFramework: varchar('runner_framework', { length: 50 }),
+  schemaValues: jsonb('schema_values').notNull().default({}),
   robotTemplate: varchar('robot_template', { length: 255 }).notNull().default('robots/san-antonio'),
   variant: varchar('variant', { length: 50 }).notNull().default('default'),
   parameters: jsonb('parameters').notNull().default({}),
@@ -86,9 +87,27 @@ export const sources = pgTable('sources', {
   uniqueIndex('sources_collection_slug_idx').on(table.collectionId, table.slug),
 ]);
 
-export const sourcesRelations = relations(sources, ({ one }) => ({
+export const sourcesRelations = relations(sources, ({ one, many }) => ({
   collection: one(collections, { fields: [sources.collectionId], references: [collections.id] }),
   domain: one(domains, { fields: [sources.domainId], references: [domains.id] }),
+  runs: many(runs),
+  inputs: many(sourceInputs),
+}));
+
+// ─── Source Inputs ────────────────────────────────────────────────────────────
+
+export const sourceInputs = pgTable('source_inputs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  label: varchar('label', { length: 255 }).notNull(),
+  inputData: jsonb('input_data').notNull().default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('source_inputs_source_id_idx').on(table.sourceId),
+]);
+
+export const sourceInputsRelations = relations(sourceInputs, ({ one }) => ({
+  source: one(sources, { fields: [sourceInputs.sourceId], references: [sources.id] }),
 }));
 
 // ─── Domains ─────────────────────────────────────────────────────────────────
@@ -199,22 +218,26 @@ export const robotOverridesRelations = relations(robotOverrides, ({ one }) => ({
 
 export const runs = pgTable('runs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  extractorId: uuid('extractor_id').notNull().references(() => extractors.id, { onDelete: 'cascade' }),
+  extractorId: uuid('extractor_id').references(() => extractors.id, { onDelete: 'cascade' }),
+  sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'cascade' }),
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   inputLabel: varchar('input_label', { length: 255 }),
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),
   resultCount: integer('result_count'),
   results: jsonb('results'),
+  html: text('html'),
   logs: text('logs'),
   videoUrl: text('video_url'),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   index('runs_extractor_id_idx').on(table.extractorId),
+  index('runs_source_id_idx').on(table.sourceId),
   index('runs_status_idx').on(table.status),
 ]);
 
 export const runsRelations = relations(runs, ({ one }) => ({
   extractor: one(extractors, { fields: [runs.extractorId], references: [extractors.id] }),
+  source: one(sources, { fields: [runs.sourceId], references: [sources.id] }),
 }));

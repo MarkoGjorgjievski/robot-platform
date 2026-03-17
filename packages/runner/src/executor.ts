@@ -1,6 +1,6 @@
 import { chromium, type Browser } from 'playwright';
 import { db } from '@robot/db';
-import { runs, extractors, extractorInputs } from '@robot/db/schema';
+import { runs, extractors, extractorInputs, sources, sourceInputs } from '@robot/db/schema';
 import { eq } from 'drizzle-orm';
 import { PlaywrightContext } from './context';
 import { RunLogger } from './logger';
@@ -23,40 +23,89 @@ export async function executeRun(runId: string): Promise<void> {
     });
     if (!run) throw new Error(`Run ${runId} not found`);
 
-    // Load extractor with domain info
-    const extractor = await db.query.extractors.findFirst({
-      where: eq(extractors.id, run.extractorId),
-      with: { domain: true, org: true },
-    });
-    if (!extractor) throw new Error(`Extractor ${run.extractorId} not found`);
+    // Load source or extractor
+    let params: Record<string, unknown> = {};
+    let entityLabel = '';
+    let entityId = '';
 
-    const params = (extractor.parameters ?? {}) as Record<string, unknown>;
-    logger.info(`Extractor: ${extractor.org.name}/${extractor.domain.name}/${extractor.country}/${extractor.variant}`);
+    if (run.sourceId) {
+      // Source-based run
+      const source = await db.query.sources.findFirst({
+        where: eq(sources.id, run.sourceId!),
+        with: { domain: true, collection: { with: { project: { with: { org: true } } } } },
+      });
+      if (!source) throw new Error(`Source ${run.sourceId!} not found`);
+
+      params = (source.parameters ?? {}) as Record<string, unknown>;
+      entityLabel = `${source.collection.project.org.name}/${source.domain?.name ?? 'unknown'}/${source.country}/${source.variant}`;
+      entityId = source.id;
+      logger.info(`Source: ${entityLabel}`);
+    } else if (run.extractorId) {
+      // Legacy extractor-based run
+      const extractor = await db.query.extractors.findFirst({
+        where: eq(extractors.id, run.extractorId!),
+        with: { domain: true, org: true },
+      });
+      if (!extractor) throw new Error(`Extractor ${run.extractorId!} not found`);
+
+      params = (extractor.parameters ?? {}) as Record<string, unknown>;
+      entityLabel = `${extractor.org.name}/${extractor.domain.name}/${extractor.country}/${extractor.variant}`;
+      entityId = extractor.id;
+      logger.info(`Extractor: ${entityLabel}`);
+    } else {
+      throw new Error(`Run ${runId} has no sourceId or extractorId`);
+    }
 
     // Load input data
     let inputData: Record<string, unknown> = {};
     if (run.inputLabel) {
-      const input = await db.query.extractorInputs.findFirst({
-        where: (t, { and, eq: e }) => and(
-          e(t.extractorId, extractor.id),
-          e(t.label, run.inputLabel!),
-        ),
-      });
-      if (input) {
-        inputData = (input.inputData ?? {}) as Record<string, unknown>;
-        logger.info(`Using input "${run.inputLabel}": ${JSON.stringify(inputData).slice(0, 200)}`);
+      if (run.sourceId) {
+        const input = await db.query.sourceInputs.findFirst({
+          where: (t, { and, eq: e }) => and(
+            e(t.sourceId, run.sourceId!),
+            e(t.label, run.inputLabel!),
+          ),
+        });
+        if (input) {
+          inputData = (input.inputData ?? {}) as Record<string, unknown>;
+          logger.info(`Using input "${run.inputLabel}": ${JSON.stringify(inputData).slice(0, 200)}`);
+        } else {
+          logger.warn(`Input "${run.inputLabel}" not found, running without input data`);
+        }
       } else {
-        logger.warn(`Input "${run.inputLabel}" not found, running without input data`);
+        const input = await db.query.extractorInputs.findFirst({
+          where: (t, { and, eq: e }) => and(
+            e(t.extractorId, entityId),
+            e(t.label, run.inputLabel!),
+          ),
+        });
+        if (input) {
+          inputData = (input.inputData ?? {}) as Record<string, unknown>;
+          logger.info(`Using input "${run.inputLabel}": ${JSON.stringify(inputData).slice(0, 200)}`);
+        } else {
+          logger.warn(`Input "${run.inputLabel}" not found, running without input data`);
+        }
       }
     } else {
       // Use first available input
-      const firstInput = await db.query.extractorInputs.findFirst({
-        where: eq(extractorInputs.extractorId, extractor.id),
-      });
-      if (firstInput) {
-        inputData = (firstInput.inputData ?? {}) as Record<string, unknown>;
-        await db.update(runs).set({ inputLabel: firstInput.label }).where(eq(runs.id, runId));
-        logger.info(`Using first input "${firstInput.label}": ${JSON.stringify(inputData).slice(0, 200)}`);
+      if (run.sourceId) {
+        const firstInput = await db.query.sourceInputs.findFirst({
+          where: eq(sourceInputs.sourceId, run.sourceId!),
+        });
+        if (firstInput) {
+          inputData = (firstInput.inputData ?? {}) as Record<string, unknown>;
+          await db.update(runs).set({ inputLabel: firstInput.label }).where(eq(runs.id, runId));
+          logger.info(`Using first input "${firstInput.label}": ${JSON.stringify(inputData).slice(0, 200)}`);
+        }
+      } else {
+        const firstInput = await db.query.extractorInputs.findFirst({
+          where: eq(extractorInputs.extractorId, entityId),
+        });
+        if (firstInput) {
+          inputData = (firstInput.inputData ?? {}) as Record<string, unknown>;
+          await db.update(runs).set({ inputLabel: firstInput.label }).where(eq(runs.id, runId));
+          logger.info(`Using first input "${firstInput.label}": ${JSON.stringify(inputData).slice(0, 200)}`);
+        }
       }
     }
 
@@ -209,6 +258,7 @@ export async function executeRun(runId: string): Promise<void> {
       .set({
         status: 'completed',
         completedAt: new Date(),
+        html: html,  // Store in dedicated text column
         results: {
           screenshotBase64: screenshotBase64.slice(0, 200_000), // Cap at ~150KB image
           htmlLength: html.length,

@@ -22,7 +22,8 @@ export const sourcesRouter = router({
           proxyType: sources.proxyType,
           loginPool: sources.loginPool,
           maximumInputs: sources.maximumInputs,
-          domain: sources.domain,
+          runnerFramework: sources.runnerFramework,
+          schemaValues: sources.schemaValues,
           variant: sources.variant,
           robotTemplate: sources.robotTemplate,
           parameters: sources.parameters,
@@ -118,7 +119,8 @@ export const sourcesRouter = router({
         proxyType: z.string().max(50).nullish(),
         loginPool: z.string().max(100).nullish(),
         maximumInputs: z.number().int().positive().nullish(),
-        domain: z.string().max(50).nullish(),
+        runnerFramework: z.string().max(50).nullish(),
+        schemaValues: z.record(z.string()).optional().default({}),
         variant: z.string().max(50).optional(),
         robotTemplate: z.string().max(255).optional(),
         parameters: z.record(z.unknown()).optional(),
@@ -126,6 +128,42 @@ export const sourcesRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const [source] = await ctx.db.insert(sources).values(input).returning();
+      return source;
+    }),
+
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        domainId: z.string().uuid().nullish(),
+        name: z.string().min(1).max(255).optional(),
+        slug: z.string().min(1).max(255).optional(),
+        country: z.string().min(1).max(10).optional(),
+        locale: z.string().max(10).nullish(),
+        currency: z.string().max(10).nullish(),
+        dataCenter: z.string().max(10).nullish(),
+        proxyType: z.string().max(50).nullish(),
+        loginPool: z.string().max(100).nullish(),
+        maximumInputs: z.number().int().positive().nullish(),
+        runnerFramework: z.string().max(50).nullish(),
+        variant: z.string().max(50).optional(),
+        robotTemplate: z.string().max(255).optional(),
+        parameters: z.record(z.unknown()).optional(),
+        schemaValues: z.record(z.string()).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+      const [source] = await ctx.db
+        .update(sources)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(sources.id, id))
+        .returning();
+
+      if (!source) {
+        throw new Error(`Source with id ${id} not found`);
+      }
+
       return source;
     }),
 });

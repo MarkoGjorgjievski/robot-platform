@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2Icon, XCircleIcon, LoaderIcon, ClockIcon, CircleDotIcon } from "lucide-react";
+import { CheckCircle2Icon, XCircleIcon, LoaderIcon, ClockIcon } from "lucide-react";
+import { InputsPanel } from "./inputs-panel";
 
 interface Run {
   id: string;
@@ -21,15 +22,29 @@ interface InputEntry {
 interface BottomPanelProps {
   runs: Run[];
   inputs: InputEntry[];
-  selectedInputId: string | null;
-  onSelectInput: (id: string) => void;
+  sourceId?: string;
+  selectedRunId: string | null;
+  onSelectRun: (id: string) => void;
+  onSaveInput: (sourceId: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
+  onUpdateInput: (id: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
+  onDeleteInput: (id: string) => Promise<unknown>;
+  onRunInput: (sourceId: string, inputLabel: string) => Promise<unknown>;
 }
 
 type CenterTab = "output" | "data";
 
-export function BottomPanel({ runs, inputs, selectedInputId, onSelectInput }: BottomPanelProps) {
+export function BottomPanel({
+  runs,
+  inputs,
+  sourceId,
+  selectedRunId,
+  onSelectRun,
+  onSaveInput,
+  onUpdateInput,
+  onDeleteInput,
+  onRunInput,
+}: BottomPanelProps) {
   const [centerTab, setCenterTab] = useState<CenterTab>("output");
-  const selectedInput = inputs.find((i) => i.id === selectedInputId);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -49,20 +64,25 @@ export function BottomPanel({ runs, inputs, selectedInputId, onSelectInput }: Bo
             </div>
           ) : (
             runs.map((run) => (
-              <a
+              <button
                 key={run.id}
-                href={`/runs/${run.id}`}
-                className="flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--ws-surface-hover)]"
-                style={{ borderBottom: '1px solid var(--ws-border-subtle)' }}
+                type="button"
+                onClick={() => onSelectRun(run.id)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 transition-colors hover:bg-[var(--ws-surface-hover)]"
+                style={{
+                  borderBottom: '1px solid var(--ws-border-subtle)',
+                  background: run.id === selectedRunId ? 'var(--ws-accent-surface)' : 'transparent',
+                  borderLeft: run.id === selectedRunId ? '2px solid var(--ws-accent)' : '2px solid transparent',
+                }}
               >
                 <RunStatusIcon status={run.status} />
-                <span className="min-w-0 flex-1 truncate text-[0.65rem]" style={{ color: 'var(--ws-text-muted)' }}>
+                <span className="min-w-0 flex-1 truncate text-left text-[0.65rem]" style={{ color: 'var(--ws-text-muted)' }}>
                   {run.inputLabel ?? run.id.slice(0, 8)}
                 </span>
                 <span className="shrink-0 text-[0.55rem] tabular-nums" style={{ color: 'var(--ws-text-dim)' }}>
                   {run.startedAt ? formatRelativeTime(run.startedAt) : "\u2014"}
                 </span>
-              </a>
+              </button>
             ))
           )}
         </div>
@@ -119,60 +139,25 @@ export function BottomPanel({ runs, inputs, selectedInputId, onSelectInput }: Bo
         </div>
       </div>
 
-      {/* ── Right: Inputs selector ──────────────────── */}
+      {/* ── Right: Inputs panel ──────────────────── */}
       <div
         className="flex w-[280px] shrink-0 flex-col overflow-hidden"
         style={{ borderLeft: '1px solid var(--ws-border)' }}
       >
-        <div className="ws-group-header" style={{ cursor: 'default' }}>
-          Inputs
-          <span className="ml-auto text-[0.55rem] opacity-60">{inputs.length}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {inputs.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-3">
-              <span className="text-[0.65rem]" style={{ color: 'var(--ws-text-dim)' }}>No inputs configured</span>
-            </div>
-          ) : (
-            inputs.map((input) => {
-              const isSelected = input.id === selectedInputId;
-              const data = input.inputData as Record<string, unknown> | null;
-              // Build a one-line summary from inputData
-              const summary = data
-                ? Object.entries(data)
-                    .map(([k, v]) => `${k}: ${String(v)}`)
-                    .join("  ")
-                : input.label;
-
-              return (
-                <button
-                  key={input.id}
-                  type="button"
-                  onClick={() => onSelectInput(input.id)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors"
-                  style={{
-                    borderBottom: '1px solid var(--ws-border-subtle)',
-                    background: isSelected ? 'var(--ws-accent-surface)' : 'transparent',
-                    borderLeft: isSelected ? '2px solid var(--ws-accent)' : '2px solid transparent',
-                  }}
-                >
-                  <CircleDotIcon
-                    className="size-3 shrink-0"
-                    style={{ color: isSelected ? 'var(--ws-accent)' : 'var(--ws-text-dim)' }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[0.65rem] font-medium" style={{ color: isSelected ? 'var(--ws-text)' : 'var(--ws-text-muted)' }}>
-                      {input.label}
-                    </div>
-                    <div className="truncate text-[0.55rem]" style={{ color: 'var(--ws-text-dim)' }}>
-                      {summary}
-                    </div>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
+        {sourceId ? (
+          <InputsPanel
+            inputs={inputs.map((i) => ({ ...i, inputData: (i.inputData ?? {}) as Record<string, unknown> }))}
+            sourceId={sourceId}
+            onSave={onSaveInput}
+            onUpdate={onUpdateInput}
+            onDelete={onDeleteInput}
+            onRun={onRunInput}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-3">
+            <span className="text-[0.65rem]" style={{ color: 'var(--ws-text-dim)' }}>Legacy extractor inputs</span>
+          </div>
+        )}
       </div>
     </div>
   );

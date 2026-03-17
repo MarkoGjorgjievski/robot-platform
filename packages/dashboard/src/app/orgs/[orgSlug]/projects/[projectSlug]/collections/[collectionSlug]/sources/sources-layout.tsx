@@ -12,7 +12,7 @@ interface SourceItem {
   country: string;
   locale: string | null;
   currency: string | null;
-  domain: string | null;
+  runnerFramework: string | null;
   dataCenter: string | null;
   proxyType: string | null;
   loginPool: string | null;
@@ -111,8 +111,8 @@ export function SourcesLayout({ items }: SourcesLayoutProps) {
                     {/* Card details */}
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                       <Detail icon={<GlobeIcon className="size-2.5" />} label={item.country} />
-                      {item.domain && (
-                        <Detail icon={<ServerIcon className="size-2.5" />} label={item.domain} />
+                      {item.runnerFramework && (
+                        <Detail icon={<ServerIcon className="size-2.5" />} label={item.runnerFramework} />
                       )}
                       {item.locale && <Detail label={item.locale} dimmed />}
                       {item.currency && <Detail label={item.currency} dimmed />}

@@ -26,7 +26,7 @@ export default async function SourcesPage({
     country: s.country,
     locale: s.locale,
     currency: s.currency,
-    domain: s.domain,
+    runnerFramework: s.runnerFramework,
     dataCenter: s.dataCenter,
     proxyType: s.proxyType,
     loginPool: s.loginPool,

@@ -15,13 +15,17 @@ interface SourceItem {
   country: string;
   locale: string | null;
   currency: string | null;
-  domain: string | null;
+  runnerFramework: string | null;
   dataCenter: string | null;
   proxyType: string | null;
   loginPool: string | null;
   maximumInputs: number | null;
   isActive: boolean;
   updatedAt: Date;
+  domainId: string | null;
+  robotTemplate: string;
+  variant: string;
+  schemaValues: Record<string, string>;
 }
 
 interface CollectionShellProps {
@@ -29,6 +33,8 @@ interface CollectionShellProps {
   collectionId: string;
   basePath: string;
   hasSchema: boolean;
+  collectionSchema: Array<{ name: string; type: string; required: boolean; description?: string }>;
+  domains: Array<{ id: string; name: string }>;
   onCreateSource: (data: {
     collectionId: string;
     name: string;
@@ -36,12 +42,17 @@ interface CollectionShellProps {
     country: string;
     locale?: string | null;
     currency?: string | null;
-    domain?: string | null;
+    runnerFramework?: string | null;
+    domainId?: string | null;
+    variant?: string;
+    robotTemplate?: string;
+    schemaValues?: Record<string, string>;
     dataCenter?: string | null;
     proxyType?: string | null;
     loginPool?: string | null;
     maximumInputs?: number | null;
   }) => Promise<{ slug: string }>;
+  onCreateDomain: (name: string) => Promise<{ id: string; name: string }>;
   header: React.ReactNode;
   children: React.ReactNode;
 }
@@ -56,7 +67,10 @@ export function CollectionShell({
   collectionId,
   basePath,
   hasSchema,
+  collectionSchema,
+  domains,
   onCreateSource,
+  onCreateDomain,
   header,
   children,
 }: CollectionShellProps) {
@@ -151,7 +165,7 @@ export function CollectionShell({
                     style={{ color: "var(--ws-text-dim)" }}
                   >
                     {s.country}
-                    {s.domain ? ` · ${s.domain}` : ""}
+                    {s.runnerFramework ? ` · ${s.runnerFramework}` : ""}
                   </p>
                 </div>
               </Link>
@@ -217,7 +231,10 @@ export function CollectionShell({
             mode="create"
             existingSlugs={sources.map((s) => s.slug)}
             collectionId={collectionId}
+            collectionSchema={collectionSchema}
+            domains={domains}
             onSubmit={onCreateSource}
+            onCreateDomain={onCreateDomain}
             onClose={() => setPanel(null)}
           />
         ) : panel?.mode === "view" && selectedSource ? (
@@ -229,7 +246,10 @@ export function CollectionShell({
               .filter((s) => s.slug !== selectedSource.slug)
               .map((s) => s.slug)}
             collectionId={collectionId}
+            collectionSchema={collectionSchema}
+            domains={domains}
             onSubmit={onCreateSource}
+            onCreateDomain={onCreateDomain}
             onClose={() => setPanel(null)}
           />
         ) : null}

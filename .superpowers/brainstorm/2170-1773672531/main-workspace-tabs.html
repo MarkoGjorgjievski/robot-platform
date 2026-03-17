@@ -1,0 +1,124 @@
+<h2>Main Workspace: Run Results View</h2>
+<p class="subtitle">When you click a run in the bottom-left, what appears in the main area? You mentioned DOM / Screenshot / HTML tabs. Here's the question: where do those tabs go?</p>
+
+<div class="cards">
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex; flex-direction:column; height:260px; font-family:monospace; font-size:11px; background:#1a1a2e; border-radius:6px; overflow:hidden;">
+        <!-- Top bar with tabs -->
+        <div style="display:flex; align-items:center; padding:6px 10px; border-bottom:1px solid #333; background:#16162a;">
+          <span style="font-size:10px; color:#fff; background:#2a2a4a; padding:3px 10px; border-radius:4px; margin-right:8px;">DOM</span>
+          <span style="font-size:10px; color:#666; padding:3px 10px; margin-right:8px;">Screenshot</span>
+          <span style="font-size:10px; color:#666; padding:3px 10px;">HTML</span>
+          <span style="margin-left:auto; font-size:9px; color:#888;">run-1a2b &bull; example.com/product/123</span>
+        </div>
+        <!-- DOM content (interactive) -->
+        <div style="flex:1; padding:10px; color:#ccc; overflow:hidden;">
+          <div style="color:#666; font-size:10px; margin-bottom:6px;">&lt;html&gt;</div>
+          <div style="margin-left:12px;">
+            <div style="color:#666; font-size:10px; margin-bottom:4px;">&lt;body&gt;</div>
+            <div style="margin-left:12px;">
+              <div style="color:#888; font-size:10px; margin-bottom:3px;">&lt;div class="product"&gt;</div>
+              <div style="margin-left:12px;">
+                <div style="background:#2a2a4a; border:1px solid #6366f1; border-radius:3px; padding:3px 6px; margin-bottom:3px;">
+                  <span style="color:#6366f1; font-size:10px;">&lt;h1 class="title"&gt;</span>
+                  <span style="color:#fff; font-size:10px;">Nike Air Max 90</span>
+                  <span style="color:#6366f1; font-size:10px;">&lt;/h1&gt;</span>
+                  <span style="float:right; background:#6366f1; color:#fff; font-size:8px; padding:1px 5px; border-radius:2px;">product_name</span>
+                </div>
+                <div style="color:#888; font-size:10px; margin-bottom:3px;">
+                  <span>&lt;span class="price"&gt;</span><span style="color:#ddd;">$129.99</span><span>&lt;/span&gt;</span>
+                </div>
+                <div style="color:#888; font-size:10px;">
+                  <span>&lt;img src="..."&gt;</span>
+                </div>
+              </div>
+              <div style="color:#888; font-size:10px;">&lt;/div&gt;</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Tabs above DOM viewer</h3>
+      <p>DOM/Screenshot/HTML tabs sit at the top of the main content area. DOM is default. Schema field highlights show inline (like the purple "product_name" badge). The DOM tree is the primary interaction surface.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex; flex-direction:column; height:260px; font-family:monospace; font-size:11px; background:#1a1a2e; border-radius:6px; overflow:hidden;">
+        <!-- Main area: rendered page -->
+        <div style="flex:1; background:#fff; position:relative; overflow:hidden;">
+          <div style="padding:20px; font-family:Arial,sans-serif;">
+            <div style="font-size:16px; font-weight:bold; color:#111;">Nike Air Max 90</div>
+            <div style="font-size:14px; color:#333; margin-top:4px;">$129.99</div>
+            <div style="width:120px; height:80px; background:#eee; margin-top:8px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#999; font-size:10px;">[product image]</div>
+            <div style="font-size:11px; color:#666; margin-top:8px; line-height:1.4;">Premium leather and mesh upper with visible Air cushioning...</div>
+          </div>
+          <!-- Highlight overlay -->
+          <div style="position:absolute; top:16px; left:16px; right:16px; height:24px; border:2px solid #6366f1; border-radius:3px; background:rgba(99,102,241,0.1);"></div>
+          <div style="position:absolute; top:14px; right:20px; background:#6366f1; color:#fff; font-size:8px; padding:1px 5px; border-radius:2px;">product_name</div>
+        </div>
+        <!-- Bottom tabs -->
+        <div style="display:flex; align-items:center; padding:4px 10px; border-top:1px solid #333; background:#16162a;">
+          <span style="font-size:10px; color:#666; padding:3px 10px; margin-right:8px;">DOM Tree</span>
+          <span style="font-size:10px; color:#fff; background:#2a2a4a; padding:3px 10px; border-radius:4px; margin-right:8px;">Rendered</span>
+          <span style="font-size:10px; color:#666; padding:3px 10px; margin-right:8px;">Screenshot</span>
+          <span style="font-size:10px; color:#666; padding:3px 10px;">HTML</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Rendered page (iframe) + tabs below</h3>
+      <p>Main area shows the actual rendered page in an iframe/sandbox. Tabs at the bottom switch between: Rendered, DOM Tree, Screenshot, HTML. Schema fields highlight directly on the rendered page with overlays. Closest to Chrome DevTools feel.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex; height:260px; font-family:monospace; font-size:11px; background:#1a1a2e; border-radius:6px; overflow:hidden;">
+        <!-- Left: rendered page -->
+        <div style="flex:1; background:#fff; position:relative; overflow:hidden; border-right:1px solid #333;">
+          <div style="padding:12px; font-family:Arial,sans-serif;">
+            <div style="font-size:14px; font-weight:bold; color:#111;">Nike Air Max 90</div>
+            <div style="font-size:12px; color:#333; margin-top:3px;">$129.99</div>
+            <div style="width:80px; height:60px; background:#eee; margin-top:6px; border-radius:3px; display:flex; align-items:center; justify-content:center; color:#999; font-size:9px;">[image]</div>
+          </div>
+          <div style="position:absolute; top:8px; left:8px; right:8px; height:22px; border:2px solid #6366f1; border-radius:3px; background:rgba(99,102,241,0.1);"></div>
+        </div>
+        <!-- Right: DOM tree -->
+        <div style="width:45%; padding:8px; color:#ccc; overflow:hidden;">
+          <div style="font-size:9px; color:#666; text-transform:uppercase; margin-bottom:6px;">DOM Inspector</div>
+          <div style="font-size:10px; line-height:1.6;">
+            <div style="color:#666;">&lt;html&gt;</div>
+            <div style="margin-left:8px; color:#666;">&lt;body&gt;</div>
+            <div style="margin-left:16px; color:#888;">&lt;div.product&gt;</div>
+            <div style="margin-left:24px; background:#2a2a4a; border-left:2px solid #6366f1; padding:2px 6px; border-radius:2px;">
+              <span style="color:#6366f1;">&lt;h1.title&gt;</span>
+              <span style="color:#fff;">Nike Air Max 90</span>
+            </div>
+            <div style="margin-left:24px; color:#888;">&lt;span.price&gt; $129.99</div>
+            <div style="margin-left:24px; color:#888;">&lt;img src="..."&gt;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Split — Rendered + DOM side by side</h3>
+      <p>Left half shows rendered page, right half shows DOM tree. Hover on either side highlights the corresponding element on the other. No tabs needed — both always visible. Like Chrome DevTools Elements panel.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>Key considerations</h3>
+  <ul style="color:#ccc; line-height:1.8;">
+    <li><strong>A</strong> — DOM tree only, no rendered view. Simple, works well for selector-building. But you can't see what the page actually looks like.</li>
+    <li><strong>B</strong> — Rendered page is primary. Best visual experience. But harder to pick selectors from rendered view alone.</li>
+    <li><strong>C</strong> — Both visible, linked. Most powerful for selector building (see element + its selector simultaneously). But splits the space.</li>
+  </ul>
+</div>
