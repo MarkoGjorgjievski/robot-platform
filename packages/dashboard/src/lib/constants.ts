@@ -154,7 +154,7 @@ export const LOGIN_POOLS: string[] = [
   "No Login Pool",
 ];
 
-// Domain options (for source creation)
-export const DOMAIN_OPTIONS: string[] = [
+// Runner framework options (for source creation)
+export const RUNNER_FRAMEWORK_OPTIONS: string[] = [
   "balancer", "nightmare",
 ];

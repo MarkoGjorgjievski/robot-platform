@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeftIcon,
@@ -12,11 +13,18 @@ import {
   WandSparklesIcon,
 } from "lucide-react";
 import { SchemaPanel } from "./schema-panel";
-import { DomViewer } from "./dom-viewer";
+import { RenderedViewer } from "./rendered-viewer";
 import { ConfigPanel } from "./config-panel";
 import { TransformPanel } from "./transform-panel";
 import { BottomPanel } from "./bottom-panel";
 import { RecorderBar } from "./recorder-bar";
+
+interface RunResult {
+  screenshotBase64?: string;
+  htmlLength?: number;
+  finalUrl?: string;
+  responseStatus?: number;
+}
 
 interface ExtractorWorkspaceProps {
   extractor: {
@@ -44,6 +52,7 @@ interface ExtractorWorkspaceProps {
   hasBeforeExtract: boolean;
   hasExtract: boolean;
   hasTransform: boolean;
+  sourceId?: string;
   recentRuns: {
     id: string;
     status: string;
@@ -51,6 +60,11 @@ interface ExtractorWorkspaceProps {
     startedAt: Date | null;
     completedAt: Date | null;
   }[];
+  onSaveInput?: (sourceId: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
+  onUpdateInput?: (id: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
+  onDeleteInput?: (id: string) => Promise<unknown>;
+  onRunInput?: (sourceId: string, inputLabel: string) => Promise<unknown>;
+  fetchRunData?: (runId: string) => Promise<{ html: string | null }>;
 }
 
 type SidebarPanel = "config" | "schema" | "transform" | null;
@@ -67,16 +81,64 @@ export function ExtractorWorkspace({
   hasGoto2,
   hasBeforeExtract,
   hasExtract,
+  sourceId,
   hasTransform,
   recentRuns,
+  onSaveInput,
+  onUpdateInput,
+  onDeleteInput,
+  onRunInput,
+  fetchRunData,
 }: ExtractorWorkspaceProps) {
+  const router = useRouter();
   const [activePanel, setActivePanel] = useState<SidebarPanel>("config");
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const [bottomHeight, setBottomHeight] = useState(220);
   const [bottomOpen, setBottomOpen] = useState(true);
-  const [selectedInputId, setSelectedInputId] = useState<string | null>(
-    extractor.inputs[0]?.id ?? null
-  );
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRunHtml, setSelectedRunHtml] = useState<string | null>(null);
+  const [selectedRunResults, setSelectedRunResults] = useState<RunResult | null>(null);
+  const [selectedRunStatus, setSelectedRunStatus] = useState<string | null>(null);
+  const loadedRunIdRef = useRef<string | null>(null);
+
+  // Poll for active runs
+  useEffect(() => {
+    if (!selectedRunId) return;
+    const run = recentRuns.find((r) => r.id === selectedRunId);
+    if (!run || run.status === "completed" || run.status === "failed") return;
+
+    const interval = setInterval(async () => {
+      router.refresh();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [selectedRunId, recentRuns, router]);
+
+  // Fetch run HTML when a completed run is selected
+  useEffect(() => {
+    if (!selectedRunId) return;
+    const run = recentRuns.find((r) => r.id === selectedRunId);
+    if (!run || run.status !== "completed") {
+      setSelectedRunHtml(null);
+      setSelectedRunResults(null);
+      setSelectedRunStatus(run?.status ?? null);
+      return;
+    }
+
+    setSelectedRunStatus(run.status);
+
+    // Guard: skip re-fetch if we already have HTML for this run ID
+    if (loadedRunIdRef.current === selectedRunId) return;
+
+    if (fetchRunData) {
+      fetchRunData(selectedRunId).then((data) => {
+        if (data) {
+          setSelectedRunHtml(data.html ?? null);
+          loadedRunIdRef.current = selectedRunId;
+        }
+      });
+    }
+  }, [selectedRunId, recentRuns, fetchRunData]);
 
   const schemaTabName = schemaYAML ?? Object.keys(schemas)[0];
   const schemaData = schemaTabName ? schemas[schemaTabName] : undefined;
@@ -224,9 +286,10 @@ export function ExtractorWorkspace({
           <div className="flex flex-1 overflow-hidden">
             {/* DOM Viewer — fills remaining space */}
             <div className="flex flex-1 flex-col overflow-hidden" style={{ background: 'var(--ws-bg)' }}>
-              <DomViewer
-                lastRunId={lastRun?.id}
-                lastRunStatus={lastRun?.status}
+              <RenderedViewer
+                html={selectedRunHtml}
+                results={selectedRunResults}
+                runStatus={selectedRunStatus ?? undefined}
               />
             </div>
 
@@ -301,8 +364,13 @@ export function ExtractorWorkspace({
               <BottomPanel
                 runs={recentRuns}
                 inputs={extractor.inputs}
-                selectedInputId={selectedInputId}
-                onSelectInput={setSelectedInputId}
+                sourceId={sourceId}
+                selectedRunId={selectedRunId}
+                onSelectRun={setSelectedRunId}
+                onSaveInput={onSaveInput ?? (async () => {})}
+                onUpdateInput={onUpdateInput ?? (async () => {})}
+                onDeleteInput={onDeleteInput ?? (async () => {})}
+                onRunInput={onRunInput ?? (async () => {})}
               />
             </div>
           )}

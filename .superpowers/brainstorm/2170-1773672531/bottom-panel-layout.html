@@ -1,0 +1,154 @@
+<h2>Bottom Panel Layout</h2>
+<p class="subtitle">How should Runs, Output, and Inputs be arranged in the bottom terminal area?</p>
+
+<div class="cards">
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex; height:180px; font-family:monospace; font-size:11px; background:#1a1a2e; border-radius:6px; overflow:hidden;">
+        <!-- Left: Runs list -->
+        <div style="width:25%; border-right:1px solid #333; padding:8px; color:#ccc;">
+          <div style="font-size:10px; color:#666; text-transform:uppercase; margin-bottom:6px;">Runs</div>
+          <div style="padding:4px 6px; background:#2a2a4a; border-radius:3px; margin-bottom:4px; border-left:3px solid #4ade80;">
+            <span style="color:#4ade80;">&#9679;</span> <span style="color:#aaa;">run-1a2b</span>
+            <span style="float:right; color:#666; font-size:9px;">2m ago</span>
+          </div>
+          <div style="padding:4px 6px; background:#1e1e3a; border-radius:3px; margin-bottom:4px; border-left:3px solid #f59e0b;">
+            <span style="color:#f59e0b;">&#9679;</span> <span style="color:#888;">run-8c3d</span>
+            <span style="float:right; color:#666; font-size:9px;">5m ago</span>
+          </div>
+          <div style="padding:4px 6px; background:#1e1e3a; border-radius:3px; border-left:3px solid #ef4444;">
+            <span style="color:#ef4444;">&#9679;</span> <span style="color:#888;">run-f4e2</span>
+            <span style="float:right; color:#666; font-size:9px;">12m ago</span>
+          </div>
+        </div>
+        <!-- Center: Logs/Output -->
+        <div style="flex:1; border-right:1px solid #333; padding:8px; color:#ccc; overflow:hidden;">
+          <div style="display:flex; gap:12px; margin-bottom:6px;">
+            <span style="font-size:10px; color:#fff; border-bottom:2px solid #6366f1; padding-bottom:2px;">Logs</span>
+            <span style="font-size:10px; color:#666; padding-bottom:2px;">Data</span>
+          </div>
+          <div style="font-size:10px; color:#888; line-height:1.6;">
+            <div><span style="color:#666;">12:01:03</span> <span style="color:#4ade80;">INFO</span> Navigating to https://example.com</div>
+            <div><span style="color:#666;">12:01:05</span> <span style="color:#4ade80;">INFO</span> Page loaded (200)</div>
+            <div><span style="color:#666;">12:01:06</span> <span style="color:#4ade80;">INFO</span> Scrolling to bottom...</div>
+            <div><span style="color:#666;">12:01:08</span> <span style="color:#f59e0b;">WARN</span> Selector .price not found</div>
+          </div>
+        </div>
+        <!-- Right: Inputs -->
+        <div style="width:28%; padding:8px; color:#ccc;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-size:10px; color:#666; text-transform:uppercase;">Inputs</span>
+            <span style="font-size:9px; color:#6366f1; cursor:pointer;">+ Add</span>
+          </div>
+          <div style="padding:6px; background:#2a2a4a; border-radius:3px; margin-bottom:6px; border:1px solid #444;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#aaa; font-size:10px;">url:</span>
+              <span style="color:#6366f1; font-size:10px; cursor:pointer;">&#9654; Run</span>
+            </div>
+            <div style="color:#ddd; font-size:10px; word-break:break-all;">https://www.example.com/product/123</div>
+          </div>
+          <div style="padding:6px; background:#1e1e3a; border-radius:3px; border:1px solid #333;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#aaa; font-size:10px;">url:</span>
+              <span style="color:#6366f1; font-size:10px; cursor:pointer;">&#9654; Run</span>
+            </div>
+            <div style="color:#888; font-size:10px; word-break:break-all;">https://www.example.com/product/456</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Three-Column (Current Layout)</h3>
+      <p>Runs left, Logs/Data center, Inputs right. All visible simultaneously. Each input has its own Run button.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex; height:180px; font-family:monospace; font-size:11px; background:#1a1a2e; border-radius:6px; overflow:hidden;">
+        <!-- Left: Runs list -->
+        <div style="width:22%; border-right:1px solid #333; padding:8px; color:#ccc;">
+          <div style="font-size:10px; color:#666; text-transform:uppercase; margin-bottom:6px;">Runs</div>
+          <div style="padding:4px 6px; background:#2a2a4a; border-radius:3px; margin-bottom:4px; border-left:3px solid #4ade80;">
+            <span style="color:#4ade80;">&#9679;</span> <span style="color:#aaa;">run-1a2b</span>
+          </div>
+          <div style="padding:4px 6px; background:#1e1e3a; border-radius:3px; margin-bottom:4px; border-left:3px solid #f59e0b;">
+            <span style="color:#f59e0b;">&#9679;</span> <span style="color:#888;">run-8c3d</span>
+          </div>
+        </div>
+        <!-- Right: Tabbed content area -->
+        <div style="flex:1; padding:8px; color:#ccc;">
+          <div style="display:flex; gap:12px; margin-bottom:8px; border-bottom:1px solid #333; padding-bottom:6px;">
+            <span style="font-size:10px; color:#fff; border-bottom:2px solid #6366f1; padding-bottom:4px;">Logs</span>
+            <span style="font-size:10px; color:#666; padding-bottom:4px;">Data</span>
+            <span style="font-size:10px; color:#666; padding-bottom:4px;">Inputs</span>
+          </div>
+          <div style="font-size:10px; color:#888; line-height:1.6;">
+            <div><span style="color:#666;">12:01:03</span> <span style="color:#4ade80;">INFO</span> Navigating to https://example.com</div>
+            <div><span style="color:#666;">12:01:05</span> <span style="color:#4ade80;">INFO</span> Page loaded (200)</div>
+            <div><span style="color:#666;">12:01:06</span> <span style="color:#4ade80;">INFO</span> Scrolling to bottom...</div>
+            <div><span style="color:#666;">12:01:08</span> <span style="color:#f59e0b;">WARN</span> Selector .price not found</div>
+            <div><span style="color:#666;">12:01:09</span> <span style="color:#4ade80;">INFO</span> Screenshot captured</div>
+            <div><span style="color:#666;">12:01:10</span> <span style="color:#4ade80;">INFO</span> HTML captured (42KB)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Two-Column (Runs + Tabbed Content)</h3>
+      <p>Runs list fixed on left. Right side has tabs: Logs, Data, Inputs. Inputs become a tab instead of always-visible panel. More space for logs/data.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex; flex-direction:column; height:180px; font-family:monospace; font-size:11px; background:#1a1a2e; border-radius:6px; overflow:hidden;">
+        <!-- Top: Tab bar spanning full width -->
+        <div style="display:flex; gap:12px; padding:6px 10px; border-bottom:1px solid #333;">
+          <span style="font-size:10px; color:#fff; border-bottom:2px solid #6366f1; padding-bottom:4px;">Runs</span>
+          <span style="font-size:10px; color:#666; padding-bottom:4px;">Logs</span>
+          <span style="font-size:10px; color:#666; padding-bottom:4px;">Data</span>
+          <span style="font-size:10px; color:#666; padding-bottom:4px;">Inputs</span>
+          <span style="font-size:10px; color:#666; padding-bottom:4px; margin-left:auto;">+ Add Input</span>
+        </div>
+        <!-- Content: Runs tab shown -->
+        <div style="flex:1; padding:8px; color:#ccc; display:flex; flex-direction:column; gap:4px;">
+          <div style="display:flex; align-items:center; padding:6px 8px; background:#2a2a4a; border-radius:3px; border-left:3px solid #4ade80;">
+            <span style="color:#4ade80;">&#9679;</span>
+            <span style="color:#aaa; margin-left:8px; flex:1;">run-1a2b</span>
+            <span style="color:#888; font-size:10px;">url: example.com/product/123</span>
+            <span style="color:#666; font-size:9px; margin-left:12px;">2m ago</span>
+          </div>
+          <div style="display:flex; align-items:center; padding:6px 8px; background:#1e1e3a; border-radius:3px; border-left:3px solid #f59e0b;">
+            <span style="color:#f59e0b;">&#9679;</span>
+            <span style="color:#888; margin-left:8px; flex:1;">run-8c3d</span>
+            <span style="color:#888; font-size:10px;">url: example.com/product/456</span>
+            <span style="color:#666; font-size:9px; margin-left:12px;">5m ago</span>
+          </div>
+          <div style="display:flex; align-items:center; padding:6px 8px; background:#1e1e3a; border-radius:3px; border-left:3px solid #ef4444;">
+            <span style="color:#ef4444;">&#9679;</span>
+            <span style="color:#888; margin-left:8px; flex:1;">run-f4e2</span>
+            <span style="color:#888; font-size:10px;">url: example.com/product/789</span>
+            <span style="color:#666; font-size:9px; margin-left:12px;">12m ago</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Full-Width Tabs</h3>
+      <p>Single panel with tabs across the top: Runs, Logs, Data, Inputs. Full width for each view. Simpler but only one thing visible at a time.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>Key differences</h3>
+  <ul style="color:#ccc; line-height:1.8;">
+    <li><strong>A</strong> — Inputs always visible, easy to trigger runs. But tighter space for logs.</li>
+    <li><strong>B</strong> — Runs always visible (to click and load DOM). Inputs tucked in a tab. Best balance.</li>
+    <li><strong>C</strong> — Maximum space per view, but you can't see runs while viewing logs.</li>
+  </ul>
+</div>

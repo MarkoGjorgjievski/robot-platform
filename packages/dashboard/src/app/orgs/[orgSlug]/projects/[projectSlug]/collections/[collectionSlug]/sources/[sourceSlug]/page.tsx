@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { api } from '@/trpc/server';
 import { ExtractorWorkspace } from '@/components/workspace';
+import { createSourceInput, updateSourceInput, deleteSourceInput, createSourceRun, fetchRunData } from './actions';
 
 export default async function SourceDetailPage({
   params,
@@ -21,6 +22,12 @@ export default async function SourceDetailPage({
   ]);
 
   if (!source) notFound();
+
+  // Load source inputs and recent runs
+  const [inputs, recentRuns] = await Promise.all([
+    api.sourceInputs.listBySource({ sourceId: source.id }),
+    api.runs.listBySource({ sourceId: source.id }),
+  ]);
 
   // Load domain overrides if source has a domainId
   const override = source.domainId
@@ -53,7 +60,12 @@ export default async function SourceDetailPage({
     isActive: source.isActive,
     org: { name: source.orgName },
     domain: { name: source.domainName ?? 'unknown' },
-    inputs: [] as { id: string; label: string; inputData: unknown; createdAt: Date }[],
+    inputs: inputs.map((i) => ({
+      id: i.id,
+      label: i.label,
+      inputData: i.inputData,
+      createdAt: i.createdAt,
+    })),
     credentials: [] as { id: string; environment: string; username: string | null; createdAt: Date }[],
   };
 
@@ -71,7 +83,19 @@ export default async function SourceDetailPage({
       hasBeforeExtract={override?.hasBeforeExtract ?? false}
       hasExtract={override?.hasExtract ?? false}
       hasTransform={override?.hasTransform ?? false}
-      recentRuns={[]}
+      sourceId={source.id}
+      recentRuns={recentRuns.map((r) => ({
+        id: r.id,
+        status: r.status,
+        inputLabel: r.inputLabel,
+        startedAt: r.startedAt,
+        completedAt: r.completedAt,
+      }))}
+      onSaveInput={createSourceInput}
+      onUpdateInput={updateSourceInput}
+      onDeleteInput={deleteSourceInput}
+      onRunInput={createSourceRun}
+      fetchRunData={fetchRunData}
     />
   );
 }

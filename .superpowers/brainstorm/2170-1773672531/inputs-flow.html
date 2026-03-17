@@ -1,0 +1,141 @@
+<h2>Inputs Panel: Progressive Flow</h2>
+<p class="subtitle">Keys are defined once, then reused across all inputs. How should this work?</p>
+
+<div class="section">
+  <h3>State 1: No inputs yet — define the keys</h3>
+  <div class="mockup">
+    <div class="mockup-header">Bottom-right: Inputs panel (empty)</div>
+    <div class="mockup-body" style="padding:0;">
+      <div style="font-family:monospace; font-size:11px; background:#1a1a2e; padding:10px; min-height:160px; color:#ccc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px;">Inputs</span>
+        </div>
+        <div style="color:#888; font-size:10px; margin-bottom:10px;">No inputs yet. Define your input fields:</div>
+        <!-- Key definition -->
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input style="background:#2a2a4a; border:1px solid #444; color:#fff; padding:4px 8px; border-radius:3px; font-size:10px; width:100px; font-family:monospace;" value="asin" />
+            <input style="background:#2a2a4a; border:1px solid #444; color:#aaa; padding:4px 8px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="value..." value="B084FD4FK7" />
+            <span style="color:#555; cursor:pointer; font-size:12px;">×</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input style="background:#2a2a4a; border:1px solid #444; color:#fff; padding:4px 8px; border-radius:3px; font-size:10px; width:100px; font-family:monospace;" value="sellerId" />
+            <input style="background:#2a2a4a; border:1px solid #444; color:#aaa; padding:4px 8px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="value..." value="A2RL1Y85DTS0IS" />
+            <span style="color:#555; cursor:pointer; font-size:12px;">×</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input style="background:#2a2a4a; border:1px solid #444; color:#fff; padding:4px 8px; border-radius:3px; font-size:10px; width:100px; font-family:monospace;" placeholder="key..." />
+            <input style="background:#2a2a4a; border:1px solid #444; color:#555; padding:4px 8px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="value..." disabled />
+            <span style="color:#333; font-size:12px;">×</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <span style="font-size:9px; color:#6366f1; cursor:pointer;">+ Add field</span>
+          <span style="margin-left:auto; font-size:10px; color:#fff; background:#6366f1; padding:3px 12px; border-radius:3px; cursor:pointer;">Save & Run ▶</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px;">
+  <h3>State 2: Has inputs — add new (keys pre-filled)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Bottom-right: Inputs panel (with existing inputs)</div>
+    <div class="mockup-body" style="padding:0;">
+      <div style="font-family:monospace; font-size:11px; background:#1a1a2e; padding:10px; min-height:220px; color:#ccc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:10px; color:#666; text-transform:uppercase; letter-spacing:0.5px;">Inputs</span>
+          <span style="font-size:9px; color:#6366f1; cursor:pointer;">+ Add input</span>
+        </div>
+        <!-- Input 1 (saved, collapsed) -->
+        <div style="padding:6px 8px; background:#2a2a4a; border-radius:4px; margin-bottom:4px; border:1px solid #333;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#4ade80; font-size:8px;">●</span>
+              <span style="color:#aaa; font-size:10px;">input-1</span>
+              <span style="color:#555; font-size:9px;">asin: B084FD4FK7</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span style="color:#888; font-size:9px; cursor:pointer;">✎</span>
+              <span style="color:#6366f1; font-size:10px; cursor:pointer;">▶</span>
+            </div>
+          </div>
+        </div>
+        <!-- Input 2 (saved, collapsed) -->
+        <div style="padding:6px 8px; background:#1e1e3a; border-radius:4px; margin-bottom:4px; border:1px solid #2a2a4a;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#f59e0b; font-size:8px;">●</span>
+              <span style="color:#888; font-size:10px;">input-2</span>
+              <span style="color:#555; font-size:9px;">asin: B09V3K4HHD</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span style="color:#888; font-size:9px; cursor:pointer;">✎</span>
+              <span style="color:#6366f1; font-size:10px; cursor:pointer;">▶</span>
+            </div>
+          </div>
+        </div>
+        <!-- Input 3 (new, expanded - keys pre-filled, values empty) -->
+        <div style="padding:8px; background:#2a2a4a; border-radius:4px; margin-bottom:4px; border:1px solid #6366f1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+            <span style="color:#6366f1; font-size:8px;">●</span>
+            <span style="color:#fff; font-size:10px;">input-3</span>
+            <span style="font-size:8px; color:#6366f1; background:#2a2a5a; padding:1px 5px; border-radius:2px;">new</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#888; font-size:10px; width:80px;">asin</span>
+              <input style="background:#1e1e3a; border:1px solid #444; color:#fff; padding:3px 6px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="enter value..." />
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#888; font-size:10px; width:80px;">sellerId</span>
+              <input style="background:#1e1e3a; border:1px solid #444; color:#fff; padding:3px 6px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="enter value..." />
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#888; font-size:10px; width:80px;">resellerName</span>
+              <input style="background:#1e1e3a; border:1px solid #444; color:#fff; padding:3px 6px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="enter value..." />
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#888; font-size:10px; width:80px;">resellerLink</span>
+              <input style="background:#1e1e3a; border:1px solid #444; color:#fff; padding:3px 6px; border-radius:3px; font-size:10px; flex:1; font-family:monospace;" placeholder="enter value..." />
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px; justify-content:flex-end;">
+            <span style="font-size:9px; color:#888; cursor:pointer; padding:3px 8px;">Cancel</span>
+            <span style="font-size:10px; color:#fff; background:#6366f1; padding:3px 12px; border-radius:3px; cursor:pointer;">Save & Run ▶</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>How it works</h3>
+  <ul style="color:#ccc; line-height:1.8;">
+    <li><strong>First input:</strong> User defines both keys and values. Keys become the "template" for this extractor's inputs.</li>
+    <li><strong>Subsequent inputs:</strong> "+ Add input" creates a new row with keys pre-filled from input-1. User only fills values.</li>
+    <li><strong>Key names are read-only</strong> on subsequent inputs (shown as labels, not editable fields).</li>
+    <li><strong>Edit (✎)</strong> expands any saved input to edit its values.</li>
+    <li><strong>Run (▶)</strong> triggers a run with that specific input.</li>
+    <li><strong>Save & Run</strong> saves the new input and immediately queues a run.</li>
+  </ul>
+</div>
+
+<div class="options" style="margin-top:20px;">
+  <div class="option" data-choice="confirm" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>Looks right</h3>
+      <p>This matches what I had in mind</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>Needs adjustment</h3>
+      <p>I'll explain what to change</p>
+    </div>
+  </div>
+</div>

@@ -2,7 +2,7 @@ import { api } from "@/trpc/server";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { CollectionShell } from "./collection-shell";
-import { createSource } from "./sources/actions";
+import { createSource, createDomain } from "./sources/actions";
 
 export default async function CollectionLayout({
   params,
@@ -22,6 +22,8 @@ export default async function CollectionLayout({
     .listByCollection({ collectionId: collection.id })
     .catch(() => []);
 
+  const allDomains = await api.domains.list();
+
   const hasSchema = Array.isArray(collection.schema) && collection.schema.length > 0;
   const basePath = `/orgs/${orgSlug}/projects/${projectSlug}/collections/${collectionSlug}`;
   const sourcesBasePath = `${basePath}/sources`;
@@ -34,13 +36,17 @@ export default async function CollectionLayout({
     country: s.country,
     locale: s.locale,
     currency: s.currency,
-    domain: s.domain,
+    runnerFramework: s.runnerFramework,
     dataCenter: s.dataCenter,
     proxyType: s.proxyType,
     loginPool: s.loginPool,
     maximumInputs: s.maximumInputs,
     isActive: s.isActive,
     updatedAt: s.updatedAt,
+    domainId: s.domainId,
+    robotTemplate: s.robotTemplate,
+    variant: s.variant,
+    schemaValues: (s.schemaValues ?? {}) as Record<string, string>,
   }));
 
   const header = (
@@ -75,7 +81,10 @@ export default async function CollectionLayout({
       collectionId={collection.id}
       basePath={basePath}
       hasSchema={hasSchema}
+      collectionSchema={(collection.schema ?? []) as Array<{ name: string; type: string; required: boolean; description?: string }>}
+      domains={allDomains.map((d) => ({ id: d.id, name: d.name }))}
       onCreateSource={createSource}
+      onCreateDomain={createDomain}
       header={header}
     >
       {children}
