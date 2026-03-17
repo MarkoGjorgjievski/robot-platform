@@ -65,6 +65,7 @@ interface ExtractorWorkspaceProps {
   onDeleteInput?: (id: string) => Promise<unknown>;
   onRunInput?: (sourceId: string, inputLabel: string) => Promise<unknown>;
   fetchRunData?: (runId: string) => Promise<{ html: string | null }>;
+  onUpdateSource?: (data: { id: string; isActive?: boolean; parameters?: Record<string, unknown>; domainId?: string | null; country?: string; variant?: string; robotTemplate?: string }) => Promise<void>;
 }
 
 type SidebarPanel = "config" | "schema" | "transform" | null;
@@ -89,6 +90,7 @@ export function ExtractorWorkspace({
   onDeleteInput,
   onRunInput,
   fetchRunData,
+  onUpdateSource,
 }: ExtractorWorkspaceProps) {
   const router = useRouter();
   const [activePanel, setActivePanel] = useState<SidebarPanel>("config");
@@ -222,7 +224,7 @@ export function ExtractorWorkspace({
       id: "transform",
       icon: <WandSparklesIcon className="size-[18px]" />,
       title: "Transform",
-      hidden: !hasTransform,
+      hidden: !hasTransform && !sourceId,
     },
     {
       id: "bottom",
@@ -322,6 +324,8 @@ export function ExtractorWorkspace({
                     hasExtract={hasExtract}
                     hasTransform={hasTransform}
                     credentials={extractor.credentials}
+                    sourceId={sourceId}
+                    onUpdateSource={onUpdateSource}
                   />
                 )}
                 {activePanel === "schema" && (

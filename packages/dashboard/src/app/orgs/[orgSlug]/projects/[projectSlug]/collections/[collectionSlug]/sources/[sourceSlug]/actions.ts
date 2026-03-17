@@ -30,3 +30,16 @@ export async function createSourceRun(sourceId: string, inputLabel: string) {
 export async function fetchRunData(runId: string) {
   return api.runs.getHtml({ id: runId });
 }
+
+export async function updateSource(data: {
+  id: string;
+  isActive?: boolean;
+  parameters?: Record<string, unknown>;
+  domainId?: string | null;
+  country?: string;
+  variant?: string;
+  robotTemplate?: string;
+}) {
+  await api.sources.update(data);
+  revalidatePath(".");
+}

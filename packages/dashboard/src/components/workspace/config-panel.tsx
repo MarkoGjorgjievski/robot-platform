@@ -35,6 +35,8 @@ interface ConfigPanelProps {
   hasExtract: boolean;
   hasTransform: boolean;
   credentials: { id: string; environment: string; username: string | null; createdAt: Date }[];
+  sourceId?: string;
+  onUpdateSource?: (data: { id: string; isActive?: boolean; parameters?: Record<string, unknown>; domainId?: string | null; country?: string; variant?: string; robotTemplate?: string }) => Promise<void>;
 }
 
 type TabId = "config" | "parameters" | "goto2" | "beforeExtract" | "credentials";
@@ -48,14 +50,16 @@ export function ConfigPanel({
   hasGoto2,
   hasBeforeExtract,
   credentials,
+  sourceId,
+  onUpdateSource,
 }: ConfigPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("config");
 
   const tabs: { id: TabId; label: string; hidden?: boolean }[] = [
     { id: "config", label: "Config" },
     { id: "parameters", label: "Params" },
-    { id: "goto2", label: "goto2", hidden: !hasGoto2 },
-    { id: "beforeExtract", label: "beforeExtract", hidden: !hasBeforeExtract },
+    { id: "goto2", label: "goto2", hidden: !hasGoto2 && !sourceId },
+    { id: "beforeExtract", label: "beforeExtract", hidden: !hasBeforeExtract && !sourceId },
     { id: "credentials", label: "Creds" },
   ];
 
@@ -94,7 +98,7 @@ export function ConfigPanel({
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === "config" && (
-          <ConfigTab extractor={extractor} orgs={orgs} domains={domains} />
+          <ConfigTab extractor={extractor} orgs={orgs} domains={domains} sourceId={sourceId} onUpdateSource={onUpdateSource} />
         )}
         {activeTab === "parameters" && (
           <ParametersTab
@@ -102,13 +106,13 @@ export function ConfigPanel({
             domainDefaults={domainDefaults}
           />
         )}
-        {activeTab === "goto2" && hasGoto2 && (
+        {activeTab === "goto2" && (hasGoto2 || !!sourceId) && (
           <Goto2Tab
             extractor={extractor}
             domainDefaults={domainDefaults}
           />
         )}
-        {activeTab === "beforeExtract" && hasBeforeExtract && (
+        {activeTab === "beforeExtract" && (hasBeforeExtract || !!sourceId) && (
           <BeforeExtractTab
             code={jsOverrides.beforeExtract ?? ""}
           />
@@ -127,10 +131,14 @@ function ConfigTab({
   extractor,
   orgs,
   domains,
+  sourceId,
+  onUpdateSource,
 }: {
   extractor: ConfigPanelProps["extractor"];
   orgs: ConfigPanelProps["orgs"];
   domains: ConfigPanelProps["domains"];
+  sourceId?: string;
+  onUpdateSource?: ConfigPanelProps["onUpdateSource"];
 }) {
   const [saving, setSaving] = useState(false);
 
@@ -138,7 +146,24 @@ function ConfigTab({
     e.preventDefault();
     setSaving(true);
     const form = new FormData(e.currentTarget);
-    await updateExtractor(form);
+
+    if (sourceId && onUpdateSource) {
+      // Source-based update
+      const currentParams = (extractor.parameters as Record<string, unknown>) ?? {};
+      const useTransform = form.get("useTransform") === "on";
+      await onUpdateSource({
+        id: sourceId,
+        isActive: form.get("isActive") === "on",
+        parameters: { ...currentParams, useTransform },
+        domainId: (form.get("domainId") as string) || null,
+        country: form.get("country") as string,
+        variant: form.get("variant") as string,
+        robotTemplate: form.get("robotTemplate") as string,
+      });
+    } else {
+      // Legacy extractor update
+      await updateExtractor(form);
+    }
     setSaving(false);
   };
 

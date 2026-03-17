@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { api } from '@/trpc/server';
 import { ExtractorWorkspace } from '@/components/workspace';
-import { createSourceInput, updateSourceInput, deleteSourceInput, createSourceRun, fetchRunData } from './actions';
+import { createSourceInput, updateSourceInput, deleteSourceInput, createSourceRun, fetchRunData, updateSource } from './actions';
 
 export default async function SourceDetailPage({
   params,
@@ -42,9 +42,22 @@ export default async function SourceDetailPage({
   const jsOverrides = (override?.jsOverrides as Record<string, string>) ?? {};
   const schemaYAML = (source.parameters as Record<string, unknown>)?.schemaYAML as string | undefined;
 
-  // Use override schemas if available, otherwise expose the collection schema
-  const collectionSchemaObj = source.collectionSchema
-    ? { [source.collectionName ?? 'schema']: source.collectionSchema }
+  // Use override schemas if available, otherwise convert collection schema to SchemaPanel format
+  const collectionFields = Array.isArray(source.collectionSchema) ? source.collectionSchema : [];
+  const collectionSchemaObj = collectionFields.length > 0
+    ? {
+        [source.collectionName ?? 'schema']: {
+          singleRecord: false,
+          recordSelector: null,
+          recordXPath: null,
+          regionsSelector: null,
+          fields: (collectionFields as Array<{ name: string; type?: string; description?: string }>).map((f) => ({
+            name: f.name,
+            type: f.type?.toUpperCase() ?? 'TEXT',
+            description: f.description,
+          })),
+        },
+      }
     : {};
   const schemas = Object.keys(overrideSchemas).length > 0 ? overrideSchemas : collectionSchemaObj;
 
@@ -96,6 +109,7 @@ export default async function SourceDetailPage({
       onDeleteInput={deleteSourceInput}
       onRunInput={createSourceRun}
       fetchRunData={fetchRunData}
+      onUpdateSource={updateSource}
     />
   );
 }
