@@ -28,7 +28,7 @@ export async function createSourceRun(sourceId: string, inputLabel: string) {
 }
 
 export async function fetchRunData(runId: string) {
-  return api.runs.getHtml({ id: runId });
+  return api.runs.getDetails({ id: runId });
 }
 
 export async function updateSource(data: {

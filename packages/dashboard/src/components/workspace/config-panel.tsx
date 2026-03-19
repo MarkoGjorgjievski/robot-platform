@@ -104,12 +104,16 @@ export function ConfigPanel({
           <ParametersTab
             extractor={extractor}
             domainDefaults={domainDefaults}
+            sourceId={sourceId}
+            onUpdateSource={onUpdateSource}
           />
         )}
         {activeTab === "goto2" && (hasGoto2 || !!sourceId) && (
           <Goto2Tab
             extractor={extractor}
             domainDefaults={domainDefaults}
+            sourceId={sourceId}
+            onUpdateSource={onUpdateSource}
           />
         )}
         {activeTab === "beforeExtract" && (hasBeforeExtract || !!sourceId) && (
@@ -206,49 +210,8 @@ function ConfigTab({
           <label className="ws-field-label">Robot Template</label>
           <input name="robotTemplate" defaultValue={extractor.robotTemplate} className="w-full rounded px-2 py-1" />
         </div>
-        <div className="ws-field-row">
-          <label className="ws-field-label">Active</label>
-          <div className="flex items-center py-1">
-            <label className="relative inline-flex cursor-pointer">
-              <input
-                type="checkbox"
-                name="isActive"
-                defaultChecked={extractor.isActive}
-                className="peer sr-only"
-              />
-              <div
-                className="relative h-4 w-7 rounded-full transition-colors peer-checked:bg-[var(--ws-accent)]"
-                style={{ background: 'var(--ws-surface-hover)' }}
-              >
-                <span
-                  className="absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white transition-transform peer-checked:translate-x-3"
-                />
-              </div>
-            </label>
-          </div>
-        </div>
-        <div className="ws-field-row">
-          <label className="ws-field-label" title="Include transform.js cleanup in extract pipeline">Use Transform</label>
-          <div className="flex items-center py-1">
-            <label className="relative inline-flex cursor-pointer">
-              <input
-                type="checkbox"
-                name="useTransform"
-                defaultChecked={Boolean((extractor.parameters as Record<string, unknown>)?.useTransform)}
-                className="peer sr-only"
-              />
-              <div
-                className="relative h-4 w-7 rounded-full transition-colors peer-checked:bg-[var(--ws-accent)]"
-                style={{ background: 'var(--ws-surface-hover)' }}
-              >
-                <span
-                  className="absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white transition-transform peer-checked:translate-x-3"
-                />
-              </div>
-            </label>
-            <span className="ml-2 text-[0.6rem]" style={{ color: 'var(--ws-text-dim)' }}>cleanUp via transform.js</span>
-          </div>
-        </div>
+        <ToggleField name="isActive" label="Active" defaultChecked={extractor.isActive} />
+        <ToggleField name="useTransform" label="Use Transform" defaultChecked={Boolean((extractor.parameters as Record<string, unknown>)?.useTransform)} hint="cleanUp via transform.js" />
       </div>
 
       <div className="px-3 py-3">
@@ -276,9 +239,13 @@ function ConfigTab({
 function ParametersTab({
   extractor,
   domainDefaults,
+  sourceId,
+  onUpdateSource,
 }: {
   extractor: ConfigPanelProps["extractor"];
   domainDefaults: Record<string, unknown>;
+  sourceId?: string;
+  onUpdateSource?: ConfigPanelProps["onUpdateSource"];
 }) {
   const [overrides, setOverrides] = useState<Record<string, unknown>>(
     (extractor.parameters as Record<string, unknown>) ?? {}
@@ -300,16 +267,20 @@ function ParametersTab({
 
   const handleSave = async () => {
     setSaving(true);
-    const form = new FormData();
-    form.set("id", extractor.id);
-    form.set("orgId", extractor.orgId);
-    form.set("domainId", extractor.domainId);
-    form.set("country", extractor.country);
-    form.set("variant", extractor.variant);
-    form.set("robotTemplate", extractor.robotTemplate);
-    if (extractor.isActive) form.set("isActive", "on");
-    form.set("parameters", JSON.stringify(overrides));
-    await updateExtractor(form);
+    if (sourceId && onUpdateSource) {
+      await onUpdateSource({ id: sourceId, parameters: overrides });
+    } else {
+      const form = new FormData();
+      form.set("id", extractor.id);
+      form.set("orgId", extractor.orgId);
+      form.set("domainId", extractor.domainId);
+      form.set("country", extractor.country);
+      form.set("variant", extractor.variant);
+      form.set("robotTemplate", extractor.robotTemplate);
+      if (extractor.isActive) form.set("isActive", "on");
+      form.set("parameters", JSON.stringify(overrides));
+      await updateExtractor(form);
+    }
     setSaving(false);
   };
 
@@ -380,9 +351,13 @@ function ParametersTab({
 function Goto2Tab({
   extractor,
   domainDefaults,
+  sourceId,
+  onUpdateSource,
 }: {
   extractor: ConfigPanelProps["extractor"];
   domainDefaults: Record<string, unknown>;
+  sourceId?: string;
+  onUpdateSource?: ConfigPanelProps["onUpdateSource"];
 }) {
   const params = (extractor.parameters as Record<string, unknown>) ?? {};
   const goto2Overrides = (params.goto2 as Record<string, unknown>) ?? {};
@@ -406,17 +381,21 @@ function Goto2Tab({
 
   const handleSave = async () => {
     setSaving(true);
-    const form = new FormData();
-    form.set("id", extractor.id);
-    form.set("orgId", extractor.orgId);
-    form.set("domainId", extractor.domainId);
-    form.set("country", extractor.country);
-    form.set("variant", extractor.variant);
-    form.set("robotTemplate", extractor.robotTemplate);
-    if (extractor.isActive) form.set("isActive", "on");
     const mergedParams = { ...params, goto2: goto2State };
-    form.set("parameters", JSON.stringify(mergedParams));
-    await updateExtractor(form);
+    if (sourceId && onUpdateSource) {
+      await onUpdateSource({ id: sourceId, parameters: mergedParams });
+    } else {
+      const form = new FormData();
+      form.set("id", extractor.id);
+      form.set("orgId", extractor.orgId);
+      form.set("domainId", extractor.domainId);
+      form.set("country", extractor.country);
+      form.set("variant", extractor.variant);
+      form.set("robotTemplate", extractor.robotTemplate);
+      if (extractor.isActive) form.set("isActive", "on");
+      form.set("parameters", JSON.stringify(mergedParams));
+      await updateExtractor(form);
+    }
     setSaving(false);
   };
 
@@ -483,8 +462,22 @@ function Goto2Tab({
 
 /* ── beforeExtract Tab ─────────────────────────────────── */
 
+const BEFORE_EXTRACT_DEFAULT = `/**
+ * beforeExtract — runs after page load, before data extraction.
+ * Use this to dismiss popups, expand sections, set filters, etc.
+ *
+ * @param {object} context - Playwright page context (goto, click, waitForSelector, etc.)
+ * @param {object} inputs  - Input data for this run (_url, custom fields)
+ * @param {object} params  - Extractor parameters
+ */
+export default async function beforeExtract(context, inputs, params) {
+  // Example: close cookie banner
+  // await context.click('[data-testid="cookie-accept"]', { timeout: 3000 }).catch(() => {});
+}
+`;
+
 function BeforeExtractTab({ code }: { code: string }) {
-  const [value, setValue] = useState(code);
+  const [value, setValue] = useState(code || BEFORE_EXTRACT_DEFAULT);
 
   return (
     <div className="flex h-full flex-col">
@@ -536,6 +529,43 @@ function SectionHeader({ title }: { title: string }) {
   return (
     <div className="ws-group-header" style={{ cursor: 'default' }}>
       {title}
+    </div>
+  );
+}
+
+function ToggleField({
+  name,
+  label,
+  defaultChecked,
+  hint,
+}: {
+  name: string;
+  label: string;
+  defaultChecked: boolean;
+  hint?: string;
+}) {
+  const [checked, setChecked] = useState(defaultChecked);
+
+  return (
+    <div className="ws-field-row">
+      <label className="ws-field-label">{label}</label>
+      <div className="flex items-center py-1">
+        <input type="hidden" name={name} value={checked ? "on" : ""} />
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          onClick={() => setChecked((v) => !v)}
+          className="relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full transition-colors"
+          style={{ background: checked ? 'var(--ws-accent)' : 'var(--ws-surface-hover)' }}
+        >
+          <span
+            className="absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white transition-transform"
+            style={{ transform: checked ? 'translateX(0.75rem)' : 'translateX(0)' }}
+          />
+        </button>
+        {hint && <span className="ml-2 text-[0.6rem]" style={{ color: 'var(--ws-text-dim)' }}>{hint}</span>}
+      </div>
     </div>
   );
 }

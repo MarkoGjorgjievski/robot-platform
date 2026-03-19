@@ -64,7 +64,7 @@ interface ExtractorWorkspaceProps {
   onUpdateInput?: (id: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
   onDeleteInput?: (id: string) => Promise<unknown>;
   onRunInput?: (sourceId: string, inputLabel: string) => Promise<unknown>;
-  fetchRunData?: (runId: string) => Promise<{ html: string | null }>;
+  fetchRunData?: (runId: string) => Promise<{ html: string | null; logs: string | null; results: unknown; errorMessage: string | null; status: string }>;
   onUpdateSource?: (data: { id: string; isActive?: boolean; parameters?: Record<string, unknown>; domainId?: string | null; country?: string; variant?: string; robotTemplate?: string }) => Promise<void>;
 }
 
@@ -101,6 +101,9 @@ export function ExtractorWorkspace({
   const [selectedRunHtml, setSelectedRunHtml] = useState<string | null>(null);
   const [selectedRunResults, setSelectedRunResults] = useState<RunResult | null>(null);
   const [selectedRunStatus, setSelectedRunStatus] = useState<string | null>(null);
+  const [selectedRunLogs, setSelectedRunLogs] = useState<string | null>(null);
+  const [selectedRunError, setSelectedRunError] = useState<string | null>(null);
+  const [highlightSelector, setHighlightSelector] = useState<{ type: "css" | "xpath"; value: string } | null>(null);
   const loadedRunIdRef = useRef<string | null>(null);
 
   // Poll for active runs
@@ -116,26 +119,31 @@ export function ExtractorWorkspace({
     return () => clearInterval(interval);
   }, [selectedRunId, recentRuns, router]);
 
-  // Fetch run HTML when a completed run is selected
+  // Fetch run details when a completed/failed run is selected
   useEffect(() => {
     if (!selectedRunId) return;
     const run = recentRuns.find((r) => r.id === selectedRunId);
-    if (!run || run.status !== "completed") {
+    if (!run || (run.status !== "completed" && run.status !== "failed")) {
       setSelectedRunHtml(null);
       setSelectedRunResults(null);
+      setSelectedRunLogs(null);
+      setSelectedRunError(null);
       setSelectedRunStatus(run?.status ?? null);
       return;
     }
 
     setSelectedRunStatus(run.status);
 
-    // Guard: skip re-fetch if we already have HTML for this run ID
+    // Guard: skip re-fetch if we already have data for this run ID
     if (loadedRunIdRef.current === selectedRunId) return;
 
     if (fetchRunData) {
       fetchRunData(selectedRunId).then((data) => {
         if (data) {
           setSelectedRunHtml(data.html ?? null);
+          setSelectedRunResults(data.results as RunResult | null);
+          setSelectedRunLogs(data.logs ?? null);
+          setSelectedRunError(data.errorMessage ?? null);
           loadedRunIdRef.current = selectedRunId;
         }
       });
@@ -292,6 +300,7 @@ export function ExtractorWorkspace({
                 html={selectedRunHtml}
                 results={selectedRunResults}
                 runStatus={selectedRunStatus ?? undefined}
+                highlightSelector={highlightSelector}
               />
             </div>
 
@@ -333,6 +342,12 @@ export function ExtractorWorkspace({
                     schemaName={schemaTabName}
                     schema={schemaData as Record<string, unknown> | undefined}
                     overrideId={overrideId}
+                    onHighlightSelector={setHighlightSelector}
+                    sourceId={sourceId}
+                    onSaveSourceSchema={sourceId && onUpdateSource ? async (schema) => {
+                      const currentParams = (extractor.parameters as Record<string, unknown>) ?? {};
+                      await onUpdateSource!({ id: sourceId!, parameters: { ...currentParams, _schema: schema } });
+                    } : undefined}
                   />
                 )}
                 {activePanel === "transform" && (
@@ -375,6 +390,9 @@ export function ExtractorWorkspace({
                 onUpdateInput={onUpdateInput ?? (async () => {})}
                 onDeleteInput={onDeleteInput ?? (async () => {})}
                 onRunInput={onRunInput ?? (async () => {})}
+                runLogs={selectedRunLogs}
+                runResults={selectedRunResults as Record<string, unknown> | null}
+                runError={selectedRunError}
               />
             </div>
           )}

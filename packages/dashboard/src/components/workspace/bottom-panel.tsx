@@ -19,6 +19,12 @@ interface InputEntry {
   createdAt: Date;
 }
 
+interface LogEntry {
+  timestamp: string;
+  level: string;
+  message: string;
+}
+
 interface BottomPanelProps {
   runs: Run[];
   inputs: InputEntry[];
@@ -29,6 +35,9 @@ interface BottomPanelProps {
   onUpdateInput: (id: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
   onDeleteInput: (id: string) => Promise<unknown>;
   onRunInput: (sourceId: string, inputLabel: string) => Promise<unknown>;
+  runLogs?: string | null;
+  runResults?: unknown;
+  runError?: string | null;
 }
 
 type CenterTab = "output" | "data";
@@ -43,6 +52,9 @@ export function BottomPanel({
   onUpdateInput,
   onDeleteInput,
   onRunInput,
+  runLogs,
+  runResults,
+  runError,
 }: BottomPanelProps) {
   const [centerTab, setCenterTab] = useState<CenterTab>("output");
 
@@ -112,28 +124,44 @@ export function BottomPanel({
         <div className="flex-1 overflow-auto p-3">
           {centerTab === "output" && (
             <div className="h-full">
-              <pre
-                className="h-full text-[0.65rem] leading-relaxed"
-                style={{ color: 'var(--ws-text-muted)' }}
-              >
-                <span style={{ color: 'var(--ws-text-dim)' }}>
-                  {/* Placeholder - will show crawler logs */}
-                  {`[info] Crawler output logs will appear here.\n[info] Select an input and run to see output.`}
-                </span>
-              </pre>
+              {!selectedRunId ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+                  Select an input and run to see output.
+                </pre>
+              ) : runLogs ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-muted)' }}>
+                  {formatLogs(runLogs)}
+                </pre>
+              ) : runError ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-danger)' }}>
+                  {`[ERROR] ${runError}`}
+                </pre>
+              ) : (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+                  Waiting for run to complete...
+                </pre>
+              )}
             </div>
           )}
           {centerTab === "data" && (
             <div className="h-full">
-              <pre
-                className="h-full text-[0.65rem] leading-relaxed"
-                style={{ color: 'var(--ws-text-muted)' }}
-              >
-                <span style={{ color: 'var(--ws-text-dim)' }}>
-                  {/* Placeholder - will show matched selector data */}
-                  {`// Extracted data from matched selectors will appear here.\n// Run the extractor to see results.`}
-                </span>
-              </pre>
+              {!selectedRunId ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+                  Run the extractor to see results.
+                </pre>
+              ) : runResults ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-muted)' }}>
+                  {JSON.stringify(runResults, null, 2)}
+                </pre>
+              ) : runError ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-danger)' }}>
+                  Run failed — no data extracted.
+                </pre>
+              ) : (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+                  Waiting for run to complete...
+                </pre>
+              )}
             </div>
           )}
         </div>
@@ -175,6 +203,21 @@ function RunStatusIcon({ status }: { status: string }) {
       return <LoaderIcon className="size-3 shrink-0 animate-spin" style={{ color: 'var(--ws-accent)' }} />;
     default:
       return <ClockIcon className="size-3 shrink-0" style={{ color: 'var(--ws-text-dim)' }} />;
+  }
+}
+
+function formatLogs(logsJson: string): string {
+  try {
+    const entries = JSON.parse(logsJson) as LogEntry[];
+    return entries
+      .map((e) => {
+        const time = e.timestamp.split('T')[1]?.replace('Z', '') ?? e.timestamp;
+        const level = e.level.toUpperCase().padEnd(5);
+        return `[${time}] [${level}] ${e.message}`;
+      })
+      .join('\n');
+  } catch {
+    return logsJson;
   }
 }
 

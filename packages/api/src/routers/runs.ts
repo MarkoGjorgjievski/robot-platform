@@ -68,6 +68,30 @@ export const runsRouter = router({
       return { html: run.html };
     }),
 
+  getDetails: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.id),
+        columns: {
+          id: true,
+          html: true,
+          logs: true,
+          results: true,
+          errorMessage: true,
+          status: true,
+        },
+      });
+      if (!run) throw new Error(`Run ${input.id} not found`);
+      return {
+        html: run.html,
+        logs: run.logs,
+        results: run.results,
+        errorMessage: run.errorMessage,
+        status: run.status,
+      };
+    }),
+
   create: publicProcedure
     .input(
       z.object({
