@@ -10,6 +10,7 @@ import {
   SearchIcon,
 } from "lucide-react";
 import { updateSchema } from "@/app/legacy/extractors/actions";
+import { CodeEditor } from "./code-editor";
 
 interface SchemaField {
   name: string;
@@ -24,6 +25,7 @@ interface SchemaField {
   type?: string;
   description?: string;
   manualSelector?: string;
+  transform?: string;
 }
 
 interface SchemaData {
@@ -38,6 +40,9 @@ interface SchemaPanelProps {
   schemaName?: string;
   schema?: Record<string, unknown>;
   overrideId?: string;
+  onHighlightSelector?: (selector: { type: "css" | "xpath"; value: string } | null) => void;
+  sourceId?: string;
+  onSaveSourceSchema?: (schema: Record<string, unknown>) => Promise<void>;
 }
 
 function validateXpath(xpath: string): boolean {
@@ -54,7 +59,7 @@ function validateXpath(xpath: string): boolean {
   return brackets === 0 && parens === 0;
 }
 
-export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps) {
+export function SchemaPanel({ schemaName, schema, overrideId, onHighlightSelector, sourceId, onSaveSourceSchema }: SchemaPanelProps) {
   const initial = (schema ?? {}) as SchemaData;
   const [singleRecord, setSingleRecord] = useState(initial.singleRecord ?? false);
   const [regionsSelector, setRegionsSelector] = useState(initial.regionsSelector ?? "");
@@ -83,22 +88,27 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
   };
 
   const handleSave = async () => {
-    if (!overrideId || !schemaName) return;
+    if (!schemaName) return;
     setSaving(true);
-    const formData = new FormData();
-    formData.set("overrideId", overrideId);
-    formData.set("schemaName", schemaName);
-    formData.set(
-      "schema",
-      JSON.stringify({
-        singleRecord,
-        regionsSelector: regionsSelector || null,
-        recordSelector: recordSelector || null,
-        recordXPath: recordXPath || null,
-        fields,
-      })
-    );
-    await updateSchema(formData);
+    const schemaObj = {
+      singleRecord,
+      regionsSelector: regionsSelector || null,
+      recordSelector: recordSelector || null,
+      recordXPath: recordXPath || null,
+      fields,
+    };
+
+    if (sourceId && onSaveSourceSchema) {
+      // Save schema on the source (stored in parameters._schema)
+      await onSaveSourceSchema(schemaObj);
+    } else if (overrideId) {
+      // Save to robot override
+      const formData = new FormData();
+      formData.set("overrideId", overrideId);
+      formData.set("schemaName", schemaName);
+      formData.set("schema", JSON.stringify(schemaObj));
+      await updateSchema(formData);
+    }
     setSaving(false);
   };
 
@@ -170,7 +180,12 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
             </label>
             <input
               value={recordSelector}
-              onChange={(e) => setRecordSelector(e.target.value)}
+              onChange={(e) => {
+                setRecordSelector(e.target.value);
+                if (e.target.value && onHighlightSelector) onHighlightSelector({ type: "css", value: e.target.value });
+              }}
+              onFocus={() => recordSelector && onHighlightSelector?.({ type: "css", value: recordSelector })}
+              onBlur={() => onHighlightSelector?.(null)}
               placeholder="div.product-card"
               className="w-full rounded px-2 py-1"
             />
@@ -181,7 +196,12 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
             </label>
             <input
               value={recordXPath}
-              onChange={(e) => setRecordXPath(e.target.value)}
+              onChange={(e) => {
+                setRecordXPath(e.target.value);
+                if (e.target.value && onHighlightSelector) onHighlightSelector({ type: "xpath", value: e.target.value });
+              }}
+              onFocus={() => recordXPath && onHighlightSelector?.({ type: "xpath", value: recordXPath })}
+              onBlur={() => onHighlightSelector?.(null)}
               placeholder="//div[@class='product']"
               className="w-full rounded px-2 py-1"
               style={{
@@ -288,7 +308,12 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
                   <label className="ws-field-label">xpath</label>
                   <textarea
                     value={field.xpath ?? ""}
-                    onChange={(e) => updateField(idx, { xpath: e.target.value || undefined })}
+                    onChange={(e) => {
+                      updateField(idx, { xpath: e.target.value || undefined });
+                      if (e.target.value && onHighlightSelector) onHighlightSelector({ type: "xpath", value: e.target.value });
+                    }}
+                    onFocus={() => field.xpath && onHighlightSelector?.({ type: "xpath", value: field.xpath })}
+                    onBlur={() => onHighlightSelector?.(null)}
                     placeholder="//span[@class='price']"
                     rows={1}
                     className="w-full resize-y rounded px-2 py-1"
@@ -301,7 +326,12 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
                   <label className="ws-field-label">css</label>
                   <input
                     value={field.css ?? ""}
-                    onChange={(e) => updateField(idx, { css: e.target.value || undefined })}
+                    onChange={(e) => {
+                      updateField(idx, { css: e.target.value || undefined });
+                      if (e.target.value && onHighlightSelector) onHighlightSelector({ type: "css", value: e.target.value });
+                    }}
+                    onFocus={() => field.css && onHighlightSelector?.({ type: "css", value: field.css })}
+                    onBlur={() => onHighlightSelector?.(null)}
                     placeholder=".product .price"
                     className="w-full rounded px-2 py-1"
                   />
@@ -402,6 +432,10 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
                     className="w-full rounded px-2 py-1"
                   />
                 </div>
+                <FieldTransformEditor
+                  value={field.transform}
+                  onChange={(v) => updateField(idx, { transform: v || undefined })}
+                />
               </div>
             )}
           </div>
@@ -426,6 +460,51 @@ export function SchemaPanel({ schemaName, schema, overrideId }: SchemaPanelProps
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Per-field transform editor ──────────────────────────────────── */
+
+const TRANSFORM_DEFAULT = `function transform(text, row) {
+  return text;
+}`;
+
+function FieldTransformEditor({
+  value,
+  onChange,
+}: {
+  value?: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasTransform = value && value.trim() !== '' && value.trim() !== TRANSFORM_DEFAULT;
+
+  return (
+    <div style={{ borderTop: '1px solid var(--ws-border-subtle)' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[0.6rem] transition-colors hover:bg-[var(--ws-surface-hover)]"
+        style={{ color: hasTransform ? 'var(--ws-accent)' : 'var(--ws-text-dim)' }}
+      >
+        {open ? (
+          <ChevronDownIcon className="size-3" />
+        ) : (
+          <ChevronRightIcon className="size-3" />
+        )}
+        transform
+        {hasTransform && <span className="ws-badge ws-badge-blue" style={{ fontSize: '0.5rem' }}>custom</span>}
+      </button>
+      {open && (
+        <div className="px-1 pb-2" style={{ minHeight: 80 }}>
+          <CodeEditor
+            value={value || TRANSFORM_DEFAULT}
+            onChange={onChange}
+            maxHeight={160}
+          />
+        </div>
+      )}
     </div>
   );
 }

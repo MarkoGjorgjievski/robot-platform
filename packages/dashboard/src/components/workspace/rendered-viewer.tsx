@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { EyeIcon, ImageIcon, PanelRightIcon } from "lucide-react";
 
 interface RunResult {
@@ -14,13 +14,68 @@ interface RenderedViewerProps {
   html: string | null;
   results: RunResult | null;
   runStatus?: string;
+  highlightSelector?: { type: "css" | "xpath"; value: string } | null;
 }
 
 type ViewTab = "rendered" | "screenshot";
 
-export function RenderedViewer({ html, results, runStatus }: RenderedViewerProps) {
+// Script injected into the iframe to handle highlight messages
+const HIGHLIGHT_SCRIPT = `
+<script>
+window.addEventListener('message', function(e) {
+  if (!e.data || e.data.type !== 'highlight') return;
+  // Remove old highlights
+  document.querySelectorAll('[data-rp-highlight]').forEach(function(el) {
+    el.style.outline = '';
+    el.style.backgroundColor = '';
+    el.removeAttribute('data-rp-highlight');
+  });
+  var sel = e.data.selector;
+  if (!sel || !sel.value) return;
+  var els = [];
+  try {
+    if (sel.type === 'css') {
+      els = Array.from(document.querySelectorAll(sel.value));
+    } else if (sel.type === 'xpath') {
+      var result = document.evaluate(sel.value, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      for (var i = 0; i < result.snapshotLength; i++) els.push(result.snapshotItem(i));
+    }
+  } catch(ex) {}
+  els.forEach(function(el) {
+    if (el && el.style) {
+      el.style.outline = '2px solid #3b82f6';
+      el.style.backgroundColor = 'rgba(59,130,246,0.1)';
+      el.setAttribute('data-rp-highlight', '1');
+    }
+  });
+  if (els.length > 0 && els[0].scrollIntoView) {
+    els[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
+</script>`;
+
+function injectHighlightScript(rawHtml: string): string {
+  // Inject before </body> or at end
+  if (rawHtml.includes('</body>')) {
+    return rawHtml.replace('</body>', HIGHLIGHT_SCRIPT + '</body>');
+  }
+  return rawHtml + HIGHLIGHT_SCRIPT;
+}
+
+export function RenderedViewer({ html, results, runStatus, highlightSelector }: RenderedViewerProps) {
   const [tab, setTab] = useState<ViewTab>("rendered");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Send highlight message to iframe when selector changes
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage(
+      { type: 'highlight', selector: highlightSelector ?? null },
+      '*'
+    );
+  }, [highlightSelector]);
 
   if (!html && !results) {
     return (
@@ -88,8 +143,9 @@ export function RenderedViewer({ html, results, runStatus }: RenderedViewerProps
           <>
             <div className={inspectorOpen ? "flex-1 overflow-hidden" : "h-full w-full overflow-hidden"}>
               <iframe
-                srcDoc={html}
-                sandbox=""
+                ref={iframeRef}
+                srcDoc={injectHighlightScript(html)}
+                sandbox="allow-scripts"
                 className="h-full w-full border-0"
                 title="Rendered page"
               />

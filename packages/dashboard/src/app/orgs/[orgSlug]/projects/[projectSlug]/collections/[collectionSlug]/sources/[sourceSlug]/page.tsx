@@ -42,7 +42,10 @@ export default async function SourceDetailPage({
   const jsOverrides = (override?.jsOverrides as Record<string, string>) ?? {};
   const schemaYAML = (source.parameters as Record<string, unknown>)?.schemaYAML as string | undefined;
 
-  // Use override schemas if available, otherwise convert collection schema to SchemaPanel format
+  // Schema priority: source-level _schema > override schemas > collection schema
+  const sourceParams = (source.parameters as Record<string, unknown>) ?? {};
+  const sourceSchema = sourceParams._schema as Record<string, unknown> | undefined;
+
   const collectionFields = Array.isArray(source.collectionSchema) ? source.collectionSchema : [];
   const collectionSchemaObj = collectionFields.length > 0
     ? {
@@ -59,7 +62,16 @@ export default async function SourceDetailPage({
         },
       }
     : {};
-  const schemas = Object.keys(overrideSchemas).length > 0 ? overrideSchemas : collectionSchemaObj;
+
+  let schemas: Record<string, unknown>;
+  if (sourceSchema && typeof sourceSchema === 'object' && 'fields' in sourceSchema) {
+    // Source-level schema (edited in Schema panel) — wrap under schema name key
+    schemas = { [schemaYAML ?? source.collectionName ?? 'schema']: sourceSchema };
+  } else if (Object.keys(overrideSchemas).length > 0) {
+    schemas = overrideSchemas;
+  } else {
+    schemas = collectionSchemaObj;
+  }
 
   // Map source to the extractor shape expected by ExtractorWorkspace
   const extractor = {

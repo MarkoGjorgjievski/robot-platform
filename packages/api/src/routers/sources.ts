@@ -153,10 +153,23 @@ export const sourcesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
+      const { id, parameters, ...rest } = input;
+
+      // If parameters is provided, merge with existing (don't replace)
+      // This prevents one tab's save from clobbering another tab's data
+      let mergedParams = parameters;
+      if (parameters) {
+        const existing = await ctx.db.query.sources.findFirst({
+          where: eq(sources.id, id),
+          columns: { parameters: true },
+        });
+        const currentParams = (existing?.parameters ?? {}) as Record<string, unknown>;
+        mergedParams = { ...currentParams, ...parameters };
+      }
+
       const [source] = await ctx.db
         .update(sources)
-        .set({ ...data, updatedAt: new Date() })
+        .set({ ...rest, ...(mergedParams !== undefined ? { parameters: mergedParams } : {}), updatedAt: new Date() })
         .where(eq(sources.id, id))
         .returning();
 
