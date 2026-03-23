@@ -228,7 +228,7 @@ export const runs = pgTable('runs', {
   results: jsonb('results'),
   html: text('html'),
   logs: text('logs'),
-  videoUrl: text('video_url'),
+  replayData: text('replay_data'),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [

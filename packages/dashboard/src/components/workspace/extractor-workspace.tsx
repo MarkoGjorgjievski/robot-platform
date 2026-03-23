@@ -17,7 +17,7 @@ import { RenderedViewer } from "./rendered-viewer";
 import { ConfigPanel } from "./config-panel";
 import { TransformPanel } from "./transform-panel";
 import { BottomPanel } from "./bottom-panel";
-import { RecorderBar } from "./recorder-bar";
+// import { RecorderBar } from "./recorder-bar";
 
 interface RunResult {
   screenshotBase64?: string;
@@ -64,7 +64,7 @@ interface ExtractorWorkspaceProps {
   onUpdateInput?: (id: string, label: string, inputData: Record<string, unknown>) => Promise<unknown>;
   onDeleteInput?: (id: string) => Promise<unknown>;
   onRunInput?: (sourceId: string, inputLabel: string) => Promise<unknown>;
-  fetchRunData?: (runId: string) => Promise<{ html: string | null; logs: string | null; results: unknown; errorMessage: string | null; status: string }>;
+  fetchRunData?: (runId: string) => Promise<{ html: string | null; logs: string | null; results: unknown; replayData: string | null; errorMessage: string | null; status: string }>;
   onUpdateSource?: (data: { id: string; isActive?: boolean; parameters?: Record<string, unknown>; domainId?: string | null; country?: string; variant?: string; robotTemplate?: string }) => Promise<void>;
 }
 
@@ -97,12 +97,14 @@ export function ExtractorWorkspace({
   const [sidebarWidth, setSidebarWidth] = useState(340);
   const [bottomHeight, setBottomHeight] = useState(220);
   const [bottomOpen, setBottomOpen] = useState(true);
+  const [isResizing, setIsResizing] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedRunHtml, setSelectedRunHtml] = useState<string | null>(null);
   const [selectedRunResults, setSelectedRunResults] = useState<RunResult | null>(null);
   const [selectedRunStatus, setSelectedRunStatus] = useState<string | null>(null);
   const [selectedRunLogs, setSelectedRunLogs] = useState<string | null>(null);
   const [selectedRunError, setSelectedRunError] = useState<string | null>(null);
+  const [selectedRunReplayData, setSelectedRunReplayData] = useState<string | null>(null);
   const [highlightSelector, setHighlightSelector] = useState<{ type: "css" | "xpath"; value: string } | null>(null);
   const loadedRunIdRef = useRef<string | null>(null);
 
@@ -128,6 +130,7 @@ export function ExtractorWorkspace({
       setSelectedRunResults(null);
       setSelectedRunLogs(null);
       setSelectedRunError(null);
+      setSelectedRunReplayData(null);
       setSelectedRunStatus(run?.status ?? null);
       return;
     }
@@ -144,6 +147,7 @@ export function ExtractorWorkspace({
           setSelectedRunResults(data.results as RunResult | null);
           setSelectedRunLogs(data.logs ?? null);
           setSelectedRunError(data.errorMessage ?? null);
+          setSelectedRunReplayData(data.replayData ?? null);
           loadedRunIdRef.current = selectedRunId;
         }
       });
@@ -152,7 +156,7 @@ export function ExtractorWorkspace({
 
   const schemaTabName = schemaYAML ?? Object.keys(schemas)[0];
   const schemaData = schemaTabName ? schemas[schemaTabName] : undefined;
-  const lastRun = recentRuns[0];
+  // const lastRun = recentRuns[0];
 
   const togglePanel = (panel: SidebarPanel) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -165,6 +169,7 @@ export function ExtractorWorkspace({
   const handleSidebarResize = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      setIsResizing(true);
       const startX = e.clientX;
       const startW = sidebarWidth;
 
@@ -177,6 +182,7 @@ export function ExtractorWorkspace({
         document.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        setIsResizing(false);
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
@@ -189,6 +195,7 @@ export function ExtractorWorkspace({
   const handleBottomResize = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
+      setIsResizing(true);
       const startY = e.clientY;
       const startH = bottomHeight;
 
@@ -201,6 +208,7 @@ export function ExtractorWorkspace({
         document.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        setIsResizing(false);
       };
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
@@ -291,14 +299,20 @@ export function ExtractorWorkspace({
       {/* ── Main body: content + activity bar ────────── */}
       <div className="flex flex-1 overflow-hidden">
         {/* Content area (everything except activity bar) */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="relative flex flex-1 flex-col overflow-hidden">
+          {/* Overlay to prevent iframe from stealing mouse during resize */}
+          {isResizing && (
+            <div className="absolute inset-0 z-50" style={{ cursor: document.body.style.cursor || 'default' }} />
+          )}
           {/* Upper section: DOM viewer + optional sidebar */}
           <div className="flex flex-1 overflow-hidden">
             {/* DOM Viewer — fills remaining space */}
             <div className="flex flex-1 flex-col overflow-hidden" style={{ background: 'var(--ws-bg)' }}>
               <RenderedViewer
                 html={selectedRunHtml}
+                runId={selectedRunId}
                 results={selectedRunResults}
+                replayData={selectedRunReplayData}
                 runStatus={selectedRunStatus ?? undefined}
                 highlightSelector={highlightSelector}
               />
@@ -397,10 +411,6 @@ export function ExtractorWorkspace({
             </div>
           )}
 
-          {/* Recorder bar */}
-          <div className="shrink-0">
-            <RecorderBar lastRunId={lastRun?.id} />
-          </div>
         </div>
 
         {/* ── Activity Bar (far right) ────────────────── */}
@@ -412,23 +422,13 @@ export function ExtractorWorkspace({
             borderLeft: '1px solid var(--ws-border)',
           }}
         >
-          {activityItems.filter((i) => !i.hidden).map((item) => {
-            const isActive =
-              item.id === "bottom"
-                ? bottomOpen
-                : activePanel === item.id;
-
+          {activityItems.filter((i) => !i.hidden && i.id !== "bottom").map((item) => {
+            const isActive = activePanel === item.id;
             return (
               <button
                 key={item.id}
                 title={item.title}
-                onClick={() => {
-                  if (item.id === "bottom") {
-                    toggleBottom();
-                  } else {
-                    togglePanel(item.id as SidebarPanel);
-                  }
-                }}
+                onClick={() => togglePanel(item.id as SidebarPanel)}
                 className="relative flex items-center justify-center rounded transition-colors"
                 style={{
                   width: 32,
@@ -438,7 +438,32 @@ export function ExtractorWorkspace({
                 }}
               >
                 {item.icon}
-                {/* Active indicator bar on the right edge */}
+                {isActive && (
+                  <span
+                    className="absolute right-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-l"
+                    style={{ background: 'var(--ws-accent)' }}
+                  />
+                )}
+              </button>
+            );
+          })}
+          <span className="mt-auto" />
+          {activityItems.filter((i) => i.id === "bottom").map((item) => {
+            const isActive = bottomOpen;
+            return (
+              <button
+                key={item.id}
+                title={item.title}
+                onClick={toggleBottom}
+                className="relative flex items-center justify-center rounded transition-colors"
+                style={{
+                  width: 32,
+                  height: 32,
+                  color: isActive ? 'var(--ws-text)' : 'var(--ws-text-dim)',
+                  background: isActive ? 'var(--ws-surface-hover)' : 'transparent',
+                }}
+              >
+                {item.icon}
                 {isActive && (
                   <span
                     className="absolute right-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-l"

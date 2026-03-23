@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2Icon, XCircleIcon, LoaderIcon, ClockIcon } from "lucide-react";
+import { CheckCircle2Icon, XCircleIcon, LoaderIcon, ClockIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { InputsPanel } from "./inputs-panel";
 
 interface Run {
@@ -40,7 +40,7 @@ interface BottomPanelProps {
   runError?: string | null;
 }
 
-type CenterTab = "output" | "data";
+type CenterTab = "output" | "data" | "config";
 
 export function BottomPanel({
   runs,
@@ -118,6 +118,13 @@ export function BottomPanel({
           >
             Data
           </button>
+          <button
+            className="ws-tab"
+            data-state={centerTab === "config" ? "active" : "inactive"}
+            onClick={() => setCenterTab("config")}
+          >
+            Config
+          </button>
         </div>
 
         {/* Tab content */}
@@ -128,13 +135,10 @@ export function BottomPanel({
                 <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
                   Select an input and run to see output.
                 </pre>
-              ) : runLogs ? (
+              ) : (runLogs || runError) ? (
                 <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-muted)' }}>
-                  {formatLogs(runLogs)}
-                </pre>
-              ) : runError ? (
-                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-danger)' }}>
-                  {`[ERROR] ${runError}`}
+                  {runLogs ? formatLogs(runLogs) : ''}
+                  {runError ? `\n[ERROR] ${runError}` : ''}
                 </pre>
               ) : (
                 <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
@@ -150,13 +154,26 @@ export function BottomPanel({
                   Run the extractor to see results.
                 </pre>
               ) : runResults ? (
-                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-muted)' }}>
-                  {JSON.stringify(runResults, null, 2)}
-                </pre>
+                <DataTable results={runResults} />
               ) : runError ? (
                 <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-danger)' }}>
                   Run failed — no data extracted.
                 </pre>
+              ) : (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+                  Waiting for run to complete...
+                </pre>
+              )}
+            </div>
+          )}
+          {centerTab === "config" && (
+            <div className="h-full">
+              {!selectedRunId ? (
+                <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+                  Select a run to see config overrides.
+                </pre>
+              ) : runResults ? (
+                <ConfigDiffView results={runResults} />
               ) : (
                 <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
                   Waiting for run to complete...
@@ -187,6 +204,135 @@ export function BottomPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Config Diff View ──────────────────────────────── */
+
+function ConfigDiffView({ results }: { results: unknown }) {
+  const [showAll, setShowAll] = useState(false);
+  const res = results as Record<string, unknown> | null;
+  const snapshot = res?.configSnapshot as {
+    overrides?: Array<{ key: string; from: unknown; to: unknown }>;
+    merged?: Record<string, unknown>;
+  } | undefined;
+
+  if (!snapshot) {
+    return (
+      <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+        No config data available for this run.
+      </pre>
+    );
+  }
+
+  const overrides = snapshot.overrides ?? [];
+  const merged = snapshot.merged ?? {};
+
+  const formatValue = (v: unknown): string => {
+    if (v === undefined) return '(unset)';
+    if (v === null) return 'null';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  };
+
+  return (
+    <div className="h-full overflow-auto">
+      {overrides.length === 0 ? (
+        <div className="px-3 py-4 text-[0.65rem]" style={{ color: 'var(--ws-text-dim)' }}>
+          No parameter overrides — using domain defaults.
+        </div>
+      ) : (
+        <table className="w-full text-[0.6rem]" style={{ borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--ws-border)' }}>
+              <th className="px-3 py-1.5 text-left font-semibold" style={{ color: 'var(--ws-text-muted)' }}>Parameter</th>
+              <th className="px-3 py-1.5 text-left font-semibold" style={{ color: 'var(--ws-text-dim)' }}>Domain Default</th>
+              <th className="px-3 py-1.5 text-left font-semibold" style={{ color: 'var(--ws-accent)' }}>Source Override</th>
+            </tr>
+          </thead>
+          <tbody>
+            {overrides.map((o) => (
+              <tr key={o.key} style={{ borderBottom: '1px solid var(--ws-border-subtle)' }}>
+                <td className="px-3 py-1.5 font-medium" style={{ color: 'var(--ws-text)' }}>{o.key}</td>
+                <td className="px-3 py-1.5" style={{ color: 'var(--ws-text-dim)', textDecoration: 'line-through' }}>
+                  {formatValue(o.from)}
+                </td>
+                <td className="px-3 py-1.5 font-medium" style={{ color: 'var(--ws-accent)' }}>
+                  {formatValue(o.to)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Collapsible full merged params */}
+      <div style={{ borderTop: '1px solid var(--ws-border-subtle)' }}>
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[0.6rem] transition-colors hover:bg-[var(--ws-surface-hover)]"
+          style={{ color: 'var(--ws-text-dim)' }}
+        >
+          {showAll ? <ChevronDownIcon className="size-3" /> : <ChevronRightIcon className="size-3" />}
+          All merged parameters
+        </button>
+        {showAll && (
+          <pre className="px-3 pb-3 text-[0.6rem] leading-relaxed" style={{ color: 'var(--ws-text-muted)' }}>
+            {JSON.stringify(merged, null, 2)}
+          </pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Data Table ─────────────────────────────────────── */
+
+function DataTable({ results }: { results: unknown }) {
+  const res = results as Record<string, unknown> | null;
+  const records = (res?.records ?? []) as Record<string, string | null>[];
+
+  if (records.length === 0) {
+    return (
+      <pre className="h-full text-[0.65rem] leading-relaxed" style={{ color: 'var(--ws-text-dim)' }}>
+        No records extracted.
+      </pre>
+    );
+  }
+
+  const columns = Object.keys(records[0]);
+
+  return (
+    <div className="h-full overflow-auto">
+      <table className="w-full text-[0.6rem]" style={{ borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--ws-border)' }}>
+            <th className="px-2 py-1 text-left font-semibold" style={{ color: 'var(--ws-text-dim)', width: 32 }}>#</th>
+            {columns.map((col) => (
+              <th
+                key={col}
+                className="px-2 py-1 text-left font-semibold"
+                style={{ color: 'var(--ws-text-muted)' }}
+              >
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((record, i) => (
+            <tr key={i} style={{ borderBottom: '1px solid var(--ws-border-subtle)' }}>
+              <td className="px-2 py-1 tabular-nums" style={{ color: 'var(--ws-text-dim)' }}>{i + 1}</td>
+              {columns.map((col) => (
+                <td key={col} className="max-w-[300px] truncate px-2 py-1" style={{ color: 'var(--ws-text)' }} title={record[col] ?? ''}>
+                  {record[col] ?? <span style={{ color: 'var(--ws-text-dim)' }}>null</span>}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

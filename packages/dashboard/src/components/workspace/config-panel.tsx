@@ -119,6 +119,8 @@ export function ConfigPanel({
         {activeTab === "beforeExtract" && (hasBeforeExtract || !!sourceId) && (
           <BeforeExtractTab
             code={jsOverrides.beforeExtract ?? ""}
+            sourceId={sourceId}
+            onUpdateSource={onUpdateSource}
           />
         )}
         {activeTab === "credentials" && (
@@ -466,9 +468,9 @@ const BEFORE_EXTRACT_DEFAULT = `/**
  * beforeExtract — runs after page load, before data extraction.
  * Use this to dismiss popups, expand sections, set filters, etc.
  *
- * @param {object} context - Playwright page context (goto, click, waitForSelector, etc.)
- * @param {object} inputs  - Input data for this run (_url, custom fields)
- * @param {object} params  - Extractor parameters
+ * context: { click, waitForSelector, goto, evaluate, ... } (Playwright page methods)
+ * inputs:  input data for this run (url, custom fields)
+ * params:  extractor parameters
  */
 export default async function beforeExtract(context, inputs, params) {
   // Example: close cookie banner
@@ -476,8 +478,24 @@ export default async function beforeExtract(context, inputs, params) {
 }
 `;
 
-function BeforeExtractTab({ code }: { code: string }) {
+function BeforeExtractTab({
+  code,
+  sourceId,
+  onUpdateSource,
+}: {
+  code: string;
+  sourceId?: string;
+  onUpdateSource?: ConfigPanelProps["onUpdateSource"];
+}) {
   const [value, setValue] = useState(code || BEFORE_EXTRACT_DEFAULT);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!sourceId || !onUpdateSource) return;
+    setSaving(true);
+    await onUpdateSource({ id: sourceId, parameters: { _beforeExtract: value } });
+    setSaving(false);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -489,6 +507,21 @@ function BeforeExtractTab({ code }: { code: string }) {
           maxHeight={9999}
         />
       </div>
+      {sourceId && onUpdateSource && (
+        <div className="px-3 py-2" style={{ borderTop: '1px solid var(--ws-border)' }}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full rounded py-1.5 text-xs font-semibold uppercase tracking-wider transition-colors"
+            style={{
+              background: saving ? 'var(--ws-surface-hover)' : 'var(--ws-accent)',
+              color: saving ? 'var(--ws-text-muted)' : '#fff',
+            }}
+          >
+            {saving ? "Saving..." : "Save beforeExtract"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
