@@ -8,8 +8,10 @@
   },
   "dependencies": {
     "@robot/db": "workspace:*",
+    "@rrweb/types": "2.0.0-alpha.20",
     "drizzle-orm": "^0.44.0",
-    "playwright": "^1.52.0"
+    "playwright": "^1.52.0",
+    "rrweb": "2.0.0-alpha.4"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",

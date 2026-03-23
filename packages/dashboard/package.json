@@ -11,6 +11,8 @@
     "@robot/api": "workspace:*",
     "@robot/config": "workspace:*",
     "@robot/db": "workspace:*",
+    "@rrweb/replay": "2.0.0-alpha.20",
+    "@rrweb/types": "2.0.0-alpha.20",
     "@tanstack/react-query": "^5.0.0",
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
@@ -25,6 +27,7 @@
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "rrweb-player": "1.0.0-alpha.4",
     "superjson": "^2.2.0",
     "tailwind-merge": "^3.0.0"
   },

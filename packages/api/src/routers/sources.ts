@@ -135,6 +135,7 @@ export const sourcesRouter = router({
     .input(
       z.object({
         id: z.string().uuid(),
+        isActive: z.boolean().optional(),
         domainId: z.string().uuid().nullish(),
         name: z.string().min(1).max(255).optional(),
         slug: z.string().min(1).max(255).optional(),

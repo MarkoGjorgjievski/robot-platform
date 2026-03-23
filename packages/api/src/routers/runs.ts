@@ -78,6 +78,7 @@ export const runsRouter = router({
           html: true,
           logs: true,
           results: true,
+          replayData: true,
           errorMessage: true,
           status: true,
         },
@@ -87,6 +88,7 @@ export const runsRouter = router({
         html: run.html,
         logs: run.logs,
         results: run.results,
+        replayData: run.replayData,
         errorMessage: run.errorMessage,
         status: run.status,
       };

@@ -1,4 +1,6 @@
 import { chromium, type Browser, type Page } from 'playwright';
+import { readFileSync } from 'fs';
+import { createRequire } from 'module';
 import { db } from '@robot/db';
 import { runs, extractors, extractorInputs, sources, sourceInputs, robotOverrides } from '@robot/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -6,6 +8,13 @@ import { PlaywrightContext } from './context';
 import { RunLogger } from './logger';
 import { buildUrl } from './url-builder';
 import { extractData, applyFieldTransforms, applyGlobalTransform, type SchemaData, type SchemaField } from './extractor';
+
+// Load rrweb recorder script once at module level
+const rrwebRequire = createRequire(import.meta.url);
+const RRWEB_RECORD_SCRIPT = readFileSync(
+  rrwebRequire.resolve('rrweb/dist/record/rrweb-record.min.js'),
+  'utf-8',
+);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -24,6 +33,24 @@ function deepMerge(base: Record<string, unknown>, overrides: Record<string, unkn
     }
   }
   return result;
+}
+
+function computeOverrides(
+  defaults: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Array<{ key: string; from: unknown; to: unknown }> {
+  const overrides: Array<{ key: string; from: unknown; to: unknown }> = [];
+  const allKeys = new Set([...Object.keys(defaults), ...Object.keys(source)]);
+  for (const key of allKeys) {
+    // Skip internal keys
+    if (key.startsWith('_')) continue;
+    const fromVal = defaults[key];
+    const toVal = source[key];
+    if (toVal !== undefined && JSON.stringify(fromVal) !== JSON.stringify(toVal)) {
+      overrides.push({ key, from: fromVal, to: toVal });
+    }
+  }
+  return overrides;
 }
 
 // ─── Main executor ───────────────────────────────────────────────────────────
@@ -132,6 +159,20 @@ export async function executeRun(runId: string): Promise<void> {
       logger.info(`Merged ${Object.keys(domainDefaults).length} domain default parameter(s)`);
     }
 
+    // Log key merged params for debugging
+    const paramKeys = Object.keys(params).filter(k => !k.startsWith('_'));
+    logger.info(`Merged params: ${paramKeys.join(', ')}`);
+    if (params.loadedXpath) logger.info(`  loadedXpath: ${params.loadedXpath}`);
+    if (params.loadedSelector) logger.info(`  loadedSelector: ${params.loadedSelector}`);
+    if (params.loadingTimeout) logger.info(`  loadingTimeout: ${params.loadingTimeout}`);
+    if (params.orderedActionsToPerform) logger.info(`  orderedActions: ${(params.orderedActionsToPerform as unknown[]).length} action(s)`);
+
+    // Config snapshot for the Config tab
+    const configOverrides = computeOverrides(domainDefaults, sourceParams);
+    if (configOverrides.length > 0) {
+      logger.info(`${configOverrides.length} parameter override(s): ${configOverrides.map(o => o.key).join(', ')}`);
+    }
+
     const jsOverrides = (override?.jsOverrides ?? {}) as Record<string, string>;
     const overrideSchemas = (override?.schemas ?? {}) as Record<string, unknown>;
 
@@ -143,13 +184,6 @@ export async function executeRun(runId: string): Promise<void> {
 
     // 1. Source-level schema (saved from Schema panel into parameters._schema)
     const sourceSchema = params._schema as SchemaData | undefined;
-    logger.info(`Schema resolution: _schema=${sourceSchema ? 'present' : 'absent'}, overrideKeys=[${Object.keys(overrideSchemas).join(',')}], collectionFields=${Array.isArray(collectionSchema) ? (collectionSchema as unknown[]).length : 0}`);
-    if (sourceSchema) {
-      logger.info(`_schema fields: ${JSON.stringify((sourceSchema.fields ?? []).map(f => {
-        const ff = f as unknown as Record<string, unknown>;
-        return { name: ff.name, xpath: ff.xpath, css: ff.css };
-      }))}`);
-    }
     if (sourceSchema && sourceSchema.fields && sourceSchema.fields.length > 0) {
       schema = sourceSchema;
       schemaName = schemaName ?? 'source';
@@ -239,11 +273,15 @@ export async function executeRun(runId: string): Promise<void> {
     const headless = process.env.HEADFUL !== '1';
     logger.info(`Launching browser (headless=${headless})`);
     browser = await chromium.launch({ headless });
+
     const browserContext = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
     });
     const page = await browserContext.newPage();
     const ctx = new PlaywrightContext(page, browserContext, logger);
+
+    // Inject rrweb recorder BEFORE navigation to capture the full page lifecycle
+    await page.addInitScript({ content: RRWEB_RECORD_SCRIPT + `\n;window.__rrwebEvents=[];if(typeof rrwebRecord==='function'){rrwebRecord({emit:function(e){window.__rrwebEvents.push(e)},inlineStylesheet:true,collectFonts:true,recordCanvas:false});}` });
 
     // ── Configure browser ────────────────────────────────────────────────
     const blockAds = params.setBlockAds as boolean | undefined;
@@ -271,15 +309,36 @@ export async function executeRun(runId: string): Promise<void> {
     // ── Validate page load ───────────────────────────────────────────────
     const loadedXpath = params.loadedXpath as string | undefined;
     const loadedSelector = params.loadedSelector as string | undefined;
+    const loadingTimeout = (params.loadingTimeout as number) ?? 30000;
 
     if (loadedXpath) {
-      logger.info(`Waiting for XPath: ${loadedXpath}`);
-      await ctx.waitForXPath(loadedXpath, { timeout: 30000 });
+      logger.info(`Waiting for XPath: ${loadedXpath} (timeout=${loadingTimeout}ms)`);
+      await ctx.waitForXPath(loadedXpath, { timeout: loadingTimeout });
       logger.info('XPath found');
     } else if (loadedSelector) {
-      logger.info(`Waiting for selector: ${loadedSelector}`);
-      await ctx.waitForSelector(loadedSelector, { timeout: 30000 });
+      logger.info(`Waiting for selector: ${loadedSelector} (timeout=${loadingTimeout}ms)`);
+      await ctx.waitForSelector(loadedSelector, { timeout: loadingTimeout });
       logger.info('Selector found');
+    } else {
+      logger.info('No loadedXpath or loadedSelector — skipping page validation');
+    }
+
+    // ── Wait for additional selectors (waitForSelectorToLoad / waitForXPathToLoad)
+    const waitForSelector = params.waitForSelectorToLoad as string | undefined;
+    const waitForXPath = params.waitForXPathToLoad as string | undefined;
+    if (waitForSelector) {
+      logger.info(`Waiting for CSS: ${waitForSelector} (timeout=${loadingTimeout}ms)`);
+      try {
+        await page.waitForSelector(waitForSelector, { timeout: loadingTimeout });
+        logger.info('CSS selector found');
+      } catch { logger.warn(`waitForSelectorToLoad timed out: ${waitForSelector}`); }
+    }
+    if (waitForXPath) {
+      logger.info(`Waiting for XPath: ${waitForXPath} (timeout=${loadingTimeout}ms)`);
+      try {
+        await ctx.waitForXPath(waitForXPath, { timeout: loadingTimeout });
+        logger.info('XPath found');
+      } catch { logger.warn(`waitForXPathToLoad timed out: ${waitForXPath}`); }
     }
 
     // Check for no results / access denied
@@ -305,61 +364,88 @@ export async function executeRun(runId: string): Promise<void> {
       await ctx.scrollToBottom({ maxScrolls });
     }
 
-    // ── Ordered actions ──────────────────────────────────────────────────
-    const orderedActions = params.orderedActionsToPerform as Array<Record<string, unknown>> | undefined;
-    if (orderedActions && orderedActions.length > 0) {
-      logger.info(`Executing ${orderedActions.length} ordered actions`);
-      for (const action of orderedActions) {
-        const selector = action.selectorOrXpath as string;
-        const inputValue = action.inputValue as string | undefined;
-        const wait = action.wait as number | undefined;
+    // ── orderedSelectorsToClickOn (simple selector strings) ─────────────
+    // ── Process actions (orderedSelectorsToClickOn + orderedActionsToPerform) ──
+    // Both params are concatenated, matching the old robot-library behavior.
+    // Each entry can be a plain string (selector to click) or an object:
+    //   { selectorOrXpath, inputValue?, wait?, selectorOrXpathToWaitFor?, waitDisappear? }
+    const selectorsToClick = (params.orderedSelectorsToClickOn ?? []) as unknown[];
+    const actionsToPerform = (params.orderedActionsToPerform ?? []) as unknown[];
+    const allActions = [...selectorsToClick, ...actionsToPerform];
 
-        if (selector && selector !== 'dummy') {
-          let resolvedSelector = selector;
-          for (const [key, value] of Object.entries({ ...params, ...inputData })) {
-            resolvedSelector = resolvedSelector.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
-          }
+    if (allActions.length > 0) {
+      logger.info(`Processing ${allActions.length} action(s)`);
+      for (const raw of allActions) {
+        if (!raw) continue;
 
-          const isXPath = resolvedSelector.startsWith('//') || resolvedSelector.startsWith('(//');
-          try {
-            if (inputValue) {
-              let resolvedValue = inputValue;
-              for (const [key, value] of Object.entries({ ...params, ...inputData })) {
-                resolvedValue = resolvedValue.replace(new RegExp(`\\{${key}\\}`, 'g'), String(value));
-              }
-              if (isXPath) {
-                await page.locator(`xpath=${resolvedSelector}`).fill(resolvedValue, { timeout: 10000 });
-              } else {
-                await page.fill(resolvedSelector, resolvedValue, { timeout: 10000 });
-              }
-              logger.info(`Filled "${resolvedSelector}" with value`);
-            } else {
-              if (isXPath) {
-                await page.locator(`xpath=${resolvedSelector}`).click({ timeout: 10000 });
-              } else {
-                await page.click(resolvedSelector, { timeout: 10000 });
-              }
-              logger.info(`Clicked "${resolvedSelector}"`);
-            }
-          } catch (e) {
-            logger.warn(`Action failed on "${resolvedSelector}": ${(e as Error).message}`);
-          }
+        // Normalize: string → { selectorOrXpath: string }
+        const action = typeof raw === 'string'
+          ? { selectorOrXpath: raw }
+          : raw as Record<string, unknown>;
+
+        const sel = (action.selectorOrXpath ?? raw) as string;
+        if (!sel || sel === 'dummy') continue;
+
+        const actionWait = (action.wait as number) ?? 0;
+        const actionInput = action.inputValue as string | undefined;
+        const waitForSel = action.selectorOrXpathToWaitFor as string | undefined;
+        const waitDisappear = action.waitDisappear as boolean | undefined;
+
+        // Resolve {placeholders} in selector and value
+        let resolvedSel = String(sel);
+        let resolvedValue = actionInput ? String(actionInput) : '';
+        for (const [key, value] of Object.entries({ ...params, ...inputData })) {
+          const re = new RegExp(`\\{${key}\\}`, 'g');
+          resolvedSel = resolvedSel.replace(re, String(value));
+          if (resolvedValue) resolvedValue = resolvedValue.replace(re, String(value));
         }
 
-        const waitForSelector = action.selectorOrXpathToWaitFor as string | undefined;
-        if (waitForSelector) {
-          try {
-            const isXPath = waitForSelector.startsWith('//');
-            if (isXPath) {
-              await page.locator(`xpath=${waitForSelector}`).waitFor({ timeout: wait ?? 10000 });
-            } else {
-              await page.waitForSelector(waitForSelector, { timeout: wait ?? 10000 });
-            }
-          } catch {
-            logger.warn(`Wait for "${waitForSelector}" timed out`);
+        const isXPath = resolvedSel.startsWith('//') || resolvedSel.startsWith('(//');
+
+        try {
+          const locator = isXPath
+            ? page.locator(`xpath=${resolvedSel}`).first()
+            : page.locator(resolvedSel).first();
+
+          // Wait for visible before interacting
+          await locator.waitFor({ state: 'visible', timeout: actionWait || 10000 });
+
+          if (actionInput) {
+            await locator.fill(resolvedValue, { timeout: 10000 });
+            logger.info(`Filled "${resolvedSel}" with value`);
+          } else {
+            await locator.click({ timeout: 10000 });
+            logger.info(`Clicked "${resolvedSel}"`);
           }
-        } else if (wait) {
-          await page.waitForTimeout(wait);
+
+          // Post-click: wait for another selector, or wait for element to disappear, or fixed wait
+          if (waitForSel) {
+            const isWaitXPath = waitForSel.startsWith('//') || waitForSel.startsWith('(//');
+            try {
+              if (isWaitXPath) {
+                await page.locator(`xpath=${waitForSel}`).first().waitFor({ timeout: actionWait || 10000 });
+              } else {
+                await page.waitForSelector(waitForSel, { timeout: actionWait || 10000 });
+              }
+              logger.info(`  Wait-for selector found: "${waitForSel}"`);
+            } catch {
+              logger.warn(`  Wait-for selector timed out: "${waitForSel}"`);
+            }
+          } else if (waitDisappear) {
+            try {
+              await locator.waitFor({ state: 'hidden', timeout: actionWait || 5000 });
+              logger.info(`  Element disappeared after click`);
+            } catch {
+              logger.info(`  Element still visible after click`);
+            }
+          } else if (actionWait > 0) {
+            await page.waitForTimeout(actionWait);
+          } else {
+            // Default: short wait for DOM to settle after click
+            await page.waitForTimeout(500);
+          }
+        } catch (e) {
+          logger.warn(`Action failed on "${resolvedSel}": ${(e as Error).message}`);
         }
       }
     }
@@ -388,12 +474,26 @@ export async function executeRun(runId: string): Promise<void> {
       logger.info('No schema with selectors — skipping extraction');
     }
 
-    // ── Capture screenshot & HTML ────────────────────────────────────────
+    // ── Capture screenshot ──────────────────────────────────────────────
     logger.info('Taking screenshot');
     const screenshotBuffer = await ctx.screenshot({ fullPage: true });
     const screenshotBase64 = screenshotBuffer.toString('base64');
 
-    const html = (await ctx.content()).slice(0, 500_000);
+    // ── Capture final HTML with inlined CSS ──────────────────────────
+    const html = await captureInlinedHtml(page);
+    const finalUrl = page.url();
+
+    // ── Collect rrweb events (small delay to flush pending mutations) ──
+    await page.waitForTimeout(500);
+    let replayEvents: unknown[] = [];
+    try {
+      replayEvents = await page.evaluate(() =>
+        (window as unknown as { __rrwebEvents: unknown[] }).__rrwebEvents ?? []
+      );
+      logger.info(`Captured ${replayEvents.length} replay events`);
+    } catch (e) {
+      logger.warn(`Failed to collect replay events: ${(e as Error).message}`);
+    }
 
     // ── Store results ────────────────────────────────────────────────────
     await db.update(runs)
@@ -401,18 +501,23 @@ export async function executeRun(runId: string): Promise<void> {
         status: 'completed',
         completedAt: new Date(),
         html,
+        replayData: replayEvents.length > 0 ? JSON.stringify(replayEvents) : null,
         results: {
-          screenshotBase64: screenshotBase64.slice(0, 200_000),
+          screenshotBase64,
           htmlLength: html.length,
-          finalUrl: page.url(),
+          finalUrl,
           responseStatus: response.status,
           records,
+          configSnapshot: {
+            overrides: configOverrides,
+            merged: params,
+          },
         },
         resultCount: records.length || 1,
       })
       .where(eq(runs.id, runId));
 
-    logger.info(`Run completed: ${page.url()} — ${records.length} record(s) extracted`);
+    logger.info(`Run completed: ${finalUrl} — ${records.length} record(s), ${replayEvents.length} replay events`);
 
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -431,6 +536,57 @@ export async function executeRun(runId: string): Promise<void> {
       await browser.close().catch(() => {});
     }
   }
+}
+
+// ─── Inline CSS HTML capture ──────────────────────────────────────────────────
+
+async function captureInlinedHtml(page: Page): Promise<string> {
+  const origin = new URL(page.url()).origin;
+  const html = await page.evaluate(async (org: string) => {
+    // 1. Inline all loaded stylesheets
+    const inlinedStyles: string[] = [];
+    for (let i = 0; i < document.styleSheets.length; i++) {
+      const sheet = document.styleSheets[i];
+      try {
+        let css = '';
+        for (let j = 0; j < sheet.cssRules.length; j++) {
+          css += sheet.cssRules[j].cssText + '\n';
+        }
+        inlinedStyles.push(css);
+      } catch {
+        // Cross-origin: try fetching
+        if (sheet.href) {
+          try {
+            const resp = await fetch(sheet.href);
+            if (resp.ok) inlinedStyles.push(await resp.text());
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    // 2. Remove <link rel="stylesheet"> tags
+    const links = document.querySelectorAll('link[rel="stylesheet"]');
+    for (let i = 0; i < links.length; i++) links[i].remove();
+
+    // 3. Inject inlined styles
+    if (inlinedStyles.length > 0) {
+      const styleEl = document.createElement('style');
+      styleEl.setAttribute('data-inlined', 'true');
+      styleEl.textContent = inlinedStyles.join('\n');
+      (document.head || document.documentElement).prepend(styleEl);
+    }
+
+    // 4. Add <base href> for images/fonts
+    let base = document.querySelector('base');
+    if (!base) {
+      base = document.createElement('base');
+      (document.head || document.documentElement).prepend(base);
+    }
+    base.setAttribute('href', org + '/');
+
+    return document.documentElement.outerHTML;
+  }, origin);
+  return html.slice(0, 1_000_000);
 }
 
 // ─── beforeExtract execution ─────────────────────────────────────────────────
