@@ -39,7 +39,7 @@ export default async function RunDetailPage({
             Run {run.id.slice(0, 8)}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            {run.extractor.org.name} / {run.extractor.domain.name}
+            {run.extractor?.org?.name} / {run.extractor?.domain?.name}
             {run.inputLabel ? ` — input: ${run.inputLabel}` : ''}
           </p>
         </div>

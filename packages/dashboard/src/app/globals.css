@@ -329,6 +329,50 @@
   color: #a1a1aa;
 }
 
+/* ── AI Scraper Light Theme ──────────────────────── */
+.scraper-layout {
+  font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif);
+  color: #0f172a;
+}
+
+.scraper-layout * {
+  font-family: inherit;
+}
+
+.scraper-layout code,
+.scraper-layout .font-mono {
+  font-family: var(--font-mono, 'IBM Plex Mono', ui-monospace, monospace);
+}
+
+.scraper-layout input,
+.scraper-layout textarea,
+.scraper-layout select {
+  background: white !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  font-family: var(--font-sans, 'DM Sans', system-ui, sans-serif) !important;
+  font-size: 0.875rem !important;
+}
+
+.scraper-layout input:focus,
+.scraper-layout textarea:focus {
+  border-color: #0f172a !important;
+  box-shadow: 0 0 0 1px #0f172a !important;
+  outline: none !important;
+}
+
+.scraper-layout input::placeholder,
+.scraper-layout textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Status colors */
+.status-analyzing { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+.status-ready { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.status-running { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.status-error { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.status-pending { background: #f8fafc; color: #64748b; border-color: #e2e8f0; }
+
 /* ── Prism.js dark theme for CodeJar ──────────────── */
 .code-editor .token.comment,
 .code-editor .token.prolog,

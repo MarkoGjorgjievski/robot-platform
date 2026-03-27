@@ -79,6 +79,11 @@ export const sources = pgTable('sources', {
   variant: varchar('variant', { length: 50 }).notNull().default('default'),
   parameters: jsonb('parameters').notNull().default({}),
   isActive: boolean('is_active').default(true).notNull(),
+  // AI scraper fields
+  sourceType: varchar('source_type', { length: 20 }).default('legacy'),
+  urlPattern: text('url_pattern'),
+  selectorsJson: jsonb('selectors_json'),
+  aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
@@ -92,6 +97,8 @@ export const sourcesRelations = relations(sources, ({ one, many }) => ({
   domain: one(domains, { fields: [sources.domainId], references: [domains.id] }),
   runs: many(runs),
   inputs: many(sourceInputs),
+  captures: many(captures),
+  extractions: many(extractions),
 }));
 
 // ─── Source Inputs ────────────────────────────────────────────────────────────
@@ -212,6 +219,75 @@ export const robotOverrides = pgTable('robot_overrides', {
 
 export const robotOverridesRelations = relations(robotOverrides, ({ one }) => ({
   domain: one(domains, { fields: [robotOverrides.domainId], references: [domains.id] }),
+}));
+
+// ─── Domain Intelligence (Site Cache) ────────────────────────────────────────
+
+export const domainIntelligence = pgTable('domain_intelligence', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  domain: varchar('domain', { length: 255 }).notNull(),
+  pageType: varchar('page_type', { length: 50 }).notNull(),
+  // API endpoint patterns discovered
+  apiEndpoints: jsonb('api_endpoints').default([]),
+  // Resilient field extraction — multiple ranked paths per field
+  fieldPaths: jsonb('field_paths').default({}),
+  // Popup/consent selectors that worked on this domain
+  popupSelectors: jsonb('popup_selectors').default([]),
+  // Structured data availability
+  hasJsonLd: boolean('has_json_ld').default(false).notNull(),
+  hasNextData: boolean('has_next_data').default(false).notNull(),
+  // Extraction stats
+  totalRuns: integer('total_runs').default(0).notNull(),
+  successfulRuns: integer('successful_runs').default(0).notNull(),
+  consecutiveFailures: integer('consecutive_failures').default(0).notNull(),
+  lastUsedAt: timestamp('last_used_at').defaultNow().notNull(),
+  lastVerifiedAt: timestamp('last_verified_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('domain_intelligence_domain_idx').on(table.domain),
+  uniqueIndex('domain_intelligence_domain_page_type_idx').on(table.domain, table.pageType),
+]);
+
+// ─── Captures (AI Scraper) ──────────────────────────────────────────────────
+
+export const captures = pgTable('captures', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  html: text('html'),
+  markdown: text('markdown'),
+  screenshotPath: text('screenshot_path'),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('captures_source_id_idx').on(table.sourceId),
+]);
+
+export const capturesRelations = relations(captures, ({ one, many }) => ({
+  source: one(sources, { fields: [captures.sourceId], references: [sources.id] }),
+  extractions: many(extractions),
+}));
+
+// ─── Extractions (AI Scraper) ───────────────────────────────────────────────
+
+export const extractions = pgTable('extractions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  captureId: uuid('capture_id').notNull().references(() => captures.id, { onDelete: 'cascade' }),
+  data: jsonb('data').notNull().default([]),
+  rowCount: integer('row_count').default(0),
+  confidence: integer('confidence'),
+  validationResult: jsonb('validation_result'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('extractions_source_id_idx').on(table.sourceId),
+  index('extractions_capture_id_idx').on(table.captureId),
+]);
+
+export const extractionsRelations = relations(extractions, ({ one }) => ({
+  source: one(sources, { fields: [extractions.sourceId], references: [sources.id] }),
+  capture: one(captures, { fields: [extractions.captureId], references: [captures.id] }),
 }));
 
 // ─── Runs (Stage 2) ─────────────────────────────────────────────────────────

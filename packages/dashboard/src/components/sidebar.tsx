@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, Bot, Globe } from "lucide-react";
+import { Home, Building2, Bot, Globe, Sparkles } from "lucide-react";
 
 const navItems = [
   { href: "/", icon: Home, label: "Home" },
+  { href: "/scraper", icon: Sparkles, label: "AI Scraper" },
   { href: "/orgs", icon: Building2, label: "Organizations" },
   { href: "/legacy/extractors", icon: Bot, label: "Extractors (legacy)" },
   { href: "/legacy/domains", icon: Globe, label: "Domains (legacy)" },

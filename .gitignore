@@ -6,4 +6,5 @@ dist/
 .env
 .env.local
 packages/dashboard/.next/
+packages/dashboard2/.next/
 .superpowers/

@@ -28,6 +28,10 @@ export const sourcesRouter = router({
           robotTemplate: sources.robotTemplate,
           parameters: sources.parameters,
           isActive: sources.isActive,
+          sourceType: sources.sourceType,
+          urlPattern: sources.urlPattern,
+          selectorsJson: sources.selectorsJson,
+          aiStatus: sources.aiStatus,
           createdAt: sources.createdAt,
           updatedAt: sources.updatedAt,
         })

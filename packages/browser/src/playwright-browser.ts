@@ -1,0 +1,455 @@
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { NodeHtmlMarkdown } from 'node-html-markdown';
+import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest } from './types.js';
+
+const nhm = new NodeHtmlMarkdown();
+
+// Common popup/consent selectors to auto-dismiss before capture
+const POPUP_DISMISS_SELECTORS = [
+  // Cookie consent
+  'button[id*="cookie" i][id*="accept" i]',
+  'button[id*="cookie" i][id*="close" i]',
+  'button[id*="consent" i][id*="accept" i]',
+  'button[class*="cookie" i][class*="accept" i]',
+  'button[class*="consent" i][class*="accept" i]',
+  'button[data-testid*="cookie" i]',
+  '#onetrust-accept-btn-handler',
+  '#accept-cookie-notification',
+  '.cookie-banner button',
+  '.cookie-notice button',
+  '[aria-label*="cookie" i][aria-label*="accept" i]',
+  '[aria-label*="cookie" i][aria-label*="close" i]',
+
+  // Generic consent/privacy modals
+  'button[id*="consent" i][id*="close" i]',
+  'button[class*="consent" i][class*="close" i]',
+  '[data-testid="close-consent"]',
+  'button[class*="privacy" i][class*="accept" i]',
+
+  // Health data consent (Target-style)
+  'button[class*="consent" i][class*="continue" i]',
+  'button:has-text("Continue shopping")',
+  'button:has-text("Accept all")',
+  'button:has-text("Accept cookies")',
+  'button:has-text("Accept All Cookies")',
+  'button:has-text("I Accept")',
+  'button:has-text("I agree")',
+  'button:has-text("Got it")',
+  'button:has-text("OK")',
+  'button:has-text("Close")',
+
+  // Newsletter/email modals
+  '[aria-label="Close dialog"]',
+  '[aria-label="Close modal"]',
+  '[aria-label="Close"]',
+  'button[class*="modal" i][class*="close" i]',
+  '.modal-close',
+  '.popup-close',
+  '[data-dismiss="modal"]',
+
+  // Generic overlay close buttons (last resort — might close wrong thing)
+  'dialog button[aria-label*="close" i]',
+  '[role="dialog"] button[aria-label*="close" i]',
+];
+
+export class PlaywrightBrowser implements IBrowser {
+  private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
+
+  async launch(options: BrowserOptions = {}): Promise<void> {
+    this.browser = await chromium.launch({
+      headless: options.headless ?? true,
+    });
+    this.context = await this.browser.newContext({
+      viewport: options.viewport ?? { width: 1280, height: 800 },
+      userAgent: options.userAgent,
+    });
+  }
+
+  async capture(url: string, options: CaptureOptions = {}): Promise<PageCapture> {
+    if (!this.context) throw new Error('Browser not launched. Call launch() first.');
+
+    const page = await this.context.newPage();
+
+    // Set up network interception BEFORE navigating
+    const intercepted: InterceptedRequest[] = [];
+    const shouldIntercept = options.interceptNetworkRequests ?? true;
+
+    if (shouldIntercept) {
+      await this.setupNetworkInterception(page, intercepted);
+    }
+
+    try {
+      await this.navigateWithFallback(page, url, options);
+      await this.dismissPopups(page);
+
+      const [html, title, screenshotBuffer, structuredData] = await Promise.all([
+        page.content(),
+        page.title(),
+        page.screenshot({
+          type: 'png',
+          fullPage: options.screenshotFullPage ?? true,
+        }),
+        this.extractStructuredData(page),
+      ]);
+
+      const cleanedHtml = await this.extractReadableContent(page, html);
+      const markdown = nhm.translate(cleanedHtml);
+
+      // Rank and filter the intercepted requests
+      const rankedRequests = this.rankInterceptedRequests(intercepted, url);
+
+      if (rankedRequests.length > 0) {
+        console.log(`[browser] Intercepted ${intercepted.length} requests, ${rankedRequests.length} contain JSON data`);
+        console.log(`[browser] Top API: ${rankedRequests[0].url.slice(0, 120)} (${rankedRequests[0].bodySize} bytes)`);
+      }
+
+      return {
+        url: page.url(),
+        html,
+        markdown,
+        screenshot: Buffer.from(screenshotBuffer),
+        title,
+        timestamp: Date.now(),
+        structuredData,
+        interceptedRequests: rankedRequests,
+      };
+    } finally {
+      await page.close();
+    }
+  }
+
+  async close(): Promise<void> {
+    await this.context?.close();
+    await this.browser?.close();
+    this.context = null;
+    this.browser = null;
+  }
+
+  async evaluate<T = unknown>(url: string, script: string, options: CaptureOptions = {}): Promise<T> {
+    if (!this.context) throw new Error('Browser not launched. Call launch() first.');
+
+    const page = await this.context.newPage();
+    try {
+      await this.navigateWithFallback(page, url, options);
+      await this.dismissPopups(page);
+      return await page.evaluate(script) as T;
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Navigate with fallback strategy:
+   * 1. Try networkidle (best for simple pages)
+   * 2. Fall back to domcontentloaded + manual wait (for heavy sites)
+   */
+  private async navigateWithFallback(page: Page, url: string, options: CaptureOptions = {}): Promise<void> {
+    const timeout = options.timeout ?? 60000;
+    const preferred = options.waitUntil ?? 'networkidle';
+
+    try {
+      await page.goto(url, {
+        waitUntil: preferred,
+        timeout,
+      });
+    } catch (err) {
+      if (preferred === 'networkidle') {
+        console.warn(`networkidle timed out for ${url}, falling back to domcontentloaded`);
+        await page.goto(url, {
+          waitUntil: 'domcontentloaded',
+          timeout,
+        });
+        await page.waitForTimeout(3000);
+        try {
+          await page.waitForLoadState('load', { timeout: 10000 });
+        } catch {
+          // load state timeout is fine
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Try to dismiss common popups, consent banners, and modals.
+   * Makes multiple passes — popups can appear with a delay.
+   */
+  private async dismissPopups(page: Page): Promise<void> {
+    // Wait a moment for popups to appear (many load after page content)
+    await page.waitForTimeout(1500);
+
+    // Try up to 3 rounds (some sites stack multiple popups)
+    for (let round = 0; round < 3; round++) {
+      let dismissed = false;
+
+      for (const selector of POPUP_DISMISS_SELECTORS) {
+        try {
+          const el = page.locator(selector).first();
+          if (await el.isVisible({ timeout: 200 })) {
+            await el.click({ timeout: 2000, force: true });
+            await page.waitForTimeout(800);
+            dismissed = true;
+            break; // One per round — check if more popups appeared
+          }
+        } catch {
+          // Selector not found or not clickable — try next
+        }
+      }
+
+      // Also try using JavaScript to remove overlay/modal elements directly
+      if (!dismissed) {
+        const removed = await page.evaluate(() => {
+          let found = false;
+          // Remove common overlay elements
+          const overlaySelectors = [
+            '[class*="overlay" i][class*="modal" i]',
+            '[class*="overlay" i][class*="consent" i]',
+            '[class*="modal" i][class*="backdrop" i]',
+            '[id*="consent" i][role="dialog"]',
+            '[role="dialog"][aria-modal="true"]',
+          ];
+          for (const sel of overlaySelectors) {
+            const els = document.querySelectorAll(sel);
+            els.forEach(el => {
+              el.remove();
+              found = true;
+            });
+          }
+          // Also remove any fixed/sticky overlays blocking content
+          document.querySelectorAll('body > div').forEach(el => {
+            const style = window.getComputedStyle(el);
+            if (
+              (style.position === 'fixed' || style.position === 'absolute') &&
+              parseFloat(style.zIndex) > 1000 &&
+              el.querySelector('button')
+            ) {
+              el.remove();
+              found = true;
+            }
+          });
+          // Re-enable scrolling if body was locked
+          document.body.style.overflow = '';
+          document.documentElement.style.overflow = '';
+          return found;
+        });
+
+        if (removed) {
+          await page.waitForTimeout(500);
+        } else {
+          break; // No more popups found
+        }
+      }
+    }
+  }
+
+  /**
+   * Extract structured data embedded in the page:
+   * - JSON-LD (Schema.org) from <script type="application/ld+json">
+   * - Next.js data from <script id="__NEXT_DATA__">
+   * - Common JS initial state variables
+   * - Open Graph and meta tags
+   */
+  private async extractStructuredData(page: Page): Promise<StructuredData> {
+    return page.evaluate(() => {
+      const result = {
+        ldJson: [] as Record<string, unknown>[],
+        nextData: null as Record<string, unknown> | null,
+        initialState: null as Record<string, unknown> | null,
+        meta: {} as Record<string, string>,
+      };
+
+      // 1. JSON-LD (Schema.org structured data)
+      document.querySelectorAll('script[type="application/ld+json"]').forEach(el => {
+        try {
+          const data = JSON.parse(el.textContent ?? '');
+          if (Array.isArray(data)) {
+            result.ldJson.push(...data);
+          } else if (data && typeof data === 'object') {
+            result.ldJson.push(data);
+          }
+        } catch {}
+      });
+
+      // 2. Next.js page data
+      const nextDataEl = document.getElementById('__NEXT_DATA__');
+      if (nextDataEl) {
+        try {
+          result.nextData = JSON.parse(nextDataEl.textContent ?? '');
+        } catch {}
+      }
+
+      // 3. Common initial state patterns from window globals
+      try {
+        const win = window as unknown as Record<string, unknown>;
+        const stateKeys = ['__INITIAL_STATE__', '__PRELOADED_STATE__', '__NUXT__', '__APP_DATA__'];
+        for (const key of stateKeys) {
+          if (win[key] && typeof win[key] === 'object') {
+            result.initialState = win[key] as Record<string, unknown>;
+            break;
+          }
+        }
+      } catch {}
+
+      // 4. Meta tags (Open Graph, Twitter, standard)
+      document.querySelectorAll('meta[property], meta[name]').forEach(el => {
+        const key = el.getAttribute('property') ?? el.getAttribute('name') ?? '';
+        const content = el.getAttribute('content') ?? '';
+        if (key && content) {
+          result.meta[key] = content;
+        }
+      });
+
+      return result;
+    });
+  }
+
+  /**
+   * Intercept all network responses during page load.
+   * Captures response bodies for JSON API calls.
+   */
+  private async setupNetworkInterception(page: Page, intercepted: InterceptedRequest[]): Promise<void> {
+    // Patterns to skip (tracking, analytics, ads, images, fonts)
+    const SKIP_PATTERNS = [
+      /google-analytics|googletagmanager|doubleclick|googlesyndication/i,
+      /facebook\.com\/tr|fbevents|pixel/i,
+      /hotjar|fullstory|segment\.io|amplitude|mixpanel/i,
+      /sentry\.io|bugsnag|datadog/i,
+      /\.png$|\.jpg$|\.jpeg$|\.gif$|\.svg$|\.webp$|\.ico$/i,
+      /\.woff$|\.woff2$|\.ttf$|\.eot$/i,
+      /\.css$|\.map$/i,
+    ];
+
+    page.on('response', async (response) => {
+      try {
+        const url = response.url();
+        const status = response.status();
+        const contentType = response.headers()['content-type'] ?? '';
+
+        // Skip non-successful responses
+        if (status < 200 || status >= 400) return;
+
+        // Skip known tracking/analytics/static resources
+        if (SKIP_PATTERNS.some(p => p.test(url))) return;
+
+        // Only capture JSON or API-like responses
+        const isJson = contentType.includes('application/json') ||
+                       contentType.includes('text/json') ||
+                       url.includes('/api/') ||
+                       url.includes('/graphql');
+
+        if (!isJson) return;
+
+        // Get the response body
+        let responseBody: string | null = null;
+        let parsedJson: unknown | null = null;
+        let bodySize = 0;
+
+        try {
+          responseBody = await response.text();
+          bodySize = responseBody.length;
+
+          // Skip tiny responses (likely empty or error)
+          if (bodySize < 50) return;
+          // Skip huge responses (likely not product data, maybe a full page)
+          if (bodySize > 500000) return;
+
+          parsedJson = JSON.parse(responseBody);
+        } catch {
+          return; // Not valid JSON
+        }
+
+        intercepted.push({
+          url,
+          method: response.request().method(),
+          resourceType: response.request().resourceType(),
+          responseStatus: status,
+          responseHeaders: response.headers(),
+          responseBody,
+          contentType,
+          bodySize,
+          isJson: true,
+          parsedJson,
+          timestamp: Date.now(),
+        });
+      } catch {
+        // Response might be disposed if page navigated — ignore
+      }
+    });
+  }
+
+  /**
+   * Rank intercepted requests by likelihood of containing useful data.
+   * Filters out tracking/analytics and sorts by relevance.
+   */
+  private rankInterceptedRequests(requests: InterceptedRequest[], pageUrl: string): InterceptedRequest[] {
+    // Score each request
+    const scored = requests
+      .filter(r => r.isJson && r.parsedJson !== null)
+      .map(r => {
+        let score = 0;
+        const url = r.url.toLowerCase();
+        const body = r.responseBody ?? '';
+
+        // URL signals
+        if (url.includes('/api/')) score += 3;
+        if (url.includes('/graphql')) score += 3;
+        if (url.includes('/product')) score += 5;
+        if (url.includes('/item')) score += 4;
+        if (url.includes('/listing')) score += 4;
+        if (url.includes('/search')) score += 3;
+        if (url.includes('/catalog')) score += 3;
+        if (url.includes('/price')) score += 4;
+        if (url.includes('/detail')) score += 4;
+        if (url.includes('/pdp')) score += 5; // Product Detail Page
+        if (url.includes('/v1/') || url.includes('/v2/') || url.includes('/v3/')) score += 2;
+
+        // Penalize known non-data endpoints
+        if (url.includes('/log') || url.includes('/track') || url.includes('/beacon')) score -= 10;
+        if (url.includes('/auth') || url.includes('/session') || url.includes('/token')) score -= 5;
+        if (url.includes('/config') || url.includes('/feature-flag')) score -= 3;
+
+        // Body content signals — look for product-like data
+        if (body.includes('"price"') || body.includes('"Price"')) score += 5;
+        if (body.includes('"title"') || body.includes('"name"') || body.includes('"productName"')) score += 4;
+        if (body.includes('"description"') || body.includes('"Description"')) score += 3;
+        if (body.includes('"image"') || body.includes('"imageUrl"')) score += 2;
+        if (body.includes('"rating"') || body.includes('"review"')) score += 3;
+        if (body.includes('"sku"') || body.includes('"upc"') || body.includes('"gtin"')) score += 4;
+        if (body.includes('"availability"') || body.includes('"inStock"')) score += 3;
+        if (body.includes('"brand"') || body.includes('"manufacturer"')) score += 3;
+
+        // Size signal — too small is likely not data, sweet spot is 1KB-100KB
+        if (r.bodySize > 500 && r.bodySize < 100000) score += 2;
+        if (r.bodySize > 2000 && r.bodySize < 50000) score += 2;
+
+        return { request: r, score };
+      })
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    // Return top results (don't need to keep all)
+    return scored.slice(0, 10).map(s => s.request);
+  }
+
+  private async extractReadableContent(page: Page, fallbackHtml: string): Promise<string> {
+    const result = await page.evaluate(() => {
+      const clone = document.cloneNode(true) as Document;
+      // Remove non-content elements
+      clone.querySelectorAll([
+        'script', 'style', 'noscript', 'iframe',
+        'nav', 'footer', 'header',
+        '[role="navigation"]', '[role="banner"]', '[role="dialog"]',
+        '[aria-hidden="true"]', '[aria-modal="true"]',
+        // Popups, modals, overlays
+        '[class*="modal" i]', '[class*="overlay" i]', '[class*="popup" i]',
+        '[class*="consent" i]', '[class*="cookie" i]',
+        '[id*="modal" i]', '[id*="overlay" i]', '[id*="consent" i]',
+      ].join(', ')).forEach(el => el.remove());
+      return clone.body?.innerHTML ?? '';
+    });
+
+    return result || fallbackHtml;
+  }
+}

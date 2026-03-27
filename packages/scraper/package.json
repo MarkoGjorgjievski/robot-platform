@@ -1,0 +1,27 @@
+{
+  "name": "@robot/scraper",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./executor": "./src/executor.ts",
+    "./structured-extractor": "./src/structured-extractor.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@robot/agent": "workspace:*",
+    "@robot/browser": "workspace:*",
+    "@robot/db": "workspace:*",
+    "drizzle-orm": "^0.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.1"
+  }
+}
