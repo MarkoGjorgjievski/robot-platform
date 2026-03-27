@@ -81,7 +81,7 @@ export const collectionsRouter = router({
         name: z.string().min(1).max(255),
         slug: z.string().min(1).max(255),
         description: z.string().nullable().optional(),
-        schema: z.record(z.unknown()).nullable().optional(),
+        schema: z.union([z.record(z.unknown()), z.array(z.unknown())]).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

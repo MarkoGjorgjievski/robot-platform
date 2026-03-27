@@ -23,6 +23,19 @@ export const orgsRouter = router({
     return results;
   }),
 
+  getBySlug: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const org = await ctx.db.query.orgs.findFirst({
+        where: eq(orgs.slug, input.slug),
+        with: {
+          projects: true,
+        },
+      });
+      if (!org) throw new Error(`Org not found: ${input.slug}`);
+      return org;
+    }),
+
   getById: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {

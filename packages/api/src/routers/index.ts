@@ -10,6 +10,8 @@ import { credentialsRouter } from './credentials';
 import { runsRouter } from './runs';
 import { overridesRouter } from './overrides';
 import { sourceInputsRouter } from './source-inputs';
+import { capturesRouter } from './captures';
+import { extractionsRouter } from './extractions';
 
 export const appRouter = router({
   orgs: orgsRouter,
@@ -23,6 +25,8 @@ export const appRouter = router({
   runs: runsRouter,
   overrides: overridesRouter,
   sourceInputs: sourceInputsRouter,
+  captures: capturesRouter,
+  extractions: extractionsRouter,
 });
 
 export type AppRouter = typeof appRouter;
