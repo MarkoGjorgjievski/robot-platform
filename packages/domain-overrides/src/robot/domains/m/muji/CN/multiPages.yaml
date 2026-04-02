@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class,'frag-commodities-item-sku')]
-fields:
-  - name: productURL
-    xpath: //span[contains(@class,'brush-image active')]/@style

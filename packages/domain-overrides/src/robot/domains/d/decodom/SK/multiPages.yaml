@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productURL
-    xpath: //a[following-sibling::img or preceding-sibling::img]/@href

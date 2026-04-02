@@ -1,8 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productURL
-    xpath: //h3[contains(@class, "product-tile__name")]/a/@href
-

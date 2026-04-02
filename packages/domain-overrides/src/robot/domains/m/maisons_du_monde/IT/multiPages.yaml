@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productURL
-    xpath: //*[contains(@class, 'relative flex h-full flex-col rounded bg-standard-light p-2 outline outline-0 outline-primary-extra-light hover:outline-1 focus-visible:outline-2 tablet:p-3 desktop:p-4')]//a/@href

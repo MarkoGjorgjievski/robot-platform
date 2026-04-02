@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //li[contains(@id,"prodItem")]//div[@class="prod-desc "]
-fields:
-  - name: productURL
-    xpath: //a[contains(@id,"prodItemTitleLink")]//@href
-    regExp: '(\/[^"]{1,})'
-    regExpReplace: 'https://www.homeboxstores.com/$1'

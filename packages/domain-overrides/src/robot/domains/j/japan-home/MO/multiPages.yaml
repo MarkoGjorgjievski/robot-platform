@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class, "gallery-root")]//div[contains(@class, "item-nameContainer")]
-fields:
-  - name: productURL
-    xpath: //a/@href
-    regExp: (.+)
-    regExpReplace: https://www.jhceshop.com$1

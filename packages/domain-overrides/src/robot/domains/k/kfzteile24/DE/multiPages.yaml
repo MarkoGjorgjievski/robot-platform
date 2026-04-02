@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productURL
-    xpath: //div[contains(@class,'art-name')]//a/@href | //div[contains(@class,'art-name')]//span/@data-base64

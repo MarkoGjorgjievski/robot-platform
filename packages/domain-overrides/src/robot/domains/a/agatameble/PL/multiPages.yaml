@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productURL
-    xpath: //div[contains(@class, "b-offerBox_tiles")] /div[contains(@class, "is-posr")]//div[contains(@class, "m-offerBox_name js-eqName")]/a/@href
-
-    

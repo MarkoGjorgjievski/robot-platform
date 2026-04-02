@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //td[@class="item depth_0"]/table/tbody/tr
-fields:
-  - name: eventURL
-    xpath: //td[@class="url_amigavel depth_1"]/text()
-  - name: eventUniqueId
-    xpath: //td[@class="id_evento depth_1"]/text()

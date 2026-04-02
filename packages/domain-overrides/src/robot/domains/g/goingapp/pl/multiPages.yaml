@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //main//ul//li[not(contains(@id, "search-banner"))][not(@__extracted)]
-fields:
-  - name: eventURL
-    xpath: //a[not(.//h6[contains(text(), "od 0")])]/@href
-    regExp: '(\/[^"]{1,})'
-    regExpReplace: 'https://goingapp.pl$1'

@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class, "css-1x12njj")]//a[contains(@class, 'chakra-linkbox__overlay')]
-fields:
-  - name: productURL
-    xpath: "@href"
-    regExp: (.+)
-    regExpReplace: https://www.kwantum.nl$1

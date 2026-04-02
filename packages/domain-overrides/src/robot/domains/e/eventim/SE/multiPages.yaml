@@ -1,8 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-noResultsXPath: //div[contains(@class, "listing-cta")]/a
-fields:
-  - name: eventURL
-    xpath: '//td[@class="url depth_1"]'

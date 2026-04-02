@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: product_title
-    xpath: //h1[contains(@class,"mgmw_wo")]

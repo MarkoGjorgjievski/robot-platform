@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: '//div[contains(@class, "plp-fragment-wrapper")]'
-fields:
-  - name: 'productURL'
-    xpath: //a[contains(@aria-hidden, 'true')]/@href

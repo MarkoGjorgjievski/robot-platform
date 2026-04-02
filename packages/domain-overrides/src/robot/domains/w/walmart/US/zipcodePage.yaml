@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: stateCode
-    xpath: //div[@aria-selected="true"]//p/@aria-label
-    regExp: ([A-Z][A-Z])\s\d+
-    regExpReplace: $1

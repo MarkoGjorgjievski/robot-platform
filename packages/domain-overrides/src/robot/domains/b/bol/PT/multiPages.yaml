@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: eventURL
-    xpath: //div[@class="itens "][1]/div[@class="bol-grid"]/div[@class="item-montra evento"]/div/a[@class="nome"]/@href
-    regExp: '(\/[^"]{1,})'
-    regExpReplace: 'https://www.bol.pt$1'

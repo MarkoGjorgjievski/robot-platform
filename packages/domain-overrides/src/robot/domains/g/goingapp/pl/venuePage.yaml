@@ -1,7 +1,0 @@
-# singleRecord: true
-# regionsSelector: null
-# recordSelector: null
-# recordXPath:
-# fields: 
-#   - name: venueAddress
-#     xpath: //h3//..//ul//a//div//span//text()

@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //*[contains(@data-testid, "article-card")]
-fields:
-  - name: productURL
-    xpath: //a/@href

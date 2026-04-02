@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //ul[contains(@class,"search-results")]//li[not(.//span[contains(text(),"Cancelled")])]
-fields:
-  - name: eventURL
-    xpath: '//a[@class]/@href'

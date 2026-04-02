@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //*[contains(@class, "product-item")]//*[contains(@class, "product-details")]//*[contains(@class,"product-link title")]
-fields:
-  - name: productURL
-    xpath: //@href
-    regExp: (.+)
-    regExpReplace: https://www.homecentre.com$1

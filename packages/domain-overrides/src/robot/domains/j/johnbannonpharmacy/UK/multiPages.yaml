@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class,'grid__item')]
-fields:
-  - name: sourceURL
-    xpath: //a/@href
-    regExp: (.+)
-    regExpReplace: https://www.johnbannonpharmacy.co.uk$1

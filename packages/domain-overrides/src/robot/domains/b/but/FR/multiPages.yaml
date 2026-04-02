@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: "//div[contains(@class, 'dp__products')]//div[contains(@class, 'product')]"
-fields:
-  - name: productURL
-    xpath: a/@href
-    regExp: (.+)
-    regExpReplace: https://www.but.fr$1

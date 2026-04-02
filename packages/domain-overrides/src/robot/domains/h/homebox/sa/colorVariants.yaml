@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: colorURL
-    xpath: //li[contains(@id, "colo-item")]//img/@src
-    regExp: '\/(homebox|p)\/(\d+)'
-    regExpReplace: 'https://www.homeboxstores.com/sa/en/p/$2'

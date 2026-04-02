@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@id,'dp-container')]
-fields:
-  - name: dummyField
-    xpath: //h1[contains(@id,'title')]

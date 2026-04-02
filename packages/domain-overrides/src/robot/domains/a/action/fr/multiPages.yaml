@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //*[@data-testid="product-card"]
-fields:
-  - name: productURL
-    xpath: //@href
