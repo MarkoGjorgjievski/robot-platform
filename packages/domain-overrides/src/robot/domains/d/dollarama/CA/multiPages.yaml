@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class, "category-page--item")][not(contains(@class, "category-page--item--favourite"))]
-fields:
-  - name: productURL
-    xpath: //div[contains(@class, "tile")]/a/@href

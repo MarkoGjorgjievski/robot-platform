@@ -139,6 +139,173 @@ export function resolveFromCache(
   return { resolved, overallConfidence };
 }
 
+// ─── Resolve from API JSON using cached dot-notation paths ──────────────────
+
+/**
+ * Given cached API paths and raw intercepted API JSON,
+ * resolve field values by following stored dot-notation paths.
+ * This avoids AI calls on subsequent runs for the same domain.
+ */
+export function resolveApiPathsFromCache(
+  fieldPaths: Record<string, FieldPathSet>,
+  interceptedRequests: InterceptedRequest[],
+  requestedFields: string[],
+): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
+  const resolved: Record<string, ResolvedField> = {};
+
+  // Collect all API JSON bodies
+  const apiJsonBodies = interceptedRequests
+    .filter(r => r.parsedJson && typeof r.parsedJson === 'object')
+    .map(r => r.parsedJson as Record<string, unknown>);
+
+  if (apiJsonBodies.length === 0) return { resolved, overallConfidence: 0 };
+
+  for (const fieldName of requestedFields) {
+    const pathSet = fieldPaths[fieldName];
+    if (!pathSet || pathSet.paths.length === 0) continue;
+
+    // Only try API-sourced paths
+    const apiPaths = pathSet.paths
+      .filter(p => p.source === 'api' || p.source === 'api-ai')
+      .sort((a, b) => {
+        const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
+        const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
+        return bRate - aRate;
+      });
+
+    const candidates: Array<{ value: unknown; path: FieldPath }> = [];
+
+    for (const p of apiPaths) {
+      // Try each API body with this dot-notation path
+      for (const body of apiJsonBodies) {
+        const value = getByDotPath(body, p.path);
+        if (value !== undefined && value !== null && value !== '') {
+          candidates.push({ value, path: p });
+          break; // Found in this body, no need to check others
+        }
+      }
+    }
+
+    if (candidates.length === 0) continue;
+
+    const primaryValue = candidates[0].value;
+    const agreeing = candidates.filter(c => valuesMatch(c.value, primaryValue));
+    const confidence = candidates.length > 1
+      ? agreeing.length / candidates.length
+      : candidates[0].path.confidence;
+
+    resolved[fieldName] = {
+      name: fieldName,
+      value: primaryValue,
+      source: candidates[0].path.source,
+      confidence,
+      pathsAttempted: apiPaths.length,
+      pathsSucceeded: candidates.length,
+    };
+  }
+
+  const fieldCount = requestedFields.length;
+  const resolvedCount = Object.keys(resolved).length;
+  const overallConfidence = fieldCount > 0 ? resolvedCount / fieldCount : 0;
+
+  return { resolved, overallConfidence };
+}
+
+// ─── Build cached XPath extraction script ───────────────────────────────────
+
+/**
+ * Build a Playwright evaluate() script from cached XPath paths.
+ * Returns field values without needing AI to regenerate selectors.
+ */
+export function buildCachedXPathScript(
+  fieldPaths: Record<string, FieldPathSet>,
+  requestedFields: string[],
+): { script: string; fieldNames: string[] } | null {
+  const xpathFields: Array<{ name: string; xpath: string; attribute: string; transform: string }> = [];
+
+  for (const fieldName of requestedFields) {
+    const pathSet = fieldPaths[fieldName];
+    if (!pathSet) continue;
+
+    // Find best XPath path for this field
+    const xpathPath = pathSet.paths
+      .filter(p => p.source === 'xpath' || p.source === 'xpath-cached')
+      .sort((a, b) => {
+        const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
+        const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
+        return bRate - aRate;
+      })[0];
+
+    if (xpathPath) {
+      xpathFields.push({
+        name: fieldName,
+        xpath: xpathPath.path,
+        attribute: 'textContent',
+        transform: 'trim',
+      });
+    }
+  }
+
+  if (xpathFields.length === 0) return null;
+
+  const script = `
+    (() => {
+      function xpathQuery(xpath) {
+        try {
+          const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+          return result.singleNodeValue;
+        } catch (e) { return null; }
+      }
+
+      const fields = ${JSON.stringify(xpathFields)};
+      const item = {};
+
+      for (const field of fields) {
+        try {
+          const el = xpathQuery(field.xpath);
+          if (!el) continue;
+          let value = field.attribute === 'textContent'
+            ? el.textContent?.trim() ?? null
+            : el.getAttribute ? el.getAttribute(field.attribute) : null;
+          if (value === null || value === '') continue;
+          if (field.transform === 'parse_number') {
+            const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
+            value = isNaN(num) ? null : num;
+          }
+          if (value !== null) item[field.name] = value;
+        } catch {}
+      }
+
+      return { data: Object.keys(item).length > 0 ? [item] : [], fieldCount: Object.keys(item).length };
+    })()
+  `;
+
+  return { script, fieldNames: xpathFields.map(f => f.name) };
+}
+
+/**
+ * Navigate a JSON object using dot-notation path.
+ * Supports array indexing: "data.items[0].price"
+ */
+function getByDotPath(obj: unknown, path: string): unknown {
+  const parts = path.split(/\.|\[(\d+)\]/).filter(Boolean);
+  let current: unknown = obj;
+
+  for (const part of parts) {
+    if (current === null || current === undefined) return undefined;
+    if (typeof current !== 'object') return undefined;
+
+    const index = parseInt(part, 10);
+    if (!isNaN(index) && Array.isArray(current)) {
+      current = current[index];
+    } else {
+      current = (current as Record<string, unknown>)[part];
+    }
+  }
+
+  return current;
+}
+
 // ─── Save / Update ───────────────────────────────────────────────────────────
 
 export type ExtractionOutcome = {

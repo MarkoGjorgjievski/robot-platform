@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { PlaywrightBrowser } = await import('@robot/browser');
     const { SchemaAgent } = await import('@robot/agent');
     const { buildExtractionScript } = await import('@robot/scraper/executor');
-    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache } = await import('@robot/scraper');
+    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript } = await import('@robot/scraper');
 
     const domain = new URL(url).hostname;
     const resolvedPageType = pageType ?? 'detail';
@@ -66,22 +66,77 @@ export async function POST(request: NextRequest) {
 
     // ─── STEP 1.5: Try cached paths (free) ─────────────────────────────
     if (cache && cache.totalRuns > 0 && cache.consecutiveFailures < 5) {
-      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames);
+      // 1.5a: Resolve cached API dot-notation paths against fresh API responses
+      const missingForCache = fieldNames.filter((n: string) => finalData[n] === undefined);
+      if (missingForCache.length > 0 && capture.interceptedRequests.length > 0) {
+        const apiCacheResult = resolveApiPathsFromCache(
+          cache.fieldPaths,
+          capture.interceptedRequests,
+          missingForCache,
+        );
+        for (const [name, resolved] of Object.entries(apiCacheResult.resolved)) {
+          if (finalData[name] === undefined && resolved.value !== null && resolved.value !== undefined) {
+            finalData[name] = resolved.value;
+            fieldResults[name] = {
+              value: resolved.value,
+              source: resolved.source,
+              path: '',
+              confidence: resolved.confidence,
+            };
+          }
+        }
+        if (Object.keys(apiCacheResult.resolved).length > 0) {
+          console.log(`[extract] Cached API paths resolved: ${Object.keys(apiCacheResult.resolved).length} fields`);
+        }
+      }
 
+      // 1.5b: Run cached XPaths on the live page
+      const stillMissing = fieldNames.filter((n: string) => finalData[n] === undefined);
+      if (stillMissing.length > 0) {
+        const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
+        if (cachedXPath) {
+          try {
+            const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[]; fieldCount: number }>(
+              url, cachedXPath.script, { waitUntil: 'domcontentloaded' }
+            );
+            if (xpathResult.data.length > 0) {
+              for (const [name, value] of Object.entries(xpathResult.data[0])) {
+                if (finalData[name] === undefined && value !== null && value !== undefined) {
+                  finalData[name] = value;
+                  fieldResults[name] = {
+                    value,
+                    source: 'xpath-cached',
+                    path: '',
+                    confidence: 0.85,
+                  };
+                }
+              }
+              console.log(`[extract] Cached XPaths resolved: ${xpathResult.fieldCount} fields`);
+            }
+          } catch (err) {
+            console.error('[extract] Cached XPath execution failed (non-fatal):', err);
+          }
+        }
+      }
+
+      // 1.5c: Cross-validate with mechanical data
+      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames);
       if (cacheResult.overallConfidence > 0) {
         for (const [name, resolved] of Object.entries(cacheResult.resolved)) {
           if (finalData[name] === undefined && resolved.value !== null && resolved.value !== undefined) {
             finalData[name] = resolved.value;
             fieldResults[name] = {
               value: resolved.value,
-              source: 'xpath-cached',
+              source: resolved.source,
               path: '',
               confidence: resolved.confidence,
             };
           }
         }
-        console.log(`[extract] Cache resolved: ${Object.keys(cacheResult.resolved).length} additional fields (${cache.totalRuns} previous runs, ${cache.successRate}% success)`);
       }
+
+      const totalFromCache = fieldNames.filter((n: string) => finalData[n] !== undefined).length;
+      console.log(`[extract] After cache: ${totalFromCache}/${fields.length} fields (${cache.totalRuns} previous runs, ${cache.successRate}% success)`);
     } else if (cache) {
       console.log(`[extract] Cache exists but ${cache.consecutiveFailures} consecutive failures — skipping, running full chain`);
     } else {

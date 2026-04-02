@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[@id='Content']//div[contains(@class, 'content') and h2 and not(div/p/span[@class='warning' and text()='Cancelled'])]
-fields:
-  - name: eventURL
-    xpath: ./h2/a/@href

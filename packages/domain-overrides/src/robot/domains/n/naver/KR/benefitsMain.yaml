@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: benefitsMain
-    xpath: //pre
-  - name: fetchedURL
-    xpath: //meta[@name="fetchURL"]/@content

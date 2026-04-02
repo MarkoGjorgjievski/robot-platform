@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //*//elk-product-tile-ff-wc-wrapper
-fields:
-  - name: productURL
-    xpath: //h2//a//@href
-    # regExp: '(\/[^"]{1,})'
-    # regExpReplace: 'https://www.elgiganten.se/$1'

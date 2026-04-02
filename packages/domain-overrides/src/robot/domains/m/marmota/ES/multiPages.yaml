@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: '//div[@class="product-item " and not(ancestor::div[contains(@class, "hidden")])] 
- | //div[@class="product-item-productpack "] 
- | //div[contains(@class, "mattress-item") and not(ancestor::div[contains(@class, "hidden")])]'
-fields:
-  - name: 'productURL'
-    xpath: '//a/@href'

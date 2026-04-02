@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@role,'listitem')]
-fields:
-  - name: categoryURL
-    xpath: //div/@data-dib-asin

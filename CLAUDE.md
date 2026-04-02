@@ -1,52 +1,58 @@
-# Robot Platform
+# Robot Platform — AI-Native Web Scraper
 
 ## Project Overview
-Migrating `robot-library` (CommonJS web scraping framework on Import.io) into `robot-platform` (modern TypeScript monorepo).
 
-- **Source repo**: `../robot-library` (branch: DDF-679)
+AI-powered web scraping platform for in-house use. Customers request data from websites — we configure extractors with minimal manual effort. AI agents handle schema discovery, selector generation, and extraction. Humans review and refine.
+
 - **Monorepo**: pnpm workspaces + Turborepo
-- **Detailed docs**: [docs/migration-architecture.md](docs/migration-architecture.md), [docs/technical-gotchas.md](docs/technical-gotchas.md), [docs/runner-service.md](docs/runner-service.md)
-
-## Migration Status
-
-| Phase | Status | Notes |
-|-------|--------|-------|
-| 1. Monorepo Foundation | Done | pnpm workspaces, turbo, tsconfig |
-| 2. Test Coverage | Done | 207 tests (vitest), 13 test files |
-| 3. TypeScript Migration | Done | helpers split into 8 sub-modules, .js→.ts renames |
-| 4. Database + Dashboard | Done | db, api, config, dashboard packages |
-| 5. Runner Service | Done | @robot/runner with Playwright, worker poll loop, dashboard integration |
-| 6. CI/CD + Deployment | Not started | |
+- **Architecture docs**: [docs/extraction-architecture.md](docs/extraction-architecture.md), [docs/project-overview.md](docs/project-overview.md)
 
 ## Package Map
 
 | Package | Purpose | Key Tech |
 |---------|---------|----------|
-| `@robot/core` | Original robot-library source | CJS+TS hybrid, vitest |
+| `@robot/browser` | Page capture, popup dismissal, network interception | Playwright |
+| `@robot/agent` | LLM orchestration — schema discovery, selectors, validation | Anthropic Claude, Ollama |
+| `@robot/scraper` | Pipeline, XPath executor, structured data extraction | Multi-source extraction chain |
+| `@robot/dashboard2` | Web UI — wizard flow, data preview, source management | Next.js 15, Tailwind v4, Radix UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
-| `@robot/api` | Type-safe API | tRPC v11, Zod, superjson, 6 routers |
-| `@robot/config` | YAML parser, seeder, exporter | Parses 615 extractors from robot-library |
-| `@robot/runner` | Execute extractors | Playwright, standalone worker, DB poll |
-| `@robot/dashboard` | Web UI | Next.js 15, Tailwind v4, port 3456 |
+| `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
 
-## Key Technical Decisions
-- ESM imports use `.ts` extensions + `allowImportingTsExtensions: true` in @robot/core
-- `vitest.setup.js` patches `Module._resolveFilename` for CJS→TS resolution
-- `helpersIndex.js` is a CJS facade wrapping 8 TypeScript sub-modules
-- Circular dep (dom↔misc) solved with lazy `await import()` in dom.ts
-- Next.js 15 async params: `params: Promise<{ id: string }>`
-- Dashboard uses Server Components + Server Actions (no client-side tRPC provider)
+## Extraction Chain (priority order)
+
+1. **Domain cache** — reuse stored paths from previous runs (free, instant)
+2. **API interception** — capture XHR/fetch JSON responses during page load
+3. **JSON-LD** — Schema.org structured data in `<script type="application/ld+json">`
+4. **Meta tags** — og:title, product:price:amount, etc.
+5. **AI API analysis** — Claude reads raw API JSON, finds field values + paths (~$0.03)
+6. **AI XPath generation** — Claude generates XPath selectors for DOM extraction (~$0.05)
+7. **Screenshot validation** — Claude vision compares extracted data vs page screenshot
 
 ## Commands
-- `pnpm test` — run all tests
-- `pnpm --filter @robot/core test` — run core tests (202 tests)
-- `pnpm --filter @robot/config seed` — seed DB from YAML configs
-- `pnpm --filter @robot/dashboard dev` — start dashboard on :3456
-- `pnpm --filter @robot/runner worker` — start runner worker (polls for queued runs)
-- `HEADFUL=1 pnpm --filter @robot/runner worker` — runner with visible browser
-- `tsc --noEmit` — type check (core has ~164 acceptable `any` errors)
+
+- `pnpm --filter @robot/dashboard2 dev` — start dashboard on :3456
+- `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
+- `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser
+
+## Environment
+
+- `ANTHROPIC_API_KEY` — Claude API key (falls back to Ollama if not set)
+- `DATABASE_URL` — PostgreSQL connection string
+
+## Key Technical Decisions
+
+- XPath over CSS selectors — supports sibling traversal, ancestor access, text matching
+- Multi-path extraction — each field has multiple ranked extraction paths, cross-validated
+- Domain intelligence cache — enriched over time, never overwritten. 5 consecutive failures → reset.
+- Popup auto-dismissal — 3 rounds of click + JS removal before capture
+- Provider abstraction — Anthropic and Ollama supported, auto-detected from env
+- `"type": "module"` in all packages
+- Next.js 15 with Server Components + Server Actions (no client-side tRPC)
+- Radix UI + Tailwind v4 + shadcn pattern, light mode
 
 ## Conventions
+
 - Don't auto-commit — user commits manually
 - Prefer proper fixes over workarounds
-- `"type": "module"` in db, api, config packages; core remains CJS-compatible
+- All new packages use ESM (`"type": "module"`)
+- Legacy code preserved in `/Users/marko/Documents/robot-platform-legacy/`

@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productURL
-    xpath: //td[contains(@class,'productId')] | //td[contains(@class,'variantProductId')]
-    regExp: (.+)
-    regExpReplace: https://www.wrightdental.co.uk/p/$1

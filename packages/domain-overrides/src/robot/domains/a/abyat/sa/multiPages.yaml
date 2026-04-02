@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class,"impression")]
-fields:
-  - name: productURL
-    xpath: //a[contains(@role,"link")]//@href
-    regExp: '(\/[^"]{1,})'
-    regExpReplace: 'https://www.abyat.com/en-US$1'

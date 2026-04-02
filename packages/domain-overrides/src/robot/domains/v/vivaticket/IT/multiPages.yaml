@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: eventID
-    xpath: //td[@class="id depth_1"] 
-  - name: eventURL
-    defaultValue: "https://apigatewayb2cstore.vivaticket.com"

@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class, "product-grid")]//div[contains(@class,"product js-tile-block")]
-fields:
-  - name: productURL
-    xpath: //a[contains(@class,"product-tile-link")]//@href

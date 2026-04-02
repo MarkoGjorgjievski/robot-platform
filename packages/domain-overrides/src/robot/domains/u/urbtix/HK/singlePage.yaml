@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: venueName
-    xpath: //h1[@tabindex="0"]/@aria-label

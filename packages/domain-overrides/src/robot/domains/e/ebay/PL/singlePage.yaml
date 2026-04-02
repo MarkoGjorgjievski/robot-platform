@@ -1,8 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: productTitle
-    xpath: //*[contains(@class, "__mainTitle")]
-

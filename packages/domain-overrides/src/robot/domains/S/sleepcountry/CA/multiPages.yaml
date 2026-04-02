@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class, "product-item")][not(@__extracted)]
-fields:
-  - name: productURL
-    xpath: //div[contains(@class, 'item-detail')]//a/@href
-    regExp: (.+)
-    regExpReplace: https://www.sleepcountry.ca$1

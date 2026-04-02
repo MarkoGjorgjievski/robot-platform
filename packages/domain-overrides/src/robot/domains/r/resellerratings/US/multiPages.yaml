@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //*[@id='pagesArray']//li
-fields:
-  - name: targetURL
-    xpath: //text()

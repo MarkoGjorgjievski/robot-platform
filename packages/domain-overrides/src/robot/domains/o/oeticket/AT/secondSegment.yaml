@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: eventUrl
-    xpath: //div[contains(@class,'event-listing-info')]//a[contains(@class,'visible')]/@href
-    regExp: (.+)
-    regExpReplace: https://www.oeticket.com$1

@@ -1,8 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: channelUID
-    xpath: //*[@id="preLoaded"]
-    jq: 'if .channel then .channel[].channelUid else .smartStoreV2.channel.channelUid end'

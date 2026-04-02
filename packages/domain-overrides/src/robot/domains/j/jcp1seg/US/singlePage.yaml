@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: vndName
-    xpath: //*[@id="SupplierName"]
-  - name: vndID
-    xpath: //*[@id="SupplierNumber"]

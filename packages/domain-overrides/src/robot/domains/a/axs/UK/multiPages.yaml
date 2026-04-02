@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class,"results-table--events")]
-fields:
-  - name: eventURL
-    xpath: //a[contains(@class,"events_link")]/@href

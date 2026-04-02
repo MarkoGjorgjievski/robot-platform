@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: '//div[contains(@class, "pad-top")]/div[@data-filtercontainer]/following-sibling::div/div/div'
-fields:
-  - name: productURL
-    xpath: //a//span[contains(text(), "find out more")]/parent::a[not(@__extracted)]/@href

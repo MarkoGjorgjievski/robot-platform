@@ -1,8 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath:  //*[contains(@class, "product-card-list")]
-fields:
-  - name: productUrl
-    xpath: //a[contains(@class, "name")]/@href
-    jq: . | "https://www.snusbolaget.se" + .

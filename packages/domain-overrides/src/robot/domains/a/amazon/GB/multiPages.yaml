@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //h1[contains(@id,'title')]
-fields:
-  - name: dummyField
-    xpath: //span[contains(@id,'productTitle')]

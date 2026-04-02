@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //*[contains(@id, "event_details")]
-fields:
-  - name: eventURL
-    xpath: text()
-    jq: .attributes.slug | "https://funticket.mx/evento/" + .
-

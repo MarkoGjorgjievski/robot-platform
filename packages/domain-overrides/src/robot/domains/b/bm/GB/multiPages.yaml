@@ -1,8 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //div[contains(@class, 'prod-listing')]/ul/li
-fields:
-  - name: productURL
-    xpath: //h2/a/@href
-  

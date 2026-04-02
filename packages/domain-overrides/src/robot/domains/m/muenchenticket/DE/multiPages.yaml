@@ -1,7 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: //table[contains(@class, "detailed")]//tr//td[contains(@class, "td_name")][not(@__extracted)]
-fields:
-  - name: eventURL
-    xpath: //a[not(contains(@href, "/shop"))]/@href

@@ -1,9 +1,0 @@
-singleRecord: false
-regionsSelector: null
-recordSelector: null
-recordXPath: null
-fields:
-  - name: eventURL
-    xpath: //td[@class="url depth_1"]//td[@class="path depth_2"]
-    regExp: (.+)
-    regExpReplace: https://www.oeticket.com$1
