@@ -61,6 +61,8 @@ export function NewSourceWizard({
   const [confidence, setConfidence] = useState<number | null>(null);
 
   const [sourceName, setSourceName] = useState('');
+  const [isCached, setIsCached] = useState(false);
+  const [cacheStats, setCacheStats] = useState<{ totalRuns: number; successRate: number } | null>(null);
 
   const currentIdx = steps.findIndex(s => s.key === step);
 
@@ -86,6 +88,8 @@ export function NewSourceWizard({
       setScreenshotUrl(data.screenshotUrl);
       setPageType(data.schema.page_type);
       setPageDescription(data.schema.description);
+      setIsCached(data.cached ?? false);
+      setCacheStats(data.cacheStats ?? null);
       setFields(
         data.schema.fields.map((f: Omit<SchemaField, 'enabled'>) => ({
           ...f,
@@ -246,19 +250,50 @@ export function NewSourceWizard({
                 <Badge variant="secondary" className="text-[10px] uppercase">{pageType}</Badge>
                 <span className="text-xs text-muted-foreground">{pageDescription}</span>
               </div>
+              {isCached && cacheStats && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">Instant</Badge>
+                  <span className="text-[10px] text-muted-foreground">
+                    Pre-analyzed domain — {cacheStats.successRate}% reliability
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Right: Fields */}
           <div>
+            {isCached && (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-sm font-medium text-emerald-800">We know this website</p>
+                <p className="mt-0.5 text-xs text-emerald-600">
+                  These fields were discovered from {cacheStats?.totalRuns ?? 0} previous extractions. Select the ones your customer needs.
+                </p>
+              </div>
+            )}
+
             {existingSchemas.length > 0 && (
               <div className="mb-4">
-                <Label>Use existing schema</Label>
+                <Label>Use existing customer schema</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {existingSchemas.map((schema) => (
                     <button
                       key={schema.id}
-                      onClick={() => setFields(schema.fields.map(f => ({ ...f, enabled: true })))}
+                      onClick={() => {
+                        // Merge existing schema fields with discovered fields
+                        const schemaNames = new Set(schema.fields.map(f => f.name));
+                        const merged = fields.map(f => ({
+                          ...f,
+                          enabled: schemaNames.has(f.name),
+                        }));
+                        // Add any schema fields not in discovered fields
+                        for (const sf of schema.fields) {
+                          if (!fields.find(f => f.name === sf.name)) {
+                            merged.push({ ...sf, enabled: true, description: 'From customer schema' });
+                          }
+                        }
+                        setFields(merged);
+                      }}
                       className="rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
                     >
                       {schema.name}
@@ -269,7 +304,7 @@ export function NewSourceWizard({
               </div>
             )}
 
-            <Label>Discovered Fields</Label>
+            <Label>{isCached ? 'Available Fields' : 'Discovered Fields'}</Label>
             <Card className="mt-2 divide-y">
               {fields.map((field, i) => (
                 <label
@@ -466,7 +501,8 @@ export function NewSourceWizard({
                       const data = await res.json();
                       throw new Error(data.error ?? 'Save failed');
                     }
-                    window.location.href = `/scraper/${orgSlug}`;
+                    const result = await res.json();
+                    window.location.href = `/scraper/${orgSlug}/sources/${result.sourceId}`;
                   } catch (err) {
                     setError(err instanceof Error ? err.message : 'Save failed');
                     setLoading(false);

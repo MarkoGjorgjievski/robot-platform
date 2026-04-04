@@ -20,13 +20,13 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Extraction Chain (priority order)
 
-1. **Domain cache** — reuse stored paths from previous runs (free, instant)
-2. **API interception** — capture XHR/fetch JSON responses during page load
-3. **JSON-LD** — Schema.org structured data in `<script type="application/ld+json">`
-4. **Meta tags** — og:title, product:price:amount, etc.
+1. **Mechanical** — flatten intercepted APIs + JSON-LD + meta tags (free, instant)
+2. **Cached API paths** — replay stored dot-notation paths against fresh API JSON (free)
+3. **Cached XPaths** — execute stored XPath selectors on live page (free)
+4. **Cross-validation** — compare values from all sources, majority wins (free)
 5. **AI API analysis** — Claude reads raw API JSON, finds field values + paths (~$0.03)
 6. **AI XPath generation** — Claude generates XPath selectors for DOM extraction (~$0.05)
-7. **Screenshot validation** — Claude vision compares extracted data vs page screenshot
+7. **Save to cache** — store all paths with hit/miss stats for future runs
 
 ## Commands
 

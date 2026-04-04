@@ -8,57 +8,90 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'orgId, name, and url are required' }, { status: 400 });
     }
 
-    // Use the tRPC server caller for consistency
-    const { appRouter } = await import('@robot/api');
-    const { db } = await import('@robot/db');
-    const api = appRouter.createCaller({ db });
+    const { db, projects, collections, sources, captures, extractions } = await import('@robot/db');
+    const { eq } = await import('drizzle-orm');
 
     // 1. Find or create a default project for this org
-    const existingProjects = await api.projects.listByOrg({ orgId });
-    let projectId: string;
+    const existingProjects = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.orgId, orgId))
+      .limit(1);
 
+    let projectId: string;
     if (existingProjects.length > 0) {
       projectId = existingProjects[0].id;
     } else {
-      const project = await api.projects.create({
-        orgId,
-        name: 'Default',
-        slug: 'default',
-        description: 'Default project',
-      });
+      const [project] = await db
+        .insert(projects)
+        .values({
+          orgId,
+          name: 'Default',
+          slug: 'default',
+          description: 'Default project',
+        })
+        .returning();
       projectId = project.id;
     }
 
     // 2. Create collection (schema) with the fields
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      + '-' + Date.now().toString(36);
 
-    const collection = await api.collections.create({
-      projectId,
-      name: `${name}`,
-      slug: `${slug}-schema`,
-      schema: fields,
-    });
+    const [collection] = await db
+      .insert(collections)
+      .values({
+        projectId,
+        name,
+        slug,
+        description: `Schema for ${name}`,
+        schema: fields,
+      })
+      .returning();
 
     // 3. Create the source
-    const source = await api.sources.create({
-      collectionId: collection.id,
-      name,
-      slug,
-      country: 'US',
-    });
+    const domain = new URL(url).hostname;
 
-    // 4. Update source with AI fields (these aren't in the tRPC create input)
-    const { sources: sourcesTable } = await import('@robot/db');
-    const { eq } = await import('drizzle-orm');
-    await db
-      .update(sourcesTable)
-      .set({
+    const [source] = await db
+      .insert(sources)
+      .values({
+        collectionId: collection.id,
+        name,
+        slug: slug + '-source',
+        country: 'US',
         sourceType: pageType === 'detail' ? 'detail' : 'listing',
         urlPattern: url,
         selectorsJson: plan,
         aiStatus: 'ready',
       })
-      .where(eq(sourcesTable.id, source.id));
+      .returning();
+
+    // 4. Save initial extraction data (if we have it from the wizard preview)
+    if (data && Array.isArray(data) && data.length > 0) {
+      const [capture] = await db
+        .insert(captures)
+        .values({
+          sourceId: source.id,
+          url,
+          metadata: { pageType, savedFromWizard: true },
+        })
+        .returning();
+
+      await db.insert(extractions).values({
+        sourceId: source.id,
+        captureId: capture.id,
+        data,
+        rowCount: data.length,
+        confidence: Math.round((fields.length > 0 ? Object.keys(data[0] ?? {}).length / fields.length : 0) * 100),
+      });
+
+      console.log(`[save] Saved ${data.length} rows of extraction data`);
+    }
+
+    console.log(`[save] Created source ${source.id} for ${domain} (${pageType})`);
 
     return NextResponse.json({
       sourceId: source.id,

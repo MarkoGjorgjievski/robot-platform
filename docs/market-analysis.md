@@ -14,7 +14,7 @@ The key strategic question: **is this a product or a service?** Both paths are v
 
 ### 1. The Extraction Chain is Well-Designed
 
-The 7-step priority waterfall exhausts free/deterministic sources before paying for AI:
+The 8-step priority waterfall exhausts free/deterministic sources before paying for AI, with a human-in-the-loop fallback that guarantees every extraction problem is solvable:
 
 1. Domain cache (free, instant)
 2. API interception (free)
@@ -23,8 +23,9 @@ The 7-step priority waterfall exhausts free/deterministic sources before paying 
 5. AI API analysis (~$0.03)
 6. AI XPath generation (~$0.05)
 7. Screenshot validation (~$0.04)
+8. **Manual field selection** — human clicks the element, algorithm generates the optimal XPath (one-time cost, then cached)
 
-Most competitors go straight to AI or straight to selectors. This approach minimizes cost per extraction while maximizing accuracy through cross-validation.
+Most competitors go straight to AI or straight to selectors — and when AI fails, the extraction just fails. Robot's chain minimizes cost per extraction while maximizing accuracy through cross-validation, and the manual fallback closes the loop entirely. No data is unreachable.
 
 ### 2. Domain Intelligence Cache is a Moat
 
@@ -59,7 +60,7 @@ Currently built as an internal tool: customers request data, the team configures
 
 Both models can work, but they have very different unit economics and scaling curves.
 
-### 2. The "Last 5%" Problem
+### 2. The "Last 5%" Problem — and How Manual Selection Solves It
 
 AI scraping works well on structured e-commerce sites. But the money in scraping is often in the ugly corners:
 
@@ -72,7 +73,11 @@ AI scraping works well on structured e-commerce sites. But the money in scraping
 
 The roadmap acknowledges some of these (v2 pagination, v3 auth/proxy), but the jump from "works on well-structured retail sites" to "works on any site a customer throws at us" is significant.
 
-Detail page extraction is already broken on Target.com — a core v1 issue that needs resolution before expanding scope.
+**Manual field selection as a last-resort fallback directly addresses this.** When AI can't extract a field, the user sees the rendered page (or a video timeline of page states during load), clicks the target element, and the system generates the optimal XPath. This human-selected path is cached with maximum confidence — so the human cost is paid once per domain, then amortized across all future runs.
+
+This is a strategic advantage: **it makes the extraction chain complete.** Every competitor has a failure mode where AI just can't handle the page. Robot Platform doesn't — the chain always terminates with data. The cost escalation is clean: free (cache) → cheap (AI) → one-time human input → free again (cached human selection).
+
+Detail page extraction is already broken on Target.com — manual selection would be the immediate escape hatch for cases like this while AI extraction improves.
 
 ### 3. Selector Fragility is Unsolved
 
@@ -126,7 +131,7 @@ Vanilla Playwright is increasingly detected by Cloudflare, Akamai, PerimeterX, a
 
 Firecrawl and Kadoa are the closest competitors. Firecrawl has momentum (YC-backed, strong developer marketing) but lacks a domain intelligence cache. Kadoa is closest to Robot's vision but is further along on product/self-serve.
 
-**Robot's key differentiator is the domain intelligence cache + multi-source extraction chain.** No competitor currently combines deterministic extraction (API intercept, JSON-LD, meta) with AI fallback and a learning cache that improves over time.
+**Robot's key differentiators are the domain intelligence cache + multi-source extraction chain + human-in-the-loop fallback.** No competitor currently combines deterministic extraction (API intercept, JSON-LD, meta) with AI fallback, a learning cache that improves over time, and a manual selection escape hatch that guarantees 100% field coverage. Firecrawl and Kadoa both have hard failure modes — Robot doesn't.
 
 ---
 
@@ -138,19 +143,21 @@ Firecrawl and Kadoa are the closest competitors. Firecrawl has momentum (YC-back
 
 2. **Wire the domain intelligence cache into the live pipeline.** This is the moat and it's designed but not connected. Every extraction run should read from and write to the cache.
 
-3. **Add change detection early (v1.5, not v3).** Re-run cached extractions weekly, compare results, alert on drift. This is what separates a demo from a service.
+3. **Build manual field selection as a last-resort fallback.** Show the rendered page (or video timeline of page load states) in a sandboxed iframe. On user click, generate the shortest unique XPath (id > data-testid > data-* > class > positional). Store as `source: 'manual'` in the domain cache with confidence 1.0. Surface inline via "Fix this field" buttons on low-confidence fields — not as a separate mode.
 
-4. **Crop screenshots before sending to Claude.** Easy 30-50% cost reduction on the most expensive AI calls (schema discovery, validation).
+4. **Add change detection early (v1.5, not v3).** Re-run cached extractions weekly, compare results, alert on drift. This is what separates a demo from a service.
+
+5. **Crop screenshots before sending to Claude.** Easy 30-50% cost reduction on the most expensive AI calls (schema discovery, validation).
 
 ### Medium-Term: Productize (Months 2-6)
 
-5. **Build a public API.** `POST /extract` with a URL and optional schema returns structured data. This is what makes Robot a product. Firecrawl's entire business is this single API endpoint.
+6. **Build a public API.** `POST /extract` with a URL and optional schema returns structured data. This is what makes Robot a product. Firecrawl's entire business is this single API endpoint.
 
-6. **Add stealth and proxy support.** `playwright-extra` + stealth plugin + residential proxy rotation. Without this, 30%+ of commercial sites will block extraction.
+7. **Add stealth and proxy support.** `playwright-extra` + stealth plugin + residential proxy rotation. Without this, 30%+ of commercial sites will block extraction.
 
-7. **Implement scheduling.** Even simple cron + job queue transforms Robot from "manual extraction tool" to "data pipeline."
+8. **Implement scheduling.** Even simple cron + job queue transforms Robot from "manual extraction tool" to "data pipeline."
 
-8. **Data quality monitoring.** Automated checks: prices > 0, URLs valid, no HTML in text fields, field completeness thresholds.
+9. **Data quality monitoring.** Automated checks: prices > 0, URLs valid, no HTML in text fields, field completeness thresholds.
 
 ### Long-Term: Go-to-Market Options
 
@@ -208,11 +215,11 @@ The architecture bets on Claude getting cheaper over time. Scenario analysis:
 
 ## Bottom Line
 
-**Is this viable?** Yes. The core technology (multi-source extraction chain + domain intelligence cache + AI fallback) is genuinely differentiated. The cost model works. The architecture is sound.
+**Is this viable?** Yes. The core technology (multi-source extraction chain + domain intelligence cache + AI fallback + human-in-the-loop manual selection) is genuinely differentiated. The cost model works. The architecture is sound. With manual selection as a last resort, the extraction chain is complete — there is no failure mode that produces zero data.
 
 **Is this a startup?** It can be, but requires a go-to-market decision. The gap between "works on demo sites" and "production scraping platform" is real but bridgeable — it's engineering work (scheduling, proxy, stealth, monitoring), not unsolved research.
 
-**Biggest risk:** Firecrawl and similar tools commoditize basic AI scraping before Robot ships a product. The domain intelligence cache is the moat — **ship it and make it work before someone else builds the same thing.**
+**Biggest risk:** Firecrawl and similar tools commoditize basic AI scraping before Robot ships a product. The domain intelligence cache + manual fallback loop is the moat — **ship it and make it work before someone else builds the same thing.**
 
 **Timeline to revenue:**
 - 2-3 months to a working managed service (Option A)

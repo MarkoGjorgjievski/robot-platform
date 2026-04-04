@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Sparkles, Building2, FolderOpen, Settings } from "lucide-react"
+import { Sparkles, Building2, Globe, Settings } from "lucide-react"
 
 const navItems = [
   { href: "/", icon: Sparkles, label: "Scraper" },
   { href: "/customers", icon: Building2, label: "Customers" },
+  { href: "/domains", icon: Globe, label: "Domains" },
 ]
 
 export function Sidebar() {

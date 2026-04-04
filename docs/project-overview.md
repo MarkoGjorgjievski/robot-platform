@@ -147,28 +147,24 @@ Domain Intelligence (cached per domain, shared across all sources)
 
 ## Roadmap
 
-### v1 — Single Page Extraction (current)
+### v1 — Single Page Extraction (done)
 - [x] Browser capture with popup dismissal
 - [x] Schema discovery via AI (Claude + Ollama)
-- [x] XPath selector generation
+- [x] XPath selector generation (listing + detail page support)
 - [x] Multi-source extraction (API, JSON-LD, meta, XPath)
 - [x] Screenshot validation
 - [x] Dashboard wizard (URL → Schema → Preview → Save)
 - [x] API interception during page load
-- [ ] Domain intelligence cache with multi-path scoring
-- [ ] Fix detail page extraction (Target)
+- [x] AI-powered API response analysis (Claude reads raw API JSON)
+- [x] Domain intelligence cache with multi-path scoring
+- [x] Cached API path replay (dot-notation traversal, zero AI cost)
+- [x] Cached XPath replay (execute stored selectors, zero AI cost)
+- [x] Cross-validation between sources (OR-logic, majority wins)
+- [x] Auto-pruning dead paths (>10 uses, <10% hit rate)
+- [x] 5 consecutive failures → cache reset
+- [x] Retry with exponential backoff for transient API errors
+- [ ] Fix detail page extraction edge cases (Target consent modal)
 - [ ] Fix save flow (persist to DB)
-
-### v1.5 — API-First Extraction
-- [ ] AI-powered API response analysis
-- [ ] API path caching per domain
-- [ ] Fast mode (API-only, no screenshot/DOM)
-
-### v1.6 — Site Intelligence Cache
-- [ ] Multi-path field resolution with scoring
-- [ ] Cross-validation between sources
-- [ ] Auto-pruning dead paths
-- [ ] Cache hit/miss logging
 
 ### v2 — Multi-Page + Pagination
 - [ ] User selects source type: listing / detail / listing→detail
