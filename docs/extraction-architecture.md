@@ -46,10 +46,21 @@ Each extraction runs through these steps in order. Later steps only run for fiel
 └──────────────────────┬──────────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  STEP 2.5: Cache Path Resolution                     FREE   │
-│  If cache exists, try all stored paths for missing fields.   │
+│  STEP 2.5a: Cached API Path Resolution               FREE   │
+│  If cache exists, replay stored dot-notation JSON paths      │
+│  against fresh intercepted API responses.                    │
+│  e.g. "data.product.price.current" → $42.49                 │
+│  Uses getByDotPath() — no AI needed, just path traversal.   │
+├─────────────────────────────────────────────────────────────┤
+│  STEP 2.5b: Cached XPath Execution                   FREE   │
+│  Execute stored XPath expressions on the live page via       │
+│  page.evaluate(). No AI needed — just replay known selectors.│
+│  e.g. "//span[@data-test='price']" → $42.49                 │
+├─────────────────────────────────────────────────────────────┤
+│  STEP 2.5c: Cross-Validation                         FREE   │
+│  Compare values from all paths (API, XPath, meta, JSON-LD). │
+│  All agree → highest confidence. Majority wins on conflict.  │
 │  Paths ranked by historical hit rate.                        │
-│  Cross-validate: if multiple paths agree → high confidence.  │
 └──────────────────────┬──────────────────────────────────────┘
                        ▼ (only if fields still missing)
 ┌─────────────────────────────────────────────────────────────┐
@@ -145,6 +156,28 @@ When multiple paths return values for the same field:
 - **Disagree** → use path with best historical hit rate, increment `conflictCount`
 
 Numeric values use 5% tolerance for matching (e.g. $42.49 ≈ $42.50).
+
+### Cache Resolution Functions
+
+| Function | What it does | When it runs |
+|----------|-------------|--------------|
+| `resolveApiPathsFromCache()` | Traverses fresh API JSON using stored dot-notation paths (e.g. `data.product.price.current`) | Step 2.5a — after mechanical, before AI |
+| `buildCachedXPathScript()` | Generates a Playwright `page.evaluate()` script from stored XPaths, runs on live page | Step 2.5b — after API cache, before AI |
+| `resolveFromCache()` | Cross-validates all resolved values across sources, picks best by hit rate | Step 2.5c — final cache pass |
+| `saveDomainCache()` | Merges new paths into existing cache, updates hit/miss stats, prunes dead paths | Step 5 — after extraction complete |
+
+### OR-Logic Path Resolution
+
+Each field can have up to 5 paths from different sources. Resolution follows OR-logic:
+
+```
+price = data.product.price.current     (api-ai, 95% hit rate)
+     || data.offers[0].price           (api-ai, 85% hit rate)
+     || //span[@data-test='price']     (xpath, 92% hit rate)
+     || product:price:amount           (meta, 99% hit rate)
+```
+
+First path that returns a non-null value wins. If multiple return values, cross-validate.
 
 ### Cost Model
 

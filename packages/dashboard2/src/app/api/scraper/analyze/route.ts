@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 
@@ -14,28 +14,85 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Dynamic imports to avoid webpack bundling playwright
+    const domain = new URL(url).hostname.replace(/^www\./, '');
+
+    // ─── Check domain cache first ─────────────────────────────────────
+    const { lookupDomainCache } = await import('@robot/scraper');
+
+    // Try both 'detail' and 'listing' — return whichever has more data
+    const [detailCache, listingCache] = await Promise.all([
+      lookupDomainCache(domain, 'detail').catch(() => null),
+      lookupDomainCache(domain, 'listing').catch(() => null),
+    ]);
+
+    const cache = detailCache && listingCache
+      ? (Object.keys(detailCache.fieldPaths).length >= Object.keys(listingCache.fieldPaths).length ? detailCache : listingCache)
+      : detailCache ?? listingCache;
+
+    if (cache && Object.keys(cache.fieldPaths).length > 0 && cache.consecutiveFailures < 5) {
+      // We know this domain — return cached fields instantly
+      const cachedFields = Object.entries(cache.fieldPaths).map(([name, pathSet]) => {
+        const bestPath = pathSet.paths.sort((a, b) => {
+          const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
+          const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
+          return bRate - aRate;
+        })[0];
+
+        return {
+          name,
+          type: inferFieldType(name),
+          description: `Cached field (${bestPath?.source ?? 'unknown'} source, ${Math.round((bestPath?.hits ?? 0) / Math.max(1, (bestPath?.hits ?? 0) + (bestPath?.misses ?? 0)) * 100)}% hit rate)`,
+          required: true,
+          example_value: bestPath?.lastValue != null ? String(bestPath.lastValue).slice(0, 200) : undefined,
+        };
+      });
+
+      console.log(`[analyze] Cache hit for ${domain}/${cache.pageType}: ${cachedFields.length} fields (${cache.totalRuns} runs, ${cache.successRate}% success)`);
+
+      return NextResponse.json({
+        captureId: null,
+        screenshotUrl: null,
+        url,
+        title: `${domain} (cached)`,
+        schema: {
+          page_type: cache.pageType,
+          description: `Known domain — ${cachedFields.length} fields available from ${cache.totalRuns} previous runs`,
+          fields: cachedFields,
+        },
+        cached: true,
+        cacheStats: {
+          totalRuns: cache.totalRuns,
+          successRate: cache.successRate,
+          consecutiveFailures: cache.consecutiveFailures,
+        },
+      });
+    }
+
+    // ─── No cache — run full analysis ─────────────────────────────────
+    console.log(`[analyze] No cache for ${domain}, running full analysis`);
+
     const { PlaywrightBrowser } = await import('@robot/browser');
     const { SchemaAgent } = await import('@robot/agent');
 
-    // 1. Capture the page
     const browser = new PlaywrightBrowser();
     await browser.launch({ headless: true });
 
     let capture;
     try {
-      capture = await browser.capture(url, { waitUntil: 'networkidle' });
+      capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
     } finally {
       await browser.close();
     }
 
-    // 2. Save screenshot
+    // Save screenshot
     const screenshotId = randomUUID();
     const screenshotFilename = `${screenshotId}.png`;
-    const screenshotPath = join(process.cwd(), 'public', 'captures', screenshotFilename);
+    const capturesDir = join(process.cwd(), 'public', 'captures');
+    await mkdir(capturesDir, { recursive: true });
+    const screenshotPath = join(capturesDir, screenshotFilename);
     await writeFile(screenshotPath, capture.screenshot);
 
-    // 3. Log intercepted APIs
+    // Log intercepted APIs
     if (capture.interceptedRequests.length > 0) {
       console.log(`[analyze] Intercepted ${capture.interceptedRequests.length} API responses:`);
       for (const req of capture.interceptedRequests.slice(0, 5)) {
@@ -43,7 +100,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Discover schema
+    // Discover schema
     const agent = new SchemaAgent();
     const schema = await agent.discoverSchema(capture);
 
@@ -53,6 +110,7 @@ export async function POST(request: NextRequest) {
       url: capture.url,
       title: capture.title,
       schema,
+      cached: false,
     });
   } catch (err) {
     console.error('Analyze error:', err);
@@ -61,4 +119,16 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function inferFieldType(fieldName: string): string {
+  const name = fieldName.toLowerCase();
+  if (name.includes('price') || name.includes('cost') || name.includes('discount_amount')) return 'price';
+  if (name.includes('url') || name.includes('link') || name.includes('href')) return 'url';
+  if (name.includes('image')) return 'image_url';
+  if (name.includes('rating') || name.includes('count') || name.includes('number') || name.includes('review_count')) return 'number';
+  if (name.includes('available') || name.includes('in_stock') || name.includes('is_')) return 'boolean';
+  if (name.includes('date') || name.includes('time')) return 'date';
+  if (name.includes('features') || name.includes('images') || name.includes('tags')) return 'array';
+  return 'string';
 }

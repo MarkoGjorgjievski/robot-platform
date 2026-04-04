@@ -1,10 +1,11 @@
 import { db, domainIntelligence } from '@robot/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, like } from 'drizzle-orm';
 import type { InterceptedRequest } from '@robot/browser';
+import { extractBrand } from './domain-utils.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached';
+export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human';
 
 /** A single extraction path for a field */
 export type FieldPath = {
@@ -42,12 +43,28 @@ export type DomainCache = {
 // ─── Lookup ──────────────────────────────────────────────────────────────────
 
 export async function lookupDomainCache(domain: string, pageType: string): Promise<DomainCache | null> {
-  const result = await db.query.domainIntelligence.findFirst({
+  // Try exact domain match first
+  let result = await db.query.domainIntelligence.findFirst({
     where: and(
       eq(domainIntelligence.domain, domain),
       eq(domainIntelligence.pageType, pageType),
     ),
   });
+
+  // If not found, try related domains (same brand, different TLD)
+  if (!result) {
+    const brand = extractBrand(domain);
+    const related = await db.query.domainIntelligence.findFirst({
+      where: and(
+        like(domainIntelligence.domain, `%${brand}%`),
+        eq(domainIntelligence.pageType, pageType),
+      ),
+    });
+    if (related) {
+      console.log(`[cache] No cache for ${domain}, using related domain ${related.domain}`);
+      result = related;
+    }
+  }
 
   if (!result) return null;
 
@@ -97,8 +114,11 @@ export function resolveFromCache(
     const pathSet = fieldPaths[fieldName];
     if (!pathSet || pathSet.paths.length === 0) continue;
 
-    // Sort paths by hit rate (hits / (hits + misses)), then confidence
+    // Sort paths: human first, then by hit rate, then confidence
     const ranked = [...pathSet.paths].sort((a, b) => {
+      // Human paths always come first
+      if (a.source === 'human' && b.source !== 'human') return -1;
+      if (b.source === 'human' && a.source !== 'human') return 1;
       const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
       const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
       return bRate - aRate;
@@ -164,10 +184,12 @@ export function resolveApiPathsFromCache(
     const pathSet = fieldPaths[fieldName];
     if (!pathSet || pathSet.paths.length === 0) continue;
 
-    // Only try API-sourced paths
+    // Try API-sourced paths + human paths with API paths
     const apiPaths = pathSet.paths
-      .filter(p => p.source === 'api' || p.source === 'api-ai')
+      .filter(p => p.source === 'api' || p.source === 'api-ai' || (p.source === 'human' && !p.path.startsWith('//')))
       .sort((a, b) => {
+        if (a.source === 'human' && b.source !== 'human') return -1;
+        if (b.source === 'human' && a.source !== 'human') return 1;
         const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
         const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
         return bRate - aRate;
@@ -227,10 +249,12 @@ export function buildCachedXPathScript(
     const pathSet = fieldPaths[fieldName];
     if (!pathSet) continue;
 
-    // Find best XPath path for this field
+    // Find best XPath path — human paths first, then by hit rate
     const xpathPath = pathSet.paths
-      .filter(p => p.source === 'xpath' || p.source === 'xpath-cached')
+      .filter(p => p.source === 'xpath' || p.source === 'xpath-cached' || (p.source === 'human' && p.path.startsWith('//')))
       .sort((a, b) => {
+        if (a.source === 'human' && b.source !== 'human') return -1;
+        if (b.source === 'human' && a.source !== 'human') return 1;
         const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
         const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
         return bRate - aRate;
@@ -336,7 +360,8 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
     ),
   });
 
-  const isSuccess = outcome.overallConfidence >= 0.6;
+  // Success threshold: at least 30% of fields found (flexible for partial extractions)
+  const isSuccess = outcome.overallConfidence >= 0.3;
   const now = new Date().toISOString();
 
   // Build API endpoint list

@@ -151,15 +151,24 @@ export async function POST(request: NextRequest) {
     const agent = new SchemaAgent();
 
     if (missingAfterCache.length > 0 && capture.interceptedRequests.length > 0) {
-      console.log(`[extract] ${missingAfterCache.length} fields missing, AI analyzing API response`);
+      console.log(`[extract] ${missingAfterCache.length} fields missing, AI analyzing API responses`);
 
-      const topApi = capture.interceptedRequests[0];
-      if (topApi?.responseBody) {
+      // Try the top 3 API responses (largest first, most likely to contain product data)
+      const apisToTry = capture.interceptedRequests
+        .filter(r => r.responseBody && r.bodySize > 500)
+        .slice(0, 3);
+
+      for (const api of apisToTry) {
+        const stillMissing = schemaFields.filter(
+          (f: { name: string }) => finalData[f.name] === undefined
+        );
+        if (stillMissing.length === 0) break;
+
         try {
           const apiResult = await agent.extractFromApi(
-            topApi.responseBody,
-            topApi.url,
-            missingAfterCache,
+            api.responseBody!,
+            api.url,
+            stillMissing,
           );
 
           for (const field of apiResult.fields) {
@@ -175,12 +184,12 @@ export async function POST(request: NextRequest) {
               }
             }
           }
-
-          console.log(`[extract] After AI API: ${Object.keys(finalData).length}/${fields.length} fields`);
         } catch (err) {
-          console.error('[extract] AI API extraction failed (non-fatal):', err);
+          console.error(`[extract] AI API extraction failed for ${api.url.slice(0, 80)} (non-fatal):`, err);
         }
       }
+
+      console.log(`[extract] After AI API: ${Object.keys(finalData).length}/${fields.length} fields`);
     }
 
     // ─── STEP 3: XPath fallback (for still-missing fields) ─────────────

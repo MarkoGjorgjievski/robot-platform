@@ -56,9 +56,19 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
 
       function extractValue(el, field) {
         if (!el) return null;
+
+        // Skip script, style, and hidden elements — they contain code, not data
+        const tag = el.tagName?.toLowerCase?.() ?? '';
+        if (tag === 'script' || tag === 'style' || tag === 'noscript') return null;
+        if (el.closest?.('script') || el.closest?.('style')) return null;
+
         let value;
         if (field.attribute === 'textContent') {
           value = el.textContent?.trim() ?? null;
+          // Reject values that look like code/JSON (starts with { or function)
+          if (value && (value.startsWith('{') || value.startsWith('function ') || value.startsWith('[{') || value.length > 5000)) {
+            return null;
+          }
         } else {
           value = el.getAttribute ? el.getAttribute(field.attribute) : null;
         }
