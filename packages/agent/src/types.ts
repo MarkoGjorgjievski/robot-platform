@@ -26,6 +26,7 @@ export type SelectorField = {
 export type ExtractionPlan = {
   row_xpath: string;
   fields: SelectorField[];
+  page_type?: string;
 };
 
 export type ValidationResult = {

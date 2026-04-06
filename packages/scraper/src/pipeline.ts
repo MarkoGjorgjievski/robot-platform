@@ -1,4 +1,4 @@
-import { PlaywrightBrowser, type PageCapture, type BrowserOptions, type CaptureOptions } from '@robot/browser';
+import { PlaywrightBrowser, checkPageHealth, type PageCapture, type BrowserOptions, type CaptureOptions } from '@robot/browser';
 import { SchemaAgent, type AgentProvider, type DiscoveredSchema, type ExtractionPlan, type ValidationResult } from '@robot/agent';
 import { buildExtractionScript, type ExecutorResult } from './executor.js';
 
@@ -46,9 +46,30 @@ export class ScraperPipeline {
 
     try {
       const capture = await this.browser.capture(url, this.options.captureOptions);
+
+      // Check page health before spending AI credits
+      const health = checkPageHealth(capture.html, capture.title, url);
+      if (!health.healthy) {
+        throw new Error(`Page blocked or unhealthy: ${health.reason}`);
+      }
+
       const schema = await this.agent.discoverSchema(capture);
       let plan = await this.agent.generateSelectors(capture, schema.fields, schema.page_type);
+      plan.page_type = schema.page_type;
       let extractionResult = await this.extractWithPlan(url, plan);
+
+      // If listing page returned very few rows, retry with a hint
+      const isListing = ['listing', 'search_results', 'table'].includes(schema.page_type);
+      if (isListing && extractionResult.data.length < 3) {
+        console.warn(`[pipeline] Listing page returned only ${extractionResult.data.length} rows — retrying with stricter prompt`);
+        plan = await this.agent.generateSelectors(capture, schema.fields, schema.page_type);
+        plan.page_type = schema.page_type;
+        const retry = await this.extractWithPlan(url, plan);
+        if (retry.data.length > extractionResult.data.length) {
+          extractionResult = retry;
+        }
+      }
+
       let validation = await this.agent.validateExtraction(capture, extractionResult.data);
 
       let refinements = 0;
@@ -57,6 +78,7 @@ export class ScraperPipeline {
 
       while (validation.confidence < threshold && refinements < maxRefinements) {
         plan = await this.agent.generateSelectors(capture, schema.fields, schema.page_type);
+        plan.page_type = schema.page_type;
         extractionResult = await this.extractWithPlan(url, plan);
         validation = await this.agent.validateExtraction(capture, extractionResult.data);
         refinements++;

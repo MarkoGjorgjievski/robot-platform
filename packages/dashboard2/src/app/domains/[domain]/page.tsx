@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Globe, CheckCircle2, AlertTriangle, XCircle, User, Bot, RefreshCw, Trash2, Clock } from 'lucide-react';
 import { db, domainIntelligence } from '@robot/db';
-import { eq, like } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
@@ -51,12 +51,15 @@ export default async function DomainDetailPage({
   }
 
   const brand = getBrand(domainName);
-  const relatedDomains = await db
+  const allDomains = await db
     .select({ domain: domainIntelligence.domain })
-    .from(domainIntelligence)
-    .where(like(domainIntelligence.domain, `%${brand}%`));
+    .from(domainIntelligence);
 
-  const uniqueRelated = [...new Set(relatedDomains.map(r => r.domain))].filter(d => d !== domainName);
+  const uniqueRelated = [...new Set(
+    allDomains
+      .map(r => r.domain)
+      .filter(d => d !== domainName && getBrand(d) === brand)
+  )];
 
   // Aggregate stats across page types
   const totalRuns = entries.reduce((sum, e) => sum + (e.totalRuns ?? 0), 0);

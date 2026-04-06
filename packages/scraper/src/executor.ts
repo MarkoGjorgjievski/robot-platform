@@ -19,9 +19,10 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
     (() => {
       function xpathQuery(contextNode, xpath) {
         try {
-          // If xpath starts with / or //, evaluate from document root
-          // If it starts with . or is relative, evaluate from context
-          const node = xpath.startsWith('.') ? contextNode : document;
+          // Determine context: absolute xpaths (start with /) use document,
+          // relative xpaths (start with . or axis like following-sibling, ancestor, etc.) use contextNode
+          const isAbsolute = xpath.startsWith('/');
+          const node = isAbsolute ? document : contextNode;
           const result = document.evaluate(
             xpath,
             node,
@@ -54,6 +55,14 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
         }
       }
 
+      // Check how many elements an XPath matches (0 = broken, 50+ = too broad)
+      function xpathCount(xpath) {
+        try {
+          const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          return result.snapshotLength;
+        } catch { return 0; }
+      }
+
       function extractValue(el, field) {
         if (!el) return null;
 
@@ -65,7 +74,7 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
         let value;
         if (field.attribute === 'textContent') {
           value = el.textContent?.trim() ?? null;
-          // Reject values that look like code/JSON (starts with { or function)
+          // Reject values that look like code/JSON
           if (value && (value.startsWith('{') || value.startsWith('function ') || value.startsWith('[{') || value.length > 5000)) {
             return null;
           }
@@ -77,12 +86,40 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
 
         if (field.transform === 'trim') value = value.trim();
         if (field.transform === 'parse_number') {
-          const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
-          value = isNaN(num) ? null : num;
+          // Handle word-based numbers (e.g. "star-rating Three" → 3)
+          const wordToNum = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5 };
+          const wordMatch = value.toLowerCase().match(/\\b(zero|one|two|three|four|five)\\b/);
+          if (wordMatch) {
+            value = wordToNum[wordMatch[1]];
+          } else {
+            const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
+            value = isNaN(num) ? null : num;
+          }
         }
         if (field.transform === 'parse_date') value = value.trim();
         if (field.transform === 'absolute_url' && value && !value.startsWith('http')) {
           try { value = new URL(value, window.location.href).href; } catch {}
+        }
+
+        // Post-processing: clean up common junk patterns
+        if (typeof value === 'string') {
+          // "Visit the Apple Store" → "Apple"
+          value = value.replace(/^Visit the\\s+/i, '').replace(/\\s+Store$/i, '').trim();
+          // Remove "Shop now" / "Buy now" prefixes
+          value = value.replace(/^(Shop|Buy|Order|Get)\\s+(now|it|this)?\\s*/i, '').trim();
+          // Collapse multiple whitespace/newlines
+          value = value.replace(/\\s+/g, ' ').trim();
+        }
+
+        // Plausibility checks based on transform/field hints
+        if (value !== null) {
+          const strVal = String(value);
+          // Reject if extracted value is just whitespace or common boilerplate
+          if (strVal.trim() === '' || strVal === 'undefined' || strVal === 'null') return null;
+          // Reject numbers that are impossibly large (likely wrong element)
+          if (field.transform === 'parse_number' && typeof value === 'number' && (value > 1e9 || value < -1e9)) return null;
+          // Reject URLs that don't look like URLs
+          if (field.transform === 'absolute_url' && typeof value === 'string' && !value.match(/^https?:\\/\\//)) return null;
         }
 
         return value;
@@ -90,13 +127,21 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
 
       const rowXpath = ${JSON.stringify(plan.row_xpath)};
       const fields = ${JSON.stringify(plan.fields)};
+      const pageType = ${JSON.stringify(plan.page_type ?? 'auto')};
       const rows = xpathQueryAll(rowXpath);
       const results = [];
       const matchCounts = {};
 
       fields.forEach(f => { matchCounts[f.name] = 0; });
 
-      if (rows.length > 1) {
+      // Use page type hint if available, otherwise infer from row count
+      const isListing = pageType === 'listing' || pageType === 'search_results' || pageType === 'table'
+        ? true
+        : pageType === 'detail'
+          ? false
+          : rows.length > 1;
+
+      if (isListing) {
         // LISTING MODE: multiple rows, extract per-row
         for (const row of rows) {
           const item = {};
@@ -142,12 +187,24 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
         if (Object.keys(item).length > 0) results.push(item);
       }
 
+      // Validate XPaths — check element counts for quality signals
+      const xpathValidation = {};
+      for (const field of fields) {
+        const absXpath = field.xpath.startsWith('.') ? field.xpath.substring(1) : field.xpath.startsWith('/') ? field.xpath : '//' + field.xpath;
+        const count = xpathCount(absXpath);
+        xpathValidation[field.name] = {
+          elementCount: count,
+          status: count === 0 ? 'broken' : count > 100 ? 'too_broad' : 'ok',
+        };
+      }
+
       return {
         data: results,
         matchRate: Object.fromEntries(
           fields.map(f => [f.name, Math.max(rows.length, 1) > 0 ? matchCounts[f.name] / Math.max(rows.length, 1) : 0])
         ),
         totalRows: Math.max(rows.length, results.length),
+        xpathValidation,
       };
     })()
   `;

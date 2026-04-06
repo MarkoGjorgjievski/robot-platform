@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { PlaywrightBrowser } = await import('@robot/browser');
     const { SchemaAgent } = await import('@robot/agent');
     const { buildExtractionScript } = await import('@robot/scraper/executor');
-    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript } = await import('@robot/scraper');
+    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, acquireDomainLock, detectSchemaChanges, formatSchemaChanges } = await import('@robot/scraper');
 
     const domain = new URL(url).hostname;
     const resolvedPageType = pageType ?? 'detail';
@@ -22,6 +22,9 @@ export async function POST(request: NextRequest) {
 
     // ─── STEP 0: Check domain cache ────────────────────────────────────
     const cache = await lookupDomainCache(domain, resolvedPageType);
+
+    // Acquire domain lock (prevents concurrent requests to same domain)
+    const releaseLock = await acquireDomainLock(domain);
 
     // Capture the page (always needed for fresh data)
     const browser = new PlaywrightBrowser();
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
       capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
     } catch (err) {
       await browser.close();
+      releaseLock();
       throw err;
     }
 
@@ -228,6 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     await browser.close();
+    releaseLock();
 
     // ─── STEP 4: Calculate confidence + save to cache ──────────────────
     const foundFields = Object.keys(finalData).length;
@@ -240,6 +245,15 @@ export async function POST(request: NextRequest) {
 
     console.log(`[extract] Done: ${foundFields}/${fields.length} fields, confidence=${Math.round(confidence * 100)}%`);
     console.log(`[extract] Sources: ${JSON.stringify(sources)}`);
+
+    // ─── Schema evolution detection ───────────────────────────────────
+    let schemaChanges: Array<{ type: string; fieldName: string; detail: string }> = [];
+    if (cache && Object.keys(cache.fieldPaths).length > 0) {
+      schemaChanges = detectSchemaChanges(cache.fieldPaths, fieldNames, finalData);
+      if (schemaChanges.length > 0) {
+        console.log(`[extract] ${formatSchemaChanges(schemaChanges)}`);
+      }
+    }
 
     // Save to domain intelligence cache (non-blocking)
     try {
@@ -264,6 +278,7 @@ export async function POST(request: NextRequest) {
       sources,
       fieldCount: { found: foundFields, total: fields.length },
       cacheHit: cache !== null && cache.consecutiveFailures < 5,
+      schemaChanges: schemaChanges.length > 0 ? schemaChanges : undefined,
     });
   } catch (err) {
     console.error('Extract error:', err);
