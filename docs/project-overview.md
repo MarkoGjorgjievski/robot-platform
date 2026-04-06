@@ -148,23 +148,29 @@ Domain Intelligence (cached per domain, shared across all sources)
 ## Roadmap
 
 ### v1 — Single Page Extraction (done)
-- [x] Browser capture with popup dismissal
-- [x] Schema discovery via AI (Claude + Ollama)
-- [x] XPath selector generation (listing + detail page support)
-- [x] Multi-source extraction (API, JSON-LD, meta, XPath)
-- [x] Screenshot validation
-- [x] Dashboard wizard (URL → Schema → Preview → Save)
-- [x] API interception during page load
-- [x] AI-powered API response analysis (Claude reads raw API JSON)
-- [x] Domain intelligence cache with multi-path scoring
-- [x] Cached API path replay (dot-notation traversal, zero AI cost)
-- [x] Cached XPath replay (execute stored selectors, zero AI cost)
-- [x] Cross-validation between sources (OR-logic, majority wins)
-- [x] Auto-pruning dead paths (>10 uses, <10% hit rate)
-- [x] 5 consecutive failures → cache reset
-- [x] Retry with exponential backoff for transient API errors
-- [ ] Fix detail page extraction edge cases (Target consent modal)
-- [ ] Fix save flow (persist to DB)
+- [x] Full extraction chain (7 steps: mechanical → cache → AI API → AI XPath → save)
+- [x] Browser capture with popup dismissal + fallback navigation
+- [x] API interception with content-based ranking
+- [x] Schema discovery via Claude (screenshot + markdown + structured data)
+- [x] XPath generation (listing + detail modes, sibling traversal)
+- [x] Domain intelligence cache (multi-path, OR-logic, cross-validation)
+- [x] Cached path replay (API dot-notation + XPath, zero AI cost)
+- [x] Blocked page detection (403, captcha, Cloudflare, empty pages)
+- [x] Per-domain concurrency locks + politeness delay
+- [x] Schema evolution detection (new/removed/degraded fields)
+- [x] Human override system (click-to-select, saved globally)
+- [x] Cache-first source creation (known domains = instant)
+- [x] Brand/TLD grouping (amazon.com → amazon.co.uk cache sharing)
+- [x] Dashboard: source detail, domain library, pre-training, search/filters
+- [x] Value transforms, plausibility checks, hit rate decay
+
+### v1.1 — Multi-Provider + Stability (next)
+- [ ] Add OpenAI GPT-4o, Gemini Flash, xAI Grok as providers
+- [ ] Task-based routing (vision→Claude, large context→Gemini, cheap→mini)
+- [ ] Provider failover on errors
+- [ ] Fix save flow end-to-end
+- [ ] Data quality checks
+- [ ] Fix complex listing pages (BBC-style custom React)
 
 ### v2 — Multi-Page + Pagination
 - [ ] User selects source type: listing / detail / listing→detail

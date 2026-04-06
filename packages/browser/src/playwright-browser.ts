@@ -420,9 +420,24 @@ export class PlaywrightBrowser implements IBrowser {
         if (body.includes('"availability"') || body.includes('"inStock"')) score += 3;
         if (body.includes('"brand"') || body.includes('"manufacturer"')) score += 3;
 
-        // Size signal — too small is likely not data, sweet spot is 1KB-100KB
+        // Count how many product-like keys appear (more = more likely product data)
+        const productKeyCount = [
+          '"price"', '"title"', '"name"', '"description"', '"image"',
+          '"rating"', '"review"', '"sku"', '"brand"', '"availability"',
+          '"category"', '"url"', '"stock"', '"shipping"', '"seller"',
+        ].filter(k => body.includes(k)).length;
+        score += productKeyCount * 2; // Each matching key adds 2 points
+
+        // Penalize responses that look like UI/layout config
+        if (body.includes('"modules"') && body.includes('"layout"') && body.includes('"zones"')) score -= 3;
+        if (body.includes('"components"') && body.includes('"template"')) score -= 2;
+        if (body.includes('"featureFlags"') || body.includes('"experiments"')) score -= 5;
+
+        // Size signal — sweet spot is 1KB-50KB for product data
         if (r.bodySize > 500 && r.bodySize < 100000) score += 2;
-        if (r.bodySize > 2000 && r.bodySize < 50000) score += 2;
+        if (r.bodySize > 2000 && r.bodySize < 50000) score += 3;
+        // Penalize very large responses — likely UI framework data, not product data
+        if (r.bodySize > 100000) score -= 2;
 
         return { request: r, score };
       })

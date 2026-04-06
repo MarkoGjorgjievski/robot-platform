@@ -67,12 +67,14 @@ try {
   console.log(`\n--- Validation ---`);
   console.log(`Complete: ${result.validation.is_complete}`);
   console.log(`Confidence: ${Math.round(result.validation.confidence * 100)}%`);
-  if (result.validation.missing_items.length > 0) {
-    console.log(`Missing: ${result.validation.missing_items.join(', ')}`);
+  const missing = Array.isArray(result.validation.missing_items) ? result.validation.missing_items : [];
+  if (missing.length > 0) {
+    console.log(`Missing: ${missing.join(', ')}`);
   }
-  if (result.validation.incorrect_values.length > 0) {
+  const incorrect = Array.isArray(result.validation.incorrect_values) ? result.validation.incorrect_values : [];
+  if (incorrect.length > 0) {
     console.log(`Incorrect values:`);
-    for (const iv of result.validation.incorrect_values) {
+    for (const iv of incorrect) {
       console.log(`  - ${iv.field}: extracted="${iv.extracted}" actual="${iv.actual}"`);
     }
   }

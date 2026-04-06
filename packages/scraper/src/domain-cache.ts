@@ -1,5 +1,5 @@
 import { db, domainIntelligence } from '@robot/db';
-import { eq, and, like } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { InterceptedRequest } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
 
@@ -54,14 +54,18 @@ export async function lookupDomainCache(domain: string, pageType: string): Promi
   // If not found, try related domains (same brand, different TLD)
   if (!result) {
     const brand = extractBrand(domain);
-    const related = await db.query.domainIntelligence.findFirst({
-      where: and(
-        like(domainIntelligence.domain, `%${brand}%`),
-        eq(domainIntelligence.pageType, pageType),
-      ),
-    });
+    // Fetch all entries for this page type, then filter by exact brand match
+    const candidates = await db
+      .select()
+      .from(domainIntelligence)
+      .where(eq(domainIntelligence.pageType, pageType));
+
+    const related = candidates
+      .filter(c => extractBrand(c.domain) === brand && c.domain !== domain)
+      .sort((a, b) => (b.successfulRuns ?? 0) - (a.successfulRuns ?? 0))[0];
+
     if (related) {
-      console.log(`[cache] No cache for ${domain}, using related domain ${related.domain}`);
+      console.log(`[cache] No cache for ${domain}, using related domain ${related.domain} (brand: ${brand})`);
       result = related;
     }
   }
@@ -114,14 +118,14 @@ export function resolveFromCache(
     const pathSet = fieldPaths[fieldName];
     if (!pathSet || pathSet.paths.length === 0) continue;
 
-    // Sort paths: human first, then by hit rate, then confidence
+    // Sort paths: human first, then by recency-weighted hit rate, then confidence
     const ranked = [...pathSet.paths].sort((a, b) => {
       // Human paths always come first
       if (a.source === 'human' && b.source !== 'human') return -1;
       if (b.source === 'human' && a.source !== 'human') return 1;
-      const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
-      const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
-      return bRate - aRate;
+      const aScore = pathScore(a);
+      const bScore = pathScore(b);
+      return bScore - aScore;
     });
 
     // Try each path — collect all values that resolve
@@ -380,28 +384,26 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
     const newSuccessfulRuns = (existing.successfulRuns ?? 0) + (isSuccess ? 1 : 0);
     const newConsecutiveFailures = isSuccess ? 0 : (existing.consecutiveFailures ?? 0) + 1;
 
-    // If consecutive failures exceed 5, reset the cache (site structure likely changed)
-    const shouldReset = newConsecutiveFailures >= 5;
+    // Flag degradation but NEVER auto-reset — human review required
+    if (newConsecutiveFailures >= 5) {
+      console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} has ${newConsecutiveFailures} consecutive failures — flagged for human review`);
+    }
 
     await db
       .update(domainIntelligence)
       .set({
-        apiEndpoints: shouldReset ? apiEndpoints : (existing.apiEndpoints ?? apiEndpoints),
-        fieldPaths: shouldReset ? buildFreshPaths(outcome.fieldResults, now) : mergedPaths,
+        apiEndpoints: existing.apiEndpoints ?? apiEndpoints,
+        fieldPaths: mergedPaths,
         hasJsonLd: outcome.hasJsonLd,
         hasNextData: outcome.hasNextData,
-        totalRuns: shouldReset ? 1 : newTotalRuns,
-        successfulRuns: shouldReset ? (isSuccess ? 1 : 0) : newSuccessfulRuns,
-        consecutiveFailures: shouldReset ? 0 : newConsecutiveFailures,
+        totalRuns: newTotalRuns,
+        successfulRuns: newSuccessfulRuns,
+        consecutiveFailures: newConsecutiveFailures,
         lastUsedAt: new Date(),
         lastVerifiedAt: isSuccess ? new Date() : existing.lastVerifiedAt,
         updatedAt: new Date(),
       })
       .where(eq(domainIntelligence.id, existing.id));
-
-    if (shouldReset) {
-      console.log(`[cache] Reset cache for ${outcome.domain}/${outcome.pageType} after ${newConsecutiveFailures} consecutive failures`);
-    }
   } else {
     // First time — create fresh cache entry
     await db.insert(domainIntelligence).values({
@@ -533,6 +535,43 @@ function valuesMatch(a: unknown, b: unknown): boolean {
     return Math.abs(numA - numB) / Math.max(numA, numB) < 0.05; // 5% tolerance
   }
   return false;
+}
+
+/**
+ * Score a path for ranking. Uses hit rate as the primary signal.
+ *
+ * Recency is only used as a TIEBREAKER between paths with similar hit rates,
+ * NOT as a penalty for inactivity. A path that worked 4 months ago but has
+ * 98% hit rate is still trusted — it just hasn't been needed recently.
+ *
+ * Decay only kicks in when a path has RECENT MISSES (evidence of degradation).
+ */
+function pathScore(path: FieldPath): number {
+  const total = path.hits + path.misses;
+  if (total === 0) return path.confidence;
+
+  const hitRate = path.hits / total;
+
+  // Only apply recency penalty if the path has recent failures
+  // A path with 0 misses should never be penalized for inactivity
+  if (path.misses === 0) return hitRate;
+
+  // For paths WITH misses: weight recent activity higher
+  // If the path was used recently and failed, that's a stronger signal
+  // than an old failure from months ago
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const weeksSinceUse = path.lastUsedAt
+    ? (Date.now() - new Date(path.lastUsedAt).getTime()) / msPerWeek
+    : 52; // old paths with misses: give them benefit of doubt (maybe site was fixed)
+
+  // Recent misses are worse than old misses
+  // If last use was recent AND there are misses → lower score
+  // If last use was old AND there are misses → misses may be stale, trust hit rate more
+  const recencyWeight = weeksSinceUse < 2 ? 1.0 : 0.5; // recent misses count full, old misses count half
+  const adjustedMisses = path.misses * recencyWeight;
+  const adjustedTotal = path.hits + adjustedMisses;
+
+  return adjustedTotal > 0 ? path.hits / adjustedTotal : hitRate;
 }
 
 function buildUrlPattern(url: string): string {
