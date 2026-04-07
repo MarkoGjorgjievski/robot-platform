@@ -59,6 +59,7 @@ export function NewSourceWizard({
   const [extractedData, setExtractedData] = useState<Record<string, unknown>[]>([]);
   const [extractionPlan, setExtractionPlan] = useState<{ row_xpath: string; fields: Array<{ name: string; xpath: string; attribute: string; transform: string }> } | null>(null);
   const [confidence, setConfidence] = useState<number | null>(null);
+  const [qualityIssues, setQualityIssues] = useState<Array<{ field: string; row?: number; type: 'warning' | 'error'; message: string; autoFixed?: boolean }>>([]);
 
   const [sourceName, setSourceName] = useState('');
   const [isCached, setIsCached] = useState(false);
@@ -130,6 +131,7 @@ export function NewSourceWizard({
       setExtractedData(data.data ?? []);
       setExtractionPlan(data.plan ?? null);
       setConfidence(data.confidence ?? null);
+      setQualityIssues(data.qualityIssues ?? []);
       setStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -377,6 +379,31 @@ export function NewSourceWizard({
                 {Math.round(confidence * 100)}%
               </span>
             </div>
+          )}
+
+          {qualityIssues.length > 0 && (
+            <Card className="mb-4 divide-y">
+              {qualityIssues.map((issue, i) => (
+                <div key={i} className="flex items-start gap-2 px-4 py-2">
+                  <Badge
+                    className={`mt-0.5 text-[10px] shrink-0 ${
+                      issue.type === 'error'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {issue.type}
+                  </Badge>
+                  <div className="min-w-0">
+                    <span data-slot="mono" className="text-xs font-medium">{issue.field}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{issue.message}</span>
+                    {issue.autoFixed && (
+                      <Badge variant="secondary" className="ml-2 text-[10px]">auto-fixed</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </Card>
           )}
 
           {extractedData.length > 0 ? (

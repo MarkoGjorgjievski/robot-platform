@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { PlaywrightBrowser } = await import('@robot/browser');
     const { SchemaAgent } = await import('@robot/agent');
     const { buildExtractionScript } = await import('@robot/scraper/executor');
-    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, acquireDomainLock, detectSchemaChanges, formatSchemaChanges } = await import('@robot/scraper');
+    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, acquireDomainLock, detectSchemaChanges, formatSchemaChanges, validateExtractedData } = await import('@robot/scraper');
 
     const domain = new URL(url).hostname;
     const resolvedPageType = pageType ?? 'detail';
@@ -271,14 +271,21 @@ export async function POST(request: NextRequest) {
       console.error('[extract] Cache save failed (non-fatal):', err);
     }
 
+    // ─── STEP 5: Data quality validation ───────────────────────────────
+    const { data: cleanedData, issues: qualityIssues } = validateExtractedData(
+      [finalData],
+      schemaFields,
+    );
+
     return NextResponse.json({
-      data: [finalData],
+      data: cleanedData,
       plan,
       confidence,
       sources,
       fieldCount: { found: foundFields, total: fields.length },
       cacheHit: cache !== null && cache.consecutiveFailures < 5,
       schemaChanges: schemaChanges.length > 0 ? schemaChanges : undefined,
+      qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
     });
   } catch (err) {
     console.error('Extract error:', err);
