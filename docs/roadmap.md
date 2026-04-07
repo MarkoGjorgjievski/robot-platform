@@ -39,13 +39,10 @@ type: project
 - [x] Retry with exponential backoff for transient API errors
 
 ## v1.1 — Stability & Polish (NEXT)
-- [ ] Multi-LLM provider support (OpenAI GPT-4o, Gemini Flash, xAI Grok)
-- [ ] Task-based provider routing (vision→Claude, large context→Gemini, cheap→GPT-4o-mini)
-- [ ] Provider failover (429/529 → auto-switch to next provider)
-- [ ] Fix BBC-style complex listings (custom React components, low row count)
-- [ ] Click-to-select for row selector (not just field values)
 - [ ] Fix save flow end-to-end (test thoroughly)
 - [ ] Data quality checks (prices > 0, URLs valid, no HTML in text)
+- [ ] Fix BBC-style complex listings (custom React components, low row count)
+- [ ] Click-to-select for row selector (not just field values)
 - [ ] Crop screenshots to viewport before sending to Claude (token savings)
 - [ ] Side panel / expandable sections (Amazon reseller data)
 - [ ] Per-source browser config (viewport, user agent, cookie injection)
@@ -68,6 +65,9 @@ type: project
 
 ## v3 — Production Scale
 - [ ] Public API (POST /extract) — makes it a product
+- [ ] Multi-LLM provider support (OpenAI GPT-4o, Gemini Flash, xAI Grok)
+- [ ] Task-based provider routing (vision→Claude, large context→Gemini, cheap→GPT-4o-mini)
+- [ ] Provider failover (429/529 → auto-switch to next provider)
 - [ ] Scheduling (cron-based re-scraping)
 - [ ] Change detection + selector health monitoring
 - [ ] Proxy pool integration (Bright Data, Oxylabs)
@@ -81,5 +81,5 @@ type: project
 - [ ] Pre-training: bulk-run against top 500 sites
 - [ ] Multi-tenancy and auth (before external users)
 
-**Why:** Structured roadmap aligned with market analysis. v1.1 focuses on reliability + multi-provider. v2 adds multi-page. v3 is production infrastructure.
-**How to apply:** Complete v1.1 (stability + providers) before expanding to v2 (pagination).
+**Why:** Structured roadmap aligned with market analysis. v1.1 focuses on reliability. v2 adds multi-page. v3 is production infrastructure + multi-provider.
+**How to apply:** Complete v1.1 (stability) before expanding to v2 (pagination).
