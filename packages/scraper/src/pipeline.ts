@@ -1,6 +1,7 @@
 import { PlaywrightBrowser, checkPageHealth, type PageCapture, type BrowserOptions, type CaptureOptions } from '@robot/browser';
 import { SchemaAgent, type AgentProvider, type DiscoveredSchema, type ExtractionPlan, type ValidationResult } from '@robot/agent';
 import { buildExtractionScript, type ExecutorResult } from './executor.js';
+import { calculateFieldCoverage, getMissingFields } from './field-coverage.js';
 
 export type PipelineOptions = {
   browserOptions?: BrowserOptions;
@@ -58,15 +59,24 @@ export class ScraperPipeline {
       plan.page_type = schema.page_type;
       let extractionResult = await this.extractWithPlan(url, plan);
 
-      // If listing page returned very few rows, retry with a hint
+      // If listing page has low row count OR low field coverage, retry with feedback
       const isListing = ['listing', 'search_results', 'table'].includes(schema.page_type);
-      if (isListing && extractionResult.data.length < 3) {
-        console.warn(`[pipeline] Listing page returned only ${extractionResult.data.length} rows — retrying with stricter prompt`);
-        plan = await this.agent.generateSelectors(capture, schema.fields, schema.page_type);
-        plan.page_type = schema.page_type;
-        const retry = await this.extractWithPlan(url, plan);
-        if (retry.data.length > extractionResult.data.length) {
-          extractionResult = retry;
+      if (isListing) {
+        const fieldCoverage = calculateFieldCoverage(extractionResult.data, schema.fields);
+        if (extractionResult.data.length < 3 || fieldCoverage < 0.5) {
+          const missingFields = getMissingFields(extractionResult.data, schema.fields);
+          console.warn(`[pipeline] Listing: ${extractionResult.data.length} rows, ${Math.round(fieldCoverage * 100)}% field coverage — retrying (missing: ${missingFields.join(', ')})`);
+          plan = await this.agent.retrySelectorGeneration(capture, schema.fields, schema.page_type, {
+            missingFields,
+            rowCount: extractionResult.data.length,
+            previousRowXpath: plan.row_xpath,
+          });
+          plan.page_type = schema.page_type;
+          const retry = await this.extractWithPlan(url, plan);
+          const retryCoverage = calculateFieldCoverage(retry.data, schema.fields);
+          if (retryCoverage > fieldCoverage || retry.data.length > extractionResult.data.length) {
+            extractionResult = retry;
+          }
         }
       }
 

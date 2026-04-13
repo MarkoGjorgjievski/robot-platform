@@ -6,3 +6,4 @@ export { extractBrand, extractRootDomain, areDomainsRelated, isSubdomain, getSub
 export { acquireDomainLock, isDomainLocked, getActiveLocks } from './domain-lock.js';
 export { detectSchemaChanges, formatSchemaChanges, type SchemaChange } from './schema-evolution.js';
 export { validateExtractedData, type QualityIssue, type QualityResult } from './data-quality.js';
+export { calculateFieldCoverage, getMissingFields } from './field-coverage.js';

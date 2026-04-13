@@ -101,7 +101,54 @@ ${html}`;
 
 ${fieldList}
 
-IMPORTANT: Some pages have metadata in sibling elements (e.g. Hacker News uses two <tr> rows per story). Use following-sibling:: to traverse to adjacent elements when needed.
+RULES FOR FINDING THE ROW CONTAINER (row_xpath):
+- Look for elements that REPEAT with the same tag name and similar structure (e.g. multiple <article>, <li>, <div> with the same role)
+- Prefer semantic HTML tags: <article>, <section>, <li>, <tr> over generic <div>
+- DO NOT rely on class names — React/frameworks generate dynamic classes like "_card_a1b2c" that are unreliable
+- Use data-* attributes when available: //article[@data-testid] or //div[@data-type="story"]
+- The row_xpath should match ALL repeating items (typically 5-50 elements)
+
+RULES FOR FIELD XPATHS:
+- Start with relative paths (.//h2, .//span[@class]) for data INSIDE the row container
+- If a field's data is NOT inside the row container (e.g. metadata in a sibling element), use axis traversal:
+  - following-sibling::div[@class="meta"] — data in the next sibling element
+  - preceding-sibling::header//span — data in a previous sibling
+  - ancestor::div//aside//time — data in a parent's sibling
+- EVERY field must have a working XPath. If you can't find a field inside the row, use axis traversal to reach it.
+
+COMMON PATTERNS:
+- News sites: <article> items with metadata in sibling <aside> or <footer> elements
+- E-commerce: <div> cards where price/rating is in a nested component wrapper
+- Tables: <tr> rows where some columns span multiple elements
+
+HTML:
+
+${html}`;
+}
+
+export function selectorRetryUserContent(
+  html: string,
+  fields: Array<{ name: string; type: string }>,
+  feedback: { missingFields: string[]; rowCount: number; previousRowXpath: string },
+  pageType?: string,
+): string {
+  const fieldList = fields.map(f => `- ${f.name} (${f.type})`).join('\n');
+  const missingList = feedback.missingFields.map(f => `- ${f}`).join('\n');
+
+  return `RETRY: Your previous selectors found ${feedback.rowCount} rows using row_xpath="${feedback.previousRowXpath}", but these fields returned null/empty in most rows:
+
+${missingList}
+
+Generate IMPROVED XPath expressions for ALL fields (not just the missing ones). You may keep the same row_xpath if it correctly identifies the repeating items, or change it if needed.
+
+Fields to extract:
+${fieldList}
+
+TIPS FOR FIXING MISSING FIELDS:
+- If the missing field's data is NOT inside the row container, use axis traversal (following-sibling::, ancestor::, preceding-sibling::)
+- Try broader selectors: .//descendant::*[contains(text(), "price")] if a specific class-based XPath failed
+- Check if the data is in a different attribute (e.g. @content, @data-value, @aria-label instead of textContent)
+- The data might be in a <script> tag with JSON — if so, it can't be extracted via XPath (report what you can)
 
 HTML:
 

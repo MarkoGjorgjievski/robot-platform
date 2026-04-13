@@ -10,6 +10,7 @@ import {
   VALIDATION_SYSTEM,
   schemaDiscoveryUserContent,
   selectorGenerationUserContent,
+  selectorRetryUserContent,
   apiExtractionUserContent,
   validationUserContent,
 } from './prompts.js';
@@ -19,6 +20,7 @@ import type {
   ApiExtractionResult,
   ValidationResult,
   SchemaField,
+  RetryFeedback,
 } from './types.js';
 
 export type AgentProvider = 'anthropic' | 'ollama';
@@ -89,6 +91,33 @@ export class SchemaAgent {
     const json = await this.ollama!.callWithJson({
       system: SELECTOR_GENERATION_SYSTEM + '\n\nYou MUST respond with valid JSON only. Return XPath expressions, NOT data values.',
       userText: ollamaSelectorPrompt(html, fieldSummary),
+    }) as Record<string, unknown>;
+
+    return normalizeSelectorResponse(json);
+  }
+
+  async retrySelectorGeneration(
+    capture: PageCapture,
+    fields: SchemaField[],
+    pageType: string,
+    feedback: RetryFeedback,
+  ): Promise<ExtractionPlan> {
+    const html = truncateHtml(capture.html, this.anthropic ? 50000 : 30000);
+    const fieldSummary = fields.map(f => ({ name: f.name, type: f.type }));
+    const userText = selectorRetryUserContent(html, fieldSummary, feedback, pageType);
+
+    if (this.anthropic) {
+      const result = await this.anthropic.callWithTool({
+        system: SELECTOR_GENERATION_SYSTEM,
+        tool: generateSelectorsTool,
+        userText,
+      });
+      return result as ExtractionPlan;
+    }
+
+    const json = await this.ollama!.callWithJson({
+      system: SELECTOR_GENERATION_SYSTEM + '\n\nYou MUST respond with valid JSON only. Return XPath expressions, NOT data values.',
+      userText,
     }) as Record<string, unknown>;
 
     return normalizeSelectorResponse(json);

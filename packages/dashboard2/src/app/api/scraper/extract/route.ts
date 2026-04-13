@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { PlaywrightBrowser } = await import('@robot/browser');
     const { SchemaAgent } = await import('@robot/agent');
     const { buildExtractionScript } = await import('@robot/scraper/executor');
-    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, acquireDomainLock, detectSchemaChanges, formatSchemaChanges, validateExtractedData } = await import('@robot/scraper');
+    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, acquireDomainLock, detectSchemaChanges, formatSchemaChanges, validateExtractedData, calculateFieldCoverage, getMissingFields } = await import('@robot/scraper');
 
     const domain = new URL(url).hostname;
     const resolvedPageType = pageType ?? 'detail';
@@ -212,8 +212,7 @@ export async function POST(request: NextRequest) {
         );
 
         if (xpathResult.data.length > 0) {
-          for (let i = 0; i < plan.fields.length; i++) {
-            const fieldDef = plan.fields[i];
+          for (const fieldDef of plan.fields) {
             const value = xpathResult.data[0][fieldDef.name];
             if (finalData[fieldDef.name] === undefined && value !== null && value !== undefined) {
               finalData[fieldDef.name] = value;
@@ -223,6 +222,45 @@ export async function POST(request: NextRequest) {
                 path: fieldDef.xpath,
                 confidence: 0.7,
               };
+            }
+          }
+        }
+
+        // Coverage-based retry for listing pages
+        const isListing = resolvedPageType === 'listing' || resolvedPageType === 'search_results' || resolvedPageType === 'table';
+        if (isListing && xpathResult.data.length > 0) {
+          const coverage = calculateFieldCoverage(xpathResult.data, schemaFields);
+          if (coverage < 0.5) {
+            const missing = getMissingFields(xpathResult.data, schemaFields);
+            console.log(`[extract] Low field coverage (${Math.round(coverage * 100)}%), retrying — missing: ${missing.join(', ')}`);
+            try {
+              const retryPlan = await agent.retrySelectorGeneration(capture, schemaFields, resolvedPageType, {
+                missingFields: missing,
+                rowCount: xpathResult.data.length,
+                previousRowXpath: plan.row_xpath,
+              });
+              const retryScript = buildExtractionScript(retryPlan);
+              const retryResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
+                url, retryScript, { waitUntil: 'networkidle' }
+              );
+
+              if (retryResult.data.length > 0) {
+                for (const fieldDef of retryPlan.fields) {
+                  const value = retryResult.data[0][fieldDef.name];
+                  if (finalData[fieldDef.name] === undefined && value !== null && value !== undefined) {
+                    finalData[fieldDef.name] = value;
+                    fieldResults[fieldDef.name] = {
+                      value,
+                      source: 'xpath',
+                      path: fieldDef.xpath,
+                      confidence: 0.7,
+                    };
+                  }
+                }
+                plan = retryPlan;
+              }
+            } catch (retryErr) {
+              console.error('[extract] XPath retry failed (non-fatal):', retryErr);
             }
           }
         }

@@ -82,13 +82,14 @@ export class PlaywrightBrowser implements IBrowser {
     try {
       await this.navigateWithFallback(page, url, options);
       await this.dismissPopups(page);
+      await this.expandHiddenContent(page);
 
       const [html, title, screenshotBuffer, structuredData] = await Promise.all([
         page.content(),
         page.title(),
         page.screenshot({
           type: 'png',
-          fullPage: options.screenshotFullPage ?? true,
+          fullPage: options.screenshotFullPage ?? false,
         }),
         this.extractStructuredData(page),
       ]);
@@ -241,6 +242,129 @@ export class PlaywrightBrowser implements IBrowser {
           break; // No more popups found
         }
       }
+    }
+  }
+
+  /**
+   * Expand hidden content (accordions, "show more" links, collapsed sections)
+   * before capturing the page. Runs after popup dismissal, before screenshot.
+   */
+  private async expandHiddenContent(page: Page): Promise<void> {
+    const EXPAND_SELECTORS = [
+      // Native HTML details elements
+      'main details:not([open]) summary',
+      'article details:not([open]) summary',
+      // ARIA expandable elements
+      'main [aria-expanded="false"]',
+      'article [aria-expanded="false"]',
+      // Bootstrap-style collapsibles
+      'main [data-toggle="collapse"]',
+      'article [data-toggle="collapse"]',
+      // "Show more" / "See more" buttons (text-based, main content only)
+      'main button',
+      'article button',
+      'main a[role="button"]',
+    ];
+
+    const EXPAND_TEXT_PATTERNS = /^(show more|see more|see all|view details|read more|expand|view all|load more|\+ more|show all)$/i;
+
+    for (let round = 0; round < 2; round++) {
+      let expanded = false;
+
+      // Phase 1: Click elements matching structural selectors (details, aria-expanded)
+      for (const selector of EXPAND_SELECTORS.slice(0, 6)) {
+        try {
+          const elements = page.locator(selector);
+          const count = await elements.count();
+          for (let i = 0; i < Math.min(count, 10); i++) {
+            const el = elements.nth(i);
+            if (await el.isVisible({ timeout: 200 })) {
+              await el.click({ timeout: 1000, force: true });
+              expanded = true;
+            }
+          }
+        } catch {
+          // Not found or not clickable
+        }
+      }
+
+      // Phase 2: Click buttons/links with "show more" text patterns
+      try {
+        const expanded2 = await page.evaluate((pattern) => {
+          let found = false;
+          const re = new RegExp(pattern, 'i');
+          const main = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
+          const buttons = main.querySelectorAll('button, a[role="button"], [class*="expand"], [class*="show-more"], [class*="read-more"]');
+          buttons.forEach(el => {
+            const text = el.textContent?.trim() ?? '';
+            if (re.test(text) && (el as HTMLElement).offsetParent !== null) {
+              (el as HTMLElement).click();
+              found = true;
+            }
+          });
+          // Also open all <details> elements
+          main.querySelectorAll('details:not([open])').forEach(el => {
+            el.setAttribute('open', '');
+            found = true;
+          });
+          return found;
+        }, EXPAND_TEXT_PATTERNS.source);
+        if (expanded2) expanded = true;
+      } catch {
+        // JS execution failed — non-fatal
+      }
+
+      if (expanded) {
+        await page.waitForTimeout(500);
+      } else {
+        break;
+      }
+    }
+
+    // Phase 3: Click through tabs to load all tab panel content into the DOM
+    try {
+      const tabsClicked = await page.evaluate(() => {
+        const main = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
+        const clicked: HTMLElement[] = [];
+        const seen = new Set<HTMLElement>();
+
+        function clickTab(el: HTMLElement) {
+          if (seen.has(el) || !el.offsetParent) return;
+          seen.add(el);
+          clicked.push(el);
+        }
+
+        // 1. ARIA tabs: [role="tab"]
+        main.querySelectorAll('[role="tab"]').forEach(el => clickTab(el as HTMLElement));
+
+        // 2. data-tab attribute: <button data-tab="...">
+        main.querySelectorAll('[data-tab]').forEach(el => clickTab(el as HTMLElement));
+
+        // 3. Class-based tabs: elements with "tab" in class inside a tab container
+        main.querySelectorAll('[class*="tab" i]').forEach(el => {
+          const classes = el.className.toLowerCase();
+          // Match tab triggers, not tab panels/content
+          if ((classes.includes('tab__') || classes.includes('tab-') || classes.includes('tabs__'))
+              && !classes.includes('panel') && !classes.includes('content') && !classes.includes('body')) {
+            if (el.matches('button, a, [role="tab"]')) {
+              clickTab(el as HTMLElement);
+            }
+          }
+        });
+
+        // Stagger clicks
+        clicked.forEach((el, i) => {
+          setTimeout(() => el.click(), i * 300);
+        });
+
+        return clicked.length;
+      });
+
+      if (tabsClicked > 0) {
+        await page.waitForTimeout(Math.min(tabsClicked * 300 + 500, 3000));
+      }
+    } catch {
+      // Tab clicking failed — non-fatal
     }
   }
 
