@@ -168,6 +168,11 @@ function validateUrl(
   return { value, issues };
 }
 
+const WORD_NUMBERS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+};
+
 function validateNumber(
   name: string,
   value: unknown,
@@ -177,6 +182,18 @@ function validateNumber(
   let parsed = value;
 
   if (typeof value === 'string') {
+    // Try word-to-number first (e.g. "star-rating Three" → 3)
+    const wordMatch = value.toLowerCase().match(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/);
+    if (wordMatch && WORD_NUMBERS[wordMatch[1]] !== undefined) {
+      const num = WORD_NUMBERS[wordMatch[1]];
+      issues.push({
+        field: name, row, type: 'warning',
+        message: `Parsed word number from "${value}" to ${num}`,
+        autoFixed: true, originalValue: value,
+      });
+      return { value: num, issues };
+    }
+
     const stripped = value.replace(/,/g, '');
     const num = parseFloat(stripped);
     if (isNaN(num)) {
