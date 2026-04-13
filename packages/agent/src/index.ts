@@ -11,4 +11,5 @@ export type {
   ExtractionResult,
   ApiFieldExtraction,
   ApiExtractionResult,
+  RetryFeedback,
 } from './types.js';

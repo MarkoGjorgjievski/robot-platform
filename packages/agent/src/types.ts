@@ -52,3 +52,9 @@ export type ExtractionResult = {
   plan: ExtractionPlan;
   validation: ValidationResult;
 };
+
+export type RetryFeedback = {
+  missingFields: string[];
+  rowCount: number;
+  previousRowXpath: string;
+};
