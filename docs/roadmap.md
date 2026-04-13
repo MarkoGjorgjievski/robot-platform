@@ -45,7 +45,7 @@ type: project
 - [ ] Click-to-select for row selector (not just field values)
 - [ ] Crop screenshots to viewport before sending to Claude (token savings)
 - [ ] Side panel / expandable sections (Amazon reseller data)
-- [ ] Per-source browser config (viewport, user agent, cookie injection)
+- [ ] Per-source browser config (viewport, user agent, cookie injection) — DEFERRED: do with frontend redesign. Backend: add cookie injection to browser, config passthrough in pipeline, browserConfig JSONB column on sources. Frontend: editable on source detail page.
 
 ## v2 — Multi-Page & Pagination
 - [ ] User selects source type: listing / detail / listing→detail

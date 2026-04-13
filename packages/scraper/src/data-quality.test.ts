@@ -146,6 +146,17 @@ describe('validateExtractedData', () => {
       expect(data[0].rating).toBe(1234);
     });
 
+    it('parses word numbers like "star-rating Three"', () => {
+      const { data, issues } = validateExtractedData([{ rating: 'star-rating Three' }], [numberField]);
+      expect(data[0].rating).toBe(3);
+      expect(issues[0]).toMatchObject({ autoFixed: true, originalValue: 'star-rating Three' });
+    });
+
+    it('parses word numbers case-insensitively', () => {
+      const { data } = validateExtractedData([{ rating: 'FIVE stars' }], [numberField]);
+      expect(data[0].rating).toBe(5);
+    });
+
     it('errors on non-numeric', () => {
       const { issues } = validateExtractedData([{ rating: 'high' }], [numberField]);
       expect(issues[0]).toMatchObject({ type: 'error' });
