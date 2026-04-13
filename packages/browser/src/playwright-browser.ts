@@ -89,7 +89,8 @@ export class PlaywrightBrowser implements IBrowser {
         page.title(),
         page.screenshot({
           type: 'png',
-          fullPage: options.screenshotFullPage ?? false,
+          fullPage: false,
+          clip: options.screenshotFullPage ? undefined : { x: 0, y: 0, width: 1280, height: 1600 },
         }),
         this.extractStructuredData(page),
       ]);

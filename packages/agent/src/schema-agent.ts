@@ -278,7 +278,23 @@ function normalizeSelectors(raw: unknown): ExtractionPlan['fields'] {
 }
 
 function truncateHtml(html: string, maxChars: number): string {
-  if (html.length <= maxChars) return html;
-  const cutPoint = html.lastIndexOf('>', maxChars);
-  return cutPoint > 0 ? html.slice(0, cutPoint + 1) : html.slice(0, maxChars);
+  // Strip elements that waste tokens but never contain extractable data.
+  // Conservative: only remove things we're certain are junk.
+  // JSON-LD, meta tags, and structured data are already extracted separately.
+  let cleaned = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<link\b[^>]*\/?>/gi, '')
+    .replace(/<meta\b[^>]*\/?>/gi, '')
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
+    // Collapse whitespace
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (cleaned.length <= maxChars) return cleaned;
+  const cutPoint = cleaned.lastIndexOf('>', maxChars);
+  return cutPoint > 0 ? cleaned.slice(0, cutPoint + 1) : cleaned.slice(0, maxChars);
 }
