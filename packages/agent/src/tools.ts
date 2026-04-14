@@ -98,6 +98,38 @@ export const extractFromApiTool: Tool = {
   },
 };
 
+export const detectPaginationTool: Tool = {
+  name: 'detect_pagination',
+  description: 'Detect the pagination mechanism on a listing page. Identify how to navigate to the next page of results.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      has_pagination: {
+        type: 'boolean',
+        description: 'Whether the page has pagination (multiple pages of results)',
+      },
+      strategy: {
+        type: 'string',
+        enum: ['url-pattern', 'next-button', 'page-numbers', 'none'],
+        description: 'The type of pagination mechanism found',
+      },
+      url_template: {
+        type: 'string',
+        description: 'For url-pattern: the URL with {N} as page number placeholder, e.g. "https://example.com/search?page={N}"',
+      },
+      next_selector: {
+        type: 'string',
+        description: 'For next-button: CSS selector for the next page button/link, e.g. "a[rel=next]", ".pagination .next a"',
+      },
+      page_selector: {
+        type: 'string',
+        description: 'For page-numbers: CSS selector for the pagination number links, e.g. ".pagination a", "nav[aria-label=Pagination] a"',
+      },
+    },
+    required: ['has_pagination', 'strategy'],
+  },
+};
+
 export const validateExtractionTool: Tool = {
   name: 'validate_extraction',
   description: 'Validate extracted data against the page screenshot. Check for missing items and incorrect values.',

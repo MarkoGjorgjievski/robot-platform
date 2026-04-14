@@ -2,17 +2,19 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { PageCapture } from '@robot/browser';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { OllamaProvider } from './providers/ollama.js';
-import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool } from './tools.js';
+import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool } from './tools.js';
 import {
   SCHEMA_DISCOVERY_SYSTEM,
   SELECTOR_GENERATION_SYSTEM,
   API_EXTRACTION_SYSTEM,
   VALIDATION_SYSTEM,
+  PAGINATION_DETECTION_SYSTEM,
   schemaDiscoveryUserContent,
   selectorGenerationUserContent,
   selectorRetryUserContent,
   apiExtractionUserContent,
   validationUserContent,
+  paginationDetectionUserContent,
 } from './prompts.js';
 import type {
   DiscoveredSchema,
@@ -21,6 +23,7 @@ import type {
   ValidationResult,
   SchemaField,
   RetryFeedback,
+  PaginationDetectionResult,
 } from './types.js';
 
 export type AgentProvider = 'anthropic' | 'ollama';
@@ -121,6 +124,33 @@ export class SchemaAgent {
     }) as Record<string, unknown>;
 
     return normalizeSelectorResponse(json);
+  }
+
+  async detectPagination(html: string): Promise<PaginationDetectionResult> {
+    const truncated = truncateHtml(html, this.anthropic ? 50000 : 30000);
+    const userText = paginationDetectionUserContent(truncated);
+
+    if (this.anthropic) {
+      const result = await this.anthropic.callWithTool({
+        system: PAGINATION_DETECTION_SYSTEM,
+        tool: detectPaginationTool,
+        userText,
+      });
+      return result as PaginationDetectionResult;
+    }
+
+    const json = await this.ollama!.callWithJson({
+      system: PAGINATION_DETECTION_SYSTEM + '\n\nYou MUST respond with valid JSON only.',
+      userText,
+    }) as Record<string, unknown>;
+
+    return {
+      has_pagination: Boolean(json.has_pagination ?? false),
+      strategy: (json.strategy as PaginationDetectionResult['strategy']) ?? 'none',
+      url_template: json.url_template as string | undefined,
+      next_selector: json.next_selector as string | undefined,
+      page_selector: json.page_selector as string | undefined,
+    };
   }
 
   /**

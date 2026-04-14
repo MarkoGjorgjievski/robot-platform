@@ -12,4 +12,5 @@ export type {
   ApiFieldExtraction,
   ApiExtractionResult,
   RetryFeedback,
+  PaginationDetectionResult,
 } from './types.js';

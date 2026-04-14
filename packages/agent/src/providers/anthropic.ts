@@ -62,7 +62,7 @@ export class AnthropicProvider {
         // Only retry on transient errors
         if (status === 429 || status === 529 || status === 503) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-          console.warn(`[anthropic] ${status} error, retrying in ${delay}ms (attempt ${attempt + 1}/${this.maxRetries})`);
+          console.warn(`[anthropic] ${status} error, retrying in ${delay}ms (retry ${attempt + 1}/${this.maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }

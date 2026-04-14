@@ -1,6 +1,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
-import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest } from './types.js';
+import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig } from './types.js';
+import { detectPaginationFromHtml } from './pagination-detector.js';
 
 const nhm = new NodeHtmlMarkdown();
 
@@ -571,6 +572,134 @@ export class PlaywrightBrowser implements IBrowser {
 
     // Return top results (don't need to keep all)
     return scored.slice(0, 10).map(s => s.request);
+  }
+
+  /**
+   * Crawl paginated listing pages, yielding extracted data from each page.
+   * Detects pagination mechanically from page 1 HTML unless config is provided.
+   */
+  async *crawl(startUrl: string, options: CrawlOptions): AsyncGenerator<CrawlPage> {
+    if (!this.context) throw new Error('Browser not launched. Call launch() first.');
+
+    const maxPages = options.maxPages ?? 5;
+    const maxItems = options.maxItems ?? Infinity;
+    let totalItems = 0;
+    let paginationConfig = options.paginationConfig ?? null;
+
+    const page = await this.context.newPage();
+
+    try {
+      // Page 1: navigate, extract, detect pagination
+      await this.navigateWithFallback(page, startUrl);
+      await this.dismissPopups(page);
+      await this.expandHiddenContent(page);
+
+      const page1Html = await page.content();
+      const page1Data = await page.evaluate(options.extractionScript) as { data: Record<string, unknown>[]; totalRows: number };
+
+      yield {
+        url: startUrl,
+        pageNumber: 1,
+        data: page1Data.data,
+        totalRows: page1Data.totalRows,
+      };
+
+      totalItems += page1Data.data.length;
+      if (totalItems >= maxItems || maxPages <= 1) return;
+
+      // Detect pagination from page 1 HTML if not provided
+      if (!paginationConfig) {
+        paginationConfig = detectPaginationFromHtml(page1Html, startUrl);
+        if (paginationConfig) {
+          console.log(`[crawl] Detected pagination: ${paginationConfig.strategy}`);
+        }
+      }
+
+      if (!paginationConfig) {
+        console.log('[crawl] No pagination detected — single page listing');
+        return;
+      }
+
+      // Pages 2+
+      for (let pageNum = 2; pageNum <= maxPages; pageNum++) {
+        if (totalItems >= maxItems) break;
+
+        const navigated = await this.navigateToPage(page, paginationConfig, pageNum, startUrl);
+        if (!navigated) {
+          console.log(`[crawl] No more pages after page ${pageNum - 1}`);
+          break;
+        }
+
+        // Wait for content to settle
+        await page.waitForTimeout(1000);
+
+        const pageData = await page.evaluate(options.extractionScript) as { data: Record<string, unknown>[]; totalRows: number };
+
+        // Stop if no new items
+        if (pageData.data.length === 0) {
+          console.log(`[crawl] Page ${pageNum} returned 0 items — stopping`);
+          break;
+        }
+
+        yield {
+          url: page.url(),
+          pageNumber: pageNum,
+          data: pageData.data,
+          totalRows: pageData.totalRows,
+        };
+
+        totalItems += pageData.data.length;
+        console.log(`[crawl] Page ${pageNum}: ${pageData.data.length} items (${totalItems} total)`);
+      }
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Navigate to a specific page number using the detected pagination strategy.
+   * Returns false if navigation failed (no more pages).
+   */
+  private async navigateToPage(
+    page: Page,
+    config: PaginationConfig,
+    pageNum: number,
+    startUrl: string,
+  ): Promise<boolean> {
+    try {
+      switch (config.strategy) {
+        case 'url-pattern': {
+          if (!config.urlTemplate) return false;
+          const targetUrl = config.urlTemplate.replace('{N}', String(pageNum));
+          await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          return true;
+        }
+
+        case 'next-button': {
+          if (!config.nextSelector) return false;
+          const nextEl = page.locator(config.nextSelector).first();
+          if (!await nextEl.isVisible({ timeout: 3000 })) return false;
+          await nextEl.click({ timeout: 5000 });
+          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+          return true;
+        }
+
+        case 'page-numbers': {
+          if (!config.pageSelector) return false;
+          const pageLink = page.locator(`${config.pageSelector}`).filter({ hasText: String(pageNum) }).first();
+          if (!await pageLink.isVisible({ timeout: 3000 })) return false;
+          await pageLink.click({ timeout: 5000 });
+          await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+          return true;
+        }
+
+        default:
+          return false;
+      }
+    } catch (err) {
+      console.error(`[crawl] Navigation to page ${pageNum} failed:`, err);
+      return false;
+    }
   }
 
   private async extractReadableContent(page: Page, fallbackHtml: string): Promise<string> {
