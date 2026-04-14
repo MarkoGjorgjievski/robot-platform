@@ -58,3 +58,11 @@ export type RetryFeedback = {
   rowCount: number;
   previousRowXpath: string;
 };
+
+export type PaginationDetectionResult = {
+  has_pagination: boolean;
+  strategy: 'url-pattern' | 'next-button' | 'page-numbers' | 'none';
+  url_template?: string;
+  next_selector?: string;
+  page_selector?: string;
+};

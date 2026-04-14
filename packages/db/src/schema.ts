@@ -233,6 +233,8 @@ export const domainIntelligence = pgTable('domain_intelligence', {
   fieldPaths: jsonb('field_paths').default({}),
   // Popup/consent selectors that worked on this domain
   popupSelectors: jsonb('popup_selectors').default([]),
+  // Pagination detection results for listing pages
+  paginationConfig: jsonb('pagination_config'),
   // Structured data availability
   hasJsonLd: boolean('has_json_ld').default(false).notNull(),
   hasNextData: boolean('has_next_data').default(false).notNull(),

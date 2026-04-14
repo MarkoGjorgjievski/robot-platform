@@ -155,6 +155,24 @@ HTML:
 ${html}`;
 }
 
+export const PAGINATION_DETECTION_SYSTEM = `You are a pagination expert. Given the HTML of a listing page, identify how to navigate to the next page of results.
+
+Look for:
+1. URL-based pagination: links with ?page=2, &p=2, /page/2/, ?offset=20
+2. Next buttons: elements labeled "Next", "→", "›", with rel="next", or aria-label="Next"
+3. Page number links: numbered links (1, 2, 3...) inside a pagination container
+
+Return the most reliable pagination mechanism found. Prefer URL patterns over click-based navigation.
+If no pagination exists (single-page listing), set has_pagination to false.`;
+
+export function paginationDetectionUserContent(html: string): string {
+  return `Find the pagination mechanism on this listing page.
+
+HTML (may be truncated):
+
+${html}`;
+}
+
 export const API_EXTRACTION_SYSTEM = `You are a data extraction expert. You are given a raw API JSON response from a website and a list of fields to extract.
 
 Your job:

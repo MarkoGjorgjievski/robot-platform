@@ -52,3 +52,33 @@ export interface IBrowser {
   evaluate<T = unknown>(url: string, script: string, options?: CaptureOptions): Promise<T>;
   close(): Promise<void>;
 }
+
+// ─── Pagination & Crawl ─────────────────────────────────────────────────────
+
+export type PaginationConfig = {
+  strategy: 'url-pattern' | 'next-button' | 'page-numbers';
+  /** For url-pattern: URL with {N} placeholder, e.g. "https://example.com/search?page={N}" */
+  urlTemplate?: string;
+  /** For next-button: CSS selector for the next page element */
+  nextSelector?: string;
+  /** For page-numbers: CSS selector for page number links container */
+  pageSelector?: string;
+};
+
+export type CrawlOptions = {
+  /** Maximum number of pages to crawl. Default: 5 */
+  maxPages?: number;
+  /** Stop after extracting this many total items across all pages */
+  maxItems?: number;
+  /** The extraction script to run on each page (from buildExtractionScript) */
+  extractionScript: string;
+  /** Skip detection if pagination config is already known (from cache) */
+  paginationConfig?: PaginationConfig;
+};
+
+export type CrawlPage = {
+  url: string;
+  pageNumber: number;
+  data: Record<string, unknown>[];
+  totalRows: number;
+};

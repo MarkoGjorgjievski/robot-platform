@@ -1,6 +1,6 @@
 import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
-import type { InterceptedRequest } from '@robot/browser';
+import type { InterceptedRequest, PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ export type DomainCache = {
   successfulRuns: number;
   consecutiveFailures: number;
   successRate: number;
+  paginationConfig: PaginationConfig | null;
 };
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ export async function lookupDomainCache(domain: string, pageType: string): Promi
     successfulRuns,
     consecutiveFailures: result.consecutiveFailures ?? 0,
     successRate: totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0,
+    paginationConfig: (result.paginationConfig as PaginationConfig) ?? null,
   };
 }
 
