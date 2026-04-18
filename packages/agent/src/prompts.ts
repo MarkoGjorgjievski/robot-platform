@@ -42,8 +42,29 @@ Check:
 - Are field values correct (prices, titles)?
 - Is any data truncated or malformed?`;
 
-export function schemaDiscoveryUserContent(markdown: string, structuredData?: { ldJson?: Record<string, unknown>[]; meta?: Record<string, string> }) {
+export function schemaDiscoveryUserContent(
+  markdown: string,
+  structuredData?: { ldJson?: Record<string, unknown>[]; meta?: Record<string, string> },
+  requestedFields?: Array<{ name: string; type: string; description?: string }>,
+) {
   let prompt = `Analyze this web page and propose a data schema for the primary data.`;
+
+  // If user has requested specific fields, instruct AI to prioritize them
+  if (requestedFields && requestedFields.length > 0) {
+    const fieldList = requestedFields.map(f => {
+      let line = `- ${f.name} (${f.type})`;
+      if (f.description) line += ` — ${f.description}`;
+      return line;
+    }).join('\n');
+
+    prompt += `
+
+PRIORITY FIELDS — the user specifically needs these fields. You MUST include them in your schema, even if you cannot find obvious values for them on the page:
+
+${fieldList}
+
+After including all priority fields, also discover any additional fields available on the page.`;
+  }
 
   // Include structured data if available — this is the most reliable source
   if (structuredData?.ldJson?.length) {
@@ -77,8 +98,16 @@ ${markdown}`;
   return prompt;
 }
 
-export function selectorGenerationUserContent(html: string, fields: Array<{ name: string; type: string }>, pageType?: string) {
-  const fieldList = fields.map(f => `- ${f.name} (${f.type})`).join('\n');
+export function selectorGenerationUserContent(html: string, fields: Array<{ name: string; type: string; tier?: string }>, pageType?: string) {
+  const requested = fields.filter(f => f.tier === 'requested');
+  const discovered = fields.filter(f => f.tier !== 'requested');
+
+  let fieldList: string;
+  if (requested.length > 0 && discovered.length > 0) {
+    fieldList = `REQUIRED (must find):\n${requested.map(f => `- ${f.name} (${f.type})`).join('\n')}\n\nOPTIONAL (extract if visible):\n${discovered.map(f => `- ${f.name} (${f.type})`).join('\n')}`;
+  } else {
+    fieldList = fields.map(f => `- ${f.name} (${f.type})`).join('\n');
+  }
 
   const isDetail = pageType === 'detail' || pageType === 'other';
 
@@ -190,13 +219,27 @@ Guidelines:
 
 export function apiExtractionUserContent(
   apiJson: string,
-  fields: Array<{ name: string; type: string }>,
+  fields: Array<{ name: string; type: string; tier?: string }>,
   apiUrl: string,
 ): string {
-  const fieldList = fields.map(f => `- ${f.name} (${f.type})`).join('\n');
+  const requested = fields.filter(f => f.tier === 'requested');
+  const discovered = fields.filter(f => f.tier !== 'requested');
+
+  let fieldSection = '';
+  if (requested.length > 0) {
+    fieldSection += `REQUIRED fields (user specifically needs these — search thoroughly):\n${requested.map(f => `- ${f.name} (${f.type})`).join('\n')}`;
+  }
+  if (discovered.length > 0) {
+    if (fieldSection) fieldSection += '\n\n';
+    fieldSection += `Additional fields (extract if available):\n${discovered.map(f => `- ${f.name} (${f.type})`).join('\n')}`;
+  }
+  if (!fieldSection) {
+    fieldSection = fields.map(f => `- ${f.name} (${f.type})`).join('\n');
+  }
+
   return `Extract these fields from the API response:
 
-${fieldList}
+${fieldSection}
 
 API URL: ${apiUrl}
 

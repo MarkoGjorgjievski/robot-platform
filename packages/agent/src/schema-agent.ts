@@ -55,8 +55,12 @@ export class SchemaAgent {
     }
   }
 
-  async discoverSchema(capture: PageCapture): Promise<DiscoveredSchema> {
-    const userText = schemaDiscoveryUserContent(capture.markdown, capture.structuredData);
+  async discoverSchema(capture: PageCapture, requestedFields?: SchemaField[]): Promise<DiscoveredSchema> {
+    const userText = schemaDiscoveryUserContent(
+      capture.markdown,
+      capture.structuredData,
+      requestedFields?.map(f => ({ name: f.name, type: f.type, description: f.description })),
+    );
 
     if (this.anthropic) {
       const result = await this.anthropic.callWithTool({
@@ -79,7 +83,7 @@ export class SchemaAgent {
 
   async generateSelectors(capture: PageCapture, fields: SchemaField[], pageType?: string): Promise<ExtractionPlan> {
     const html = truncateHtml(capture.html, this.anthropic ? 50000 : 30000);
-    const fieldSummary = fields.map(f => ({ name: f.name, type: f.type }));
+    const fieldSummary = fields.map(f => ({ name: f.name, type: f.type, tier: f.tier }));
     const userText = selectorGenerationUserContent(html, fieldSummary, pageType);
 
     if (this.anthropic) {
@@ -164,7 +168,7 @@ export class SchemaAgent {
   ): Promise<ApiExtractionResult> {
     // Truncate API JSON to fit in context
     const truncated = apiJson.length > 30000 ? apiJson.slice(0, 30000) + '\n... (truncated)' : apiJson;
-    const fieldSummary = fields.map(f => ({ name: f.name, type: f.type }));
+    const fieldSummary = fields.map(f => ({ name: f.name, type: f.type, tier: f.tier }));
     const userText = apiExtractionUserContent(truncated, fieldSummary, apiUrl);
 
     if (this.anthropic) {
