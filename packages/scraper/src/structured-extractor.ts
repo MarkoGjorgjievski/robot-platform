@@ -3,6 +3,7 @@ import type { StructuredData, InterceptedRequest } from '@robot/browser';
 type FieldRequest = {
   name: string;
   type: string;
+  description?: string;
 };
 
 type ExtractionSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached';
@@ -41,7 +42,7 @@ export function extractFromStructuredData(
   // Try each source in priority order for each field
   for (const field of fields) {
     // Try API first
-    let value = findFieldValue(field.name, field.type, apiFlat);
+    let value = findFieldValue(field.name, field.type, apiFlat, field.description);
     if (value !== undefined && value !== null && value !== '') {
       data[field.name] = value;
       sources[field.name] = 'api';
@@ -49,7 +50,7 @@ export function extractFromStructuredData(
     }
 
     // Try JSON-LD
-    value = findFieldValue(field.name, field.type, ldFlat);
+    value = findFieldValue(field.name, field.type, ldFlat, field.description);
     if (value !== undefined && value !== null && value !== '') {
       data[field.name] = value;
       sources[field.name] = 'json-ld';
@@ -57,7 +58,7 @@ export function extractFromStructuredData(
     }
 
     // Try meta tags
-    value = findFieldValue(field.name, field.type, metaFlat);
+    value = findFieldValue(field.name, field.type, metaFlat, field.description);
     if (value !== undefined && value !== null && value !== '') {
       data[field.name] = value;
       sources[field.name] = 'meta';
@@ -102,6 +103,7 @@ function findFieldValue(
   fieldName: string,
   fieldType: string,
   allData: Record<string, unknown>,
+  description?: string,
 ): unknown {
   // Try exact match first
   if (isPrimitive(allData[fieldName])) return allData[fieldName];
@@ -116,6 +118,28 @@ function findFieldValue(
   for (const [key, value] of Object.entries(allData)) {
     if (key.toLowerCase().includes(fieldName.toLowerCase()) && isPrimitive(value)) {
       return value;
+    }
+  }
+
+  // Try description words as additional aliases
+  if (description) {
+    const words = description.toLowerCase()
+      .replace(/[^a-z0-9\s_]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 3); // skip short words like "the", "of", "a"
+    const descSnake = words.join('_');
+
+    // Try full description as snake_case key
+    for (const [key, value] of Object.entries(allData)) {
+      const keyLower = key.toLowerCase();
+      if (keyLower === descSnake && isPrimitive(value)) return value;
+    }
+
+    // Try each meaningful word from description
+    for (const word of words) {
+      for (const [key, value] of Object.entries(allData)) {
+        if (key.toLowerCase().includes(word) && isPrimitive(value)) return value;
+      }
     }
   }
 
