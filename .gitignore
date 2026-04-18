@@ -8,3 +8,4 @@ dist/
 packages/dashboard/.next/
 packages/dashboard2/.next/
 .superpowers/
+.worktrees
