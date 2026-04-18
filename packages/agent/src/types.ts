@@ -1,11 +1,14 @@
 export type FieldType = 'string' | 'number' | 'boolean' | 'url' | 'image_url' | 'date' | 'price' | 'array';
 
+export type FieldTier = 'requested' | 'discovered';
+
 export type SchemaField = {
   name: string;
   type: FieldType;
   description: string;
   required: boolean;
   example_value?: string;
+  tier?: FieldTier;
 };
 
 export type PageType = 'listing' | 'detail' | 'search_results' | 'table' | 'other';
