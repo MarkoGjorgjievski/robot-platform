@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json();
+    const { url, requestedFields } = await request.json();
 
     if (!url || typeof url !== 'string') {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -44,8 +44,32 @@ export async function POST(request: NextRequest) {
           description: `Cached field (${bestPath?.source ?? 'unknown'} source, ${Math.round((bestPath?.hits ?? 0) / Math.max(1, (bestPath?.hits ?? 0) + (bestPath?.misses ?? 0)) * 100)}% hit rate)`,
           required: true,
           example_value: bestPath?.lastValue != null ? String(bestPath.lastValue).slice(0, 200) : undefined,
+          tier: undefined as string | undefined,
         };
       });
+
+      // Merge requested fields with cached fields
+      const { normalizeUserFields } = await import('@robot/scraper');
+      const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
+
+      if (userFields.length > 0) {
+        const cachedNames = new Set(cachedFields.map((f: any) => f.name));
+        for (const uf of userFields) {
+          if (cachedNames.has(uf.name)) {
+            const existing = cachedFields.find((f: any) => f.name === uf.name);
+            if (existing) existing.tier = 'requested';
+          } else {
+            cachedFields.push({
+              name: uf.name,
+              type: uf.type as string,
+              description: uf.description || 'User requested (not yet cached)',
+              required: true,
+              example_value: undefined,
+              tier: 'requested' as string | undefined,
+            });
+          }
+        }
+      }
 
       console.log(`[analyze] Cache hit for ${domain}/${cache.pageType}: ${cachedFields.length} fields (${cache.totalRuns} runs, ${cache.successRate}% success)`);
 
@@ -101,8 +125,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Discover schema
+    const { normalizeUserFields } = await import('@robot/scraper');
+
+    // Normalize user-provided fields (if any)
+    const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
+
+    // Discover schema (with requested fields for priority)
     const agent = new SchemaAgent();
-    const schema = await agent.discoverSchema(capture);
+    const schema = await agent.discoverSchema(capture, userFields.length > 0 ? userFields : undefined);
+
+    // Ensure all requested fields appear in the schema
+    if (userFields.length > 0) {
+      const discoveredNames = new Set(schema.fields.map(f => f.name));
+      for (const uf of userFields) {
+        if (!discoveredNames.has(uf.name)) {
+          schema.fields.push(uf);
+        }
+      }
+      // Mark user's fields as requested
+      for (const f of schema.fields) {
+        if (userFields.some(uf => uf.name === f.name)) {
+          f.tier = 'requested';
+        }
+      }
+    }
 
     return NextResponse.json({
       captureId: screenshotId,
