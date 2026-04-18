@@ -17,6 +17,7 @@ type SchemaField = {
   required?: boolean;
   example_value?: string;
   enabled: boolean;
+  tier?: 'requested' | 'discovered';
 };
 
 type ExistingSchema = {
@@ -47,6 +48,7 @@ export function NewSourceWizard({
 }) {
   const [step, setStep] = useState<Step>('url');
   const [url, setUrl] = useState('');
+  const [userFieldsInput, setUserFieldsInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +62,8 @@ export function NewSourceWizard({
   const [extractionPlan, setExtractionPlan] = useState<{ row_xpath: string; fields: Array<{ name: string; xpath: string; attribute: string; transform: string }> } | null>(null);
   const [confidence, setConfidence] = useState<number | null>(null);
   const [qualityIssues, setQualityIssues] = useState<Array<{ field: string; row?: number; type: 'warning' | 'error'; message: string; autoFixed?: boolean }>>([]);
+  const [requestedResults, setRequestedResults] = useState<Array<{ name: string; type: string; value: unknown; status: 'found' | 'not_found'; source: string | null }>>([]);
+  const [discoveredResults, setDiscoveredResults] = useState<Array<{ name: string; type: string; value: unknown; status: 'found' | 'not_found'; source: string | null }>>([]);
 
   const [sourceName, setSourceName] = useState('');
   const [isCached, setIsCached] = useState(false);
@@ -76,7 +80,10 @@ export function NewSourceWizard({
       const res = await fetch('/api/scraper/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({
+          url: url.trim(),
+          requestedFields: userFieldsInput.trim() || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -95,6 +102,7 @@ export function NewSourceWizard({
         data.schema.fields.map((f: Omit<SchemaField, 'enabled'>) => ({
           ...f,
           enabled: true,
+          tier: f.tier ?? 'discovered',
         }))
       );
       setStep('schema');
@@ -116,7 +124,7 @@ export function NewSourceWizard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: url.trim(),
-          fields: enabledFields.map(f => ({ name: f.name, type: f.type, description: f.description })),
+          fields: enabledFields.map(f => ({ name: f.name, type: f.type, description: f.description, tier: f.tier })),
           captureId,
           pageType,
         }),
@@ -132,6 +140,8 @@ export function NewSourceWizard({
       setExtractionPlan(data.plan ?? null);
       setConfidence(data.confidence ?? null);
       setQualityIssues(data.qualityIssues ?? []);
+      setRequestedResults(data.fieldsByTier?.requested ?? []);
+      setDiscoveredResults(data.fieldsByTier?.discovered ?? []);
       setStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -221,6 +231,20 @@ export function NewSourceWizard({
             </Button>
           </div>
 
+          <div className="mt-4 w-full max-w-xl">
+            <Label className="text-xs text-muted-foreground">
+              Fields you need <span className="opacity-50">(optional — comma-separated)</span>
+            </Label>
+            <textarea
+              value={userFieldsInput}
+              onChange={(e) => setUserFieldsInput(e.target.value)}
+              placeholder="e.g. title, price, sku, shipping_weight, review_count"
+              rows={2}
+              className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              disabled={loading}
+            />
+          </div>
+
           {loading && (
             <div className="mt-8">
               <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
@@ -306,40 +330,87 @@ export function NewSourceWizard({
               </div>
             )}
 
-            <Label>{isCached ? 'Available Fields' : 'Discovered Fields'}</Label>
-            <Card className="mt-2 divide-y">
-              {fields.map((field, i) => (
-                <label
-                  key={field.name}
-                  className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={field.enabled}
-                    onChange={() => {
-                      const next = [...fields];
-                      next[i] = { ...next[i], enabled: !next[i].enabled };
-                      setFields(next);
-                    }}
-                    className="mt-1 size-4 rounded border-input accent-primary"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span data-slot="mono" className="text-sm font-medium">{field.name}</span>
-                      <Badge variant="secondary" className="text-[10px]">{field.type}</Badge>
-                    </div>
-                    {field.description && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">{field.description}</p>
-                    )}
-                    {field.example_value && (
-                      <p data-slot="mono" className="mt-1 truncate rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                        {String(field.example_value)}
-                      </p>
-                    )}
-                  </div>
-                </label>
-              ))}
-            </Card>
+            {/* Requested Fields */}
+            {fields.some(f => f.tier === 'requested') && (
+              <>
+                <Label>Your Fields</Label>
+                <Card className="mt-2 divide-y">
+                  {fields.filter(f => f.tier === 'requested').map((field) => (
+                    <label
+                      key={field.name}
+                      className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={field.enabled}
+                        onChange={() => {
+                          setFields(prev => prev.map(f =>
+                            f.name === field.name ? { ...f, enabled: !f.enabled } : f
+                          ));
+                        }}
+                        className="mt-1 size-4 rounded border-input accent-primary"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span data-slot="mono" className="text-sm font-medium">{field.name}</span>
+                          <Badge variant="secondary" className="text-[10px]">{field.type}</Badge>
+                        </div>
+                        {field.description && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{field.description}</p>
+                        )}
+                        {field.example_value && (
+                          <p data-slot="mono" className="mt-1 truncate rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                            {String(field.example_value)}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </Card>
+              </>
+            )}
+
+            {/* Discovered / Available Fields */}
+            {fields.some(f => f.tier !== 'requested') && (
+              <>
+                <Label className={fields.some(f => f.tier === 'requested') ? 'mt-4' : ''}>
+                  {fields.some(f => f.tier === 'requested') ? 'Also Available' : isCached ? 'Available Fields' : 'Discovered Fields'}
+                </Label>
+                <Card className="mt-2 divide-y">
+                  {fields.filter(f => f.tier !== 'requested').map((field) => (
+                    <label
+                      key={field.name}
+                      className="flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={field.enabled}
+                        onChange={() => {
+                          setFields(prev => prev.map(f =>
+                            f.name === field.name ? { ...f, enabled: !f.enabled } : f
+                          ));
+                        }}
+                        className="mt-1 size-4 rounded border-input accent-primary"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span data-slot="mono" className="text-sm font-medium">{field.name}</span>
+                          <Badge variant="secondary" className="text-[10px]">{field.type}</Badge>
+                        </div>
+                        {field.description && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{field.description}</p>
+                        )}
+                        {field.example_value && (
+                          <p data-slot="mono" className="mt-1 truncate rounded bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                            {String(field.example_value)}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </Card>
+              </>
+            )}
 
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setStep('url')}>
@@ -407,35 +478,140 @@ export function NewSourceWizard({
           )}
 
           {extractedData.length > 0 ? (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    {fields.filter(f => f.enabled).map(f => (
-                      <TableHead key={f.name}>{f.name}</TableHead>
+            <div className="space-y-6">
+              {/* Requested Fields */}
+              {requestedResults.length > 0 && (
+                <div>
+                  <Label className="text-xs">Your Fields</Label>
+                  <Card className="mt-2 divide-y">
+                    {requestedResults.map(field => (
+                      <div key={field.name} className="flex items-center gap-3 px-4 py-3">
+                        <div className={`size-2 rounded-full shrink-0 ${field.status === 'found' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span data-slot="mono" className="text-sm font-medium">{field.name}</span>
+                            <Badge variant="secondary" className="text-[10px]">{field.type}</Badge>
+                            {field.source && <Badge variant="outline" className="text-[10px]">{field.source}</Badge>}
+                          </div>
+                          {field.status === 'found' ? (
+                            <p data-slot="mono" className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {String(field.value)}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-xs text-red-500">Not found on this page</p>
+                          )}
+                        </div>
+                      </div>
                     ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {extractedData.slice(0, 20).map((row, i) => (
-                    <TableRow key={i}>
-                      <TableCell data-slot="mono" className="text-muted-foreground">{i + 1}</TableCell>
-                      {fields.filter(f => f.enabled).map(f => (
-                        <TableCell key={f.name} data-slot="mono" className="max-w-[200px] truncate text-xs">
-                          {row[f.name] != null ? String(row[f.name]) : <span className="text-muted-foreground/40">—</span>}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {extractedData.length > 20 && (
-                <div className="border-t p-3 text-xs text-muted-foreground">
-                  Showing 20 of {extractedData.length} rows
+                  </Card>
                 </div>
               )}
-            </Card>
+
+              {/* Discovered Fields */}
+              {discoveredResults.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Also found</Label>
+                  <Card className="mt-2 divide-y">
+                    {discoveredResults.map(field => (
+                      <div key={field.name} className="flex items-center gap-3 px-4 py-3">
+                        <div className="size-2 rounded-full shrink-0 bg-emerald-500" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span data-slot="mono" className="text-sm font-medium">{field.name}</span>
+                            <Badge variant="secondary" className="text-[10px]">{field.type}</Badge>
+                          </div>
+                          <p data-slot="mono" className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {String(field.value)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-[10px] h-6"
+                          onClick={() => {
+                            setFields(prev => prev.map(f =>
+                              f.name === field.name ? { ...f, tier: 'requested' } : f
+                            ));
+                            setRequestedResults(prev => [...prev, { ...field, status: 'found' }]);
+                            setDiscoveredResults(prev => prev.filter(f => f.name !== field.name));
+                          }}
+                        >
+                          + Keep
+                        </Button>
+                      </div>
+                    ))}
+                  </Card>
+                </div>
+              )}
+
+              {/* Data table for listing pages with multiple rows */}
+              {(requestedResults.length === 0 && discoveredResults.length === 0) || extractedData.length > 1 ? (
+                extractedData.length > 1 && (
+                  <Card>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>#</TableHead>
+                          {fields.filter(f => f.enabled).map(f => (
+                            <TableHead key={f.name}>{f.name}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {extractedData.slice(0, 20).map((row, i) => (
+                          <TableRow key={i}>
+                            <TableCell data-slot="mono" className="text-muted-foreground">{i + 1}</TableCell>
+                            {fields.filter(f => f.enabled).map(f => (
+                              <TableCell key={f.name} data-slot="mono" className="max-w-[200px] truncate text-xs">
+                                {row[f.name] != null ? String(row[f.name]) : <span className="text-muted-foreground/40">—</span>}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {extractedData.length > 20 && (
+                      <div className="border-t p-3 text-xs text-muted-foreground">
+                        Showing 20 of {extractedData.length} rows
+                      </div>
+                    )}
+                  </Card>
+                )
+              ) : null}
+
+              {/* Fallback table when no tier data */}
+              {requestedResults.length === 0 && discoveredResults.length === 0 && extractedData.length <= 1 && (
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>#</TableHead>
+                        {fields.filter(f => f.enabled).map(f => (
+                          <TableHead key={f.name}>{f.name}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {extractedData.slice(0, 20).map((row, i) => (
+                        <TableRow key={i}>
+                          <TableCell data-slot="mono" className="text-muted-foreground">{i + 1}</TableCell>
+                          {fields.filter(f => f.enabled).map(f => (
+                            <TableCell key={f.name} data-slot="mono" className="max-w-[200px] truncate text-xs">
+                              {row[f.name] != null ? String(row[f.name]) : <span className="text-muted-foreground/40">—</span>}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {extractedData.length > 20 && (
+                    <div className="border-t p-3 text-xs text-muted-foreground">
+                      Showing 20 of {extractedData.length} rows
+                    </div>
+                  )}
+                </Card>
+              )}
+            </div>
           ) : (
             <Card className="border-dashed p-12 text-center">
               <p className="text-sm text-muted-foreground">No data extracted.</p>
