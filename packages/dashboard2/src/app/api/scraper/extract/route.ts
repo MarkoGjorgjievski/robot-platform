@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, fields, captureId, pageType } = await request.json();
+    const { url, fields, captureId, pageType, previousResults } = await request.json();
 
     if (!url || !fields) {
       return NextResponse.json({ error: 'URL and fields are required' }, { status: 400 });
@@ -39,11 +39,12 @@ export async function POST(request: NextRequest) {
       throw err;
     }
 
-    const schemaFields = fields.map((f: { name: string; type: string; description?: string }) => ({
+    const schemaFields = fields.map((f: { name: string; type: string; description?: string; tier?: string }) => ({
       name: f.name,
       type: f.type,
       description: f.description ?? '',
       required: true,
+      tier: f.tier ?? 'discovered',
     }));
 
     // ─── STEP 1: Mechanical extraction (always runs — free) ────────────
@@ -55,6 +56,21 @@ export async function POST(request: NextRequest) {
 
     let finalData: Record<string, unknown> = { ...mechanicalResult.data };
     let fieldResults: Record<string, { value: unknown; source: any; path: string; confidence: number }> = {};
+
+    // Seed with previous results for incremental re-extraction
+    if (previousResults && typeof previousResults === 'object') {
+      for (const [name, value] of Object.entries(previousResults as Record<string, unknown>)) {
+        if (value !== null && value !== undefined && finalData[name] === undefined) {
+          finalData[name] = value;
+          fieldResults[name] = {
+            value,
+            source: 'previous' as any,
+            path: '',
+            confidence: 0.9,
+          };
+        }
+      }
+    }
 
     // Track what mechanical found
     for (const [name, source] of Object.entries(mechanicalResult.sources)) {
@@ -315,12 +331,38 @@ export async function POST(request: NextRequest) {
       schemaFields,
     );
 
+    // Split results by tier
+    const requestedFields = schemaFields.filter((f: { tier?: string }) => f.tier === 'requested');
+    const requestedFieldNames = new Set(requestedFields.map((f: { name: string }) => f.name));
+
+    const requestedResults = requestedFields.map((f: { name: string; type: string }) => ({
+      name: f.name,
+      type: f.type,
+      value: finalData[f.name] ?? null,
+      status: finalData[f.name] !== undefined && finalData[f.name] !== null ? 'found' as const : 'not_found' as const,
+      source: sources[f.name] ?? null,
+    }));
+
+    const discoveredResults = Object.entries(finalData)
+      .filter(([name]) => !requestedFieldNames.has(name))
+      .map(([name, value]) => ({
+        name,
+        type: schemaFields.find((f: { name: string }) => f.name === name)?.type ?? 'string',
+        value,
+        status: 'found' as const,
+        source: sources[name] ?? null,
+      }));
+
     return NextResponse.json({
       data: cleanedData,
       plan,
       confidence,
       sources,
       fieldCount: { found: foundFields, total: fields.length },
+      fieldsByTier: {
+        requested: requestedResults,
+        discovered: discoveredResults,
+      },
       cacheHit: cache !== null && cache.consecutiveFailures < 5,
       schemaChanges: schemaChanges.length > 0 ? schemaChanges : undefined,
       qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
