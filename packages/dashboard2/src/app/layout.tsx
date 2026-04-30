@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
-import { Sidebar } from '@/components/sidebar';
+import Link from 'next/link';
+import { Sparkles } from 'lucide-react';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -16,8 +17,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Robot Platform — AI Scraper',
-  description: 'AI-powered data extraction platform',
+  title: 'Robot Platform',
+  description: 'AI-powered data extraction',
 };
 
 export default function RootLayout({
@@ -28,8 +29,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} ${ibmPlexMono.variable} antialiased`}>
-        <Sidebar />
-        <main className="ml-14 min-h-screen p-8">
+        <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b bg-background px-6">
+          <Link href="/" className="flex items-center gap-2 text-sm font-semibold">
+            <Sparkles className="size-4" />
+            Robot Platform
+          </Link>
+          <nav className="flex items-center gap-4">
+            <Link href="/extractions" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Extractions
+            </Link>
+          </nav>
+        </header>
+        <main className="mx-auto max-w-4xl p-8">
           {children}
         </main>
       </body>
