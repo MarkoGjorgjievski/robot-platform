@@ -72,7 +72,7 @@ packages/
   browser/     — Playwright page capture, popup dismissal, network interception
   agent/       — LLM orchestration (Claude + Ollama), schema/selector/validation
   scraper/     — Pipeline, XPath executor, structured data extraction, cache
-  dashboard2/  — Next.js 15 UI, API routes, wizard flow
+  dashboard/  — Next.js 15 UI, API routes, wizard flow
   db/          — PostgreSQL schema (Drizzle ORM)
   api/         — tRPC v11 routers
 ```
@@ -100,7 +100,7 @@ packages/
 - Domain intelligence cache (multi-path, scored, auto-pruning)
 - CLI test runner for quick iteration
 
-### @robot/dashboard2
+### @robot/dashboard
 - Next.js 15 with App Router
 - Tailwind v4 + Radix UI + shadcn component pattern
 - Light mode, clean design
