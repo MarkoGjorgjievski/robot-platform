@@ -1,16 +1,15 @@
 {
-  "name": "@robot/dashboard2",
+  "name": "@robot/dashboard",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --port 3457",
+    "dev": "next dev --port 3456",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
     "@robot/agent": "workspace:*",
-    "@robot/api": "workspace:*",
     "@robot/browser": "workspace:*",
     "@robot/db": "workspace:*",
     "@robot/scraper": "workspace:*",
@@ -22,7 +21,6 @@
     "radix-ui": "^1.4.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "superjson": "^2.2.0",
     "tailwind-merge": "^3.0.0"
   },
   "devDependencies": {

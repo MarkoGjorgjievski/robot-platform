@@ -14,7 +14,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 | `@robot/browser` | Page capture, popup dismissal, network interception | Playwright |
 | `@robot/agent` | LLM orchestration — schema discovery, selectors, validation | Anthropic Claude, Ollama |
 | `@robot/scraper` | Pipeline, XPath executor, structured data extraction | Multi-source extraction chain |
-| `@robot/dashboard2` | Web UI — wizard flow, data preview, source management | Next.js 15, Tailwind v4, Radix UI |
+| `@robot/dashboard` | Web UI — extraction wizard, results browser | Next.js 15, Tailwind v4, Radix UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
 | `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
 
@@ -30,7 +30,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Commands
 
-- `pnpm --filter @robot/dashboard2 dev` — start dashboard on :3456
+- `pnpm --filter @robot/dashboard dev` — start dashboard on :3456
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser
 

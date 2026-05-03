@@ -5,7 +5,7 @@
     "build": "turbo build",
     "test": "turbo test",
     "lint": "turbo lint",
-    "dev": "pnpm --filter @robot/dashboard2 dev",
+    "dev": "pnpm --filter @robot/dashboard dev",
     "dev:all": "turbo dev",
     "test:scraper": "source .env 2>/dev/null; pnpm --filter @robot/scraper exec tsx src/test-run.ts"
   },

@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@robot/api', '@robot/db'],
+  transpilePackages: ['@robot/db'],
   webpack: (config, { isServer }) => {
     // Resolve .js imports to .ts files in workspace packages
     config.resolve.extensionAlias = {

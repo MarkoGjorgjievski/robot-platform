@@ -87,14 +87,11 @@ importers:
         specifier: ^3.2.1
         version: 3.2.4(@types/node@25.3.3)(jiti@2.6.1)(lightningcss@1.31.1)(msw@2.12.10(@types/node@25.3.3)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2)
 
-  packages/dashboard2:
+  packages/dashboard:
     dependencies:
       '@robot/agent':
         specifier: workspace:*
         version: link:../agent
-      '@robot/api':
-        specifier: workspace:*
-        version: link:../api
       '@robot/browser':
         specifier: workspace:*
         version: link:../browser
@@ -128,9 +125,6 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
-      superjson:
-        specifier: ^2.2.0
-        version: 2.2.6
       tailwind-merge:
         specifier: ^3.0.0
         version: 3.5.0

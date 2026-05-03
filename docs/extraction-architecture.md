@@ -259,7 +259,7 @@ Anthropic provider includes retry with exponential backoff for transient errors 
                     API analysis, validation), provider abstraction
 @robot/scraper    — Pipeline orchestration, XPath executor, structured data
                     extractor, domain intelligence cache
-@robot/dashboard2 — Next.js UI, API routes, wizard flow
+@robot/dashboard — Next.js UI, API routes, wizard flow
 @robot/db         — PostgreSQL schema (Drizzle ORM)
 @robot/api        — tRPC routers
 ```
