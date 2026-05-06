@@ -8,6 +8,8 @@ export type SchemaField = {
   description: string;
   required: boolean;
   example_value?: string;
+  source?: 'api' | 'json-ld' | 'meta' | 'page';
+  api_path?: string;
   tier?: FieldTier;
 };
 

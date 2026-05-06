@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { PlaywrightBrowser } = await import('@robot/browser');
     const { SchemaAgent } = await import('@robot/agent');
     const { buildExtractionScript } = await import('@robot/scraper/executor');
-    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, acquireDomainLock, detectSchemaChanges, formatSchemaChanges, validateExtractedData, calculateFieldCoverage, getMissingFields } = await import('@robot/scraper');
+    const { extractFromStructuredData, lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath, acquireDomainLock, detectSchemaChanges, formatSchemaChanges, validateExtractedData, calculateFieldCoverage, getMissingFields } = await import('@robot/scraper');
 
     const domain = new URL(url).hostname;
     const resolvedPageType = pageType ?? 'detail';
@@ -39,23 +39,79 @@ export async function POST(request: NextRequest) {
       throw err;
     }
 
-    const schemaFields = fields.map((f: { name: string; type: string; description?: string; tier?: string }) => ({
+    const schemaFields = fields.map((f: { name: string; type: string; description?: string; tier?: string; source?: string; api_path?: string }) => ({
       name: f.name,
       type: f.type,
       description: f.description ?? '',
       required: true,
       tier: f.tier ?? 'discovered',
+      source: f.source,
+      api_path: f.api_path,
     }));
 
-    // ─── STEP 1: Mechanical extraction (always runs — free) ────────────
-    const mechanicalResult = extractFromStructuredData(
-      capture.structuredData,
-      schemaFields,
-      capture.interceptedRequests,
-    );
-
-    let finalData: Record<string, unknown> = { ...mechanicalResult.data };
+    let finalData: Record<string, unknown> = {};
     let fieldResults: Record<string, { value: unknown; source: any; path: string; confidence: number }> = {};
+
+    // ─── STEP 0.5: Resolve AI-discovered API paths (free, instant) ────
+    // The analyze step may have found exact dot-notation paths in intercepted APIs.
+    // These are the most reliable — resolve them against fresh API responses first.
+    const apiFields = schemaFields.filter((f: { api_path?: string; source?: string }) => f.api_path && f.source === 'api');
+    if (apiFields.length > 0 && capture.interceptedRequests.length > 0) {
+      // Get parsed JSON bodies from intercepted requests
+      const apiBodies = capture.interceptedRequests
+        .filter((r: { parsedJson?: unknown }) => r.parsedJson && typeof r.parsedJson === 'object')
+        .map((r: { parsedJson: unknown }) => r.parsedJson);
+
+      for (const field of apiFields) {
+        for (const body of apiBodies) {
+          const value = getByDotPath(body, field.api_path!);
+          if (value !== null && value !== undefined) {
+            finalData[field.name] = value;
+            fieldResults[field.name] = {
+              value,
+              source: 'api',
+              path: field.api_path!,
+              confidence: 0.95,
+            };
+            break;
+          }
+        }
+      }
+
+      console.log(`[extract] AI-discovered API paths resolved: ${Object.keys(finalData).length}/${apiFields.length} fields`);
+    }
+
+    // ─── STEP 1: Mechanical extraction (for remaining fields — free) ──
+    const missingAfterApiPaths = schemaFields.filter((f: { name: string }) => finalData[f.name] === undefined);
+
+    if (missingAfterApiPaths.length > 0) {
+      // Pass AI source hints so mechanical extraction tries the right source first
+      const fieldsWithHints = missingAfterApiPaths.map((f: { name: string; type: string; description: string; source?: string }) => ({
+        name: f.name,
+        type: f.type,
+        description: f.description,
+        sourceHint: f.source as 'api' | 'json-ld' | 'meta' | 'page' | undefined,
+      }));
+      const mechanicalResult = extractFromStructuredData(
+        capture.structuredData,
+        fieldsWithHints,
+        capture.interceptedRequests,
+      );
+
+      for (const [name, source] of Object.entries(mechanicalResult.sources)) {
+        if (finalData[name] === undefined) {
+          finalData[name] = mechanicalResult.data[name];
+          fieldResults[name] = {
+            value: mechanicalResult.data[name],
+            source,
+            path: mechanicalResult.paths[name] ?? '',
+            confidence: 0.8,
+          };
+        }
+      }
+
+      console.log(`[extract] Mechanical: ${Object.keys(mechanicalResult.data).length} additional fields`);
+    }
 
     // Seed with previous results for incremental re-extraction
     if (previousResults && typeof previousResults === 'object') {
@@ -72,17 +128,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Track what mechanical found
-    for (const [name, source] of Object.entries(mechanicalResult.sources)) {
-      fieldResults[name] = {
-        value: finalData[name],
-        source,
-        path: name, // mechanical uses field name as key
-        confidence: 0.8,
-      };
-    }
-
-    console.log(`[extract] Mechanical: ${Object.keys(finalData).length}/${fields.length} fields`);
+    console.log(`[extract] Total after paths + mechanical: ${Object.keys(finalData).length}/${fields.length} fields`);
 
     // ─── STEP 1.5: Try cached paths (free) ─────────────────────────────
     if (cache && cache.totalRuns > 0 && cache.consecutiveFailures < 5) {

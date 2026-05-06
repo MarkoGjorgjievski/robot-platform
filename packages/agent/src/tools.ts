@@ -28,6 +28,15 @@ export const discoverSchemaTool: Tool = {
             description: { type: 'string', description: 'What this field contains' },
             required: { type: 'boolean' },
             example_value: { type: 'string', description: 'An example value from the page' },
+            source: {
+              type: 'string',
+              enum: ['api', 'json-ld', 'meta', 'page'],
+              description: 'Where the value was found: "api" (intercepted API JSON), "json-ld" (Schema.org), "meta" (meta tags), "page" (visible page content)',
+            },
+            api_path: {
+              type: 'string',
+              description: 'If source is "api": the dot-notation path to the value in the API JSON (e.g. "data.product.name", "items[0].price.current"). Required when source is "api".',
+            },
           },
           required: ['name', 'type', 'description', 'required'],
         },
