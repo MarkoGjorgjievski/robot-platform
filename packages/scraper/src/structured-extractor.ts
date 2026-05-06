@@ -4,6 +4,8 @@ type FieldRequest = {
   name: string;
   type: string;
   description?: string;
+  /** Source hint from AI discovery — controls which data source to try first */
+  sourceHint?: 'api' | 'json-ld' | 'meta' | 'page';
 };
 
 type ExtractionSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached';
@@ -26,9 +28,10 @@ export function extractFromStructuredData(
   structuredData: StructuredData,
   fields: FieldRequest[],
   interceptedRequests?: InterceptedRequest[],
-): { data: Record<string, unknown>; coverage: number; sources: Record<string, ExtractionSource> } {
+): { data: Record<string, unknown>; coverage: number; sources: Record<string, ExtractionSource>; paths: Record<string, string> } {
   const data: Record<string, unknown> = {};
   const sources: Record<string, ExtractionSource> = {};
+  const paths: Record<string, string> = {};
 
   // 1. Flatten API responses (highest priority)
   const apiFlat = flattenApiResponses(interceptedRequests ?? []);
@@ -39,35 +42,36 @@ export function extractFromStructuredData(
   // 3. Flatten meta tags
   const metaFlat = flattenMeta(structuredData.meta);
 
-  // Try each source in priority order for each field
+  // Source pools in default priority order
+  const sourcePools: Array<{ key: ExtractionSource; data: Record<string, unknown> }> = [
+    { key: 'api', data: apiFlat },
+    { key: 'json-ld', data: ldFlat },
+    { key: 'meta', data: metaFlat },
+  ];
+
   for (const field of fields) {
-    // Try API first
-    let value = findFieldValue(field.name, field.type, apiFlat, field.description);
-    if (value !== undefined && value !== null && value !== '') {
-      data[field.name] = value;
-      sources[field.name] = 'api';
-      continue;
-    }
+    // If the AI told us where this field comes from, try that source first
+    const ordered = field.sourceHint
+      ? [
+          ...sourcePools.filter(s => s.key === field.sourceHint),
+          ...sourcePools.filter(s => s.key !== field.sourceHint),
+        ]
+      : sourcePools;
 
-    // Try JSON-LD
-    value = findFieldValue(field.name, field.type, ldFlat, field.description);
-    if (value !== undefined && value !== null && value !== '') {
-      data[field.name] = value;
-      sources[field.name] = 'json-ld';
-      continue;
-    }
-
-    // Try meta tags
-    value = findFieldValue(field.name, field.type, metaFlat, field.description);
-    if (value !== undefined && value !== null && value !== '') {
-      data[field.name] = value;
-      sources[field.name] = 'meta';
+    for (const { key, data: pool } of ordered) {
+      const match = findFieldValue(field.name, field.type, pool, field.description);
+      if (match !== null) {
+        data[field.name] = match.value;
+        sources[field.name] = key;
+        paths[field.name] = match.path;
+        break;
+      }
     }
   }
 
   const coverage = fields.length > 0 ? Object.keys(data).length / fields.length : 0;
 
-  return { data, coverage, sources };
+  return { data, coverage, sources, paths };
 }
 
 // ─── Field name matching ─────────────────────────────────────────────────────
@@ -99,51 +103,63 @@ const FIELD_ALIASES: Record<string, string[]> = {
   product_features: ['features', 'product_features', 'highlights', 'bullet_descriptions', 'soft_bullets'],
 };
 
+type FieldMatch = { value: unknown; path: string };
+
+/** Count path depth (fewer dots = shallower = more likely product data) */
+function pathDepth(path: string): number {
+  return path.split('.').length + (path.split('[').length - 1);
+}
+
+/** From a list of candidates, return the shallowest (least nested) match */
+function shallowest(candidates: FieldMatch[]): FieldMatch | null {
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, c) => pathDepth(c.path) < pathDepth(best.path) ? c : best);
+}
+
 function findFieldValue(
   fieldName: string,
   fieldType: string,
   allData: Record<string, unknown>,
-  description?: string,
-): unknown {
-  // Try exact match first
-  if (isPrimitive(allData[fieldName])) return allData[fieldName];
+  _description?: string,
+): FieldMatch | null {
+  // Try exact match first (top-level key or full path)
+  if (isPrimitive(allData[fieldName])) return { value: allData[fieldName], path: fieldName };
 
-  // Try known aliases
+  // Try known aliases — exact key match
   const aliases = FIELD_ALIASES[fieldName] ?? [];
   for (const alias of aliases) {
-    if (isPrimitive(allData[alias])) return allData[alias];
+    if (isPrimitive(allData[alias])) return { value: allData[alias], path: alias };
   }
 
-  // Try fuzzy match (field name as substring)
-  for (const [key, value] of Object.entries(allData)) {
-    if (key.toLowerCase().includes(fieldName.toLowerCase()) && isPrimitive(value)) {
-      return value;
-    }
-  }
-
-  // Try description words as additional aliases
-  if (description) {
-    const words = description.toLowerCase()
-      .replace(/[^a-z0-9\s_]/g, '')
-      .split(/\s+/)
-      .filter(w => w.length > 3); // skip short words like "the", "of", "a"
-    const descSnake = words.join('_');
-
-    // Try full description as snake_case key
+  // Try aliases as path suffixes — collect ALL matches, pick shallowest
+  // e.g., alias "name" matches both "product.name" (depth 2) and "chat.ui.widget.name" (depth 4)
+  // We want "product.name"
+  const aliasCandidates: FieldMatch[] = [];
+  for (const alias of aliases) {
+    const suffix = '.' + alias;
     for (const [key, value] of Object.entries(allData)) {
-      const keyLower = key.toLowerCase();
-      if (keyLower === descSnake && isPrimitive(value)) return value;
-    }
-
-    // Try each meaningful word from description
-    for (const word of words) {
-      for (const [key, value] of Object.entries(allData)) {
-        if (key.toLowerCase().includes(word) && isPrimitive(value)) return value;
+      if (key.endsWith(suffix) && isPrimitive(value)) {
+        aliasCandidates.push({ value, path: key });
       }
     }
   }
+  const bestAlias = shallowest(aliasCandidates);
+  if (bestAlias) return bestAlias;
 
-  return undefined;
+  // Try field name as path suffix — collect ALL, pick shallowest
+  const fieldSuffix = '.' + fieldName;
+  const fieldCandidates: FieldMatch[] = [];
+  for (const [key, value] of Object.entries(allData)) {
+    if (key.endsWith(fieldSuffix) && isPrimitive(value)) {
+      fieldCandidates.push({ value, path: key });
+    }
+  }
+  const bestField = shallowest(fieldCandidates);
+  if (bestField) return bestField;
+
+  // No fuzzy matching — it causes too many false positives on complex APIs.
+  // If suffix matching can't find it, let the AI extraction steps handle it.
+  return null;
 }
 
 function isPrimitive(value: unknown): boolean {
@@ -158,12 +174,33 @@ function isPrimitive(value: unknown): boolean {
 // ─── Flatteners ──────────────────────────────────────────────────────────────
 
 function flattenApiResponses(requests: InterceptedRequest[]): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+  // Deduplicate by URL and separate product-like APIs from config/translation blobs
+  const seen = new Set<string>();
+  const productApis: InterceptedRequest[] = [];
+  const otherApis: InterceptedRequest[] = [];
 
   for (const req of requests) {
-    if (!req.parsedJson || typeof req.parsedJson !== 'object') continue;
+    if (!req.parsedJson || typeof req.parsedJson === 'string') continue;
+    if (seen.has(req.url)) continue;
+    seen.add(req.url);
 
-    // Deep flatten — go up to 8 levels to find primitive values
+    const urlLower = req.url.toLowerCase();
+    const isLikelyConfig = urlLower.includes('translation') || urlLower.includes('localisation')
+      || urlLower.includes('config') || urlLower.includes('feature-flag')
+      || urlLower.includes('analytics') || urlLower.includes('tracking')
+      || (req.bodySize ?? 0) > 20000;
+
+    if (isLikelyConfig) {
+      otherApis.push(req);
+    } else {
+      productApis.push(req);
+    }
+  }
+
+  // Only flatten product-like APIs — config/translation blobs cause false matches.
+  // The AI extraction steps handle anything mechanical can't find.
+  const result: Record<string, unknown> = {};
+  for (const req of productApis) {
     deepFlatten(req.parsedJson as Record<string, unknown>, '', result, 0);
   }
 
@@ -172,7 +209,8 @@ function flattenApiResponses(requests: InterceptedRequest[]): Record<string, unk
 
 /**
  * Recursively flatten any JSON structure, extracting all primitive values
- * at every nesting level. Stores values at both full path and short key.
+ * at every nesting level. Stores values at full dot-notation paths only
+ * to avoid collisions between unrelated fields sharing the same leaf key.
  */
 function deepFlatten(
   obj: unknown,
@@ -184,9 +222,6 @@ function deepFlatten(
 
   if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
     result[prefix] = obj;
-    // Also store at the leaf key name for easy lookup
-    const leafKey = prefix.split('.').pop() ?? prefix;
-    if (!result[leafKey]) result[leafKey] = obj;
     return;
   }
 
@@ -194,8 +229,6 @@ function deepFlatten(
     // Store arrays of primitives
     if (obj.length > 0 && obj.every(v => typeof v === 'string' || typeof v === 'number')) {
       result[prefix] = obj;
-      const leafKey = prefix.split('.').pop() ?? prefix;
-      if (!result[leafKey]) result[leafKey] = obj;
     }
     // Recurse into first few items of arrays of objects
     for (let i = 0; i < Math.min(obj.length, 3); i++) {
@@ -242,14 +275,11 @@ function flattenObject(
     const fullKey = prefix ? `${prefix}.${key}` : key;
 
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      // Store primitives at both full path and short key
       result[fullKey] = value;
-      if (!result[key]) result[key] = value;
     } else if (Array.isArray(value)) {
       // Only store arrays of primitives (e.g. image URLs)
       if (value.length > 0 && value.every(v => typeof v === 'string' || typeof v === 'number')) {
         result[fullKey] = value;
-        if (!result[key]) result[key] = value;
       }
       // If array of objects, flatten the first one for field discovery
       if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {

@@ -17,7 +17,15 @@ If the page is a product detail page, extract fields like: product_name, price, 
 If the page is a listing/search page, extract fields for each repeating item.
 
 Prefer snake_case field names. Be specific about data types (use "price" for monetary values, "url" for links, "image_url" for image sources).
-Always identify at least 3 fields.`;
+Always identify at least 3 fields.
+
+For each field, indicate WHERE the value was found:
+- source="api" + api_path: if the value comes from an intercepted API JSON response. The api_path MUST be the exact dot-notation path (e.g. "data.product.name") that can be used to programmatically extract the value.
+- source="json-ld": if the value comes from JSON-LD structured data
+- source="meta": if the value comes from meta tags
+- source="page": if the value is only visible on the page itself
+
+Prefer API sources over others — they are the most reliable and cacheable.`;
 
 export const SELECTOR_GENERATION_SYSTEM = `You are an XPath expert for web scraping. Given HTML and a target data schema, generate robust XPath expressions to extract each field.
 
@@ -46,6 +54,7 @@ export function schemaDiscoveryUserContent(
   markdown: string,
   structuredData?: { ldJson?: Record<string, unknown>[]; meta?: Record<string, string> },
   requestedFields?: Array<{ name: string; type: string; description?: string }>,
+  interceptedApis?: Array<{ url: string; json: string }>,
 ) {
   let prompt = `Analyze this web page and propose a data schema for the primary data.`;
 
@@ -74,6 +83,20 @@ After including all priority fields, also discover any additional fields availab
 IMPORTANT: The page contains JSON-LD structured data (Schema.org). Use this as the PRIMARY source for field discovery — it is the most reliable data on the page:
 
 ${ldSummary.slice(0, 5000)}`;
+  }
+
+  // Include intercepted API responses — the most valuable source for field paths
+  if (interceptedApis && interceptedApis.length > 0) {
+    prompt += `
+
+INTERCEPTED API RESPONSES — These are raw JSON responses captured from the page's network requests. For each field you discover from an API response, you MUST set source="api" and provide the exact dot-notation api_path (e.g. "data.product.name", "items[0].price.current"). These paths will be cached and reused on subsequent pages.`;
+
+    for (const api of interceptedApis.slice(0, 2)) {
+      prompt += `
+
+API: ${api.url}
+${api.json.slice(0, 8000)}${api.json.length > 8000 ? '\n... (truncated)' : ''}`;
+    }
   }
 
   if (structuredData?.meta && Object.keys(structuredData.meta).length > 0) {

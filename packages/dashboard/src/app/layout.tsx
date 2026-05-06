@@ -40,7 +40,7 @@ export default function RootLayout({
             </Link>
           </nav>
         </header>
-        <main className="mx-auto max-w-4xl p-8">
+        <main className="mx-auto p-8">
           {children}
         </main>
       </body>

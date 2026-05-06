@@ -56,10 +56,24 @@ export class SchemaAgent {
   }
 
   async discoverSchema(capture: PageCapture, requestedFields?: SchemaField[]): Promise<DiscoveredSchema> {
+    // Prepare intercepted API responses for the prompt (deduplicated, product-like APIs only)
+    const seen = new Set<string>();
+    const interceptedApis: Array<{ url: string; json: string }> = [];
+    for (const req of capture.interceptedRequests) {
+      if (!req.responseBody || seen.has(req.url)) continue;
+      seen.add(req.url);
+      const urlLower = req.url.toLowerCase();
+      if (urlLower.includes('translation') || urlLower.includes('localisation')
+        || urlLower.includes('config') || urlLower.includes('analytics')
+        || urlLower.includes('tracking') || urlLower.includes('feature-flag')) continue;
+      interceptedApis.push({ url: req.url, json: req.responseBody });
+    }
+
     const userText = schemaDiscoveryUserContent(
       capture.markdown,
       capture.structuredData,
       requestedFields?.map(f => ({ name: f.name, type: f.type, description: f.description })),
+      interceptedApis.length > 0 ? interceptedApis : undefined,
     );
 
     if (this.anthropic) {

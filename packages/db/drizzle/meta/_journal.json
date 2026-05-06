@@ -8,6 +8,13 @@
       "when": 1772690970807,
       "tag": "0000_tan_retro_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1746528000000,
+      "tag": "0001_add_quick_extractions",
+      "breakpoints": true
     }
   ]
 }

@@ -317,7 +317,7 @@ export function buildCachedXPathScript(
  * Navigate a JSON object using dot-notation path.
  * Supports array indexing: "data.items[0].price"
  */
-function getByDotPath(obj: unknown, path: string): unknown {
+export function getByDotPath(obj: unknown, path: string): unknown {
   const parts = path.split(/\.|\[(\d+)\]/).filter(Boolean);
   let current: unknown = obj;
 
