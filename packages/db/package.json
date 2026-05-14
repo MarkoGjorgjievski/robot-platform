@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "seed:sandbox": "tsx src/scripts/seed-sandbox.ts",
+    "backfill:quick-extractions": "tsx src/scripts/backfill-quick-extractions.ts",
     "test": "vitest"
   },
   "dependencies": {
