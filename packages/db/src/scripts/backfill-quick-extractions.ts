@@ -1,4 +1,4 @@
-import { db, orgs, projects } from '../index.js';
+import { db, orgs, projects, sources, inputSets } from '../index.js';
 import { quickExtractions } from '../quick-extractions.js';
 import { quickExtractionsToSandboxRecords } from './backfill-transform.js';
 import { eq, and } from 'drizzle-orm';
@@ -39,9 +39,34 @@ async function main() {
   );
   console.log(`Would create ${result.inputSets.length} InputSets and ${result.sources.length} Sources.`);
 
-  throw new Error(
-    'Pre-flight: sources.dataset_id is currently NOT NULL. Run Task 8.5 (make dataset_id nullable) and then complete Task 8.6 to enable the real back-fill.',
-  );
+  if (result.sources.length === 0) {
+    console.log('Nothing to back-fill.');
+    process.exit(0);
+  }
+
+  // Insert InputSets first to get their ids, then Sources referencing them.
+  const insertedInputSets = await db
+    .insert(inputSets)
+    .values(result.inputSets)
+    .returning({ id: inputSets.id });
+
+  const sourceValues = result.sources.map((s, i) => ({
+    name: s.name,
+    slug: s.slug,
+    country: 'us',                  // required NOT NULL on sources; arbitrary for sandbox
+    sourceType: 'sandbox',
+    isSandbox: true,
+    inputStrategy: s.inputStrategy,
+    urlTemplate: s.urlTemplate,
+    listingMode: s.listingMode,
+    selectorsJson: s.selectorsJson,
+    inputSetId: insertedInputSets[result.sourceToInputSetIndex[i]].id,
+    datasetId: null,
+  }));
+
+  await db.insert(sources).values(sourceValues);
+  console.log(`Inserted ${sourceValues.length} sandbox sources.`);
+  process.exit(0);
 }
 
 main().catch((err) => {
