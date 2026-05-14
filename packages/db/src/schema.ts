@@ -71,7 +71,7 @@ export const datasetsRelations = relations(datasets, ({ one, many }) => ({
 
 export const sources = pgTable('sources', {
   id: uuid('id').primaryKey().defaultRandom(),
-  datasetId: uuid('dataset_id').notNull().references(() => datasets.id, { onDelete: 'cascade' }),
+  datasetId: uuid('dataset_id').references(() => datasets.id, { onDelete: 'cascade' }),
   domainId: uuid('domain_id').references(() => domains.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
