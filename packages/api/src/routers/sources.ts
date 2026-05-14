@@ -1,16 +1,16 @@
 import { z } from 'zod';
 import { eq, and } from 'drizzle-orm';
-import { sources, collections, projects, orgs, domains } from '@robot/db';
+import { sources, datasets, projects, orgs, domains } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
 export const sourcesRouter = router({
-  listByCollection: publicProcedure
-    .input(z.object({ collectionId: z.string().uuid() }))
+  listByDataset: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const results = await ctx.db
         .select({
           id: sources.id,
-          collectionId: sources.collectionId,
+          datasetId: sources.datasetId,
           domainId: sources.domainId,
           domainName: domains.name,
           name: sources.name,
@@ -37,7 +37,7 @@ export const sourcesRouter = router({
         })
         .from(sources)
         .leftJoin(domains, eq(sources.domainId, domains.id))
-        .where(eq(sources.collectionId, input.collectionId))
+        .where(eq(sources.datasetId, input.datasetId))
         .orderBy(sources.name);
 
       return results;
@@ -48,7 +48,7 @@ export const sourcesRouter = router({
       z.object({
         orgSlug: z.string(),
         projectSlug: z.string(),
-        collectionSlug: z.string(),
+        datasetSlug: z.string(),
         sourceSlug: z.string(),
       }),
     )
@@ -58,22 +58,22 @@ export const sourcesRouter = router({
           sourceId: sources.id,
           orgId: orgs.id,
           orgName: orgs.name,
-          collectionId: collections.id,
-          collectionName: collections.name,
-          collectionSchema: collections.schema,
+          datasetId: datasets.id,
+          datasetName: datasets.name,
+          datasetSchema: datasets.schema,
           domainId: sources.domainId,
           domainName: domains.name,
         })
         .from(sources)
-        .innerJoin(collections, eq(sources.collectionId, collections.id))
-        .innerJoin(projects, eq(collections.projectId, projects.id))
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
         .innerJoin(orgs, eq(projects.orgId, orgs.id))
         .leftJoin(domains, eq(sources.domainId, domains.id))
         .where(
           and(
             eq(orgs.slug, input.orgSlug),
             eq(projects.slug, input.projectSlug),
-            eq(collections.slug, input.collectionSlug),
+            eq(datasets.slug, input.datasetSlug),
             eq(sources.slug, input.sourceSlug),
           ),
         )
@@ -82,7 +82,7 @@ export const sourcesRouter = router({
       const row = rows[0];
       if (!row) {
         throw new Error(
-          `Source not found: ${input.orgSlug}/${input.projectSlug}/${input.collectionSlug}/${input.sourceSlug}`,
+          `Source not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}/${input.sourceSlug}`,
         );
       }
 
@@ -94,7 +94,7 @@ export const sourcesRouter = router({
 
       if (!source) {
         throw new Error(
-          `Source not found: ${input.orgSlug}/${input.projectSlug}/${input.collectionSlug}/${input.sourceSlug}`,
+          `Source not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}/${input.sourceSlug}`,
         );
       }
 
@@ -102,9 +102,9 @@ export const sourcesRouter = router({
         ...source,
         orgId: row.orgId,
         orgName: row.orgName,
-        collectionId: row.collectionId,
-        collectionName: row.collectionName,
-        collectionSchema: row.collectionSchema,
+        datasetId: row.datasetId,
+        datasetName: row.datasetName,
+        datasetSchema: row.datasetSchema,
         domainName: row.domainName,
       };
     }),
@@ -112,7 +112,7 @@ export const sourcesRouter = router({
   create: publicProcedure
     .input(
       z.object({
-        collectionId: z.string().uuid(),
+        datasetId: z.string().uuid(),
         domainId: z.string().uuid().nullish(),
         name: z.string().min(1).max(255),
         slug: z.string().min(1).max(255),
