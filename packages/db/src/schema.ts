@@ -303,6 +303,7 @@ export const domainIntelligence = pgTable('domain_intelligence', {
 export const captures = pgTable('captures', {
   id: uuid('id').primaryKey().defaultRandom(),
   sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  runId: uuid('run_id').references(() => runs.id, { onDelete: 'set null' }),
   url: text('url').notNull(),
   html: text('html'),
   markdown: text('markdown'),
@@ -311,11 +312,13 @@ export const captures = pgTable('captures', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   index('captures_source_id_idx').on(table.sourceId),
+  index('captures_run_id_idx').on(table.runId),
 ]);
 
 export const capturesRelations = relations(captures, ({ one, many }) => ({
   source: one(sources, { fields: [captures.sourceId], references: [sources.id] }),
   extractions: many(extractions),
+  run: one(runs, { fields: [captures.runId], references: [runs.id] }),
 }));
 
 // ─── Extractions (AI Scraper) ───────────────────────────────────────────────
@@ -324,6 +327,7 @@ export const extractions = pgTable('extractions', {
   id: uuid('id').primaryKey().defaultRandom(),
   sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
   captureId: uuid('capture_id').notNull().references(() => captures.id, { onDelete: 'cascade' }),
+  runId: uuid('run_id').references(() => runs.id, { onDelete: 'set null' }),
   data: jsonb('data').notNull().default([]),
   rowCount: integer('row_count').default(0),
   confidence: integer('confidence'),
@@ -332,11 +336,13 @@ export const extractions = pgTable('extractions', {
 }, (table) => [
   index('extractions_source_id_idx').on(table.sourceId),
   index('extractions_capture_id_idx').on(table.captureId),
+  index('extractions_run_id_idx').on(table.runId),
 ]);
 
 export const extractionsRelations = relations(extractions, ({ one }) => ({
   source: one(sources, { fields: [extractions.sourceId], references: [sources.id] }),
   capture: one(captures, { fields: [extractions.captureId], references: [captures.id] }),
+  run: one(runs, { fields: [extractions.runId], references: [runs.id] }),
 }));
 
 // ─── Runs (Stage 2) ─────────────────────────────────────────────────────────
@@ -362,7 +368,9 @@ export const runs = pgTable('runs', {
   index('runs_status_idx').on(table.status),
 ]);
 
-export const runsRelations = relations(runs, ({ one }) => ({
+export const runsRelations = relations(runs, ({ one, many }) => ({
   extractor: one(extractors, { fields: [runs.extractorId], references: [extractors.id] }),
   source: one(sources, { fields: [runs.sourceId], references: [sources.id] }),
+  captures: many(captures),
+  extractions: many(extractions),
 }));
