@@ -36,6 +36,13 @@
       "when": 1778889600000,
       "tag": "0004_extend_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778976000000,
+      "tag": "0005_extend_projects",
+      "breakpoints": true
     }
   ]
 }

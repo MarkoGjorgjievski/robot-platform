@@ -25,6 +25,14 @@ export const projects = pgTable('projects', {
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
   description: text('description'),
+  // ─── Inherited config (Phase 0) ─────────────────────────────────────────────
+  // Sources in this project inherit these unless they override.
+  defaultSchedule: varchar('default_schedule', { length: 100 }),
+  outputDestination: text('output_destination'),
+  proxyPool: varchar('proxy_pool', { length: 100 }),
+  defaultRateLimit: integer('default_rate_limit'),
+  notificationChannel: text('notification_channel'),
+  ownerEmail: varchar('owner_email', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
