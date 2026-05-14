@@ -1,29 +1,29 @@
 import { z } from 'zod';
 import { eq, sql, and } from 'drizzle-orm';
-import { collections, projects, orgs, sources } from '@robot/db';
+import { datasets, projects, orgs, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
-export const collectionsRouter = router({
+export const datasetsRouter = router({
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const results = await ctx.db
         .select({
-          id: collections.id,
-          projectId: collections.projectId,
-          name: collections.name,
-          slug: collections.slug,
-          description: collections.description,
-          schema: collections.schema,
-          createdAt: collections.createdAt,
-          updatedAt: collections.updatedAt,
+          id: datasets.id,
+          projectId: datasets.projectId,
+          name: datasets.name,
+          slug: datasets.slug,
+          description: datasets.description,
+          schema: datasets.schema,
+          createdAt: datasets.createdAt,
+          updatedAt: datasets.updatedAt,
           sourceCount: sql<number>`count(${sources.id})::int`,
         })
-        .from(collections)
-        .leftJoin(sources, eq(collections.id, sources.collectionId))
-        .where(eq(collections.projectId, input.projectId))
-        .groupBy(collections.id)
-        .orderBy(collections.name);
+        .from(datasets)
+        .leftJoin(sources, eq(datasets.id, sources.datasetId))
+        .where(eq(datasets.projectId, input.projectId))
+        .groupBy(datasets.id)
+        .orderBy(datasets.name);
 
       return results;
     }),
@@ -33,20 +33,20 @@ export const collectionsRouter = router({
       z.object({
         orgSlug: z.string(),
         projectSlug: z.string(),
-        collectionSlug: z.string(),
+        datasetSlug: z.string(),
       }),
     )
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db
-        .select({ collectionId: collections.id })
-        .from(collections)
-        .innerJoin(projects, eq(collections.projectId, projects.id))
+        .select({ datasetId: datasets.id })
+        .from(datasets)
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
         .innerJoin(orgs, eq(projects.orgId, orgs.id))
         .where(
           and(
             eq(orgs.slug, input.orgSlug),
             eq(projects.slug, input.projectSlug),
-            eq(collections.slug, input.collectionSlug),
+            eq(datasets.slug, input.datasetSlug),
           ),
         )
         .limit(1);
@@ -54,24 +54,24 @@ export const collectionsRouter = router({
       const row = rows[0];
       if (!row) {
         throw new Error(
-          `Collection not found: ${input.orgSlug}/${input.projectSlug}/${input.collectionSlug}`,
+          `Dataset not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}`,
         );
       }
 
-      const collection = await ctx.db.query.collections.findFirst({
-        where: eq(collections.id, row.collectionId),
+      const dataset = await ctx.db.query.datasets.findFirst({
+        where: eq(datasets.id, row.datasetId),
         with: {
           sources: true,
         },
       });
 
-      if (!collection) {
+      if (!dataset) {
         throw new Error(
-          `Collection not found: ${input.orgSlug}/${input.projectSlug}/${input.collectionSlug}`,
+          `Dataset not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}`,
         );
       }
 
-      return collection;
+      return dataset;
     }),
 
   create: publicProcedure
@@ -85,14 +85,14 @@ export const collectionsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [collection] = await ctx.db.insert(collections).values(input).returning();
-      return collection;
+      const [dataset] = await ctx.db.insert(datasets).values(input).returning();
+      return dataset;
     }),
 
   updateSchema: publicProcedure
     .input(
       z.object({
-        collectionId: z.string().uuid(),
+        datasetId: z.string().uuid(),
         schema: z.array(
           z.object({
             name: z.string().min(1),
@@ -105,9 +105,9 @@ export const collectionsRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
-        .update(collections)
+        .update(datasets)
         .set({ schema: input.schema })
-        .where(eq(collections.id, input.collectionId))
+        .where(eq(datasets.id, input.datasetId))
         .returning();
       return updated;
     }),

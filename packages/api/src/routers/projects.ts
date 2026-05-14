@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { eq, sql, and } from 'drizzle-orm';
-import { projects, orgs, collections } from '@robot/db';
+import { projects, orgs, datasets } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
 export const projectsRouter = router({
@@ -14,10 +14,10 @@ export const projectsRouter = router({
         description: projects.description,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
-        collectionCount: sql<number>`count(${collections.id})::int`,
+        datasetCount: sql<number>`count(${datasets.id})::int`,
       })
       .from(projects)
-      .leftJoin(collections, eq(projects.id, collections.projectId))
+      .leftJoin(datasets, eq(projects.id, datasets.projectId))
       .groupBy(projects.id)
       .orderBy(projects.name);
 
@@ -36,10 +36,10 @@ export const projectsRouter = router({
           description: projects.description,
           createdAt: projects.createdAt,
           updatedAt: projects.updatedAt,
-          collectionCount: sql<number>`count(${collections.id})::int`,
+          datasetCount: sql<number>`count(${datasets.id})::int`,
         })
         .from(projects)
-        .leftJoin(collections, eq(projects.id, collections.projectId))
+        .leftJoin(datasets, eq(projects.id, datasets.projectId))
         .where(eq(projects.orgId, input.orgId))
         .groupBy(projects.id)
         .orderBy(projects.name);
@@ -65,7 +65,7 @@ export const projectsRouter = router({
       const project = await ctx.db.query.projects.findFirst({
         where: eq(projects.id, row.projectId),
         with: {
-          collections: true,
+          datasets: true,
         },
       });
 
