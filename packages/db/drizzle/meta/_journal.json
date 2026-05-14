@@ -57,6 +57,13 @@
       "when": 1779148800000,
       "tag": "0007_relax_sources_dataset_id_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779235200000,
+      "tag": "0008_drop_quick_extractions",
+      "breakpoints": true
     }
   ]
 }
