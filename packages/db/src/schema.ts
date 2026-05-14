@@ -34,12 +34,12 @@ export const projects = pgTable('projects', {
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   org: one(orgs, { fields: [projects.orgId], references: [orgs.id] }),
-  collections: many(collections),
+  datasets: many(datasets),
 }));
 
-// ─── Collections ────────────────────────────────────────────────────────────
+// ─── Datasets ────────────────────────────────────────────────────────────────
 
-export const collections = pgTable('collections', {
+export const datasets = pgTable('datasets', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
@@ -49,12 +49,12 @@ export const collections = pgTable('collections', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
-  index('collections_project_id_idx').on(table.projectId),
-  uniqueIndex('collections_project_slug_idx').on(table.projectId, table.slug),
+  index('datasets_project_id_idx').on(table.projectId),
+  uniqueIndex('datasets_project_slug_idx').on(table.projectId, table.slug),
 ]);
 
-export const collectionsRelations = relations(collections, ({ one, many }) => ({
-  project: one(projects, { fields: [collections.projectId], references: [projects.id] }),
+export const datasetsRelations = relations(datasets, ({ one, many }) => ({
+  project: one(projects, { fields: [datasets.projectId], references: [projects.id] }),
   sources: many(sources),
 }));
 
@@ -62,7 +62,7 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
 
 export const sources = pgTable('sources', {
   id: uuid('id').primaryKey().defaultRandom(),
-  collectionId: uuid('collection_id').notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  datasetId: uuid('dataset_id').notNull().references(() => datasets.id, { onDelete: 'cascade' }),
   domainId: uuid('domain_id').references(() => domains.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
@@ -87,13 +87,13 @@ export const sources = pgTable('sources', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
-  index('sources_collection_id_idx').on(table.collectionId),
+  index('sources_dataset_id_idx').on(table.datasetId),
   index('sources_domain_id_idx').on(table.domainId),
-  uniqueIndex('sources_collection_slug_idx').on(table.collectionId, table.slug),
+  uniqueIndex('sources_dataset_slug_idx').on(table.datasetId, table.slug),
 ]);
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
-  collection: one(collections, { fields: [sources.collectionId], references: [collections.id] }),
+  dataset: one(datasets, { fields: [sources.datasetId], references: [datasets.id] }),
   domain: one(domains, { fields: [sources.domainId], references: [domains.id] }),
   runs: many(runs),
   inputs: many(sourceInputs),

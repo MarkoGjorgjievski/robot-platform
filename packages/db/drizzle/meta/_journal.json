@@ -15,6 +15,13 @@
       "when": 1746528000000,
       "tag": "0001_add_quick_extractions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778716800000,
+      "tag": "0002_rename_collections_to_datasets",
+      "breakpoints": true
     }
   ]
 }
