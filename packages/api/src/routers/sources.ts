@@ -112,7 +112,7 @@ export const sourcesRouter = router({
   create: publicProcedure
     .input(
       z.object({
-        datasetId: z.string().uuid(),
+        datasetId: z.string().uuid().nullish(),
         domainId: z.string().uuid().nullish(),
         name: z.string().min(1).max(255),
         slug: z.string().min(1).max(255),
