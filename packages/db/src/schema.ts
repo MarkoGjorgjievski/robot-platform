@@ -35,6 +35,7 @@ export const projects = pgTable('projects', {
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   org: one(orgs, { fields: [projects.orgId], references: [orgs.id] }),
   datasets: many(datasets),
+  inputSets: many(inputSets),
 }));
 
 // ─── Datasets ────────────────────────────────────────────────────────────────
@@ -115,6 +116,32 @@ export const sourceInputs = pgTable('source_inputs', {
 
 export const sourceInputsRelations = relations(sourceInputs, ({ one }) => ({
   source: one(sources, { fields: [sourceInputs.sourceId], references: [sources.id] }),
+}));
+
+// ─── Input Sets ──────────────────────────────────────────────────────────────
+
+export const inputSets = pgTable('input_sets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  // 'direct' | 'template' | 'category' | 'search' | 'sitemap' | 'inline'
+  // 'inline' is reserved for Sandbox Sources (one hidden InputSet per Sandbox Source)
+  type: varchar('type', { length: 20 }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  // Column definitions: [{ name, primary, type, propagate? }]
+  columns: jsonb('columns').notNull().default([]),
+  // Rows of values, each row keyed by column name
+  rows: jsonb('rows').notNull().default([]),
+  // True for the hidden inline InputSet attached to a single Sandbox Source
+  isInline: boolean('is_inline').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('input_sets_project_id_idx').on(table.projectId),
+]);
+
+export const inputSetsRelations = relations(inputSets, ({ one, many }) => ({
+  project: one(projects, { fields: [inputSets.projectId], references: [projects.id] }),
+  sources: many(sources),
 }));
 
 // ─── Domains ─────────────────────────────────────────────────────────────────
