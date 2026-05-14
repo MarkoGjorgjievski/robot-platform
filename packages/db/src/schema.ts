@@ -84,6 +84,15 @@ export const sources = pgTable('sources', {
   sourceType: varchar('source_type', { length: 20 }).default('legacy'),
   urlPattern: text('url_pattern'),
   selectorsJson: jsonb('selectors_json'),
+  // ─── New extraction model fields (Phase 0) ─────────────────────────────────
+  // 'direct' | 'template' | 'category' | 'search' | 'sitemap'
+  inputStrategy: varchar('input_strategy', { length: 20 }),
+  urlTemplate: text('url_template'),
+  // 'detail' | 'listing' | 'listing_to_detail' — null until set
+  listingMode: varchar('listing_mode', { length: 20 }),
+  budget: jsonb('budget').notNull().default({}),
+  isSandbox: boolean('is_sandbox').notNull().default(false),
+  inputSetId: uuid('input_set_id').references(() => inputSets.id, { onDelete: 'set null' }),
   aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -91,6 +100,8 @@ export const sources = pgTable('sources', {
   index('sources_dataset_id_idx').on(table.datasetId),
   index('sources_domain_id_idx').on(table.domainId),
   uniqueIndex('sources_dataset_slug_idx').on(table.datasetId, table.slug),
+  index('sources_input_set_id_idx').on(table.inputSetId),
+  index('sources_is_sandbox_idx').on(table.isSandbox),
 ]);
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
@@ -100,6 +111,7 @@ export const sourcesRelations = relations(sources, ({ one, many }) => ({
   inputs: many(sourceInputs),
   captures: many(captures),
   extractions: many(extractions),
+  inputSet: one(inputSets, { fields: [sources.inputSetId], references: [inputSets.id] }),
 }));
 
 // ─── Source Inputs ────────────────────────────────────────────────────────────
