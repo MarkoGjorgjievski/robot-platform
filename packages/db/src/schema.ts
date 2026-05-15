@@ -1,5 +1,5 @@
-import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 // ─── Organizations ───────────────────────────────────────────────────────────
 
@@ -110,6 +110,7 @@ export const sources = pgTable('sources', {
   uniqueIndex('sources_dataset_slug_idx').on(table.datasetId, table.slug),
   index('sources_input_set_id_idx').on(table.inputSetId),
   index('sources_is_sandbox_idx').on(table.isSandbox),
+  check('sources_non_sandbox_requires_dataset', sql`${table.isSandbox} = true OR ${table.datasetId} IS NOT NULL`),
 ]);
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
