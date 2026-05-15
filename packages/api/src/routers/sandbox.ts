@@ -252,6 +252,7 @@ export const sandboxRouter = router({
             source: z.string().optional(),
             api_path: z.string().optional(),
             enabled: z.boolean().optional(),
+            example_value: z.string().optional(),
           })
         ).min(1),
       })

@@ -16,6 +16,7 @@ const fieldInputSchema = z.object({
   tier: z.enum(['requested', 'discovered']).optional(),
   source: z.string().optional(),
   api_path: z.string().optional(),
+  example_value: z.string().optional(),
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
