@@ -8,8 +8,8 @@ export const orgs = pgTable('orgs', {
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull().unique(),
   description: text('description'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const orgsRelations = relations(orgs, ({ many }) => ({
@@ -33,8 +33,8 @@ export const projects = pgTable('projects', {
   defaultRateLimit: integer('default_rate_limit'),
   notificationChannel: text('notification_channel'),
   ownerEmail: varchar('owner_email', { length: 255 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('projects_org_id_idx').on(table.orgId),
   uniqueIndex('projects_org_slug_idx').on(table.orgId, table.slug),
@@ -55,8 +55,8 @@ export const datasets = pgTable('datasets', {
   slug: varchar('slug', { length: 255 }).notNull(),
   description: text('description'),
   schema: jsonb('schema'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('datasets_project_id_idx').on(table.projectId),
   uniqueIndex('datasets_project_slug_idx').on(table.projectId, table.slug),
@@ -102,8 +102,8 @@ export const sources = pgTable('sources', {
   isSandbox: boolean('is_sandbox').notNull().default(false),
   inputSetId: uuid('input_set_id').references(() => inputSets.id, { onDelete: 'set null' }),
   aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('sources_dataset_id_idx').on(table.datasetId),
   index('sources_domain_id_idx').on(table.domainId),
@@ -137,8 +137,8 @@ export const inputSets = pgTable('input_sets', {
   rows: jsonb('rows').notNull().default([]),
   // True for the hidden inline InputSet attached to a single Sandbox Source
   isInline: boolean('is_inline').notNull().default(false),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('input_sets_project_id_idx').on(table.projectId),
 ]);
@@ -156,8 +156,8 @@ export const domains = pgTable('domains', {
   prefix: varchar('prefix', { length: 10 }),
   hasGotoOverride: boolean('has_goto_override').default(false).notNull(),
   hasSetZipCodeOverride: boolean('has_set_zip_code_override').default(false).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const domainsRelations = relations(domains, ({ many }) => ({
@@ -176,8 +176,8 @@ export const extractors = pgTable('extractors', {
   variant: varchar('variant', { length: 50 }).notNull(),
   parameters: jsonb('parameters').notNull().default({}),
   isActive: boolean('is_active').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('extractors_org_id_idx').on(table.orgId),
   index('extractors_domain_id_idx').on(table.domainId),
@@ -199,7 +199,7 @@ export const extractorInputs = pgTable('extractor_inputs', {
   extractorId: uuid('extractor_id').notNull().references(() => extractors.id, { onDelete: 'cascade' }),
   label: varchar('label', { length: 255 }).notNull(),
   inputData: jsonb('input_data').notNull().default({}),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('extractor_inputs_extractor_id_idx').on(table.extractorId),
 ]);
@@ -217,8 +217,8 @@ export const credentials = pgTable('credentials', {
   username: text('username'),
   password: text('password'),
   extraFields: jsonb('extra_fields'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('credentials_extractor_id_idx').on(table.extractorId),
   uniqueIndex('credentials_extractor_env_idx').on(table.extractorId, table.environment),
@@ -242,8 +242,8 @@ export const robotOverrides = pgTable('robot_overrides', {
   hasTransform: boolean('has_transform').default(false).notNull(),
   schemas: jsonb('schemas'),
   jsOverrides: jsonb('js_overrides'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('robot_overrides_domain_id_idx').on(table.domainId),
 ]);
@@ -273,10 +273,10 @@ export const domainIntelligence = pgTable('domain_intelligence', {
   totalRuns: integer('total_runs').default(0).notNull(),
   successfulRuns: integer('successful_runs').default(0).notNull(),
   consecutiveFailures: integer('consecutive_failures').default(0).notNull(),
-  lastUsedAt: timestamp('last_used_at').defaultNow().notNull(),
-  lastVerifiedAt: timestamp('last_verified_at').defaultNow().notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }).defaultNow().notNull(),
+  lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('domain_intelligence_domain_idx').on(table.domain),
   uniqueIndex('domain_intelligence_domain_page_type_idx').on(table.domain, table.pageType),
@@ -293,7 +293,7 @@ export const captures = pgTable('captures', {
   markdown: text('markdown'),
   screenshotPath: text('screenshot_path'),
   metadata: jsonb('metadata').default({}),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('captures_source_id_idx').on(table.sourceId),
   index('captures_run_id_idx').on(table.runId),
@@ -316,7 +316,7 @@ export const extractions = pgTable('extractions', {
   rowCount: integer('row_count').default(0),
   confidence: integer('confidence'),
   validationResult: jsonb('validation_result'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('extractions_source_id_idx').on(table.sourceId),
   index('extractions_capture_id_idx').on(table.captureId),
@@ -337,15 +337,15 @@ export const runs = pgTable('runs', {
   sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'cascade' }),
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   inputLabel: varchar('input_label', { length: 255 }),
-  startedAt: timestamp('started_at'),
-  completedAt: timestamp('completed_at'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
   resultCount: integer('result_count'),
   results: jsonb('results'),
   html: text('html'),
   logs: text('logs'),
   replayData: text('replay_data'),
   errorMessage: text('error_message'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('runs_extractor_id_idx').on(table.extractorId),
   index('runs_source_id_idx').on(table.sourceId),
