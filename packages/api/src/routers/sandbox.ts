@@ -357,4 +357,34 @@ export const sandboxRouter = router({
         });
       }
     }),
+
+  /**
+   * Delete a Sandbox Source by slug.
+   * Also deletes the linked InputSet if it was created inline by sandbox.create.
+   */
+  delete: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .mutation(async ({ input }) => {
+      const source = await db.query.sources.findFirst({
+        where: and(eq(sources.slug, input.slug), eq(sources.isSandbox, true)),
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Sandbox source not found: ${input.slug}` });
+      }
+
+      const inputSetId = source.inputSetId;
+      await db.delete(sources).where(eq(sources.id, source.id));
+
+      // If the linked InputSet was inline (created by sandbox.create), delete it too.
+      if (inputSetId) {
+        const inputSet = await db.query.inputSets.findFirst({
+          where: eq(inputSets.id, inputSetId),
+        });
+        if (inputSet && inputSet.isInline) {
+          await db.delete(inputSets).where(eq(inputSets.id, inputSetId));
+        }
+      }
+
+      return { deletedSlug: input.slug };
+    }),
 });
