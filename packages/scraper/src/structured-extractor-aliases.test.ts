@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { extractFromStructuredData } from './structured-extractor.js';
 import type { StructuredData } from '@robot/browser';
 
-const emptyStructured: StructuredData = { ldJson: [], meta: {}, nextData: null };
+const emptyStructured: StructuredData = { ldJson: [], meta: {}, nextData: null, initialState: null };
 
 describe('extractFromStructuredData — description-based matching', () => {
   it('matches field by description words when name has no alias', () => {
