@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SchemaChange } from '@robot/scraper';
 
 export const maxDuration = 120;
 export const dynamic = 'force-dynamic';
@@ -347,7 +348,7 @@ export async function POST(request: NextRequest) {
     console.log(`[extract] Sources: ${JSON.stringify(sources)}`);
 
     // ─── Schema evolution detection ───────────────────────────────────
-    let schemaChanges: Array<{ type: string; fieldName: string; detail: string }> = [];
+    let schemaChanges: SchemaChange[] = [];
     if (cache && Object.keys(cache.fieldPaths).length > 0) {
       schemaChanges = detectSchemaChanges(cache.fieldPaths, fieldNames, finalData);
       if (schemaChanges.length > 0) {
