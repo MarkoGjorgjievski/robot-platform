@@ -7,6 +7,7 @@ import {
 import { Layout } from './components/layout';
 import { Placeholder } from './components/placeholder';
 
+import LandingPage from './routes/landing';
 import SandboxIndex from './routes/sandbox-index';
 import SandboxDetail from './routes/sandbox-detail';
 import ProjectHome from './routes/project-home';
@@ -30,7 +31,7 @@ const rootRoute = createRootRoute({ component: Layout });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <Placeholder title="Robot Platform" phase="Phase 2 (Sandbox)" />,
+  component: LandingPage,
 });
 
 const sandboxIndexRoute = createRoute({
