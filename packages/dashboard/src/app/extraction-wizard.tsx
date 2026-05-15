@@ -159,23 +159,6 @@ export function ExtractionWizard() {
       }]);
 
       setStep('preview');
-
-      // Auto-save extraction
-      try {
-        await fetch('/api/scraper/save-extraction', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: url.trim(),
-            extractedData: data.data ?? [],
-            fields: enabledFields.map(f => ({ name: f.name, type: f.type, description: f.description, tier: f.tier })),
-            confidence: data.confidence ?? null,
-            sources: data.sources ?? {},
-          }),
-        });
-      } catch (err) {
-        console.error('Auto-save failed (non-fatal):', err);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
