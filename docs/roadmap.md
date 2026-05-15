@@ -1,10 +1,23 @@
 ---
 name: AI Scraper product roadmap and feature backlog
-description: Prioritized roadmap — what's done, what's next, organized by release phase
+description: Two parallel tracks — pipeline (Track A) and dashboard/platform (Track B). Source of truth for what's planned.
 type: project
 ---
 
+The roadmap runs as **two parallel tracks**:
+
+- **Track A — Pipeline / Backend.** The scraper itself: capture, extraction chain, AI, cache.
+- **Track B — Platform / Dashboard.** The UI, data organization, how customers interact with the product.
+
+Tracks are decoupled but v1.5 (Track B) is the bottleneck for *seeing* any Track A work in the UI. After v1.5 lands, v2 pipeline features have a real home.
+
+Exploratory backlog items (not yet release-staged) live in `docs/ideas.md`.
+
+---
+
 ## v1.0 — Core Pipeline (DONE)
+
+Pipeline:
 - [x] Browser capture with fallback navigation (networkidle → domcontentloaded)
 - [x] Popup/consent dismissal (cookie, health consent, modals — 3 rounds)
 - [x] JSON-LD / __NEXT_DATA__ / meta tag extraction
@@ -15,7 +28,6 @@ type: project
 - [x] Data extraction with XPath executor + plausibility checks
 - [x] AI-powered API JSON analysis (Claude reads raw API, returns dot-notation paths)
 - [x] Validation via Claude vision
-- [x] Dashboard2 with wizard flow (URL → Schema → Preview → Save)
 - [x] Dual provider support (Anthropic + Ollama)
 - [x] Domain intelligence cache (multi-path per field, OR-logic, hit/miss scoring)
 - [x] Cached API path replay (dot-notation traversal, zero AI cost)
@@ -30,56 +42,135 @@ type: project
 - [x] Human override system (click-to-select + manual XPath/API path)
 - [x] Human paths saved to global cache with highest priority
 - [x] Cache-first source creation (known domains return instant, $0.00)
-- [x] Source detail page (data table, schema editor, runs history)
-- [x] Domain library page (search, filters, health status, pre-training)
-- [x] Domain detail page (fields, paths, APIs, re-validate, reset)
 - [x] Brand/TLD grouping (amazon.com → amazon.co.uk cache sharing)
 - [x] Value transforms (word-to-number, brand cleanup, whitespace collapse)
 - [x] Content-based API ranking (product key counting, penalize UI layout blobs)
 - [x] Retry with exponential backoff for transient API errors
 
-## v1.1 — Stability & Polish (NEXT)
-- [ ] Fix save flow end-to-end (test thoroughly)
+Dashboard:
+- [x] Next.js 15 wizard (URL → Schema → Preview) — local state only, no persistence
+- [x] Flat `/extractions` list grouped by domain (retired in v1.5 Phase 0)
+
+Note: earlier roadmap versions claimed Source detail page, Domain library page, and Domain detail page as v1.0 done. They existed in an older dashboard that has since been simplified into the current single-wizard app. Those pages are now targets of v1.5 (Phase 3 and Phase 5).
+
+---
+
+## Track A — Pipeline / Backend
+
+### v1.1 — Backend Stability (NEXT)
+
 - [ ] Data quality checks (prices > 0, URLs valid, no HTML in text)
-- [ ] Fix BBC-style complex listings (custom React components, low row count)
-- [ ] Click-to-select for row selector (not just field values)
 - [ ] Crop screenshots to viewport before sending to Claude (token savings)
-- [ ] Side panel / expandable sections (Amazon reseller data)
-- [ ] Per-source browser config (viewport, user agent, cookie injection) — DEFERRED: do with frontend redesign. Backend: add cookie injection to browser, config passthrough in pipeline, browserConfig JSONB column on sources. Frontend: editable on source detail page.
+- [ ] Click-to-select for row selector (not just field values) — backend support
 
-## v2 — Multi-Page & Pagination
-- [ ] User selects source type: listing / detail / listing→detail
-- [ ] AI auto-detects pagination (Next button, page numbers, infinite scroll)
-- [ ] Configurable: N pages / X items / all pages
-- [ ] Listing→Detail: follow links from listing to detail pages
-- [ ] Input sets (URL lists, category filters, search queries)
+(Removed: "Fix save flow end-to-end" — superseded by v1.5 Phase 2. "Per-source browser config" — folded into v1.5 Phase 3. "Wizard improvements" — superseded by v1.5. "Fix BBC-style complex listings" — subsumed by v2's listing→detail strategy (we'll follow links to detail pages rather than fight the listing). "Side panel / expandable sections (Amazon reseller data)" — the new data model makes reseller data its own Dataset, not a side panel of products.)
+
+### v2 — Multi-Page Pipeline
+
+- [ ] AI auto-detects pagination patterns (Next button, page numbers, infinite scroll, load-more)
+- [ ] Pagination pattern cached in `DomainIntelligence.pagination_config`
+- [ ] **Listing → Detail crawler:** follow links from listing to detail pages (absorbs BBC-style cases — instead of fighting custom React listings, fetch each detail page)
+- [ ] Honor per-Source pagination budget (max_pages / max_items / mode)
 - [ ] Progressive confidence (1 → 5 → 20 → 1000 URLs)
-- [ ] Batch extraction with progress tracking
-- [ ] crawl() method on browser
+- [ ] Batch extraction with per-input status tracking
+- [ ] `crawl()` method on `@robot/browser`
 
-## v2.1 — Click-to-Select (Manual Fallback)
+(Note: the *data model* for input sets, source type selection, and budget already landed in v1.5 Phase 0. v2 is the pipeline work that consumes that model.)
+
+### v2.1 — Click-to-Select (Manual Fallback)
+
 - [ ] Full 3-step correction flow (type value → click element → confirm path)
-- [ ] Visual element picker with XPath generation (id > data-testid > class > positional)
+- [ ] XPath generator (id > data-testid > class > positional)
 - [ ] Reverse-search (find path to desired value in API/HTML/meta)
 - [ ] Auto-generate transform rules from raw text vs desired value
 
-## v3 — Production Scale
-- [ ] Public API (POST /extract) — makes it a product
+### v3 — Production Scale (Pipeline)
+
 - [ ] Multi-LLM provider support (OpenAI GPT-4o, Gemini Flash, xAI Grok)
 - [ ] Task-based provider routing (vision→Claude, large context→Gemini, cheap→GPT-4o-mini)
 - [ ] Provider failover (429/529 → auto-switch to next provider)
-- [ ] Scheduling (cron-based re-scraping)
 - [ ] Change detection + selector health monitoring
 - [ ] Proxy pool integration (Bright Data, Oxylabs)
 - [ ] Anti-bot stealth (playwright-extra + stealth plugin)
 - [ ] CAPTCHA solving service integration
 - [ ] Multiple browser engines (Firefox, WebKit)
 - [ ] Auth flows (login before scraping)
-- [ ] Data export (CSV, JSON, API endpoint, webhooks)
-- [ ] Cost tracking per source/customer
 - [ ] Rate limiting + robots.txt compliance
 - [ ] Pre-training: bulk-run against top 500 sites
-- [ ] Multi-tenancy and auth (before external users)
 
-**Why:** Structured roadmap aligned with market analysis. v1.1 focuses on reliability. v2 adds multi-page. v3 is production infrastructure + multi-provider.
-**How to apply:** Complete v1.1 (stability) before expanding to v2 (pagination).
+---
+
+## Track B — Platform / Dashboard
+
+### v1.5 — Dashboard Redesign (IN PROGRESS)
+
+Full spec: `docs/superpowers/specs/2026-05-13-dashboard-architecture-redesign-design.md`
+Phase 0 plan: `docs/superpowers/plans/2026-05-14-dashboard-redesign-phase-0-schema-migration.md`
+
+Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by a new `packages/api-server` (Hono mounting the existing tRPC routers over HTTP). Introduces Sandbox + Graduate model, renames `collections` → `datasets`, makes `input_sets` first-class, and lays the data-model foundation for v2 pipeline features.
+
+- [x] **Phase 0 — Schema migration** (DONE — 2026-05-14, 18 commits)
+  - [x] Rename `collections` → `datasets`
+  - [x] Add `input_sets` table (typed columns + rows)
+  - [x] Extend `sources` (input_strategy, url_template, listing_mode, budget, input_set_id, is_sandbox)
+  - [x] Add project-level inherited columns (default_schedule, output_destination, proxy_pool, default_rate_limit, notification_channel, owner_email)
+  - [x] Add `run_id` FK to `captures` and `extractions`
+  - [x] Seed Sandbox Project per Org
+  - [x] Back-fill `quick_extractions` → Sandbox Sources; drop `quick_extractions`
+  - [x] Cleanup pass: constraint name fixes, CHECK on sources, consolidated migration baseline, pre-existing TS errors fixed, legacy save-extraction route removed
+- [ ] **Phase 1 — `packages/api-server` + TanStack scaffold**
+  - [ ] Drop legacy `source_inputs` table (superseded by `input_sets`)
+  - [ ] New `packages/api-server` (Hono + tRPC HTTP)
+  - [ ] Replace Next.js dashboard with TanStack Router + Query SPA (Vite)
+  - [ ] Reimplement `/api/scraper/analyze` + `/api/scraper/extract` as tRPC procedures
+  - [ ] Routing skeleton (all routes from spec Section 5)
+- [ ] **Phase 2 — Sandbox flow**
+  - [ ] Paste-and-go creates draft Source on first action
+  - [ ] Wizard mutations persist per step (new save flow — replaces the v1.0 save-extraction route)
+  - [ ] `/sandbox/{shortid}` rehydration on reload
+- [ ] **Phase 3 — Project / Dataset / Source views**
+  - [ ] Project home (by-dataset + by-domain views)
+  - [ ] Dataset detail (schema editor with per-field source classification: detail / listing / input.X / system)
+  - [ ] Source detail (the workhorse view): config, inputs, runs
+  - [ ] Per-source browser config (viewport, user agent, cookie injection) — folded in from old v1.1
+  - [ ] Run results view (replaces `/extractions`)
+  - [ ] Source bulk-create from Dataset page (multi-strategy in one action)
+- [ ] **Phase 4 — Graduate**
+  - [ ] Move-from-Sandbox-to-Project flow
+  - [ ] Inline InputSet promotion to named InputSet
+- [ ] **Phase 5 — DomainIntelligence views**
+  - [ ] Global `/domains` library
+  - [ ] Per-project `/p/{project}/domains/{domain}` fix-it view
+  - [ ] Per-domain detail (cached selectors, hit/miss stats, runs across customers)
+
+### v2 — Dashboard hooks for pipeline work
+
+- [ ] Run progress UI for batch extractions (polling-based for v1; SSE/WebSocket later)
+- [ ] Pagination preview / pre-run cost estimate
+- [ ] Per-input status grid (which inputs succeeded / failed in a run)
+- [ ] InputSet CSV import + bulk paste
+
+### v2.1 — Dashboard for click-to-select
+
+- [ ] Visual element picker UI in Source detail
+- [ ] Override → save to `DomainIntelligence` with highest priority
+
+### v3 — Production / Operations Dashboard
+
+- [ ] Scheduling UI (project-level cron + per-source overrides)
+- [ ] Cost-preview UX (deferred from v1.5)
+- [ ] Multi-tenant auth shell — surface Org level in UI; **drop legacy `extractors` / `extractor_inputs` / `credentials` / `robot_overrides` tables here** (they tie to the pre-multi-tenant extractor model and need re-modeling with proper auth)
+- [ ] Data export (CSV / JSON / webhook destinations)
+- [ ] Public API surface — comes nearly free from `packages/api-server` landing in v1.5 Phase 1
+- [ ] Cost tracking per source/customer
+
+---
+
+## Track interactions
+
+- **v1.5 Phase 0 unblocks v2 pipeline work.** Once `input_sets`, `Source.listing_mode`, and `Source.budget` exist (now done), the v2 pipeline (pagination + listing→detail) has somewhere to read its config from.
+- **v1.5 Phase 1 de-risks v3's public API.** `packages/api-server` exists as a standalone HTTP service from day one; exposing a public `/extract` endpoint in v3 is a matter of auth and rate-limiting, not infrastructure.
+- **v1.1 and v1.5 run in parallel.** v1.1 is pipeline-only; v1.5 is dashboard-only. They don't share files.
+- **v2 listing→detail subsumes the BBC fix and the Amazon reseller side-panel.** Both former v1.1 items become moot because the new strategy is "always go to the detail page when listing extraction is lossy."
+
+**How to apply:** v1.1 (backend stability) and v1.5 (dashboard redesign) progress in parallel. Within v1.5, phases are strictly sequential — Phase 0 is done; Phase 1 is next. v2 pipeline features land after v1.5 Phase 0 and gain a UI as v1.5 Phase 3+ lands.
