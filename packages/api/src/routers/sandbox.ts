@@ -1,0 +1,359 @@
+import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
+import { eq, desc, and } from 'drizzle-orm';
+import { router, publicProcedure } from '../trpc';
+import { db, sources, projects, orgs, inputSets, runs, captures, extractions } from '@robot/db';
+import { scraperRouter } from './scraper';
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+const SANDBOX_SLUG = 'sandbox';
+
+function slugifyDomain(domain: string): string {
+  return domain
+    .toLowerCase()
+    .replace(/^www\./, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function shortRandomSuffix(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
+
+async function getSandboxProjectId(): Promise<string> {
+  const allOrgs = await db.select().from(orgs).orderBy(orgs.createdAt).limit(1);
+  if (allOrgs.length === 0) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'No orgs found. Run `pnpm --filter @robot/db seed:sandbox` first.',
+    });
+  }
+  const sandbox = await db.query.projects.findFirst({
+    where: and(eq(projects.orgId, allOrgs[0].id), eq(projects.slug, SANDBOX_SLUG)),
+  });
+  if (!sandbox) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: `No Sandbox project for org ${allOrgs[0].slug}. Run seed:sandbox first.`,
+    });
+  }
+  return sandbox.id;
+}
+
+// ─── Procedures ─────────────────────────────────────────────────────────────
+
+export const sandboxRouter = router({
+  /**
+   * Create a draft Sandbox Source from a URL.
+   * Returns { slug } so the client can immediately navigate to /sandbox/{slug}.
+   */
+  create: publicProcedure
+    .input(
+      z.object({
+        url: z.string().url(),
+        requestedFields: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { url, requestedFields } = input;
+      const parsedUrl = new URL(url);
+      const domain = parsedUrl.hostname.replace(/^www\./, '');
+      const sandboxProjectId = await getSandboxProjectId();
+
+      const [createdInputSet] = await db
+        .insert(inputSets)
+        .values({
+          projectId: sandboxProjectId,
+          type: 'direct',
+          name: `inline:${url}`,
+          columns: [{ name: 'url', primary: true, type: 'string' }],
+          rows: [{ url }],
+          isInline: true,
+        })
+        .returning({ id: inputSets.id });
+
+      const pathSegment = parsedUrl.pathname && parsedUrl.pathname !== '/' ? ` ${parsedUrl.pathname}` : '';
+      const slug = `${slugifyDomain(domain)}-${shortRandomSuffix()}`;
+      const [createdSource] = await db
+        .insert(sources)
+        .values({
+          name: `${domain}${pathSegment}`,
+          slug,
+          country: 'us',
+          sourceType: 'sandbox',
+          isSandbox: true,
+          inputStrategy: 'direct',
+          urlTemplate: url,
+          listingMode: 'detail',
+          inputSetId: createdInputSet.id,
+          datasetId: null,
+          selectorsJson: requestedFields ? { requestedFields } : null,
+        })
+        .returning({ slug: sources.slug });
+
+      return { slug: createdSource.slug };
+    }),
+
+  /**
+   * List recent Sandbox Sources for the /sandbox index page.
+   */
+  list: publicProcedure.query(async () => {
+    const rows = await db
+      .select({
+        slug: sources.slug,
+        name: sources.name,
+        urlTemplate: sources.urlTemplate,
+        createdAt: sources.createdAt,
+        updatedAt: sources.updatedAt,
+      })
+      .from(sources)
+      .where(eq(sources.isSandbox, true))
+      .orderBy(desc(sources.updatedAt))
+      .limit(50);
+
+    return rows;
+  }),
+
+  /**
+   * Load full state for the wizard at /sandbox/{slug}.
+   * Returns null if the slug doesn't match a Sandbox Source.
+   */
+  get: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ input }) => {
+      const source = await db.query.sources.findFirst({
+        where: and(eq(sources.slug, input.slug), eq(sources.isSandbox, true)),
+      });
+      if (!source) return null;
+
+      const latestRun = await db
+        .select()
+        .from(runs)
+        .where(eq(runs.sourceId, source.id))
+        .orderBy(desc(runs.createdAt))
+        .limit(1)
+        .then((r) => r[0] ?? null);
+
+      const latestExtraction = latestRun
+        ? await db
+            .select()
+            .from(extractions)
+            .where(eq(extractions.runId, latestRun.id))
+            .orderBy(desc(extractions.createdAt))
+            .limit(1)
+            .then((r) => r[0] ?? null)
+        : null;
+
+      const latestCapture = latestRun
+        ? await db
+            .select()
+            .from(captures)
+            .where(eq(captures.runId, latestRun.id))
+            .orderBy(desc(captures.createdAt))
+            .limit(1)
+            .then((r) => r[0] ?? null)
+        : null;
+
+      return {
+        source: {
+          id: source.id,
+          slug: source.slug,
+          name: source.name,
+          urlTemplate: source.urlTemplate,
+          selectorsJson: source.selectorsJson,
+          isSandbox: source.isSandbox,
+          createdAt: source.createdAt,
+          updatedAt: source.updatedAt,
+        },
+        latestRun: latestRun
+          ? {
+              id: latestRun.id,
+              status: latestRun.status,
+              startedAt: latestRun.startedAt,
+              completedAt: latestRun.completedAt,
+              errorMessage: latestRun.errorMessage,
+              resultCount: latestRun.resultCount,
+            }
+          : null,
+        latestExtraction: latestExtraction
+          ? {
+              data: latestExtraction.data,
+              confidence: latestExtraction.confidence,
+              validationResult: latestExtraction.validationResult,
+            }
+          : null,
+        latestCapture: latestCapture
+          ? {
+              screenshotPath: latestCapture.screenshotPath,
+            }
+          : null,
+      };
+    }),
+
+  /**
+   * Run schema discovery on the Source's URL.
+   * Writes the resulting schema to sources.selectors_json.
+   * Idempotent: returns cached schema unless force=true.
+   */
+  analyze: publicProcedure
+    .input(z.object({ slug: z.string(), force: z.boolean().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const source = await db.query.sources.findFirst({
+        where: and(eq(sources.slug, input.slug), eq(sources.isSandbox, true)),
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Sandbox source not found: ${input.slug}` });
+      }
+      if (!source.urlTemplate) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Source has no URL' });
+      }
+
+      const existing = source.selectorsJson as { fields?: unknown[]; schema?: unknown; requestedFields?: string } | null;
+      if (!input.force && existing && Array.isArray(existing.fields) && existing.fields.length > 0) {
+        return existing;
+      }
+
+      const requestedFields = existing && typeof existing === 'object' ? existing.requestedFields : undefined;
+
+      const scraperCaller = scraperRouter.createCaller(ctx);
+      const result = await scraperCaller.analyze({ url: source.urlTemplate, requestedFields });
+
+      const schemaPayload = {
+        fields: result.schema.fields,
+        pageType: result.schema.page_type,
+        cached: result.cached,
+        cacheStats: result.cached && 'cacheStats' in result ? result.cacheStats : undefined,
+        captureId: result.captureId,
+        screenshotUrl: result.screenshotUrl,
+      };
+      await db
+        .update(sources)
+        .set({ selectorsJson: schemaPayload, updatedAt: new Date() })
+        .where(eq(sources.id, source.id));
+
+      return schemaPayload;
+    }),
+
+  /**
+   * Run extraction: save current field selection, run scraper.extract,
+   * persist Run + Capture + Extraction rows.
+   */
+  extract: publicProcedure
+    .input(
+      z.object({
+        slug: z.string(),
+        fields: z.array(
+          z.object({
+            name: z.string().min(1),
+            type: z.string().min(1),
+            description: z.string().optional(),
+            tier: z.enum(['requested', 'discovered']).optional(),
+            source: z.string().optional(),
+            api_path: z.string().optional(),
+            enabled: z.boolean().optional(),
+          })
+        ).min(1),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const source = await db.query.sources.findFirst({
+        where: and(eq(sources.slug, input.slug), eq(sources.isSandbox, true)),
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Sandbox source not found: ${input.slug}` });
+      }
+      if (!source.urlTemplate) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Source has no URL' });
+      }
+
+      const existing = (source.selectorsJson as {
+        pageType?: string;
+        screenshotUrl?: string;
+      } | null) ?? null;
+      const updatedSchema = { ...(existing ?? {}), fields: input.fields };
+      await db
+        .update(sources)
+        .set({ selectorsJson: updatedSchema, updatedAt: new Date() })
+        .where(eq(sources.id, source.id));
+
+      const [run] = await db
+        .insert(runs)
+        .values({
+          sourceId: source.id,
+          status: 'running',
+          startedAt: new Date(),
+          inputLabel: source.urlTemplate.slice(0, 200),
+        })
+        .returning({ id: runs.id });
+
+      try {
+        const enabledFields = input.fields.filter((f) => f.enabled !== false);
+
+        const scraperCaller = scraperRouter.createCaller(ctx);
+        const result = await scraperCaller.extract({
+          url: source.urlTemplate,
+          fields: enabledFields,
+          pageType: (existing?.pageType === 'listing' ? 'listing' : 'detail') as 'listing' | 'detail',
+        });
+
+        const screenshotPath = existing && typeof existing === 'object' && existing.screenshotUrl
+          ? existing.screenshotUrl
+          : null;
+
+        const [capture] = await db
+          .insert(captures)
+          .values({
+            sourceId: source.id,
+            runId: run.id,
+            url: source.urlTemplate,
+            html: null,
+            markdown: null,
+            screenshotPath,
+            metadata: {},
+          })
+          .returning({ id: captures.id });
+
+        await db.insert(extractions).values({
+          sourceId: source.id,
+          captureId: capture.id,
+          runId: run.id,
+          data: result.data,
+          rowCount: Array.isArray(result.data) ? result.data.length : 0,
+          confidence: Math.round((result.confidence ?? 0) * 100),
+          validationResult: result.qualityIssues ?? null,
+        });
+
+        await db
+          .update(runs)
+          .set({
+            status: 'completed',
+            completedAt: new Date(),
+            resultCount: Array.isArray(result.data) ? result.data.length : 0,
+          })
+          .where(eq(runs.id, run.id));
+
+        await db
+          .update(sources)
+          .set({ updatedAt: new Date() })
+          .where(eq(sources.id, source.id));
+
+        return { runId: run.id, ...result };
+      } catch (err) {
+        await db
+          .update(runs)
+          .set({
+            status: 'failed',
+            completedAt: new Date(),
+            errorMessage: err instanceof Error ? err.message : 'Extraction failed',
+          })
+          .where(eq(runs.id, run.id));
+
+        if (err instanceof TRPCError) throw err;
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: err instanceof Error ? err.message : 'Extraction failed',
+        });
+      }
+    }),
+});
