@@ -117,26 +117,9 @@ export const sourcesRelations = relations(sources, ({ one, many }) => ({
   dataset: one(datasets, { fields: [sources.datasetId], references: [datasets.id] }),
   domain: one(domains, { fields: [sources.domainId], references: [domains.id] }),
   runs: many(runs),
-  inputs: many(sourceInputs),
   captures: many(captures),
   extractions: many(extractions),
   inputSet: one(inputSets, { fields: [sources.inputSetId], references: [inputSets.id] }),
-}));
-
-// ─── Source Inputs ────────────────────────────────────────────────────────────
-
-export const sourceInputs = pgTable('source_inputs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
-  label: varchar('label', { length: 255 }).notNull(),
-  inputData: jsonb('input_data').notNull().default({}),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (table) => [
-  index('source_inputs_source_id_idx').on(table.sourceId),
-]);
-
-export const sourceInputsRelations = relations(sourceInputs, ({ one }) => ({
-  source: one(sources, { fields: [sourceInputs.sourceId], references: [sources.id] }),
 }));
 
 // ─── Input Sets ──────────────────────────────────────────────────────────────
