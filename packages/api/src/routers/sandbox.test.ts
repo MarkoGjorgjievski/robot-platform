@@ -96,6 +96,27 @@ describe('sandboxRouter', () => {
     });
   });
 
+  describe('delete input validation', () => {
+    it('rejects missing slug', async () => {
+      try {
+        await caller.sandbox.delete({} as never);
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('throws NOT_FOUND for unknown slug', async () => {
+      try {
+        await caller.sandbox.delete({ slug: 'does-not-exist-zzzzzz' });
+        throw new Error('should have thrown');
+      } catch (err) {
+        if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);
+        if (err.code !== 'NOT_FOUND') throw new Error(`expected NOT_FOUND, got ${err.code}`);
+      }
+    });
+  });
+
   describe('appRouter shape', () => {
     it('exposes all sandbox procedures', () => {
       expect(typeof caller.sandbox.create).toBe('function');
@@ -103,6 +124,7 @@ describe('sandboxRouter', () => {
       expect(typeof caller.sandbox.get).toBe('function');
       expect(typeof caller.sandbox.analyze).toBe('function');
       expect(typeof caller.sandbox.extract).toBe('function');
+      expect(typeof caller.sandbox.delete).toBe('function');
     });
   });
 });
