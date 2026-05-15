@@ -5,64 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1772690970807,
-      "tag": "0000_tan_retro_girl",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1746528000000,
-      "tag": "0001_add_quick_extractions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1778716800000,
-      "tag": "0002_rename_collections_to_datasets",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1778803200000,
-      "tag": "0003_create_input_sets",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1778889600000,
-      "tag": "0004_extend_sources",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1778976000000,
-      "tag": "0005_extend_projects",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1779062400000,
-      "tag": "0006_add_run_id_to_artifacts",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1779148800000,
-      "tag": "0007_relax_sources_dataset_id_nullable",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1779235200000,
-      "tag": "0008_drop_quick_extractions",
+      "when": 1778811208683,
+      "tag": "0000_phase_0_baseline",
       "breakpoints": true
     }
   ]

@@ -1,1 +1,0 @@
-ALTER TABLE "sources" ALTER COLUMN "dataset_id" DROP NOT NULL;
