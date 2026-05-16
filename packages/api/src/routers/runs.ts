@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { eq, desc } from 'drizzle-orm';
-import { runs } from '@robot/db';
+import { runs, captures, extractions } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
 export const runsRouter = router({
@@ -39,6 +39,67 @@ export const runsRouter = router({
       }
 
       return run;
+    }),
+
+  getWithDetails: publicProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.id),
+        with: {
+          source: {
+            columns: { id: true, slug: true, name: true, urlTemplate: true, datasetId: true, selectorsJson: true },
+            with: {
+              dataset: {
+                columns: { id: true, slug: true, name: true, projectId: true },
+                with: {
+                  project: {
+                    columns: { id: true, slug: true, name: true, orgId: true },
+                    with: { org: { columns: { id: true, slug: true, name: true } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!run) return null;
+
+      const [latestCapture, latestExtraction] = await Promise.all([
+        ctx.db.query.captures.findFirst({
+          where: eq(captures.runId, input.id),
+          orderBy: [desc(captures.createdAt)],
+        }),
+        ctx.db.query.extractions.findFirst({
+          where: eq(extractions.runId, input.id),
+          orderBy: [desc(extractions.createdAt)],
+        }),
+      ]);
+
+      return {
+        run: {
+          id: run.id,
+          status: run.status,
+          startedAt: run.startedAt,
+          completedAt: run.completedAt,
+          resultCount: run.resultCount,
+          errorMessage: run.errorMessage,
+          inputLabel: run.inputLabel,
+          createdAt: run.createdAt,
+        },
+        source: run.source,
+        capture: latestCapture ? {
+          id: latestCapture.id,
+          url: latestCapture.url,
+          screenshotPath: latestCapture.screenshotPath,
+        } : null,
+        extraction: latestExtraction ? {
+          data: latestExtraction.data,
+          confidence: latestExtraction.confidence,
+          rowCount: latestExtraction.rowCount,
+          validationResult: latestExtraction.validationResult,
+        } : null,
+      };
     }),
 
   listBySource: publicProcedure

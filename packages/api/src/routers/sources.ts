@@ -109,6 +109,41 @@ export const sourcesRouter = router({
       };
     }),
 
+  listByProject: publicProcedure
+    .input(z.object({ orgSlug: z.string(), projectSlug: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const results = await ctx.db
+        .select({
+          id: sources.id,
+          slug: sources.slug,
+          name: sources.name,
+          datasetId: sources.datasetId,
+          datasetSlug: datasets.slug,
+          datasetName: datasets.name,
+          domainName: domains.name,
+          urlTemplate: sources.urlTemplate,
+          inputStrategy: sources.inputStrategy,
+          listingMode: sources.listingMode,
+          isActive: sources.isActive,
+          isSandbox: sources.isSandbox,
+          createdAt: sources.createdAt,
+          updatedAt: sources.updatedAt,
+        })
+        .from(sources)
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
+        .innerJoin(orgs, eq(projects.orgId, orgs.id))
+        .leftJoin(domains, eq(sources.domainId, domains.id))
+        .where(and(
+          eq(orgs.slug, input.orgSlug),
+          eq(projects.slug, input.projectSlug),
+          eq(sources.isSandbox, false),
+        ))
+        .orderBy(sources.name);
+
+      return results;
+    }),
+
   create: publicProcedure
     .input(
       z.object({
