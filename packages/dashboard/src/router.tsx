@@ -8,6 +8,7 @@ import { Layout } from './components/layout';
 import { Placeholder } from './components/placeholder';
 
 import LandingPage from './routes/landing';
+import ProjectsList from './routes/projects-list';
 import SandboxIndex from './routes/sandbox-index';
 import SandboxDetail from './routes/sandbox-detail';
 import ProjectHome from './routes/project-home';
@@ -32,6 +33,12 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: LandingPage,
+});
+
+const projectsListRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/projects',
+  component: ProjectsList,
 });
 
 const sandboxIndexRoute = createRoute({
@@ -138,6 +145,7 @@ const domainDetailRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  projectsListRoute,
   sandboxIndexRoute,
   sandboxDetailRoute,
   projectHomeRoute,
