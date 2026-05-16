@@ -6,6 +6,7 @@ export function Layout() {
       <header className="flex items-center justify-between border-b px-6 py-3 text-sm">
         <Link to="/" className="font-semibold">Robot Platform</Link>
         <nav className="flex gap-4 text-gray-600">
+          <Link to="/projects" className="hover:text-gray-900">Projects</Link>
           <Link to="/sandbox" className="hover:text-gray-900">Sandbox</Link>
           <Link to="/domains" className="hover:text-gray-900">Domains</Link>
         </nav>
