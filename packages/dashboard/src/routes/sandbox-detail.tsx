@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
-import { API_URL } from '../lib/api-url';
+import { screenshotUrl } from '../lib/screenshot-url';
 import { ResultsTable } from '../components/results-table';
 
 type SchemaField = {
@@ -270,7 +270,7 @@ function SchemaEditor({
       {screenshotPath && (
         <div>
           <img
-            src={screenshotPath.startsWith('http') ? screenshotPath : `${API_URL}${screenshotPath}`}
+            src={screenshotUrl(screenshotPath) ?? ''}
             alt="Page screenshot"
             className="w-full rounded border"
           />
