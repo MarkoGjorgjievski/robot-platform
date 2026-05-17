@@ -144,6 +144,7 @@ export default function SandboxDetail() {
           data={Array.isArray(latestExtraction.data) ? (latestExtraction.data as Record<string, unknown>[]) : []}
           confidence={latestExtraction.confidence}
           fields={fields}
+          headerVariant="celebrate"
         />
       )}
     </div>
