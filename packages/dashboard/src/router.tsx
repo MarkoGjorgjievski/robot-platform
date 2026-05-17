@@ -20,6 +20,7 @@ import ProjectDomainsList from './routes/project-domains-list';
 import ProjectDomainDetail from './routes/project-domain-detail';
 import SourcesList from './routes/sources-list';
 import SourceDetail from './routes/source-detail';
+import SourceOverview from './routes/source-overview';
 import SourceConfig from './routes/source-config';
 import SourceInputs from './routes/source-inputs';
 import SourceRuns from './routes/source-runs';
@@ -101,30 +102,37 @@ const sourcesListRoute = createRoute({
   component: SourcesList,
 });
 
-const sourceDetailRoute = createRoute({
+const sourceDetailLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/p/$project/sources/$source',
   component: SourceDetail,
 });
 
+const sourceOverviewRoute = createRoute({
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: '/',
+  component: SourceOverview,
+});
+
 const sourceConfigRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/sources/$source/config',
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: 'config',
   component: SourceConfig,
 });
 
 const sourceInputsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/sources/$source/inputs',
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: 'inputs',
   component: SourceInputs,
 });
 
 const sourceRunsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/sources/$source/runs',
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: 'runs',
   component: SourceRuns,
 });
 
+// Run detail stays at root level — own breadcrumbs, no SubTabNav
 const sourceRunDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/p/$project/sources/$source/runs/$run',
@@ -156,10 +164,12 @@ const routeTree = rootRoute.addChildren([
   projectDomainsListRoute,
   projectDomainDetailRoute,
   sourcesListRoute,
-  sourceDetailRoute,
-  sourceConfigRoute,
-  sourceInputsRoute,
-  sourceRunsRoute,
+  sourceDetailLayoutRoute.addChildren([
+    sourceOverviewRoute,
+    sourceConfigRoute,
+    sourceInputsRoute,
+    sourceRunsRoute,
+  ]),
   sourceRunDetailRoute,
   domainsListRoute,
   domainDetailRoute,

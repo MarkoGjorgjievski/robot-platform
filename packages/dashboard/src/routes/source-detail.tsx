@@ -1,11 +1,11 @@
-import { useParams, Link } from '@tanstack/react-router';
+import { useParams, Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { Layers, ExternalLink } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SubTabNav } from '../components/sub-tab-nav';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
-export default function SourceDetail() {
+export default function SourceDetailLayout() {
   const { project: projectSlug, source: sourceSlug } = useParams({
     from: '/p/$project/sources/$source',
   });
@@ -17,6 +17,20 @@ export default function SourceDetail() {
     orgSlug: DEFAULT_ORG_SLUG,
     projectSlug,
   });
+
+  // Determine active tab from URL pathname
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const sourceBasePath = `/p/${projectSlug}/sources/${sourceSlug}`;
+  let activeTo = '/p/$project/sources/$source/';
+  if (pathname === sourceBasePath || pathname === `${sourceBasePath}/`) {
+    activeTo = '/p/$project/sources/$source/';
+  } else if (pathname.startsWith(`${sourceBasePath}/config`)) {
+    activeTo = '/p/$project/sources/$source/config';
+  } else if (pathname.startsWith(`${sourceBasePath}/inputs`)) {
+    activeTo = '/p/$project/sources/$source/inputs';
+  } else if (pathname.startsWith(`${sourceBasePath}/runs`)) {
+    activeTo = '/p/$project/sources/$source/runs';
+  }
 
   if (listQuery.isLoading) return <Spinner label="Loading source..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
@@ -60,32 +74,16 @@ export default function SourceDetail() {
       </div>
 
       <SubTabNav
-        activeTo="/p/$project/sources/$source"
+        activeTo={activeTo}
         tabs={[
-          { label: 'Overview', to: '/p/$project/sources/$source', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Overview', to: '/p/$project/sources/$source/', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Config', to: '/p/$project/sources/$source/config', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Inputs', to: '/p/$project/sources/$source/inputs', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Runs', to: '/p/$project/sources/$source/runs', params: { project: projectSlug, source: sourceSlug } },
         ]}
       />
 
-      <div className="mt-6 grid grid-cols-2 gap-4 text-sm md:grid-cols-3">
-        <Stat label="Dataset" value={source.datasetName ?? '—'} />
-        <Stat label="Strategy" value={source.inputStrategy ?? '—'} />
-        <Stat label="Mode" value={source.listingMode ?? '—'} />
-        <Stat label="Domain" value={source.domainName ?? '—'} />
-        <Stat label="Active" value={source.isActive ? 'yes' : 'no'} />
-        <Stat label="Created" value={new Date(source.createdAt).toLocaleDateString()} />
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="font-medium">{value}</div>
+      <Outlet />
     </div>
   );
 }
