@@ -3,6 +3,8 @@ import { Folder, Database, Layers, Activity, Globe } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
+import { formatDate } from '../lib/format';
+import { RunStatusDot } from '../components/run-status-dot';
 
 export default function ProjectHome() {
   const { project: projectSlug } = useParams({ from: '/p/$project' });
@@ -86,25 +88,4 @@ function StatCard({
     return <Link to={link.to as never} params={link.params as never}>{content}</Link>;
   }
   return content;
-}
-
-function RunStatusDot({ status }: { status: string }) {
-  const color = status === 'completed' ? 'bg-emerald-500'
-    : status === 'failed' ? 'bg-red-500'
-    : status === 'running' ? 'bg-amber-500 animate-pulse'
-    : 'bg-gray-400';
-  return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
-}
-
-function formatDate(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const m = Math.floor(diffMs / 60_000);
-  const h = Math.floor(diffMs / 3_600_000);
-  const d = Math.floor(diffMs / 86_400_000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  if (h < 24) return `${h}h ago`;
-  if (d < 7) return `${d}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
