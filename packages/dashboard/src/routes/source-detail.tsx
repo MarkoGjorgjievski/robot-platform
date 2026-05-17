@@ -3,8 +3,7 @@ import { Layers, ExternalLink } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SubTabNav } from '../components/sub-tab-nav';
-
-const DEFAULT_ORG_SLUG = 'default';
+import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourceDetail() {
   const { project: projectSlug, source: sourceSlug } = useParams({

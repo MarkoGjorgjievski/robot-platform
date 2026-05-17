@@ -1,8 +1,7 @@
 import { useParams } from '@tanstack/react-router';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
-
-const DEFAULT_ORG_SLUG = 'default';
+import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourceConfig() {
   const { project: projectSlug, source: sourceSlug } = useParams({

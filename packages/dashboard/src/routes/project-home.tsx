@@ -2,8 +2,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Folder, Database, Layers, Activity, Globe } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
-
-const DEFAULT_ORG_SLUG = 'default';
+import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function ProjectHome() {
   const { project: projectSlug } = useParams({ from: '/p/$project' });
