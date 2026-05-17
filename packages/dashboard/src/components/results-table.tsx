@@ -1,3 +1,5 @@
+import { CheckCircle2 } from 'lucide-react';
+
 type SchemaField = {
   name: string;
   type: string;
@@ -13,16 +15,25 @@ export function ResultsTable({
   data,
   confidence,
   fields,
+  headerVariant = 'neutral',
 }: {
   data: Record<string, unknown>[];
   confidence: number | null;
   fields: SchemaField[];
+  headerVariant?: 'neutral' | 'celebrate';
 }) {
   const fieldNames = fields.filter((f) => f.enabled !== false).map((f) => f.name);
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-center gap-3 text-sm">
-        <span className="font-medium">Extraction results</span>
+        {headerVariant === 'celebrate' ? (
+          <>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <span className="font-medium">Extraction complete</span>
+          </>
+        ) : (
+          <span className="font-medium">Extraction results</span>
+        )}
         {confidence != null && (
           <span className="text-xs text-gray-600">Confidence: {confidence}%</span>
         )}
