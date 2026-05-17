@@ -2,8 +2,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Globe, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState } from '../components/page-states';
-
-const DEFAULT_ORG_SLUG = 'default';
+import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function ProjectDomainsList() {
   const { project: projectSlug } = useParams({ from: '/p/$project/domains' });
