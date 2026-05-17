@@ -3,6 +3,8 @@ import { Activity, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
+import { formatDate } from '../lib/format';
+import { RunStatusDot } from '../components/run-status-dot';
 
 export default function SourceRuns() {
   const { project: projectSlug, source: sourceSlug } = useParams({
@@ -68,24 +70,4 @@ export default function SourceRuns() {
       )}
     </div>
   );
-}
-
-function RunStatusDot({ status }: { status: string }) {
-  const color = status === 'completed' ? 'bg-emerald-500'
-    : status === 'failed' ? 'bg-red-500'
-    : status === 'running' ? 'bg-amber-500 animate-pulse'
-    : 'bg-gray-400';
-  return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
-}
-
-function formatDate(date: Date): string {
-  const now = new Date();
-  const m = Math.floor((now.getTime() - date.getTime()) / 60_000);
-  const h = Math.floor(m / 60);
-  const d = Math.floor(h / 24);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  if (h < 24) return `${h}h ago`;
-  if (d < 7) return `${d}d ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
