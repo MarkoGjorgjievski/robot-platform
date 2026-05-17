@@ -1,7 +1,7 @@
 import { useParams, Link } from '@tanstack/react-router';
 import { Activity, ExternalLink } from 'lucide-react';
 import { trpc } from '../lib/trpc';
-import { API_URL } from '../lib/api-url';
+import { screenshotUrl } from '../lib/screenshot-url';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -63,7 +63,7 @@ export default function SourceRunDetail() {
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-700">Capture screenshot</h2>
           <img
-            src={capture.screenshotPath.startsWith('http') ? capture.screenshotPath : `${API_URL}${capture.screenshotPath}`}
+            src={screenshotUrl(capture.screenshotPath) ?? ''}
             alt="Captured page"
             className="mt-2 w-full max-w-md rounded border"
           />
