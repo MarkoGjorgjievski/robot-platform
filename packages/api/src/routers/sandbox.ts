@@ -562,6 +562,7 @@ export const sandboxRouter = router({
             .set({
               isInline: false,
               name: input.promoteInputSet.name,
+              projectId: projectId,
               updatedAt: new Date(),
             })
             .where(eq(inputSets.id, sandboxSource.inputSetId));
