@@ -469,6 +469,13 @@ export const sandboxRouter = router({
           projectId = existing.id;
           projectSlug = existing.slug;
         } else {
+          // Reject reserved slug
+          if (input.project.newSlug === 'sandbox') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Cannot use "sandbox" as a project slug',
+            });
+          }
           // Check slug collision
           const collision = await tx.query.projects.findFirst({
             where: and(eq(projects.orgId, orgId), eq(projects.slug, input.project.newSlug)),
@@ -477,12 +484,6 @@ export const sandboxRouter = router({
             throw new TRPCError({
               code: 'CONFLICT',
               message: `Project slug "${input.project.newSlug}" already exists in this org`,
-            });
-          }
-          if (input.project.newSlug === 'sandbox') {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'Cannot use "sandbox" as a project slug',
             });
           }
           const [created] = await tx
