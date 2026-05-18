@@ -125,6 +125,70 @@ describe('sandboxRouter', () => {
       expect(typeof caller.sandbox.analyze).toBe('function');
       expect(typeof caller.sandbox.extract).toBe('function');
       expect(typeof caller.sandbox.delete).toBe('function');
+      expect(typeof caller.sandbox.graduate).toBe('function');
+    });
+  });
+
+  describe('graduate input validation', () => {
+    it('rejects missing slug', async () => {
+      try {
+        await caller.sandbox.graduate({} as never);
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('rejects missing project', async () => {
+      try {
+        await caller.sandbox.graduate({ slug: 'foo' } as never);
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('rejects new project without name', async () => {
+      try {
+        await caller.sandbox.graduate({
+          slug: 'foo',
+          project: { mode: 'new', newSlug: 'p' } as never,
+          dataset: { mode: 'new', newName: 'D', newSlug: 'd' },
+          source: { name: 'S', slug: 's' },
+        });
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('rejects existing project without existingSlug', async () => {
+      try {
+        await caller.sandbox.graduate({
+          slug: 'foo',
+          project: { mode: 'existing' } as never,
+          dataset: { mode: 'new', newName: 'D', newSlug: 'd' },
+          source: { name: 'S', slug: 's' },
+        });
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('throws NOT_FOUND for unknown sandbox slug', async () => {
+      try {
+        await caller.sandbox.graduate({
+          slug: 'does-not-exist-zzzzz',
+          project: { mode: 'new', newName: 'Acme', newSlug: 'acme' },
+          dataset: { mode: 'new', newName: 'Products', newSlug: 'products' },
+          source: { name: 'Amazon', slug: 'amazon' },
+        });
+        throw new Error('should have thrown');
+      } catch (err) {
+        if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);
+        if (err.code !== 'NOT_FOUND') throw new Error(`expected NOT_FOUND, got ${err.code}`);
+      }
     });
   });
 });

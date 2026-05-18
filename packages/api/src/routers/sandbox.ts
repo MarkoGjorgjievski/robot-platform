@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, desc, and } from 'drizzle-orm';
 import { router, publicProcedure } from '../trpc';
-import { db, sources, projects, orgs, inputSets, runs, captures, extractions } from '@robot/db';
+import { db, sources, projects, orgs, datasets, inputSets, runs, captures, extractions } from '@robot/db';
 import { scraperRouter } from './scraper';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -386,5 +386,188 @@ export const sandboxRouter = router({
       }
 
       return { deletedSlug: input.slug };
+    }),
+
+  /**
+   * Graduate a Sandbox Source: move it from the Sandbox project into a real
+   * Project + Dataset, optionally promoting its inline InputSet to a named one.
+   * All operations occur inside a single Drizzle transaction.
+   */
+  graduate: publicProcedure
+    .input(
+      z.object({
+        slug: z.string().min(1),
+        project: z.discriminatedUnion('mode', [
+          z.object({ mode: z.literal('existing'), existingSlug: z.string().min(1) }),
+          z.object({
+            mode: z.literal('new'),
+            newName: z.string().min(1).max(255),
+            newSlug: z.string().min(1).max(255).regex(/^[a-z0-9-]+$/, 'slug must be lowercase alphanumeric with hyphens'),
+          }),
+        ]),
+        dataset: z.discriminatedUnion('mode', [
+          z.object({ mode: z.literal('existing'), existingSlug: z.string().min(1) }),
+          z.object({
+            mode: z.literal('new'),
+            newName: z.string().min(1).max(255),
+            newSlug: z.string().min(1).max(255).regex(/^[a-z0-9-]+$/),
+          }),
+        ]),
+        source: z.object({
+          name: z.string().min(1).max(255),
+          slug: z.string().min(1).max(255).regex(/^[a-z0-9-]+$/),
+        }),
+        promoteInputSet: z
+          .object({
+            name: z.string().min(1).max(255),
+          })
+          .optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const sandboxSource = await db.query.sources.findFirst({
+        where: and(eq(sources.slug, input.slug), eq(sources.isSandbox, true)),
+      });
+      if (!sandboxSource) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Sandbox source not found: ${input.slug}` });
+      }
+
+      // Pick the default org for graduation
+      const orgRow = await db.select().from(orgs).orderBy(orgs.createdAt).limit(1);
+      if (orgRow.length === 0) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No orgs found' });
+      }
+      const orgId = orgRow[0].id;
+
+      // Schema for the new dataset (if needed) — auto-derive from sandbox source's fields
+      const sandboxSchema = (sandboxSource.selectorsJson as { fields?: Array<Record<string, unknown>> } | null) ?? null;
+      const derivedDatasetSchema = (sandboxSchema?.fields ?? []).map((f) => ({
+        ...f,
+        source: (f as { source?: string }).source ?? 'detail',
+      }));
+
+      return await db.transaction(async (tx) => {
+        // Step 1: resolve Project
+        let projectId: string;
+        let projectSlug: string;
+        if (input.project.mode === 'existing') {
+          const existing = await tx.query.projects.findFirst({
+            where: and(eq(projects.orgId, orgId), eq(projects.slug, input.project.existingSlug)),
+          });
+          if (!existing) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: `Project not found: ${input.project.existingSlug}`,
+            });
+          }
+          if (existing.slug === 'sandbox') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Cannot graduate into the Sandbox project',
+            });
+          }
+          projectId = existing.id;
+          projectSlug = existing.slug;
+        } else {
+          // Check slug collision
+          const collision = await tx.query.projects.findFirst({
+            where: and(eq(projects.orgId, orgId), eq(projects.slug, input.project.newSlug)),
+          });
+          if (collision) {
+            throw new TRPCError({
+              code: 'CONFLICT',
+              message: `Project slug "${input.project.newSlug}" already exists in this org`,
+            });
+          }
+          if (input.project.newSlug === 'sandbox') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Cannot use "sandbox" as a project slug',
+            });
+          }
+          const [created] = await tx
+            .insert(projects)
+            .values({
+              orgId,
+              name: input.project.newName,
+              slug: input.project.newSlug,
+            })
+            .returning({ id: projects.id, slug: projects.slug });
+          projectId = created.id;
+          projectSlug = created.slug;
+        }
+
+        // Step 2: resolve Dataset
+        let datasetId: string;
+        if (input.dataset.mode === 'existing') {
+          const existing = await tx.query.datasets.findFirst({
+            where: and(eq(datasets.projectId, projectId), eq(datasets.slug, input.dataset.existingSlug)),
+          });
+          if (!existing) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: `Dataset not found in project: ${input.dataset.existingSlug}`,
+            });
+          }
+          datasetId = existing.id;
+        } else {
+          const collision = await tx.query.datasets.findFirst({
+            where: and(eq(datasets.projectId, projectId), eq(datasets.slug, input.dataset.newSlug)),
+          });
+          if (collision) {
+            throw new TRPCError({
+              code: 'CONFLICT',
+              message: `Dataset slug "${input.dataset.newSlug}" already exists in this project`,
+            });
+          }
+          const [created] = await tx
+            .insert(datasets)
+            .values({
+              projectId,
+              name: input.dataset.newName,
+              slug: input.dataset.newSlug,
+              schema: derivedDatasetSchema,
+            })
+            .returning({ id: datasets.id });
+          datasetId = created.id;
+        }
+
+        // Step 3: validate source slug doesn't collide within the new dataset
+        const sourceCollision = await tx.query.sources.findFirst({
+          where: and(eq(sources.datasetId, datasetId), eq(sources.slug, input.source.slug)),
+        });
+        if (sourceCollision) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: `Source slug "${input.source.slug}" already exists in this dataset`,
+          });
+        }
+
+        // Step 4: update the Source
+        await tx
+          .update(sources)
+          .set({
+            isSandbox: false,
+            datasetId,
+            name: input.source.name,
+            slug: input.source.slug,
+            updatedAt: new Date(),
+          })
+          .where(eq(sources.id, sandboxSource.id));
+
+        // Step 5: optionally promote the inline InputSet
+        if (input.promoteInputSet && sandboxSource.inputSetId) {
+          await tx
+            .update(inputSets)
+            .set({
+              isInline: false,
+              name: input.promoteInputSet.name,
+              updatedAt: new Date(),
+            })
+            .where(eq(inputSets.id, sandboxSource.inputSetId));
+        }
+
+        return { projectSlug, sourceSlug: input.source.slug };
+      });
     }),
 });
