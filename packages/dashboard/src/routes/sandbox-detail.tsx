@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from '@tanstack/react-router';
-import { Loader2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowRight, ArrowUpCircle } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { ResultsTable } from '../components/results-table';
+import { GraduateForm } from '../components/graduate-form';
 
 type SchemaField = {
   name: string;
@@ -20,6 +21,7 @@ export default function SandboxDetail() {
   const { shortid: slug } = useParams({ from: '/sandbox/$shortid' });
   const utils = trpc.useUtils();
   const [error, setError] = useState<string | null>(null);
+  const [graduateExpanded, setGraduateExpanded] = useState(false);
 
   // Load source state. Refetches on mutation success via invalidation.
   const sourceQuery = trpc.sandbox.get.useQuery({ slug });
@@ -117,18 +119,36 @@ export default function SandboxDetail() {
           <span className="text-xs text-gray-600">
             {fields.filter((f) => f.enabled !== false).length} of {fields.length} fields selected
           </span>
-          <button
-            onClick={() => {
-              setError(null);
-              extractMutation.mutate({ slug, fields });
-            }}
-            disabled={extractMutation.isPending || fields.filter((f) => f.enabled !== false).length === 0}
-            className="flex h-9 items-center gap-2 rounded-md bg-gray-900 px-4 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {extractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            {latestRun ? 'Re-extract' : 'Extract'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setGraduateExpanded(true)}
+              disabled={graduateExpanded || extractMutation.isPending}
+              className="flex h-9 items-center gap-2 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <ArrowUpCircle className="h-4 w-4" />
+              Graduate
+            </button>
+            <button
+              onClick={() => {
+                setError(null);
+                extractMutation.mutate({ slug, fields });
+              }}
+              disabled={extractMutation.isPending || fields.filter((f) => f.enabled !== false).length === 0}
+              className="flex h-9 items-center gap-2 rounded-md bg-gray-900 px-4 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {extractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              {latestRun ? 'Re-extract' : 'Extract'}
+            </button>
+          </div>
         </div>
+      )}
+
+      {graduateExpanded && (
+        <GraduateForm
+          sandboxSlug={slug}
+          defaultSourceName={source.name}
+          onCancel={() => setGraduateExpanded(false)}
+        />
       )}
 
       {extractMutation.isPending && (
