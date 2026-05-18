@@ -40,6 +40,14 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
 
   const [error, setError] = useState<string | null>(null);
 
+  // Reset dataset selection when project mode flips to 'new' (existing dataset no longer applies)
+  useEffect(() => {
+    if (projectMode === 'new') {
+      setDatasetMode('new');
+      setExistingDatasetSlug('');
+    }
+  }, [projectMode]);
+
   // Auto-derive slug from name unless user has touched the slug field
   useEffect(() => {
     if (!newProjectSlugTouched) setNewProjectSlug(slugify(newProjectName));
