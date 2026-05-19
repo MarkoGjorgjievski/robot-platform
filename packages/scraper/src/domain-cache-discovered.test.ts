@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
-import { saveDomainCache, lookupDomainCache } from './domain-cache.js';
+import { saveDomainCache, lookupDomainCache, resolveFromCache } from './domain-cache.js';
 
 const DOMAIN = 'test-domain-completeness.example';
 const PAGE_TYPE = 'detail';
@@ -61,5 +61,28 @@ describe('saveDomainCache — discovered-but-unresolved fields', () => {
     const cache = await lookupDomainCache(DOMAIN, PAGE_TYPE);
     expect(cache!.fieldPaths['sizes']).toBeDefined();
     expect(cache!.fieldPaths['sizes'].paths).toEqual([]);
+  });
+});
+
+describe('resolveFromCache — empty-path entries are skipped', () => {
+  it('does not resolve empty-path entries — caller treats them as missing', () => {
+    const fieldPaths = {
+      sizes: { paths: [], conflictCount: 0 },
+      title: {
+        paths: [{
+          path: '$.name',
+          source: 'json-ld' as const,
+          confidence: 0.9,
+          hits: 5,
+          misses: 0,
+          lastValue: 'X',
+          lastUsedAt: new Date().toISOString(),
+        }],
+        conflictCount: 0,
+      },
+    };
+    const result = resolveFromCache(fieldPaths, { name: 'X', title: 'X' }, ['sizes', 'title']);
+    expect(result.resolved['sizes']).toBeUndefined();
+    expect(result.resolved['title']).toBeDefined();
   });
 });
