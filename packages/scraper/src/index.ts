@@ -8,3 +8,4 @@ export { detectSchemaChanges, formatSchemaChanges, type SchemaChange } from './s
 export { validateExtractedData, type QualityIssue, type QualityResult } from './data-quality.js';
 export { calculateFieldCoverage, getMissingFields } from './field-coverage.js';
 export { normalizeUserFields } from './field-normalizer.js';
+export { findEntitySubtree, type EntitySubtree } from './entity-subtree.js';
