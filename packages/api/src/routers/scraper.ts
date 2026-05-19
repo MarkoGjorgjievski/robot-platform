@@ -467,6 +467,7 @@ export const scraperRouter = router({
             pageType: resolvedPageType,
             interceptedRequests: capture.interceptedRequests,
             fieldResults,
+            discoveredFieldNames: schemaFields.map(f => f.name),
             overallConfidence: confidence,
             hasJsonLd: capture.structuredData.ldJson.length > 0,
             hasNextData: capture.structuredData.nextData !== null,
