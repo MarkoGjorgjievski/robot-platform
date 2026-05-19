@@ -136,27 +136,27 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
   - [x] Seed Sandbox Project per Org
   - [x] Back-fill `quick_extractions` → Sandbox Sources; drop `quick_extractions`
   - [x] Cleanup pass: constraint name fixes, CHECK on sources, consolidated migration baseline, pre-existing TS errors fixed, legacy save-extraction route removed
-- [ ] **Phase 1 — `packages/api-server` + TanStack scaffold**
-  - [ ] Drop legacy `source_inputs` table (superseded by `input_sets`)
-  - [ ] New `packages/api-server` (Hono + tRPC HTTP)
-  - [ ] Replace Next.js dashboard with TanStack Router + Query SPA (Vite)
-  - [ ] Reimplement `/api/scraper/analyze` + `/api/scraper/extract` as tRPC procedures
-  - [ ] Routing skeleton (all routes from spec Section 5)
-- [ ] **Phase 2 — Sandbox flow**
-  - [ ] Paste-and-go creates draft Source on first action
-  - [ ] Wizard mutations persist per step (new save flow — replaces the v1.0 save-extraction route)
-  - [ ] `/sandbox/{shortid}` rehydration on reload
-- [ ] **Phase 3 — Project / Dataset / Source views**
-  - [ ] Project home (by-dataset + by-domain views)
-  - [ ] Dataset detail (schema editor with per-field source classification: detail / listing / input.X / system)
-  - [ ] Source detail (the workhorse view): config, inputs, runs
-  - [ ] Per-source browser config (viewport, user agent, cookie injection) — folded in from old v1.1
-  - [ ] Run results view (replaces `/extractions`)
-  - [ ] Source bulk-create from Dataset page (multi-strategy in one action)
-- [ ] **Phase 4 — Graduate**
-  - [ ] Move-from-Sandbox-to-Project flow
-  - [ ] Inline InputSet promotion to named InputSet
-- [ ] **Phase 5 — DomainIntelligence views**
+- [x] **Phase 1 — `packages/api-server` + TanStack scaffold** (DONE — 2026-05-15)
+  - [x] Drop legacy `source_inputs` table (superseded by `input_sets`)
+  - [x] New `packages/api-server` (Hono + tRPC HTTP)
+  - [x] Replace Next.js dashboard with TanStack Router + Query SPA (Vite)
+  - [x] Reimplement `/api/scraper/analyze` + `/api/scraper/extract` as tRPC procedures
+  - [x] Routing skeleton (all routes from spec Section 5)
+- [x] **Phase 2 — Sandbox flow** (DONE — 2026-05-15)
+  - [x] Paste-and-go creates draft Source on first action
+  - [x] Wizard mutations persist per step (new save flow — replaces the v1.0 save-extraction route)
+  - [x] `/sandbox/{shortid}` rehydration on reload
+- [x] **Phase 3 — Project / Dataset / Source views** (DONE — 2026-05-16)
+  - [x] Project home (by-dataset + by-domain views)
+  - [x] Dataset detail (schema editor with per-field source classification: detail / listing / input.X / system)
+  - [x] Source detail (the workhorse view): config, inputs, runs
+  - [x] Per-source browser config (viewport, user agent, cookie injection) — folded in from old v1.1
+  - [x] Run results view (replaces `/extractions`)
+  - [x] Source bulk-create from Dataset page (multi-strategy in one action)
+- [x] **Phase 4 — Graduate** (DONE — 2026-05-18)
+  - [x] Move-from-Sandbox-to-Project flow
+  - [x] Inline InputSet promotion to named InputSet
+- [ ] **Phase 5 — DomainIntelligence views** (NEXT)
   - [ ] Global `/domains` library
   - [ ] Per-project `/p/{project}/domains/{domain}` fix-it view
   - [ ] Per-domain detail (cached selectors, hit/miss stats, runs across customers)
@@ -188,7 +188,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 
 - **v1.5 Phase 0 unblocks v2 pipeline work.** Once `input_sets`, `Source.listing_mode`, and `Source.budget` exist (now done), the v2 pipeline (pagination + listing→detail) has somewhere to read its config from.
 - **v1.5 Phase 1 de-risks v3's public API.** `packages/api-server` exists as a standalone HTTP service from day one; exposing a public `/extract` endpoint in v3 is a matter of auth and rate-limiting, not infrastructure.
-- **v1.1a, v1.1, and v1.5 run in parallel.** All three are pipeline-only or dashboard-only and don't share files. v1.1a touches `@robot/scraper` + `@robot/api`'s scraper router; v1.1 touches different scraper subsystems; v1.5 Phase 5 is the dashboard.
+- **v1.1 and v1.5 run in parallel.** Both are pipeline-only or dashboard-only and don't share files. v1.1 touches scraper subsystems; v1.5 Phase 5 is the dashboard. v1.1a (extraction completeness) shipped 2026-05-19.
 - **v2 listing→detail subsumes the BBC fix and the Amazon reseller side-panel.** Both former v1.1 items become moot because the new strategy is "always go to the detail page when listing extraction is lossy."
 
-**How to apply:** v1.1a (extraction completeness, NEXT), v1.1 (backend stability), and v1.5 (dashboard redesign) progress in parallel. Within v1.5, phases are strictly sequential — Phases 0-4 done; Phase 5 is next. v2 pipeline features land after v1.5 Phase 0 and gain a UI as v1.5 Phase 3+ lands.
+**How to apply:** v1.1 (backend stability) and v1.5 Phase 5 (DomainIntelligence views) progress in parallel. Within v1.5, phases are strictly sequential — Phases 0-4 done; Phase 5 is next. v2 pipeline features land after v1.5 Phase 0 and gain a UI as v1.5 Phase 3+ lands.
