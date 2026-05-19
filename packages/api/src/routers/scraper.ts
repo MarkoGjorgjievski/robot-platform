@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { SchemaChange } from '@robot/scraper';
 import type { SchemaField } from '@robot/agent';
 import { buildResultRows } from './lib/build-result-rows.js';
+import { cachedFieldsFromCache } from './lib/cached-fields-from-cache.js';
 
 // ─── Shared field shape ─────────────────────────────────────────────────────
 
@@ -21,18 +22,6 @@ const fieldInputSchema = z.object({
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-function inferFieldType(fieldName: string): string {
-  const name = fieldName.toLowerCase();
-  if (name.includes('price') || name.includes('cost') || name.includes('discount_amount')) return 'price';
-  if (name.includes('url') || name.includes('link') || name.includes('href')) return 'url';
-  if (name.includes('image')) return 'image_url';
-  if (name.includes('rating') || name.includes('count') || name.includes('number') || name.includes('review_count')) return 'number';
-  if (name.includes('available') || name.includes('in_stock') || name.includes('is_')) return 'boolean';
-  if (name.includes('date') || name.includes('time')) return 'date';
-  if (name.includes('features') || name.includes('images') || name.includes('tags')) return 'array';
-  return 'string';
-}
 
 function getCapturesDir(): string {
   // api-server sets CAPTURES_DIR before procedures run; fall back to a sensible default.
@@ -66,21 +55,7 @@ export const scraperRouter = router({
         : detailCache ?? listingCache;
 
       if (cache && Object.keys(cache.fieldPaths).length > 0 && cache.consecutiveFailures < 5) {
-        const cachedFields = Object.entries(cache.fieldPaths).map(([name, pathSet]) => {
-          const bestPath = pathSet.paths.sort((a, b) => {
-            const aRate = a.hits + a.misses > 0 ? a.hits / (a.hits + a.misses) : a.confidence;
-            const bRate = b.hits + b.misses > 0 ? b.hits / (b.hits + b.misses) : b.confidence;
-            return bRate - aRate;
-          })[0];
-          return {
-            name,
-            type: inferFieldType(name),
-            description: `Cached field (${bestPath?.source ?? 'unknown'} source, ${Math.round((bestPath?.hits ?? 0) / Math.max(1, (bestPath?.hits ?? 0) + (bestPath?.misses ?? 0)) * 100)}% hit rate)`,
-            required: true,
-            example_value: bestPath?.lastValue != null ? String(bestPath.lastValue).slice(0, 200) : undefined,
-            tier: undefined as string | undefined,
-          };
-        });
+        const cachedFields = cachedFieldsFromCache(cache.fieldPaths);
 
         const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
         if (userFields.length > 0) {
@@ -97,6 +72,7 @@ export const scraperRouter = router({
                 required: true,
                 example_value: undefined,
                 tier: 'requested' as string | undefined,
+                needsRediscovery: false,
               });
             }
           }
