@@ -349,6 +349,8 @@ export type ExtractionOutcome = {
     path: string;
     confidence: number;
   }>;
+  /** All toggled-on field names for this schema, including those that did not resolve — ensures the cache tracks existence even without a path. */
+  discoveredFieldNames: string[];
   overallConfidence: number;
   hasJsonLd: boolean;
   hasNextData: boolean;
@@ -380,7 +382,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
   if (existing) {
     // Merge new paths into existing cache
     const existingPaths = (existing.fieldPaths ?? {}) as Record<string, FieldPathSet>;
-    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, isSuccess, now);
+    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, outcome.discoveredFieldNames, isSuccess, now);
 
     const newTotalRuns = (existing.totalRuns ?? 0) + 1;
     const newSuccessfulRuns = (existing.successfulRuns ?? 0) + (isSuccess ? 1 : 0);
@@ -412,7 +414,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
       domain: outcome.domain,
       pageType: outcome.pageType,
       apiEndpoints,
-      fieldPaths: buildFreshPaths(outcome.fieldResults, now),
+      fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now),
       hasJsonLd: outcome.hasJsonLd,
       hasNextData: outcome.hasNextData,
       totalRuns: 1,
@@ -427,6 +429,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
 function mergeFieldPaths(
   existing: Record<string, FieldPathSet>,
   newResults: ExtractionOutcome['fieldResults'],
+  discoveredFieldNames: string[],
   isSuccess: boolean,
   now: string,
 ): Record<string, FieldPathSet> {
@@ -497,11 +500,19 @@ function mergeFieldPaths(
     }
   }
 
+  // Empty-path entries skip the prune loop above by construction (it only iterates newResults).
+  for (const fieldName of discoveredFieldNames) {
+    if (!merged[fieldName]) {
+      merged[fieldName] = { paths: [], conflictCount: 0 };
+    }
+  }
+
   return merged;
 }
 
 function buildFreshPaths(
   fieldResults: ExtractionOutcome['fieldResults'],
+  discoveredFieldNames: string[],
   now: string,
 ): Record<string, FieldPathSet> {
   const paths: Record<string, FieldPathSet> = {};
@@ -520,6 +531,12 @@ function buildFreshPaths(
       }],
       conflictCount: 0,
     };
+  }
+
+  for (const fieldName of discoveredFieldNames) {
+    if (!paths[fieldName]) {
+      paths[fieldName] = { paths: [], conflictCount: 0 };
+    }
   }
 
   return paths;
