@@ -213,8 +213,14 @@ First path that returns a non-null value wins. If multiple return values, cross-
 ### __NEXT_DATA__
 - Next.js server-side props in `<script id="__NEXT_DATA__">`
 - Contains full page data but deeply nested and noisy
-- Currently excluded from mechanical extraction (too unreliable)
-- AI API analysis handles these cases instead
+- Scoped to the entity subtree via `findEntitySubtree()` (heuristic: highest concentration of schema-relevant keys), then handed to AI API analysis as a synthetic source with URL `inline://nextdata[.path...]`
+- Mechanical extraction still skips the raw blob — key-name suffix matching on the unscoped tree picks up false positives (e.g. 30+ keys named `title`). Path-aware AI extraction is the right tool for these sources; the cache then makes subsequent runs free
+
+### Why structured-data blobs are first-class sources
+SSR-hydration blobs (`__NEXT_DATA__`, Apollo cache, `__NUXT__`, Remix data routes, large JSON-LD) often hold the cleanest version of product data on the page. The pipeline treats them as just another API response:
+1. **Entity-subtree identification** — `findEntitySubtree` walks the blob and returns the subtree with the most schema-relevant keys (`name`, `price`, `description`, `sku`, `image`, `images`, etc.). Drops the noise floor by ~100× on large nextData blobs
+2. **Path-aware AI extraction** — the scoped subtree is sent to `extractFromApi`. AI returns dot-paths; the cache replays them on every future run for free
+3. **Shape validation post-filter** — `validateFieldShape` rejects values whose shape doesn't match the requested type at the resolution boundary (e.g. a `description` field that resolves to "Customer reviews" is rejected, so the next step in the chain still gets a chance)
 
 ### Meta Tags
 - `og:title`, `og:image`, `og:description` — Open Graph
