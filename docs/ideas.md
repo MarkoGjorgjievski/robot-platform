@@ -63,6 +63,26 @@ We already send screenshots to Claude for schema validation. What we don't do: c
 
 Doable cheaply with a vision pass that asks Claude to confirm "does the screenshot show price=$24.99?" — yes/no. Skip when the source is API-only (no screenshot) or when confidence is already high.
 
+### 🔬 Analyze sees values that Extract can't capture (the example-vs-extract gap)
+
+**Observation from v1.1a dogfood, 2026-05-19, Amazon Godiva product.** The `analyze` step's AI proposed 16 fields and produced *example values* for all 16 — the correct prices, dimensions, weights, descriptions, etc. Those examples come from the AI reading the screenshot + markdown + structured data during schema discovery. They're effectively ground truth.
+
+The `extract` step then resolved only 4/16. The other 12 fields (`price`, `image_url`, `asin`, `availability`, `size_options`, `product_description`, `ingredients`, `diet_type`, `weight`, `dimensions`, `upc`, `best_sellers_rank`) fell to AI XPath generation, which produced selectors that didn't match. Amazon has no `__NEXT_DATA__` and sparse JSON-LD, so Tasks 4-5 of v1.1a couldn't help.
+
+**The architectural mismatch.** The analyze AI *sees* data through a multi-modal lens (screenshot + DOM markdown + structured data) and quotes confident examples. The extract AI then has to generate a *programmatic* XPath that captures the same values from raw DOM. These are different cognitive tasks; the second one is harder, and our XPath generation step doesn't have access to the first task's hints.
+
+**Direction.**
+- **Pass the analyze-step example values into the XPath generation prompt** as targets. "Find an XPath that selects this exact text: `12.3 Ounce`." Reverses the burden — instead of asking AI to invent a generic selector for the `weight` field, ask it to invent a selector that returns a specific known value.
+- This is essentially the same primitive as click-to-select (v2.1), but the "click target" is the AI's own example value rather than a user click. Reverse-search style.
+- Combine with image-grounded validation: extract returns `weight=12.3 Ounce`, vision pass confirms screenshot shows `12.3 Ounce` in the dimensions section.
+
+**Symptom this would fix.** Today's resolution gap on hard-to-XPath pages (Amazon detail pages, complex product specs, retailer review sections). Pages where the value is visible but the structural path to it is non-obvious.
+
+**Action items if we revisit.**
+- Add `exampleValue?: string` to the `SchemaField` payload (probably already present as `example_value` in `selectorsJson`).
+- Pass `field.example_value` through to `agent.generateSelectors` as a "find an XPath that yields this value" hint.
+- Measure: rerun the Amazon Godiva test case before/after; expect resolution rate to climb from 4/16 toward the analyze-time field count.
+
 ### 🔬 Cache trusts itself even when paths return wrong values
 
 **The bug.** Domain intelligence cache prunes paths only when they return `null` repeatedly (the `>10 uses, <10% hit rate` rule in the cache scoring). It does not prune paths that return *non-null but incorrect* values. If a cached XPath/JSON path was built from URL A and is now being applied to URL B (different layout, different product type on the same domain), it may still match a DOM node or JSON key — just the *wrong* one. The path is happily logged as a "hit" and the cache keeps reusing it.
