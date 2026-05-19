@@ -8,6 +8,7 @@ import type { SchemaChange } from '@robot/scraper';
 import type { SchemaField } from '@robot/agent';
 import { buildResultRows } from './lib/build-result-rows.js';
 import { cachedFieldsFromCache } from './lib/cached-fields-from-cache.js';
+import { collectAiAnalysisSources } from './lib/collect-ai-analysis-sources.js';
 
 // ─── Shared field shape ─────────────────────────────────────────────────────
 
@@ -327,23 +328,24 @@ export const scraperRouter = router({
         // STEP 2: AI API analysis
         const missingAfterCache = schemaFields.filter((f) => finalData[f.name] === undefined);
         const agent = new SchemaAgent();
-        if (missingAfterCache.length > 0 && capture.interceptedRequests.length > 0) {
+        const apisToTry = collectAiAnalysisSources({
+          interceptedRequests: capture.interceptedRequests,
+          structuredData: capture.structuredData,
+        });
+        if (missingAfterCache.length > 0 && apisToTry.length > 0) {
           console.log(`[extract] ${missingAfterCache.length} fields missing, AI analyzing API responses`);
-          const apisToTry = capture.interceptedRequests
-            .filter((r) => r.responseBody && r.bodySize > 500)
-            .slice(0, 3);
           for (const api of apisToTry) {
             const stillMissing = schemaFields.filter((f) => finalData[f.name] === undefined);
             if (stillMissing.length === 0) break;
             try {
-              const apiResult = await agent.extractFromApi(api.responseBody!, api.url, stillMissing);
+              const apiResult = await agent.extractFromApi(api.responseBody, api.url, stillMissing);
               for (const field of apiResult.fields) {
                 if (field.value !== null && field.value !== undefined && field.confidence > 0.3) {
                   if (finalData[field.name] === undefined) {
                     finalData[field.name] = field.value;
                     fieldResults[field.name] = {
                       value: field.value,
-                      source: 'api-ai',
+                      source: api.url.startsWith('inline://') ? 'json-ld' : 'api-ai',
                       path: field.json_path,
                       confidence: field.confidence,
                     };
