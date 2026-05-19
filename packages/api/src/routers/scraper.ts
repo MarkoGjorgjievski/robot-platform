@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { SchemaChange } from '@robot/scraper';
 import type { SchemaField } from '@robot/agent';
+import { buildResultRows } from './lib/build-result-rows.js';
 
 // ─── Shared field shape ─────────────────────────────────────────────────────
 
@@ -481,27 +482,11 @@ export const scraperRouter = router({
           schemaFields,
         );
 
-        // Split by tier
-        const requestedFields = schemaFields.filter((f) => f.tier === 'requested');
-        const requestedFieldNames = new Set(requestedFields.map((f) => f.name));
-
-        const requestedResults = requestedFields.map((f) => ({
-          name: f.name,
-          type: f.type,
-          value: finalData[f.name] ?? null,
-          status: (finalData[f.name] !== undefined && finalData[f.name] !== null ? 'found' : 'not_found') as 'found' | 'not_found',
-          source: sources[f.name] ?? null,
-        }));
-
-        const discoveredResults = Object.entries(finalData)
-          .filter(([name]) => !requestedFieldNames.has(name))
-          .map(([name, value]) => ({
-            name,
-            type: schemaFields.find((f) => f.name === name)?.type ?? 'string',
-            value,
-            status: 'found' as const,
-            source: sources[name] ?? null,
-          }));
+        const { requested: requestedResults, discovered: discoveredResults } = buildResultRows({
+          schemaFields: schemaFields.map(f => ({ name: f.name, type: f.type, tier: f.tier! })),
+          finalData,
+          sources,
+        });
 
         return {
           data: cleanedData,
