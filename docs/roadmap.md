@@ -57,7 +57,25 @@ Note: earlier roadmap versions claimed Source detail page, Domain library page, 
 
 ## Track A — Pipeline / Backend
 
-### v1.1 — Backend Stability (NEXT)
+### v1.1a — Extraction Completeness (DONE 2026-05-19)
+
+Plan: `docs/superpowers/plans/2026-05-19-extraction-completeness.md` — landed in 7 commits.
+
+Closed three loops uncovered during Phase 4 dogfooding on Amazon: discovered+toggled fields silently dropped from results; cache forgets discovered-but-unresolved fields; `__NEXT_DATA__` / JSON-LD blobs orphaned (too noisy for mechanical, invisible to AI). Restored the *"every toggled-on field returns a row"* invariant and made structured-data blobs first-class extraction sources via entity-subtree identification + shape validation.
+
+- [x] **Task 1 — Contract:** `discoveredResults` returns a row per toggled-on field (`null` + `not_found` if unresolved); extracted into pure `buildResultRows` helper with unit tests.
+- [x] **Task 2 — Cache memory:** `saveDomainCache` persists discovered-but-unresolved fields as empty-path entries; analyze cache-hit returns them so they reappear in the next run's schema.
+- [x] **Task 3 — Cache rediscovery hint:** analyze marks empty-path entries with `needsRediscovery: true`; extract re-runs AI for them naturally via the existing missing-fields flow.
+- [x] **Task 4 — Structured-data inputs:** AI API analysis consumes `nextData` + large JSON-LD blobs alongside intercepted XHRs (`inline://nextdata`, `inline://ld+json[i]`).
+- [x] **Task 5 — Entity-subtree identification:** heuristic that scopes a nextData blob to its product subtree before AI sees it, cutting noise ~100×.
+- [x] **Task 6 — Shape validation:** post-filter at the resolution boundary rejects UI labels for description fields, non-numeric prices, empty arrays, wrong types — so the next step in the chain still gets a chance.
+- [x] **Task 7 — Docs:** updated `docs/extraction-architecture.md` to reflect the new structured-data flow.
+
+Verification: 72/72 scraper tests + 46/46 api tests pass, typecheck clean across both packages. Amazon Godiva dogfood pending (user-driven, requires real Claude API calls).
+
+Out-of-scope follow-ups: cross-source corroboration weighting, scheduled cache rediscovery, embedding-based description matching, cache-hit eclipses user-typed requested fields. Tracked in `docs/ideas.md`.
+
+### v1.1 — Backend Stability
 
 - [ ] Data quality checks (prices > 0, URLs valid, no HTML in text)
 - [ ] Crop screenshots to viewport before sending to Claude (token savings)
@@ -170,7 +188,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 
 - **v1.5 Phase 0 unblocks v2 pipeline work.** Once `input_sets`, `Source.listing_mode`, and `Source.budget` exist (now done), the v2 pipeline (pagination + listing→detail) has somewhere to read its config from.
 - **v1.5 Phase 1 de-risks v3's public API.** `packages/api-server` exists as a standalone HTTP service from day one; exposing a public `/extract` endpoint in v3 is a matter of auth and rate-limiting, not infrastructure.
-- **v1.1 and v1.5 run in parallel.** v1.1 is pipeline-only; v1.5 is dashboard-only. They don't share files.
+- **v1.1a, v1.1, and v1.5 run in parallel.** All three are pipeline-only or dashboard-only and don't share files. v1.1a touches `@robot/scraper` + `@robot/api`'s scraper router; v1.1 touches different scraper subsystems; v1.5 Phase 5 is the dashboard.
 - **v2 listing→detail subsumes the BBC fix and the Amazon reseller side-panel.** Both former v1.1 items become moot because the new strategy is "always go to the detail page when listing extraction is lossy."
 
-**How to apply:** v1.1 (backend stability) and v1.5 (dashboard redesign) progress in parallel. Within v1.5, phases are strictly sequential — Phase 0 is done; Phase 1 is next. v2 pipeline features land after v1.5 Phase 0 and gain a UI as v1.5 Phase 3+ lands.
+**How to apply:** v1.1a (extraction completeness, NEXT), v1.1 (backend stability), and v1.5 (dashboard redesign) progress in parallel. Within v1.5, phases are strictly sequential — Phases 0-4 done; Phase 5 is next. v2 pipeline features land after v1.5 Phase 0 and gain a UI as v1.5 Phase 3+ lands.
