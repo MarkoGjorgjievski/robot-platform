@@ -7,5 +7,6 @@ dist/
 .env
 .env.local
 packages/dashboard/.next/
+packages/api-server/public/captures/*.png
 .superpowers/
 .worktrees
