@@ -232,9 +232,10 @@ export class PlaywrightBrowser implements IBrowser {
               found = true;
             }
           });
-          // Re-enable scrolling if body was locked
-          document.body.style.overflow = '';
-          document.documentElement.style.overflow = '';
+          // Re-enable scrolling if body was locked.
+          // Body can be null on pages still loading or non-HTML responses.
+          if (document.body) document.body.style.overflow = '';
+          if (document.documentElement) document.documentElement.style.overflow = '';
           return found;
         });
 
