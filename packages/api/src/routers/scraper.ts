@@ -4,7 +4,8 @@ import { router, publicProcedure } from '../trpc';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { SchemaChange } from '@robot/scraper';
+import type { SchemaChange, PathSource } from '@robot/scraper';
+import { validateFieldShape } from '@robot/scraper';
 import type { SchemaField } from '@robot/agent';
 import { buildResultRows } from './lib/build-result-rows.js';
 import { cachedFieldsFromCache } from './lib/cached-fields-from-cache.js';
@@ -205,6 +206,20 @@ export const scraperRouter = router({
         let finalData: Record<string, unknown> = {};
         let fieldResults: Record<string, { value: unknown; source: any; path: string; confidence: number }> = {};
 
+        const fieldByName = new Map(schemaFields.map(f => [f.name, f]));
+        function tryAssign(name: string, value: unknown, source: PathSource, path: string, confidence: number): boolean {
+          if (finalData[name] !== undefined) return false;
+          const type = fieldByName.get(name)?.type ?? 'string';
+          const v = validateFieldShape(value, type, { fieldName: name });
+          if (!v.ok) {
+            console.log(`[extract] Rejected ${name}=${JSON.stringify(value).slice(0, 60)} (source=${source}): ${v.reason}`);
+            return false;
+          }
+          finalData[name] = v.normalized;
+          fieldResults[name] = { value: v.normalized, source, path, confidence };
+          return true;
+        }
+
         // STEP 0.5: AI-discovered API paths
         const apiFields = schemaFields.filter((f) => f.api_path && f.source === 'api');
         if (apiFields.length > 0 && capture.interceptedRequests.length > 0) {
@@ -214,11 +229,7 @@ export const scraperRouter = router({
           for (const field of apiFields) {
             for (const body of apiBodies) {
               const value = getByDotPath(body, field.api_path!);
-              if (value !== null && value !== undefined) {
-                finalData[field.name] = value;
-                fieldResults[field.name] = { value, source: 'api', path: field.api_path!, confidence: 0.95 };
-                break;
-              }
+              if (tryAssign(field.name, value, 'api', field.api_path!, 0.95)) break;
             }
           }
           console.log(`[extract] AI-discovered API paths resolved: ${Object.keys(finalData).length}/${apiFields.length} fields`);
@@ -239,25 +250,25 @@ export const scraperRouter = router({
             capture.interceptedRequests,
           );
           for (const [name, source] of Object.entries(mechanicalResult.sources)) {
-            if (finalData[name] === undefined) {
-              finalData[name] = mechanicalResult.data[name];
-              fieldResults[name] = {
-                value: mechanicalResult.data[name],
-                source,
-                path: mechanicalResult.paths[name] ?? '',
-                confidence: 0.8,
-              };
-            }
+            tryAssign(name, mechanicalResult.data[name], source as PathSource, mechanicalResult.paths[name] ?? '', 0.8);
           }
           console.log(`[extract] Mechanical: ${Object.keys(mechanicalResult.data).length} additional fields`);
         }
 
         // Seed previousResults
+        // WHY: 'previous' is not a valid PathSource; this is carry-over data from a prior run,
+        // not a scraper source — kept outside tryAssign to preserve the 'previous' source tag.
         if (previousResults && typeof previousResults === 'object') {
           for (const [name, value] of Object.entries(previousResults)) {
             if (value !== null && value !== undefined && finalData[name] === undefined) {
-              finalData[name] = value;
-              fieldResults[name] = { value, source: 'previous' as any, path: '', confidence: 0.9 };
+              const type = fieldByName.get(name)?.type ?? 'string';
+              const v = validateFieldShape(value, type, { fieldName: name });
+              if (v.ok) {
+                finalData[name] = v.normalized;
+                fieldResults[name] = { value: v.normalized, source: 'previous' as any, path: '', confidence: 0.9 };
+              } else {
+                console.log(`[extract] Rejected previousResults ${name}=${JSON.stringify(value).slice(0, 60)}: ${v.reason}`);
+              }
             }
           }
         }
@@ -274,10 +285,7 @@ export const scraperRouter = router({
               missingForCache,
             );
             for (const [name, resolved] of Object.entries(apiCacheResult.resolved)) {
-              if (finalData[name] === undefined && resolved.value !== null && resolved.value !== undefined) {
-                finalData[name] = resolved.value;
-                fieldResults[name] = { value: resolved.value, source: resolved.source, path: '', confidence: resolved.confidence };
-              }
+              tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
             }
             if (Object.keys(apiCacheResult.resolved).length > 0) {
               console.log(`[extract] Cached API paths resolved: ${Object.keys(apiCacheResult.resolved).length} fields`);
@@ -294,10 +302,7 @@ export const scraperRouter = router({
                 );
                 if (xpathResult.data.length > 0) {
                   for (const [name, value] of Object.entries(xpathResult.data[0])) {
-                    if (finalData[name] === undefined && value !== null && value !== undefined) {
-                      finalData[name] = value;
-                      fieldResults[name] = { value, source: 'xpath-cached', path: '', confidence: 0.85 };
-                    }
+                    tryAssign(name, value, 'xpath-cached', '', 0.85);
                   }
                   console.log(`[extract] Cached XPaths resolved: ${xpathResult.fieldCount} fields`);
                 }
@@ -310,10 +315,7 @@ export const scraperRouter = router({
           const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames);
           if (cacheResult.overallConfidence > 0) {
             for (const [name, resolved] of Object.entries(cacheResult.resolved)) {
-              if (finalData[name] === undefined && resolved.value !== null && resolved.value !== undefined) {
-                finalData[name] = resolved.value;
-                fieldResults[name] = { value: resolved.value, source: resolved.source, path: '', confidence: resolved.confidence };
-              }
+              tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
             }
           }
 
@@ -340,16 +342,9 @@ export const scraperRouter = router({
             try {
               const apiResult = await agent.extractFromApi(api.responseBody, api.url, stillMissing);
               for (const field of apiResult.fields) {
-                if (field.value !== null && field.value !== undefined && field.confidence > 0.3) {
-                  if (finalData[field.name] === undefined) {
-                    finalData[field.name] = field.value;
-                    fieldResults[field.name] = {
-                      value: field.value,
-                      source: api.url.startsWith('inline://') ? 'json-ld' : 'api-ai',
-                      path: field.json_path,
-                      confidence: field.confidence,
-                    };
-                  }
+                if (field.confidence > 0.3) {
+                  const source: PathSource = api.url.startsWith('inline://') ? 'json-ld' : 'api-ai';
+                  tryAssign(field.name, field.value, source, field.json_path, field.confidence);
                 }
               }
             } catch (err) {
@@ -373,10 +368,7 @@ export const scraperRouter = router({
             if (xpathResult.data.length > 0) {
               for (const fieldDef of plan.fields) {
                 const value = xpathResult.data[0][fieldDef.name];
-                if (finalData[fieldDef.name] === undefined && value !== null && value !== undefined) {
-                  finalData[fieldDef.name] = value;
-                  fieldResults[fieldDef.name] = { value, source: 'xpath', path: fieldDef.xpath, confidence: 0.7 };
-                }
+                tryAssign(fieldDef.name, value, 'xpath', fieldDef.xpath, 0.7);
               }
             }
 
@@ -402,10 +394,7 @@ export const scraperRouter = router({
                   if (retryResult.data.length > 0) {
                     for (const fieldDef of retryPlan.fields) {
                       const value = retryResult.data[0][fieldDef.name];
-                      if (finalData[fieldDef.name] === undefined && value !== null && value !== undefined) {
-                        finalData[fieldDef.name] = value;
-                        fieldResults[fieldDef.name] = { value, source: 'xpath', path: fieldDef.xpath, confidence: 0.7 };
-                      }
+                      tryAssign(fieldDef.name, value, 'xpath', fieldDef.xpath, 0.7);
                     }
                     plan = retryPlan;
                   }
