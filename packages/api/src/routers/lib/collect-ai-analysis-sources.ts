@@ -1,3 +1,5 @@
+import { findEntitySubtree } from '@robot/scraper';
+
 export type AnalysisSource = {
   url: string;
   responseBody: string;
@@ -33,8 +35,15 @@ export function collectAiAnalysisSources(input: CollectInput): AnalysisSource[] 
   }
 
   if (input.structuredData.nextData) {
-    const body = JSON.stringify(input.structuredData.nextData);
-    sources.push({ url: 'inline://nextdata', responseBody: body, bodySize: body.length, method: 'INLINE' });
+    const subtree = findEntitySubtree(input.structuredData.nextData);
+    const target = subtree.score >= 2 ? subtree.value : input.structuredData.nextData;
+    const body = JSON.stringify(target);
+    sources.push({
+      url: subtree.score >= 2 ? `inline://nextdata${subtree.path.slice(1)}` : 'inline://nextdata',
+      responseBody: body,
+      bodySize: body.length,
+      method: 'INLINE',
+    });
   }
 
   for (let i = 0; i < input.structuredData.ldJson.length; i++) {
