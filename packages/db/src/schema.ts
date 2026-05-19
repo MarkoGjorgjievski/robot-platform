@@ -73,7 +73,7 @@ export const sources = pgTable('sources', {
   id: uuid('id').primaryKey().defaultRandom(),
   datasetId: uuid('dataset_id').references(() => datasets.id, { onDelete: 'cascade' }),
   domainId: uuid('domain_id').references(() => domains.id, { onDelete: 'cascade' }),
-  name: varchar('name', { length: 255 }).notNull(),
+  name: text('name').notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
   country: varchar('country', { length: 10 }).notNull(),
   locale: varchar('locale', { length: 10 }),
@@ -130,7 +130,7 @@ export const inputSets = pgTable('input_sets', {
   // 'direct' | 'template' | 'category' | 'search' | 'sitemap' | 'inline'
   // 'inline' is reserved for Sandbox Sources (one hidden InputSet per Sandbox Source)
   type: varchar('type', { length: 20 }).notNull(),
-  name: varchar('name', { length: 255 }).notNull(),
+  name: text('name').notNull(),
   // Column definitions: [{ name, primary, type, propagate? }]
   columns: jsonb('columns').notNull().default([]),
   // Rows of values, each row keyed by column name
