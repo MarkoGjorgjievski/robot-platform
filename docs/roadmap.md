@@ -133,7 +133,7 @@ Thread A multimodal reverse-search selectors + ai-vision fallback; entity-subtre
 
 ## Track B — Platform / Dashboard
 
-### v1.5 — Dashboard Redesign (IN PROGRESS)
+### v1.5 — Dashboard Redesign (DONE — 2026-05-20)
 
 Full spec: `docs/superpowers/specs/2026-05-13-dashboard-architecture-redesign-design.md`
 
@@ -168,10 +168,11 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 - [x] **Phase 4 — Graduate** (DONE — 2026-05-18)
   - [x] Move-from-Sandbox-to-Project flow
   - [x] Inline InputSet promotion to named InputSet
-- [ ] **Phase 5 — DomainIntelligence views** (NEXT)
-  - [ ] Global `/domains` library
-  - [ ] Per-project `/p/{project}/domains/{domain}` fix-it view
-  - [ ] Per-domain detail (cached selectors, hit/miss stats, runs across customers)
+- [x] **Phase 5 — DomainIntelligence views** (DONE — 2026-05-20)
+  - [x] Global `/domains` library (aggregated per-domain run/success/field stats)
+  - [x] Per-domain detail `/domains/{domain}` — flat sortable selectors table (hit/miss, last value, failing paths first), summary stats, cross-customer sources. Read-only.
+  - [x] Two read-only `domainsRouter` procedures (`intelligenceList`, `intelligenceDetail`)
+  - (Per-project domain views were already delivered in Phase 3.)
 
 ### v2 — Dashboard hooks for pipeline work
 
@@ -203,4 +204,4 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 - **v1.1 and v1.5 run in parallel.** Both are pipeline-only or dashboard-only and don't share files. v1.1 touches scraper subsystems; v1.5 Phase 5 is the dashboard. v1.1a (extraction completeness) shipped 2026-05-19.
 - **v2 listing→detail subsumes the BBC fix and the Amazon reseller side-panel.** Both former v1.1 items become moot because the new strategy is "always go to the detail page when listing extraction is lossy."
 
-**How to apply:** v1.1 (backend stability) and v1.5 Phase 5 (DomainIntelligence views) progress in parallel. Within v1.5, phases are strictly sequential — Phases 0-4 done; Phase 5 is next. v2 pipeline features land after v1.5 Phase 0 and gain a UI as v1.5 Phase 3+ lands.
+**How to apply:** v1.5 is complete (Phases 0-5 done). v1.1 (backend stability) remains the open Track A polish item; v2 pipeline features (pagination, listing→detail) are the next major capability and now have their full dashboard foundation. v2 pipeline features land on the v1.5 Phase 0 data model and gain a UI via the existing v1.5 Phase 3+ views.
