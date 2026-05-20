@@ -59,7 +59,7 @@ Note: earlier roadmap versions claimed Source detail page, Domain library page, 
 
 ### v1.1a — Extraction Completeness (DONE 2026-05-19)
 
-Plan: `docs/superpowers/plans/2026-05-19-extraction-completeness.md` — landed in 7 commits.
+Landed in 7 commits. Every discovered+toggled field returns a row; the cache remembers fields it failed to resolve; `__NEXT_DATA__`/JSON-LD became first-class extraction sources.
 
 Closed three loops uncovered during Phase 4 dogfooding on Amazon: discovered+toggled fields silently dropped from results; cache forgets discovered-but-unresolved fields; `__NEXT_DATA__` / JSON-LD blobs orphaned (too noisy for mechanical, invisible to AI). Restored the *"every toggled-on field returns a row"* invariant and made structured-data blobs first-class extraction sources via entity-subtree identification + shape validation.
 
@@ -79,13 +79,14 @@ Out-of-scope follow-ups: cross-source corroboration weighting, scheduled cache r
 
 Thread A multimodal reverse-search selectors + ai-vision fallback; entity-subtree substring scoping + inline-source priority (verified on Nike); always-consult cache; analyze shows current-URL examples + removed reliability badge.
 
-Phase 0 findings recorded in `docs/superpowers/specs/2026-05-20-v1.1b-design.md`.
-
 - [x] **Thread A — Multimodal reverse-search selectors:** `agent.generateSelectors` / `retrySelectorGeneration` send the page screenshot + HTML; the tool returns both an `xpath` and the AI-seen value per field. If the generated xpath returns nothing, the pipeline delivers the AI-seen value with source `ai-vision` (not cached as a reusable selector).
 - [x] **Phase 0.3 — Entity-subtree substring scoping:** `findEntitySubtree` scores objects by counting DISTINCT schema tokens matched as case-insensitive substrings of direct keys, with tiebreak preference for nodes reached via a key containing "selected". Correctly scopes Nike `__NEXT_DATA__` to the product node.
 - [x] **Phase 0.4 — Inline-source priority:** `collectAiAnalysisSources` always retains `inline://` structured-data sources first; the 5-source size cap applies only to intercepted requests. A scoped `nextData` source is never evicted by large junk intercepted requests.
 - [x] **Phase 2 — Always-consult cache:** removed the three `consecutiveFailures < 5` gates in `scraper.ts`. The cache is an accumulator (no auto-reset; multi-path coexistence; recency-weighted ranking; cross-validation; conservative per-path prune at ≥5 uses & ≤10% hit rate; max 5 paths/field) — always consulted on every run.
 - [x] **Phase 3 — UI:** `analyze` on a cache-hit captures the current URL and resolves cached paths so the Example column shows current-page values; removed the misleading "Cached — N runs, X% reliability" badge.
+- [x] **Dogfood fixes (Amazon Godiva, real `extract` path):** the dogfood caught (a) a `tryAssign` crash on absent values that silently disabled the entire XPath/ai-vision fallback, and (b) the vision model's not-found sentinels (`"UNKNOWN"`/`"N/A"`/`"-"`) being accepted as resolved values. Both fixed: absent values are silent not-founds; sentinels are rejected and the prompt is told to leave `value` empty when it can't see one.
+
+**Result:** Amazon Godiva resolution went from 4/16 (baseline) → **12/16 (75%)**, with not-founds reported honestly instead of fabricated. Remaining wrong fields (`diet_type`, `product_description` resolving to the title) come from stale cached xpaths — the separate "cache trusts itself / wrong-but-non-null" issue tracked in `docs/ideas.md`, out of v1.1b scope.
 
 ### v1.1 — Backend Stability
 
@@ -135,7 +136,6 @@ Phase 0 findings recorded in `docs/superpowers/specs/2026-05-20-v1.1b-design.md`
 ### v1.5 — Dashboard Redesign (IN PROGRESS)
 
 Full spec: `docs/superpowers/specs/2026-05-13-dashboard-architecture-redesign-design.md`
-Phase 0 plan: `docs/superpowers/plans/2026-05-14-dashboard-redesign-phase-0-schema-migration.md`
 
 Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by a new `packages/api-server` (Hono mounting the existing tRPC routers over HTTP). Introduces Sandbox + Graduate model, renames `collections` → `datasets`, makes `input_sets` first-class, and lays the data-model foundation for v2 pipeline features.
 
