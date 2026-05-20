@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { eq, sql, and } from 'drizzle-orm';
-import { domains, sources, datasets, projects, orgs } from '@robot/db';
+import { domains, sources, datasets, projects, orgs, domainIntelligence } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
 export const domainsRouter = router({
@@ -141,4 +141,44 @@ export const domainsRouter = router({
         } : null,
       };
     }),
+
+  // ─── Global DomainIntelligence views (read-only) ───────────────────────────
+  intelligenceList: publicProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.query.domainIntelligence.findMany();
+
+    type Agg = {
+      domain: string;
+      pageTypes: string[];
+      totalRuns: number;
+      successfulRuns: number;
+      fields: Set<string>;
+      lastVerifiedAt: Date;
+    };
+    const byDomain = new Map<string, Agg>();
+    for (const r of rows) {
+      const fieldPaths = (r.fieldPaths ?? {}) as Record<string, unknown>;
+      const agg = byDomain.get(r.domain) ?? {
+        domain: r.domain, pageTypes: [], totalRuns: 0, successfulRuns: 0,
+        fields: new Set<string>(), lastVerifiedAt: r.lastVerifiedAt,
+      };
+      agg.pageTypes.push(r.pageType);
+      agg.totalRuns += r.totalRuns;
+      agg.successfulRuns += r.successfulRuns;
+      for (const f of Object.keys(fieldPaths)) agg.fields.add(f);
+      if (r.lastVerifiedAt > agg.lastVerifiedAt) agg.lastVerifiedAt = r.lastVerifiedAt;
+      byDomain.set(r.domain, agg);
+    }
+
+    return [...byDomain.values()]
+      .map((d) => ({
+        domain: d.domain,
+        pageTypes: [...d.pageTypes].sort(),
+        totalRuns: d.totalRuns,
+        successfulRuns: d.successfulRuns,
+        successRate: d.totalRuns > 0 ? Math.round((d.successfulRuns / d.totalRuns) * 100) : 0,
+        fieldCount: d.fields.size,
+        lastVerifiedAt: d.lastVerifiedAt,
+      }))
+      .sort((a, b) => b.lastVerifiedAt.getTime() - a.lastVerifiedAt.getTime());
+  }),
 });
