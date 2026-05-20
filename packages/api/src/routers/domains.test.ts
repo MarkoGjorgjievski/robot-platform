@@ -47,4 +47,25 @@ describe('domainsRouter', () => {
       expect(result.sources).toEqual([]);
     });
   });
+
+  describe('intelligenceList', () => {
+    it('returns an array (smoke)', async () => {
+      const result = await caller.domains.intelligenceList();
+      expect(Array.isArray(result)).toBe(true);
+      for (const row of result) {
+        expect(typeof row.domain).toBe('string');
+        expect(Array.isArray(row.pageTypes)).toBe(true);
+        expect(typeof row.successRate).toBe('number');
+        expect(typeof row.fieldCount).toBe('number');
+      }
+    });
+
+    it('is sorted by lastVerifiedAt descending', async () => {
+      const result = await caller.domains.intelligenceList();
+      for (let i = 1; i < result.length; i++) {
+        expect(new Date(result[i - 1].lastVerifiedAt).getTime())
+          .toBeGreaterThanOrEqual(new Date(result[i].lastVerifiedAt).getTime());
+      }
+    });
+  });
 });
