@@ -68,4 +68,22 @@ describe('domainsRouter', () => {
       }
     });
   });
+
+  describe('intelligenceDetail', () => {
+    it('rejects empty domain', async () => {
+      try {
+        await caller.domains.intelligenceDetail({ domain: '' });
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('returns empty pageTypes + sources for an unknown domain', async () => {
+      const result = await caller.domains.intelligenceDetail({ domain: 'no-such-domain.example' });
+      expect(result.domain).toBe('no-such-domain.example');
+      expect(result.pageTypes).toEqual([]);
+      expect(result.sources).toEqual([]);
+    });
+  });
 });
