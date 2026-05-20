@@ -105,6 +105,7 @@ export class SchemaAgent {
         system: SELECTOR_GENERATION_SYSTEM,
         tool: generateSelectorsTool,
         userText,
+        image: capture.screenshot,
       });
       return result as ExtractionPlan;
     }
@@ -132,6 +133,7 @@ export class SchemaAgent {
         system: SELECTOR_GENERATION_SYSTEM,
         tool: generateSelectorsTool,
         userText,
+        image: capture.screenshot,
       });
       return result as ExtractionPlan;
     }
