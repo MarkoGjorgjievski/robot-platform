@@ -75,6 +75,18 @@ Verification: 72/72 scraper tests + 46/46 api tests pass, typecheck clean across
 
 Out-of-scope follow-ups: cross-source corroboration weighting, scheduled cache rediscovery, embedding-based description matching, cache-hit eclipses user-typed requested fields. Tracked in `docs/ideas.md`.
 
+### v1.1b — Extraction Quality (DONE 2026-05-20)
+
+Thread A multimodal reverse-search selectors + ai-vision fallback; entity-subtree substring scoping + inline-source priority (verified on Nike); always-consult cache; analyze shows current-URL examples + removed reliability badge.
+
+Phase 0 findings recorded in `docs/superpowers/specs/2026-05-20-v1.1b-design.md`.
+
+- [x] **Thread A — Multimodal reverse-search selectors:** `agent.generateSelectors` / `retrySelectorGeneration` send the page screenshot + HTML; the tool returns both an `xpath` and the AI-seen value per field. If the generated xpath returns nothing, the pipeline delivers the AI-seen value with source `ai-vision` (not cached as a reusable selector).
+- [x] **Phase 0.3 — Entity-subtree substring scoping:** `findEntitySubtree` scores objects by counting DISTINCT schema tokens matched as case-insensitive substrings of direct keys, with tiebreak preference for nodes reached via a key containing "selected". Correctly scopes Nike `__NEXT_DATA__` to the product node.
+- [x] **Phase 0.4 — Inline-source priority:** `collectAiAnalysisSources` always retains `inline://` structured-data sources first; the 5-source size cap applies only to intercepted requests. A scoped `nextData` source is never evicted by large junk intercepted requests.
+- [x] **Phase 2 — Always-consult cache:** removed the three `consecutiveFailures < 5` gates in `scraper.ts`. The cache is an accumulator (no auto-reset; multi-path coexistence; recency-weighted ranking; cross-validation; conservative per-path prune at ≥5 uses & ≤10% hit rate; max 5 paths/field) — always consulted on every run.
+- [x] **Phase 3 — UI:** `analyze` on a cache-hit captures the current URL and resolves cached paths so the Example column shows current-page values; removed the misleading "Cached — N runs, X% reliability" badge.
+
 ### v1.1 — Backend Stability
 
 - [ ] Data quality checks (prices > 0, URLs valid, no HTML in text)

@@ -12,7 +12,7 @@ Each extraction runs through these steps in order. Later steps only run for fiel
 ┌─────────────────────────────────────────────────────────────┐
 │  STEP 0: Domain Cache Lookup                         FREE   │
 │  Check if we've scraped this domain+pageType before.        │
-│  If yes and success rate ≥70%, use cached paths first.      │
+│  If yes, cached paths are always consulted (no gate).       │
 └──────────────────────┬──────────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -77,8 +77,15 @@ Each extraction runs through these steps in order. Later steps only run for fiel
                        ▼ (only if fields still missing)
 ┌─────────────────────────────────────────────────────────────┐
 │  STEP 4: XPath DOM Extraction                       ~$0.05  │
-│  Claude generates XPath expressions for remaining fields.    │
-│  Executed on the live Playwright page via page.evaluate().   │
+│  Multimodal + reverse-search: Claude receives the page       │
+│  screenshot AND HTML, and the prompt targets a specific      │
+│  value ("find an XPath that yields this exact text").        │
+│  Returns, per field, both an xpath and the value the AI      │
+│  saw on the page.                                            │
+│                                                              │
+│  If the generated xpath returns nothing, the AI-seen value   │
+│  is delivered with source 'ai-vision' and an empty path      │
+│  (used for this run, NOT cached as a reusable selector).     │
 │                                                              │
 │  Listing pages: row_xpath matches each item, field XPaths    │
 │  are relative (./span[@class='price'])                       │
@@ -100,8 +107,9 @@ Each extraction runs through these steps in order. Later steps only run for fiel
 │  • XPath selectors that worked                               │
 │  • JSON-LD / meta tag availability                           │
 │                                                              │
-│  Cache is enriched, never overwritten.                       │
-│  Dead paths auto-pruned. 5 consecutive failures → reset.     │
+│  Cache is an accumulator — enriched, never overwritten.      │
+│  Dead paths auto-pruned (≥5 uses & ≤10% hit rate; max 5     │
+│  paths/field). No auto-reset; human review required.         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -134,7 +142,6 @@ domain_intelligence {
   }
   totalRuns: 50
   successfulRuns: 48
-  consecutiveFailures: 0
 }
 ```
 
@@ -144,9 +151,9 @@ domain_intelligence {
 |----------|--------|
 | Cache hit + good result | Use cached data. Increment `hits` on used paths. |
 | Cache hit + bad result (fluke) | Fall through to full AI chain for THIS page. Increment `misses`. Cache stays intact. |
-| Cache hit + 5 consecutive bad results | Site structure likely changed. Reset cache, rebuild from scratch. |
-| Dead path (>10 uses, <10% hit rate) | Auto-pruned from the paths list. |
-| Max paths per field | 5. Ranked by hit rate, lowest pruned. |
+| Cache always consulted | No consecutive-failures gate; the cache is checked on every run. |
+| Dead path (≥5 uses & ≤10% hit rate) | Auto-pruned from the paths list. |
+| Max paths per field | 5. Ranked by recency-weighted hit rate, lowest pruned. |
 
 ### Cross-Validation
 
@@ -213,14 +220,15 @@ First path that returns a non-null value wins. If multiple return values, cross-
 ### __NEXT_DATA__
 - Next.js server-side props in `<script id="__NEXT_DATA__">`
 - Contains full page data but deeply nested and noisy
-- Scoped to the entity subtree via `findEntitySubtree()` (heuristic: highest concentration of schema-relevant keys), then handed to AI API analysis as a synthetic source with URL `inline://nextdata[.path...]`
+- Scoped to the entity subtree via `findEntitySubtree()`, then handed to AI API analysis as a synthetic source with URL `inline://nextdata[.path...]`
 - Mechanical extraction still skips the raw blob — key-name suffix matching on the unscoped tree picks up false positives (e.g. 30+ keys named `title`). Path-aware AI extraction is the right tool for these sources; the cache then makes subsequent runs free
 
 ### Why structured-data blobs are first-class sources
 SSR-hydration blobs (`__NEXT_DATA__`, Apollo cache, `__NUXT__`, Remix data routes, large JSON-LD) often hold the cleanest version of product data on the page. The pipeline treats them as just another API response:
-1. **Entity-subtree identification** — `findEntitySubtree` walks the blob and returns the subtree with the most schema-relevant keys (`name`, `price`, `description`, `sku`, `image`, `images`, etc.). Drops the noise floor by ~100× on large nextData blobs
-2. **Path-aware AI extraction** — the scoped subtree is sent to `extractFromApi`. AI returns dot-paths; the cache replays them on every future run for free
-3. **Shape validation post-filter** — `validateFieldShape` rejects values whose shape doesn't match the requested type at the resolution boundary (e.g. a `description` field that resolves to "Customer reviews" is rejected, so the next step in the chain still gets a chance)
+1. **Entity-subtree identification** — `findEntitySubtree` scores objects by counting DISTINCT schema tokens matched as case-insensitive substrings of their direct keys (e.g. a key `productTitle` matches both "product" and "title" tokens), with a tiebreak preference for nodes reached via a key containing "selected". This scopes real Next.js `__NEXT_DATA__` (e.g. Nike) to the product node instead of falling through to the full blob. Drops the noise floor by ~100× on large nextData blobs.
+2. **Path-aware AI extraction** — the scoped subtree is sent to `extractFromApi`. AI returns dot-paths; the cache replays them on every future run for free.
+3. **Source priority** — `collectAiAnalysisSources` always retains `inline://` structured-data sources first and applies the 5-source size cap only to intercepted requests. A correctly scoped `nextData` source is never evicted by large junk intercepted requests.
+4. **Shape validation post-filter** — `validateFieldShape` rejects values whose shape doesn't match the requested type at the resolution boundary (e.g. a `description` field that resolves to "Customer reviews" is rejected, so the next step in the chain still gets a chance).
 
 ### Meta Tags
 - `og:title`, `og:image`, `og:description` — Open Graph
