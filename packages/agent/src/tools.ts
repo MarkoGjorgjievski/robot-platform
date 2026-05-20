@@ -62,6 +62,10 @@ export const generateSelectorsTool: Tool = {
           type: 'object',
           properties: {
             name: { type: 'string' },
+            value: {
+              type: 'string',
+              description: 'The actual value you SEE for this field on the page/screenshot (e.g. "12.3 Ounce", "$62.17"). This is your extraction target — write an xpath that returns exactly this.',
+            },
             xpath: {
               type: 'string',
               description: 'XPath expression relative to the row element. Can traverse siblings with following-sibling::, ancestors with ancestor::, etc. Use . prefix for descendants of the row (e.g. .//span[@class="price"])',
@@ -75,7 +79,7 @@ export const generateSelectorsTool: Tool = {
               enum: ['none', 'trim', 'parse_number', 'parse_date', 'absolute_url'],
             },
           },
-          required: ['name', 'xpath', 'attribute', 'transform'],
+          required: ['name', 'value', 'xpath', 'attribute', 'transform'],
         },
       },
     },
