@@ -5,7 +5,7 @@ import { extractBrand } from './domain-utils.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human';
+export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human' | 'ai-vision';
 
 /** A single extraction path for a field */
 export type FieldPath = {

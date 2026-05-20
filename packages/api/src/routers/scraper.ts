@@ -365,10 +365,14 @@ export const scraperRouter = router({
             const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
               url, script, { waitUntil: 'networkidle' }
             );
-            if (xpathResult.data.length > 0) {
-              for (const fieldDef of plan.fields) {
-                const value = xpathResult.data[0][fieldDef.name];
-                tryAssign(fieldDef.name, value, 'xpath', fieldDef.xpath, 0.7);
+            const xpathRow = xpathResult.data.length > 0 ? xpathResult.data[0] : {};
+            for (const fieldDef of plan.fields) {
+              const domValue = xpathRow[fieldDef.name];
+              const assigned = tryAssign(fieldDef.name, domValue, 'xpath', fieldDef.xpath, 0.7);
+              // The xpath missed but the AI reported a value it saw on the page — use it.
+              // Empty path → not cached as a reusable selector, just delivered for this run.
+              if (!assigned && fieldDef.value !== undefined && fieldDef.value !== null && fieldDef.value !== '') {
+                tryAssign(fieldDef.name, fieldDef.value, 'ai-vision', '', 0.5);
               }
             }
 
