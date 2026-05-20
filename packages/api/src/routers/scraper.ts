@@ -57,7 +57,57 @@ export const scraperRouter = router({
         : detailCache ?? listingCache;
 
       if (cache && Object.keys(cache.fieldPaths).length > 0) {
-        const cachedFields = cachedFieldsFromCache(cache.fieldPaths);
+        const fieldNames = Object.keys(cache.fieldPaths);
+
+        // Capture the current URL so example values reflect THIS page, not a prior one.
+        const { PlaywrightBrowser } = await import('@robot/browser');
+        const {
+          resolveApiPathsFromCache, buildCachedXPathScript, resolveFromCache,
+        } = await import('@robot/scraper');
+
+        const browser = new PlaywrightBrowser();
+        await browser.launch({ headless: true });
+        let liveValues: Record<string, unknown> = {};
+        let screenshotFilename: string | null = null;
+        let screenshotId: string | null = null;
+        try {
+          const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
+
+          // API paths
+          const apiRes = resolveApiPathsFromCache(cache.fieldPaths, capture.interceptedRequests, fieldNames);
+          for (const [n, r] of Object.entries(apiRes.resolved)) liveValues[n] = r.value;
+
+          // Cached XPaths
+          const stillMissing = fieldNames.filter(n => liveValues[n] === undefined);
+          const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
+          if (cachedXPath) {
+            try {
+              const xr = await browser.evaluate<{ data: Record<string, unknown>[] }>(
+                url, cachedXPath.script, { waitUntil: 'domcontentloaded' },
+              );
+              if (xr.data.length > 0) for (const [n, v] of Object.entries(xr.data[0])) {
+                if (v !== null && v !== undefined && v !== '') liveValues[n] = v;
+              }
+            } catch (err) {
+              console.error('[analyze] cached XPath eval failed (non-fatal):', err);
+            }
+          }
+          const cr = resolveFromCache(cache.fieldPaths, liveValues, fieldNames);
+          for (const [n, r] of Object.entries(cr.resolved)) liveValues[n] = r.value;
+
+          // Persist screenshot for the UI.
+          screenshotId = randomUUID();
+          screenshotFilename = `${screenshotId}.png`;
+          const capturesDir = getCapturesDir();
+          await mkdir(capturesDir, { recursive: true });
+          await writeFile(join(capturesDir, screenshotFilename), capture.screenshot);
+        } catch (err) {
+          console.error('[analyze] capture failed (non-fatal, showing cache without live values):', err);
+        } finally {
+          await browser.close();
+        }
+
+        const cachedFields = cachedFieldsFromCache(cache.fieldPaths, liveValues);
 
         const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
         if (userFields.length > 0) {
@@ -68,34 +118,26 @@ export const scraperRouter = router({
               if (existing) existing.tier = 'requested';
             } else {
               cachedFields.push({
-                name: uf.name,
-                type: uf.type as string,
+                name: uf.name, type: uf.type as string,
                 description: uf.description || 'User requested (not yet cached)',
-                required: true,
-                example_value: undefined,
-                tier: 'requested' as string | undefined,
-                needsRediscovery: false,
+                required: true, example_value: undefined,
+                tier: 'requested' as string | undefined, needsRediscovery: false,
               });
             }
           }
         }
 
         return {
-          captureId: null,
-          screenshotUrl: null,
+          captureId: screenshotId,
+          screenshotUrl: screenshotFilename ? `/captures/${screenshotFilename}` : null,
           url,
-          title: `${domain} (cached)`,
+          title: `${domain}`,
           schema: {
             page_type: cache.pageType,
             description: `Known domain — ${cachedFields.length} fields available from ${cache.totalRuns} previous runs`,
             fields: cachedFields,
           },
           cached: true,
-          cacheStats: {
-            totalRuns: cache.totalRuns,
-            successRate: cache.successRate,
-            consecutiveFailures: cache.consecutiveFailures,
-          },
         };
       }
 
