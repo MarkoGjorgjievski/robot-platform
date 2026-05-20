@@ -1,0 +1,448 @@
+{
+  "props": {
+    "pageProps": {
+      "colorwayImages": [
+        {
+          "statusModifier": "COMING_SOON",
+          "id": "1015882355",
+          "squarishImg": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/4596fece-cb33-4c9b-93a2-8d6d5ee39a5c/JORDAN+12+RETRO+%28TD%29.png",
+          "portraitImg": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/4be1934c-3694-44c6-8bd3-3a1fa22b18b4/JORDAN+12+RETRO+%28TD%29.png",
+          "styleColor": "850000-003",
+          "colorCode": "003",
+          "groupLabel": "Baby/Toddler",
+          "colorDescription": "Black/Varsity Red",
+          "altText": "Jordan 12 Retro Baby/Toddler Shoes",
+          "path": "/t/jordan-12-retro-baby-toddler-shoes-pz28oX9z/850000-003",
+          "globalProductId": "72a22f5f-aa0a-4b9e-8a76-62f8f5dd33be",
+          "pdpUrl": "https://www.nike.com/t/jordan-12-retro-baby-toddler-shoes-pz28oX9z/850000-003"
+        },
+        {
+          "statusModifier": "COMING_SOON",
+          "id": "1015882472",
+          "squarishImg": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/104ecc82-845f-4822-9747-71cd485dd96e/JORDAN+12+RETRO+%28PS%29.png",
+          "portraitImg": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/27fa398f-752f-4276-9e10-7c3ad11d39c8/JORDAN+12+RETRO+%28PS%29.png",
+          "styleColor": "151186-003",
+          "colorCode": "003",
+          "groupLabel": "Little Kids",
+          "colorDescription": "Black/Varsity Red",
+          "altText": "Jordan 12 Retro Little Kids' Shoes",
+          "path": "/t/jordan-12-retro-little-kids-shoes-pz28oX9z/151186-003",
+          "globalProductId": "d3752ca3-b2f1-41e2-9785-69124b2b4247",
+          "pdpUrl": "https://www.nike.com/t/jordan-12-retro-little-kids-shoes-pz28oX9z/151186-003"
+        }
+      ],
+      "productGroups": [
+        {
+          "groupLabel": "Baby/Toddler",
+          "groupIndex": 0,
+          "products": {
+            "850000-003": {
+              "analytics": {
+                "hashKey": "031ca19059e60084d1fc03d37337151ec3ee2079c7ad8633bd8607193db4ca57"
+              },
+              "availabilityDate": "2026-05-23T14:00:00.000Z",
+              "badge": null,
+              "brands": [
+                "Jordan"
+              ],
+              "gender": null,
+              "genders": [
+                "GIRLS",
+                "BOYS"
+              ],
+              "sportTags": [
+                "Lifestyle"
+              ],
+              "colorCode": "003",
+              "colorDescription": "Black/Varsity Red",
+              "consumerReleaseType": "LAUNCH",
+              "contentImages": [
+                {
+                  "cardType": "image",
+                  "properties": {
+                    "altText": "Jordan 12 Retro Baby/Toddler Shoes",
+                    "squarish": {
+                      "aspectRatio": 1,
+                      "url": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/4596fece-cb33-4c9b-93a2-8d6d5ee39a5c/JORDAN+12+RETRO+%28TD%29.png",
+                      "id": "4596fece-cb33-4c9b-93a2-8d6d5ee39a5c"
+                    },
+                    "portrait": {
+                      "aspectRatio": 0.8,
+                      "url": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/4be1934c-3694-44c6-8bd3-3a1fa22b18b4/JORDAN+12+RETRO+%28TD%29.png",
+                      "id": "4be1934c-3694-44c6-8bd3-3a1fa22b18b4"
+                    }
+                  }
+                }
+              ],
+              "customizationPathName": "",
+              "enhancedPDP": [],
+              "hasNewEPDPContent": false,
+              "featuredAttributes": [
+                "COMING_SOON",
+                "LAUNCH",
+                "PROMOS_EXCLUDED",
+                "JUST_IN"
+              ],
+              "fitRecommendationMessage": "<ul>\n  <li>Fits small; we recommend ordering a full size up</li>\n</ul>",
+              "globalProductId": "72a22f5f-aa0a-4b9e-8a76-62f8f5dd33be",
+              "groupIndex": 0,
+              "groupKey": "pz28oX9z",
+              "groupLabel": "Baby/Toddler",
+              "id": "1015882355",
+              "isDigitalGiftCard": false,
+              "isGiftCard": false,
+              "isLaunchProduct": true,
+              "isMemberProduct": false,
+              "isSustainableMaterials": false,
+              "isNikeSkims": false,
+              "isPhysicalGiftCard": false,
+              "isPromoExclusion": true,
+              "isReservedForYou": false,
+              "isRestrictedAccess": false,
+              "isJerseyID": false,
+              "isSkusRequestInFlight": false,
+              "isNBY": false,
+              "launchAttributes": {
+                "start": "2026-05-10T16:00:00.000Z",
+                "end": "2026-05-23T14:00:00.000Z",
+                "launchViewId": "1fdba4c8-c105-30ad-adf1-0b88c19d4db5"
+              },
+              "manufacturingCountriesOfOrigin": [],
+              "merchProductId": "63a107a7-8055-5ee7-8f5e-28858e995731",
+              "moreInfo": [],
+              "netQuantity": null,
+              "styleCode": "850000",
+              "styleColor": "850000-003",
+              "displayStyle": "850000-003",
+              "piid": "pz28oX9z",
+              "prebuildId": null,
+              "searchRecsTaxonomyIds": [
+                "498ac76f-4c2c-4b55-bbdc-dd37011887b1",
+                "5e3a7953-7afc-4afc-8de0-af5cee16b3a3",
+                "91064b0a-0ee6-441b-8b09-de2105660311",
+                "193af413-39b0-4d7e-ae34-558821381d3f",
+                "16633190-45e5-4830-a068-232ac7aea82c"
+              ],
+              "taxonomyLabels": {
+                "Brand": [
+                  "Jordan"
+                ],
+                "Gender": [
+                  "Boys",
+                  "Girls"
+                ],
+                "Sports": [
+                  "Lifestyle"
+                ],
+                "Collections": [
+                  "Jordan Editions"
+                ],
+                "Product Type": [
+                  "Shoes"
+                ]
+              },
+              "pdpUrl": {
+                "url": "https://www.nike.com/t/jordan-12-retro-baby-toddler-shoes-pz28oX9z/850000-003",
+                "canonicalUrl": "https://www.nike.com/t/air-jordan-12-retro-taxi-big-kids-shoes-pz28oX9z",
+                "path": "/t/jordan-12-retro-baby-toddler-shoes-pz28oX9z/850000-003"
+              },
+              "prices": {
+                "currency": "USD",
+                "currentPrice": 80,
+                "initialPrice": 80,
+                "employeePrice": 80,
+                "discountPercentage": 0,
+                "employeeDiscountPercentage": 0
+              },
+              "productInfo": {
+                "badge": null,
+                "sizeFitSections": [
+                  "<ul>\n  <li>Fits small; we recommend ordering a full size up</li>\n</ul>"
+                ],
+                "title": "Jordan 12 Retro",
+                "subtitle": "Baby/Toddler Shoes",
+                "fullTitle": "Jordan 12 Retro Baby/Toddler Shoes",
+                "reasonToBuy": "A LITTLE 12, A LOT OF STYLE.",
+                "productDescription": "Get your little one the look of MJ's 12th signature shoe, one of the most artful. The Jordan 12 Retro is made with premium leather that's softly lined for comfort. A flexible rubber sole gives growing feet great traction and support for keeping pace on the playground.",
+                "moreDescriptions": [],
+                "featuresAndBenefits": [],
+                "enhancedBenefits": [
+                  {
+                    "header": "Luxe Leather",
+                    "body": [
+                      "The combination of genuine and synthetic leather is durable and supportive with a premium look and feel."
+                    ]
+                  },
+                  {
+                    "header": "Traction and Support",
+                    "body": [
+                      "The sturdy, non-marking rubber sole provides underfoot support and traction, with grooves to help with flexibility."
+                    ]
+                  },
+                  {
+                    "header": "Jordan DNA",
+                    "body": [
+                      "Jumpman designs on the tongue, sole and pull tab, plus \"23\" molded in the heel connect this little shoe to the world of Jordan heritage."
+                    ]
+                  }
+                ],
+                "productDetails": [],
+                "origins": [],
+                "url": "https://www.nike.com/t/jordan-12-retro-baby-toddler-shoes-pz28oX9z/850000-003",
+                "canonicalUrl": "https://www.nike.com/t/air-jordan-12-retro-taxi-big-kids-shoes-pz28oX9z",
+                "path": "/t/jordan-12-retro-baby-toddler-shoes-pz28oX9z/850000-003",
+                "sustainabilityMessage": null
+              },
+              "productType": "FOOTWEAR",
+              "selectedSku": "",
+              "sizes": [
+                {
+                  "label": "2C",
+                  "localizedLabel": "2C",
+                  "gtins": [
+                    {
+                      "gtin": "00198729253750"
+                    }
+                  ],
+                  "sortSequence": 7,
+                  "status": "ACTIVE",
+                  "merchSkuId": "8268ae11-ba73-5ae7-ae34-127b805b7f55"
+                },
+                {
+                  "label": "3C",
+                  "localizedLabel": "3C",
+                  "gtins": [
+                    {
+                      "gtin": "00198729135995"
+                    }
+                  ],
+                  "sortSequence": 10,
+                  "status": "ACTIVE",
+                  "merchSkuId": "9925ce32-eea9-5eb5-8961-62e632388d6c"
+                }
+              ],
+              "sizeSelectError": false,
+              "sizeChartUrl": "https://www.nike.com/size-fit/kids-footwear",
+              "showAvailabilityDate": true,
+              "statusModifier": "COMING_SOON",
+              "sustainabilityDisclaimerMessage": null,
+              "localizedLabelPrefix": "",
+              "giftCardMessageValueAddedServiceId": null,
+              "unlock": null
+            }
+          }
+        }
+      ],
+      "selectedProduct": {
+        "analytics": {
+          "hashKey": "d9fc084ede09f6f8abdb36ac7cd1d10a2624bd91c361dbe68ca13d8b699744a4"
+        },
+        "availabilityDate": "2026-05-23T14:00:00.000Z",
+        "badge": null,
+        "brands": [
+          "Jordan"
+        ],
+        "gender": 2,
+        "genders": [
+          "WOMEN",
+          "MEN",
+          "UNISEX"
+        ],
+        "sportTags": [
+          "Lifestyle"
+        ],
+        "colorCode": "003",
+        "colorDescription": "Black/Varsity Red",
+        "consumerReleaseType": "LAUNCH",
+        "contentImages": [
+          {
+            "cardType": "image",
+            "properties": {
+              "altText": "Air Jordan 12 Retro Men's Shoes",
+              "squarish": {
+                "aspectRatio": 1,
+                "url": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/2caa6dba-2c75-45e9-bd25-1de1edff7833/AIR+JORDAN+12+RETRO.png",
+                "id": "2caa6dba-2c75-45e9-bd25-1de1edff7833"
+              },
+              "portrait": {
+                "aspectRatio": 0.8,
+                "url": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/69a8820f-1e95-45e8-8270-87a13b485213/AIR+JORDAN+12+RETRO.png",
+                "id": "69a8820f-1e95-45e8-8270-87a13b485213"
+              }
+            }
+          }
+        ],
+        "customizationPathName": "",
+        "enhancedPDP": [],
+        "hasNewEPDPContent": false,
+        "featuredAttributes": [
+          "COMING_SOON",
+          "LAUNCH",
+          "PROMOS_EXCLUDED",
+          "JUST_IN"
+        ],
+        "fitRecommendationMessage": "",
+        "globalProductId": "1efb716e-266f-49f8-ac7e-982c7504d645",
+        "groupIndex": 3,
+        "groupKey": "pz28oX9z",
+        "groupLabel": "Adults",
+        "id": "1015882493",
+        "isDigitalGiftCard": false,
+        "isGiftCard": false,
+        "isLaunchProduct": true,
+        "isMemberProduct": false,
+        "isSustainableMaterials": false,
+        "isNikeSkims": false,
+        "isPhysicalGiftCard": false,
+        "isPromoExclusion": true,
+        "isReservedForYou": false,
+        "isRestrictedAccess": false,
+        "isJerseyID": false,
+        "isSkusRequestInFlight": false,
+        "isNBY": false,
+        "launchAttributes": {
+          "start": "2026-05-10T16:00:00.000Z",
+          "end": "2026-05-23T14:00:00.000Z",
+          "launchViewId": "23424b4e-fe7f-31c3-8689-8a427c4a424d"
+        },
+        "manufacturingCountriesOfOrigin": [],
+        "merchProductId": "d6212a15-e26d-5a72-a05f-b62c5b7a645e",
+        "moreInfo": [],
+        "netQuantity": null,
+        "styleCode": "CT8013",
+        "styleColor": "CT8013-003",
+        "displayStyle": "CT8013-003",
+        "piid": "pz28oX9z",
+        "prebuildId": null,
+        "searchRecsTaxonomyIds": [
+          "498ac76f-4c2c-4b55-bbdc-dd37011887b1",
+          "0f64ecc7-d624-4e91-b171-b83a03dd8550",
+          "568f7ffc-ee7f-49ed-98eb-0b94708d6e88",
+          "7baf216c-acc6-4452-9e07-39c2ca77ba32",
+          "193af413-39b0-4d7e-ae34-558821381d3f",
+          "16633190-45e5-4830-a068-232ac7aea82c"
+        ],
+        "taxonomyLabels": {
+          "Brand": [
+            "Jordan"
+          ],
+          "Gender": [
+            "Men",
+            "Unisex",
+            "Women"
+          ],
+          "Sports": [
+            "Lifestyle"
+          ],
+          "Collections": [
+            "Jordan Editions"
+          ],
+          "Product Type": [
+            "Shoes"
+          ]
+        },
+        "pdpUrl": {
+          "url": "https://www.nike.com/t/air-jordan-12-retro-mens-shoes-pz28oX9z/CT8013-003",
+          "canonicalUrl": "https://www.nike.com/t/air-jordan-12-retro-taxi-big-kids-shoes-pz28oX9z",
+          "path": "/t/air-jordan-12-retro-mens-shoes-pz28oX9z/CT8013-003"
+        },
+        "prices": {
+          "currency": "USD",
+          "currentPrice": 215,
+          "initialPrice": 215,
+          "employeePrice": 215,
+          "discountPercentage": 0,
+          "employeeDiscountPercentage": 0
+        },
+        "productInfo": {
+          "badge": null,
+          "sizeFitSections": [],
+          "title": "Air Jordan 12 Retro",
+          "subtitle": "Men's Shoes",
+          "fullTitle": "Air Jordan 12 Retro Men's Shoes",
+          "productDescription": "No need to call for a ride—MJ's game-winning look from '96 will get you where you need to go. This AJ12 is the return of Tinker Hatfield's celebrated design, the first to bring Air Zoom cushioning to Jordan's signature line. Premium materials give it a seasonal refresh, while the sunrise-inspired stitch lines on the upper hook back to the original. This is buzzer-beater style, perfected.",
+          "moreDescriptions": [],
+          "featuresAndBenefits": [
+            {
+              "header": "Benefits",
+              "body": [
+                "Genuine leather and textile materials in the upper for durability.",
+                "Foam midsole with full-length Air Zoom cushioning for responsiveness."
+              ]
+            }
+          ],
+          "enhancedBenefits": [],
+          "productDetails": [
+            {
+              "header": "Product Details",
+              "body": [
+                "Carbon fiber shank",
+                "Rubber outsole"
+              ]
+            }
+          ],
+          "origins": [],
+          "url": "https://www.nike.com/t/air-jordan-12-retro-mens-shoes-pz28oX9z/CT8013-003",
+          "canonicalUrl": "https://www.nike.com/t/air-jordan-12-retro-taxi-big-kids-shoes-pz28oX9z",
+          "path": "/t/air-jordan-12-retro-mens-shoes-pz28oX9z/CT8013-003",
+          "sustainabilityMessage": null
+        },
+        "productType": "FOOTWEAR",
+        "selectedSku": "",
+        "sizes": [
+          {
+            "label": "7",
+            "localizedLabel": "M 7 / W 8.5",
+            "gtins": [
+              {
+                "gtin": "00198729052759"
+              }
+            ],
+            "sortSequence": 15,
+            "status": "ACTIVE",
+            "merchSkuId": "ce000017-b94a-54e3-abda-4cceff43f621"
+          },
+          {
+            "label": "7.5",
+            "localizedLabel": "M 7.5 / W 9",
+            "gtins": [
+              {
+                "gtin": "00198729079053"
+              }
+            ],
+            "sortSequence": 16,
+            "status": "ACTIVE",
+            "merchSkuId": "e3b8df68-e7f1-5836-85d4-e8dfaddabfb9"
+          }
+        ],
+        "sizeSelectError": false,
+        "sizeChartUrl": "https://www.nike.com/size-fit/unisex-footwear-mens-based",
+        "showAvailabilityDate": true,
+        "statusModifier": "COMING_SOON",
+        "sustainabilityDisclaimerMessage": null,
+        "localizedLabelPrefix": "",
+        "giftCardMessageValueAddedServiceId": null,
+        "unlock": null
+      },
+      "flags": {
+        "enableChat": true,
+        "enableDedicatedReviewPages": true,
+        "enableReservedForYou": true,
+        "globalNavUseGeoPrivacy": true,
+        "incentivizedReviewsMessageNA": true,
+        "incentivizedReviewsMessage": false,
+        "loadStylitics": true,
+        "showStaticShippingMessage": true,
+        "showKlarna": true,
+        "showKlarnaPayMessage": true
+      }
+    }
+  },
+  "page": "/t/[slug]/[styleColor]",
+  "query": {
+    "slug": "air-jordan-12-retro-mens-shoes-pz28oX9z",
+    "styleColor": "CT8013-003"
+  },
+  "buildId": "GmAFZPMuwtNR6pJsT2UTR",
+  "assetPrefix": "//www.nike.com/assets/experience/dotcom-pdp/pdp-experience"
+}

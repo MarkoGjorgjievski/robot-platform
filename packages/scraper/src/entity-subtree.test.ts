@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { findEntitySubtree } from './entity-subtree.js';
+import nikeNextData from './__fixtures__/nike-nextdata.trimmed.json' with { type: 'json' };
 
 describe('findEntitySubtree', () => {
   it('finds the deepest object containing the most schema-relevant keys', () => {
@@ -51,5 +52,18 @@ describe('findEntitySubtree', () => {
     for (let i = 0; i < 20; i++) nested = { wrap: nested };
     const result = findEntitySubtree(nested);
     expect(result).toBeDefined();
+  });
+});
+
+describe('findEntitySubtree — real Next.js (Nike) structure', () => {
+  it('scopes to a product node containing the page product, not the root or full pageProps', () => {
+    const result = findEntitySubtree(nikeNextData);
+    expect(result.path).not.toBe('$');
+    expect(result.score).toBeGreaterThanOrEqual(2);
+    const json = JSON.stringify(result.value);
+    expect(json).toContain('Air Jordan 12 Retro');
+    expect(/"currentPrice"\s*:\s*\d/.test(json)).toBe(true);
+    const fullSize = JSON.stringify(nikeNextData).length;
+    expect(json.length).toBeLessThan(fullSize * 0.5);
   });
 });
