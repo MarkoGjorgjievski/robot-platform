@@ -30,6 +30,14 @@ function getCapturesDir(): string {
   return process.env.CAPTURES_DIR ?? join(process.cwd(), 'public', 'captures');
 }
 
+// The vision model sometimes emits a not-found sentinel as a field's "value"
+// (e.g. "UNKNOWN", "N/A", "—") when it can't see the value on the page. Those
+// must not be accepted as a resolved value — treat them as not-found.
+const AI_PLACEHOLDER_RE = /^(-+|n\/?a|none|null|undefined|unknown|<unknown>|not\s+(found|available|specified|listed|provided))$/i;
+function isAiPlaceholder(value: unknown): boolean {
+  return typeof value === 'string' && AI_PLACEHOLDER_RE.test(value.trim());
+}
+
 // ─── Procedures ─────────────────────────────────────────────────────────────
 
 export const scraperRouter = router({
@@ -251,10 +259,13 @@ export const scraperRouter = router({
         const fieldByName = new Map(schemaFields.map(f => [f.name, f]));
         function tryAssign(name: string, value: unknown, source: PathSource, path: string, confidence: number): boolean {
           if (finalData[name] !== undefined) return false;
+          // Absent values are "not found", not "rejected" — skip silently. (Guards
+          // against JSON.stringify(undefined) returning undefined → .slice crash.)
+          if (value === undefined || value === null) return false;
           const type = fieldByName.get(name)?.type ?? 'string';
           const v = validateFieldShape(value, type, { fieldName: name });
           if (!v.ok) {
-            console.log(`[extract] Rejected ${name}=${JSON.stringify(value).slice(0, 60)} (source=${source}): ${v.reason}`);
+            console.log(`[extract] Rejected ${name}=${String(JSON.stringify(value)).slice(0, 60)} (source=${source}): ${v.reason}`);
             return false;
           }
           finalData[name] = v.normalized;
@@ -413,7 +424,8 @@ export const scraperRouter = router({
               const assigned = tryAssign(fieldDef.name, domValue, 'xpath', fieldDef.xpath, 0.7);
               // The xpath missed but the AI reported a value it saw on the page — use it.
               // Empty path → not cached as a reusable selector, just delivered for this run.
-              if (!assigned && fieldDef.value !== undefined && fieldDef.value !== null && fieldDef.value !== '') {
+              if (!assigned && fieldDef.value !== undefined && fieldDef.value !== null
+                  && fieldDef.value !== '' && !isAiPlaceholder(fieldDef.value)) {
                 tryAssign(fieldDef.name, fieldDef.value, 'ai-vision', '', 0.5);
               }
             }

@@ -40,7 +40,8 @@ Requirements:
 - Prefer semantic XPaths: @class, @id, @data-* attributes, tag names
 - Avoid fragile XPaths: bare positional [1]/[2], deeply nested paths
 - Use "textContent" as the attribute for text, "href" for links, "src" for images
-- If you can see the value but cannot find a reliable XPath for it, still return the value with your best-effort xpath — the value alone is useful.`;
+- If you can see the value but cannot find a reliable XPath for it, still return the value with your best-effort xpath — the value alone is useful.
+- If you CANNOT see a value for a field on the page, leave its "value" as an empty string. Do NOT guess, fabricate, or use placeholders like "UNKNOWN", "N/A", or "-".`;
 
 export const VALIDATION_SYSTEM = `You are a data quality validator. Compare extracted data against a page screenshot to verify completeness and accuracy.
 
