@@ -73,7 +73,6 @@ export default function SandboxDetail() {
     pageType?: string;
     screenshotUrl?: string;
     cached?: boolean;
-    cacheStats?: { totalRuns: number; successRate: number };
   } | null;
   const hasSchema = schema && Array.isArray(schema.fields) && schema.fields.length > 0;
 
@@ -178,7 +177,7 @@ function Header({
   schema,
 }: {
   source: { name: string; urlTemplate: string | null };
-  schema: { pageType?: string; cached?: boolean; cacheStats?: { totalRuns: number; successRate: number } } | null;
+  schema: { pageType?: string; cached?: boolean } | null;
 }) {
   return (
     <div className="flex items-center gap-3">
@@ -186,11 +185,6 @@ function Header({
       {schema?.pageType && (
         <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-600">
           {schema.pageType}
-        </span>
-      )}
-      {schema?.cached && schema.cacheStats && (
-        <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-          Cached — {schema.cacheStats.totalRuns} runs, {schema.cacheStats.successRate}% reliability
         </span>
       )}
       {source.urlTemplate && (
