@@ -66,20 +66,41 @@ describe('collectAiAnalysisSources', () => {
     expect(sources).toEqual([]);
   });
 
-  it('caps the number of sources at 5, prefers richer (larger) sources', () => {
+  it('always retains inline (structured-data) sources even when smaller than capped intercepted ones', () => {
+    const sources = collectAiAnalysisSources({
+      interceptedRequests: Array.from({ length: 6 }, (_, i) =>
+        r(`https://junk.x/${i}`, `{"j":"${'x'.repeat(5000)}"}`, 40000)
+      ),
+      structuredData: {
+        nextData: { props: { pageProps: { product: { title: 'Air Jordan', price: 215, sku: 'X', color: 'Red' } } } },
+        ldJson: [{ '@type': 'Product', name: 'Air Jordan', description: 'x'.repeat(300) }],
+        initialState: null,
+        meta: {},
+      },
+    });
+    expect(sources.length).toBeLessThanOrEqual(5);
+    const urls = sources.map(s => s.url);
+    expect(urls.some(u => u.startsWith('inline://nextdata'))).toBe(true);
+    expect(urls).toContain('inline://ld+json[0]');
+  });
+
+  it('caps the number of sources at 5, keeps inline first then largest intercepted', () => {
     const sources = collectAiAnalysisSources({
       interceptedRequests: Array.from({ length: 10 }, (_, i) =>
         r(`https://api.x/p/${i}`, `{"data":"${'x'.repeat(i * 100)}"}`, 1000 + i * 100)
       ),
       structuredData: {
-        nextData: { props: 1 },
+        nextData: { props: { pageProps: { product: { title: 'T', price: 1, sku: 'S' } } } },
         ldJson: [{ a: 1 }],
         initialState: null,
         meta: {},
       },
     });
     expect(sources.length).toBeLessThanOrEqual(5);
-    // The largest intercepted bodies should be preferred
-    expect(sources[0].bodySize).toBeGreaterThanOrEqual(sources[sources.length - 1].bodySize);
+    expect(sources[0].url.startsWith('inline://nextdata')).toBe(true);
+    const intercepted = sources.filter(s => !s.url.startsWith('inline://'));
+    for (let i = 1; i < intercepted.length; i++) {
+      expect(intercepted[i - 1].bodySize).toBeGreaterThanOrEqual(intercepted[i].bodySize);
+    }
   });
 });

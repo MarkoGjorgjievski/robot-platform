@@ -58,5 +58,14 @@ export function collectAiAnalysisSources(input: CollectInput): AnalysisSource[] 
     }
   }
 
-  return [...sources].sort((a, b) => b.bodySize - a.bodySize).slice(0, MAX_SOURCES);
+  // Structured-data (inline://) sources are the highest-signal, lowest-noise
+  // inputs (esp. after entity-subtree scoping shrinks nextData). Never let the
+  // size cap evict them in favor of large junk intercepted requests. Keep all
+  // inline sources first, then fill the remaining slots with the largest
+  // intercepted bodies.
+  const inline = sources.filter((s) => s.url.startsWith('inline://'));
+  const intercepted = sources
+    .filter((s) => !s.url.startsWith('inline://'))
+    .sort((a, b) => b.bodySize - a.bodySize);
+  return [...inline, ...intercepted].slice(0, MAX_SOURCES);
 }
