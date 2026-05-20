@@ -47,4 +47,12 @@ describe('cachedFieldsFromCache', () => {
     });
     expect(out.map(f => f.name).sort()).toEqual(['flavours', 'sizes', 'title']);
   });
+
+  it('prefers a live value over the cached lastValue for the example', () => {
+    const out = cachedFieldsFromCache(
+      { price: { paths: [{ path: '//p', source: 'xpath', confidence: 0.9, hits: 3, misses: 0, lastValue: '$10.00', lastUsedAt: new Date().toISOString() }], conflictCount: 0 } },
+      { price: '$62.17' },
+    );
+    expect(out[0].example_value).toBe('$62.17');
+  });
 });

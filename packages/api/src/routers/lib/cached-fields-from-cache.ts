@@ -24,6 +24,7 @@ function inferFieldType(fieldName: string): string {
 
 export function cachedFieldsFromCache(
   fieldPaths: Record<string, FieldPathSet>,
+  liveValues?: Record<string, unknown>,
 ): CachedFieldSummary[] {
   return Object.entries(fieldPaths).map(([name, pathSet]) => {
     const bestPath = [...pathSet.paths].sort((a, b) => {
@@ -34,6 +35,10 @@ export function cachedFieldsFromCache(
     const totalHits = bestPath?.hits ?? 0;
     const totalMisses = bestPath?.misses ?? 0;
     const hitRate = Math.round(totalHits / Math.max(1, totalHits + totalMisses) * 100);
+    const liveValue = liveValues?.[name];
+    const example = liveValue !== undefined && liveValue !== null
+      ? String(liveValue).slice(0, 200)
+      : (bestPath?.lastValue != null ? String(bestPath.lastValue).slice(0, 200) : undefined);
     return {
       name,
       type: inferFieldType(name),
@@ -41,7 +46,7 @@ export function cachedFieldsFromCache(
         ? 'Cached field (discovered previously, awaiting re-discovery)'
         : `Cached field (${bestPath?.source ?? 'unknown'} source, ${hitRate}% hit rate)`,
       required: true,
-      example_value: bestPath?.lastValue != null ? String(bestPath.lastValue).slice(0, 200) : undefined,
+      example_value: example,
       tier: undefined,
       needsRediscovery: pathSet.paths.length === 0,
     };
