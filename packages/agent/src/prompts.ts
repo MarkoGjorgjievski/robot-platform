@@ -27,15 +27,20 @@ For each field, indicate WHERE the value was found:
 
 Prefer API sources over others — they are the most reliable and cacheable.`;
 
-export const SELECTOR_GENERATION_SYSTEM = `You are an XPath expert for web scraping. Given HTML and a target data schema, generate robust XPath expressions to extract each field.
+export const SELECTOR_GENERATION_SYSTEM = `You are an XPath expert for web scraping. You are given a SCREENSHOT of the page plus its HTML and a target data schema.
+
+Work in two steps for EACH field:
+1. LOOK at the screenshot and HTML and identify the actual value present on the page for that field. Put it in the "value" property exactly as it appears (e.g. "12.3 Ounce", "$62.17").
+2. Write an XPath that selects exactly that value from the HTML. The known value is your target — it is far easier to write a correct selector for a value you can see than to guess one blind.
 
 Requirements:
-- row_xpath must match each repeating item container
-- Field XPaths can be relative to the row (starting with .) or can traverse to siblings (using following-sibling::, preceding-sibling::) or ancestors (ancestor::)
-- XPath is preferred over CSS because it supports sibling traversal, which is critical for pages where metadata is in adjacent elements (e.g. Hacker News where each story spans two <tr> elements)
-- Prefer semantic XPaths: use @class, @id, @data-* attributes, tag names
-- Avoid fragile XPaths: positional [1], [2] without context, deeply nested paths
-- Use "textContent" as the attribute for text, "href" for links, "src" for images`;
+- row_xpath must match each repeating item container (for a detail page, a single container like //main or //body)
+- Field XPaths can be relative to the row (starting with .) or traverse to siblings (following-sibling::, preceding-sibling::) or ancestors (ancestor::)
+- XPath is preferred over CSS because it supports sibling traversal
+- Prefer semantic XPaths: @class, @id, @data-* attributes, tag names
+- Avoid fragile XPaths: bare positional [1]/[2], deeply nested paths
+- Use "textContent" as the attribute for text, "href" for links, "src" for images
+- If you can see the value but cannot find a reliable XPath for it, still return the value with your best-effort xpath — the value alone is useful.`;
 
 export const VALIDATION_SYSTEM = `You are a data quality validator. Compare extracted data against a page screenshot to verify completeness and accuracy.
 
@@ -135,13 +140,14 @@ export function selectorGenerationUserContent(html: string, fields: Array<{ name
   const isDetail = pageType === 'detail' || pageType === 'other';
 
   if (isDetail) {
-    return `This is a DETAIL page (single item, e.g. product page or article). Generate XPath expressions to extract these fields:
+    return `This is a DETAIL page (single item, e.g. product page or article). A screenshot of the page is attached. For each field below, identify the value visible on the page and write an XPath that returns it:
 
 ${fieldList}
 
 For detail pages:
 - row_xpath should be a container that wraps the main content (e.g. //main, //article, //div[@id="product-detail"], //body). It should match exactly 1 element.
 - Field XPaths should be ABSOLUTE (starting with //) so they work from the document root. Do NOT use relative paths starting with ".".
+- Put the value you see in each field's "value" property; make the xpath return that value.
 - Example: //span[@data-test="product-title"], //div[@class="price"]//span
 
 HTML:
@@ -149,7 +155,7 @@ HTML:
 ${html}`;
   }
 
-  return `Given this HTML, generate XPath expressions to extract these fields from each repeating item:
+  return `Given this HTML and the attached screenshot, generate XPath expressions to extract these fields from each repeating item. For each field, also return the value you can see in the "value" property:
 
 ${fieldList}
 
