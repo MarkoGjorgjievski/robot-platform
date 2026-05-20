@@ -37,6 +37,32 @@ describe('saveDomainCache — discovered-but-unresolved fields', () => {
     expect(cache!.fieldPaths['title'].paths.length).toBeGreaterThan(0);
   });
 
+  it('does not cache a path for a path-less ai-vision result on a fresh domain', async () => {
+    // Regression: buildFreshPaths must not push an empty-string path for a
+    // result that has a value but no selector (the 'ai-vision' fallback).
+    await saveDomainCache({
+      domain: DOMAIN,
+      pageType: PAGE_TYPE,
+      interceptedRequests: [],
+      fieldResults: {
+        weight: { value: '12.3 Ounce', source: 'ai-vision', path: '', confidence: 0.5 },
+        price: { value: '$62.17', source: 'xpath', path: '//span[@class="price"]', confidence: 0.7 },
+      },
+      discoveredFieldNames: ['weight', 'price'],
+      overallConfidence: 0.5,
+      hasJsonLd: false,
+      hasNextData: false,
+    });
+
+    const cache = await lookupDomainCache(DOMAIN, PAGE_TYPE);
+    expect(cache).not.toBeNull();
+    // weight resolved only via ai-vision → recorded as field-existence, no path
+    expect(cache!.fieldPaths['weight'].paths).toEqual([]);
+    // price had a real xpath → cached as a usable path
+    expect(cache!.fieldPaths['price'].paths.length).toBe(1);
+    expect(cache!.fieldPaths['price'].paths[0].path).toBe('//span[@class="price"]');
+  });
+
   it('does not prune empty-path entries on subsequent runs', async () => {
     await saveDomainCache({
       domain: DOMAIN,

@@ -518,7 +518,11 @@ function buildFreshPaths(
   const paths: Record<string, FieldPathSet> = {};
 
   for (const [fieldName, result] of Object.entries(fieldResults)) {
-    if (!result.path && !result.value) continue;
+    // Only cache results that carry a reusable path. Path-less results (e.g. the
+    // 'ai-vision' fallback, which delivers a value the AI read off the screenshot
+    // but has no selector) are recorded as field-existence via discoveredFieldNames
+    // below — never as a bogus empty-string path. Mirrors mergeFieldPaths.
+    if (!result.path) continue;
     paths[fieldName] = {
       paths: [{
         path: result.path,
