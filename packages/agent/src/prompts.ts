@@ -197,7 +197,7 @@ export function selectorRetryUserContent(
 
 ${missingList}
 
-Generate IMPROVED XPath expressions for ALL fields (not just the missing ones). You may keep the same row_xpath if it correctly identifies the repeating items, or change it if needed.
+A screenshot of the page is attached. For each field, LOOK at the screenshot and HTML to identify the actual value present, put it in the "value" property exactly as it appears, then write an XPath that returns that value. Generate IMPROVED XPath expressions for ALL fields (not just the missing ones). You may keep the same row_xpath if it correctly identifies the repeating items, or change it if needed.
 
 Fields to extract:
 ${fieldList}
