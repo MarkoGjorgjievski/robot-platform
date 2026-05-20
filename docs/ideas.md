@@ -173,6 +173,24 @@ The pipeline currently treats `analyze` (schema proposal) and `extract` (resolve
 - Build subtree-identification as a standalone util with a test corpus of real blobs.
 - Decide cap on blob size for AI API analysis (token cost vs. coverage).
 
+### 🔬 Junk intercepted requests waste AI-analysis slots
+
+During the Nike v1.1b dogfood, after `nextData` was correctly scoped small, the 5-source cap's remaining slots were filled by large but worthless intercepted requests — privacy-compliance frames, a Salesforce chat-widget config, and an i18n async-chat blob (~22–42 KB each). `collectAiAnalysisSources` now keeps `inline://` sources first (Phase 0.4), so correctness is fine, but those junk sources still occupy intercepted slots and cost one AI `extractFromApi` call each. `discoverSchema` already filters obvious infra URLs (translation/localisation/config/analytics/tracking/feature-flag); applying a similar denylist to `collectAiAnalysisSources`'s intercepted requests would cut wasted AI calls. Deferred (not correctness-affecting); be careful not to exclude real product APIs — see the "don't skip messy sources" principle.
+
+---
+
+## Cache lifecycle
+
+### 💡 Cache lifecycle — pruning, within-batch correction, backfill (deferred from v1.1b)
+
+v1.1b stopped at "always consult the cache." The existing per-path prune (≥5 uses & ≤10% hit rate) and 5-path cap are kept as-is. Deferred, to be designed against real volume data:
+- **Per-path prune tuning** — revisit the 5-use / 10% / 5-path-cap constants once we have multi-thousand-run domains.
+- **Within-batch second pass** — when a path discovered late in a batch would have fixed earlier inputs in the same batch, re-run the batch's own failed fields at the end.
+- **Historical backfill** — re-scrape already-delivered data when a materially better path appears (opt-in; expensive).
+- **Exploration-rate control** — today cross-validation exercises all paths every run; if early-exit is ever added for cost, exploration must be reintroduced as a rate so challenger paths still earn hits.
+
+Why milestones were rejected: absolute total-use milestones (1/5/…/10k) can't judge a path at small N and don't scale across customers (100-input vs 100k/day). Per-path evidence is the right primitive — which the existing prune already uses.
+
 ---
 
 ## (Other categories — add as ideas land)
