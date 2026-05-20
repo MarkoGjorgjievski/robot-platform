@@ -191,6 +191,10 @@ v1.1b stopped at "always consult the cache." The existing per-path prune (≥5 u
 
 Why milestones were rejected: absolute total-use milestones (1/5/…/10k) can't judge a path at small N and don't scale across customers (100-input vs 100k/day). Per-path evidence is the right primitive — which the existing prune already uses.
 
+### 🔬 DomainIntelligence `www.` key inconsistency
+
+`domainIntelligence.domain` is stored inconsistently: `extract` (`scraper.ts`) saves the full hostname (`www.amazon.com`) while `analyze` and other lookups strip `www.` (`amazon.com`). A single site can therefore accumulate two cache rows that never share paths, and the v1.5 Phase 5 `/domains` library shows both. Surfaced while building the global domain views (read-only, so they just display what's stored). Fix: normalize the cache key (strip `www.` everywhere, or canonicalize on write) — a cache-hygiene change with a one-time migration to merge existing split rows. Out of scope for the read-only views.
+
 ---
 
 ## (Other categories — add as ideas land)
