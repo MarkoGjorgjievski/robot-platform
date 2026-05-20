@@ -223,7 +223,6 @@ export const sandboxRouter = router({
         fields: result.schema.fields,
         pageType: result.schema.page_type,
         cached: result.cached,
-        cacheStats: result.cached && 'cacheStats' in result ? result.cacheStats : undefined,
         captureId: result.captureId,
         screenshotUrl: result.screenshotUrl,
       };
