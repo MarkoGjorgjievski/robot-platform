@@ -143,6 +143,73 @@ export const domainsRouter = router({
     }),
 
   // ─── Global DomainIntelligence views (read-only) ───────────────────────────
+  intelligenceDetail: publicProcedure
+    .input(z.object({ domain: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db.query.domainIntelligence.findMany({
+        where: (di, { eq: dieq }) => dieq(di.domain, input.domain),
+      });
+
+      type PathLike = {
+        path: string; source: string; hits: number; misses: number;
+        lastValue: unknown; lastUsedAt: string;
+      };
+      const pageTypes = rows.map((r) => {
+        const fieldPaths = (r.fieldPaths ?? {}) as Record<string, { paths?: PathLike[] }>;
+        const selectors: Array<{
+          field: string; source: string | null; hits: number; misses: number;
+          hitRate: number; lastValue: unknown; lastUsedAt: string | null;
+        }> = [];
+        for (const [field, set] of Object.entries(fieldPaths)) {
+          const paths = set?.paths ?? [];
+          if (paths.length === 0) {
+            selectors.push({ field, source: null, hits: 0, misses: 0, hitRate: 0, lastValue: null, lastUsedAt: null });
+            continue;
+          }
+          for (const p of paths) {
+            const total = p.hits + p.misses;
+            selectors.push({
+              field, source: p.source, hits: p.hits, misses: p.misses,
+              hitRate: total > 0 ? Math.round((p.hits / total) * 100) : 0,
+              lastValue: p.lastValue ?? null, lastUsedAt: p.lastUsedAt ?? null,
+            });
+          }
+        }
+        return {
+          pageType: r.pageType,
+          totalRuns: r.totalRuns,
+          successfulRuns: r.successfulRuns,
+          successRate: r.totalRuns > 0 ? Math.round((r.successfulRuns / r.totalRuns) * 100) : 0,
+          lastUsedAt: r.lastUsedAt,
+          lastVerifiedAt: r.lastVerifiedAt,
+          hasJsonLd: r.hasJsonLd,
+          hasNextData: r.hasNextData,
+          apiEndpoints: (r.apiEndpoints ?? []) as unknown[],
+          selectors,
+        };
+      });
+
+      const sourcesAcross = await ctx.db
+        .select({
+          id: sources.id,
+          slug: sources.slug,
+          name: sources.name,
+          urlTemplate: sources.urlTemplate,
+          projectSlug: projects.slug,
+          projectName: projects.name,
+          datasetName: datasets.name,
+        })
+        .from(sources)
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .innerJoin(projects, eq(datasets.projectId, projects.id))
+        .where(and(
+          eq(sources.isSandbox, false),
+          sql`split_part(${sources.urlTemplate}, '/', 3) IN (${input.domain}, ${'www.' + input.domain})`,
+        ));
+
+      return { domain: input.domain, pageTypes, sources: sourcesAcross };
+    }),
+
   intelligenceList: publicProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.domainIntelligence.findMany();
 
