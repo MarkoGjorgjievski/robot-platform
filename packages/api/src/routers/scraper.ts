@@ -56,7 +56,7 @@ export const scraperRouter = router({
         ? (Object.keys(detailCache.fieldPaths).length >= Object.keys(listingCache.fieldPaths).length ? detailCache : listingCache)
         : detailCache ?? listingCache;
 
-      if (cache && Object.keys(cache.fieldPaths).length > 0 && cache.consecutiveFailures < 5) {
+      if (cache && Object.keys(cache.fieldPaths).length > 0) {
         const cachedFields = cachedFieldsFromCache(cache.fieldPaths);
 
         const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
@@ -276,7 +276,7 @@ export const scraperRouter = router({
         console.log(`[extract] Total after paths + mechanical: ${Object.keys(finalData).length}/${fields.length} fields`);
 
         // STEP 1.5: Cached paths
-        if (cache && cache.totalRuns > 0 && cache.consecutiveFailures < 5) {
+        if (cache && cache.totalRuns > 0) {
           const missingForCache = fieldNames.filter((n) => finalData[n] === undefined);
           if (missingForCache.length > 0 && capture.interceptedRequests.length > 0) {
             const apiCacheResult = resolveApiPathsFromCache(
@@ -322,7 +322,7 @@ export const scraperRouter = router({
           const totalFromCache = fieldNames.filter((n) => finalData[n] !== undefined).length;
           console.log(`[extract] After cache: ${totalFromCache}/${fields.length} fields (${cache.totalRuns} previous runs, ${cache.successRate}% success)`);
         } else if (cache) {
-          console.log(`[extract] Cache exists but ${cache.consecutiveFailures} consecutive failures — skipping, running full chain`);
+          console.log(`[extract] Cache exists but has no successful runs yet for ${domain}/${resolvedPageType}`);
         } else {
           console.log(`[extract] No cache for ${domain}/${resolvedPageType}`);
         }
@@ -470,7 +470,7 @@ export const scraperRouter = router({
             requested: requestedResults,
             discovered: discoveredResults,
           },
-          cacheHit: cache !== null && cache.consecutiveFailures < 5,
+          cacheHit: cache !== null && cache.totalRuns > 0 && Object.keys(cache.fieldPaths).length > 0,
           schemaChanges: schemaChanges.length > 0 ? schemaChanges : undefined,
           qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
         };
