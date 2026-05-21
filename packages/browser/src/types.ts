@@ -24,6 +24,7 @@ export type PageCapture = {
   html: string;
   markdown: string;
   screenshot: Buffer;
+  screenshotTiles: Buffer[];
   title: string;
   timestamp: number;
   structuredData: StructuredData;
@@ -41,7 +42,6 @@ export type BrowserOptions = {
 
 export type CaptureOptions = {
   waitUntil?: 'load' | 'networkidle' | 'domcontentloaded';
-  screenshotFullPage?: boolean;
   interceptNetworkRequests?: boolean;
   timeout?: number;
 };
