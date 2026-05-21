@@ -415,6 +415,9 @@ export const scraperRouter = router({
           console.log(`[extract] ${missingAfterApi.length} fields still missing, XPath fallback`);
           try {
             plan = await agent.generateSelectors(capture, missingAfterApi, resolvedPageType);
+            if (cache?.rowSelector) {
+              plan.row_xpath = cache.rowSelector.xpath;
+            }
             const script = buildExtractionScript(plan);
             const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
               url, script, { waitUntil: 'networkidle' }
@@ -476,6 +479,9 @@ export const scraperRouter = router({
           if (stillMissing.length === 0) break;
           try {
             const tilePlan = await agent.generateSelectors(capture, stillMissing, resolvedPageType, tiles[t]);
+            if (cache?.rowSelector) {
+              tilePlan.row_xpath = cache.rowSelector.xpath;
+            }
             const tileScript = buildExtractionScript(tilePlan);
             const tileResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
               url, tileScript, { waitUntil: 'networkidle' },
