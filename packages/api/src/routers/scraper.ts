@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { SchemaChange, PathSource } from '@robot/scraper';
 import { validateFieldShape } from '@robot/scraper';
 import type { SchemaField } from '@robot/agent';
+import { domainIntelligence } from '@robot/db';
 import { buildResultRows } from './lib/build-result-rows.js';
 import { cachedFieldsFromCache } from './lib/cached-fields-from-cache.js';
 import { collectAiAnalysisSources } from './lib/collect-ai-analysis-sources.js';
@@ -564,5 +565,23 @@ export const scraperRouter = router({
       } finally {
         releaseLock();
       }
+    }),
+
+  setRowSelector: publicProcedure
+    .input(z.object({
+      domain: z.string().min(1),
+      pageType: z.enum(['detail', 'listing']),
+      rowXpath: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const rowSelector = { xpath: input.rowXpath, source: 'human' as const, setAt: new Date().toISOString() };
+      await ctx.db
+        .insert(domainIntelligence)
+        .values({ domain: input.domain, pageType: input.pageType, rowSelector })
+        .onConflictDoUpdate({
+          target: [domainIntelligence.domain, domainIntelligence.pageType],
+          set: { rowSelector, updatedAt: new Date() },
+        });
+      return { ok: true as const };
     }),
 });
