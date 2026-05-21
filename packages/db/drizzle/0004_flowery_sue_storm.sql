@@ -1,0 +1,1 @@
+ALTER TABLE "domain_intelligence" ADD COLUMN "row_selector" jsonb;
