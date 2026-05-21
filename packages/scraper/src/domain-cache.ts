@@ -39,6 +39,7 @@ export type DomainCache = {
   consecutiveFailures: number;
   successRate: number;
   paginationConfig: PaginationConfig | null;
+  rowSelector: { xpath: string; source: 'human'; setAt: string } | null;
 };
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ export async function lookupDomainCache(domain: string, pageType: string): Promi
     consecutiveFailures: result.consecutiveFailures ?? 0,
     successRate: totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0,
     paginationConfig: (result.paginationConfig as PaginationConfig) ?? null,
+    rowSelector: (result.rowSelector as DomainCache['rowSelector']) ?? null,
   };
 }
 

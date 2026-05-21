@@ -266,6 +266,8 @@ export const domainIntelligence = pgTable('domain_intelligence', {
   popupSelectors: jsonb('popup_selectors').default([]),
   // Pagination detection results for listing pages
   paginationConfig: jsonb('pagination_config'),
+  // Human-pinned row container selector (click-to-select backend); null = AI-generated each run
+  rowSelector: jsonb('row_selector'),
   // Structured data availability
   hasJsonLd: boolean('has_json_ld').default(false).notNull(),
   hasNextData: boolean('has_next_data').default(false).notNull(),
