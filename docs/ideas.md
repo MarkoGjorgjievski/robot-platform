@@ -83,6 +83,34 @@ The `extract` step then resolved only 4/16. The other 12 fields (`price`, `image
 - Pass `field.example_value` through to `agent.generateSelectors` as a "find an XPath that yields this value" hint.
 - Measure: rerun the Amazon Godiva test case before/after; expect resolution rate to climb from 4/16 toward the analyze-time field count.
 
+**UPDATE (v1.1b, shipped 2026-05-20):** the reverse-search direction above shipped — `generateSelectors` is multimodal and value-targeted, lifting Amazon Godiva 4/16 → 12/16. But dogfooding + the v1.5 Phase 5 domain views surfaced two follow-ups (below).
+
+### 🔬 Reverse-search overfits XPaths to the literal value
+
+**Observation (v1.5 Phase 5 domain-views dogfood, 2026-05-20, `www.amazon.com / detail`).** Inspecting the cached `rating` paths showed three accumulated XPaths, two of which hardcode the literal value:
+
+```
+[0] //span[@class='a-icon-alt' and contains(text(), 'out of 5')] | …    ← generic, generalizes
+[1] //span[@class='a-icon-alt'][contains(text(), '4.1')]                ← hardcodes "4.1"
+[2] //span[@class='a-icon-alt' and contains(text(), '4.1')]             ← hardcodes "4.1"
+```
+
+`review_count` shows the same pattern (one path hardcodes `(27)`). The v1.1b reverse-search prompt ("write an XPath that returns this value") makes the model bake the target *value* into the selector's text predicate. Such a path only matches a product whose rating is exactly 4.1 — it won't generalize to the next variant (rating 4.7), where only the generic path survives. So value-targeting, while it lifted resolution, can produce brittle non-generalizing selectors that pollute the cache and give false confidence (they log a "hit" on the page they were born from).
+
+**Direction.**
+- Tighten the selector-generation system prompt: use the seen value to *locate* the right element, then write a selector keyed on **structure/attributes** (`@class`, `@id`, `@data-*`, label proximity), NOT on the literal value text. Explicitly: "do not put the value itself inside `contains(text(), …)` — anchor on stable structure."
+- Optionally post-filter generated XPaths: if the selector string contains the literal target value, down-rank or reject it in favor of a structural alternative.
+- Cross-reference with the cache-lifecycle pruning (near-duplicate / brittle paths should age out): [[cache-lifecycle]].
+
+### 🔬 `ai-vision`-only fields never amortize (re-pay AI every run)
+
+**Observation (same dogfood).** `price`, `upc`, `asin` had **0 cached paths after 5 runs**. Root cause for `price`: it only ever resolved via the v1.1b `ai-vision` fallback (the model reading the value off the screenshot). By design `ai-vision` values are *delivered for the run but not cached as a reusable path* (empty path — they aren't selectors). So a field the AI can only *see* (not *select*) re-pays the AI on every run and never becomes free — defeating the cache's whole economic premise for that field. (`upc`/`asin` are a different gap: not on the rendered DOM at all — UPC isn't shown on Amazon PDPs; ASIN is in the URL / a details table the selector didn't target.)
+
+**Direction.**
+- When `ai-vision` is the *only* resolver for a field across N runs, attempt to derive a generalizable selector from the AI-seen value's DOM location (turn the vision hit into a cached XPath), or flag the field as "AI-only — not cached" in the UI so the cost is visible.
+- Source identifiers structurally where possible: `asin` from the URL pattern, `upc`/`gtin` from JSON-LD / structured data, rather than the rendered DOM.
+- Image-grounded validation ([[image-grounded-field-discovery]]) pairs naturally here — confirm the ai-vision value against the screenshot before trusting it.
+
 ### 🔬 Cache trusts itself even when paths return wrong values
 
 **The bug.** Domain intelligence cache prunes paths only when they return `null` repeatedly (the `>10 uses, <10% hit rate` rule in the cache scoring). It does not prune paths that return *non-null but incorrect* values. If a cached XPath/JSON path was built from URL A and is now being applied to URL B (different layout, different product type on the same domain), it may still match a DOM node or JSON key — just the *wrong* one. The path is happily logged as a "hit" and the cache keeps reusing it.
