@@ -95,7 +95,7 @@ export class SchemaAgent {
     return normalizeSchemaResponse(json);
   }
 
-  async generateSelectors(capture: PageCapture, fields: SchemaField[], pageType?: string): Promise<ExtractionPlan> {
+  async generateSelectors(capture: PageCapture, fields: SchemaField[], pageType?: string, image?: Buffer): Promise<ExtractionPlan> {
     const html = truncateHtml(capture.html, this.anthropic ? 50000 : 30000);
     const fieldSummary = fields.map(f => ({ name: f.name, type: f.type, tier: f.tier }));
     const userText = selectorGenerationUserContent(html, fieldSummary, pageType);
@@ -105,7 +105,7 @@ export class SchemaAgent {
         system: SELECTOR_GENERATION_SYSTEM,
         tool: generateSelectorsTool,
         userText,
-        image: capture.screenshot,
+        image: image ?? capture.screenshot,
       });
       return result as ExtractionPlan;
     }
@@ -123,6 +123,7 @@ export class SchemaAgent {
     fields: SchemaField[],
     pageType: string,
     feedback: RetryFeedback,
+    image?: Buffer,
   ): Promise<ExtractionPlan> {
     const html = truncateHtml(capture.html, this.anthropic ? 50000 : 30000);
     const fieldSummary = fields.map(f => ({ name: f.name, type: f.type }));
@@ -133,7 +134,7 @@ export class SchemaAgent {
         system: SELECTOR_GENERATION_SYSTEM,
         tool: generateSelectorsTool,
         userText,
-        image: capture.screenshot,
+        image: image ?? capture.screenshot,
       });
       return result as ExtractionPlan;
     }
