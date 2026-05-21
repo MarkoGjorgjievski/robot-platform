@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { ZodError } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { appRouter } from './index.js';
 import { createCallerFactory } from '../trpc.js';
-import { db } from '@robot/db';
+import { db, domainIntelligence } from '@robot/db';
+import { and, eq } from 'drizzle-orm';
 
 const createCaller = createCallerFactory(appRouter);
 
@@ -72,5 +73,36 @@ describe('scraperRouter', () => {
       expect(typeof caller.scraper.analyze).toBe('function');
       expect(typeof caller.scraper.extract).toBe('function');
     });
+  });
+});
+
+describe('scraper.setRowSelector', () => {
+  const DOMAIN = 'rowsel-test.example';
+  const PAGE_TYPE = 'listing';
+  afterEach(async () => {
+    await db.delete(domainIntelligence).where(
+      and(eq(domainIntelligence.domain, DOMAIN), eq(domainIntelligence.pageType, PAGE_TYPE)),
+    );
+  });
+
+  const caller = createCaller({ db });
+
+  it('upserts a human row selector for a new domain', async () => {
+    await caller.scraper.setRowSelector({ domain: DOMAIN, pageType: PAGE_TYPE, rowXpath: '//div[@data-x]' });
+    const row = await db.query.domainIntelligence.findFirst({
+      where: and(eq(domainIntelligence.domain, DOMAIN), eq(domainIntelligence.pageType, PAGE_TYPE)),
+    });
+    expect(row).toBeDefined();
+    expect((row!.rowSelector as { xpath: string }).xpath).toBe('//div[@data-x]');
+    expect((row!.rowSelector as { source: string }).source).toBe('human');
+  });
+
+  it('overwrites an existing row selector', async () => {
+    await caller.scraper.setRowSelector({ domain: DOMAIN, pageType: PAGE_TYPE, rowXpath: '//a' });
+    await caller.scraper.setRowSelector({ domain: DOMAIN, pageType: PAGE_TYPE, rowXpath: '//b' });
+    const row = await db.query.domainIntelligence.findFirst({
+      where: and(eq(domainIntelligence.domain, DOMAIN), eq(domainIntelligence.pageType, PAGE_TYPE)),
+    });
+    expect((row!.rowSelector as { xpath: string }).xpath).toBe('//b');
   });
 });
