@@ -88,11 +88,11 @@ Thread A multimodal reverse-search selectors + ai-vision fallback; entity-subtre
 
 **Result:** Amazon Godiva resolution went from 4/16 (baseline) → **12/16 (75%)**, with not-founds reported honestly instead of fabricated. Remaining wrong fields (`diet_type`, `product_description` resolving to the title) come from stale cached xpaths — the separate "cache trusts itself / wrong-but-non-null" issue tracked in `docs/ideas.md`, out of v1.1b scope.
 
-### v1.1 — Backend Stability
+### v1.1 — Backend Stability (DONE — 2026-05-22)
 
-- [ ] Data quality checks (prices > 0, URLs valid, no HTML in text)
-- [ ] Crop screenshots to viewport before sending to Claude (token savings)
-- [ ] Click-to-select for row selector (not just field values) — backend support
+- [x] **Data quality checks** (prices > 0, URLs valid, no HTML in text) — implemented in `data-quality.ts` (`validateExtractedData`), wired into extract STEP 5.
+- [x] **Progressive screenshot tiles** — capture the full page as legible ≤1536px tiles (cap 3); feed tile 0, escalate to lower tiles only for unresolved fields. Replaces the single fixed crop; reaches below-the-fold data without sending oversized/illegible images. (Supersedes the original "crop to viewport" item.)
+- [x] **Human row-selector override (backend)** — `domain_intelligence.row_selector` + `scraper.setRowSelector` mutation; `extract` overrides the AI's `row_xpath` with the human pick on both the first and tile-escalation passes. (Click-to-select UI lands in v2.1.)
 
 (Removed: "Fix save flow end-to-end" — superseded by v1.5 Phase 2. "Per-source browser config" — folded into v1.5 Phase 3. "Wizard improvements" — superseded by v1.5. "Fix BBC-style complex listings" — subsumed by v2's listing→detail strategy (we'll follow links to detail pages rather than fight the listing). "Side panel / expandable sections (Amazon reseller data)" — the new data model makes reseller data its own Dataset, not a side panel of products.)
 
