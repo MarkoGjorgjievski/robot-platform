@@ -2,6 +2,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig } from './types.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
+import { computeTileClips } from './screenshot-tiles.js';
 
 const nhm = new NodeHtmlMarkdown();
 
@@ -85,16 +86,18 @@ export class PlaywrightBrowser implements IBrowser {
       await this.dismissPopups(page);
       await this.expandHiddenContent(page);
 
-      const [html, title, screenshotBuffer, structuredData] = await Promise.all([
+      const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      const clips = computeTileClips(pageHeight);
+
+      const [html, title, structuredData] = await Promise.all([
         page.content(),
         page.title(),
-        page.screenshot({
-          type: 'png',
-          fullPage: false,
-          clip: options.screenshotFullPage ? undefined : { x: 0, y: 0, width: 1280, height: 1600 },
-        }),
         this.extractStructuredData(page),
       ]);
+      const tileBuffers = await Promise.all(
+        clips.map((clip) => page.screenshot({ type: 'png', clip })),
+      );
+      const screenshotTiles = tileBuffers.map((b) => Buffer.from(b));
 
       const cleanedHtml = await this.extractReadableContent(page, html);
       const markdown = nhm.translate(cleanedHtml);
@@ -111,7 +114,8 @@ export class PlaywrightBrowser implements IBrowser {
         url: page.url(),
         html,
         markdown,
-        screenshot: Buffer.from(screenshotBuffer),
+        screenshot: screenshotTiles[0],
+        screenshotTiles,
         title,
         timestamp: Date.now(),
         structuredData,
