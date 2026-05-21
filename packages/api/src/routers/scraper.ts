@@ -573,6 +573,11 @@ export const scraperRouter = router({
       }
     }),
 
+  // Persist a human-pinned row container selector. NOTE: `domain` must be the
+  // SAME hostname form `extract` looks up with — `new URL(url).hostname`, i.e.
+  // WITH any `www.` prefix. The override is matched by exact string, so a
+  // mismatched form (e.g. stripped `www.`) silently won't apply. The v2.1
+  // click-to-select UI must pass the hostname exactly as extract sees it.
   setRowSelector: publicProcedure
     .input(z.object({
       domain: z.string().min(1),
