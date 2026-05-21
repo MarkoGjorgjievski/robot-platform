@@ -466,6 +466,33 @@ export const scraperRouter = router({
           }
         }
 
+        // STEP 3.5: Escalate to lower screenshot tiles for still-missing fields.
+        // Tile 0 (above-fold) was used above; lower tiles are sent only when needed,
+        // capped by capture (MAX_TILES). Cost is paid once per page-shape, then cached.
+        const tiles = capture.screenshotTiles ?? [capture.screenshot];
+        for (let t = 1; t < tiles.length; t++) {
+          const stillMissing = schemaFields.filter((f) => finalData[f.name] === undefined);
+          if (stillMissing.length === 0) break;
+          try {
+            const tilePlan = await agent.generateSelectors(capture, stillMissing, resolvedPageType, tiles[t]);
+            const tileScript = buildExtractionScript(tilePlan);
+            const tileResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
+              url, tileScript, { waitUntil: 'networkidle' },
+            );
+            const tileRow = tileResult.data.length > 0 ? tileResult.data[0] : {};
+            for (const fieldDef of tilePlan.fields) {
+              const assigned = tryAssign(fieldDef.name, tileRow[fieldDef.name], 'xpath', fieldDef.xpath, 0.7);
+              if (!assigned && fieldDef.value !== undefined && fieldDef.value !== null
+                  && fieldDef.value !== '' && !isAiPlaceholder(fieldDef.value)) {
+                tryAssign(fieldDef.name, fieldDef.value, 'ai-vision', '', 0.5);
+              }
+            }
+            console.log(`[extract] Tile ${t} escalation: ${schemaFields.filter(f => finalData[f.name] !== undefined).length}/${schemaFields.length} resolved`);
+          } catch (err) {
+            console.error(`[extract] Tile ${t} escalation failed (non-fatal):`, err);
+          }
+        }
+
         await browser.close();
 
         // STEP 4: Confidence + save cache
