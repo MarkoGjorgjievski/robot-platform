@@ -13,6 +13,16 @@ export type ReplayResult = {
   sources: Record<string, string>;
 };
 
+/** Type used for shape-validation on replay — inferred from the golden expected value
+ * so that e.g. cached XPath strings like "4.15" are normalized to number 4.15 the same
+ * way prod does (via validateFieldShape with the right type). */
+function inferType(expected: unknown): string {
+  if (typeof expected === 'number') return 'number';
+  if (typeof expected === 'boolean') return 'boolean';
+  if (Array.isArray(expected)) return 'array';
+  return 'string';
+}
+
 export async function runFixtureReplay(fixture: Fixture): Promise<ReplayResult> {
   const fieldNames = Object.keys(fixture.expected);
   const finalData: Record<string, unknown> = {};
@@ -21,7 +31,8 @@ export async function runFixtureReplay(fixture: Fixture): Promise<ReplayResult> 
   function tryAssign(name: string, value: unknown, source: string): boolean {
     if (finalData[name] !== undefined) return false;
     if (value === undefined || value === null || value === '') return false;
-    const v = validateFieldShape(value, 'string', { fieldName: name });
+    const type = inferType(fixture.expected[name]);
+    const v = validateFieldShape(value, type, { fieldName: name });
     if (!v.ok) return false;
     finalData[name] = v.normalized;
     sources[name] = source;
