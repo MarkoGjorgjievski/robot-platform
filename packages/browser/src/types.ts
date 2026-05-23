@@ -50,6 +50,7 @@ export interface IBrowser {
   launch(options?: BrowserOptions): Promise<void>;
   capture(url: string, options?: CaptureOptions): Promise<PageCapture>;
   evaluate<T = unknown>(url: string, script: string, options?: CaptureOptions): Promise<T>;
+  setContentEvaluate<T = unknown>(html: string, script: string): Promise<T>;
   close(): Promise<void>;
 }
 

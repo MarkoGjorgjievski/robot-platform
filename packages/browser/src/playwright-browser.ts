@@ -146,6 +146,22 @@ export class PlaywrightBrowser implements IBrowser {
     }
   }
 
+  async setContentEvaluate<T = unknown>(html: string, script: string): Promise<T> {
+    if (!this.browser) throw new Error('Browser not launched. Call launch() first.');
+    const context = await this.browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    try {
+      // Offline: setContent does NOT trigger navigation or network fetches.
+      await page.setContent(html, { waitUntil: 'load' });
+      // Playwright evaluates a string argument as a JS expression. The scripts we feed
+      // (e.g. buildCachedXPathScript) are self-invoking IIFEs that return a value.
+      const result = await page.evaluate(script);
+      return result as T;
+    } finally {
+      await context.close();
+    }
+  }
+
   /**
    * Navigate with fallback strategy:
    * 1. Try networkidle (best for simple pages)
