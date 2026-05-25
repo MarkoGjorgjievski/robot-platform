@@ -205,3 +205,15 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 - **v2 listing→detail subsumes the BBC fix and the Amazon reseller side-panel.** Both former v1.1 items become moot because the new strategy is "always go to the detail page when listing extraction is lossy."
 
 **How to apply:** v1.5 is complete (Phases 0-5 done). v1.1 (backend stability) remains the open Track A polish item; v2 pipeline features (pagination, listing→detail) are the next major capability and now have their full dashboard foundation. v2 pipeline features land on the v1.5 Phase 0 data model and gain a UI via the existing v1.5 Phase 3+ views.
+
+---
+
+## Testing & Quality Harness (IN PROGRESS)
+
+Spec: `docs/superpowers/specs/2026-05-22-testing-strategy-design.md`. Plan: `docs/superpowers/plans/2026-05-22-testing-strategy.md`. How-to: `docs/testing.md`.
+
+- [x] **P1 — Deterministic fixture-replay gate (DONE — 2026-05-25).** Tier 1 harness (`packages/scraper/src/__fixtures__/`), `setContentEvaluate` on the browser, first seed fixture (IKEA Kallax with 15 golden fields). `pnpm -r test` is now a real green gate. Surfaced and fixed a critical pre-existing v1.1 bug: every PlaywrightBrowser capture against a page taller than the 800px viewport had been throwing on `page.screenshot` since v1.1's tile-capture shipped — needed `fullPage:true` alongside the clip.
+- [ ] **P2 — Live dogfood + LLM-judge.** CLI in `packages/api/src/dogfood.ts`, `liveCorpus` manifest, per-run Markdown reports under `docs/testing/results/`.
+- [ ] **P3 — Corpus growth.** Add Nike (once it has cached paths via a fresh extract) and a second IKEA page-shape; chase down the Amazon headless-block problem upstream before adding Amazon fixtures.
+
+(Dashboard smoke E2E is a separate follow-up, not part of this initiative.)
