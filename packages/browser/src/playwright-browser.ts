@@ -94,8 +94,13 @@ export class PlaywrightBrowser implements IBrowser {
         page.title(),
         this.extractStructuredData(page),
       ]);
+      // fullPage:true expands the captured image to the full scrollable page,
+      // so clips beyond the 800px viewport (any tile past the first) are in
+      // bounds. Without it Playwright clips against the viewport and throws
+      // "Clipped area is either empty or outside the resulting image" on any
+      // page taller than the viewport (i.e. essentially every real page).
       const tileBuffers = await Promise.all(
-        clips.map((clip) => page.screenshot({ type: 'png', clip })),
+        clips.map((clip) => page.screenshot({ type: 'png', fullPage: true, clip })),
       );
       const screenshotTiles = tileBuffers.map((b) => Buffer.from(b));
 
