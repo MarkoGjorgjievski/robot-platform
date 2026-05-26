@@ -14,3 +14,4 @@ export type {
   RetryFeedback,
   PaginationDetectionResult,
 } from './types.js';
+export { judgeFieldExtraction, type JudgeVerdict } from './judge.js';
