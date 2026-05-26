@@ -52,7 +52,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Conventions
 
-- Don't auto-commit — user commits manually
+- Commits are fine when the work is done — use focused, single-purpose commits
 - Prefer proper fixes over workarounds
 - All new packages use ESM (`"type": "module"`)
 - Legacy code preserved in `/Users/marko/Documents/robot-platform-legacy/`
