@@ -213,7 +213,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 Spec: `docs/superpowers/specs/2026-05-22-testing-strategy-design.md`. Plan: `docs/superpowers/plans/2026-05-22-testing-strategy.md`. How-to: `docs/testing.md`.
 
 - [x] **P1 — Deterministic fixture-replay gate (DONE — 2026-05-25).** Tier 1 harness (`packages/scraper/src/__fixtures__/`), `setContentEvaluate` on the browser, first seed fixture (IKEA Kallax with 15 golden fields). `pnpm -r test` is now a real green gate. Surfaced and fixed a critical pre-existing v1.1 bug: every PlaywrightBrowser capture against a page taller than the 800px viewport had been throwing on `page.screenshot` since v1.1's tile-capture shipped — needed `fullPage:true` alongside the clip.
-- [ ] **P2 — Live dogfood + LLM-judge.** CLI in `packages/api/src/dogfood.ts`, `liveCorpus` manifest, per-run Markdown reports under `docs/testing/results/`.
-- [ ] **P3 — Corpus growth.** Add Nike (once it has cached paths via a fresh extract) and a second IKEA page-shape; chase down the Amazon headless-block problem upstream before adding Amazon fixtures.
+- [x] **P2 — Live dogfood + LLM-judge (DONE — 2026-05-26).** CLI in `packages/api/src/dogfood.ts`, `liveCorpus` manifest, per-run Markdown reports under `docs/testing/results/`. First report (`2026-05-26T08-15-dogfood.md`) judged 15/16 IKEA Kallax fields — 2 flagged `wrong`, 6 `not-on-page`; the LLM-judge is doing real work.
+- [x] **P3 — Corpus growth (PARTIAL — 2026-05-26).** Nike Air Jordan fixture added. Second IKEA page-shape attempted on BILLY, LACK, and POÄNG — IKEA's headless anti-bot serves a degraded page (no JSON-LD, no nextData, no ingka.com API) for every IKEA URL except the originally captured Kallax, so a second IKEA fixture is deferred until the headless capture story is hardened (same family of problem as Amazon, recorded here so it doesn't get forgotten).
 
 (Dashboard smoke E2E is a separate follow-up, not part of this initiative.)
