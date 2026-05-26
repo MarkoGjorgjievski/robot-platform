@@ -8,7 +8,8 @@
     "./routers": "./src/routers/index.ts"
   },
   "scripts": {
-    "test": "vitest"
+    "test": "vitest",
+    "dogfood": "tsx src/dogfood.ts"
   },
   "dependencies": {
     "@robot/agent": "workspace:*",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.3",
+    "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.6"
   }
