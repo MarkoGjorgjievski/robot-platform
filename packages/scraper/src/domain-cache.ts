@@ -5,7 +5,7 @@ import { extractBrand } from './domain-utils.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human' | 'ai-vision';
+export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human' | 'ai-vision' | 'ai-discovered-variants';
 
 /** A single extraction path for a field */
 export type FieldPath = {
@@ -259,7 +259,12 @@ export function buildCachedXPathScript(
 
     // Find best XPath path — human paths first, then by hit rate
     const xpathPath = pathSet.paths
-      .filter(p => p.source === 'xpath' || p.source === 'xpath-cached' || (p.source === 'human' && p.path.startsWith('//')))
+      .filter(p => {
+        if (p.source === 'ai-discovered-variants') return false;
+        // variant_array fields' json-ld paths are also opaque cache keys, not in-page XPath
+        if (p.path === 'ldJson[ProductGroup].hasVariant') return false;
+        return p.source === 'xpath' || p.source === 'xpath-cached' || (p.source === 'human' && p.path.startsWith('//'));
+      })
       .sort((a, b) => {
         if (a.source === 'human' && b.source !== 'human') return -1;
         if (b.source === 'human' && a.source !== 'human') return 1;
