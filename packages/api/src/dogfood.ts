@@ -14,7 +14,7 @@ process.env.CAPTURES_DIR ??= '/tmp/dogfood-captures';
 
 const { db } = await import('@robot/db');
 const { scraperRouter } = await import('./routers/scraper.js');
-const { judgeFieldExtraction } = await import('@robot/agent');
+const { judgeFieldExtraction, judgeVariantArray } = await import('@robot/agent');
 const { liveCorpus } = await import('@robot/scraper');
 
 const caller = scraperRouter.createCaller({ db });
@@ -34,6 +34,13 @@ for (const site of liveCorpus) {
     const analysis = await caller.analyze({ url: site.url });
     const fields = (analysis.schema.fields as Array<{ name: string; type: string; description?: string; tier?: 'requested' | 'discovered'; example_value?: string }>)
       .map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier, example_value: f.example_value }));
+
+    // Ensure variants is requested even when discovery / cache didn't propose it.
+    // Without this, IKEA's cache-hit returns 16 scalar fields and the AI variants
+    // fallback never runs. The dogfood is opinionated about testing variants.
+    if (!fields.some((f) => f.name === 'variants')) {
+      fields.push({ name: 'variants', type: 'variant_array', description: 'Product variants (color/size/capacity/etc.)', tier: 'requested' as 'requested' | 'discovered' | undefined, example_value: undefined });
+    }
 
     const result = await caller.extract({ url: site.url, fields, pageType: site.pageType });
 
@@ -56,13 +63,41 @@ for (const site of liveCorpus) {
         continue;
       }
       totalResolved++;
-      const verdict = screenshot
-        ? await judgeFieldExtraction({ screenshot, field: row.name, value: row.value, apiKey })
-        : 'error' as const;
+
+      // Detect variant_array by value shape (the extract response carries source
+      // but not type; safe inference: array of plain objects with a 'sku' or
+      // 'price' key on at least one entry).
+      const isVariantArray = Array.isArray(row.value)
+        && row.value.length > 0
+        && typeof row.value[0] === 'object'
+        && row.value[0] !== null
+        && !Array.isArray(row.value[0])
+        && (row.value as Array<Record<string, unknown>>).some((v) => 'sku' in v || 'price' in v || 'image_url' in v);
+
+      let verdict: 'correct' | 'wrong' | 'not-on-page' | 'error';
+      if (!screenshot) {
+        verdict = 'error';
+      } else if (isVariantArray) {
+        verdict = await judgeVariantArray({ screenshot, variants: row.value as Array<Record<string, unknown>>, apiKey });
+      } else {
+        verdict = await judgeFieldExtraction({ screenshot, field: row.name, value: row.value, apiKey });
+      }
       if (verdict === 'wrong') totalWrong++;
       if (verdict === 'not-on-page') totalNotOnPage++;
       if (verdict === 'error') totalError++;
-      const valStr = String(JSON.stringify(row.value)).slice(0, 100);
+
+      // Render: scalars get JSON.stringify truncated to 100; variant arrays get a condensed summary.
+      let valStr: string;
+      if (isVariantArray) {
+        const arr = row.value as Array<Record<string, unknown>>;
+        const summary = arr.slice(0, 3).map((v) => {
+          const axis = v.color ?? v.size ?? v.capacity ?? v.sku ?? '?';
+          return `${axis}${v.price != null ? ` @${v.price}` : ''}`;
+        }).join(', ');
+        valStr = `${arr.length} variants: [${summary}${arr.length > 3 ? ', ...' : ''}]`;
+      } else {
+        valStr = String(JSON.stringify(row.value)).slice(0, 100);
+      }
       lines.push(`- [${verdict}] ${row.name}: ${valStr} (src=${row.source})`);
     }
     lines.push('');
