@@ -17,6 +17,11 @@ export type ReplayResult = {
  * so that e.g. cached XPath strings like "4.15" are normalized to number 4.15 the same
  * way prod does (via validateFieldShape with the right type). */
 function inferType(expected: unknown): string {
+  if (Array.isArray(expected) && expected.length > 0
+      && typeof expected[0] === 'object' && expected[0] !== null
+      && !Array.isArray(expected[0])) {
+    return 'variant_array';
+  }
   if (typeof expected === 'number') return 'number';
   if (typeof expected === 'boolean') return 'boolean';
   if (Array.isArray(expected)) return 'array';
@@ -44,7 +49,7 @@ export async function runFixtureReplay(fixture: Fixture): Promise<ReplayResult> 
   //   { name, type, description?, sourceHint?: 'api' | 'json-ld' | 'meta' | 'page' }
   const fieldsWithHints = fieldNames.map((name) => ({
     name,
-    type: 'string',
+    type: inferType(fixture.expected[name]),
     description: '',
     sourceHint: undefined as 'api' | 'json-ld' | 'meta' | 'page' | undefined,
   }));
@@ -66,8 +71,13 @@ export async function runFixtureReplay(fixture: Fixture): Promise<ReplayResult> 
   for (const [n, r] of Object.entries(apiRes.resolved)) tryAssign(n, r.value, r.source);
 
   // 3. Cached XPaths replayed offline via setContent + prod Chromium engine
+  //    variant_array fields don't participate in XPath replay — they're sourced from
+  //    JSON-LD by the mechanical step (and AI fallback in live extract).
   const stillMissing = fieldNames.filter((n) => finalData[n] === undefined);
-  const cachedScript = buildCachedXPathScript(fixture.fieldPaths, stillMissing);
+  const stillMissingScalar = stillMissing.filter(
+    (n) => inferType(fixture.expected[n]) !== 'variant_array',
+  );
+  const cachedScript = buildCachedXPathScript(fixture.fieldPaths, stillMissingScalar);
   if (cachedScript) {
     const browser = new PlaywrightBrowser();
     await browser.launch({ headless: true });
