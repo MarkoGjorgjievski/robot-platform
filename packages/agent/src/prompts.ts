@@ -19,6 +19,11 @@ If the page is a listing/search page, extract fields for each repeating item.
 Prefer snake_case field names. Be specific about data types (use "price" for monetary values, "url" for links, "image_url" for image sources).
 Always identify at least 3 fields.
 
+If the page is a single product page with multiple variants (different colors, sizes, capacities, pack quantities, finishes, etc. selectable in a picker UI), include a field named "variants" of type "variant_array". Variant signals include:
+- JSON-LD with "@type": "ProductGroup" and a non-empty hasVariant[] array.
+- DOM variant pickers visible in the screenshot: color swatch grids, size dropdowns, capacity buttons, pack-size selectors.
+Do NOT propose "variants" for category landing pages, search results, or related-product carousels.
+
 For each field, indicate WHERE the value was found:
 - source="api" + api_path: if the value comes from an intercepted API JSON response. The api_path MUST be the exact dot-notation path (e.g. "data.product.name") that can be used to programmatically extract the value.
 - source="json-ld": if the value comes from JSON-LD structured data
