@@ -7865,6 +7865,20 @@
     "brand": "Nike",
     "product_name": "Jordan 12 Retro Baby/Toddler Shoes",
     "category": "FOOTWEAR",
-    "availability": "https://schema.org/InStock"
+    "availability": "https://schema.org/InStock",
+    "variants": [
+      {
+        "sku": "850000-003",
+        "price": 80,
+        "image_url": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/4596fece-cb33-4c9b-93a2-8d6d5ee39a5c/JORDAN+12+RETRO+%28TD%29.png",
+        "color": "Black/Varsity Red"
+      },
+      {
+        "sku": "153265-003",
+        "price": 155,
+        "image_url": "https://static.nike.com/a/images/t_default/u_126ab356-44d8-4a06-89b4-fcdcc8df0245,c_scale,fl_relative,w_1.0,h_1.0,fl_layer_apply/101f4169-4762-42e4-9855-f5c241e17c51/AIR+JORDAN+12+RETRO+%28GS%29.png",
+        "color": "Black/Varsity Red"
+      }
+    ]
   }
 }
