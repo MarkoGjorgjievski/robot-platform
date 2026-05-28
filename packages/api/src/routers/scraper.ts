@@ -381,9 +381,28 @@ export const scraperRouter = router({
           console.log(`[extract] No cache for ${domain}/${resolvedPageType}`);
         }
 
+        const agent = new SchemaAgent();
+
+        // STEP 1.6: AI variants fallback — runs when a variant_array field is
+        // requested AND mechanical + cache produced no value for it.
+        const variantFields = schemaFields.filter((f) => f.type === 'variant_array' && finalData[f.name] === undefined);
+        if (variantFields.length > 0) {
+          for (const vf of variantFields) {
+            try {
+              const { variants, path_hint } = await agent.extractVariants(capture, capture.screenshot);
+              if (variants.length > 0) {
+                if (tryAssign(vf.name, variants, 'ai-discovered-variants', path_hint, 0.6)) {
+                  console.log(`[extract] AI variants fallback: ${variants.length} variants for ${vf.name} (hint: ${path_hint.slice(0, 60)})`);
+                }
+              }
+            } catch (err) {
+              console.error(`[extract] AI variants fallback failed for ${vf.name} (non-fatal):`, err);
+            }
+          }
+        }
+
         // STEP 2: AI API analysis
         const missingAfterCache = schemaFields.filter((f) => finalData[f.name] === undefined);
-        const agent = new SchemaAgent();
         const apisToTry = collectAiAnalysisSources({
           interceptedRequests: capture.interceptedRequests,
           structuredData: capture.structuredData,
