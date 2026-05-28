@@ -23,7 +23,7 @@ export const discoverSchemaTool: Tool = {
             name: { type: 'string', description: 'Field name in snake_case' },
             type: {
               type: 'string',
-              enum: ['string', 'number', 'boolean', 'url', 'image_url', 'date', 'price', 'array'],
+              enum: ['string', 'number', 'boolean', 'url', 'image_url', 'date', 'price', 'array', 'variant_array'],
             },
             description: { type: 'string', description: 'What this field contains' },
             required: { type: 'boolean' },
