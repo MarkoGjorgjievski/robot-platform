@@ -16,3 +16,4 @@ export type {
   Variant,
 } from './types.js';
 export { judgeFieldExtraction, type JudgeVerdict } from './judge.js';
+export { judgeVariantArray } from './judge-variants.js';
