@@ -1,4 +1,11 @@
-export type FieldType = 'string' | 'number' | 'boolean' | 'url' | 'image_url' | 'date' | 'price' | 'array';
+export type FieldType = 'string' | 'number' | 'boolean' | 'url' | 'image_url' | 'date' | 'price' | 'array' | 'variant_array';
+
+export type Variant = {
+  sku?: string | null;
+  price?: number | null;
+  image_url?: string | null;
+  [axis: string]: unknown;
+};
 
 export type FieldTier = 'requested' | 'discovered';
 
