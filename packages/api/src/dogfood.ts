@@ -35,10 +35,13 @@ for (const site of liveCorpus) {
     const fields = (analysis.schema.fields as Array<{ name: string; type: string; description?: string; tier?: 'requested' | 'discovered'; example_value?: string }>)
       .map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier, example_value: f.example_value }));
 
-    // Ensure variants is requested even when discovery / cache didn't propose it.
-    // Without this, IKEA's cache-hit returns 16 scalar fields and the AI variants
-    // fallback never runs. The dogfood is opinionated about testing variants.
-    if (!fields.some((f) => f.name === 'variants')) {
+    // Ensure variants is requested even when discovery / cache didn't propose it,
+    // and force the type to variant_array — a cache hit may have returned the
+    // field as 'string' (cache type-inference is heuristic, not authoritative).
+    const variantsField = fields.find((f) => f.name === 'variants');
+    if (variantsField) {
+      variantsField.type = 'variant_array';
+    } else {
       fields.push({ name: 'variants', type: 'variant_array', description: 'Product variants (color/size/capacity/etc.)', tier: 'requested' as 'requested' | 'discovered' | undefined, example_value: undefined });
     }
 

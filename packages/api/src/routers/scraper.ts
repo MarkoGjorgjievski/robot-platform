@@ -427,8 +427,11 @@ export const scraperRouter = router({
           console.log(`[extract] After AI API: ${Object.keys(finalData).length}/${fields.length} fields`);
         }
 
-        // STEP 3: XPath fallback
-        const missingAfterApi = schemaFields.filter((f) => finalData[f.name] === undefined);
+        // STEP 3: XPath fallback. Variant arrays don't come from DOM XPath
+        // (they're handled by the JSON-LD walker + AI variants fallback above);
+        // excluding them here avoids the XPath agent returning stringified JSON
+        // that the shape validator then rightly rejects.
+        const missingAfterApi = schemaFields.filter((f) => finalData[f.name] === undefined && f.type !== 'variant_array');
         let plan = null;
         if (missingAfterApi.length > 0) {
           console.log(`[extract] ${missingAfterApi.length} fields still missing, XPath fallback`);
@@ -494,7 +497,7 @@ export const scraperRouter = router({
         // capped by capture (MAX_TILES). Cost is paid once per page-shape, then cached.
         const tiles = capture.screenshotTiles ?? [capture.screenshot];
         for (let t = 1; t < tiles.length; t++) {
-          const stillMissing = schemaFields.filter((f) => finalData[f.name] === undefined);
+          const stillMissing = schemaFields.filter((f) => finalData[f.name] === undefined && f.type !== 'variant_array');
           if (stillMissing.length === 0) break;
           try {
             const tilePlan = await agent.generateSelectors(capture, stillMissing, resolvedPageType, tiles[t]);

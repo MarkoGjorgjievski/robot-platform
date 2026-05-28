@@ -12,6 +12,7 @@ export type CachedFieldSummary = {
 
 function inferFieldType(fieldName: string): string {
   const name = fieldName.toLowerCase();
+  if (name === 'variants' || name === 'options' || name === 'variations') return 'variant_array';
   if (name.includes('price') || name.includes('cost') || name.includes('discount_amount')) return 'price';
   if (name.includes('url') || name.includes('link') || name.includes('href')) return 'url';
   if (name.includes('image')) return 'image_url';

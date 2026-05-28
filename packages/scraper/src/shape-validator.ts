@@ -46,12 +46,22 @@ export function validateFieldShape(
       if (value.length === 0) return { ok: false, reason: 'empty array' };
       const allObjects = value.every((v) => v !== null && typeof v === 'object' && !Array.isArray(v));
       if (!allObjects) return { ok: false, reason: 'items must be plain objects' };
-      const hasCore = value.some((v: Record<string, unknown>) => {
-        return (v.sku != null && v.sku !== '')
-          || (v.price != null && v.price !== '')
-          || (v.image_url != null && v.image_url !== '');
+      // Accept the array when every item has at least ONE recognized variant
+      // axis (core or discovered). The intent is to keep recommendations
+      // carousels out (which carry name/description/url, no axes) while
+      // letting through real variants whose SKU/price aren't visible on the
+      // current screenshot tile.
+      const RECOGNIZED_AXES = new Set([
+        'sku', 'price', 'image_url',
+        'color', 'size', 'capacity', 'finish', 'material', 'pattern', 'quantity',
+      ]);
+      const hasAnyAxis = value.every((v: Record<string, unknown>) => {
+        for (const k of Object.keys(v)) {
+          if (RECOGNIZED_AXES.has(k) && v[k] != null && v[k] !== '') return true;
+        }
+        return false;
       });
-      if (!hasCore) return { ok: false, reason: 'no core fields (sku/price/image_url) on any item' };
+      if (!hasAnyAxis) return { ok: false, reason: 'no recognized variant axes on every item (likely a recommendations carousel, not variants)' };
       return { ok: true, normalized: value };
     }
     default:
