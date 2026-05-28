@@ -13,5 +13,6 @@ export type {
   ApiExtractionResult,
   RetryFeedback,
   PaginationDetectionResult,
+  Variant,
 } from './types.js';
 export { judgeFieldExtraction, type JudgeVerdict } from './judge.js';
