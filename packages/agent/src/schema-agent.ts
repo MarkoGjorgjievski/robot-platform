@@ -2,13 +2,14 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { PageCapture } from '@robot/browser';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { OllamaProvider } from './providers/ollama.js';
-import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool } from './tools.js';
+import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool, extractVariantsTool } from './tools.js';
 import {
   SCHEMA_DISCOVERY_SYSTEM,
   SELECTOR_GENERATION_SYSTEM,
   API_EXTRACTION_SYSTEM,
   VALIDATION_SYSTEM,
   PAGINATION_DETECTION_SYSTEM,
+  EXTRACT_VARIANTS_SYSTEM,
   schemaDiscoveryUserContent,
   selectorGenerationUserContent,
   selectorRetryUserContent,
@@ -24,6 +25,7 @@ import type {
   SchemaField,
   RetryFeedback,
   PaginationDetectionResult,
+  Variant,
 } from './types.js';
 
 export type AgentProvider = 'anthropic' | 'ollama';
@@ -116,6 +118,49 @@ export class SchemaAgent {
     }) as Record<string, unknown>;
 
     return normalizeSelectorResponse(json);
+  }
+
+  /**
+   * AI fallback for variant_array fields. Called when JSON-LD ProductGroup is
+   * absent and the variants cache misses. Returns variants[] + an opaque
+   * path_hint that gets persisted to domainIntelligence for next-run cache.
+   */
+  async extractVariants(
+    capture: PageCapture,
+    screenshot: Buffer,
+  ): Promise<{ variants: Variant[]; path_hint: string }> {
+    const nextDataRaw = capture.structuredData.nextData
+      ? JSON.stringify(capture.structuredData.nextData)
+      : '';
+    const nextData = nextDataRaw.length > 50_000
+      ? nextDataRaw.slice(0, 50_000) + '...[truncated]'
+      : nextDataRaw;
+
+    const userText = nextData
+      ? `Page nextData blob (truncated to 50KB if longer):\n${nextData}`
+      : `No __NEXT_DATA__ blob on this page — rely on the screenshot.`;
+
+    try {
+      if (!this.anthropic) {
+        // AI variants fallback is Anthropic-first; Ollama provider does not
+        // support callWithTool. Return empty so callers fall through gracefully.
+        return { variants: [], path_hint: '' };
+      }
+      const input = (await this.anthropic.callWithTool({
+        system: EXTRACT_VARIANTS_SYSTEM,
+        tool: extractVariantsTool,
+        userText,
+        image: screenshot,
+        maxTokens: 4096,
+      })) as { variants?: unknown; path_hint?: unknown };
+
+      const variants = Array.isArray(input.variants) ? (input.variants as Variant[]) : [];
+      const path_hint = typeof input.path_hint === 'string' ? input.path_hint : '';
+      return { variants, path_hint };
+    } catch (err) {
+      console.error('[extractVariants] error:', err);
+      return { variants: [], path_hint: '' };
+    }
   }
 
   async retrySelectorGeneration(
