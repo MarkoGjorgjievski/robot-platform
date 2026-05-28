@@ -42,6 +42,8 @@ describe('extraction fixture corpus (Tier 1 deterministic gate)', () => {
       const fixture = loadFixture(label);
       const result = await runFixtureReplay(fixture);
       for (const [field, expected] of Object.entries(fixture.expected)) {
+        // Keys starting with `_` are fixture metadata (e.g. `_note_variants`), not goldens.
+        if (field.startsWith('_')) continue;
         if (expected === null) {
           expect(result.resolved[field]).toBeUndefined();
         } else if (Array.isArray(expected) && expected.length > 0
