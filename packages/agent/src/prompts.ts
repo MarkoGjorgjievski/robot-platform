@@ -305,3 +305,12 @@ Rules:
 - Use a consistent axis set across all variants (if one has "color", every entry should set "color"; use null for variants where the axis isn't visible).
 - Category pages, search results, and related-product carousels are NOT variants — don't include them.
 - Maximum 50 variants per call. If the page shows more, return the first 50.`;
+
+export const JUDGE_VARIANTS_PROMPT = `You see a webpage screenshot and an extracted JSON array of product variants. Each item should correspond to a selectable variant on the page (different color, size, capacity, etc.).
+
+Reply with EXACTLY one word:
+- "correct" — count and content roughly match the page's variant picker
+- "wrong" — variants visible on the page differ materially from the extracted list (wrong count, wrong colors, missing options the picker shows, etc.)
+- "not-on-page" — this page does not show variants at all
+
+No explanation.`;
