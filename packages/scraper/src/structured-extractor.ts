@@ -49,7 +49,22 @@ export function extractFromStructuredData(
     { key: 'meta', data: metaFlat },
   ];
 
+  // Special-case: variant_array fields come from JSON-LD ProductGroup, not the scalar pools.
+  const scalarFields: FieldRequest[] = [];
   for (const field of fields) {
+    if (field.type === 'variant_array') {
+      const variants = extractVariantsFromLdJson(structuredData.ldJson);
+      if (variants) {
+        data[field.name] = variants;
+        sources[field.name] = 'json-ld';
+        paths[field.name] = 'ldJson[ProductGroup].hasVariant';
+      }
+    } else {
+      scalarFields.push(field);
+    }
+  }
+
+  for (const field of scalarFields) {
     // If the AI told us where this field comes from, try that source first
     const ordered = field.sourceHint
       ? [
@@ -290,4 +305,47 @@ function flattenObject(
       flattenObject(value as Record<string, unknown>, fullKey, result, depth + 1);
     }
   }
+}
+
+// ─── Variant array extraction (Schema.org ProductGroup.hasVariant) ──────────
+
+function extractVariantsFromLdJson(ldJson: unknown[]): Record<string, unknown>[] | null {
+  for (const entry of ldJson) {
+    if (!entry || typeof entry !== 'object') continue;
+    const obj = entry as Record<string, unknown>;
+    if (obj['@type'] !== 'ProductGroup') continue;
+    const has = obj.hasVariant;
+    if (!Array.isArray(has) || has.length === 0) continue;
+    const variants: Record<string, unknown>[] = [];
+    for (const v of has) {
+      if (!v || typeof v !== 'object') continue;
+      const variant: Record<string, unknown> = {};
+      const vo = v as Record<string, unknown>;
+      // sku
+      const sku = vo.mpn ?? vo.sku ?? vo.productID;
+      if (sku != null && sku !== '') variant.sku = String(sku);
+      // price (from offers)
+      const offers = vo.offers as Record<string, unknown> | undefined;
+      if (offers && typeof offers === 'object') {
+        const p = offers.price;
+        if (typeof p === 'number') variant.price = p;
+        else if (typeof p === 'string') {
+          const n = Number(p.replace(/[$,€£¥\s]/g, '').trim());
+          if (!Number.isNaN(n)) variant.price = n;
+        }
+      }
+      // image_url
+      const img = vo.image;
+      if (typeof img === 'string' && img.length > 0) variant.image_url = img;
+      else if (Array.isArray(img) && img.length > 0 && typeof img[0] === 'string') variant.image_url = img[0];
+      // Discovered axes — pass through known Schema.org axes
+      for (const axis of ['color', 'size', 'material', 'pattern']) {
+        const val = vo[axis];
+        if (val != null && val !== '') variant[axis] = typeof val === 'string' ? val : val;
+      }
+      variants.push(variant);
+    }
+    return variants.length > 0 ? variants : null;
+  }
+  return null;
 }
