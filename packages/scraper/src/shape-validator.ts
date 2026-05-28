@@ -41,6 +41,19 @@ export function validateFieldShape(
       }
       return { ok: true, normalized: value };
     }
+    case 'variant_array': {
+      if (!Array.isArray(value)) return { ok: false, reason: 'not array' };
+      if (value.length === 0) return { ok: false, reason: 'empty array' };
+      const allObjects = value.every((v) => v !== null && typeof v === 'object' && !Array.isArray(v));
+      if (!allObjects) return { ok: false, reason: 'items must be plain objects' };
+      const hasCore = value.some((v: Record<string, unknown>) => {
+        return (v.sku != null && v.sku !== '')
+          || (v.price != null && v.price !== '')
+          || (v.image_url != null && v.image_url !== '');
+      });
+      if (!hasCore) return { ok: false, reason: 'no core fields (sku/price/image_url) on any item' };
+      return { ok: true, normalized: value };
+    }
     default:
       return { ok: true, normalized: value };
   }
