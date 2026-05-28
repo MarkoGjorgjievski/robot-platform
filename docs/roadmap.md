@@ -217,3 +217,11 @@ Spec: `docs/superpowers/specs/2026-05-22-testing-strategy-design.md`. Plan: `doc
 - [x] **P3 — Corpus growth (PARTIAL — 2026-05-26).** Nike Air Jordan fixture added. Second IKEA page-shape attempted on BILLY, LACK, and POÄNG — IKEA's headless anti-bot serves a degraded page (no JSON-LD, no nextData, no ingka.com API) for every IKEA URL except the originally captured Kallax, so a second IKEA fixture is deferred until the headless capture story is hardened (same family of problem as Amazon, recorded here so it doesn't get forgotten).
 
 (Dashboard smoke E2E is a separate follow-up, not part of this initiative.)
+
+---
+
+## Variants (DONE — 2026-05-28)
+
+Spec: `docs/superpowers/specs/2026-05-28-variants-design.md`. Plan: `docs/superpowers/plans/2026-05-28-variants.md`.
+
+First-class `variant_array` FieldType for products with color/size/capacity/quantity/finish options. Extraction chain: JSON-LD `ProductGroup.hasVariant[]` walker (mechanical) → cache replay → `SchemaAgent.extractVariants` AI fallback (vision + truncated nextData, cached for repeat domains by `path_hint`). Tier 1 fixture gates Nike's 2 ProductGroup colorways. Tier 2 dogfood routes `variant_array` rows to `judgeVariantArray` — IKEA Kallax now extracts `{Black, White, Birch}` via the AI fallback with judge verdict `correct`. Shape validator accepts axes-only variants (color/size without SKU) while still rejecting recommendations carousels. Deferred: nextData walker, intercepted-API walker, dashboard variant rendering (blocked by v1.5 UI freeze), and the `otFlat` cache-poisoning fix.
