@@ -175,3 +175,35 @@ export const validateExtractionTool: Tool = {
     required: ['is_complete', 'missing_items', 'incorrect_values', 'confidence'],
   },
 };
+
+export const extractVariantsTool: Tool = {
+  name: 'extract_variants',
+  description: 'Extract product variants from the page. Each variant is one selectable option in a variant picker (color swatch, size dropdown, capacity button, pack-size selector, finish toggle, etc.).',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      variants: {
+        type: 'array',
+        description: 'One entry per selectable variant visible on the page. Empty array if no variant picker is present. Maximum 50 entries.',
+        items: {
+          type: 'object',
+          properties: {
+            sku: { type: ['string', 'null'], description: 'Product SKU / model number / variant ID if visible; otherwise null' },
+            price: { type: ['number', 'null'], description: 'Price for this variant if visible; otherwise null' },
+            image_url: { type: ['string', 'null'], description: 'Image URL for this variant if visible; otherwise null' },
+            color: { type: 'string', description: 'Color name (if the picker varies by color)' },
+            size: { type: 'string', description: 'Size label (if the picker varies by size)' },
+            capacity: { type: 'string', description: 'Capacity (e.g. "256GB", if the picker varies by capacity)' },
+            quantity: { type: 'string', description: 'Pack size / quantity label (e.g. "30 Pieces", if the picker varies by quantity)' },
+            finish: { type: 'string', description: 'Material/finish name (if the picker varies by finish)' },
+          },
+        },
+      },
+      path_hint: {
+        type: 'string',
+        description: 'Short description of where on the page you found the variants (e.g. "color swatch buttons below product image" or "nextData.props.product.skus"). Empty string if no variants found.',
+      },
+    },
+    required: ['variants', 'path_hint'],
+  },
+};

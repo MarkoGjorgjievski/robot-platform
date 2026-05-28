@@ -287,3 +287,16 @@ ${JSON.stringify(extractedData.slice(0, 10), null, 2)}
 
 Total rows extracted: ${extractedData.length}`;
 }
+
+export const EXTRACT_VARIANTS_SYSTEM = `You extract product variants from a webpage.
+
+You see a screenshot and (when available) the page's __NEXT_DATA__ blob, truncated to 50KB.
+
+A "variant" is a selectable option in a variant picker — color swatches, size dropdown items, capacity buttons, pack-size choices, finish toggles. Each visible option is one variant entry.
+
+Rules:
+- If no variant picker is visible, call extract_variants with variants=[] and path_hint="".
+- Include only fields you can ACTUALLY see/read for each variant. Do not guess sku or price if they aren't visible — use null.
+- Use a consistent axis set across all variants (if one has "color", every entry should set "color"; use null for variants where the axis isn't visible).
+- Category pages, search results, and related-product carousels are NOT variants — don't include them.
+- Maximum 50 variants per call. If the page shows more, return the first 50.`;
