@@ -27,19 +27,38 @@ describe('validateFieldShape — variant_array', () => {
     expect(res.ok).toBe(false);
   });
 
-  it('rejects arrays where every item has all-null sku/price/image_url (looks like a recommendations carousel)', () => {
+  it('rejects arrays where no item has any recognized variant axis (looks like a recommendations carousel)', () => {
     const value = [{ name: 'You may also like A' }, { name: 'You may also like B' }];
     const res = validateFieldShape(value, 'variant_array', { fieldName: 'variants' });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toMatch(/core/i);
+    if (!res.ok) expect(res.reason).toMatch(/axes/i);
   });
 
-  it('accepts when at least ONE item has a non-null core field, even if others lack all three', () => {
+  it('accepts when every item has at least one recognized axis (color/size/etc.), even with no sku/price/image_url', () => {
     const value = [
-      { sku: '850000-003', color: 'Black/Varsity Red', price: 80 },
-      { color: 'Taxi' },  // missing all three core fields, but the array as a whole is valid
+      { color: 'Black-brown', size: '30 1/8x57 5/8 "' },
+      { color: 'White', size: '30 1/8x57 5/8 "' },
+      { color: 'Oak effect', size: '30 1/8x57 5/8 "' },
     ];
     const res = validateFieldShape(value, 'variant_array', { fieldName: 'variants' });
     expect(res.ok).toBe(true);
+  });
+
+  it('accepts a mix of core-only and axis-only variants', () => {
+    const value = [
+      { sku: '850000-003', color: 'Black/Varsity Red', price: 80 },
+      { color: 'Taxi' },
+    ];
+    const res = validateFieldShape(value, 'variant_array', { fieldName: 'variants' });
+    expect(res.ok).toBe(true);
+  });
+
+  it('rejects when one item has no recognized axis (mixed valid + invalid)', () => {
+    const value = [
+      { color: 'Red' },
+      { name: 'Not a variant — a recommendation' },
+    ];
+    const res = validateFieldShape(value, 'variant_array', { fieldName: 'variants' });
+    expect(res.ok).toBe(false);
   });
 });
