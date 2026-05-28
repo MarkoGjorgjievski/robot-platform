@@ -19040,6 +19040,7 @@
     "global_id": null,
     "product_url": null,
     "main_image_url": null,
-    "previous_price": null
+    "previous_price": null,
+    "_note_variants": "Tier 1 asserts variants only on Nike for v1; IKEA has no ProductGroup in JSON-LD, so the deterministic walker produces nothing. The AI fallback (SchemaAgent.extractVariants) runs at extract time via dogfood, but its output is not reproducible offline without a cached path replay step (deferred — see docs/superpowers/specs/2026-05-28-variants-design.md §6)."
   }
 }
