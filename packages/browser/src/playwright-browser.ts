@@ -3,6 +3,7 @@ import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig } from './types.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
+import { isThirdPartyNoise } from './intercept-noise.js';
 
 const nhm = new NodeHtmlMarkdown();
 
@@ -539,6 +540,7 @@ export class PlaywrightBrowser implements IBrowser {
     // Score each request
     const scored = requests
       .filter(r => r.isJson && r.parsedJson !== null)
+      .filter(r => !isThirdPartyNoise(r.url))
       .map(r => {
         let score = 0;
         const url = r.url.toLowerCase();
