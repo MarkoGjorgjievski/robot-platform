@@ -1,6 +1,6 @@
 import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
-import type { InterceptedRequest, PaginationConfig } from '@robot/browser';
+import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -181,9 +181,12 @@ export function resolveApiPathsFromCache(
 ): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
   const resolved: Record<string, ResolvedField> = {};
 
-  // Collect all API JSON bodies
+  // Collect all API JSON bodies, excluding known third-party noise (consent,
+  // analytics, A/B-test asset blobs). Their product-shaped keys can poison
+  // cached paths (e.g. OneTrust's otFlat.json publishes {"name":"otFlat",...}).
   const apiJsonBodies = interceptedRequests
     .filter(r => r.parsedJson && typeof r.parsedJson === 'object')
+    .filter(r => !isThirdPartyNoise(r.url))
     .map(r => r.parsedJson as Record<string, unknown>);
 
   if (apiJsonBodies.length === 0) return { resolved, overallConfidence: 0 };
