@@ -15,4 +15,11 @@ export const liveCorpus: LiveCorpusEntry[] = [
     pageType: 'detail',
     fields: ['discover'],
   },
+  {
+    label: 'newegg-samsung-9100-pro',
+    url: 'https://www.newegg.com/samsung-2tb-9100-pro-nvme-2-0/p/N82E16820147903',
+    pageType: 'detail',
+    fields: ['discover'],
+    knownAbsentFields: ['variants'],
+  },
 ];
