@@ -1,4 +1,4 @@
-import { findEntitySubtree } from '@robot/scraper';
+import { findEntitySubtree } from './entity-subtree.js';
 
 export type AnalysisSource = {
   url: string;

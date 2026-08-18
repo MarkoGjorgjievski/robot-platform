@@ -12,3 +12,6 @@ export { normalizeUserFields } from './field-normalizer.js';
 export { findEntitySubtree, type EntitySubtree } from './entity-subtree.js';
 export { liveCorpus, type LiveCorpusEntry } from './__fixtures__/corpus/manifest.js';
 export { corroborateValue, visibleTextFromHtml, type CorroborationResult } from './corroborate-value.js';
+export { runExtraction, isAiPlaceholder, type ExtractionRequest, type ExtractionOutcome, type ExtractionDeps, type ExtractionAgent, type ExtractionFieldInput } from './extraction-orchestrator.js';
+export { buildResultRows, type ResultRow, type SchemaFieldLite } from './build-result-rows.js';
+export { collectAiAnalysisSources, type AnalysisSource } from './collect-ai-analysis-sources.js';
