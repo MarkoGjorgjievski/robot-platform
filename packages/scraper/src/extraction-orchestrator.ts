@@ -470,9 +470,16 @@ export async function runExtraction(
     // STEP 5: Quality validation
     const { data: cleanedData, issues: qualityIssues } = validateExtractedData([finalData], schemaFields);
 
+    // Build the per-field rows from the CLEANED row, not the raw one. `fieldsByTier`
+    // is the output everything actually reads — the dashboard renders it and the
+    // Tier 2 judge scores it — so building it from finalData meant every auto-fix
+    // (HTML stripping, price normalisation) was computed and then discarded. The
+    // 2026-08-18 dogfood shows the result: `specifications` reported with its
+    // `<b>`/`<br/>` markup intact.
+    const cleanedRow = cleanedData[0] ?? finalData;
     const { requested: requestedResults, discovered: discoveredResults } = buildResultRows({
       schemaFields: schemaFields.map((f) => ({ name: f.name, type: f.type, tier: f.tier! })),
-      finalData,
+      finalData: cleanedRow,
       sources,
     });
 
