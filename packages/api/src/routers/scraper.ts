@@ -5,7 +5,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { SchemaChange, PathSource } from '@robot/scraper';
-import { validateFieldShape } from '@robot/scraper';
+import { validateFieldShape, corroborateValue, visibleTextFromHtml } from '@robot/scraper';
 import type { SchemaField } from '@robot/agent';
 import { domainIntelligence } from '@robot/db';
 import { buildResultRows } from './lib/build-result-rows.js';
@@ -258,6 +258,9 @@ export const scraperRouter = router({
         let fieldResults: Record<string, { value: unknown; source: any; path: string; confidence: number }> = {};
 
         const fieldByName = new Map(schemaFields.map(f => [f.name, f]));
+        // Rendered page text, computed once, used to corroborate values that came
+        // from intercepted API responses rather than from the page itself.
+        const pageText = visibleTextFromHtml(capture.html ?? '');
         // Schema types by field name, handed to buildExtractionScript so array-typed
         // fields collect every matching node instead of just the first.
         const fieldTypes: Record<string, string> = Object.fromEntries(
@@ -277,6 +280,15 @@ export const scraperRouter = router({
           const v = validateFieldShape(value, type, { fieldName: name });
           if (!v.ok) {
             console.log(`[extract] Rejected ${name}=${String(JSON.stringify(value)).slice(0, 60)} (source=${source}): ${v.reason}`);
+            return false;
+          }
+          // A name-like value from an intercepted API must be findable in the
+          // rendered page. Intercepted responses are separate documents and can
+          // describe a different entity (recommendations, config, other sellers).
+          // Rejecting here lets the chain fall through to the page's own sources.
+          const c = corroborateValue({ value: v.normalized, fieldName: name, source, pageText });
+          if (!c.ok) {
+            console.log(`[extract] Rejected ${name}=${String(JSON.stringify(value)).slice(0, 60)} (source=${source}): ${c.reason}`);
             return false;
           }
           finalData[name] = v.normalized;

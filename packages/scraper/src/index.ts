@@ -11,3 +11,4 @@ export { calculateFieldCoverage, getMissingFields } from './field-coverage.js';
 export { normalizeUserFields } from './field-normalizer.js';
 export { findEntitySubtree, type EntitySubtree } from './entity-subtree.js';
 export { liveCorpus, type LiveCorpusEntry } from './__fixtures__/corpus/manifest.js';
+export { corroborateValue, visibleTextFromHtml, type CorroborationResult } from './corroborate-value.js';
