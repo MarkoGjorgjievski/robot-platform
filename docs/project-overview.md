@@ -201,13 +201,16 @@ Domain Intelligence (cached per domain, shared across all sources)
 
 ## Cost Model
 
-> **Unverified against the current model (2026-08-18).** These figures were measured on
-> `claude-sonnet-4-20250514`, which has since been retired; the pipeline now runs on
-> `claude-sonnet-5`. Per-token list pricing is the same ($3/$15 per MTok, currently $2/$10
-> intro), so the numbers should hold or improve slightly — but nothing has re-measured them,
-> because the pipeline does not record `usage` from API responses. Logging per-run token
-> counts and refreshing this table is a small, worthwhile task; until then treat these as
-> the right order of magnitude, not as current measurements.
+> **Unverified against the current model (2026-08-18) — but now measurable.** These figures
+> were taken on `claude-sonnet-4-20250514`, which has since been retired; the pipeline runs
+> on `claude-sonnet-5`. Per-token list pricing is the same ($3/$15 per MTok, currently $2/$10
+> intro), so they should hold or improve slightly.
+>
+> Token accounting now exists (`@robot/agent`'s `usage.ts`, recorded at every call site), and
+> the dogfood reports spend per site and in total. **Replace this table with the numbers from
+> the next dogfood run**, and note that a dogfood is mostly cache-warm — a cold first run on
+> an unknown domain is the expensive case and needs measuring separately. Until then treat
+> these as the right order of magnitude, not as current measurements.
 
 | Scenario | AI Cost | Speed |
 |----------|---------|-------|

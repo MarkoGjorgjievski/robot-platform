@@ -17,7 +17,7 @@ process.env.CAPTURES_DIR ??= join(tmpdir(), 'dogfood-captures');
 
 const { db } = await import('@robot/db');
 const { scraperRouter } = await import('./routers/scraper.js');
-const { judgeFieldExtraction, judgeVariantArray, JudgeUnavailableError } = await import('@robot/agent');
+const { judgeFieldExtraction, judgeVariantArray, JudgeUnavailableError, snapshotUsage, diffUsage, formatUsage, resetUsage } = await import('@robot/agent');
 type JudgeVerdict = Awaited<ReturnType<typeof judgeFieldExtraction>>;
 const { liveCorpus } = await import('@robot/scraper');
 
@@ -32,7 +32,10 @@ const lines: string[] = [`# Dogfood ${stamp}`, ''];
 const unjudgedSites: string[] = [];
 let totalResolved = 0, totalWrong = 0, totalNotOnPage = 0, totalUnverifiable = 0, totalError = 0, totalAbsent = 0, totalFields = 0;
 
+resetUsage();
+
 for (const site of liveCorpus) {
+  const usageBefore = snapshotUsage();
   lines.push(`## ${site.label} — ${site.url}`, '');
 
   try {
@@ -124,7 +127,13 @@ for (const site of liveCorpus) {
       }
       lines.push(`- [${verdict}] ${row.name}: ${valStr} (src=${row.source})`);
     }
-    lines.push('');
+
+    // Per-site spend. This is the number docs/project-overview.md's cost model is
+    // supposed to be built from, and until now nothing recorded it — the table has
+    // been carried forward from a retired model, annotated as unverified.
+    lines.push('', '<details><summary>Tokens for this site</summary>', '');
+    lines.push('```', formatUsage(diffUsage(usageBefore, snapshotUsage())), '```');
+    lines.push('</details>', '');
   } catch (err) {
     // The judge being unavailable (no credit, bad key) is not a site failure and
     // must not be swallowed per-site: every remaining field would fail the same
@@ -149,6 +158,13 @@ lines.push(`- Resolved but not on page: ${totalNotOnPage}`);
 lines.push(`- Resolved but not confirmable from a screenshot (URLs, IDs, metadata): ${totalUnverifiable}`);
 lines.push(`- Judge failed to return a verdict (error / no screenshot): ${totalError}`);
 lines.push(`- Legitimately absent: ${totalAbsent}`);
+
+lines.push('', '### Cost', '');
+lines.push('```', formatUsage(snapshotUsage()), '```');
+lines.push(
+  `Across ${liveCorpus.length} URLs. Divide for a per-URL figure, but note these were`,
+  'mostly cache-warm runs — a cold first run on an unknown domain costs considerably more.',
+);
 
 if (unjudgedSites.length > 0) {
   lines.push('', `> **${unjudgedSites.length} of ${liveCorpus.length} sites were UNJUDGED** (no screenshot): ${unjudgedSites.join(', ')}.`);
