@@ -123,7 +123,7 @@ lines.push(`- Resolved but not on page: ${totalNotOnPage}`);
 lines.push(`- Resolved but unverifiable (judge error / no screenshot): ${totalError}`);
 lines.push(`- Legitimately absent: ${totalAbsent}`);
 
-const outDir = '/Users/marko/Documents/robot-platform/docs/testing/results';
+const outDir = join(repoRoot, 'docs', 'testing', 'results');
 mkdirSync(outDir, { recursive: true });
 const outPath = join(outDir, `${stamp}-dogfood.md`);
 writeFileSync(outPath, lines.join('\n'));
