@@ -35,3 +35,13 @@ export const EXTRACTION_MODEL = process.env.ROBOT_EXTRACTION_MODEL ?? 'claude-so
  * code reports as verdict 'error' for every field.
  */
 export const JUDGE_MODEL = process.env.ROBOT_JUDGE_MODEL ?? 'claude-sonnet-5';
+
+/**
+ * Local Ollama fallback, used when ANTHROPIC_API_KEY is absent.
+ *
+ * Value is unchanged from when it was inlined in the provider — centralised here
+ * so all three model choices live in one file. Not verified recently: Ollama is
+ * not installed on the current dev machine, so this path has no live coverage.
+ * Treat a change here as untested until someone runs `ollama serve` against it.
+ */
+export const OLLAMA_MODEL = process.env.ROBOT_OLLAMA_MODEL ?? 'llama3.2-vision';

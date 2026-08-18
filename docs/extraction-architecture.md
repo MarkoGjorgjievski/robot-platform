@@ -257,10 +257,15 @@ The AI agent supports two LLM providers:
 
 | Provider | Best For | Cost |
 |----------|----------|------|
-| Anthropic (Claude Sonnet) | Production use — best structured output | ~$3/M input, $15/M output |
+| Anthropic (`claude-sonnet-5`) | Production use — best structured output | $3/M input, $15/M output (intro $2/$10 through 2026-08-31) |
 | Ollama (local) | Development/testing — free, no API key | Free (runs on your hardware) |
 
 Auto-detected: if `ANTHROPIC_API_KEY` is set, uses Claude. Otherwise falls back to Ollama.
+
+Model IDs are centralised in `packages/agent/src/models.ts` (`EXTRACTION_MODEL`, `JUDGE_MODEL`,
+`OLLAMA_MODEL`), each overridable by env var. They were previously hardcoded at each call
+site, which is how the retirement of `claude-sonnet-4-20250514` took the whole agent layer
+down at once in Aug 2026 with nothing in the test suite able to see it.
 
 Anthropic provider includes retry with exponential backoff for transient errors (429, 529, 503).
 
