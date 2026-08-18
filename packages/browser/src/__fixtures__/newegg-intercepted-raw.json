@@ -1,0 +1,4306 @@
+[
+ {
+  "url": "https://www.newegg.com/api/CountryApi?from=www.newegg.com",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 1144,
+  "isJson": true,
+  "parsedJson": {
+   "ContinentList": [
+    {
+     "Name": "North America",
+     "CountryList": [
+      {
+       "CountryName": "Canada",
+       "RegionCode": "CAN",
+       "CurrencyCode": "CAD",
+       "TwoLetterCode": "ca"
+      },
+      {
+       "CountryName": "Mexico",
+       "RegionCode": "MEX",
+       "CurrencyCode": "MXN",
+       "TwoLetterCode": "mx"
+      },
+      {
+       "CountryName": "United States",
+       "RegionCode": "USA",
+       "CurrencyCode": "USD",
+       "TwoLetterCode": "us"
+      }
+     ]
+    },
+    {
+     "Name": "Oceania",
+     "CountryList": [
+      {
+       "CountryName": "Australia",
+       "RegionCode": "AUS",
+       "CurrencyCode": "AUD",
+       "TwoLetterCode": "au"
+      },
+      {
+       "CountryName": "New Zealand",
+       "RegionCode": "NZL",
+       "CurrencyCode": "NZD",
+       "TwoLetterCode": "nz"
+      }
+     ]
+    },
+    {
+     "Name": "Asia",
+     "CountryList": [
+      {
+       "CountryName": "Japan",
+       "RegionCode": "JPN",
+       "CurrencyCode": "JPY",
+       "TwoLetterCode": "jp"
+      },
+      {
+       "CountryName": "Philippines",
+       "RegionCode": "PHL",
+       "CurrencyCode": "PHP",
+       "TwoLetterCode": "ph"
+      },
+      {
+       "CountryName": "Singapore",
+       "RegionCode": "SGP",
+       "CurrencyCode": "SGD",
+       "TwoLetterCode": "sg"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://www.newegg.com/api/HomeMainSaleStore?from=www.newegg.com",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 48,
+  "isJson": true,
+  "parsedJson": {
+   "ErrorMessage": "",
+   "ErrorCode": -1,
+   "Result": null
+  }
+ },
+ {
+  "url": "https://secure.newegg.com/api/GetMessageInfos?from=www.newegg.com",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 4,
+  "isJson": true,
+  "parsedJson": null
+ },
+ {
+  "url": "https://www.newegg.com/api/getHotQuestions?Item=20-147-903&SubcategoryId=636",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 702,
+  "isJson": true,
+  "parsedJson": {
+   "questions": [
+    {
+     "Id": "101204234",
+     "Question": "Does this model have DRAM?",
+     "Answer": "Yes",
+     "QAType": "I"
+    },
+    {
+     "Id": "100590924",
+     "Question": "How is the transfer speed of this SSD?",
+     "Answer": "The SSD features a maximum sequential re…",
+     "QAType": "I"
+    },
+    {
+     "Id": "100590923",
+     "Question": "Can I use this SSD to improve my PC perf…",
+     "Answer": "Yes, this SSD is suitable for improving …",
+     "QAType": "I"
+    }
+   ]
+  }
+ },
+ {
+  "url": "https://www.newegg.com/product/api/ProductRealtime?ItemNumber=9SIC0X3KPS7946&RecommendItem=&BestSellerItemList=20-147-903%2C9SIABT1M4K6661%2C9SIBFJRKG22358&IsVATPrice=true",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 37805,
+  "isJson": true,
+  "parsedJson": {
+   "MainItem": {
+    "FlagSelect": "",
+    "NTCItemMark": false,
+    "NewProductMark": false,
+    "Warranty": {
+     "WarrantyID": 422116,
+     "WarrantyName": "MobileMonster Return Policy"
+    },
+    "PrtMark": "False",
+    "OEMMark": "false",
+    "HideMirMark": "0",
+    "RestrictedItemMark": "0",
+    "PriceHideMark": "0",
+    "ConvertCompleteFlag": null,
+    "SameDayShippingMark": "0",
+    "Src": "C2",
+    "CustomTags": null,
+    "EssItemBadges": null,
+    "ColorInfo": null,
+    "StateExceptionList": null,
+    "Category": {
+     "RealGroupId": 42,
+     "RealGroupName": "Components",
+     "RealDomainId": 44,
+     "RealDomainName": "SSD",
+     "RealCategoryId": 60,
+     "RealCategoryName": "SSD"
+    },
+    "VideoList": [
+     "diOdT2jCnwI",
+     "u-h7h95p07U"
+    ],
+    "ItemGroupID": 204059744,
+    "ParentItem": "20-147-903",
+    "Subcategory": {
+     "SubcategoryId": 636,
+     "PatchCount": 0,
+     "SubcategoryDescription": "Internal SSDs",
+     "RealSubCategoryId": 636,
+     "RealSubCategoryDescription": "Solid State Disk"
+    },
+    "Feature": {
+     "IsAIT": false,
+     "IsRestricted": false,
+     "IsPremier": false,
+     "IsFirstFromAsia": false,
+     "IsInPMCC": false,
+     "IsHot": false,
+     "IsFreshDeal": false,
+     "HasManufacturerWarranty": false,
+     "ShipByNewegg": false,
+     "ShowOEMRetail": false,
+     "ShowOEM": false,
+     "USPSMark": false,
+     "ShopRunnerMark": null,
+     "HasIntelligence": false,
+     "IsNew": true,
+     "IsRefurbished": false,
+     "IsOpenBoxed": false,
+     "ProductType": 1,
+     "IsPreLaunch": false,
+     "ABSMinimum": false,
+     "IsGiftCard": false,
+     "IsFlower": false,
+     "IsPCBuilderReserveItem": false,
+     "IsNegPlus": false,
+     "IsFinalSale": false,
+     "ChangeToOutOfStock": false,
+     "InflatedPriceAlert": false,
+     "ShowAskAiAssistant": false,
+     "AllowRequestQuote": false
+    },
+    "Seller": {
+     "SellerId": "C0X3",
+     "SellerName": "MobileMonster",
+     "SellerLogoURL": "Seller_C0X3_2d617899-35c9-4f6e-9936-c7f4…",
+     "SellerRating": 5,
+     "SellerRatingOneDecimal": 4.7,
+     "SellerReviewCount": 69,
+     "SellerUrlKey": "MobileMonster",
+     "SellerModel": "VF",
+     "TopRated": false,
+     "LifetimeOrderCount": 0,
+     "SellerRatingLast12M": 5,
+     "SellerRatingOneDecimalLast12M": 4.7,
+     "SellerReviewCountLast12M": 66,
+     "Anchor": false,
+     "IsHotSeller": false
+    },
+    "Description": {
+     "Title": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+     "IMDescription": "SSD 2T|SAMSUNG 9100 PRO MZ-VAP2T0B/AM R",
+     "BulletDescription": "PCIe 5.0 Performance: Supercharge your w…",
+     "LineDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+     "WebDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+     "LongDescription": null,
+     "UrlKeywords": "samsung-2tb-9100-pro-nvme-2-0",
+     "ShortTitle": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+     "WHIDescription": null,
+     "ProductName": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+     "ManualProductName": "SAMSUNG 9100 PRO M.2 2280 2TB",
+     "SimplifiedWebDescription": null,
+     "SimplifiedLineDescription": null,
+     "SimplifiedBulletinDescription": null
+    },
+    "PromotionInfo": {
+     "PromotionText": null,
+     "DisplayPromotionText": "",
+     "PromotionLink": null,
+     "PromotionLinkOpenType": null,
+     "PCode": ""
+    },
+    "PreorderType": 0,
+    "Type": 0,
+    "VolumeDiscount": {
+     "PromotionPrice1": 0,
+     "PromotionPrice2": 0,
+     "PromotionPrice3": 0,
+     "PromotionQty1": 0,
+     "PromotionQty2": 0,
+     "PromotionQty3": 0,
+     "PromotionShipping1": 0,
+     "PromotionShipping2": 0,
+     "PromotionShipping3": 0
+    },
+    "MapPrice": 0,
+    "MailinRebateCollection": null,
+    "Image": {
+     "HasScene7Image": false,
+     "ImageInternalCount": 2,
+     "WaterMarkFlag": "0",
+     "ImageType": 0,
+     "IsDFISImage": true,
+     "HasWaterMark": true,
+     "Normal": {
+      "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+      "ImageName": "20-147-903-05.jpg",
+      "DFIS360ImgFlag": null
+     },
+     "Scene7": {
+      "ImageName": null,
+      "ImageSetName": null,
+      "ImageSetImageList": null,
+      "SpinSetName": null,
+      "SpinSetImageList": null,
+      "ThumbnailSetName": null,
+      "ThumbnailSetImageList": null,
+      "VendorSetImageList": null,
+      "SpecialImageList": null
+     },
+     "ItemCellImageName": "20-147-903-05.jpg",
+     "ImagePathPattern": [
+      {
+       "Size": -1,
+       "PathPattern": "https://c1.neweggimages.com/NeweggImage/…"
+      },
+      {
+       "Size": 35,
+       "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+      },
+      {
+       "Size": 60,
+       "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+      }
+     ]
+    },
+    "NewImage": {
+     "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+     "ImageName": "20-147-903-05.jpg",
+     "DFIS360ImgFlag": null,
+     "NobgImageName": null
+    },
+    "Subscription": {
+     "SubscriptionProgramID": 0,
+     "SubscriptionOnly": false,
+     "SubscriptionOrderFrequency": 0,
+     "SubscriptionPriceDiscountRate": 0,
+     "SubscriptionIsFreeShipping": "\u0000",
+     "SubscriptionContractTerm": 0,
+     "SubscriptionFreeTrial": 0,
+     "IsSubscription": false,
+     "IsRegularSubscription": false,
+     "IsSubscriptionOnly": false,
+     "IsCancelSubscription": false,
+     "IsCommitmentSubscription": false,
+     "IsSubscriptionFreeShipping": false
+    },
+    "Review": {
+     "Rating": 5,
+     "HumanRating": 1144,
+     "CombineGroup": 3,
+     "ReviewSign": "",
+     "ReviewSignValue": null,
+     "ViewCount": 0,
+     "ItemAsDescribedRate": "0.9565",
+     "DeliverdOnTimeRate": "0.9420",
+     "SatisfiedServiiceRate": "0.9143",
+     "PositiveReviewRate": "0.9275",
+     "ImageVideoReviews": 2,
+     "RatingOneDecimal": 4.9,
+     "DeliverdOnTimeRateLast12M": "0.9394",
+     "ItemAsDescribedRateLast12M": "0.9545",
+     "SatisfiedServiiceRateLast12M": "0.9394",
+     "PositiveReviewRateLast12M": "0.9394"
+    },
+    "CPUSteppingCode": "43201830",
+    "ItemTime": {
+     "StartTime": "1970-01-01 00:00:00.000",
+     "ConvertTime": "1970-01-01 00:00:00.000",
+     "ReleaseTime": "1970-01-01 00:00:00.000",
+     "ETATime": null
+    },
+    "NewEggArrivingDate": null,
+    "PremierMark": null,
+    "ItemManufactory": {
+     "BrandId": 1077,
+     "Code": 0,
+     "Manufactory": "SAMSUNG",
+     "CountryOfMfr": "KOR",
+     "ManfactoryLogo": 1,
+     "ManufactoryWeb": null,
+     "Hyperlink": null,
+     "CustomerServicePhone": null,
+     "IsM2C": false,
+     "IsTopTierBrand": true,
+     "ManufacturerCodes": null
+    },
+    "RankInfo": {
+     "ParentItem": "20-147-903",
+     "ItemNumber": "9SIC0X3KPS7946",
+     "OrderPendingFastestDays": 0,
+     "OrderPendingSlowestDays": 0,
+     "FastestDays": 2,
+     "SlowestDays": 6,
+     "EggPointRate": 0,
+     "ShippingMethodFastest": 3,
+     "ShippingMethodSlowest": 5,
+     "TierEggpointRate": 0,
+     "InnerEggPercentPoints": null
+    },
+    "ShipFromCountryName": "United States",
+    "ShipFromCountryCode": "USA",
+    "CanPreLaunch": false,
+    "CanPreorder": false,
+    "IsAssemblyServiceItem": false,
+    "IsOperatingSoftwareItem": false,
+    "NeedReflush": false,
+    "PcodeDiscount4BuyBox": 0,
+    "ShipOutFrom": 0,
+    "ShipOutTo": 0,
+    "ShipOutTimeUnit": null,
+    "Financing": {
+     "TranCode": null,
+     "StartDate": null,
+     "EndDate": null,
+     "Months": 0,
+     "PayTermType": null
+    },
+    "Download": {
+     "DownloadType": 0,
+     "BoxItem": null,
+     "SFItem": null
+    },
+    "IsAcademic": false,
+    "MappingId": "490763",
+    "IndividualImageName": null,
+    "ExpandedNote": null,
+    "SellerType": "D",
+    "PromotionScheduleStatus": null,
+    "PromotionScheduleActiveDate": null,
+    "PromotionScheduleExpiration": null,
+    "PromotionScheduleExpirationLocal": null,
+    "SaleEndTimeText": null,
+    "HasStudentPrice": false,
+    "GMCflag": false,
+    "Model": "MZ-VAP2T0B/AM",
+    "ViewDescription": "<b>Max Sequential Read:</b> Up to 14700 …",
+    "Voting": {
+     "WinningCount": 0,
+     "WinningType": null
+    },
+    "OwnerCost": 0,
+    "NewProductTag": "0",
+    "HotSalesTag": "0",
+    "BigDiscountTag": "0",
+    "RushSaleTag": "0",
+    "ItemTagFlag": 7,
+    "ItemTagFlags": {
+     "NeweggPick": 5
+    },
+    "ScheduleEndTime": null,
+    "ScheduleStartTime": null,
+    "ScheduleTypeID": null,
+    "IsBuyAloneItem": false,
+    "IsVacationSeller": false,
+    "IsBlockSeller": false,
+    "NoItemBaseDataMark": false,
+    "NoItemPriceDataMark": false,
+    "AddToCartType": 0,
+    "TaxDutyType": "",
+    "ImportType": "",
+    "DefaultShipVia": "502",
+    "EggSaverMark": "0",
+    "OriginalUnitPrice": 395,
+    "OriginalInstantRebateAmount": 0,
+    "TaxPrice": null,
+    "IsForceViewDetails": false,
+    "IsHotItem": false,
+    "IsLimitConfig": false,
+    "BestSellingRanking": 4,
+    "AutoPartsItemInfo": null,
+    "ShippingPromotionGroupID": "0",
+    "ShippingFeeType": 0,
+    "ShippingFeeFlatRate": 0,
+    "weight": 0.01,
+    "Length": 5.6,
+    "Width": 3.9,
+    "Height": 0.9,
+    "LowestPrice30Days": 391.05,
+    "IsLowestPrice": false,
+    "LaunchDate": null,
+    "DurationDays": null,
+    "ItemOfArrivalType": 0,
+    "ShortVideo": null,
+    "AnyFreeGift": false,
+    "GroupBuy": null,
+    "ItemPriceRange": {
+     "PriceRangeMin": 395,
+     "PriceRangeMax": 764.84
+    },
+    "Item": "9SIC0X3KPS7946",
+    "UnitCost": 395,
+    "InstantRebateAmount": 0,
+    "ExchangeRate": 0,
+    "FinalPrice": 398,
+    "Instock": true,
+    "Stock": 1,
+    "StockForCombo": 1,
+    "StockForPCBuilder": 1,
+    "StockForDynamicCombo": 1,
+    "ShippingCharge": 3,
+    "WebsiteBlockMark": false,
+    "IsActivated": true,
+    "Active": "1",
+    "CountryCode": "USA",
+    "CompanyCode": 1003,
+    "LimitQuantity": 99999,
+    "ShowItem": true,
+    "PriceType": 0
+   },
+   "RecommendItem": null,
+   "BestSellerItemList": [
+    {
+     "FlagSelect": "",
+     "NTCItemMark": false,
+     "NewProductMark": false,
+     "Warranty": {
+      "WarrantyID": 44,
+      "WarrantyName": "30-Day Return Policy"
+     },
+     "PrtMark": "False",
+     "OEMMark": "false",
+     "HideMirMark": "0",
+     "RestrictedItemMark": "0",
+     "PriceHideMark": "0",
+     "ConvertCompleteFlag": null,
+     "SameDayShippingMark": "0",
+     "Src": "C2",
+     "CustomTags": null,
+     "EssItemBadges": null,
+     "ColorInfo": null,
+     "StateExceptionList": null,
+     "Category": {
+      "RealGroupId": 42,
+      "RealGroupName": "Components",
+      "RealDomainId": 44,
+      "RealDomainName": "SSD",
+      "RealCategoryId": 60,
+      "RealCategoryName": "SSD"
+     },
+     "VideoList": [
+      "diOdT2jCnwI",
+      "u-h7h95p07U"
+     ],
+     "ItemGroupID": 204059744,
+     "ParentItem": null,
+     "Subcategory": {
+      "SubcategoryId": 636,
+      "PatchCount": 0,
+      "SubcategoryDescription": "Internal SSDs",
+      "RealSubCategoryId": 636,
+      "RealSubCategoryDescription": "Solid State Disk"
+     },
+     "Feature": {
+      "IsAIT": false,
+      "IsRestricted": false,
+      "IsPremier": false,
+      "IsFirstFromAsia": false,
+      "IsInPMCC": true,
+      "IsHot": false,
+      "IsFreshDeal": false,
+      "HasManufacturerWarranty": false,
+      "ShipByNewegg": true,
+      "ShowOEMRetail": true,
+      "ShowOEM": false,
+      "USPSMark": true,
+      "ShopRunnerMark": null,
+      "HasIntelligence": false,
+      "IsNew": true,
+      "IsRefurbished": false,
+      "IsOpenBoxed": false,
+      "ProductType": 1,
+      "IsPreLaunch": false,
+      "ABSMinimum": false,
+      "IsGiftCard": false,
+      "IsFlower": false,
+      "IsPCBuilderReserveItem": false,
+      "IsNegPlus": true,
+      "IsFinalSale": false,
+      "ChangeToOutOfStock": false,
+      "InflatedPriceAlert": false,
+      "ShowAskAiAssistant": false,
+      "AllowRequestQuote": false
+     },
+     "Seller": {
+      "SellerId": "",
+      "SellerName": null,
+      "SellerLogoURL": null,
+      "SellerRating": null,
+      "SellerRatingOneDecimal": null,
+      "SellerReviewCount": null,
+      "SellerUrlKey": null,
+      "SellerModel": null,
+      "TopRated": false,
+      "LifetimeOrderCount": 0,
+      "SellerRatingLast12M": null,
+      "SellerRatingOneDecimalLast12M": null,
+      "SellerReviewCountLast12M": null,
+      "Anchor": false,
+      "IsHotSeller": false
+     },
+     "Description": {
+      "Title": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "IMDescription": "SSD 2T|SAMSUNG 9100 PRO MZ-VAP2T0B/AM R",
+      "BulletDescription": "PCIe 5.0 Performance: Supercharge your w…",
+      "LineDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "WebDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "LongDescription": null,
+      "UrlKeywords": "samsung-2tb-9100-pro-nvme-2-0",
+      "ShortTitle": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "WHIDescription": null,
+      "ProductName": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "ManualProductName": "SAMSUNG 9100 PRO M.2 2280 2TB",
+      "SimplifiedWebDescription": "",
+      "SimplifiedLineDescription": "SAMSUNG 9100 PRO 2TB M.2 SSD for AI Comp…",
+      "SimplifiedBulletinDescription": ""
+     },
+     "PromotionInfo": {
+      "PromotionText": null,
+      "DisplayPromotionText": "",
+      "PromotionLink": null,
+      "PromotionLinkOpenType": null,
+      "PCode": ""
+     },
+     "PreorderType": 0,
+     "Type": 0,
+     "VolumeDiscount": {
+      "PromotionPrice1": 0,
+      "PromotionPrice2": 0,
+      "PromotionPrice3": 0,
+      "PromotionQty1": 0,
+      "PromotionQty2": 0,
+      "PromotionQty3": 0,
+      "PromotionShipping1": 0,
+      "PromotionShipping2": 0,
+      "PromotionShipping3": 0
+     },
+     "MapPrice": 0,
+     "MailinRebateCollection": null,
+     "Image": {
+      "HasScene7Image": false,
+      "ImageInternalCount": 2,
+      "WaterMarkFlag": "0",
+      "ImageType": 0,
+      "IsDFISImage": true,
+      "HasWaterMark": true,
+      "Normal": {
+       "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+       "ImageName": "20-147-903-05.jpg",
+       "DFIS360ImgFlag": null
+      },
+      "Scene7": {
+       "ImageName": null,
+       "ImageSetName": null,
+       "ImageSetImageList": null,
+       "SpinSetName": null,
+       "SpinSetImageList": null,
+       "ThumbnailSetName": null,
+       "ThumbnailSetImageList": null,
+       "VendorSetImageList": null,
+       "SpecialImageList": null
+      },
+      "ItemCellImageName": "20-147-903-05.jpg",
+      "ImagePathPattern": [
+       {
+        "Size": -1,
+        "PathPattern": "https://c1.neweggimages.com/NeweggImage/…"
+       },
+       {
+        "Size": 35,
+        "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+       },
+       {
+        "Size": 60,
+        "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+       }
+      ]
+     },
+     "NewImage": {
+      "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+      "ImageName": "20-147-903-05.jpg",
+      "DFIS360ImgFlag": null,
+      "NobgImageName": null
+     },
+     "Subscription": {
+      "SubscriptionProgramID": 0,
+      "SubscriptionOnly": false,
+      "SubscriptionOrderFrequency": 0,
+      "SubscriptionPriceDiscountRate": 0,
+      "SubscriptionIsFreeShipping": "\u0000",
+      "SubscriptionContractTerm": 0,
+      "SubscriptionFreeTrial": 0,
+      "IsSubscription": false,
+      "IsRegularSubscription": false,
+      "IsSubscriptionOnly": false,
+      "IsCancelSubscription": false,
+      "IsCommitmentSubscription": false,
+      "IsSubscriptionFreeShipping": false
+     },
+     "Review": {
+      "Rating": 5,
+      "HumanRating": 1144,
+      "CombineGroup": 3,
+      "ReviewSign": "",
+      "ReviewSignValue": null,
+      "ViewCount": 0,
+      "ItemAsDescribedRate": null,
+      "DeliverdOnTimeRate": null,
+      "SatisfiedServiiceRate": null,
+      "PositiveReviewRate": null,
+      "ImageVideoReviews": 2,
+      "RatingOneDecimal": 4.9,
+      "DeliverdOnTimeRateLast12M": null,
+      "ItemAsDescribedRateLast12M": null,
+      "SatisfiedServiiceRateLast12M": null,
+      "PositiveReviewRateLast12M": null
+     },
+     "CPUSteppingCode": "43201830",
+     "ItemTime": {
+      "StartTime": "1970-01-01 00:00:00.000",
+      "ConvertTime": "1970-01-01 00:00:00.000",
+      "ReleaseTime": "1970-01-01 00:00:00.000",
+      "ETATime": null
+     },
+     "NewEggArrivingDate": null,
+     "PremierMark": null,
+     "ItemManufactory": {
+      "BrandId": 1077,
+      "Code": 0,
+      "Manufactory": "SAMSUNG",
+      "CountryOfMfr": "KOR",
+      "ManfactoryLogo": 1,
+      "ManufactoryWeb": null,
+      "Hyperlink": null,
+      "CustomerServicePhone": null,
+      "IsM2C": false,
+      "IsTopTierBrand": true,
+      "ManufacturerCodes": null
+     },
+     "RankInfo": {
+      "ParentItem": null,
+      "ItemNumber": "20-147-903",
+      "OrderPendingFastestDays": 0,
+      "OrderPendingSlowestDays": 0,
+      "FastestDays": 0,
+      "SlowestDays": 0,
+      "EggPointRate": 0,
+      "ShippingMethodFastest": 3,
+      "ShippingMethodSlowest": 7,
+      "TierEggpointRate": 0,
+      "InnerEggPercentPoints": null
+     },
+     "ShipFromCountryName": "United States",
+     "ShipFromCountryCode": "USA",
+     "CanPreLaunch": false,
+     "CanPreorder": false,
+     "IsAssemblyServiceItem": false,
+     "IsOperatingSoftwareItem": false,
+     "NeedReflush": false,
+     "PcodeDiscount4BuyBox": 0,
+     "ShipOutFrom": 0,
+     "ShipOutTo": 0,
+     "ShipOutTimeUnit": null,
+     "Financing": {
+      "TranCode": null,
+      "StartDate": null,
+      "EndDate": null,
+      "Months": 0,
+      "PayTermType": null
+     },
+     "Download": {
+      "DownloadType": 0,
+      "BoxItem": null,
+      "SFItem": null
+     },
+     "IsAcademic": false,
+     "MappingId": "490763",
+     "IndividualImageName": null,
+     "ExpandedNote": null,
+     "SellerType": null,
+     "PromotionScheduleStatus": "A",
+     "PromotionScheduleActiveDate": "2026-08-18 00:00:00.000-07:00",
+     "PromotionScheduleExpiration": "2026-08-18 23:59:59.000-07:00",
+     "PromotionScheduleExpirationLocal": "2026-08-19 06:59:59.000+00:00",
+     "SaleEndTimeText": "",
+     "HasStudentPrice": false,
+     "GMCflag": false,
+     "Model": "MZ-VAP2T0B/AM",
+     "ViewDescription": "<b>Max Sequential Read:</b> Up to 14700 …",
+     "Voting": {
+      "WinningCount": 0,
+      "WinningType": null
+     },
+     "OwnerCost": 0,
+     "NewProductTag": "0",
+     "HotSalesTag": "0",
+     "BigDiscountTag": "1",
+     "RushSaleTag": "0",
+     "ItemTagFlag": 1,
+     "ItemTagFlags": {
+      "BigDiscount": 2,
+      "FreeShipping": 1,
+      "NeweggPick": 5
+     },
+     "ScheduleEndTime": null,
+     "ScheduleStartTime": null,
+     "ScheduleTypeID": null,
+     "IsBuyAloneItem": false,
+     "IsVacationSeller": false,
+     "IsBlockSeller": false,
+     "NoItemBaseDataMark": false,
+     "NoItemPriceDataMark": false,
+     "AddToCartType": 0,
+     "TaxDutyType": null,
+     "ImportType": null,
+     "DefaultShipVia": "100",
+     "EggSaverMark": "1",
+     "OriginalUnitPrice": 679.99,
+     "OriginalInstantRebateAmount": 280,
+     "TaxPrice": null,
+     "IsForceViewDetails": false,
+     "IsHotItem": false,
+     "IsLimitConfig": false,
+     "BestSellingRanking": 4,
+     "AutoPartsItemInfo": null,
+     "ShippingPromotionGroupID": "0",
+     "ShippingFeeType": 0,
+     "ShippingFeeFlatRate": 0,
+     "weight": 0.1,
+     "Length": 5.6,
+     "Width": 3.9,
+     "Height": 0.9,
+     "LowestPrice30Days": 0,
+     "IsLowestPrice": false,
+     "LaunchDate": "2025-03-18 07:00:00.000-07:00",
+     "DurationDays": 30,
+     "ItemOfArrivalType": 0,
+     "ShortVideo": null,
+     "AnyFreeGift": false,
+     "GroupBuy": null,
+     "ItemPriceRange": {
+      "PriceRangeMin": 395,
+      "PriceRangeMax": 764.84
+     },
+     "Item": "20-147-903",
+     "UnitCost": 679.99,
+     "InstantRebateAmount": 280,
+     "ExchangeRate": 0,
+     "FinalPrice": 399.99,
+     "Instock": true,
+     "Stock": 1,
+     "StockForCombo": 1,
+     "StockForPCBuilder": 1,
+     "StockForDynamicCombo": 1,
+     "ShippingCharge": 0.01,
+     "WebsiteBlockMark": false,
+     "IsActivated": true,
+     "Active": "1",
+     "CountryCode": "USA",
+     "CompanyCode": 1003,
+     "LimitQuantity": 3,
+     "ShowItem": true,
+     "PriceType": 0
+    },
+    {
+     "FlagSelect": "",
+     "NTCItemMark": false,
+     "NewProductMark": false,
+     "Warranty": {
+      "WarrantyID": 242625,
+      "WarrantyName": "DealsADay Return Policy"
+     },
+     "PrtMark": "False",
+     "OEMMark": "false",
+     "HideMirMark": "0",
+     "RestrictedItemMark": "0",
+     "PriceHideMark": "0",
+     "ConvertCompleteFlag": null,
+     "SameDayShippingMark": "0",
+     "Src": "C2",
+     "CustomTags": null,
+     "EssItemBadges": null,
+     "ColorInfo": null,
+     "StateExceptionList": null,
+     "Category": {
+      "RealGroupId": 42,
+      "RealGroupName": "Components",
+      "RealDomainId": 44,
+      "RealDomainName": "SSD",
+      "RealCategoryId": 60,
+      "RealCategoryName": "SSD"
+     },
+     "VideoList": [
+      "diOdT2jCnwI",
+      "u-h7h95p07U"
+     ],
+     "ItemGroupID": 204059744,
+     "ParentItem": "20-147-903",
+     "Subcategory": {
+      "SubcategoryId": 636,
+      "PatchCount": 0,
+      "SubcategoryDescription": "Internal SSDs",
+      "RealSubCategoryId": 636,
+      "RealSubCategoryDescription": "Solid State Disk"
+     },
+     "Feature": {
+      "IsAIT": false,
+      "IsRestricted": false,
+      "IsPremier": false,
+      "IsFirstFromAsia": false,
+      "IsInPMCC": false,
+      "IsHot": false,
+      "IsFreshDeal": false,
+      "HasManufacturerWarranty": false,
+      "ShipByNewegg": false,
+      "ShowOEMRetail": false,
+      "ShowOEM": false,
+      "USPSMark": false,
+      "ShopRunnerMark": null,
+      "HasIntelligence": false,
+      "IsNew": true,
+      "IsRefurbished": false,
+      "IsOpenBoxed": false,
+      "ProductType": 1,
+      "IsPreLaunch": false,
+      "ABSMinimum": false,
+      "IsGiftCard": false,
+      "IsFlower": false,
+      "IsPCBuilderReserveItem": false,
+      "IsNegPlus": true,
+      "IsFinalSale": false,
+      "ChangeToOutOfStock": false,
+      "InflatedPriceAlert": false,
+      "ShowAskAiAssistant": false,
+      "AllowRequestQuote": false
+     },
+     "Seller": {
+      "SellerId": "ABT1",
+      "SellerName": "DealsADay",
+      "SellerLogoURL": "Seller_ABT1_2d25e96f-e95a-40a0-99ef-be8b…",
+      "SellerRating": 5,
+      "SellerRatingOneDecimal": 4.6,
+      "SellerReviewCount": 624,
+      "SellerUrlKey": "DealsADay",
+      "SellerModel": "VF",
+      "TopRated": true,
+      "LifetimeOrderCount": 0,
+      "SellerRatingLast12M": 5,
+      "SellerRatingOneDecimalLast12M": 4.8,
+      "SellerReviewCountLast12M": 8,
+      "Anchor": true,
+      "IsHotSeller": true
+     },
+     "Description": {
+      "Title": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "IMDescription": "SSD 2T|SAMSUNG 9100 PRO MZ-VAP2T0B/AM R",
+      "BulletDescription": "PCIe 5.0 Performance: Supercharge your w…",
+      "LineDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "WebDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "LongDescription": null,
+      "UrlKeywords": "samsung-2tb-9100-pro-nvme-2-0",
+      "ShortTitle": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "WHIDescription": null,
+      "ProductName": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "ManualProductName": "SAMSUNG 9100 PRO M.2 2280 2TB",
+      "SimplifiedWebDescription": null,
+      "SimplifiedLineDescription": null,
+      "SimplifiedBulletinDescription": null
+     },
+     "PromotionInfo": {
+      "PromotionText": null,
+      "DisplayPromotionText": "",
+      "PromotionLink": null,
+      "PromotionLinkOpenType": null,
+      "PCode": ""
+     },
+     "PreorderType": 0,
+     "Type": 0,
+     "VolumeDiscount": {
+      "PromotionPrice1": 0,
+      "PromotionPrice2": 0,
+      "PromotionPrice3": 0,
+      "PromotionQty1": 0,
+      "PromotionQty2": 0,
+      "PromotionQty3": 0,
+      "PromotionShipping1": 0,
+      "PromotionShipping2": 0,
+      "PromotionShipping3": 0
+     },
+     "MapPrice": 0,
+     "MailinRebateCollection": null,
+     "Image": {
+      "HasScene7Image": false,
+      "ImageInternalCount": 2,
+      "WaterMarkFlag": "0",
+      "ImageType": 0,
+      "IsDFISImage": true,
+      "HasWaterMark": true,
+      "Normal": {
+       "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+       "ImageName": "20-147-903-05.jpg",
+       "DFIS360ImgFlag": null
+      },
+      "Scene7": {
+       "ImageName": null,
+       "ImageSetName": null,
+       "ImageSetImageList": null,
+       "SpinSetName": null,
+       "SpinSetImageList": null,
+       "ThumbnailSetName": null,
+       "ThumbnailSetImageList": null,
+       "VendorSetImageList": null,
+       "SpecialImageList": null
+      },
+      "ItemCellImageName": "20-147-903-05.jpg",
+      "ImagePathPattern": [
+       {
+        "Size": -1,
+        "PathPattern": "https://c1.neweggimages.com/NeweggImage/…"
+       },
+       {
+        "Size": 35,
+        "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+       },
+       {
+        "Size": 60,
+        "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+       }
+      ]
+     },
+     "NewImage": {
+      "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+      "ImageName": "20-147-903-05.jpg",
+      "DFIS360ImgFlag": null,
+      "NobgImageName": null
+     },
+     "Subscription": {
+      "SubscriptionProgramID": 0,
+      "SubscriptionOnly": false,
+      "SubscriptionOrderFrequency": 0,
+      "SubscriptionPriceDiscountRate": 0,
+      "SubscriptionIsFreeShipping": "\u0000",
+      "SubscriptionContractTerm": 0,
+      "SubscriptionFreeTrial": 0,
+      "IsSubscription": false,
+      "IsRegularSubscription": false,
+      "IsSubscriptionOnly": false,
+      "IsCancelSubscription": false,
+      "IsCommitmentSubscription": false,
+      "IsSubscriptionFreeShipping": false
+     },
+     "Review": {
+      "Rating": 5,
+      "HumanRating": 1144,
+      "CombineGroup": 3,
+      "ReviewSign": "",
+      "ReviewSignValue": null,
+      "ViewCount": 0,
+      "ItemAsDescribedRate": "0.9502",
+      "DeliverdOnTimeRate": "0.9116",
+      "SatisfiedServiiceRate": "0.9169",
+      "PositiveReviewRate": "0.9087",
+      "ImageVideoReviews": 2,
+      "RatingOneDecimal": 4.9,
+      "DeliverdOnTimeRateLast12M": "1.0000",
+      "ItemAsDescribedRateLast12M": "1.0000",
+      "SatisfiedServiiceRateLast12M": "1.0000",
+      "PositiveReviewRateLast12M": "0.8750"
+     },
+     "CPUSteppingCode": "43201830",
+     "ItemTime": {
+      "StartTime": "1970-01-01 00:00:00.000",
+      "ConvertTime": "1970-01-01 00:00:00.000",
+      "ReleaseTime": "1970-01-01 00:00:00.000",
+      "ETATime": null
+     },
+     "NewEggArrivingDate": null,
+     "PremierMark": null,
+     "ItemManufactory": {
+      "BrandId": 1077,
+      "Code": 0,
+      "Manufactory": "SAMSUNG",
+      "CountryOfMfr": "KOR",
+      "ManfactoryLogo": 1,
+      "ManufactoryWeb": null,
+      "Hyperlink": null,
+      "CustomerServicePhone": null,
+      "IsM2C": false,
+      "IsTopTierBrand": true,
+      "ManufacturerCodes": null
+     },
+     "RankInfo": {
+      "ParentItem": "20-147-903",
+      "ItemNumber": "9SIABT1M4K6661",
+      "OrderPendingFastestDays": 0,
+      "OrderPendingSlowestDays": 0,
+      "FastestDays": 3,
+      "SlowestDays": 7,
+      "EggPointRate": 0,
+      "ShippingMethodFastest": 3,
+      "ShippingMethodSlowest": 5,
+      "TierEggpointRate": 0,
+      "InnerEggPercentPoints": null
+     },
+     "ShipFromCountryName": "United States",
+     "ShipFromCountryCode": "USA",
+     "CanPreLaunch": false,
+     "CanPreorder": false,
+     "IsAssemblyServiceItem": false,
+     "IsOperatingSoftwareItem": false,
+     "NeedReflush": false,
+     "PcodeDiscount4BuyBox": 0,
+     "ShipOutFrom": 0,
+     "ShipOutTo": 0,
+     "ShipOutTimeUnit": null,
+     "Financing": {
+      "TranCode": null,
+      "StartDate": null,
+      "EndDate": null,
+      "Months": 0,
+      "PayTermType": null
+     },
+     "Download": {
+      "DownloadType": 0,
+      "BoxItem": null,
+      "SFItem": null
+     },
+     "IsAcademic": false,
+     "MappingId": "490763",
+     "IndividualImageName": null,
+     "ExpandedNote": null,
+     "SellerType": "D",
+     "PromotionScheduleStatus": null,
+     "PromotionScheduleActiveDate": null,
+     "PromotionScheduleExpiration": null,
+     "PromotionScheduleExpirationLocal": null,
+     "SaleEndTimeText": null,
+     "HasStudentPrice": false,
+     "GMCflag": false,
+     "Model": "MZ-VAP2T0B/AM",
+     "ViewDescription": "<b>Max Sequential Read:</b> Up to 14700 …",
+     "Voting": {
+      "WinningCount": 0,
+      "WinningType": null
+     },
+     "OwnerCost": 0,
+     "NewProductTag": "1",
+     "HotSalesTag": "0",
+     "BigDiscountTag": "0",
+     "RushSaleTag": "0",
+     "ItemTagFlag": 1,
+     "ItemTagFlags": {
+      "FreeShipping": 1,
+      "NewProduct": 6,
+      "NeweggPick": 5
+     },
+     "ScheduleEndTime": null,
+     "ScheduleStartTime": null,
+     "ScheduleTypeID": null,
+     "IsBuyAloneItem": false,
+     "IsVacationSeller": false,
+     "IsBlockSeller": false,
+     "NoItemBaseDataMark": false,
+     "NoItemPriceDataMark": false,
+     "AddToCartType": 0,
+     "TaxDutyType": "",
+     "ImportType": "",
+     "DefaultShipVia": "502",
+     "EggSaverMark": "0",
+     "OriginalUnitPrice": 402.99,
+     "OriginalInstantRebateAmount": 0,
+     "TaxPrice": null,
+     "IsForceViewDetails": false,
+     "IsHotItem": false,
+     "IsLimitConfig": false,
+     "BestSellingRanking": 4,
+     "AutoPartsItemInfo": null,
+     "ShippingPromotionGroupID": "0",
+     "ShippingFeeType": 0,
+     "ShippingFeeFlatRate": 0,
+     "weight": 0.1,
+     "Length": 5.6,
+     "Width": 3.9,
+     "Height": 0.9,
+     "LowestPrice30Days": 0,
+     "IsLowestPrice": false,
+     "LaunchDate": null,
+     "DurationDays": null,
+     "ItemOfArrivalType": 0,
+     "ShortVideo": null,
+     "AnyFreeGift": false,
+     "GroupBuy": null,
+     "ItemPriceRange": {
+      "PriceRangeMin": 395,
+      "PriceRangeMax": 764.84
+     },
+     "Item": "9SIABT1M4K6661",
+     "UnitCost": 402.99,
+     "InstantRebateAmount": 0,
+     "ExchangeRate": 0,
+     "FinalPrice": 402.99,
+     "Instock": true,
+     "Stock": 1,
+     "StockForCombo": 1,
+     "StockForPCBuilder": 1,
+     "StockForDynamicCombo": 1,
+     "ShippingCharge": 0.01,
+     "WebsiteBlockMark": false,
+     "IsActivated": true,
+     "Active": "1",
+     "CountryCode": "USA",
+     "CompanyCode": 1003,
+     "LimitQuantity": 1,
+     "ShowItem": true,
+     "PriceType": 0
+    },
+    {
+     "FlagSelect": "",
+     "NTCItemMark": false,
+     "NewProductMark": false,
+     "Warranty": {
+      "WarrantyID": 401692,
+      "WarrantyName": "BioStar Return Policy"
+     },
+     "PrtMark": "False",
+     "OEMMark": "false",
+     "HideMirMark": "0",
+     "RestrictedItemMark": "0",
+     "PriceHideMark": "0",
+     "ConvertCompleteFlag": null,
+     "SameDayShippingMark": "0",
+     "Src": "C2",
+     "CustomTags": null,
+     "EssItemBadges": null,
+     "ColorInfo": null,
+     "StateExceptionList": null,
+     "Category": {
+      "RealGroupId": 42,
+      "RealGroupName": "Components",
+      "RealDomainId": 44,
+      "RealDomainName": "SSD",
+      "RealCategoryId": 60,
+      "RealCategoryName": "SSD"
+     },
+     "VideoList": [
+      "diOdT2jCnwI",
+      "u-h7h95p07U"
+     ],
+     "ItemGroupID": 204059744,
+     "ParentItem": "20-147-903",
+     "Subcategory": {
+      "SubcategoryId": 636,
+      "PatchCount": 0,
+      "SubcategoryDescription": "Internal SSDs",
+      "RealSubCategoryId": 636,
+      "RealSubCategoryDescription": "Solid State Disk"
+     },
+     "Feature": {
+      "IsAIT": false,
+      "IsRestricted": false,
+      "IsPremier": false,
+      "IsFirstFromAsia": false,
+      "IsInPMCC": false,
+      "IsHot": false,
+      "IsFreshDeal": false,
+      "HasManufacturerWarranty": false,
+      "ShipByNewegg": false,
+      "ShowOEMRetail": false,
+      "ShowOEM": false,
+      "USPSMark": false,
+      "ShopRunnerMark": null,
+      "HasIntelligence": false,
+      "IsNew": true,
+      "IsRefurbished": false,
+      "IsOpenBoxed": false,
+      "ProductType": 1,
+      "IsPreLaunch": false,
+      "ABSMinimum": false,
+      "IsGiftCard": false,
+      "IsFlower": false,
+      "IsPCBuilderReserveItem": false,
+      "IsNegPlus": true,
+      "IsFinalSale": false,
+      "ChangeToOutOfStock": false,
+      "InflatedPriceAlert": false,
+      "ShowAskAiAssistant": false,
+      "AllowRequestQuote": false
+     },
+     "Seller": {
+      "SellerId": "BFJR",
+      "SellerName": "BioStar",
+      "SellerLogoURL": "Seller_BFJR_e206aedd-38e9-4e3a-80ef-873d…",
+      "SellerRating": 5,
+      "SellerRatingOneDecimal": 4.8,
+      "SellerReviewCount": 142,
+      "SellerUrlKey": "BioStar",
+      "SellerModel": "VF",
+      "TopRated": true,
+      "LifetimeOrderCount": 0,
+      "SellerRatingLast12M": 5,
+      "SellerRatingOneDecimalLast12M": 4.6,
+      "SellerReviewCountLast12M": 39,
+      "Anchor": true,
+      "IsHotSeller": false
+     },
+     "Description": {
+      "Title": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "IMDescription": "SSD 2T|SAMSUNG 9100 PRO MZ-VAP2T0B/AM R",
+      "BulletDescription": "PCIe 5.0 Performance: Supercharge your w…",
+      "LineDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "WebDescription": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "LongDescription": null,
+      "UrlKeywords": "samsung-2tb-9100-pro-nvme-2-0",
+      "ShortTitle": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "WHIDescription": null,
+      "ProductName": "SAMSUNG SSD 9100 PRO 2TB, PCIe 5.0x4 M.2…",
+      "ManualProductName": "SAMSUNG 9100 PRO M.2 2280 2TB",
+      "SimplifiedWebDescription": null,
+      "SimplifiedLineDescription": null,
+      "SimplifiedBulletinDescription": null
+     },
+     "PromotionInfo": {
+      "PromotionText": null,
+      "DisplayPromotionText": "",
+      "PromotionLink": null,
+      "PromotionLinkOpenType": null,
+      "PCode": ""
+     },
+     "PreorderType": 0,
+     "Type": 0,
+     "VolumeDiscount": {
+      "PromotionPrice1": 0,
+      "PromotionPrice2": 0,
+      "PromotionPrice3": 0,
+      "PromotionQty1": 0,
+      "PromotionQty2": 0,
+      "PromotionQty3": 0,
+      "PromotionShipping1": 0,
+      "PromotionShipping2": 0,
+      "PromotionShipping3": 0
+     },
+     "MapPrice": 0,
+     "MailinRebateCollection": null,
+     "Image": {
+      "HasScene7Image": false,
+      "ImageInternalCount": 2,
+      "WaterMarkFlag": "0",
+      "ImageType": 0,
+      "IsDFISImage": true,
+      "HasWaterMark": true,
+      "Normal": {
+       "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+       "ImageName": "20-147-903-05.jpg",
+       "DFIS360ImgFlag": null
+      },
+      "Scene7": {
+       "ImageName": null,
+       "ImageSetName": null,
+       "ImageSetImageList": null,
+       "SpinSetName": null,
+       "SpinSetImageList": null,
+       "ThumbnailSetName": null,
+       "ThumbnailSetImageList": null,
+       "VendorSetImageList": null,
+       "SpecialImageList": null
+      },
+      "ItemCellImageName": "20-147-903-05.jpg",
+      "ImagePathPattern": [
+       {
+        "Size": -1,
+        "PathPattern": "https://c1.neweggimages.com/NeweggImage/…"
+       },
+       {
+        "Size": 35,
+        "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+       },
+       {
+        "Size": 60,
+        "PathPattern": "https://c1.neweggimages.com/ProductImage…"
+       }
+      ]
+     },
+     "NewImage": {
+      "ImageNameList": "20-147-903-05.jpg,20-147-903-10.jpg,20-1…",
+      "ImageName": "20-147-903-05.jpg",
+      "DFIS360ImgFlag": null,
+      "NobgImageName": null
+     },
+     "Subscription": {
+      "SubscriptionProgramID": 0,
+      "SubscriptionOnly": false,
+      "SubscriptionOrderFrequency": 0,
+      "SubscriptionPriceDiscountRate": 0,
+      "SubscriptionIsFreeShipping": "\u0000",
+      "SubscriptionContractTerm": 0,
+      "SubscriptionFreeTrial": 0,
+      "IsSubscription": false,
+      "IsRegularSubscription": false,
+      "IsSubscriptionOnly": false,
+      "IsCancelSubscription": false,
+      "IsCommitmentSubscription": false,
+      "IsSubscriptionFreeShipping": false
+     },
+     "Review": {
+      "Rating": 5,
+      "HumanRating": 1144,
+      "CombineGroup": 3,
+      "ReviewSign": "A",
+      "ReviewSignValue": null,
+      "ViewCount": 0,
+      "ItemAsDescribedRate": "0.9718",
+      "DeliverdOnTimeRate": "0.9507",
+      "SatisfiedServiiceRate": "0.9079",
+      "PositiveReviewRate": "0.9507",
+      "ImageVideoReviews": 2,
+      "RatingOneDecimal": 4.9,
+      "DeliverdOnTimeRateLast12M": "0.8718",
+      "ItemAsDescribedRateLast12M": "0.9231",
+      "SatisfiedServiiceRateLast12M": "0.7619",
+      "PositiveReviewRateLast12M": "0.8974"
+     },
+     "CPUSteppingCode": "43201830",
+     "ItemTime": {
+      "StartTime": "1970-01-01 00:00:00.000",
+      "ConvertTime": "1970-01-01 00:00:00.000",
+      "ReleaseTime": "1970-01-01 00:00:00.000",
+      "ETATime": null
+     },
+     "NewEggArrivingDate": null,
+     "PremierMark": null,
+     "ItemManufactory": {
+      "BrandId": 1077,
+      "Code": 0,
+      "Manufactory": "SAMSUNG",
+      "CountryOfMfr": "KOR",
+      "ManfactoryLogo": 1,
+      "ManufactoryWeb": null,
+      "Hyperlink": null,
+      "CustomerServicePhone": null,
+      "IsM2C": false,
+      "IsTopTierBrand": true,
+      "ManufacturerCodes": null
+     },
+     "RankInfo": {
+      "ParentItem": "20-147-903",
+      "ItemNumber": "9SIBFJRKG22358",
+      "OrderPendingFastestDays": 0,
+      "OrderPendingSlowestDays": 0,
+      "FastestDays": 3,
+      "SlowestDays": 7,
+      "EggPointRate": 0,
+      "ShippingMethodFastest": 3,
+      "ShippingMethodSlowest": 5,
+      "TierEggpointRate": 0,
+      "InnerEggPercentPoints": null
+     },
+     "ShipFromCountryName": "United States",
+     "ShipFromCountryCode": "USA",
+     "CanPreLaunch": false,
+     "CanPreorder": false,
+     "IsAssemblyServiceItem": false,
+     "IsOperatingSoftwareItem": false,
+     "NeedReflush": false,
+     "PcodeDiscount4BuyBox": 0,
+     "ShipOutFrom": 0,
+     "ShipOutTo": 0,
+     "ShipOutTimeUnit": null,
+     "Financing": {
+      "TranCode": null,
+      "StartDate": null,
+      "EndDate": null,
+      "Months": 0,
+      "PayTermType": null
+     },
+     "Download": {
+      "DownloadType": 0,
+      "BoxItem": null,
+      "SFItem": null
+     },
+     "IsAcademic": false,
+     "MappingId": "490763",
+     "IndividualImageName": null,
+     "ExpandedNote": null,
+     "SellerType": "I",
+     "PromotionScheduleStatus": null,
+     "PromotionScheduleActiveDate": null,
+     "PromotionScheduleExpiration": null,
+     "PromotionScheduleExpirationLocal": null,
+     "SaleEndTimeText": null,
+     "HasStudentPrice": false,
+     "GMCflag": false,
+     "Model": "MZ-VAP2T0B/AM",
+     "ViewDescription": "<b>Max Sequential Read:</b> Up to 14700 …",
+     "Voting": {
+      "WinningCount": 0,
+      "WinningType": null
+     },
+     "OwnerCost": 0,
+     "NewProductTag": "0",
+     "HotSalesTag": "0",
+     "BigDiscountTag": "0",
+     "RushSaleTag": "0",
+     "ItemTagFlag": 1,
+     "ItemTagFlags": {
+      "FreeShipping": 1,
+      "NeweggPick": 5
+     },
+     "ScheduleEndTime": null,
+     "ScheduleStartTime": null,
+     "ScheduleTypeID": null,
+     "IsBuyAloneItem": false,
+     "IsVacationSeller": false,
+     "IsBlockSeller": false,
+     "NoItemBaseDataMark": false,
+     "NoItemPriceDataMark": false,
+     "AddToCartType": 0,
+     "TaxDutyType": "",
+     "ImportType": "",
+     "DefaultShipVia": "502",
+     "EggSaverMark": "0",
+     "OriginalUnitPrice": 439.5,
+     "OriginalInstantRebateAmount": 0,
+     "TaxPrice": null,
+     "IsForceViewDetails": false,
+     "IsHotItem": false,
+     "IsLimitConfig": false,
+     "BestSellingRanking": 4,
+     "AutoPartsItemInfo": null,
+     "ShippingPromotionGroupID": "0",
+     "ShippingFeeType": 0,
+     "ShippingFeeFlatRate": 0,
+     "weight": 0.01,
+     "Length": 5.6,
+     "Width": 3.9,
+     "Height": 0.9,
+     "LowestPrice30Days": 0,
+     "IsLowestPrice": false,
+     "LaunchDate": null,
+     "DurationDays": null,
+     "ItemOfArrivalType": 0,
+     "ShortVideo": null,
+     "AnyFreeGift": false,
+     "GroupBuy": null,
+     "ItemPriceRange": {
+      "PriceRangeMin": 395,
+      "PriceRangeMax": 764.84
+     },
+     "Item": "9SIBFJRKG22358",
+     "UnitCost": 439.5,
+     "InstantRebateAmount": 0,
+     "ExchangeRate": 0,
+     "FinalPrice": 439.5,
+     "Instock": true,
+     "Stock": 1,
+     "StockForCombo": 1,
+     "StockForPCBuilder": 1,
+     "StockForDynamicCombo": 1,
+     "ShippingCharge": 0.01,
+     "WebsiteBlockMark": false,
+     "IsActivated": true,
+     "Active": "1",
+     "CountryCode": "USA",
+     "CompanyCode": 1003,
+     "LimitQuantity": 99999,
+     "ShowItem": true,
+     "PriceType": 0
+    }
+   ],
+   "IsForceDeactiveItem": null
+  }
+ },
+ {
+  "url": "https://www.affirm.com/api/v2/cookie_sent",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 22,
+  "isJson": true,
+  "parsedJson": {
+   "cookie_sent": false
+  }
+ },
+ {
+  "url": "https://www.affirm.com/api/v2/cookie_sent",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 22,
+  "isJson": true,
+  "parsedJson": {
+   "cookie_sent": false
+  }
+ },
+ {
+  "url": "https://www.affirm.com/api/v2/cookie_sent",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 22,
+  "isJson": true,
+  "parsedJson": {
+   "cookie_sent": false
+  }
+ },
+ {
+  "url": "https://bzrcdn.openai.com/pixel-config/v1/CuXYJ6u3L33at1N1vgRcRS.json",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 45,
+  "isJson": true,
+  "parsedJson": {
+   "automatic_advanced_matching_enabled": false
+  }
+ },
+ {
+  "url": "https://www.affirm.com/api/v2/cookie_sent",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 22,
+  "isJson": true,
+  "parsedJson": {
+   "cookie_sent": false
+  }
+ },
+ {
+  "url": "https://content.syndigo.com/site/2271c913-b221-43ea-9e12-06a36b2afd70/styles.json?cv=20683",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 11535,
+  "isJson": true,
+  "parsedJson": {
+   "HeroCalloutHaloAnimation": "syndigo-hotspots-animated-halo-single-pu…",
+   "HeroCalloutHaloColor": "rgba(31, 68, 119, 1)",
+   "HeroCalloutSelectedPrimaryColor": "#ffffff",
+   "HeroCalloutSelectedSecondaryColor": "#1f4477",
+   "HeroCalloutUnselectedPrimaryColor": "#ffffff",
+   "HeroCalloutUnselectedSecondaryColor": "#1f4477",
+   "PowerPageShowDisclaimer": "true",
+   "PowerPageFragmentHeaderFontFamily": "OpenSans",
+   "PowerPageMainHeaderFontSize": "19px",
+   "PowerPageMainHeaderFontFamily": "OpenSans",
+   "PowerPageMainHeaderFontWeight": "bold",
+   "PowerPageMainHeaderContent": "From the Manufacturer",
+   "PowerPageFragmentHeaderFontSize": "16pt",
+   "PowerPageMainHeaderColor": "#565758",
+   "PowerPageFragmentHeaderColor": "#333333",
+   "PowerPageMainHeaderDisplay": "inline",
+   "PowerPageMainHeaderTextByLanguage": "From the Manufacturer",
+   "PowerPageFragmentHeaderFontWeight": "bold",
+   "PowerPageGridZIndex": "1",
+   "PowerPageGridPositionStrategy": "relative",
+   "PowerPageFullScreenWidgetZIndex": "9999",
+   "MosaicListingStyleOverlaySectionColor": "#565758",
+   "MosaicListingStyleMenuTilesSeparatorsBorderColor": "#CCCCCC",
+   "MosaicRelatedProductsAddToCartBorderHover": "transparent",
+   "MosaicGeneralBodyTextColor": "#565758",
+   "MosaicGeneralFootnotesFontStyle": "unset",
+   "MosaicFeaturesContentHeadingFontFamily": "OpenSans",
+   "MosaicElementsControlsColor": "#000000",
+   "MosaicBoardStyleOverlaySectionFontFamily": "OpenSans",
+   "MosaicElementsPagingControlsBorderColor": "transparent",
+   "MosaicBoardStyleOverlaySectionFontWeight": "bold",
+   "MosaicBoardStyleMenuIconBorderHoverColor": "transparent",
+   "MosaicRelatedProductsAddToCartColorHover": "#FFFFFF",
+   "MosaicRelatedProductsPriceColor": "#2179D3",
+   "MosaicGeneralBodyTextFontSize": "13px",
+   "MosaicBoardStyleOverlaySectionColor": "#565758",
+   "MosaicBoardStyleMenuTilesBorderRadius": "0px",
+   "MosaicGeneralHyperlinksHoverTextDecoration": "unset",
+   "MosaicElementsPagingControlsSelectedBackgroundColor": "#2179D3",
+   "MosaicFeaturesBodyTextLineHeight": "25px",
+   "MosaicBoardStyleOverlaySectionFontSize": "15px",
+   "MosaicListingStyleMenuTilesSelectedColor": "#FFFFFF",
+   "MosaicBoardStyleMenuIconColor": "#FFFFFF",
+   "MosaicRelatedProductsPriceFontFamily": "OpenSans",
+   "MosaicListingStyleMenuIconWidth": "10px",
+   "MosaicBoardStyleMenuIconHeight": "30px",
+   "MosaicBoardStyleMenuBoardSingleContent": "TILE_ICON",
+   "MosaicBoardStyleMenuIconBackgroundColor": "#2179D3",
+   "MosaicElementsContentBoxBorderColor": "#CCCCCC",
+   "MosaicElementsPagingControlsSelectedBorderColor": "transparent",
+   "MosaicBoardStyleMenuBoardSize": "MEDIUM",
+   "MosaicFeaturesBodyTextColor": "#565758",
+   "MosaicListingStyleMenuTilesBackgroundColor": "#F0F0F0",
+   "MosaicGeneralBodyTextFontFamily": "OpenSans",
+   "MosaicBoardStyleMenuIconText": "Learn more",
+   "MosaicElementsControlsProgressBarStroke": "#2179D3",
+   "MosaicBoardStyleMenuIconBorderColor": "transparent",
+   "MosaicFeaturesContentHeadingFontWeight": "bold",
+   "MosaicBoardLayoutZIndex3": "99999",
+   "MosaicBoardStyleMenuTilesColor": "#565758",
+   "MosaicRelatedProductsAddToCartBackgroundColor": "#2179D3",
+   "MosaicBoardLayoutZIndex2": "99999",
+   "MosaicBoardLayoutZIndex1": "99999",
+   "MosaicListingStyleMenuIconAnimateWcMbPulse": "33, 121, 211",
+   "MosaicGeneralFootnotesFontFamily": "OpenSans",
+   "MosaicFeaturesContentHeadingColor": "#565758",
+   "MosaicListingStyleMenuIconHoverColor": "#FFFFFF",
+   "MosaicBoardStyleMenuIconWidth": "10px",
+   "MosaicListingStyleMenuIconBorderColor": "transparent",
+   "MosaicElementsPagingControlsBackgroundColor": "#CCCCCC",
+   "MosaicListingStyleMenuIconColor": "#FFFFFF",
+   "MosaicListingStyleMenuIconText": "Learn more",
+   "MosaicRelatedProductsAddToCartBorderColor": "transparent",
+   "MosaicListingStyleMenuBoardShadow": "0px 1px 4px 0px rgba(0,0,0,0.5)",
+   "MosaicElementsNextPreviousButtonsBorderRadius": "0px",
+   "MosaicBoardStyleMenuIconAnimateWcMbPulse": "33, 121, 211",
+   "MosaicBoardStyleOverlayContentOffsetUnit": "px",
+   "MosaicGeneralBodyTextColorDarkerHover": "#000000",
+   "MosaicElementsNextPreviousButtonsColor": "#000000",
+   "MosaicGeneralFootnotesColor": "#565758",
+   "MosaicListingStyleOverlayContentScroll": "On",
+   "MosaicFeaturesContentHeadingFontSize": "30px",
+   "MosaicRelatedProductsAddToCartFontFamily": "OpenSans",
+   "MosaicFeaturesBodyTextFontFamily": "OpenSans",
+   "MosaicBoardStyleMenuTilesBackgroundSelectedColor": "#F0F0F0",
+   "MosaicListingStyleMenuIconBorderHoverColor": "transparent",
+   "MosaicBoardStyleMenuTilesBorderColor": "transparent",
+   "MosaicElementsNextPreviousButtonsBackgroundColor": "#FFFFFF",
+   "MosaicGeneralBodyTextLineHeight": "1.3em",
+   "MosaicGeneralHyperlinksHoverColor": "#2179D3",
+   "MosaicListingStyleMenuIconHeight": "30px",
+   "MosaicRelatedProductsAddToCartColor": "#FFFFFF",
+   "MosaicListingStyleMenuIconFontFamily": "OpenSans",
+   "MosaicListingStyleOverlaySectionFontWeight": "unset",
+   "MosaicBoardStyleMenuBoardShadow": "0px 1px 4px 0px rgba(0,0,0,0.5)",
+   "MosaicBoardStyleMenuIconIcon": "EYE",
+   "MosaicBoardStyleMenuIconBorderRadius": "50px",
+   "MosaicListingLayoutZIndex1": "99999",
+   "MosaicListingLayoutZIndex2": "99999",
+   "MosaicListingLayoutZIndex3": "99999",
+   "MosaicBoardStyleOverlayContentLines": "#CCCCCC",
+   "MosaicListingStyleMenuIconIcon": "EYE",
+   "MosaicBoardStyleOverlayContentShadow": "0 2px 5px 0 rgba(0,0,0,0.5)",
+   "MosaicRelatedProductsAddToCartBorderRadius": "0px",
+   "MosaicListingStyleMenuTilesColor": "#565758",
+   "MosaicBoardStyleOverlayContentWidthUnit": "px",
+   "MosaicRelatedProductsPriceFontSize": "20px",
+   "MosaicElementsControlsBackgroundColor": "#FFFFFF",
+   "MosaicListingStyleMenuTilesBorderColor": "transparent",
+   "MosaicElementsTextBackgroundBackgroundColor": "#FFFFFF",
+   "MosaicRelatedProductsAddToCartHoverFontWeight": "unset",
+   "MosaicGeneralContentHeadingFontSize": "13px",
+   "MosaicBoardStyleMenuTilesSelectedColor": "#2179D3",
+   "MosaicBoardStyleMenuTilesSeparatorsBorderColor": "#CCCCCC",
+   "MosaicGeneralContentHeadingFontWeight": "bold",
+   "MosaicBoardStyleMenuIconHoverColor": "#FFFFFF",
+   "MosaicListingStyleOverlayContentShadow": "0 2px 5px 0 rgba(0,0,0,0.5)px",
+   "MosaicGeneralContentHeadingFontFamily": "OpenSans",
+   "MosaicFeaturesBodyTextFontSize": "18px",
+   "MosaicListingStyleOverlayContentLines": "#CCCCCCpx",
+   "MosaicGeneralHyperlinksTextDecoration": "unset",
+   "MosaicListingStyleOverlaySectionFontFamily": "OpenSans",
+   "MosaicGeneralFootnotesFontSize": "12px",
+   "MosaicRelatedProductsAddToCartFontWeight": "unset",
+   "MosaicListingStyleOverlaySectionFontSize": "15px",
+   "MosaicListingStyleMenuIconBorderRadius": "50px",
+   "MosaicBoardStyleMenuTilesBackgroundColor": "#F0F0F0",
+   "MosaicListingStyleMenuIconBackgroundColor": "#2179D3",
+   "MosaicElementsControlsBorderRadius": "0px",
+   "MosaicGeneralContentHeadingColor": "#565758",
+   "MosaicRelatedProductsAddToCartContent": "Add To Cart",
+   "MosaicListingStyleMenuTilesBackgroundSelectedColor": "#2179D3",
+   "MosaicElementsControlsBorderColor": "transparent",
+   "MosaicRelatedProductsAddToCartBackgroundHoverColor": "#336699",
+   "MosaicBoardLayoutZIndex5": "99999",
+   "MosaicBoardLayoutZIndex4": "99999",
+   "MosaicBoardLayoutZIndex6": "99999",
+   "MosaicElementsNextPreviousButtonsBorderColor": "transparent",
+   "MosaicListingStyleMenuBoardSingleContent": "TILE_ICON",
+   "MosaicBoardStyleMenuIconOpacity": "100",
+   "MosaicListingStyleMenuTilesBorderRadius": "0px",
+   "MosaicListingLayoutZIndex4": "99999",
+   "MosaicListingLayoutZIndex5": "99999",
+   "MosaicBoardStyleMenuIconBackgroundHoverColor": "#336699",
+   "MosaicElementsContentBoxBackgroundColor": "#FFFFFF",
+   "MosaicListingLayoutZIndex6": "99999",
+   "MosaicElementsTextBackgroundBackgroundColorRgb": "255, 255, 255",
+   "MosaicListingStyleMenuIconBackgroundHoverColor": "#336699",
+   "MosaicRelatedProductsAddToCartFontSize": "14px",
+   "MosaicBoardStyleMenuIconFontFamily": "OpenSans",
+   "MosaicRelatedProductsPriceFontWeight": "unset",
+   "MosaicListingStyleMenuIconOpacity": "70",
+   "MosaicElementsThumbnailsBorderColor": "#2179D3",
+   "MosaicGeneralHyperlinksColor": "#565758",
+   "CommonElementThumbnailsControlsSelectedBackgroundColor": "#2179d3",
+   "CommonFootnotesFontSize": "12px",
+   "CommonDataCellBorderColor": "#cccccc",
+   "CommonLinkHoverColor": "#336699",
+   "CommonBodyTextColorDarkerHover": "#000000",
+   "CommonElementNextPreviousControlsBackgroundColor": "#ffffff",
+   "CommonBodyTextLineHeight": "1.3em",
+   "CommonGroupHeadingHoverColor": "#000000",
+   "CommonDataCellHighlightBackgroundColor": "#f7f8f8",
+   "CommonElementTextBackgroundColor": "#f0f0f0",
+   "CommonSubSubHeaderFontFamily": "OpenSans",
+   "CommonGroupHeadingFontSize": "15px",
+   "CommonElementControlsBorderColor": "transparent",
+   "CommonContentHelpfulnessQuestionContent": "text",
+   "CommonElementNextPreviousControlsBorderColor": "transparent",
+   "CommonDataCellBackgroundColor": "#ffffff",
+   "CommonSubSubHeaderColor": "#333333",
+   "CommonBodyTextFontFamily": "OpenSans",
+   "CommonFootnotesFontStyle": "unset",
+   "CommonBodyTextColorRgb": "86,87,88",
+   "CommonLinkTextDecoration": "unset",
+   "CommonFootnotesColor": "#565758",
+   "CommonHeaderColor": "#333333",
+   "CommonMoreInfoTooltipBorderColor": "#2179d3",
+   "CommonMoreInfoTooltipColor": "#565758",
+   "CommonElementNextPreviousControlsColor": "#565758",
+   "CommonDataCellFontSize": "12px",
+   "CommonElementNextPreviousControlsBorderRadius": "0px",
+   "CommonElementSectionBackgroundColor": "transparent",
+   "CommonGroupHeadingColor": "#565758",
+   "CommonBodyTextColor": "#565758",
+   "CommonSubHeaderColor": "#333333",
+   "CommonHeaderFontWeight": "bold",
+   "CommonContentHelpfulnessQuestionResponseByLanguage": "Thank You",
+   "CommonBodyTextFontSize": "13px",
+   "CommonSubHeaderFontWeight": "bold",
+   "CommonSubSubHeaderFontSize": "12px",
+   "CommonElementControlsBorderRadius": "0px",
+   "CommonElementControlsProgressbarStroke": "#2179d3",
+   "CommonContentHelpfulnessQuestionDisplay": "inline",
+   "CommonSubHeaderFontFamily": "OpenSans",
+   "CommonContentHelpfulnessQuestionAnswerYesByLanguage": "Yes",
+   "CommonHeaderFontSize": "19px",
+   "CommonSubHeaderFontSize": "13px",
+   "CommonLinkHoverTextDecoration": "unset",
+   "CommonElementSectionBorderColor": "#cccccc",
+   "CommonGroupHeadingFontFamily": "OpenSans",
+   "CommonFootnotesFontFamily": "OpenSans",
+   "CommonElementControlsBackgroundColor": "#000000",
+   "CommonSubSubHeaderFontWeight": "bold",
+   "CommonGroupHeadingFontWeight": "100",
+   "CommonContentHelpfulnessQuestionAnswerNoByLanguage": "No",
+   "CommonMoreInfoTooltipBackgroundColor": "#ffffff",
+   "CommonElementControlsColor": "#ffffff",
+   "CommonElementThumbnailsControlsRegularBackgroundColor": "#cccccc",
+   "CommonLinkColor": "#2179D3",
+   "CommonContentHelpfulnessQuestionTextByLanguage": "Is the information in this section helpf…",
+   "CommonHeaderFontFamily": "OpenSans",
+   "CommonDataCellLineHeight": "1.3em",
+   "CommonDataCellColor": "#565758",
+   "ComparisonTableBuyNowButtonColorHover": "#ffffff",
+   "ComparisonTableThisProductColor": "#000000",
+   "ComparisonTableBuyNowButtonContent": "Buy Now",
+   "ComparisonTableBuyNowButtonFontWeight": "normal",
+   "ComparisonTableBuyNowButtonBackgroundHoverColor": "#336699",
+   "ComparisonTableBuyNowButtonBorderHoverColor": "transparent",
+   "ComparisonTableBuyNowButtonHoverFontWeight": "normal",
+   "ComparisonTableBuyNowButtonDisplay": "none",
+   "ComparisonTableBuyNowButtonBorderColor": "transparent",
+   "ComparisonTableBuyNowButtonBorderRadius": "0px",
+   "ComparisonTableBuyNowButtonColor": "#ffffff",
+   "ComparisonTableBuyNowButtonBackgroundColor": "#2179d3",
+   "ComparisonTableBuyNowButtonTextByLanguage": "Buy Now",
+   "InteractiveTourCallOutBorderColor": "#979797",
+   "InteractiveTourHotspotBorderColor": "transparent",
+   "InteractiveTourCallOutBackgroundColor": "#FFFFFF",
+   "InteractiveTourMobileViewToggleColor": "#979797",
+   "InteractiveTourMobileViewToggleSelectedBackgroundColor": "#2179D3",
+   "InteractiveTourMobileViewToggleSelectedBorderColor": "transparent",
+   "InteractiveTourHotspotBackgroundColor": "#2179D3",
+   "InteractiveTourMobileViewToggleBackgroundColor": "#FFFFFF",
+   "InteractiveTourCallOutColor": "#565758",
+   "InteractiveTourHotspotColor": "#FFFFFF",
+   "InteractiveTourMobileViewToggleSelectedColor": "#FFFFFF",
+   "InteractiveTourHotspotBackgroundColorRgb": "33, 121, 211",
+   "InteractiveTourMobileViewToggleBorderColor": "#979797",
+   "FeatureSetHeadingFontSize": "18px",
+   "FeatureSetHeadingFontFamily": "OpenSans",
+   "FeatureSetHeadingColor": "#565758",
+   "FeatureSetHeadingFontWeight": "bold"
+  }
+ },
+ {
+  "url": "https://www.affirm.com/api/v2/session/touch_track",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 46,
+  "isJson": true,
+  "parsedJson": {
+   "id": "7fac4695-fcf2-457e-b4dc-24e06b4616e9"
+  }
+ },
+ {
+  "url": "https://content.syndigo.com/page/2271c913-b221-43ea-9e12-06a36b2afd70/N82E16820147903.json?u=45E6C89E-16C7-4713-A40C-4F742A557C8D&siteid=2271c913-b221-43ea-9e12-06a36b2afd70&pageid=N82E16820147903&s=1787054346450&v=v1.0.564&visitid=40D30C96-B90C-4740-9C44-261A10842E15&ref=&pageurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 62183,
+  "isJson": true,
+  "parsedJson": {
+   "siteId": "2271c913-b221-43ea-9e12-06a36b2afd70",
+   "pageId": "N82E16820147903",
+   "pageType": "Product",
+   "experiences": {
+    "06a23a8d-c110-4061-b213-f10414bb86c8": {
+     "enhancedProductContentId": "867a0e38-3d0b-4289-9487-c42abf57d7e2",
+     "componentId": "06a23a8d-c110-4061-b213-f10414bb86c8",
+     "state": "Draft",
+     "weight": 1,
+     "experiences": {
+      "power-page": {
+       "layouts": [
+        {
+         "areas": [
+          "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+          "2a12ae1c-d15a-4fe7-9a86-8fa7286c0ef4",
+          "0e830eb3-ca1f-4ac5-884d-5486f523b397"
+         ],
+         "columns": "1fr",
+         "rows": "repeat(22, 1fr)"
+        }
+       ],
+       "experienceType": "power-page",
+       "domSelector": "#syndi_powerpage",
+       "widgets": {
+        "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8": {
+         "widgetId": "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "0e830eb3-ca1f-4ac5-884d-5486f523b397": {
+         "widgetId": "0e830eb3-ca1f-4ac5-884d-5486f523b397",
+         "widgetType": "FreeFormHtml",
+         "headerText": "Features",
+         "html": "<h2 class=\"ql-align-center\"><b>Breakthro…"
+        },
+        "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94": {
+         "widgetId": "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e": {
+         "widgetId": "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Every tas…"
+        },
+        "c131bfb2-c184-4b09-a1a2-06d5d12a89ab": {
+         "widgetId": "c131bfb2-c184-4b09-a1a2-06d5d12a89ab",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "705c8389-8283-42ba-91dd-18cdbbbcf37b": {
+         "widgetId": "705c8389-8283-42ba-91dd-18cdbbbcf37b",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Think fas…"
+        },
+        "c62ada30-2b20-4569-95da-becd34ecee6d": {
+         "widgetId": "c62ada30-2b20-4569-95da-becd34ecee6d",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "0453f2f1-175a-49b4-9e00-6c5fb4be1ade": {
+         "widgetId": "0453f2f1-175a-49b4-9e00-6c5fb4be1ade",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Speed, wh…"
+        },
+        "6614fc06-52e3-4144-aedf-c0c1a67ae2fb": {
+         "widgetId": "6614fc06-52e3-4144-aedf-c0c1a67ae2fb",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "46a8e38c-c895-415a-bcd1-8282982841ef": {
+         "widgetId": "46a8e38c-c895-415a-bcd1-8282982841ef",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Stay cool…"
+        },
+        "ded39fb1-50e7-4fa4-840c-6446e5ec7323": {
+         "widgetId": "ded39fb1-50e7-4fa4-840c-6446e5ec7323",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27": {
+         "widgetId": "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Break fre…"
+        },
+        "53a51d95-38bd-401d-9f3d-2ac9e1439535": {
+         "widgetId": "53a51d95-38bd-401d-9f3d-2ac9e1439535",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "a84189f2-9d28-4cd9-9217-29670e868abd": {
+         "widgetId": "a84189f2-9d28-4cd9-9217-29670e868abd",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Works lik…"
+        },
+        "9126457b-67f7-4c80-8023-7c33d77d1296": {
+         "widgetId": "9126457b-67f7-4c80-8023-7c33d77d1296",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "bc24372f-a90f-4958-93a9-b5c36c7b7278": {
+         "widgetId": "bc24372f-a90f-4958-93a9-b5c36c7b7278",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>World's N…"
+        },
+        "3602d561-abe9-4c18-b39e-4afeba9865e3": {
+         "widgetId": "3602d561-abe9-4c18-b39e-4afeba9865e3",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "0eb68cd0-b9cc-4761-92e2-286f7c0027f0": {
+         "widgetId": "0eb68cd0-b9cc-4761-92e2-286f7c0027f0",
+         "widgetType": "SpecificationTable",
+         "headerText": "Specification ",
+         "layout": "TwoColumn",
+         "rows": [
+          {
+           "caption": "…",
+           "isGroupHeading": "…",
+           "footnotes": "…",
+           "cells": "…"
+          },
+          {
+           "caption": "…",
+           "isGroupHeading": "…",
+           "footnotes": "…",
+           "cells": "…"
+          },
+          {
+           "caption": "…",
+           "isGroupHeading": "…",
+           "footnotes": "…",
+           "cells": "…"
+          }
+         ]
+        },
+        "47e4daee-48f5-4d55-9f79-428abdea35e9": {
+         "widgetId": "47e4daee-48f5-4d55-9f79-428abdea35e9",
+         "widgetType": "ImageGallery",
+         "headerText": "Image Gallery",
+         "enableFullscreenToggle": true,
+         "layout": "focused",
+         "items": [
+          {
+           "description": "…",
+           "image": "…"
+          },
+          {
+           "description": "…",
+           "image": "…"
+          },
+          {
+           "description": "…",
+           "image": "…"
+          }
+         ]
+        },
+        "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e": {
+         "widgetId": "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e",
+         "widgetType": "DocumentGallery",
+         "headerText": "Product Documents",
+         "items": [
+          {
+           "assetId": "…",
+           "caption": "…",
+           "description": "…",
+           "url": "…",
+           "image": "…",
+           "contentLength": "…",
+           "pageCount": "…"
+          }
+         ]
+        },
+        "a30e6167-cf70-409f-99e7-0708c0da1161": {
+         "widgetId": "a30e6167-cf70-409f-99e7-0708c0da1161",
+         "widgetType": "InlineFrame",
+         "headerText": "warranty",
+         "poster": {
+          "assetType": "Image",
+          "url": "https://content.syndigo.com/asset/507b45…",
+          "alt": "",
+          "artDirectedAssets": [],
+          "assetId": "507b45dd-777f-4e3b-b6f9-c99310d3819d",
+          "originalHeight": 1024,
+          "originalWidth": 1024,
+          "availableWidths": [
+           "…",
+           "…",
+           "…"
+          ],
+          "availableTypes": [
+           "…",
+           "…"
+          ],
+          "mimeType": "image/png"
+         },
+         "contentUrl": "https://csync-api.seasam.org/below-fold/…",
+         "sizeStrategy": "KeepProportions",
+         "dimensions": {
+          "height": 100,
+          "width": 100
+         },
+         "allow": {
+          "camera": false,
+          "microphone": false
+         }
+        }
+       }
+      },
+      "hero": {
+       "heroImages": [],
+       "calloutStyle": {
+        "haloAnimation": "syndigo-hotspots-animated-halo-single-pu…",
+        "haloColor": "rgba(31, 68, 119, 1)",
+        "selected": {
+         "svgPrimaryFill": "#ffffff",
+         "svgSecondaryFill": "#1f4477"
+        },
+        "unselected": {
+         "svgPrimaryFill": "#ffffff",
+         "svgSecondaryFill": "#1f4477"
+        }
+       },
+       "calloutConfigs": {},
+       "navigationStyle": {
+        "nextIcon": "chevron-right",
+        "prevIcon": "chevron-left",
+        "svgPrimaryFill": "#000",
+        "svgSecondaryFill": "#fff",
+        "closeIcon": "close-circle"
+       },
+       "showWatermark": true,
+       "mosaicWidgetIds": [],
+       "experienceType": "hero",
+       "domSelector": "#syndi_hotspots",
+       "widgets": {}
+      }
+     }
+    }
+   },
+   "experience": {
+    "enhancedProductContentId": "867a0e38-3d0b-4289-9487-c42abf57d7e2",
+    "componentId": "06a23a8d-c110-4061-b213-f10414bb86c8",
+    "state": "Draft",
+    "weight": 1,
+    "experiences": {
+     "power-page": {
+      "layouts": [
+       {
+        "areas": [
+         "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+         "2a12ae1c-d15a-4fe7-9a86-8fa7286c0ef4",
+         "0e830eb3-ca1f-4ac5-884d-5486f523b397"
+        ],
+        "columns": "1fr",
+        "rows": "repeat(22, 1fr)"
+       }
+      ],
+      "experienceType": "power-page",
+      "domSelector": "#syndi_powerpage",
+      "widgets": {
+       "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8": {
+        "widgetId": "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "TwoColumn",
+          "features": [
+           "…",
+           "…"
+          ]
+         }
+        ]
+       },
+       "0e830eb3-ca1f-4ac5-884d-5486f523b397": {
+        "widgetId": "0e830eb3-ca1f-4ac5-884d-5486f523b397",
+        "widgetType": "FreeFormHtml",
+        "headerText": "Features",
+        "html": "<h2 class=\"ql-align-center\"><b>Breakthro…"
+       },
+       "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94": {
+        "widgetId": "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e": {
+        "widgetId": "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Every tas…"
+       },
+       "c131bfb2-c184-4b09-a1a2-06d5d12a89ab": {
+        "widgetId": "c131bfb2-c184-4b09-a1a2-06d5d12a89ab",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "705c8389-8283-42ba-91dd-18cdbbbcf37b": {
+        "widgetId": "705c8389-8283-42ba-91dd-18cdbbbcf37b",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Think fas…"
+       },
+       "c62ada30-2b20-4569-95da-becd34ecee6d": {
+        "widgetId": "c62ada30-2b20-4569-95da-becd34ecee6d",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "0453f2f1-175a-49b4-9e00-6c5fb4be1ade": {
+        "widgetId": "0453f2f1-175a-49b4-9e00-6c5fb4be1ade",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Speed, wh…"
+       },
+       "6614fc06-52e3-4144-aedf-c0c1a67ae2fb": {
+        "widgetId": "6614fc06-52e3-4144-aedf-c0c1a67ae2fb",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "46a8e38c-c895-415a-bcd1-8282982841ef": {
+        "widgetId": "46a8e38c-c895-415a-bcd1-8282982841ef",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Stay cool…"
+       },
+       "ded39fb1-50e7-4fa4-840c-6446e5ec7323": {
+        "widgetId": "ded39fb1-50e7-4fa4-840c-6446e5ec7323",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27": {
+        "widgetId": "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Break fre…"
+       },
+       "53a51d95-38bd-401d-9f3d-2ac9e1439535": {
+        "widgetId": "53a51d95-38bd-401d-9f3d-2ac9e1439535",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "a84189f2-9d28-4cd9-9217-29670e868abd": {
+        "widgetId": "a84189f2-9d28-4cd9-9217-29670e868abd",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Works lik…"
+       },
+       "9126457b-67f7-4c80-8023-7c33d77d1296": {
+        "widgetId": "9126457b-67f7-4c80-8023-7c33d77d1296",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "bc24372f-a90f-4958-93a9-b5c36c7b7278": {
+        "widgetId": "bc24372f-a90f-4958-93a9-b5c36c7b7278",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>World's N…"
+       },
+       "3602d561-abe9-4c18-b39e-4afeba9865e3": {
+        "widgetId": "3602d561-abe9-4c18-b39e-4afeba9865e3",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "0eb68cd0-b9cc-4761-92e2-286f7c0027f0": {
+        "widgetId": "0eb68cd0-b9cc-4761-92e2-286f7c0027f0",
+        "widgetType": "SpecificationTable",
+        "headerText": "Specification ",
+        "layout": "TwoColumn",
+        "rows": [
+         {
+          "caption": "General Information",
+          "isGroupHeading": true,
+          "footnotes": [],
+          "cells": []
+         },
+         {
+          "caption": "Application",
+          "isGroupHeading": false,
+          "footnotes": [],
+          "cells": [
+           "…",
+           "…"
+          ]
+         },
+         {
+          "caption": "Capacity",
+          "isGroupHeading": false,
+          "footnotes": [],
+          "cells": [
+           "…",
+           "…"
+          ]
+         }
+        ]
+       },
+       "47e4daee-48f5-4d55-9f79-428abdea35e9": {
+        "widgetId": "47e4daee-48f5-4d55-9f79-428abdea35e9",
+        "widgetType": "ImageGallery",
+        "headerText": "Image Gallery",
+        "enableFullscreenToggle": true,
+        "layout": "focused",
+        "items": [
+         {
+          "description": "",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…",
+           "mimeType": "…"
+          }
+         },
+         {
+          "description": "",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…",
+           "mimeType": "…"
+          }
+         },
+         {
+          "description": "",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…",
+           "mimeType": "…"
+          }
+         }
+        ]
+       },
+       "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e": {
+        "widgetId": "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e",
+        "widgetType": "DocumentGallery",
+        "headerText": "Product Documents",
+        "items": [
+         {
+          "assetId": "3088f0db-a896-4008-86fd-fcf38317019c",
+          "caption": "SpecSheet",
+          "description": "PDF",
+          "url": "https://content.syndigo.com/asset/66dbae…",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…"
+          },
+          "contentLength": 2760411,
+          "pageCount": 0
+         }
+        ]
+       },
+       "a30e6167-cf70-409f-99e7-0708c0da1161": {
+        "widgetId": "a30e6167-cf70-409f-99e7-0708c0da1161",
+        "widgetType": "InlineFrame",
+        "headerText": "warranty",
+        "poster": {
+         "assetType": "Image",
+         "url": "https://content.syndigo.com/asset/507b45…",
+         "alt": "",
+         "artDirectedAssets": [],
+         "assetId": "507b45dd-777f-4e3b-b6f9-c99310d3819d",
+         "originalHeight": 1024,
+         "originalWidth": 1024,
+         "availableWidths": [
+          1024,
+          240,
+          480
+         ],
+         "availableTypes": [
+          "png",
+          "webp"
+         ],
+         "mimeType": "image/png"
+        },
+        "contentUrl": "https://csync-api.seasam.org/below-fold/…",
+        "sizeStrategy": "KeepProportions",
+        "dimensions": {
+         "height": 100,
+         "width": 100
+        },
+        "allow": {
+         "camera": false,
+         "microphone": false
+        }
+       }
+      }
+     },
+     "hero": {
+      "heroImages": [],
+      "calloutStyle": {
+       "haloAnimation": "syndigo-hotspots-animated-halo-single-pu…",
+       "haloColor": "rgba(31, 68, 119, 1)",
+       "selected": {
+        "svgPrimaryFill": "#ffffff",
+        "svgSecondaryFill": "#1f4477"
+       },
+       "unselected": {
+        "svgPrimaryFill": "#ffffff",
+        "svgSecondaryFill": "#1f4477"
+       }
+      },
+      "calloutConfigs": {},
+      "navigationStyle": {
+       "nextIcon": "chevron-right",
+       "prevIcon": "chevron-left",
+       "svgPrimaryFill": "#000",
+       "svgSecondaryFill": "#fff",
+       "closeIcon": "close-circle"
+      },
+      "showWatermark": true,
+      "mosaicWidgetIds": [],
+      "experienceType": "hero",
+      "domSelector": "#syndi_hotspots",
+      "widgets": {}
+     }
+    }
+   }
+  }
+ },
+ {
+  "url": "https://features.affirm.com/v1/initialize?k=client-BLeunOm46BdfZXjMSze5uyovKdEpzUhn7N21W2D4jiC&st=javascript-client&sv=3.14.1&t=1787054346522&sid=9919d7c4-15d2-4b6d-957d-67a758e48555&se=1",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 6653,
+  "isJson": true,
+  "parsedJson": {
+   "feature_gates": {
+    "70009104": {
+     "name": "70009104",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "1579767121": {
+     "name": "1579767121",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "1876850083": {
+     "name": "1876850083",
+     "value": false,
+     "rule_id": "3E3qW2mJdpp8odpr0PvZST:0.00:1",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "2441149960": {
+     "name": "2441149960",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "2499364797": {
+     "name": "2499364797",
+     "value": true,
+     "rule_id": "2WhNDXAoF9iXTDporlaZ0q:100.00:9",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "2843591856": {
+     "name": "2843591856",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "3090634860": {
+     "name": "3090634860",
+     "value": true,
+     "rule_id": "uGIxNgUkx0VKFDebL9YHk:100.00:4",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "3269982013": {
+     "name": "3269982013",
+     "value": false,
+     "rule_id": "4SZGZHjhoCT8IdqO05viay:1.00:1",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "4017451054": {
+     "name": "4017451054",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "4139716291": {
+     "name": "4139716291",
+     "value": true,
+     "rule_id": "3aIAYVVcO5poXdmaZeZ7Bn:100.00:1",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "4279199542": {
+     "name": "4279199542",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    }
+   },
+   "dynamic_configs": {
+    "367862564": {
+     "name": "367862564",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": true,
+     "id_type": "stableID",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "470561494": {
+     "name": "470561494",
+     "value": {},
+     "rule_id": "inlineTargetingRules",
+     "group": "inlineTargetingRules",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": false,
+     "secondary_exposures": [
+      {
+       "gate": "3269982013",
+       "gateValue": "false",
+       "ruleID": "4SZGZHjhoCT8IdqO05viay:1.00:1"
+      }
+     ]
+    },
+    "1367233524": {
+     "name": "1367233524",
+     "value": {
+      "Variant": "treatment"
+     },
+     "rule_id": "24qHkwprK3SOgdtBPSDkxF",
+     "group": "24qHkwprK3SOgdtBPSDkxF",
+     "group_name": "treatment",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": []
+    },
+    "1514322023": {
+     "name": "1514322023",
+     "value": {},
+     "rule_id": "inlineTargetingRules",
+     "group": "inlineTargetingRules",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": false,
+     "secondary_exposures": [
+      {
+       "gate": "1876850083",
+       "gateValue": "false",
+       "ruleID": "3E3qW2mJdpp8odpr0PvZST:0.00:1"
+      }
+     ]
+    },
+    "1984400002": {
+     "name": "1984400002",
+     "value": {
+      "alaViewportImpressionSampleRate": 1
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "2042103365": {
+     "name": "2042103365",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "2123354126": {
+     "name": "2123354126",
+     "value": {
+      "names": [
+       "afjs_ala_interactive_render",
+       "afjs_popup_enable",
+       "checkout_locale_in_url"
+      ]
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "2493480461": {
+     "name": "2493480461",
+     "value": {
+      "Variant": "disabled"
+     },
+     "rule_id": "5L3gzqAzI6tMvIbscsklvW",
+     "group": "5L3gzqAzI6tMvIbscsklvW",
+     "group_name": "disabled",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": [
+      {
+       "gate": "2499364797",
+       "gateValue": "true",
+       "ruleID": "2WhNDXAoF9iXTDporlaZ0q:100.00:9"
+      }
+     ]
+    },
+    "2893580290": {
+     "name": "2893580290",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "2946869560": {
+     "name": "2946869560",
+     "value": {
+      "publicApiKeys": [
+       "DGTIN84KO51T736G",
+       "BU9X6NJSAEDHZHHN",
+       "X48LJJN2T95ALUXJ"
+      ]
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "3446633318": {
+     "name": "3446633318",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "3569783987": {
+     "name": "3569783987",
+     "value": {
+      "variant": "default"
+     },
+     "rule_id": "3vqYzhEhwE3SPcTcJ59BJC",
+     "group": "3vqYzhEhwE3SPcTcJ59BJC",
+     "group_name": "default",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": [
+      {
+       "gate": "4139716291",
+       "gateValue": "true",
+       "ruleID": "3aIAYVVcO5poXdmaZeZ7Bn:100.00:1"
+      }
+     ]
+    },
+    "3701258714": {
+     "name": "3701258714",
+     "value": {},
+     "rule_id": "inlineTargetingRules",
+     "group": "inlineTargetingRules",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "3716627837": {
+     "name": "3716627837",
+     "value": {
+      "publicApiKeys": [
+       "Y5EUPR7QL20HH3PB",
+       "DGTIN84KO51T736G",
+       "LUPBWZPYLGU0QJMG"
+      ]
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "4179065854": {
+     "name": "4179065854",
+     "value": {
+      "variant": "treatment_b"
+     },
+     "rule_id": "6GJ51wWHdjPc3ycSAUh6MY",
+     "group": "6GJ51wWHdjPc3ycSAUh6MY",
+     "group_name": "treatment_b",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": [
+      {
+       "gate": "3090634860",
+       "gateValue": "true",
+       "ruleID": "uGIxNgUkx0VKFDebL9YHk:100.00:4"
+      }
+     ]
+    }
+   },
+   "layer_configs": {},
+   "sdkParams": {},
+   "has_updates": true,
+   "generator": "scrapi-nest",
+   "time": 1787053397688,
+   "company_lcut": 1787053397688,
+   "evaluated_keys": {
+    "stableID": "49a52e5f-00c0-471e-b306-af51de4e2314",
+    "customIDs": {
+     "device_id": "7fac4695-fcf2-457e-b4dc-24e06b4616e9",
+     "generic_ari": "W2ZQ70UOOKYB48ZT"
+    }
+   },
+   "hash_used": "djb2",
+   "derived_fields": {
+    "ip": "180.75.245.174",
+    "country": "MY",
+    "browserName": "HeadlessChrome",
+    "browserVersion": "145.0.7632",
+    "osName": "Windows",
+    "osVersion": "10.0.0",
+    "browser_name": "HeadlessChrome",
+    "browser_version": "145.0.7632",
+    "os_name": "Windows",
+    "os_version": "10.0.0"
+   },
+   "hashed_sdk_key_used": "3841296201",
+   "can_record_session": true,
+   "recording_blocked": false,
+   "session_recording_rate": 1,
+   "param_stores": {},
+   "target_app_used": "afjs",
+   "full_checksum": "914778993"
+  }
+ },
+ {
+  "url": "https://features.affirm.com/v1/initialize?k=client-BLeunOm46BdfZXjMSze5uyovKdEpzUhn7N21W2D4jiC&st=javascript-client&sv=3.14.1&t=1787054346521&sid=9919d7c4-15d2-4b6d-957d-67a758e48555&se=1",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 6653,
+  "isJson": true,
+  "parsedJson": {
+   "feature_gates": {
+    "70009104": {
+     "name": "70009104",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "1579767121": {
+     "name": "1579767121",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "1876850083": {
+     "name": "1876850083",
+     "value": false,
+     "rule_id": "3E3qW2mJdpp8odpr0PvZST:0.00:1",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "2441149960": {
+     "name": "2441149960",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "2499364797": {
+     "name": "2499364797",
+     "value": true,
+     "rule_id": "2WhNDXAoF9iXTDporlaZ0q:100.00:9",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "2843591856": {
+     "name": "2843591856",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "3090634860": {
+     "name": "3090634860",
+     "value": true,
+     "rule_id": "uGIxNgUkx0VKFDebL9YHk:100.00:4",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "3269982013": {
+     "name": "3269982013",
+     "value": false,
+     "rule_id": "4SZGZHjhoCT8IdqO05viay:1.00:1",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "4017451054": {
+     "name": "4017451054",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "4139716291": {
+     "name": "4139716291",
+     "value": true,
+     "rule_id": "3aIAYVVcO5poXdmaZeZ7Bn:100.00:1",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    },
+    "4279199542": {
+     "name": "4279199542",
+     "value": false,
+     "rule_id": "default",
+     "id_type": "device_id",
+     "secondary_exposures": []
+    }
+   },
+   "dynamic_configs": {
+    "367862564": {
+     "name": "367862564",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": true,
+     "id_type": "stableID",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "470561494": {
+     "name": "470561494",
+     "value": {},
+     "rule_id": "inlineTargetingRules",
+     "group": "inlineTargetingRules",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": false,
+     "secondary_exposures": [
+      {
+       "gate": "3269982013",
+       "gateValue": "false",
+       "ruleID": "4SZGZHjhoCT8IdqO05viay:1.00:1"
+      }
+     ]
+    },
+    "1367233524": {
+     "name": "1367233524",
+     "value": {
+      "Variant": "treatment"
+     },
+     "rule_id": "24qHkwprK3SOgdtBPSDkxF",
+     "group": "24qHkwprK3SOgdtBPSDkxF",
+     "group_name": "treatment",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": []
+    },
+    "1514322023": {
+     "name": "1514322023",
+     "value": {},
+     "rule_id": "inlineTargetingRules",
+     "group": "inlineTargetingRules",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": false,
+     "secondary_exposures": [
+      {
+       "gate": "1876850083",
+       "gateValue": "false",
+       "ruleID": "3E3qW2mJdpp8odpr0PvZST:0.00:1"
+      }
+     ]
+    },
+    "1984400002": {
+     "name": "1984400002",
+     "value": {
+      "alaViewportImpressionSampleRate": 1
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "2042103365": {
+     "name": "2042103365",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "2123354126": {
+     "name": "2123354126",
+     "value": {
+      "names": [
+       "afjs_ala_interactive_render",
+       "afjs_popup_enable",
+       "checkout_locale_in_url"
+      ]
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "2493480461": {
+     "name": "2493480461",
+     "value": {
+      "Variant": "disabled"
+     },
+     "rule_id": "5L3gzqAzI6tMvIbscsklvW",
+     "group": "5L3gzqAzI6tMvIbscsklvW",
+     "group_name": "disabled",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": [
+      {
+       "gate": "2499364797",
+       "gateValue": "true",
+       "ruleID": "2WhNDXAoF9iXTDporlaZ0q:100.00:9"
+      }
+     ]
+    },
+    "2893580290": {
+     "name": "2893580290",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "2946869560": {
+     "name": "2946869560",
+     "value": {
+      "publicApiKeys": [
+       "DGTIN84KO51T736G",
+       "BU9X6NJSAEDHZHHN",
+       "X48LJJN2T95ALUXJ"
+      ]
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "3446633318": {
+     "name": "3446633318",
+     "value": {},
+     "rule_id": "prestart",
+     "group": "prestart",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": false,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "3569783987": {
+     "name": "3569783987",
+     "value": {
+      "variant": "default"
+     },
+     "rule_id": "3vqYzhEhwE3SPcTcJ59BJC",
+     "group": "3vqYzhEhwE3SPcTcJ59BJC",
+     "group_name": "default",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": [
+      {
+       "gate": "4139716291",
+       "gateValue": "true",
+       "ruleID": "3aIAYVVcO5poXdmaZeZ7Bn:100.00:1"
+      }
+     ]
+    },
+    "3701258714": {
+     "name": "3701258714",
+     "value": {},
+     "rule_id": "inlineTargetingRules",
+     "group": "inlineTargetingRules",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": false,
+     "secondary_exposures": []
+    },
+    "3716627837": {
+     "name": "3716627837",
+     "value": {
+      "publicApiKeys": [
+       "Y5EUPR7QL20HH3PB",
+       "DGTIN84KO51T736G",
+       "LUPBWZPYLGU0QJMG"
+      ]
+     },
+     "rule_id": "default",
+     "group": "default",
+     "is_device_based": false,
+     "passed": false,
+     "id_type": "generic_ari",
+     "secondary_exposures": []
+    },
+    "4179065854": {
+     "name": "4179065854",
+     "value": {
+      "variant": "treatment_b"
+     },
+     "rule_id": "6GJ51wWHdjPc3ycSAUh6MY",
+     "group": "6GJ51wWHdjPc3ycSAUh6MY",
+     "group_name": "treatment_b",
+     "is_device_based": false,
+     "id_type": "device_id",
+     "is_experiment_active": true,
+     "is_user_in_experiment": true,
+     "secondary_exposures": [
+      {
+       "gate": "3090634860",
+       "gateValue": "true",
+       "ruleID": "uGIxNgUkx0VKFDebL9YHk:100.00:4"
+      }
+     ]
+    }
+   },
+   "layer_configs": {},
+   "sdkParams": {},
+   "has_updates": true,
+   "generator": "scrapi-nest",
+   "time": 1787053397688,
+   "company_lcut": 1787053397688,
+   "evaluated_keys": {
+    "stableID": "49a52e5f-00c0-471e-b306-af51de4e2314",
+    "customIDs": {
+     "device_id": "7fac4695-fcf2-457e-b4dc-24e06b4616e9",
+     "generic_ari": "W2ZQ70UOOKYB48ZT"
+    }
+   },
+   "hash_used": "djb2",
+   "derived_fields": {
+    "ip": "180.75.245.174",
+    "country": "MY",
+    "browserName": "HeadlessChrome",
+    "browserVersion": "145.0.7632",
+    "osName": "Windows",
+    "osVersion": "10.0.0",
+    "browser_name": "HeadlessChrome",
+    "browser_version": "145.0.7632",
+    "os_name": "Windows",
+    "os_version": "10.0.0"
+   },
+   "hashed_sdk_key_used": "3841296201",
+   "can_record_session": true,
+   "recording_blocked": false,
+   "session_recording_rate": 1,
+   "param_stores": {},
+   "target_app_used": "afjs",
+   "full_checksum": "914778993"
+  }
+ },
+ {
+  "url": "https://content.syndigo.com/page/2271c913-b221-43ea-9e12-06a36b2afd70/N82E16820147903.json?u=45E6C89E-16C7-4713-A40C-4F742A557C8D&siteid=2271c913-b221-43ea-9e12-06a36b2afd70&pageid=N82E16820147903&s=1787054346450&v=v1.0.564&visitid=40D30C96-B90C-4740-9C44-261A10842E15&ref=&pageurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 62183,
+  "isJson": true,
+  "parsedJson": {
+   "siteId": "2271c913-b221-43ea-9e12-06a36b2afd70",
+   "pageId": "N82E16820147903",
+   "pageType": "Product",
+   "experiences": {
+    "06a23a8d-c110-4061-b213-f10414bb86c8": {
+     "enhancedProductContentId": "867a0e38-3d0b-4289-9487-c42abf57d7e2",
+     "componentId": "06a23a8d-c110-4061-b213-f10414bb86c8",
+     "state": "Draft",
+     "weight": 1,
+     "experiences": {
+      "power-page": {
+       "layouts": [
+        {
+         "areas": [
+          "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+          "2a12ae1c-d15a-4fe7-9a86-8fa7286c0ef4",
+          "0e830eb3-ca1f-4ac5-884d-5486f523b397"
+         ],
+         "columns": "1fr",
+         "rows": "repeat(22, 1fr)"
+        }
+       ],
+       "experienceType": "power-page",
+       "domSelector": "#syndi_powerpage",
+       "widgets": {
+        "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8": {
+         "widgetId": "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "0e830eb3-ca1f-4ac5-884d-5486f523b397": {
+         "widgetId": "0e830eb3-ca1f-4ac5-884d-5486f523b397",
+         "widgetType": "FreeFormHtml",
+         "headerText": "Features",
+         "html": "<h2 class=\"ql-align-center\"><b>Breakthro…"
+        },
+        "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94": {
+         "widgetId": "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e": {
+         "widgetId": "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Every tas…"
+        },
+        "c131bfb2-c184-4b09-a1a2-06d5d12a89ab": {
+         "widgetId": "c131bfb2-c184-4b09-a1a2-06d5d12a89ab",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "705c8389-8283-42ba-91dd-18cdbbbcf37b": {
+         "widgetId": "705c8389-8283-42ba-91dd-18cdbbbcf37b",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Think fas…"
+        },
+        "c62ada30-2b20-4569-95da-becd34ecee6d": {
+         "widgetId": "c62ada30-2b20-4569-95da-becd34ecee6d",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "0453f2f1-175a-49b4-9e00-6c5fb4be1ade": {
+         "widgetId": "0453f2f1-175a-49b4-9e00-6c5fb4be1ade",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Speed, wh…"
+        },
+        "6614fc06-52e3-4144-aedf-c0c1a67ae2fb": {
+         "widgetId": "6614fc06-52e3-4144-aedf-c0c1a67ae2fb",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "46a8e38c-c895-415a-bcd1-8282982841ef": {
+         "widgetId": "46a8e38c-c895-415a-bcd1-8282982841ef",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Stay cool…"
+        },
+        "ded39fb1-50e7-4fa4-840c-6446e5ec7323": {
+         "widgetId": "ded39fb1-50e7-4fa4-840c-6446e5ec7323",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27": {
+         "widgetId": "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Break fre…"
+        },
+        "53a51d95-38bd-401d-9f3d-2ac9e1439535": {
+         "widgetId": "53a51d95-38bd-401d-9f3d-2ac9e1439535",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "a84189f2-9d28-4cd9-9217-29670e868abd": {
+         "widgetId": "a84189f2-9d28-4cd9-9217-29670e868abd",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>Works lik…"
+        },
+        "9126457b-67f7-4c80-8023-7c33d77d1296": {
+         "widgetId": "9126457b-67f7-4c80-8023-7c33d77d1296",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "bc24372f-a90f-4958-93a9-b5c36c7b7278": {
+         "widgetId": "bc24372f-a90f-4958-93a9-b5c36c7b7278",
+         "widgetType": "FreeFormHtml",
+         "html": "<h2 class=\"ql-align-center\"><b>World's N…"
+        },
+        "3602d561-abe9-4c18-b39e-4afeba9865e3": {
+         "widgetId": "3602d561-abe9-4c18-b39e-4afeba9865e3",
+         "widgetType": "FeatureSet",
+         "items": [
+          {
+           "layout": "…",
+           "features": "…"
+          }
+         ]
+        },
+        "0eb68cd0-b9cc-4761-92e2-286f7c0027f0": {
+         "widgetId": "0eb68cd0-b9cc-4761-92e2-286f7c0027f0",
+         "widgetType": "SpecificationTable",
+         "headerText": "Specification ",
+         "layout": "TwoColumn",
+         "rows": [
+          {
+           "caption": "…",
+           "isGroupHeading": "…",
+           "footnotes": "…",
+           "cells": "…"
+          },
+          {
+           "caption": "…",
+           "isGroupHeading": "…",
+           "footnotes": "…",
+           "cells": "…"
+          },
+          {
+           "caption": "…",
+           "isGroupHeading": "…",
+           "footnotes": "…",
+           "cells": "…"
+          }
+         ]
+        },
+        "47e4daee-48f5-4d55-9f79-428abdea35e9": {
+         "widgetId": "47e4daee-48f5-4d55-9f79-428abdea35e9",
+         "widgetType": "ImageGallery",
+         "headerText": "Image Gallery",
+         "enableFullscreenToggle": true,
+         "layout": "focused",
+         "items": [
+          {
+           "description": "…",
+           "image": "…"
+          },
+          {
+           "description": "…",
+           "image": "…"
+          },
+          {
+           "description": "…",
+           "image": "…"
+          }
+         ]
+        },
+        "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e": {
+         "widgetId": "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e",
+         "widgetType": "DocumentGallery",
+         "headerText": "Product Documents",
+         "items": [
+          {
+           "assetId": "…",
+           "caption": "…",
+           "description": "…",
+           "url": "…",
+           "image": "…",
+           "contentLength": "…",
+           "pageCount": "…"
+          }
+         ]
+        },
+        "a30e6167-cf70-409f-99e7-0708c0da1161": {
+         "widgetId": "a30e6167-cf70-409f-99e7-0708c0da1161",
+         "widgetType": "InlineFrame",
+         "headerText": "warranty",
+         "poster": {
+          "assetType": "Image",
+          "url": "https://content.syndigo.com/asset/507b45…",
+          "alt": "",
+          "artDirectedAssets": [],
+          "assetId": "507b45dd-777f-4e3b-b6f9-c99310d3819d",
+          "originalHeight": 1024,
+          "originalWidth": 1024,
+          "availableWidths": [
+           "…",
+           "…",
+           "…"
+          ],
+          "availableTypes": [
+           "…",
+           "…"
+          ],
+          "mimeType": "image/png"
+         },
+         "contentUrl": "https://csync-api.seasam.org/below-fold/…",
+         "sizeStrategy": "KeepProportions",
+         "dimensions": {
+          "height": 100,
+          "width": 100
+         },
+         "allow": {
+          "camera": false,
+          "microphone": false
+         }
+        }
+       }
+      },
+      "hero": {
+       "heroImages": [],
+       "calloutStyle": {
+        "haloAnimation": "syndigo-hotspots-animated-halo-single-pu…",
+        "haloColor": "rgba(31, 68, 119, 1)",
+        "selected": {
+         "svgPrimaryFill": "#ffffff",
+         "svgSecondaryFill": "#1f4477"
+        },
+        "unselected": {
+         "svgPrimaryFill": "#ffffff",
+         "svgSecondaryFill": "#1f4477"
+        }
+       },
+       "calloutConfigs": {},
+       "navigationStyle": {
+        "nextIcon": "chevron-right",
+        "prevIcon": "chevron-left",
+        "svgPrimaryFill": "#000",
+        "svgSecondaryFill": "#fff",
+        "closeIcon": "close-circle"
+       },
+       "showWatermark": true,
+       "mosaicWidgetIds": [],
+       "experienceType": "hero",
+       "domSelector": "#syndi_hotspots",
+       "widgets": {}
+      }
+     }
+    }
+   },
+   "experience": {
+    "enhancedProductContentId": "867a0e38-3d0b-4289-9487-c42abf57d7e2",
+    "componentId": "06a23a8d-c110-4061-b213-f10414bb86c8",
+    "state": "Draft",
+    "weight": 1,
+    "experiences": {
+     "power-page": {
+      "layouts": [
+       {
+        "areas": [
+         "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+         "2a12ae1c-d15a-4fe7-9a86-8fa7286c0ef4",
+         "0e830eb3-ca1f-4ac5-884d-5486f523b397"
+        ],
+        "columns": "1fr",
+        "rows": "repeat(22, 1fr)"
+       }
+      ],
+      "experienceType": "power-page",
+      "domSelector": "#syndi_powerpage",
+      "widgets": {
+       "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8": {
+        "widgetId": "48f73d6a-d57b-4ee7-a7f5-3617ea6b1de8",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "TwoColumn",
+          "features": [
+           "…",
+           "…"
+          ]
+         }
+        ]
+       },
+       "0e830eb3-ca1f-4ac5-884d-5486f523b397": {
+        "widgetId": "0e830eb3-ca1f-4ac5-884d-5486f523b397",
+        "widgetType": "FreeFormHtml",
+        "headerText": "Features",
+        "html": "<h2 class=\"ql-align-center\"><b>Breakthro…"
+       },
+       "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94": {
+        "widgetId": "1aac479d-ab2d-4c4a-940e-7d2bc53d6c94",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e": {
+        "widgetId": "33724c5d-f4ab-4c55-a1cb-b0cb0aa8ad6e",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Every tas…"
+       },
+       "c131bfb2-c184-4b09-a1a2-06d5d12a89ab": {
+        "widgetId": "c131bfb2-c184-4b09-a1a2-06d5d12a89ab",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "705c8389-8283-42ba-91dd-18cdbbbcf37b": {
+        "widgetId": "705c8389-8283-42ba-91dd-18cdbbbcf37b",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Think fas…"
+       },
+       "c62ada30-2b20-4569-95da-becd34ecee6d": {
+        "widgetId": "c62ada30-2b20-4569-95da-becd34ecee6d",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "0453f2f1-175a-49b4-9e00-6c5fb4be1ade": {
+        "widgetId": "0453f2f1-175a-49b4-9e00-6c5fb4be1ade",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Speed, wh…"
+       },
+       "6614fc06-52e3-4144-aedf-c0c1a67ae2fb": {
+        "widgetId": "6614fc06-52e3-4144-aedf-c0c1a67ae2fb",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "46a8e38c-c895-415a-bcd1-8282982841ef": {
+        "widgetId": "46a8e38c-c895-415a-bcd1-8282982841ef",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Stay cool…"
+       },
+       "ded39fb1-50e7-4fa4-840c-6446e5ec7323": {
+        "widgetId": "ded39fb1-50e7-4fa4-840c-6446e5ec7323",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27": {
+        "widgetId": "b3bd7767-5ed3-4f4e-a2d7-b0b281fedf27",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Break fre…"
+       },
+       "53a51d95-38bd-401d-9f3d-2ac9e1439535": {
+        "widgetId": "53a51d95-38bd-401d-9f3d-2ac9e1439535",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "a84189f2-9d28-4cd9-9217-29670e868abd": {
+        "widgetId": "a84189f2-9d28-4cd9-9217-29670e868abd",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>Works lik…"
+       },
+       "9126457b-67f7-4c80-8023-7c33d77d1296": {
+        "widgetId": "9126457b-67f7-4c80-8023-7c33d77d1296",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "bc24372f-a90f-4958-93a9-b5c36c7b7278": {
+        "widgetId": "bc24372f-a90f-4958-93a9-b5c36c7b7278",
+        "widgetType": "FreeFormHtml",
+        "html": "<h2 class=\"ql-align-center\"><b>World's N…"
+       },
+       "3602d561-abe9-4c18-b39e-4afeba9865e3": {
+        "widgetId": "3602d561-abe9-4c18-b39e-4afeba9865e3",
+        "widgetType": "FeatureSet",
+        "items": [
+         {
+          "layout": "WideImages",
+          "features": [
+           "…"
+          ]
+         }
+        ]
+       },
+       "0eb68cd0-b9cc-4761-92e2-286f7c0027f0": {
+        "widgetId": "0eb68cd0-b9cc-4761-92e2-286f7c0027f0",
+        "widgetType": "SpecificationTable",
+        "headerText": "Specification ",
+        "layout": "TwoColumn",
+        "rows": [
+         {
+          "caption": "General Information",
+          "isGroupHeading": true,
+          "footnotes": [],
+          "cells": []
+         },
+         {
+          "caption": "Application",
+          "isGroupHeading": false,
+          "footnotes": [],
+          "cells": [
+           "…",
+           "…"
+          ]
+         },
+         {
+          "caption": "Capacity",
+          "isGroupHeading": false,
+          "footnotes": [],
+          "cells": [
+           "…",
+           "…"
+          ]
+         }
+        ]
+       },
+       "47e4daee-48f5-4d55-9f79-428abdea35e9": {
+        "widgetId": "47e4daee-48f5-4d55-9f79-428abdea35e9",
+        "widgetType": "ImageGallery",
+        "headerText": "Image Gallery",
+        "enableFullscreenToggle": true,
+        "layout": "focused",
+        "items": [
+         {
+          "description": "",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…",
+           "mimeType": "…"
+          }
+         },
+         {
+          "description": "",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…",
+           "mimeType": "…"
+          }
+         },
+         {
+          "description": "",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…",
+           "mimeType": "…"
+          }
+         }
+        ]
+       },
+       "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e": {
+        "widgetId": "f15a7bc8-b3cb-4380-b9ac-98cc1ebbc38e",
+        "widgetType": "DocumentGallery",
+        "headerText": "Product Documents",
+        "items": [
+         {
+          "assetId": "3088f0db-a896-4008-86fd-fcf38317019c",
+          "caption": "SpecSheet",
+          "description": "PDF",
+          "url": "https://content.syndigo.com/asset/66dbae…",
+          "image": {
+           "assetType": "…",
+           "url": "…",
+           "alt": "…",
+           "artDirectedAssets": "…",
+           "assetId": "…",
+           "originalHeight": "…",
+           "originalWidth": "…",
+           "availableWidths": "…",
+           "availableTypes": "…"
+          },
+          "contentLength": 2760411,
+          "pageCount": 0
+         }
+        ]
+       },
+       "a30e6167-cf70-409f-99e7-0708c0da1161": {
+        "widgetId": "a30e6167-cf70-409f-99e7-0708c0da1161",
+        "widgetType": "InlineFrame",
+        "headerText": "warranty",
+        "poster": {
+         "assetType": "Image",
+         "url": "https://content.syndigo.com/asset/507b45…",
+         "alt": "",
+         "artDirectedAssets": [],
+         "assetId": "507b45dd-777f-4e3b-b6f9-c99310d3819d",
+         "originalHeight": 1024,
+         "originalWidth": 1024,
+         "availableWidths": [
+          1024,
+          240,
+          480
+         ],
+         "availableTypes": [
+          "png",
+          "webp"
+         ],
+         "mimeType": "image/png"
+        },
+        "contentUrl": "https://csync-api.seasam.org/below-fold/…",
+        "sizeStrategy": "KeepProportions",
+        "dimensions": {
+         "height": 100,
+         "width": 100
+        },
+        "allow": {
+         "camera": false,
+         "microphone": false
+        }
+       }
+      }
+     },
+     "hero": {
+      "heroImages": [],
+      "calloutStyle": {
+       "haloAnimation": "syndigo-hotspots-animated-halo-single-pu…",
+       "haloColor": "rgba(31, 68, 119, 1)",
+       "selected": {
+        "svgPrimaryFill": "#ffffff",
+        "svgSecondaryFill": "#1f4477"
+       },
+       "unselected": {
+        "svgPrimaryFill": "#ffffff",
+        "svgSecondaryFill": "#1f4477"
+       }
+      },
+      "calloutConfigs": {},
+      "navigationStyle": {
+       "nextIcon": "chevron-right",
+       "prevIcon": "chevron-left",
+       "svgPrimaryFill": "#000",
+       "svgSecondaryFill": "#fff",
+       "closeIcon": "close-circle"
+      },
+      "showWatermark": true,
+      "mosaicWidgetIds": [],
+      "experienceType": "hero",
+      "domSelector": "#syndi_hotspots",
+      "widgets": {}
+     }
+    }
+   }
+  }
+ },
+ {
+  "url": "https://www.newegg.com/api/common/GetEstimateDeliveryDateByItems?CompanyCode=1003&CurrencyCode=USD&LanguageCode=en-US&RegionCode=USA&CountryCode=USA",
+  "method": "POST",
+  "responseStatus": 201,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 462,
+  "isJson": true,
+  "parsedJson": "{\"ItemEstimatedDeliveryDates\":[{\"ItemNum…"
+ },
+ {
+  "url": "https://www.paypal.com/xoplatform/logger/api/logger?disableSetCookie=true",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 1067,
+  "isJson": true,
+  "parsedJson": {
+   "sys": {
+    "links": {
+     "jsBaseUrl": "https://www.paypalobjects.com/js",
+     "cssBaseUrl": "https://www.paypalobjects.com/css",
+     "templateBaseUrl": "https://www.paypalobjects.com/templates",
+     "resourceBaseUrl": "https://www.paypalobjects.com"
+    },
+    "pageInfo": {
+     "date": "Aug 18, 2026 04:59:06 -07:00",
+     "hostName": "rZJvnqaaQhLn/nmWT8cSUjOx898qoYZ0eU8n2Rj8…",
+     "rlogId": "rZJvnqaaQhLn%2FnmWT8cSUmDP%2Bhip7g49eFYV…",
+     "script": "node",
+     "debug": null
+    },
+    "locality": {
+     "timezone": {
+      "determiner": "viaCowPrimary",
+      "value": "America/New_York"
+     },
+     "country": "US",
+     "locale": "en_US",
+     "language": "en",
+     "directionality": "ltr"
+    },
+    "tracking": {
+     "fpti": {
+      "dataString": "pgrp=loggernodeweb%2F.dust&page=loggerno…",
+      "varName": "pta",
+      "name": "pta",
+      "jsURL": "https://www.paypalobjects.com",
+      "serverURL": "https://t.paypal.com/ts"
+     }
+    }
+   }
+  }
+ },
+ {
+  "url": "https://www.newegg.com/api/common/GetEstimateDeliveryDateByItems?CompanyCode=1003&CurrencyCode=USD&LanguageCode=en-US&RegionCode=USA&CountryCode=USA",
+  "method": "POST",
+  "responseStatus": 201,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 1984,
+  "isJson": true,
+  "parsedJson": "{\"ItemEstimatedDeliveryDates\":[{\"ItemNum…"
+ },
+ {
+  "url": "https://www.newegg.com/api/common/GetEstimateDeliveryDateByItems?CompanyCode=1003&CurrencyCode=USD&LanguageCode=en-US&RegionCode=USA&CountryCode=USA",
+  "method": "POST",
+  "responseStatus": 201,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 4258,
+  "isJson": true,
+  "parsedJson": "{\"ItemEstimatedDeliveryDates\":[{\"ItemNum…"
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.694Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.693Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://newegg.attn.tv/d?attn_vid=e2cc13bc3940458abc8a25b91b4b8772",
+  "method": "GET",
+  "responseStatus": 200,
+  "contentType": "application/json",
+  "bodySize": 5,
+  "isJson": true,
+  "parsedJson": false
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.695Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.697Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.696Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.695Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.699Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.698Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.697Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json+protobuf; charset=UTF-8",
+  "bodySize": 102,
+  "isJson": true,
+  "parsedJson": [
+   "WttjlLpj8smvYyeiQpECAcBzrrMX4uEf9V0gGaS4…",
+   43200,
+   100
+  ]
+ },
+ {
+  "url": "https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json+protobuf; charset=UTF-8",
+  "bodySize": 102,
+  "isJson": true,
+  "parsedJson": [
+   "QKpHvIzBCFvoWHSWkAo/P6mJp36usocsfEZVffm9…",
+   43200,
+   100
+  ]
+ },
+ {
+  "url": "https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json+protobuf; charset=UTF-8",
+  "bodySize": 102,
+  "isJson": true,
+  "parsedJson": [
+   "ZR93EswffJ4lKC5ul4OKuXiFKnLH/A0M1GyYBkjf…",
+   43200,
+   100
+  ]
+ },
+ {
+  "url": "https://jnn-pa.googleapis.com/$rpc/google.internal.waa.v1.Waa/GenerateIT",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json+protobuf; charset=UTF-8",
+  "bodySize": 102,
+  "isJson": true,
+  "parsedJson": [
+   "5uZCf2SxGiUkxAi3PjF30hikyRdLlZLXvt7aZvBw…",
+   43200,
+   100
+  ]
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.700Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.698Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.701Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.699Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.701Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.702Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://www.paypal.com/xoplatform/logger/api/logger?disableSetCookie=true",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 1054,
+  "isJson": true,
+  "parsedJson": {
+   "sys": {
+    "links": {
+     "jsBaseUrl": "https://www.paypalobjects.com/js",
+     "cssBaseUrl": "https://www.paypalobjects.com/css",
+     "templateBaseUrl": "https://www.paypalobjects.com/templates",
+     "resourceBaseUrl": "https://www.paypalobjects.com"
+    },
+    "pageInfo": {
+     "date": "Aug 18, 2026 04:59:07 -07:00",
+     "hostName": "rZJvnqaaQhLn/nmWT8cSUjOx898qoYZ05BM1WeAS…",
+     "rlogId": "rZJvnqaaQhLn%2FnmWT8cSUmDP%2Bhip7g49eFYV…",
+     "script": "node",
+     "debug": null
+    },
+    "locality": {
+     "timezone": {
+      "determiner": "viaCowPrimary",
+      "value": "America/New_York"
+     },
+     "country": "US",
+     "locale": "en_US",
+     "language": "en",
+     "directionality": "ltr"
+    },
+    "tracking": {
+     "fpti": {
+      "dataString": "pgrp=loggernodeweb%2F.dust&page=loggerno…",
+      "varName": "pta",
+      "name": "pta",
+      "jsURL": "https://www.paypalobjects.com",
+      "serverURL": "https://t.paypal.com/ts"
+     }
+    }
+   }
+  }
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.702Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.703Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.701Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.700Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.703Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A06.704Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A08.103Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A08.503Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A08.505Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A08.504Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://esuohni.onewegg.com/p?sendTime=2026-08-18T11%3A59%3A08.506Z&referrerURL=&cusuid=248326808.0001.f17b237d1.1787054344&page_shorturl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&page_fullurl=https%3A%2F%2Fwww.newegg.com%2Fsamsung-2tb-9100-pro-nvme-2-0%2Fp%2FN82E16820147903&analyticsid=ga4",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodySize": 2,
+  "isJson": true,
+  "parsedJson": {}
+ },
+ {
+  "url": "https://www.youtube.com/youtubei/v1/log_event?alt=json",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "bodySize": 28,
+  "isJson": true,
+  "parsedJson": {
+   "responseContext": {}
+  }
+ },
+ {
+  "url": "https://www.youtube.com/youtubei/v1/log_event?alt=json",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "bodySize": 28,
+  "isJson": true,
+  "parsedJson": {
+   "responseContext": {}
+  }
+ },
+ {
+  "url": "https://www.youtube.com/youtubei/v1/log_event?alt=json",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "bodySize": 28,
+  "isJson": true,
+  "parsedJson": {
+   "responseContext": {}
+  }
+ },
+ {
+  "url": "https://www.youtube.com/youtubei/v1/log_event?alt=json",
+  "method": "POST",
+  "responseStatus": 200,
+  "contentType": "application/json; charset=UTF-8",
+  "bodySize": 28,
+  "isJson": true,
+  "parsedJson": {
+   "responseContext": {}
+  }
+ }
+]
