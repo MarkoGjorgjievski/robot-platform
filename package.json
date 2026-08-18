@@ -4,6 +4,7 @@
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",
+    "test:judge": "cross-env RUN_JUDGE_CALIBRATION=1 pnpm --filter @robot/agent exec vitest run src/judge-calibration.test.ts",
     "lint": "turbo lint",
     "dev": "pnpm --filter @robot/dashboard dev",
     "dev:all": "turbo dev",
@@ -13,6 +14,7 @@
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   },
