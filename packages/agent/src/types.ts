@@ -31,7 +31,7 @@ export type DiscoveredSchema = {
 export type SelectorField = {
   name: string;
   value?: unknown;
-  xpath: string;
+  xpath?: string;
   attribute: 'textContent' | 'href' | 'src' | 'alt' | 'value' | string;
   transform: 'none' | 'trim' | 'parse_number' | 'parse_date' | 'absolute_url';
 };

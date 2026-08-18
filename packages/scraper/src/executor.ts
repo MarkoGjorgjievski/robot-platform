@@ -15,6 +15,21 @@ export type ExecutorResult = {
  * - Detail pages: row_xpath matches 0-1 items, field XPaths are tried as absolute from document
  */
 export function buildExtractionScript(plan: ExtractionPlan): string {
+  // `SelectorField.xpath` is typed `string`, but plans arrive as an unchecked
+  // `as ExtractionPlan` cast over LLM tool output — and the tool is not `strict`,
+  // so the model can omit xpath despite the schema marking it required. v1.1b's
+  // reverse-search flow also legitimately produces fields carrying only an AI-seen
+  // `value` and no selector.
+  //
+  // Drop those here so the generated in-page code never dereferences a missing
+  // xpath. This is not cosmetic: the xpath-validation loop below is unguarded, so
+  // one bad field used to throw inside page.evaluate and reject the ENTIRE pass,
+  // discarding every well-formed field with it. The caller still delivers these
+  // fields from `field.value` with source 'ai-vision'.
+  const usableFields = plan.fields.filter(
+    (f) => typeof f.xpath === 'string' && f.xpath.length > 0,
+  );
+
   return `
     (() => {
       function xpathQuery(contextNode, xpath) {
@@ -126,7 +141,7 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
       }
 
       const rowXpath = ${JSON.stringify(plan.row_xpath)};
-      const fields = ${JSON.stringify(plan.fields)};
+      const fields = ${JSON.stringify(usableFields)};
       const pageType = ${JSON.stringify(plan.page_type ?? 'auto')};
       const rows = xpathQueryAll(rowXpath);
       const results = [];
