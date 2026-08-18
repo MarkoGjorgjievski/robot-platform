@@ -33,6 +33,12 @@ export function validateFieldShape(
     }
     case 'string': {
       if (typeof value !== 'string') return { ok: false, reason: 'not string' };
+      // An empty value is "not found", never a resolved value. Found by pointing
+      // the Tier 1 fixtures at the production chain: the fixture harness had
+      // always rejected '' in its own copy of tryAssign and production never did,
+      // so empty strings counted toward "resolved" — which is how a dogfood report
+      // came to list `main_image_url: ""` as a successfully extracted field.
+      if (value.trim() === '') return { ok: false, reason: 'empty string' };
       if (UI_LABEL_PATTERNS.some(p => p.test(value.trim()))) {
         return { ok: false, reason: 'looks like UI label' };
       }

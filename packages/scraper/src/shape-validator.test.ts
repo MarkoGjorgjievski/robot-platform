@@ -46,3 +46,21 @@ describe('validateFieldShape', () => {
     expect(validateFieldShape('anything', 'some-unknown-type').ok).toBe(true);
   });
 });
+
+describe('validateFieldShape — empty values are not resolved values', () => {
+  // Found by pointing the Tier 1 fixture harness at the production chain: the
+  // harness had always rejected '' in its own copy of tryAssign, production never
+  // did. So an empty string counted toward "resolved", which is how a dogfood
+  // report came to list `main_image_url: ""` as a successfully extracted field.
+  it('rejects an empty string', () => {
+    expect(validateFieldShape('', 'string', { fieldName: 'image_url' }).ok).toBe(false);
+  });
+
+  it('rejects a whitespace-only string', () => {
+    expect(validateFieldShape('   \n\t ', 'string', { fieldName: 'title' }).ok).toBe(false);
+  });
+
+  it('still accepts an ordinary string', () => {
+    expect(validateFieldShape('KALLAX', 'string', { fieldName: 'title' }).ok).toBe(true);
+  });
+});
