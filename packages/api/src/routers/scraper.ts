@@ -4,7 +4,6 @@ import { router, publicProcedure } from '../trpc';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { cachedFieldsFromCache } from './lib/cached-fields-from-cache.js';
 import { domainIntelligence } from '@robot/db';
 
 // ─── Shared field shape ─────────────────────────────────────────────────────
@@ -37,147 +36,36 @@ export const scraperRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { url, requestedFields } = input;
-      const domain = new URL(url).hostname.replace(/^www\./, '');
-
-      const { lookupDomainCache, normalizeUserFields } = await import('@robot/scraper');
-
-      // Try both page types — return whichever has more cached fields
-      const [detailCache, listingCache] = await Promise.all([
-        lookupDomainCache(domain, 'detail').catch(() => null),
-        lookupDomainCache(domain, 'listing').catch(() => null),
-      ]);
-
-      const cache = detailCache && listingCache
-        ? (Object.keys(detailCache.fieldPaths).length >= Object.keys(listingCache.fieldPaths).length ? detailCache : listingCache)
-        : detailCache ?? listingCache;
-
-      if (cache && Object.keys(cache.fieldPaths).length > 0) {
-        const fieldNames = Object.keys(cache.fieldPaths);
-
-        // Capture the current URL so example values reflect THIS page, not a prior one.
-        const { PlaywrightBrowser } = await import('@robot/browser');
-        const {
-          resolveApiPathsFromCache, buildCachedXPathScript, resolveFromCache,
-        } = await import('@robot/scraper');
-
-        const browser = new PlaywrightBrowser();
-        await browser.launch({ headless: true });
-        let liveValues: Record<string, unknown> = {};
-        let screenshotFilename: string | null = null;
-        let screenshotId: string | null = null;
-        try {
-          const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
-
-          // API paths
-          const apiRes = resolveApiPathsFromCache(cache.fieldPaths, capture.interceptedRequests, fieldNames);
-          for (const [n, r] of Object.entries(apiRes.resolved)) liveValues[n] = r.value;
-
-          // Cached XPaths
-          const stillMissing = fieldNames.filter(n => liveValues[n] === undefined);
-          const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
-          if (cachedXPath) {
-            try {
-              const xr = await browser.evaluate<{ data: Record<string, unknown>[] }>(
-                url, cachedXPath.script, { waitUntil: 'domcontentloaded' },
-              );
-              if (xr.data.length > 0) for (const [n, v] of Object.entries(xr.data[0])) {
-                if (v !== null && v !== undefined && v !== '') liveValues[n] = v;
-              }
-            } catch (err) {
-              console.error('[analyze] cached XPath eval failed (non-fatal):', err);
-            }
-          }
-          const cr = resolveFromCache(cache.fieldPaths, liveValues, fieldNames);
-          for (const [n, r] of Object.entries(cr.resolved)) liveValues[n] = r.value;
-
-          // Persist screenshot for the UI.
-          screenshotId = randomUUID();
-          screenshotFilename = `${screenshotId}.png`;
-          const capturesDir = getCapturesDir();
-          await mkdir(capturesDir, { recursive: true });
-          await writeFile(join(capturesDir, screenshotFilename), capture.screenshot);
-        } catch (err) {
-          console.error('[analyze] capture failed (non-fatal, showing cache without live values):', err);
-        } finally {
-          await browser.close();
-        }
-
-        const cachedFields = cachedFieldsFromCache(cache.fieldPaths, liveValues);
-
-        const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
-        if (userFields.length > 0) {
-          const cachedNames = new Set(cachedFields.map(f => f.name));
-          for (const uf of userFields) {
-            if (cachedNames.has(uf.name)) {
-              const existing = cachedFields.find(f => f.name === uf.name);
-              if (existing) existing.tier = 'requested';
-            } else {
-              cachedFields.push({
-                name: uf.name, type: uf.type as string,
-                description: uf.description || 'User requested (not yet cached)',
-                required: true, example_value: undefined,
-                tier: 'requested' as string | undefined, needsRediscovery: false,
-              });
-            }
-          }
-        }
-
-        return {
-          captureId: screenshotId,
-          screenshotUrl: screenshotFilename ? `/captures/${screenshotFilename}` : null,
-          url,
-          title: `${domain}`,
-          schema: {
-            page_type: cache.pageType,
-            description: `Known domain — ${cachedFields.length} fields available from ${cache.totalRuns} previous runs`,
-            fields: cachedFields,
-          },
-          cached: true,
-        };
-      }
-
-      // Cache miss — capture + discover
+      // Schema discovery lives in @robot/scraper. This procedure validates input,
+      // wires the live collaborators, and decides where screenshots go — the one
+      // part that genuinely belongs to the HTTP host.
       const { PlaywrightBrowser } = await import('@robot/browser');
       const { SchemaAgent } = await import('@robot/agent');
+      const { runAnalysis } = await import('@robot/scraper');
 
       const browser = new PlaywrightBrowser();
       await browser.launch({ headless: true });
-      let capture;
+
       try {
-        capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
-      } finally {
-        await browser.close();
+        return await runAnalysis(input, {
+          browser,
+          agent: new SchemaAgent(),
+          persistScreenshot: async (screenshot) => {
+            const id = randomUUID();
+            const filename = `${id}.png`;
+            const dir = getCapturesDir();
+            await mkdir(dir, { recursive: true });
+            await writeFile(join(dir, filename), screenshot);
+            return { id, url: `/captures/${filename}` };
+          },
+        });
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: err instanceof Error ? err.message : 'Analysis failed',
+        });
       }
-
-      const screenshotId = randomUUID();
-      const screenshotFilename = `${screenshotId}.png`;
-      const capturesDir = getCapturesDir();
-      await mkdir(capturesDir, { recursive: true });
-      await writeFile(join(capturesDir, screenshotFilename), capture.screenshot);
-
-      const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
-      const agent = new SchemaAgent();
-      const schema = await agent.discoverSchema(capture, userFields.length > 0 ? userFields : undefined);
-
-      if (userFields.length > 0) {
-        const discoveredNames = new Set(schema.fields.map(f => f.name));
-        for (const uf of userFields) {
-          if (!discoveredNames.has(uf.name)) schema.fields.push(uf);
-        }
-        for (const f of schema.fields) {
-          if (userFields.some(uf => uf.name === f.name)) f.tier = 'requested';
-        }
-      }
-
-      return {
-        captureId: screenshotId,
-        screenshotUrl: `/captures/${screenshotFilename}`,
-        url: capture.url,
-        title: capture.title,
-        schema,
-        cached: false,
-      };
     }),
 
   extract: publicProcedure

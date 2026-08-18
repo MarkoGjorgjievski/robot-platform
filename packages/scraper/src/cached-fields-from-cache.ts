@@ -1,4 +1,4 @@
-import type { FieldPathSet } from '@robot/scraper';
+import type { FieldPathSet } from './domain-cache.js';
 
 export type CachedFieldSummary = {
   name: string;
