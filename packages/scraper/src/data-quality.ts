@@ -55,8 +55,42 @@ function validateField(
     case 'number': return validateNumber(field.name, value, row);
     case 'boolean': return validateBoolean(field.name, value, row);
     case 'date': return validateDate(field.name, value, row);
+    case 'array': return validateArray(field.name, value, row);
     default: return { value, issues: [] };
   }
+}
+
+/**
+ * Clean each element of a list field.
+ *
+ * `array` used to fall through to the default no-op, so list values were never
+ * cleaned at all — and list fields are exactly where markup shows up. Newegg
+ * returns `specifications` and `bullet_points` as `<b>…</b>…<br/>` strings.
+ */
+function validateArray(
+  name: string,
+  value: unknown,
+  row: number | undefined,
+): { value: unknown; issues: QualityIssue[] } {
+  if (!Array.isArray(value)) return { value, issues: [] };
+
+  const issues: QualityIssue[] = [];
+  const cleaned: unknown[] = [];
+
+  for (const item of value) {
+    if (typeof item !== 'string') {
+      cleaned.push(item);
+      continue;
+    }
+    const result = validateString(name, item, row);
+    // An element that is empty once stripped carried only markup — drop it rather
+    // than leave a blank entry in the list.
+    if (typeof result.value === 'string' && result.value === '') continue;
+    cleaned.push(result.value);
+    issues.push(...result.issues.filter((i) => i.type !== 'error'));
+  }
+
+  return { value: cleaned, issues };
 }
 
 function validatePrice(

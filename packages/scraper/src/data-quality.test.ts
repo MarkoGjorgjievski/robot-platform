@@ -262,3 +262,32 @@ describe('validateExtractedData', () => {
     });
   });
 });
+
+describe('validateExtractedData — array fields', () => {
+  // `array` fell through to the default case, so list values were never cleaned.
+  // Newegg returns bullet_points and specifications as markup-laden strings, and
+  // array is exactly the type those fields carry.
+  it('strips HTML from each element of an array', () => {
+    const { data } = validateExtractedData(
+      [{ specifications: ['<b>Read:</b> 14700 MBps', '<b>Write:</b> 13400 MBps'] }],
+      [{ name: 'specifications', type: 'array', description: '', required: true }] as never,
+    );
+    expect(data[0]!.specifications).toEqual(['Read: 14700 MBps', 'Write: 13400 MBps']);
+  });
+
+  it('drops elements that are empty once stripped', () => {
+    const { data } = validateExtractedData(
+      [{ features: ['<br/>', 'Real feature'] }],
+      [{ name: 'features', type: 'array', description: '', required: true }] as never,
+    );
+    expect(data[0]!.features).toEqual(['Real feature']);
+  });
+
+  it('leaves non-string elements alone', () => {
+    const { data } = validateExtractedData(
+      [{ sizes: [1, 2, 3] }],
+      [{ name: 'sizes', type: 'array', description: '', required: true }] as never,
+    );
+    expect(data[0]!.sizes).toEqual([1, 2, 3]);
+  });
+});
