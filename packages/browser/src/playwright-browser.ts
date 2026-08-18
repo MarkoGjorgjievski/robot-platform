@@ -5,6 +5,11 @@ import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 
+// A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
+// default. Raised deliberately: a slow screenshot costs seconds, a failed one costs
+// the entire capture and every judge verdict that depended on it.
+const SCREENSHOT_TIMEOUT_MS = 60_000;
+
 const nhm = new NodeHtmlMarkdown();
 
 // Common popup/consent selectors to auto-dismiss before capture
@@ -100,10 +105,31 @@ export class PlaywrightBrowser implements IBrowser {
       // bounds. Without it Playwright clips against the viewport and throws
       // "Clipped area is either empty or outside the resulting image" on any
       // page taller than the viewport (i.e. essentially every real page).
-      const tileBuffers = await Promise.all(
-        clips.map((clip) => page.screenshot({ type: 'png', fullPage: true, clip })),
-      );
-      const screenshotTiles = tileBuffers.map((b) => Buffer.from(b));
+      //
+      // Taken sequentially, not with Promise.all: every tile is a fullPage render
+      // of the same page, so running them concurrently makes them contend for one
+      // renderer rather than going faster. On a heavy page (Newegg) three parallel
+      // fullPage renders blew the 30s default and the whole capture failed —
+      // which meant analyze returned no screenshot at all and the Tier 2 judge
+      // silently marked all 18 fields 'error'.
+      //
+      // Failures are also per-tile now. Tiles are ordered top-down and only the
+      // first is always used, so losing a lower tile costs some below-the-fold
+      // escalation; losing the capture entirely costs everything.
+      const screenshotTiles: Buffer[] = [];
+      for (const [i, clip] of clips.entries()) {
+        try {
+          const buf = await page.screenshot({ type: 'png', fullPage: true, clip, timeout: SCREENSHOT_TIMEOUT_MS });
+          screenshotTiles.push(Buffer.from(buf));
+        } catch (err) {
+          console.warn(`[browser] tile ${i} screenshot failed (${(err as Error).message.split('\n')[0]});`
+            + ` continuing with ${screenshotTiles.length} tile(s)`);
+          break; // lower tiles will not do better on a page this slow
+        }
+      }
+      if (screenshotTiles.length === 0) {
+        throw new Error(`page.screenshot failed for every tile on ${url} — no usable screenshot`);
+      }
 
       const cleanedHtml = await this.extractReadableContent(page, html);
       const markdown = nhm.translate(cleanedHtml);

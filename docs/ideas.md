@@ -111,6 +111,28 @@ The `extract` step then resolved only 4/16. The other 12 fields (`price`, `image
 - Source identifiers structurally where possible: `asin` from the URL pattern, `upc`/`gtin` from JSON-LD / structured data, rather than the rendered DOM.
 - Image-grounded validation ([[image-grounded-field-discovery]]) pairs naturally here — confirm the ai-vision value against the screenshot before trusting it.
 
+### 🔬 AI API analysis picks identity fields out of internal config blobs (2026-08-18)
+
+**Live instance, fully diagnosed — this is the `otFlat` family, but first-party, so the noise filter cannot see it.**
+
+On the 2026-08-18 Newegg dogfood, `product_name` resolved to
+`"Similar Seller Recommendation on OrderTracking and ProductList page"` (source `api`),
+and the cache learned the path `Configs[0].name`.
+
+The chain, from the run log:
+
+1. Newegg's top-ranked intercepted API is `product/api/ProductRealtime` (37KB). It contains a `Configs` array of *internal feature-flag descriptions*, each with a `name` key.
+2. JSON-LD was **absent** on this capture (the page degraded — the same capture that timed out on screenshot). In the previous run JSON-LD was present and `product_name` was correct, which is why this only appears intermittently.
+3. With no structured data to satisfy it, `product_name` fell through to AI API analysis, which matched a `name` key inside `Configs[0]` and returned it with confidence 0.8.
+4. `saveDomainCache` stored it. The cache now holds two paths for `product_name` — json-ld `name` (correct) and api `Configs[0].name` (garbage) — with `conflictCount: 1` and identical `hits: 1, misses: 0`.
+
+**What this exposes.**
+- **Path ranking ignores source authority.** `pathScore` is recency-weighted hit rate then confidence; `resolveFromCache` sorts human-first and then purely by that score. A publisher-declared JSON-LD `name` and an arbitrary API dot-path are treated as equally trustworthy, so a tie is broken by array order. For *identity* fields (name, sku, brand) structured data should outrank a guessed API path.
+- **Conflict is detected and then ignored.** `conflictCount` was incremented and nothing consumed it. That counter is the signal a human-review flag should hang off — per the project's own rule that degradation is flagged, never auto-reset.
+- **Nothing corroborates an AI-API value against the page.** A real product name appears in `<title>` or an `<h1>`; this string appears in neither. A cheap containment check against the captured HTML/title would have rejected it, and would generalise to the whole family.
+
+**Deliberately not fixed here.** The correct fix is a design decision (source-priority ranking vs page corroboration vs consuming `conflictCount`), and auto-purging the poisoned row would violate the "flag for human review, never auto-reset" rule in CLAUDE.md. **The `www.newegg.com / detail` cache row is currently poisoned** and will keep serving the bad `product_name` whenever JSON-LD is missing.
+
 ### 🔬 Cache trusts itself even when paths return wrong values
 
 **The bug.** Domain intelligence cache prunes paths only when they return `null` repeatedly (the `>10 uses, <10% hit rate` rule in the cache scoring). It does not prune paths that return *non-null but incorrect* values. If a cached XPath/JSON path was built from URL A and is now being applied to URL B (different layout, different product type on the same domain), it may still match a DOM node or JSON key — just the *wrong* one. The path is happily logged as a "hit" and the cache keeps reusing it.

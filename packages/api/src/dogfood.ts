@@ -29,6 +29,7 @@ if (!apiKey) { console.error('ANTHROPIC_API_KEY required'); process.exit(1); }
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
 const lines: string[] = [`# Dogfood ${stamp}`, ''];
 
+const unjudgedSites: string[] = [];
 let totalResolved = 0, totalWrong = 0, totalNotOnPage = 0, totalUnverifiable = 0, totalError = 0, totalAbsent = 0, totalFields = 0;
 
 for (const site of liveCorpus) {
@@ -60,6 +61,21 @@ for (const site of liveCorpus) {
 
     lines.push(`Resolved: ${result.fieldCount.found}/${result.fieldCount.total} (${Math.round(result.confidence * 100)}%)`, '');
     totalFields += result.fieldCount.total;
+
+    // Without a screenshot the judge cannot form an opinion about anything, and
+    // every field silently becomes 'error'. That once produced a report headlining
+    // "18/18 resolved (100%)" in which not one verdict meant anything. Say so at
+    // the top of the section, and make the run exit non-zero — an unjudged site is
+    // a broken measurement, not a passing one.
+    if (!screenshot) {
+      unjudgedSites.push(site.label);
+      lines.push(
+        '> **UNJUDGED — no screenshot was captured for this page.**',
+        '> Every verdict below is `error` for that reason alone and says nothing',
+        '> about extraction quality. Check the run log for a capture failure.',
+        '',
+      );
+    }
 
     const rows = [...result.fieldsByTier.requested, ...result.fieldsByTier.discovered];
     for (const row of rows) {
@@ -126,9 +142,21 @@ lines.push(`- Resolved but not confirmable from a screenshot (URLs, IDs, metadat
 lines.push(`- Judge failed to return a verdict (error / no screenshot): ${totalError}`);
 lines.push(`- Legitimately absent: ${totalAbsent}`);
 
+if (unjudgedSites.length > 0) {
+  lines.push('', `> **${unjudgedSites.length} of ${liveCorpus.length} sites were UNJUDGED** (no screenshot): ${unjudgedSites.join(', ')}.`);
+  lines.push('> Their fields count toward "resolved" but none of their verdicts are meaningful.');
+}
+
 const outDir = join(repoRoot, 'docs', 'testing', 'results');
 mkdirSync(outDir, { recursive: true });
 const outPath = join(outDir, `${stamp}-dogfood.md`);
 writeFileSync(outPath, lines.join('\n'));
 console.log(`wrote ${outPath}`);
+
+// An unjudged site is a broken measurement, not a passing run — exit non-zero so
+// it cannot be mistaken for success by a human skimming or by CI.
+if (unjudgedSites.length > 0) {
+  console.error(`[dogfood] ${unjudgedSites.length} site(s) UNJUDGED — no screenshot: ${unjudgedSites.join(', ')}`);
+  process.exit(1);
+}
 process.exit(0);
