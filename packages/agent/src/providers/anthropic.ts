@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
+import { EXTRACTION_MODEL } from '../models.js';
 
 export class AnthropicProvider {
   private client: Anthropic;
@@ -8,7 +9,7 @@ export class AnthropicProvider {
 
   constructor(apiKey: string, model?: string, maxRetries?: number) {
     this.client = new Anthropic({ apiKey });
-    this.model = model ?? 'claude-sonnet-4-20250514';
+    this.model = model ?? EXTRACTION_MODEL;
     this.maxRetries = maxRetries ?? 3;
   }
 

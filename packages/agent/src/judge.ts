@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { JUDGE_MODEL } from './models.js';
 
 export type JudgeVerdict = 'correct' | 'wrong' | 'not-on-page' | 'error';
 
@@ -14,7 +15,7 @@ export async function judgeFieldExtraction(opts: {
   const client = new Anthropic({ apiKey: opts.apiKey });
   try {
     const res = await client.messages.create({
-      model: opts.model ?? 'claude-sonnet-4-20250514',
+      model: opts.model ?? JUDGE_MODEL,
       max_tokens: 16,
       system: SYSTEM,
       messages: [{

@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { JUDGE_VARIANTS_PROMPT } from './prompts.js';
 import type { JudgeVerdict } from './judge.js';
 import type { Variant } from './types.js';
+import { JUDGE_MODEL } from './models.js';
 
 export async function judgeVariantArray(opts: {
   screenshot: Buffer;
@@ -12,7 +13,7 @@ export async function judgeVariantArray(opts: {
   const client = new Anthropic({ apiKey: opts.apiKey });
   try {
     const res = await client.messages.create({
-      model: opts.model ?? 'claude-sonnet-4-20250514',
+      model: opts.model ?? JUDGE_MODEL,
       max_tokens: 16,
       system: JUDGE_VARIANTS_PROMPT,
       messages: [{
