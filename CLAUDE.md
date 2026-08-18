@@ -14,9 +14,10 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 | `@robot/browser` | Page capture, popup dismissal, network interception | Playwright |
 | `@robot/agent` | LLM orchestration — schema discovery, selectors, validation | Anthropic Claude, Ollama |
 | `@robot/scraper` | Pipeline, XPath executor, structured data extraction | Multi-source extraction chain |
-| `@robot/dashboard` | Web UI — extraction wizard, results browser | Next.js 15, Tailwind v4, Radix UI |
+| `@robot/dashboard` | Web UI — extraction wizard, results browser | Vite + TanStack Router/Query SPA, Tailwind v4, Radix UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
 | `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
+| `@robot/api-server` | HTTP host — mounts the tRPC routers over HTTP, serves captures | Hono |
 
 ## Extraction Chain (priority order)
 
@@ -43,11 +44,11 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 - XPath over CSS selectors — supports sibling traversal, ancestor access, text matching
 - Multi-path extraction — each field has multiple ranked extraction paths, cross-validated
-- Domain intelligence cache — enriched over time, never overwritten. 5 consecutive failures → reset.
+- Domain intelligence cache — enriched over time, never overwritten. Always consulted (no consecutive-failures reset gate; removed in v1.1b). Conservative per-path prune only (≥5 uses & ≤10% hit rate; max 5 paths/field); degradation is flagged for human review, never auto-reset.
 - Popup auto-dismissal — 3 rounds of click + JS removal before capture
 - Provider abstraction — Anthropic and Ollama supported, auto-detected from env
 - `"type": "module"` in all packages
-- Next.js 15 with Server Components + Server Actions (no client-side tRPC)
+- Dashboard is a Vite + TanStack Router/Query SPA (client-side), talking to `@robot/api-server` (Hono) over tRPC-HTTP. NOTE: this replaced the original Next.js dashboard in v1.5 (commit 0937bad, 2026-05-15) — older docs/commits that say "Next.js 15 / Server Components / App Router" are stale.
 - Radix UI + Tailwind v4 + shadcn pattern, light mode
 
 ## Conventions

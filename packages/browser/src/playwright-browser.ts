@@ -565,6 +565,10 @@ export class PlaywrightBrowser implements IBrowser {
         if (url.includes('/config') || url.includes('/feature-flag')) score -= 3;
 
         // Body content signals — look for product-like data
+        // NOTE: substring matching — `/api/messages/pricing` matches `"price"`, and weights
+        // are e-commerce-tuned (mis-ranks job/news/SaaS sources). A mis-ranked top source
+        // sends the wrong JSON to AI analysis. Revisit: parse-once-then-inspect-keys.
+        // See docs/ideas.md → "Pipeline reliability › @robot/browser hardening".
         if (body.includes('"price"') || body.includes('"Price"')) score += 5;
         if (body.includes('"title"') || body.includes('"name"') || body.includes('"productName"')) score += 4;
         if (body.includes('"description"') || body.includes('"Description"')) score += 3;

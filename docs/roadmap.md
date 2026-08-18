@@ -191,6 +191,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 - [ ] Scheduling UI (project-level cron + per-source overrides)
 - [ ] Cost-preview UX (deferred from v1.5)
 - [ ] Multi-tenant auth shell — surface Org level in UI; **drop legacy `extractors` / `extractor_inputs` / `credentials` / `robot_overrides` tables here** (they tie to the pre-multi-tenant extractor model and need re-modeling with proper auth)
+  - Audit (2026-06-30): these tables are defined in `packages/db/src/schema.ts` but have **zero readers in the dashboard** — they're dead until re-modeled. Their tRPC routers (`extractorsRouter`, `credentialsRouter` in `packages/api/src/routers/`, ~190 lines) are likewise uncalled. `runs` carries **both** `extractorId` (legacy) and `sourceId` (current) FKs, both nullable; only `sourceId` is written by the current pipeline. The cleanup is: drop the four tables + their two routers, then drop `runs.extractorId` and its relation. Self-contained (~400 lines, ~1 day), but the column drop needs a tenant migration, so it's correctly staged here behind the auth re-model rather than done as loose cleanup.
 - [ ] Data export (CSV / JSON / webhook destinations)
 - [ ] Public API surface — comes nearly free from `packages/api-server` landing in v1.5 Phase 1
 - [ ] Cost tracking per source/customer
