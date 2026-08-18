@@ -13,6 +13,49 @@ Exploratory items that aren't release-staged yet. When an idea is concrete enoug
 
 How we identify which extracted values map to which schema fields. Today's chain: exact name → alias list → suffix match in flattened API JSON → AI fallback. Real customer schemas have names that don't match the source data, so this chain misses easy wins.
 
+### 🎯 Label every candidate instead of picking one ("one page, many prices")
+
+> **PREMISE NOT YET CONFIRMED — investigate before building. See "What would confirm or kill this" below.** The design is recorded because it is worth keeping; the diagnosis it rests on is one day old, partly confounded, and drawn from a single domain.
+
+**The observation.** A Newegg product page exposes many price-shaped values at once, all real:
+
+| Path | Value |
+|---|---|
+| `MainItem.OriginalUnitPrice` | 395 |
+| `MainItem.LowestPrice30Days` | 391.05 |
+| `MainItem.ItemPriceRange.PriceRangeMin` | 395 |
+| `MainItem.ItemPriceRange.PriceRangeMax` | 764.84 |
+| `MainItem.MapPrice` | 0 (minimum advertised, unset here) |
+| `MainItem.VolumeDiscount.PromotionPrice1-3` | 0 (bulk tiers, unset here) |
+
+Ratings are the same shape: `Review.Rating = 5` vs `Review.RatingOneDecimal = 4.9`; `Seller.SellerRating = 5` vs `SellerRatingOneDecimal = 4.7` vs `SellerRatingLast12M`.
+
+Consequence for the Tier 2 reports: several fields marked **wrong** on 2026-08-18 were not extraction failures. `price: 398`, `rating: 4.9`, `seller_rating: 5` are each a genuine value from that page. The extractor picked a valid candidate and nothing told it which one was wanted — **a disambiguation failure, not an extraction failure**. Four of the five "wrong" verdicts in that report are of this kind, so the honest correct-rate is better than it reads, and the judge cannot tell the difference without knowing customer intent.
+
+**The idea (Marko's, and better than "make the extractor choose").** Don't resolve the ambiguity at extraction time. Extract and **label all candidates**, show them to the customer, and let them choose. The API frequently exposes more than the UI does, so this is upside, not noise.
+
+Splits cleanly along the existing data model:
+
+- **Per-domain** (`domain_intelligence`) — the *catalogue* of what this domain can yield. "Newegg offers six price-ish values" is a fact about Newegg, discovered and cached once.
+- **Per-dataset** (the customer schema) — *which* candidates that customer wants, under what names. A fact about the customer. Two customers can want different prices from the same URL and both be right.
+
+**Why this is more than ergonomics: it dissolves a real architectural problem.** `domain_intelligence` is keyed by `(domain, pageType, field name)`. If customer A's `price` means "lowest across sellers" and customer B's means "featured seller", they collide in one row — and the conflict detector added in 4307564 would fire on every marketplace domain, reporting two correct answers as a disagreement. Distinct labelled fields (`price_featured_seller`, `price_lowest_30d`, …) are not competing paths for one field, so there is no collision and the detector goes back to meaning what it should.
+
+**Scope columns.** A price without its seller is uninterpretable on a marketplace page. The general rule: *when a field's value is scoped by an entity the page exposes — seller, variant, region, quantity tier — that scope must travel with the value as its own column.* `variant_array` already established this shape for variants; sellers are the same pattern.
+
+**Cost.** Cheaper than it sounds. The API blob is already fetched, so enumerating candidates is mechanical and free. The expensive part is *labelling* them, which is one AI pass per domain, cached like everything else. The real cost is UI: six price fields presented flatly is worse than one wrong number, so grouping and sensible defaults are the actual work.
+
+**What would confirm or kill this — do this first.**
+
+The causal story is **not established**. Across three runs on the same URL the price read 402.99 → 398 → 395 and the seller read `DealsADay` → `MobileMonster` → `MobileMonster`. But the *extraction source* changed at the same time (`ai-vision` → `api-ai`), so at least three things moved together and cannot be separated after the fact: which seller was featured, which path read the value, and whether the price genuinely moved. The seller name changing is decent evidence of real rotation, but it is not proof that rotation explains the price differences.
+
+- **Isolate the variables.** Capture the same URL N times over several hours with a FIXED extraction path (one specific dot-path), recording seller and price each time. If price moves while the path is fixed, the page really is rotating. If it does not, the whole "many prices" story may be mostly extraction-path variance and this idea shrinks to "pin the right path", which is already solved by `pinFieldPath`. **Costs no AI credit — Playwright only.**
+- **Check whether it generalises.** Newegg is a marketplace; marketplaces may be the unusual case. Count the price-shaped candidates on Target and Barnes & Noble (both already in the live corpus, both capturable). If they expose one price each, this is a marketplace feature, not a platform feature, and belongs behind a per-domain flag rather than in the core model.
+- **Check that customers actually want it.** The whole design assumes a customer wants to choose among prices. If in practice they always want "the price a shopper would pay", this is over-engineering and the simpler answer is a good per-domain default with an override.
+- **Watch for candidate explosion.** Six price fields on one domain is manageable; sixty across a schema is not. Measure before designing the UI.
+
+**If confirmed**, this deserves its own spec — it touches the cache key, the schema editor, the conflict detector, and the results view, and it interacts with `variant_array`. Do not fold it into a correctness pass.
+
 ### 🔬 Description-based field matching (previously attempted, deliberately disabled)
 
 **Current state.** `findFieldValue` in `packages/scraper/src/structured-extractor.ts` accepts a `_description` parameter (line 123, underscore prefix indicates unused). The comment at line 160 says: *"No fuzzy matching — it causes too many false positives on complex APIs."* So the feature was implemented, tested, and disabled. The test in `structured-extractor-aliases.test.ts` still expects the feature to work and currently fails — vestigial.
