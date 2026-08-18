@@ -52,16 +52,22 @@ const CASES: Array<{ field: string; value: unknown; expected: JudgeVerdict; why:
   { field: 'sku', value: '802.758.87', expected: 'correct', why: 'article number is the SKU — Haiku 4.5 calls this wrong' },
   { field: 'product_name', value: 'KALLAX Shelf unit, white', expected: 'correct', why: 'matches the h1' },
   { field: 'product_name', value: 'otFlat', expected: 'wrong', why: 'the cache-poisoning value the harness exists to catch' },
-  { field: 'shipping_weight', value: '12 kg', expected: 'not-on-page', why: 'no weight anywhere on the page' },
+  { field: 'shipping_weight', value: '12 kg', expected: 'not-on-page', why: 'a plain value genuinely absent from the page' },
   { field: 'currency', value: 'USD', expected: 'correct', why: 'the $ sign states it — Haiku 4.5 calls this not-on-page' },
-  { field: 'availability', value: 'https://schema.org/InStock', expected: 'not-on-page', why: 'no stock status shown' },
+  // The metadata family. A screenshot can neither confirm nor deny these, and
+  // calling them 'not-on-page' reads as an extraction failure when nothing is
+  // wrong — that conflation produced 6 bogus verdicts in the 2026-05-28 report
+  // and 4 in the 2026-08-18 one.
+  { field: 'availability', value: 'https://schema.org/InStock', expected: 'unverifiable', why: 'schema.org URI, never rendered as text' },
+  { field: 'product_url', value: 'https://www.ikea.com/us/en/p/kallax-shelf-unit-white-80275887/', expected: 'unverifiable', why: 'the page URL is not part of the page image' },
+  { field: 'image_url', value: 'https://www.ikea.com/img/kallax-white.jpg', expected: 'unverifiable', why: 'an image URL cannot be read off a rendered image' },
 ];
 
 /**
  * One flipped verdict is tolerable LLM nondeterminism; two is a different judge.
- * The gap this defends is 9/9 (Sonnet 5) vs 7/9 (Haiku 4.5).
+ * The gap this defends is 11/11 (Sonnet 5) vs 7/9 (Haiku 4.5 on the original table).
  */
-const MIN_SCORE = 8;
+const MIN_SCORE = 10;
 
 describe.skipIf(!ENABLED)('Tier 2 judge calibration (live, paid)', () => {
   it(`scores at least ${MIN_SCORE}/${CASES.length} on known-answer cases`, async () => {

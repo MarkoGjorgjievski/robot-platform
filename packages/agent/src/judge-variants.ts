@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { JUDGE_VARIANTS_PROMPT } from './prompts.js';
-import type { JudgeVerdict } from './judge.js';
+import { parseVerdict, type JudgeVerdict } from './judge.js';
 import type { Variant } from './types.js';
 import { JUDGE_MODEL } from './models.js';
 
@@ -26,11 +26,7 @@ export async function judgeVariantArray(opts: {
     });
     const text = res.content.find((b) => b.type === 'text');
     if (!text || text.type !== 'text') return 'error';
-    const t = text.text.trim().toLowerCase();
-    if (t.startsWith('correct')) return 'correct';
-    if (t.startsWith('wrong')) return 'wrong';
-    if (t.startsWith('not')) return 'not-on-page';
-    return 'error';
+    return parseVerdict(text.text);
   } catch (err) {
     console.error('[judge-variants] error:', err);
     return 'error';

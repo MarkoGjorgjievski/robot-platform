@@ -18,6 +18,7 @@ process.env.CAPTURES_DIR ??= join(tmpdir(), 'dogfood-captures');
 const { db } = await import('@robot/db');
 const { scraperRouter } = await import('./routers/scraper.js');
 const { judgeFieldExtraction, judgeVariantArray } = await import('@robot/agent');
+type JudgeVerdict = Awaited<ReturnType<typeof judgeFieldExtraction>>;
 const { liveCorpus } = await import('@robot/scraper');
 
 const caller = scraperRouter.createCaller({ db });
@@ -28,7 +29,7 @@ if (!apiKey) { console.error('ANTHROPIC_API_KEY required'); process.exit(1); }
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
 const lines: string[] = [`# Dogfood ${stamp}`, ''];
 
-let totalResolved = 0, totalWrong = 0, totalNotOnPage = 0, totalError = 0, totalAbsent = 0, totalFields = 0;
+let totalResolved = 0, totalWrong = 0, totalNotOnPage = 0, totalUnverifiable = 0, totalError = 0, totalAbsent = 0, totalFields = 0;
 
 for (const site of liveCorpus) {
   lines.push(`## ${site.label} — ${site.url}`, '');
@@ -80,7 +81,7 @@ for (const site of liveCorpus) {
         && !Array.isArray(row.value[0])
         && (row.value as Array<Record<string, unknown>>).some((v) => 'sku' in v || 'price' in v || 'image_url' in v);
 
-      let verdict: 'correct' | 'wrong' | 'not-on-page' | 'error';
+      let verdict: JudgeVerdict;
       if (!screenshot) {
         verdict = 'error';
       } else if (isVariantArray) {
@@ -90,6 +91,7 @@ for (const site of liveCorpus) {
       }
       if (verdict === 'wrong') totalWrong++;
       if (verdict === 'not-on-page') totalNotOnPage++;
+      if (verdict === 'unverifiable') totalUnverifiable++;
       if (verdict === 'error') totalError++;
 
       // Render: scalars get JSON.stringify truncated to 100; variant arrays get a condensed summary.
@@ -120,7 +122,8 @@ lines.push(`- Total fields requested: ${totalFields}`);
 lines.push(`- Resolved: ${totalResolved}`);
 lines.push(`- Resolved but wrong: ${totalWrong}`);
 lines.push(`- Resolved but not on page: ${totalNotOnPage}`);
-lines.push(`- Resolved but unverifiable (judge error / no screenshot): ${totalError}`);
+lines.push(`- Resolved but not confirmable from a screenshot (URLs, IDs, metadata): ${totalUnverifiable}`);
+lines.push(`- Judge failed to return a verdict (error / no screenshot): ${totalError}`);
 lines.push(`- Legitimately absent: ${totalAbsent}`);
 
 const outDir = join(repoRoot, 'docs', 'testing', 'results');
