@@ -14,7 +14,16 @@ export type ExecutorResult = {
  * - Listing pages: row_xpath matches multiple items, field XPaths are relative to each row
  * - Detail pages: row_xpath matches 0-1 items, field XPaths are tried as absolute from document
  */
-export function buildExtractionScript(plan: ExtractionPlan): string {
+/**
+ * @param fieldTypes Schema type per field name (e.g. `{ bullet_points: 'array' }`).
+ *   Fields typed `array` collect EVERY node their xpath matches; everything else
+ *   takes the first match as before. The plan itself carries no type information —
+ *   it comes from the LLM — so the caller supplies it from its own schema.
+ */
+export function buildExtractionScript(
+  plan: ExtractionPlan,
+  fieldTypes: Record<string, string> = {},
+): string {
   // `SelectorField.xpath` is typed `string`, but plans arrive as an unchecked
   // `as ExtractionPlan` cast over LLM tool output — and the tool is not `strict`,
   // so the model can omit xpath despite the schema marking it required. v1.1b's
@@ -48,6 +57,21 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
           return result.singleNodeValue;
         } catch (e) {
           return null;
+        }
+      }
+
+      // Like xpathQuery, but returns every match, scoped the same way (absolute
+      // xpaths from document, relative ones from contextNode).
+      function xpathQueryAllFrom(contextNode, xpath) {
+        try {
+          const isAbsolute = xpath.startsWith('/');
+          const node = isAbsolute ? document : contextNode;
+          const result = document.evaluate(xpath, node, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+          const nodes = [];
+          for (let i = 0; i < result.snapshotLength; i++) nodes.push(result.snapshotItem(i));
+          return nodes;
+        } catch (e) {
+          return [];
         }
       }
 
@@ -143,6 +167,24 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
       const rowXpath = ${JSON.stringify(plan.row_xpath)};
       const fields = ${JSON.stringify(usableFields)};
       const pageType = ${JSON.stringify(plan.page_type ?? 'auto')};
+      const fieldTypes = ${JSON.stringify(fieldTypes)};
+
+      // Array-typed fields collect every matching node; everything else takes the
+      // first match. Without this an array field can only ever return one node —
+      // in practice the AI aims the xpath at the containing <ul>, whose collapsed
+      // textContent then fails validation as "not array".
+      function extractFrom(contextNode, field, xpath) {
+        if (fieldTypes[field.name] === 'array') {
+          const values = [];
+          for (const node of xpathQueryAllFrom(contextNode, xpath)) {
+            const v = extractValue(node, field);
+            if (v !== null) values.push(v);
+          }
+          return values.length > 0 ? values : null;
+        }
+        return extractValue(xpathQuery(contextNode, xpath), field);
+      }
+
       const rows = xpathQueryAll(rowXpath);
       const results = [];
       const matchCounts = {};
@@ -162,8 +204,7 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
           const item = {};
           for (const field of fields) {
             try {
-              const el = xpathQuery(row, field.xpath);
-              const value = extractValue(el, field);
+              const value = extractFrom(row, field, field.xpath);
               if (value !== null) {
                 item[field.name] = value;
                 matchCounts[field.name]++;
@@ -179,20 +220,19 @@ export function buildExtractionScript(plan: ExtractionPlan): string {
         for (const field of fields) {
           try {
             // Try relative to row first (if row exists)
-            let el = rows[0] ? xpathQuery(rows[0], field.xpath) : null;
+            let value = rows[0] ? extractFrom(rows[0], field, field.xpath) : null;
 
             // If not found, try as absolute XPath from document
-            if (!el) {
+            if (value === null) {
               // Convert relative xpath to absolute if needed
               const absXpath = field.xpath.startsWith('.')
                 ? field.xpath.substring(1)
                 : field.xpath.startsWith('/')
                   ? field.xpath
                   : '//' + field.xpath;
-              el = xpathQuery(document, absXpath);
+              value = extractFrom(document, field, absXpath);
             }
 
-            const value = extractValue(el, field);
             if (value !== null) {
               item[field.name] = value;
               matchCounts[field.name]++;

@@ -258,6 +258,11 @@ export const scraperRouter = router({
         let fieldResults: Record<string, { value: unknown; source: any; path: string; confidence: number }> = {};
 
         const fieldByName = new Map(schemaFields.map(f => [f.name, f]));
+        // Schema types by field name, handed to buildExtractionScript so array-typed
+        // fields collect every matching node instead of just the first.
+        const fieldTypes: Record<string, string> = Object.fromEntries(
+          schemaFields.map((f) => [f.name, f.type ?? 'string']),
+        );
         // `path` is optional because a selector field may legitimately carry no
         // xpath — the AI saw a value but produced no working selector (v1.1b
         // reverse-search), or the model omitted it despite the tool schema. Such a
@@ -445,7 +450,7 @@ export const scraperRouter = router({
             if (cache?.rowSelector) {
               plan.row_xpath = cache.rowSelector.xpath;
             }
-            const script = buildExtractionScript(plan);
+            const script = buildExtractionScript(plan, fieldTypes);
             const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
               url, script, { waitUntil: 'networkidle' }
             );
@@ -476,7 +481,7 @@ export const scraperRouter = router({
                     rowCount: xpathResult.data.length,
                     previousRowXpath: plan.row_xpath,
                   });
-                  const retryScript = buildExtractionScript(retryPlan);
+                  const retryScript = buildExtractionScript(retryPlan, fieldTypes);
                   const retryResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
                     url, retryScript, { waitUntil: 'networkidle' }
                   );
@@ -509,7 +514,7 @@ export const scraperRouter = router({
             if (cache?.rowSelector) {
               tilePlan.row_xpath = cache.rowSelector.xpath;
             }
-            const tileScript = buildExtractionScript(tilePlan);
+            const tileScript = buildExtractionScript(tilePlan, fieldTypes);
             const tileResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
               url, tileScript, { waitUntil: 'networkidle' },
             );
