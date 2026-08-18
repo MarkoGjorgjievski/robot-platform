@@ -16,6 +16,8 @@ export type FieldPath = {
   misses: number;
   lastValue: unknown;
   lastUsedAt: string;
+  /** Operator-chosen path. Outranks every automatic signal and is never pruned. */
+  pinned?: boolean;
 };
 
 /** All paths for a single field, ranked by reliability */
@@ -153,7 +155,7 @@ const SCORE_TIE_EPSILON = 1e-9;
 export type PathConflict = {
   field: string;
   /** Competing values, best-ranked first — index 0 is what the cache would serve. */
-  candidates: Array<{ source: PathSource; path: string; value: unknown }>;
+  candidates: Array<{ source: PathSource; path: string; value: unknown; pinned: boolean }>;
 };
 
 /**
@@ -183,15 +185,110 @@ export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>): P
     const ranked = [...withValues].sort(comparePaths);
     conflicts.push({
       field,
-      candidates: ranked.map((p) => ({ source: p.source, path: p.path, value: p.lastValue })),
+      candidates: ranked.map((p) => ({ source: p.source, path: p.path, value: p.lastValue, pinned: p.pinned === true })),
     });
   }
 
   return conflicts;
 }
 
-/** Shared ranking: human first, then track record, then source authority. */
+/**
+ * Pin one of a field's cached paths, or clear the pin for that field.
+ *
+ * The conflict report tells a reviewer that two paths disagree; this is how they
+ * act on it. Nothing is deleted — the losing path keeps its statistics and stays
+ * visible, because a path that looks wrong today may simply reflect a site that
+ * changed back tomorrow.
+ *
+ * Pass `path: null` to unpin. Returns false if the domain, field, or path is
+ * unknown, so the caller can report a stale UI rather than silently no-op.
+ */
+export async function pinFieldPath(input: {
+  domain: string;
+  pageType: string;
+  field: string;
+  /** The `path` string of the candidate to pin, or null to clear. */
+  path: string | null;
+}): Promise<boolean> {
+  const [row] = await db
+    .select()
+    .from(domainIntelligence)
+    .where(and(
+      eq(domainIntelligence.domain, input.domain),
+      eq(domainIntelligence.pageType, input.pageType),
+    ))
+    .limit(1);
+  if (!row) return false;
+
+  const fieldPaths = (row.fieldPaths ?? {}) as Record<string, FieldPathSet>;
+  const pathSet = fieldPaths[input.field];
+  if (!pathSet || pathSet.paths.length === 0) return false;
+
+  if (input.path !== null && !pathSet.paths.some((p) => p.path === input.path)) return false;
+
+  // Exactly one pin per field — pinning a new candidate releases the previous one.
+  for (const p of pathSet.paths) {
+    p.pinned = input.path !== null && p.path === input.path;
+  }
+
+  await db
+    .update(domainIntelligence)
+    .set({ fieldPaths, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, input.domain),
+      eq(domainIntelligence.pageType, input.pageType),
+    ));
+
+  console.log(
+    input.path === null
+      ? `[cache] unpinned ${input.domain}/${input.pageType} field "${input.field}"`
+      : `[cache] pinned ${input.domain}/${input.pageType} field "${input.field}" to ${input.path}`,
+  );
+  return true;
+}
+
+/** Max automatic paths kept per field. Protected paths are additional to this. */
+const MAX_PATHS_PER_FIELD = 5;
+
+/**
+ * A path the cache is not allowed to forget on its own.
+ *
+ * Both the dead-path prune and the five-path cap used to apply to every path
+ * equally, so a `human` override — the one thing that is supposed to be
+ * authoritative and permanent — could be silently deleted by a run of misses or
+ * simply crowded out. That contradicts the "flag, never auto-reset" rule.
+ */
+function isProtectedPath(p: FieldPath): boolean {
+  return p.pinned === true || p.source === 'human';
+}
+
+/**
+ * Drop paths that have reliably stopped working, then cap the rest.
+ *
+ * Protected paths bypass both steps: an operator's decision is removed by an
+ * operator, not by statistics.
+ */
+export function prunePaths(paths: FieldPath[]): FieldPath[] {
+  const protectedPaths = paths.filter(isProtectedPath);
+  const automatic = paths
+    .filter((p) => !isProtectedPath(p))
+    .filter((p) => {
+      const total = p.hits + p.misses;
+      if (total < 5) return true; // Too early to judge
+      return p.hits / total > 0.1; // Keep if >10% hit rate
+    })
+    .sort(comparePaths)
+    .slice(0, Math.max(0, MAX_PATHS_PER_FIELD - protectedPaths.length));
+
+  return [...protectedPaths, ...automatic];
+}
+
+/** Shared ranking: pinned, then human, then track record, then source authority. */
 function comparePaths(a: FieldPath, b: FieldPath): number {
+  // An operator's explicit pin beats everything, including a human-sourced path
+  // that was never pinned.
+  if (a.pinned && !b.pinned) return -1;
+  if (b.pinned && !a.pinned) return 1;
   if (a.source === 'human' && b.source !== 'human') return -1;
   if (b.source === 'human' && a.source !== 'human') return 1;
   const scoreDelta = pathScore(b) - pathScore(a);
@@ -584,22 +681,7 @@ function mergeFieldPaths(
       if (!allMatch) pathSet.conflictCount++;
     }
 
-    // Prune dead paths (>10 misses, <10% hit rate)
-    pathSet.paths = pathSet.paths.filter(p => {
-      const total = p.hits + p.misses;
-      if (total < 5) return true; // Too early to prune
-      return p.hits / total > 0.1; // Keep if >10% hit rate
-    });
-
-    // Keep max 5 paths per field
-    if (pathSet.paths.length > 5) {
-      pathSet.paths.sort((a, b) => {
-        const aRate = a.hits / Math.max(1, a.hits + a.misses);
-        const bRate = b.hits / Math.max(1, b.hits + b.misses);
-        return bRate - aRate;
-      });
-      pathSet.paths = pathSet.paths.slice(0, 5);
-    }
+    pathSet.paths = prunePaths(pathSet.paths);
   }
 
   // Empty-path entries skip the prune loop above by construction (it only iterates newResults).

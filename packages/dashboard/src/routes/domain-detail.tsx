@@ -44,7 +44,7 @@ export default function DomainDetail() {
             <Stat label="Success rate" value={`${pt.successRate}%`} />
             <Stat label="Last verified" value={new Date(pt.lastVerifiedAt).toLocaleDateString()} />
           </dl>
-          <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} />
+          <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} domain={domain} pageType={pt.pageType} />
         </div>
       ))}
 
@@ -88,11 +88,19 @@ type Selector = {
 type Conflict = {
   field: string;
   /** Ranked best-first — index 0 is what the cache serves today. */
-  candidates: Array<{ source: string; path: string; value: unknown }>;
+  candidates: Array<{ source: string; path: string; value: unknown; pinned: boolean }>;
 };
 
-function SelectorsTable({ selectors, conflicts }: { selectors: Selector[]; conflicts: Conflict[] }) {
+function SelectorsTable({
+  selectors, conflicts, domain, pageType,
+}: {
+  selectors: Selector[]; conflicts: Conflict[]; domain: string; pageType: string;
+}) {
   const [asc, setAsc] = useState(true);
+  const utils = trpc.useUtils();
+  const pin = trpc.domains.pinFieldPath.useMutation({
+    onSuccess: () => utils.domains.intelligenceDetail.invalidate({ domain }),
+  });
   if (selectors.length === 0) {
     return <p className="mt-3 text-xs text-gray-400">No cached field paths.</p>;
   }
@@ -110,19 +118,42 @@ function SelectorsTable({ selectors, conflicts }: { selectors: Selector[]; confl
             itself — but a genuine change on the site looks the same, so nothing is discarded
             automatically. Review and pin the correct one.
           </p>
-          <ul className="mt-2 space-y-1">
+          {pin.isError && (
+            <p className="mt-2 rounded bg-red-100 px-2 py-1 text-[11px] text-red-900">{pin.error.message}</p>
+          )}
+          <ul className="mt-2 space-y-2">
             {conflicts.map((c) => (
-              <li key={c.field} className="font-mono text-[11px] text-red-900">
-                {c.field}:{' '}
-                {c.candidates.map((cand, i) => (
-                  <span key={`${cand.source}-${i}`}>
-                    {i > 0 && <span className="text-red-500"> vs </span>}
-                    <span className={i === 0 ? 'font-semibold' : ''}>
-                      {cand.source}={String(cand.value).slice(0, 50)}
-                      {i === 0 && <span className="text-red-600"> (served)</span>}
-                    </span>
-                  </span>
-                ))}
+              <li key={c.field} className="text-[11px]">
+                <span className="font-mono font-semibold text-red-900">{c.field}</span>
+                <ul className="mt-1 space-y-1">
+                  {c.candidates.map((cand, i) => (
+                    <li key={`${cand.path}-${i}`} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={pin.isPending}
+                        onClick={() => pin.mutate({
+                          domain, pageType, field: c.field,
+                          path: cand.pinned ? null : cand.path,
+                        })}
+                        className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase transition-colors disabled:opacity-50 ${
+                          cand.pinned
+                            ? 'border-green-600 bg-green-600 text-white'
+                            : 'border-red-300 bg-white text-red-700 hover:bg-red-100'
+                        }`}
+                      >
+                        {cand.pinned ? 'Pinned' : 'Pin'}
+                      </button>
+                      <span className="font-mono text-red-900">
+                        {cand.source}
+                        {i === 0 && !c.candidates.some((x) => x.pinned) && (
+                          <span className="text-red-600"> (served)</span>
+                        )}
+                        <span className="text-red-500"> · </span>
+                        {String(cand.value).slice(0, 60)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>

@@ -16,3 +16,5 @@ export { runExtraction, isAiPlaceholder, type ExtractionRequest, type Extraction
 export { buildResultRows, type ResultRow, type SchemaFieldLite } from './build-result-rows.js';
 export { collectAiAnalysisSources, type AnalysisSource } from './collect-ai-analysis-sources.js';
 export { detectPathConflicts, sourceAuthority, type PathConflict } from './domain-cache.js';
+export { prunePaths } from './domain-cache.js';
+export { pinFieldPath } from './domain-cache.js';
