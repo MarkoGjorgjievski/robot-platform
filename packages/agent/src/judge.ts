@@ -11,6 +11,28 @@ export type JudgeVerdict = 'correct' | 'wrong' | 'not-on-page' | 'unverifiable' 
 // `pnpm test:judge` in hand.
 const SYSTEM = `You judge whether an extracted field value is correct on a webpage. You are shown a screenshot of the page, the field name, and the extracted value. Reply with EXACTLY one word: "correct" (the value is right), "wrong" (a value is visible on the page for this field but it's different from what was extracted), "unverifiable" (the value is an absolute URL, a schema.org URI, or an internal ID — the kind of data that lives in page metadata, which a screenshot can neither confirm nor deny), or "not-on-page" (the value the field would have is not visible on the page at all). No explanation.`;
 
+/**
+ * Shared request tuning for both judges.
+ *
+ * `thinking: disabled` is load-bearing, not an optimisation. The judges are
+ * one-word classifiers on a tiny token budget, and thinking is ON BY DEFAULT for
+ * the current model family. On a complex real screenshot the model spends the
+ * whole budget reasoning and returns a `thinking` block with NO text block —
+ * which this code reports as verdict 'error'. That silently produced 3 bogus
+ * 'error' verdicts on the 2026-08-18 Newegg run (stop_reason=max_tokens,
+ * blocks=thinking). It does not reproduce on simple fixture pages, so the
+ * calibration suite alone will not catch a regression here.
+ *
+ * max_tokens has headroom over the longest verdict ("unverifiable") so a stray
+ * leading token cannot truncate the answer.
+ */
+const JUDGE_REQUEST_TUNING = {
+  max_tokens: 32,
+  thinking: { type: 'disabled' as const },
+};
+
+export { JUDGE_REQUEST_TUNING };
+
 /** Map the model's one-word reply onto a verdict. Order matters: check the
  *  'not'/'unverifiable' prefixes before the looser ones. */
 function parseVerdict(raw: string): JudgeVerdict {
@@ -35,7 +57,7 @@ export async function judgeFieldExtraction(opts: {
   try {
     const res = await client.messages.create({
       model: opts.model ?? JUDGE_MODEL,
-      max_tokens: 16,
+      ...JUDGE_REQUEST_TUNING,
       system: SYSTEM,
       messages: [{
         role: 'user',
@@ -46,7 +68,12 @@ export async function judgeFieldExtraction(opts: {
       }],
     });
     const text = res.content.find((b) => b.type === 'text');
-    if (!text || text.type !== 'text') return 'error';
+    if (!text || text.type !== 'text') {
+      console.error(
+        `[judge] no text block for ${opts.field} (stop_reason=${res.stop_reason}, blocks=${res.content.map((b) => b.type).join(',') || 'none'})`,
+      );
+      return 'error';
+    }
     return parseVerdict(text.text);
   } catch (err) {
     console.error('[judge] error:', err);
