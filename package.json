@@ -7,14 +7,16 @@
     "lint": "turbo lint",
     "dev": "pnpm --filter @robot/dashboard dev",
     "dev:all": "turbo dev",
-    "test:scraper": "source .env 2>/dev/null; pnpm --filter @robot/scraper exec tsx src/test-run.ts"
+    "test:scraper": "pnpm --filter @robot/scraper exec tsx src/test-run.ts",
+    "db:migrate": "pnpm --filter @robot/db exec drizzle-kit migrate",
+    "db:seed": "pnpm --filter @robot/db run seed:sandbox"
   },
   "devDependencies": {
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.12.0"
   },
   "packageManager": "pnpm@10.30.3",
   "pnpm": {

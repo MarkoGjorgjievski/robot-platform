@@ -1,21 +1,17 @@
 // CLI: write a Tier 1 fixture JSON from a live URL.
 // Usage: pnpm --filter @robot/scraper exec tsx src/capture-fixture.ts <url> <label> [detail|listing]
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
+import { loadEnvFile } from 'node:process';
 
 // Load repo-root .env so DATABASE_URL etc. resolve for the cache lookup.
+// Path is resolved from this module, so it works on any machine and OS.
 try {
-  const env = readFileSync('/Users/marko/Documents/robot-platform/.env', 'utf-8');
-  for (const line of env.split('\n')) {
-    const t = line.trim();
-    if (!t || t.startsWith('#')) continue;
-    const i = t.indexOf('=');
-    if (i === -1) continue;
-    const k = t.slice(0, i);
-    if (!process.env[k]) process.env[k] = t.slice(i + 1);
-  }
-} catch {}
+  loadEnvFile(join(fileURLToPath(new URL('../../..', import.meta.url)), '.env'));
+} catch {
+  // .env not present — fall back to whatever is already in process.env
+}
 
 const url = process.argv[2];
 const label = process.argv[3];
