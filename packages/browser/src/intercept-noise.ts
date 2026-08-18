@@ -33,6 +33,18 @@ const NOISE_HOSTS = [
   'fullstory.com',
   'mouseflow.com',
   'logrocket.com',
+  // Checkout / buy-now-pay-later widgets. These embed on product pages and their
+  // config payloads carry price- and currency-shaped keys, so they score as
+  // product data — on the 2026-08-18 Newegg capture affirm's /v1/initialize
+  // ranked SECOND, above the page's own product content. They describe a payment
+  // widget, never the page's entity.
+  'affirm.com',
+  'klarna.com',
+  'afterpay.com',
+  'clearpay.co.uk',
+  'sezzle.com',
+  'zip.co',
+  'paypal.com',
 ];
 
 const NOISE_PATH_PATTERNS = [

@@ -4,6 +4,7 @@ import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredD
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
+import { rankInterceptedRequests } from './rank-requests.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
 // default. Raised deliberately: a slow screenshot costs seconds, a failed one costs
@@ -135,7 +136,7 @@ export class PlaywrightBrowser implements IBrowser {
       const markdown = nhm.translate(cleanedHtml);
 
       // Rank and filter the intercepted requests
-      const rankedRequests = this.rankInterceptedRequests(intercepted, url);
+      const rankedRequests = rankInterceptedRequests(intercepted, url);
 
       if (rankedRequests.length > 0) {
         console.log(`[browser] Intercepted ${intercepted.length} requests, ${rankedRequests.length} contain JSON data`);
@@ -562,75 +563,6 @@ export class PlaywrightBrowser implements IBrowser {
    * Rank intercepted requests by likelihood of containing useful data.
    * Filters out tracking/analytics and sorts by relevance.
    */
-  private rankInterceptedRequests(requests: InterceptedRequest[], pageUrl: string): InterceptedRequest[] {
-    // Score each request
-    const scored = requests
-      .filter(r => r.isJson && r.parsedJson !== null)
-      .filter(r => !isThirdPartyNoise(r.url))
-      .map(r => {
-        let score = 0;
-        const url = r.url.toLowerCase();
-        const body = r.responseBody ?? '';
-
-        // URL signals
-        if (url.includes('/api/')) score += 3;
-        if (url.includes('/graphql')) score += 3;
-        if (url.includes('/product')) score += 5;
-        if (url.includes('/item')) score += 4;
-        if (url.includes('/listing')) score += 4;
-        if (url.includes('/search')) score += 3;
-        if (url.includes('/catalog')) score += 3;
-        if (url.includes('/price')) score += 4;
-        if (url.includes('/detail')) score += 4;
-        if (url.includes('/pdp')) score += 5; // Product Detail Page
-        if (url.includes('/v1/') || url.includes('/v2/') || url.includes('/v3/')) score += 2;
-
-        // Penalize known non-data endpoints
-        if (url.includes('/log') || url.includes('/track') || url.includes('/beacon')) score -= 10;
-        if (url.includes('/auth') || url.includes('/session') || url.includes('/token')) score -= 5;
-        if (url.includes('/config') || url.includes('/feature-flag')) score -= 3;
-
-        // Body content signals — look for product-like data
-        // NOTE: substring matching — `/api/messages/pricing` matches `"price"`, and weights
-        // are e-commerce-tuned (mis-ranks job/news/SaaS sources). A mis-ranked top source
-        // sends the wrong JSON to AI analysis. Revisit: parse-once-then-inspect-keys.
-        // See docs/ideas.md → "Pipeline reliability › @robot/browser hardening".
-        if (body.includes('"price"') || body.includes('"Price"')) score += 5;
-        if (body.includes('"title"') || body.includes('"name"') || body.includes('"productName"')) score += 4;
-        if (body.includes('"description"') || body.includes('"Description"')) score += 3;
-        if (body.includes('"image"') || body.includes('"imageUrl"')) score += 2;
-        if (body.includes('"rating"') || body.includes('"review"')) score += 3;
-        if (body.includes('"sku"') || body.includes('"upc"') || body.includes('"gtin"')) score += 4;
-        if (body.includes('"availability"') || body.includes('"inStock"')) score += 3;
-        if (body.includes('"brand"') || body.includes('"manufacturer"')) score += 3;
-
-        // Count how many product-like keys appear (more = more likely product data)
-        const productKeyCount = [
-          '"price"', '"title"', '"name"', '"description"', '"image"',
-          '"rating"', '"review"', '"sku"', '"brand"', '"availability"',
-          '"category"', '"url"', '"stock"', '"shipping"', '"seller"',
-        ].filter(k => body.includes(k)).length;
-        score += productKeyCount * 2; // Each matching key adds 2 points
-
-        // Penalize responses that look like UI/layout config
-        if (body.includes('"modules"') && body.includes('"layout"') && body.includes('"zones"')) score -= 3;
-        if (body.includes('"components"') && body.includes('"template"')) score -= 2;
-        if (body.includes('"featureFlags"') || body.includes('"experiments"')) score -= 5;
-
-        // Size signal — sweet spot is 1KB-50KB for product data
-        if (r.bodySize > 500 && r.bodySize < 100000) score += 2;
-        if (r.bodySize > 2000 && r.bodySize < 50000) score += 3;
-        // Penalize very large responses — likely UI framework data, not product data
-        if (r.bodySize > 100000) score -= 2;
-
-        return { request: r, score };
-      })
-      .filter(s => s.score > 0)
-      .sort((a, b) => b.score - a.score);
-
-    // Return top results (don't need to keep all)
-    return scored.slice(0, 10).map(s => s.request);
-  }
 
   /**
    * Crawl paginated listing pages, yielding extracted data from each page.
