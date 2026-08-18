@@ -17,7 +17,7 @@ process.env.CAPTURES_DIR ??= join(tmpdir(), 'dogfood-captures');
 
 const { db } = await import('@robot/db');
 const { scraperRouter } = await import('./routers/scraper.js');
-const { judgeFieldExtraction, judgeVariantArray } = await import('@robot/agent');
+const { judgeFieldExtraction, judgeVariantArray, JudgeUnavailableError } = await import('@robot/agent');
 type JudgeVerdict = Awaited<ReturnType<typeof judgeFieldExtraction>>;
 const { liveCorpus } = await import('@robot/scraper');
 
@@ -126,6 +126,14 @@ for (const site of liveCorpus) {
     }
     lines.push('');
   } catch (err) {
+    // The judge being unavailable (no credit, bad key) is not a site failure and
+    // must not be swallowed per-site: every remaining field would fail the same
+    // way and the report would read as a measurement. Abort without writing one.
+    if (err instanceof JudgeUnavailableError) {
+      console.error(`\n[dogfood] ABORTED — the judge is unavailable: ${err.message}`);
+      console.error('[dogfood] No report written; a partially-judged run is not a measurement.');
+      process.exit(2);
+    }
     const msg = err instanceof Error ? err.message : String(err);
     lines.push(`- [error] site processing failed: ${msg}`);
     lines.push('');
