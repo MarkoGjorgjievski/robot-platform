@@ -8,14 +8,14 @@
 // source type no weight, so a tie was broken by array order.
 
 import { describe, it, expect } from 'vitest';
-import { resolveFromCache, detectPathConflicts, sourceAuthority } from './domain-cache.js';
+import { resolveFromCache, detectPathConflicts, sourceAuthority, prunePaths } from './domain-cache.js';
 import type { FieldPath, FieldPathSet, PathSource } from './domain-cache.js';
 
 function path(source: PathSource, value: unknown, over: Partial<FieldPath> = {}): FieldPath {
   return {
     path: `${source}-path`, source, confidence: 0.8,
     hits: 1, misses: 0, lastValue: value,
-    lastUsedAt: '2026-08-18T09:00:00.000Z',
+    lastUsedAt: '2026-08-18T09:00:00.000Z', pinned: false,
     ...over,
   };
 }
@@ -110,5 +110,48 @@ describe('detectPathConflicts', () => {
       product_name: set([path('api', GARBAGE), path('json-ld', REAL_NAME)]),
     });
     expect(conflicts[0]!.candidates[0]!.source).toBe('json-ld');
+  });
+});
+
+describe('prunePaths — what the cache is allowed to forget', () => {
+  it('drops a path that has reliably stopped working', () => {
+    const kept = prunePaths([path('api', 'x', { hits: 0, misses: 9 })]);
+    expect(kept).toHaveLength(0);
+  });
+
+  it('never drops a human override, however badly it scores', () => {
+    // A human pin is an explicit decision. Auto-removing it is exactly the
+    // "never auto-reset" rule the cache is supposed to follow — and until now
+    // both the prune and the 5-path cap could silently delete one.
+    const kept = prunePaths([path('human', 'x', { hits: 0, misses: 99 })]);
+    expect(kept).toHaveLength(1);
+  });
+
+  it('never drops a pinned path', () => {
+    const kept = prunePaths([path('api', 'x', { hits: 0, misses: 99, pinned: true })]);
+    expect(kept).toHaveLength(1);
+  });
+
+  it('caps at five paths but keeps protected ones regardless of rank', () => {
+    const many = [
+      path('human', 'pinned-by-human', { hits: 0, misses: 0 }),
+      ...Array.from({ length: 8 }, (_, i) => path('api', `v${i}`, { hits: 9, misses: 0, path: `p${i}` })),
+    ];
+    const kept = prunePaths(many);
+    expect(kept.length).toBeLessThanOrEqual(5);
+    expect(kept.some((p) => p.source === 'human')).toBe(true);
+  });
+});
+
+describe('resolveFromCache — pinned paths', () => {
+  it('serves a pinned path over everything else', () => {
+    const fieldPaths = {
+      image_url: set([
+        path('json-ld', 'https://img.youtube.com/vi/x/hqdefault.jpg', { hits: 50, misses: 0 }),
+        path('meta', 'https://cdn.example.com/product.jpg', { hits: 1, misses: 0, pinned: true }),
+      ]),
+    };
+    const r = resolveFromCache(fieldPaths, { image_url: 'https://cdn.example.com/product.jpg' }, ['image_url']);
+    expect(r.resolved.image_url?.source).toBe('meta');
   });
 });

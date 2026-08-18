@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { detectPathConflicts } from '@robot/scraper';
+import { detectPathConflicts, pinFieldPath } from '@robot/scraper';
 import { eq, sql, and } from 'drizzle-orm';
 import { domains, sources, datasets, projects, orgs, domainIntelligence } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -141,6 +141,30 @@ export const domainsRouter = router({
           lastVerifiedAt: intelligence.lastVerifiedAt,
         } : null,
       };
+    }),
+
+  /**
+   * Pin one of a field's cached paths as the one to serve, or clear the pin.
+   *
+   * The counterpart to the conflict report: without this a reviewer can see that
+   * two paths disagree and has no way to act on it short of editing the database.
+   * Nothing is deleted — the losing path keeps its statistics and stays visible.
+   */
+  pinFieldPath: publicProcedure
+    .input(z.object({
+      domain: z.string().min(1),
+      pageType: z.string().min(1),
+      field: z.string().min(1),
+      path: z.string().min(1).nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      const ok = await pinFieldPath(input);
+      if (!ok) {
+        throw new Error(
+          `Cannot pin: no cached path "${input.path}" for ${input.domain}/${input.pageType} field "${input.field}"`,
+        );
+      }
+      return { ok: true as const };
     }),
 
   // ─── Global DomainIntelligence views (read-only) ───────────────────────────
