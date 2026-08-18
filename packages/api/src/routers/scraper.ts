@@ -258,7 +258,12 @@ export const scraperRouter = router({
         let fieldResults: Record<string, { value: unknown; source: any; path: string; confidence: number }> = {};
 
         const fieldByName = new Map(schemaFields.map(f => [f.name, f]));
-        function tryAssign(name: string, value: unknown, source: PathSource, path: string, confidence: number): boolean {
+        // `path` is optional because a selector field may legitimately carry no
+        // xpath — the AI saw a value but produced no working selector (v1.1b
+        // reverse-search), or the model omitted it despite the tool schema. Such a
+        // field never yields a `value` here, so the guard below returns first and
+        // no path-less entry is ever recorded.
+        function tryAssign(name: string, value: unknown, source: PathSource, path: string | undefined, confidence: number): boolean {
           if (finalData[name] !== undefined) return false;
           // Absent values are "not found", not "rejected" — skip silently. (Guards
           // against JSON.stringify(undefined) returning undefined → .slice crash.)
@@ -270,7 +275,7 @@ export const scraperRouter = router({
             return false;
           }
           finalData[name] = v.normalized;
-          fieldResults[name] = { value: v.normalized, source, path, confidence };
+          fieldResults[name] = { value: v.normalized, source, path: path ?? '', confidence };
           return true;
         }
 
