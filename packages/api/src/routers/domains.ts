@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { detectPathConflicts } from '@robot/scraper';
 import { eq, sql, and } from 'drizzle-orm';
 import { domains, sources, datasets, projects, orgs, domainIntelligence } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -186,6 +187,13 @@ export const domainsRouter = router({
           hasNextData: r.hasNextData,
           apiEndpoints: (r.apiEndpoints ?? []) as unknown[],
           selectors,
+          // Fields whose stored paths currently disagree about the value. This is
+          // how a poisoned cache path announces itself — the cache has always
+          // detected it and never surfaced it. Reported only; per CLAUDE.md,
+          // degradation is flagged for human review and never auto-reset.
+          conflicts: detectPathConflicts(
+            (r.fieldPaths ?? {}) as Parameters<typeof detectPathConflicts>[0],
+          ),
         };
       });
 

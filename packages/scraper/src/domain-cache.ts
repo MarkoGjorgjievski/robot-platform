@@ -111,6 +111,94 @@ export type ResolvedField = {
  * resolve each field by trying all known paths in priority order.
  * Cross-validates when multiple paths return values.
  */
+/**
+ * How much a source's claim about a field is worth, all else equal.
+ *
+ * Used ONLY to break statistical ties — hit rate still decides whenever the paths
+ * have meaningfully different track records. The ordering reflects what each
+ * source actually is:
+ *
+ *   human       an operator pinned it; nothing outranks that
+ *   json-ld     the publisher DECLARING what this page's entity is
+ *   meta        the same, in a weaker vocabulary
+ *   xpath       what the page actually renders
+ *   api         a dot-path guessed into an unlabelled blob, which may describe a
+ *               different entity entirely (recommendations, config, other sellers)
+ *   ai-vision   a model's reading of a picture
+ *
+ * Motivating case: on 2026-08-18 the www.newegg.com cache held two paths for
+ * product_name with identical stats (hits 1, misses 0) — json-ld `name` with the
+ * real title, and api `Configs[0].name` with a Newegg internal feature-flag label.
+ * With source type carrying no weight, the tie fell to array order.
+ */
+const SOURCE_AUTHORITY: Record<PathSource, number> = {
+  'human': 100,
+  'json-ld': 80,
+  'meta': 70,
+  'xpath': 60,
+  'xpath-cached': 55,
+  'api': 40,
+  'api-ai': 30,
+  'ai-vision': 20,
+  'ai-discovered-variants': 20,
+};
+
+export function sourceAuthority(source: PathSource | string): number {
+  return SOURCE_AUTHORITY[source as PathSource] ?? 0;
+}
+
+/** Hit rates closer than this count as "the same track record". */
+const SCORE_TIE_EPSILON = 1e-9;
+
+export type PathConflict = {
+  field: string;
+  /** Competing values, best-ranked first — index 0 is what the cache would serve. */
+  candidates: Array<{ source: PathSource; path: string; value: unknown }>;
+};
+
+/**
+ * Fields whose stored paths currently disagree about the value.
+ *
+ * Deliberately recomputed rather than read from `conflictCount`. That counter is
+ * monotonic — once a domain has ever had one disagreement it stays non-zero
+ * forever — so it cannot answer "is anything wrong now?". It was also written and
+ * never read anywhere, making it dead data.
+ *
+ * Reports only; per CLAUDE.md, degradation is flagged for human review and never
+ * auto-reset. A poisoned path and a legitimately changed price look identical
+ * from here.
+ */
+export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>): PathConflict[] {
+  const conflicts: PathConflict[] = [];
+
+  for (const [field, pathSet] of Object.entries(fieldPaths ?? {})) {
+    const withValues = (pathSet?.paths ?? []).filter(
+      (p) => p.lastValue !== null && p.lastValue !== undefined && p.lastValue !== '',
+    );
+    if (withValues.length < 2) continue;
+
+    const first = withValues[0]!.lastValue;
+    if (withValues.every((p) => valuesMatch(p.lastValue, first))) continue;
+
+    const ranked = [...withValues].sort(comparePaths);
+    conflicts.push({
+      field,
+      candidates: ranked.map((p) => ({ source: p.source, path: p.path, value: p.lastValue })),
+    });
+  }
+
+  return conflicts;
+}
+
+/** Shared ranking: human first, then track record, then source authority. */
+function comparePaths(a: FieldPath, b: FieldPath): number {
+  if (a.source === 'human' && b.source !== 'human') return -1;
+  if (b.source === 'human' && a.source !== 'human') return 1;
+  const scoreDelta = pathScore(b) - pathScore(a);
+  if (Math.abs(scoreDelta) > SCORE_TIE_EPSILON) return scoreDelta;
+  return sourceAuthority(b.source) - sourceAuthority(a.source);
+}
+
 export function resolveFromCache(
   fieldPaths: Record<string, FieldPathSet>,
   allExtractedData: Record<string, unknown>,
@@ -122,15 +210,9 @@ export function resolveFromCache(
     const pathSet = fieldPaths[fieldName];
     if (!pathSet || pathSet.paths.length === 0) continue;
 
-    // Sort paths: human first, then by recency-weighted hit rate, then confidence
-    const ranked = [...pathSet.paths].sort((a, b) => {
-      // Human paths always come first
-      if (a.source === 'human' && b.source !== 'human') return -1;
-      if (b.source === 'human' && a.source !== 'human') return 1;
-      const aScore = pathScore(a);
-      const bScore = pathScore(b);
-      return bScore - aScore;
-    });
+    // Sort paths: human first, then by recency-weighted hit rate, then — only when
+    // those tie — by how authoritative the source is about this page's entity.
+    const ranked = [...pathSet.paths].sort(comparePaths);
 
     // Try each path — collect all values that resolve
     const candidates: Array<{ value: unknown; path: FieldPath }> = [];
@@ -401,6 +483,16 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
     // Flag degradation but NEVER auto-reset — human review required
     if (newConsecutiveFailures >= 5) {
       console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} has ${newConsecutiveFailures} consecutive failures — flagged for human review`);
+    }
+
+    // Same rule for disagreement: report, never resolve it automatically. Two
+    // paths returning different values is how a poisoned path announces itself,
+    // and until now the cache detected it (conflictCount) and told nobody.
+    for (const conflict of detectPathConflicts(mergedPaths)) {
+      const shown = conflict.candidates
+        .map((c) => `${c.source}=${String(JSON.stringify(c.value)).slice(0, 40)}`)
+        .join(' vs ');
+      console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} field "${conflict.field}" has disagreeing paths — serving ${conflict.candidates[0]!.source}: ${shown}`);
     }
 
     await db

@@ -15,3 +15,4 @@ export { corroborateValue, visibleTextFromHtml, type CorroborationResult } from 
 export { runExtraction, isAiPlaceholder, type ExtractionRequest, type ExtractionOutcome, type ExtractionDeps, type ExtractionAgent, type ExtractionFieldInput } from './extraction-orchestrator.js';
 export { buildResultRows, type ResultRow, type SchemaFieldLite } from './build-result-rows.js';
 export { collectAiAnalysisSources, type AnalysisSource } from './collect-ai-analysis-sources.js';
+export { detectPathConflicts, sourceAuthority, type PathConflict } from './domain-cache.js';

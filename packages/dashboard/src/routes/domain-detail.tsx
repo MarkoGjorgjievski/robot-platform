@@ -44,7 +44,7 @@ export default function DomainDetail() {
             <Stat label="Success rate" value={`${pt.successRate}%`} />
             <Stat label="Last verified" value={new Date(pt.lastVerifiedAt).toLocaleDateString()} />
           </dl>
-          <SelectorsTable selectors={pt.selectors} />
+          <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} />
         </div>
       ))}
 
@@ -84,45 +84,100 @@ type Selector = {
   hitRate: number; lastValue: unknown; lastUsedAt: string | null;
 };
 
-function SelectorsTable({ selectors }: { selectors: Selector[] }) {
+/** A field whose cached paths currently return different values. */
+type Conflict = {
+  field: string;
+  /** Ranked best-first — index 0 is what the cache serves today. */
+  candidates: Array<{ source: string; path: string; value: unknown }>;
+};
+
+function SelectorsTable({ selectors, conflicts }: { selectors: Selector[]; conflicts: Conflict[] }) {
   const [asc, setAsc] = useState(true);
   if (selectors.length === 0) {
     return <p className="mt-3 text-xs text-gray-400">No cached field paths.</p>;
   }
   const sorted = [...selectors].sort((a, b) => (asc ? a.hitRate - b.hitRate : b.hitRate - a.hitRate));
+  const conflictByField = new Map(conflicts.map((c) => [c.field, c]));
   return (
-    <div className="mt-4 overflow-hidden rounded border">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-gray-50 uppercase text-gray-500">
-          <tr>
-            <th className="px-3 py-2 font-medium">Field</th>
-            <th className="px-3 py-2 font-medium">Source</th>
-            <th className="cursor-pointer px-3 py-2 font-medium" onClick={() => setAsc((v) => !v)}>
-              Hit-rate {asc ? '▲' : '▼'}
-            </th>
-            <th className="px-3 py-2 font-medium">Hits/miss</th>
-            <th className="px-3 py-2 font-medium">Last value</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {sorted.map((s, i) => {
-            const resolved = s.source !== null;
-            const weak = resolved && s.hitRate < 50;
-            return (
-              <tr key={`${s.field}-${i}`} className={weak ? 'bg-orange-50' : resolved ? '' : 'text-gray-400'}>
-                <td className="px-3 py-1.5 font-mono">{s.field}</td>
-                <td className="px-3 py-1.5 text-gray-600">{s.source ?? '—'}</td>
-                <td className="px-3 py-1.5">{resolved ? `${s.hitRate}%` : '—'}</td>
-                <td className="px-3 py-1.5 text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
-                <td className="max-w-xs truncate px-3 py-1.5 text-gray-600">
-                  {s.lastValue == null ? '—' : String(s.lastValue).slice(0, 80)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <>
+      {conflicts.length > 0 && (
+        <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-xs">
+          <p className="font-semibold text-red-800">
+            {conflicts.length} field{conflicts.length === 1 ? '' : 's'} with disagreeing paths
+          </p>
+          <p className="mt-1 text-red-700">
+            Two or more cached paths return different values. This is how a bad path shows
+            itself — but a genuine change on the site looks the same, so nothing is discarded
+            automatically. Review and pin the correct one.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {conflicts.map((c) => (
+              <li key={c.field} className="font-mono text-[11px] text-red-900">
+                {c.field}:{' '}
+                {c.candidates.map((cand, i) => (
+                  <span key={`${cand.source}-${i}`}>
+                    {i > 0 && <span className="text-red-500"> vs </span>}
+                    <span className={i === 0 ? 'font-semibold' : ''}>
+                      {cand.source}={String(cand.value).slice(0, 50)}
+                      {i === 0 && <span className="text-red-600"> (served)</span>}
+                    </span>
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="mt-4 overflow-hidden rounded border">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-gray-50 uppercase text-gray-500">
+            <tr>
+              <th className="px-3 py-2 font-medium">Field</th>
+              <th className="px-3 py-2 font-medium">Source</th>
+              <th className="cursor-pointer px-3 py-2 font-medium" onClick={() => setAsc((v) => !v)}>
+                Hit-rate {asc ? '▲' : '▼'}
+              </th>
+              <th className="px-3 py-2 font-medium">Hits/miss</th>
+              <th className="px-3 py-2 font-medium">Conflict</th>
+              <th className="px-3 py-2 font-medium">Last value</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {sorted.map((s, i) => {
+              const resolved = s.source !== null;
+              const weak = resolved && s.hitRate < 50;
+              const conflict = conflictByField.get(s.field);
+              // A disagreement outranks a weak hit rate: a path can be reliable and
+              // reliably wrong, which is exactly the case worth looking at.
+              const rowClass = conflict ? 'bg-red-50' : weak ? 'bg-orange-50' : resolved ? '' : 'text-gray-400';
+              return (
+                <tr key={`${s.field}-${i}`} className={rowClass}>
+                  <td className="px-3 py-1.5 font-mono">{s.field}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{s.source ?? '—'}</td>
+                  <td className="px-3 py-1.5">{resolved ? `${s.hitRate}%` : '—'}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
+                  <td className="px-3 py-1.5">
+                    {conflict ? (
+                      <span
+                        className="text-red-700"
+                        title={conflict.candidates.map((c) => `${c.source}: ${String(c.value)}`).join('\n')}
+                      >
+                        ⚠ {conflict.candidates.length} values
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="max-w-xs truncate px-3 py-1.5 text-gray-600">
+                    {s.lastValue == null ? '—' : String(s.lastValue).slice(0, 80)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
