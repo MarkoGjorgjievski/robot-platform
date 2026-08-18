@@ -1,3 +1,5 @@
+import { OLLAMA_MODEL } from '../models.js';
+
 type OllamaMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -14,7 +16,7 @@ export class OllamaProvider {
 
   constructor(baseUrl?: string, model?: string) {
     this.baseUrl = baseUrl ?? 'http://localhost:11434';
-    this.model = model ?? 'llama3.2-vision';
+    this.model = model ?? OLLAMA_MODEL;
   }
 
   async callWithJson(options: {

@@ -87,7 +87,7 @@ packages/
 - Navigation fallback: networkidle → domcontentloaded + wait
 
 ### @robot/agent
-- Provider abstraction: Anthropic (Claude Sonnet) or Ollama (local)
+- Provider abstraction: Anthropic (`claude-sonnet-5`) or Ollama (local); model IDs in `src/models.ts`
 - Schema discovery: screenshot + markdown → proposed fields with examples
 - Selector generation: HTML → XPath expressions
 - API analysis: raw JSON → field values + dot-notation paths
@@ -128,8 +128,8 @@ packages/
 | Runtime | Node.js + TypeScript (ESM) | Type safety, ecosystem |
 | Monorepo | pnpm workspaces + Turborepo | Fast, reliable |
 | Browser | Playwright (Chromium) | Best automation library, screenshot support |
-| LLM | Anthropic Claude Sonnet | Best structured output, vision, instruction following |
-| LLM (local) | Ollama (llama3.2-vision) | Free development/testing |
+| LLM | Anthropic `claude-sonnet-5` | Best structured output, vision, instruction following |
+| LLM (local) | Ollama (`llama3.2-vision`) | Free development/testing |
 | Database | PostgreSQL + Drizzle ORM | Type-safe queries, migrations |
 | API | tRPC v11 | End-to-end type safety |
 | UI Framework | Vite + TanStack Router/Query (SPA) | Client-side routing/data, decoupled from a Node UI server (see @robot/api-server) |
@@ -200,6 +200,14 @@ Domain Intelligence (cached per domain, shared across all sources)
 - [ ] Pre-training: run against top 500 sites to pre-populate cache
 
 ## Cost Model
+
+> **Unverified against the current model (2026-08-18).** These figures were measured on
+> `claude-sonnet-4-20250514`, which has since been retired; the pipeline now runs on
+> `claude-sonnet-5`. Per-token list pricing is the same ($3/$15 per MTok, currently $2/$10
+> intro), so the numbers should hold or improve slightly — but nothing has re-measured them,
+> because the pipeline does not record `usage` from API responses. Logging per-run token
+> counts and refreshing this table is a small, worthwhile task; until then treat these as
+> the right order of magnitude, not as current measurements.
 
 | Scenario | AI Cost | Speed |
 |----------|---------|-------|
