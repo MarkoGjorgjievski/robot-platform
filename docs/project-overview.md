@@ -72,9 +72,10 @@ packages/
   browser/     — Playwright page capture, popup dismissal, network interception
   agent/       — LLM orchestration (Claude + Ollama), schema/selector/validation
   scraper/     — Pipeline, XPath executor, structured data extraction, cache
-  dashboard/  — Next.js 15 UI, API routes, wizard flow
+  dashboard/  — Vite + TanStack Router/Query SPA, wizard flow
   db/          — PostgreSQL schema (Drizzle ORM)
   api/         — tRPC v11 routers
+  api-server/  — Hono HTTP host that mounts the tRPC routers + serves captures
 ```
 
 ### @robot/browser
@@ -101,12 +102,16 @@ packages/
 - CLI test runner for quick iteration
 
 ### @robot/dashboard
-- Next.js 15 with App Router
+- Vite + TanStack Router/Query SPA (client-side; talks to @robot/api-server over tRPC-HTTP)
 - Tailwind v4 + Radix UI + shadcn component pattern
 - Light mode, clean design
-- 4-step wizard: URL → Schema → Preview → Save
-- Customer → Project → Source hierarchy
-- Server Components + Server Actions
+- Sandbox-and-graduate flow: paste a URL → Schema → Preview, then graduate into a Project
+- Org → Project → Dataset → Source hierarchy
+- NOTE: replaced the original Next.js dashboard in v1.5 (2026-05-15). References to "Next.js 15 / App Router / Server Components" elsewhere are stale.
+
+### @robot/api-server
+- Hono HTTP server; mounts the @robot/api tRPC routers under /trpc, serves capture screenshots
+- Standalone from day one — the seam a public /extract API would hang off in v3
 
 ### @robot/db
 - Drizzle ORM with PostgreSQL
@@ -127,7 +132,7 @@ packages/
 | LLM (local) | Ollama (llama3.2-vision) | Free development/testing |
 | Database | PostgreSQL + Drizzle ORM | Type-safe queries, migrations |
 | API | tRPC v11 | End-to-end type safety |
-| UI Framework | Next.js 15 | Server Components, App Router |
+| UI Framework | Vite + TanStack Router/Query (SPA) | Client-side routing/data, decoupled from a Node UI server (see @robot/api-server) |
 | UI Components | Radix UI + Tailwind v4 | Accessible, composable, light mode |
 | Selectors | XPath (not CSS) | Sibling traversal, ancestor access, text matching |
 

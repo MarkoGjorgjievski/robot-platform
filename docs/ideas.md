@@ -225,6 +225,36 @@ Why milestones were rejected: absolute total-use milestones (1/5/…/10k) can't 
 
 ---
 
-## (Other categories — add as ideas land)
+## Pipeline reliability
 
-Pipeline reliability, UX innovations, performance, data quality, business-model experiments. Add sections here as ideas accumulate.
+### 🔬 `@robot/browser` hardening (capture robustness + testability)
+
+Surfaced in a 2026-06-30 code audit of `packages/browser/src`. The extraction *chain* is sound; the capture *layer* underneath it is the least-defended part of the codebase and is the most likely source of flaky production scrapes. Recording the specifics so a future implementor doesn't re-derive them.
+
+**Current state.**
+- **Monolithic class.** `PlaywrightBrowser` in `packages/browser/src/playwright-browser.ts` is one ~750-line class holding navigation, popup dismissal, content expansion, network interception, HTML cleaning, extraction, and pagination. `dismissPopups` (~68 lines), `expandHiddenContent` (~117 lines), and the request-ranking block are all inlined as private methods.
+- **No tests on the core class.** Only the *peripheral pure* functions are tested (`screenshot-tiles.test.ts`, `pagination-detector.test.ts`, `intercept-noise.test.ts`, `set-content-evaluate.test.ts`). The risky behavior — popup dismissal, content expansion, request ranking, fallback navigation — has zero unit coverage because it's welded to a live `chromium` instance. `setContentEvaluate` exists as a seam but is only exercised for basic XPath, not for replaying a fixture page through dismissal/ranking.
+- **Sleep-based waits, not state-based.** ~8 hardcoded `waitForTimeout` calls (popups 1500ms, between dismiss clicks 800ms, post-expand 500ms, `domcontentloaded` fallback grace 3000ms, between pagination pages 1000ms). These are guesses against unobservable state; slow sites fail silently, fast sites waste wall-clock. Tab-expansion also uses in-page `setTimeout(... i*300)` (`expandHiddenContent`), which bypasses Playwright's actionability checks.
+- **Substring-based request ranking.** `rankRequests` scores intercepted bodies with `body.includes('"price"')` etc. (`playwright-browser.ts:568-587`). A response whose URL or unrelated text contains `"price"` scores as product data; a real product API with unusual key names scores low. The scoring weights (`+5`, `+4`, `-10`, size bands 1–50KB = product) are e-commerce-tuned and will misrank job/news/SaaS sources. **This is the one genuine silent-failure risk in the package** — a mis-ranked top source means the wrong JSON goes to AI analysis. (The `catch{}` blocks in `scraper/src/executor.ts` look alarming but are *correct*: they run inside `page.evaluate`, where a bad XPath should yield "no match," not a throw. Left as-is deliberately.)
+
+**What "doing it right" looks like.**
+- Extract `dismissPopups`, `expandHiddenContent`, and `rankRequests` into standalone functions; `rankRequests` becomes a pure `(requests, pageUrl) => ranked` and gets unit tests directly.
+- Replace `body.includes(...)` ranking with parse-once-then-inspect-keys (the bodies are already JSON-filtered), so `/api/messages/pricing` stops matching `"price"`.
+- Make the popup/expand/skip selector lists and the scoring weights constructor config, so a domain can override them — and so news/jobs/SaaS can be tuned without forking. Honors the "don't skip messy sources" principle: tune, don't exclude.
+- Replace fixed sleeps with state waits where one exists (`waitForLoadState`, `waitForSelector` on the dismissed overlay's disappearance); keep a *capped* fallback sleep only where no observable signal exists, and `log` when the fallback fires.
+- Add fixture-replay tests through `setContentEvaluate`: feed a captured HTML + intercepted-request set, assert dismissal count and the ranked top source. This reuses the Tier-1 corpus machinery already built for `@robot/scraper`.
+
+**Action items if we revisit.**
+- Land `rankRequests` extraction + parse-based scoring + its unit test first (highest correctness payoff, smallest blast radius).
+- Then the function extractions + fixture-replay tests for dismissal/expansion.
+- Treat the magic-number sweep (named constants at module top) as a follow-on, not a blocker.
+
+## Tech debt / code structure
+
+### 💡 Extract the `scraper.extract` orchestration out of the router
+
+`extractRouter`'s `extract` procedure in `packages/api/src/routers/scraper.ts` is a ~470-line mega-procedure: it owns capture, cached-field resolution, the mechanical → cached-path → cached-XPath → cross-validate → AI-API → AI-XPath → tile-escalation chain, *and* the HTTP/tRPC boundary all in one function. It's the densest business logic in the repo sitting in the thinnest-should-be layer. It works and is covered by the api test suite, but it's the hardest thing in the codebase to modify safely. Direction: lift the chain into an `extraction-orchestrator.ts` service in `packages/scraper` (where its siblings already live — `build-result-rows`, `collect-ai-analysis-sources`), leaving the router as a thin Zod-validated adapter. Same move would let the v2 listing→detail crawler reuse the chain instead of duplicating it. Not urgent; do it the next time `extract` needs a non-trivial change rather than as a standalone refactor.
+
+### 💡 Collapse the per-method provider branching in `@robot/agent`
+
+`SchemaAgent` (`packages/agent/src/schema-agent.ts`) repeats the same `if (this.anthropic) { callWithTool(...) } else { ollama.callWithJson(...); normalize(...) }` shape in ~6 methods, and maintains parallel Anthropic/Ollama prompt builders (`selectorGenerationUserContent` vs `ollamaSelectorPrompt`) that can drift. A single `Provider` interface with `callStructured(system, userContent, schema)` — Anthropic implements it with `tool_use`, Ollama with JSON-prompt-plus-extract-plus-normalize — would remove the branching and the duplicate prompt paths. Also folds in: the `as DiscoveredSchema`/`as string[]` casts on LLM output should become a real validation (Zod parse) at the provider boundary so malformed responses fail loudly instead of at a downstream runtime error, and the scattered magic numbers (HTML truncation 50k/30k, backoff 1000/10000, judge `max_tokens` 16, hardcoded `claude-sonnet-4-20250514` in the judges) should move into one config. Low risk, ~2-3 days, prompts unchanged.
