@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { JUDGE_MODEL } from './models.js';
+import { recordUsage } from './usage.js';
 
 export type JudgeVerdict = 'correct' | 'wrong' | 'not-on-page' | 'unverifiable' | 'error';
 
@@ -95,6 +96,7 @@ export async function judgeFieldExtraction(opts: {
         ],
       }],
     });
+    recordUsage(opts.model ?? JUDGE_MODEL, res.usage);
     const text = res.content.find((b) => b.type === 'text');
     if (!text || text.type !== 'text') {
       console.error(

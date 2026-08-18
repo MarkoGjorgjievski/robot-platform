@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 import { EXTRACTION_MODEL } from '../models.js';
+import { recordUsage } from '../usage.js';
 
 export class AnthropicProvider {
   private client: Anthropic;
@@ -49,6 +50,7 @@ export class AnthropicProvider {
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
         const response = await this.client.messages.create(params);
+        recordUsage(this.model, response.usage);
 
         const toolBlock = response.content.find(b => b.type === 'tool_use');
         if (!toolBlock || toolBlock.type !== 'tool_use') {

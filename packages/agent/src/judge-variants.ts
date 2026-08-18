@@ -3,6 +3,7 @@ import { JUDGE_VARIANTS_PROMPT } from './prompts.js';
 import { parseVerdict, JUDGE_REQUEST_TUNING, JudgeUnavailableError, isJudgeUnavailable, type JudgeVerdict } from './judge.js';
 import type { Variant } from './types.js';
 import { JUDGE_MODEL } from './models.js';
+import { recordUsage } from './usage.js';
 
 export async function judgeVariantArray(opts: {
   screenshot: Buffer;
@@ -24,6 +25,7 @@ export async function judgeVariantArray(opts: {
         ],
       }],
     });
+    recordUsage(opts.model ?? JUDGE_MODEL, res.usage);
     const text = res.content.find((b) => b.type === 'text');
     if (!text || text.type !== 'text') {
       console.error(`[judge-variants] no text block (stop_reason=${res.stop_reason}, blocks=${res.content.map((b) => b.type).join(',') || 'none'})`);
