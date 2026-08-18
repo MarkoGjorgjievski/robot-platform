@@ -34,6 +34,9 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 - `pnpm dev:all` — start api-server (:4000) **and** dashboard (:3456); the dashboard is useless without the api-server
 - `pnpm --filter @robot/dashboard dev` — dashboard only, on :3456
 - `pnpm -r test` — the green gate (Tier 1 fixture replay + unit tests). Needs Postgres running
+- `pnpm test:judge` — calibrate the Tier 2 judge against known answers (live, paid)
+- `pnpm test:liveness` — do the corpus fixtures still match the pages their URLs serve? (live, free)
+- `pnpm test:ui` — dashboard route smoke tests; needs `pnpm dev:all` running (live, free)
 - `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser

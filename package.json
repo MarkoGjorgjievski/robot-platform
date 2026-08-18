@@ -6,6 +6,7 @@
     "test": "turbo test",
     "test:judge": "cross-env RUN_JUDGE_CALIBRATION=1 pnpm --filter @robot/agent exec vitest run src/judge-calibration.test.ts",
     "test:liveness": "cross-env RUN_LIVENESS=1 pnpm --filter @robot/scraper exec vitest run src/__fixtures__/liveness.test.ts",
+    "test:ui": "cross-env RUN_UI_SMOKE=1 pnpm --filter @robot/dashboard exec vitest run src/routes-smoke.test.ts",
     "lint": "turbo lint",
     "dev": "pnpm --filter @robot/dashboard dev",
     "dev:all": "turbo dev",
