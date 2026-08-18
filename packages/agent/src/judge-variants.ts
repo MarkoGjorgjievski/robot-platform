@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { JUDGE_VARIANTS_PROMPT } from './prompts.js';
-import { parseVerdict, JUDGE_REQUEST_TUNING, type JudgeVerdict } from './judge.js';
+import { parseVerdict, JUDGE_REQUEST_TUNING, JudgeUnavailableError, isJudgeUnavailable, type JudgeVerdict } from './judge.js';
 import type { Variant } from './types.js';
 import { JUDGE_MODEL } from './models.js';
 
@@ -31,6 +31,11 @@ export async function judgeVariantArray(opts: {
     }
     return parseVerdict(text.text);
   } catch (err) {
+    // A run-ending failure (no credit, bad key) must not be folded into the
+    // verdict counts — it will recur on every field and is not a measurement.
+    if (isJudgeUnavailable(err)) {
+      throw new JudgeUnavailableError(err instanceof Error ? err.message : String(err));
+    }
     console.error('[judge-variants] error:', err);
     return 'error';
   }

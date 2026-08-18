@@ -2,6 +2,13 @@
  * Detect blocked, error, or empty pages before processing.
  * Returns null if page is healthy, or an error description if blocked.
  */
+/**
+ * Visible-text length above which a page is treated as having real content, and
+ * therefore not a bot-detection interstitial. Sits an order of magnitude clear of
+ * both sides of the measured gap (blocked: 8–168 chars, real: 8,111–45,807).
+ */
+const SUBSTANTIAL_CONTENT_CHARS = 1000;
+
 export type PageHealthResult = {
   healthy: boolean;
   reason?: string;
@@ -45,16 +52,37 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
     { match: 'blocked', includes: ['your request has been blocked', 'this request was blocked', 'automated access'] },
   ];
 
+  // A challenge interstitial is content-free; a real page that merely *references*
+  // a bot-detection vendor is not. Measured 2026-08-18: Wayfair's block page
+  // carried 168 chars of visible text and Etsy's 8, while the corpus product pages
+  // carried 8,111 (Target) to 45,807 (Newegg) — and Newegg and Target BOTH contain
+  // "captcha" in their markup. They were judged healthy only because the string
+  // happens to fall after byte 5000, which is luck, not detection. Requiring the
+  // absence of real content turns that accident into a rule.
+  const visibleText = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const hasSubstantialContent = visibleText.length >= SUBSTANTIAL_CONTENT_CHARS;
+
   for (const pattern of botPatterns) {
     if ('includes' in pattern && pattern.includes) {
       // Must match the main keyword AND one of the secondary phrases
-      if (lowerHtml.includes(pattern.match)) {
+      if (lowerHtml.includes(pattern.match) && !hasSubstantialContent) {
         const hasSecondary = pattern.includes.some(s => lowerHtml.includes(s));
         if (hasSecondary) {
           return { healthy: false, reason: `Bot detection (${pattern.match}) — site blocked automated access` };
         }
       }
-    } else if (lowerTitle.includes(pattern.match) || lowerHtml.slice(0, 5000).includes(pattern.match)) {
+    } else if (
+      // A matching TITLE is precise on its own — a page titled "Captcha" is a
+      // challenge page whatever its markup weight. A match in the BODY is not,
+      // so it only counts when the page has no real content to show.
+      lowerTitle.includes(pattern.match)
+      || (!hasSubstantialContent && lowerHtml.slice(0, 5000).includes(pattern.match))
+    ) {
       if (pattern.reason) {
         return { healthy: false, reason: pattern.reason };
       }

@@ -46,6 +46,34 @@ function parseVerdict(raw: string): JudgeVerdict {
 
 export { parseVerdict };
 
+/**
+ * The judge cannot run at all — exhausted credit, bad key, revoked access.
+ *
+ * Distinct from a verdict of 'error', which means "this one field could not be
+ * judged". A run that hits this will fail identically on every remaining field,
+ * so callers should abort rather than issue hundreds of doomed requests and
+ * publish a report full of 'error' that reads like a measurement.
+ *
+ * Thrown rather than returned precisely so it cannot be quietly folded into the
+ * verdict counts, which is how a credit exhaustion on 2026-08-18 produced a
+ * report whose later sites were entirely unjudged with only an aggregate line to
+ * say so.
+ */
+export class JudgeUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'JudgeUnavailableError';
+  }
+}
+
+/** True for API failures that will recur on every subsequent call. */
+export function isJudgeUnavailable(err: unknown): boolean {
+  const status = (err as { status?: number } | null)?.status;
+  if (status === 401 || status === 403) return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return /credit balance|billing|quota|insufficient_quota|authentication/i.test(message);
+}
+
 export async function judgeFieldExtraction(opts: {
   screenshot: Buffer;
   field: string;
