@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { JUDGE_VARIANTS_PROMPT } from './prompts.js';
-import { parseVerdict, type JudgeVerdict } from './judge.js';
+import { parseVerdict, JUDGE_REQUEST_TUNING, type JudgeVerdict } from './judge.js';
 import type { Variant } from './types.js';
 import { JUDGE_MODEL } from './models.js';
 
@@ -14,7 +14,7 @@ export async function judgeVariantArray(opts: {
   try {
     const res = await client.messages.create({
       model: opts.model ?? JUDGE_MODEL,
-      max_tokens: 16,
+      ...JUDGE_REQUEST_TUNING,
       system: JUDGE_VARIANTS_PROMPT,
       messages: [{
         role: 'user',
@@ -25,7 +25,10 @@ export async function judgeVariantArray(opts: {
       }],
     });
     const text = res.content.find((b) => b.type === 'text');
-    if (!text || text.type !== 'text') return 'error';
+    if (!text || text.type !== 'text') {
+      console.error(`[judge-variants] no text block (stop_reason=${res.stop_reason}, blocks=${res.content.map((b) => b.type).join(',') || 'none'})`);
+      return 'error';
+    }
     return parseVerdict(text.text);
   } catch (err) {
     console.error('[judge-variants] error:', err);
