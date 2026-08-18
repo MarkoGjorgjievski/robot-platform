@@ -31,11 +31,28 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Commands
 
-- `pnpm --filter @robot/dashboard dev` — start dashboard on :3456
+- `pnpm dev:all` — start api-server (:4000) **and** dashboard (:3456); the dashboard is useless without the api-server
+- `pnpm --filter @robot/dashboard dev` — dashboard only, on :3456
+- `pnpm -r test` — the green gate (Tier 1 fixture replay + unit tests). Needs Postgres running
+- `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser
 
+## First-time setup
+
+1. `pnpm install`
+2. `pnpm --filter @robot/browser exec playwright install chromium`
+3. Start Postgres 16 (see `.env.example` for the Docker one-liner)
+4. `cp .env.example .env` and fill in `ANTHROPIC_API_KEY`
+5. `pnpm db:migrate && pnpm db:seed`
+
+Node ≥20.12 is required (`process.loadEnvFile`). pnpm version is pinned via `packageManager`.
+
 ## Environment
+
+Config lives in a repo-root `.env` (gitignored; template in `.env.example`). `@robot/db` loads it on
+import, so tests, CLIs and the api-server all pick it up without exporting anything in the shell.
+Variables already set in the shell take precedence over `.env`.
 
 - `ANTHROPIC_API_KEY` — Claude API key (falls back to Ollama if not set)
 - `DATABASE_URL` — PostgreSQL connection string

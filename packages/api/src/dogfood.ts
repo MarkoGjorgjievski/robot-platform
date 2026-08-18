@@ -1,16 +1,19 @@
 // Usage: pnpm --filter @robot/api dogfood
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadEnvFile } from 'node:process';
+
+// Repo root resolved from this module — portable across machines and OSes.
+const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
 try {
-  const env = readFileSync('/Users/marko/Documents/robot-platform/.env', 'utf-8');
-  for (const line of env.split('\n')) {
-    const t = line.trim(); if (!t || t.startsWith('#')) continue;
-    const i = t.indexOf('='); if (i === -1) continue;
-    const k = t.slice(0, i); if (!process.env[k]) process.env[k] = t.slice(i + 1);
-  }
-} catch {}
-process.env.CAPTURES_DIR ??= '/tmp/dogfood-captures';
+  loadEnvFile(join(repoRoot, '.env'));
+} catch {
+  // .env not present — fall back to whatever is already in process.env
+}
+process.env.CAPTURES_DIR ??= join(tmpdir(), 'dogfood-captures');
 
 const { db } = await import('@robot/db');
 const { scraperRouter } = await import('./routers/scraper.js');
