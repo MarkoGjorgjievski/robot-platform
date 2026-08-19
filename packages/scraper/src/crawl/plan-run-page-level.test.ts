@@ -17,12 +17,17 @@ const FAKE_CAPTURE = {
 
 class FakeBrowser implements IBrowser {
   captures = 0;
+  /** Pages 2+, returned by crawl() — empty by default so existing single-page tests are unaffected. */
+  constructor(private readonly pages: CrawlPage[] = []) {}
   async launch(): Promise<void> {}
   async capture(): Promise<PageCapture> { this.captures++; return FAKE_CAPTURE; }
   async evaluate<T>(): Promise<T> { throw new Error('not used'); }
   async setContentEvaluate<T>(): Promise<T> { throw new Error('not used'); }
   async close(): Promise<void> {}
-  async *crawl(_url: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
+  async *crawl(_url: string, options: CrawlOptions): AsyncGenerator<CrawlPage> {
+    const from = options.startPage ?? 1;
+    for (const page of this.pages) if (page.pageNumber >= from) yield page;
+  }
 }
 
 const REQUEST = {
@@ -106,15 +111,36 @@ describe('page-level listing fields', () => {
   });
 
   it('lets a per-row value win over the page-level one for the same field', async () => {
-    const outcome = await planRun(REQUEST, {
-      browser: new FakeBrowser(),
+    // Page 1's rows never carry `category` (so it lands in pageLevelValues via
+    // the document-mode pass), but a row discovered on PAGE 2 — reached through
+    // crawl(), replaying page 1's plan — DOES carry its own `category`. Because
+    // `unresolved` is computed from page 1's aggregate only, this is the one
+    // shape where a real same-page-load conflict between pageLevelValues and a
+    // row's own listingValues is possible: page 1's items must fall back to the
+    // page-level value, while page 2's item must keep its own.
+    const PAGINATED_REQUEST = {
+      ...REQUEST,
+      source: { ...REQUEST.source, budget: { max_pages: 2 } },
+    };
+    const browser = new FakeBrowser([
+      {
+        url: 'https://example.com/c/shelves?page=2',
+        pageNumber: 2,
+        data: [{ detail_url: '/p/2', category: 'Bookcases' }],
+        totalRows: 1,
+      },
+    ]);
+    const outcome = await planRun(PAGINATED_REQUEST, {
+      browser,
       agent: null,
       extract: async (request) =>
         request.pageType === 'listing'
-          ? { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1', category: 'Bookcases', listing_price: '79' }] }
+          ? { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1', listing_price: '79' }] }
           : { ...OUTCOME_SHAPE, data: [{ category: 'Shelves' }] },
     });
-    expect(outcome.items.find((i) => i.kind === 'detail')?.listingValues.category).toBe('Bookcases');
+    const details = outcome.items.filter((i) => i.kind === 'detail');
+    expect(details[0]?.listingValues.category).toBe('Shelves'); // page 1: falls back to page-level
+    expect(details[1]?.listingValues.category).toBe('Bookcases'); // page 2: keeps its own row value
   });
 
   it('skips the second pass entirely when every listing field resolved per row', async () => {
@@ -130,16 +156,27 @@ describe('page-level listing fields', () => {
     expect(calls).toBe(1);
   });
 
-  it('captures the listing page only once across both passes', async () => {
+  it('captures the listing page only once across both passes, and forwards that same capture to both extract() calls', async () => {
     const browser = new FakeBrowser();
+    const seenCaptures: Array<PageCapture | undefined> = [];
     await planRun(REQUEST, {
       browser,
       agent: null,
-      extract: async (request) =>
-        request.pageType === 'listing'
+      extract: async (request, deps) => {
+        seenCaptures.push(deps.capture);
+        return request.pageType === 'listing'
           ? { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1' }] }
-          : { ...OUTCOME_SHAPE, data: [{ category: 'Shelves' }] },
+          : { ...OUTCOME_SHAPE, data: [{ category: 'Shelves' }] };
+      },
     });
     expect(browser.captures).toBe(1);
+    // Both the row pass and the document-mode pass must receive deps.capture —
+    // a regression that drops it from the second call would still only fetch
+    // the page once here (extract is mocked), but in production it would
+    // trigger a real second page load inside runExtraction, defeating the
+    // whole point of the task.
+    expect(seenCaptures).toHaveLength(2);
+    expect(seenCaptures[0]).toBeDefined();
+    expect(seenCaptures[1]).toBe(seenCaptures[0]);
   });
 });
