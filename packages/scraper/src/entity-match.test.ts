@@ -156,3 +156,26 @@ describe('filterRequestsForPage', () => {
     expect(() => filterRequestsForPage([{ url: 'https://x.com/a', parsedJson: cyclic }], BN_PAGE)).not.toThrow();
   });
 });
+
+describe('filterRequestsForPage — why it is NOT wired into the chain', () => {
+  // Wired up, this dropped 8 of 10 Nike responses including the genuine product
+  // APIs. Kept as an executable record of the failure mode so the approach is not
+  // rebuilt from the same reasoning.
+  const NIKE_PAGE = 'https://www.nike.com/t/air-jordan-12-retro-mens-shoes-pz28oX9z/CT8013-003';
+
+  it('over-rejects when the API and the URL use different identifier namespaces', () => {
+    // Nike's URL carries style codes; its APIs carry timestamps, site ids and
+    // GTINs. Nothing overlaps, and nothing should be expected to.
+    const realNikeProductApi = {
+      url: 'https://api.nike.com/discover/product_details_availability/v1/marketplace/US',
+      parsedJson: { products: [{ gtin: '00198729090348', styleColor: '153265-003', updatedAt: 1774411200000 }] },
+    };
+    const kept = filterRequestsForPage([realNikeProductApi], NIKE_PAGE);
+    expect(kept, 'a genuine product API is dropped — this is the bug, not the intent').toHaveLength(0);
+  });
+
+  it('only worked on B&N by coincidence — its URL happens to carry the same EAN', () => {
+    const bnPageCarriesTheEan = extractIdentifiers(BN_PAGE).has('9780594205821');
+    expect(bnPageCarriesTheEan).toBe(true);
+  });
+});

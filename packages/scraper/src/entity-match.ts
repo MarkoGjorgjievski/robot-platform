@@ -118,14 +118,29 @@ export function describesSamePage(entity: unknown, pageUrl: string): EntityMatch
 }
 
 /**
- * Drop intercepted API responses that are about a different entity.
+ * ⚠ NOT WIRED INTO THE CHAIN — kept as a documented failed approach.
  *
- * The JSON-LD filter alone was not enough. On Barnes & Noble the accessory data
- * arrives through TWO channels, and fixing the more dramatic one (the capture
- * navigating away) left the other untouched: `sku`, `description` and `variants`
- * kept coming back as the $9.99 cover's, sourced from `api` / `api-ai`. Exactly
- * one intercepted response — a Shopify GraphQL blob — carried the cover's
+ * The intent was sound: on Barnes & Noble the accessory data arrives through TWO
+ * channels, and fixing the capture navigation left the other untouched — `sku`,
+ * `description` and `variants` kept coming back as the $9.99 cover's, sourced
+ * from `api` / `api-ai`, from a Shopify GraphQL response carrying the cover's
  * identifiers and none of the page's.
+ *
+ * **Why it cannot be used as written.** Comparing identifiers across API
+ * namespaces produces false mismatches. Wired up, it dropped 8 of 10 Nike
+ * responses — including the genuine product APIs — because Nike's URL carries
+ * style codes (`pz28oX9z`, `CT8013`) while its APIs carry timestamps
+ * (`1774411200000`), site ids (`850000`) and GTINs (`00198729253750`). None of
+ * those overlap, and none of them should be expected to. B&N only worked because
+ * its URL happens to carry the same EAN its API does; that is a coincidence of
+ * one site, not a rule.
+ *
+ * **What a safe version needs.** Evidence that is comparable by construction — a
+ * self-referential URL on the same host under a canonical/self key (`url`,
+ * `canonicalUrl`, `pdpUrl`), the way schema.org's `offers.url` is. A bare numeric
+ * token proves nothing about which entity a response describes. Until then the
+ * JSON-LD filter stands alone, because schema.org's `sku`/`url` fields ARE
+ * directly comparable to a product URL.
  *
  * Same one-sided rule as `describesSamePage`: a response is dropped only when it
  * carries identifiers AND the page carries identifiers AND they have none in
