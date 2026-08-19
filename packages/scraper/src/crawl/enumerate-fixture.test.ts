@@ -35,10 +35,30 @@ describe('detail URL enumeration against a frozen listing capture', () => {
     const result = enumerateDetailUrls({
       rows, pageUrl: fixture.url, pageNumber: 1, seen: new Set(), remaining: 10,
     });
-    expect(result.items.length).toBeLessThanOrEqual(10);
+    // Lower bound, not just an upper one: the fixture has 41 raw hrefs feeding
+    // 29 distinct absolute URLs (see the unbudgeted case below), so a remaining
+    // budget of 10 must fill exactly, not return fewer or nothing. `<= 10` alone
+    // passes on an empty array — that is the gap this asserts shut.
+    expect(result.items.length).toBe(10);
+    expect(result.stop).toBe('budget');
     for (const item of result.items) {
       expect(item.url).toMatch(/^https:\/\//);
     }
     expect(new Set(result.items.map((i) => i.url)).size).toBe(result.items.length);
+  });
+
+  it('with a generous budget, returns every distinct product URL and stops for the right reason', () => {
+    const rows = hrefsFromFixtureHtml(fixture.html);
+    const result = enumerateDetailUrls({
+      rows, pageUrl: fixture.url, pageNumber: 1, seen: new Set(), remaining: 1000,
+    });
+    // 41 raw hrefs (title, image, "more buy options", feedback-tab anchors per
+    // product) resolve to 29 distinct absolute URLs once query strings and
+    // fragments are taken into account — verified directly against this fixture
+    // with `enumerateDetailUrls` itself before writing this assertion. A
+    // regression in dedupe (e.g. dropping the fragment/query before comparing)
+    // or in absolutization (e.g. mis-resolving the base URL) changes this count.
+    expect(result.items.length).toBe(29);
+    expect(result.stop).toBeNull();
   });
 });
