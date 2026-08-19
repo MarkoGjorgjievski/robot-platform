@@ -1,5 +1,9 @@
 # Robot Platform — AI-Native Web Scraper
 
+## Start here
+
+**[docs/handoff.md](docs/handoff.md)** — current state, what not to redo, open decisions, and the next work. Read it before starting.
+
 ## Project Overview
 
 AI-powered web scraping platform for in-house use. Customers request data from websites — we configure extractors with minimal manual effort. AI agents handle schema discovery, selector generation, and extraction. Humans review and refine.
