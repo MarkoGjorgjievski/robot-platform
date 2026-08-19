@@ -213,6 +213,10 @@ export async function runExtraction(
         capture.structuredData,
         fieldsWithHints,
         capture.interceptedRequests,
+        // The REQUESTED url, not capture.url. If our own dismissal pass navigated
+        // away, capture.url is the page we drifted to and its structured data will
+        // match it perfectly — the comparison has to be against what was asked for.
+        url,
       );
       for (const [name, source] of Object.entries(mechanicalResult.sources)) {
         tryAssign(name, mechanicalResult.data[name], source as PathSource, mechanicalResult.paths[name] ?? '', 0.8);

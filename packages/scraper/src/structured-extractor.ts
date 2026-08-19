@@ -1,4 +1,5 @@
 import type { StructuredData, InterceptedRequest } from '@robot/browser';
+import { filterEntitiesForPage } from './entity-match.js';
 
 type FieldRequest = {
   name: string;
@@ -28,6 +29,16 @@ export function extractFromStructuredData(
   structuredData: StructuredData,
   fields: FieldRequest[],
   interceptedRequests?: InterceptedRequest[],
+  /**
+   * The URL that was captured. When given, JSON-LD blocks describing a DIFFERENT
+   * entity are dropped before extraction — a product page routinely carries
+   * structured data for its accessories, and taking a field from the wrong block
+   * produces internally consistent nonsense. See entity-match.ts.
+   *
+   * Optional so existing callers keep working; without it the filter is skipped
+   * and behaviour is unchanged.
+   */
+  pageUrl?: string,
 ): { data: Record<string, unknown>; coverage: number; sources: Record<string, ExtractionSource>; paths: Record<string, string> } {
   const data: Record<string, unknown> = {};
   const sources: Record<string, ExtractionSource> = {};
@@ -37,7 +48,8 @@ export function extractFromStructuredData(
   const apiFlat = flattenApiResponses(interceptedRequests ?? []);
 
   // 2. Flatten JSON-LD
-  const ldFlat = flattenLdJson(structuredData.ldJson);
+  const ldJson = pageUrl ? filterEntitiesForPage(structuredData.ldJson, pageUrl) : structuredData.ldJson;
+  const ldFlat = flattenLdJson(ldJson);
 
   // 3. Flatten meta tags
   const metaFlat = flattenMeta(structuredData.meta);
@@ -53,7 +65,7 @@ export function extractFromStructuredData(
   const scalarFields: FieldRequest[] = [];
   for (const field of fields) {
     if (field.type === 'variant_array') {
-      const variants = extractVariantsFromLdJson(structuredData.ldJson);
+      const variants = extractVariantsFromLdJson(ldJson);
       if (variants) {
         data[field.name] = variants;
         sources[field.name] = 'json-ld';

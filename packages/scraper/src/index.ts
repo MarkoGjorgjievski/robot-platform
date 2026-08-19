@@ -20,3 +20,4 @@ export { prunePaths } from './domain-cache.js';
 export { pinFieldPath } from './domain-cache.js';
 export { runAnalysis, type AnalysisOutcome, type AnalysisDeps, type AnalysisAgent } from './analysis-orchestrator.js';
 export { cachedFieldsFromCache, type CachedFieldSummary } from './cached-fields-from-cache.js';
+export { describesSamePage, extractIdentifiers, filterEntitiesForPage, type EntityMatch } from './entity-match.js';
