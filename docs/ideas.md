@@ -74,6 +74,31 @@ Seven captures of the same URL over ~17 minutes, reading FIXED dot-paths so extr
 
 **If confirmed**, this deserves its own spec — it touches the cache key, the schema editor, the conflict detector, and the results view, and it interacts with `variant_array`. Do not fold it into a correctness pass.
 
+### 🔬 Multi-entity pages: the chain mixes the product with its accessories (2026-08-19)
+
+**Live instance, first run against Barnes & Noble.** The page is the NOOK GlowLight 4, an e-reader. The extraction resolved 18/19 fields and most of them describe **a different product** — a $9.99 accessory cover sold on the same page:
+
+```
+[correct] product_name : "NOOK GlowLight 4"                          (src=api)
+[wrong]   price        : 9.99                                        (src=json-ld)
+[wrong]   variants     : Daffodil @9.99, Silver Sparkle @9.99, …     (cover colours)
+[wrong]   key_features : "Secure closure with magnetic tab", …       (a case, not a reader)
+[unverif] product_url  : …/nook-glowlight-4-and-4e-cover-in-daffodil-…
+```
+
+The *name* is right and nearly everything else belongs to the accessory.
+
+**Why the existing defences miss it.** This is the same family as the `ProductRelationInfoV3` mis-rank and the `Configs[0].name` poisoning — a value that is real, well-formed, and about the wrong entity — but every guard built so far is aimed slightly elsewhere:
+
+- **Page corroboration** only checks name-like fields (`product_name`, `brand`, `title`) and only from `api`/`api-ai` sources. `price: 9.99` is a number from `json-ld`, so it is exempt twice over. And it *would* corroborate anyway — the cover's price genuinely is on the page.
+- **The shape validator** sees a perfectly good price.
+- **Request ranking** does not apply: this came from JSON-LD, not an intercepted API. The page simply carries several JSON-LD blocks and the mechanical extractor took a field from the wrong one.
+- **The conflict detector** would only fire if two paths disagreed; here one path confidently returns one wrong answer.
+
+**What the fix probably needs.** `findEntitySubtree` already exists for scoping `__NEXT_DATA__` to a product node (v1.1b Phase 0.3), and this is the same problem one level up: choosing *which entity on the page* the schema refers to, then scoping every field to it. Candidate signals: the JSON-LD block whose `name` best matches the page `<title>` or `<h1>`; the block carrying the highest-priced offer; the one the breadcrumb points at. Whatever the rule, the important property is that **all fields resolve against the same entity** — a name from one block and a price from another is worse than either alone, because it is self-consistent nonsense.
+
+**Interacts with the labelling idea above.** If the catalogue is per-domain, the entity is the axis the catalogue must be organised on: "this page offers a main product and N accessories" is a fact about the page shape, not about the customer. Worth designing the two together rather than sequentially.
+
 ### 🔬 Description-based field matching (previously attempted, deliberately disabled)
 
 **Current state.** `findFieldValue` in `packages/scraper/src/structured-extractor.ts` accepts a `_description` parameter (line 123, underscore prefix indicates unused). The comment at line 160 says: *"No fuzzy matching — it causes too many false positives on complex APIs."* So the feature was implemented, tested, and disabled. The test in `structured-extractor-aliases.test.ts` still expects the feature to work and currently fails — vestigial.
