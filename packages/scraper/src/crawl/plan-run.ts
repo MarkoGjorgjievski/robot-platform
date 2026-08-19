@@ -8,7 +8,7 @@
 // listing-origin field. Mechanical, cached-path, cached-XPath and AI tiers all
 // apply unchanged, so a domain crawled before costs nothing here.
 
-import type { IBrowser } from '@robot/browser';
+import type { IBrowser, PageCapture } from '@robot/browser';
 import { runExtraction, type ExtractionAgent, type ExtractionOutcome } from '../extraction-orchestrator.js';
 import { buildExtractionScript } from '../executor.js';
 import { resolveBudget, itemCap } from './budget.js';
@@ -99,8 +99,9 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
     // document-mode pass over this same capture for page-level listing fields —
     // which is only free because the capture is not thrown away here.
     let page1: ExtractionOutcome;
+    let capture: PageCapture | undefined;
     try {
-      const capture = await deps.browser.capture(start.url, {
+      capture = await deps.browser.capture(start.url, {
         waitUntil: 'networkidle',
         interceptNetworkRequests: true,
       });
@@ -114,6 +115,29 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
     }
     cacheWarm ||= page1.cacheHit;
 
+    // Page-level listing fields: a value shown once for the whole page (the
+    // category in a breadcrumb) is not per-row, so no row resolved it. A second
+    // document-mode pass over the SAME capture costs no fetch.
+    let pageLevelValues: Record<string, unknown> = {};
+    const unresolved = partitions.listing.filter(
+      (field) => !page1.data.some((row) => row[field.name] !== undefined && row[field.name] !== null),
+    );
+    if (unresolved.length > 0) {
+      try {
+        const pageLevel = await extract(
+          {
+            url: start.url,
+            fields: unresolved.map((f) => ({ name: f.name, type: f.type })),
+            pageType: 'detail',
+          },
+          { browser: deps.browser, agent: deps.agent, capture },
+        );
+        pageLevelValues = pageLevel.data[0] ?? {};
+      } catch (err) {
+        warnings.push(`page-level listing fields failed on ${start.url}: ${(err as Error).message}`);
+      }
+    }
+
     items.push({
       kind: 'listing', url: start.url, inputIndex: start.inputIndex,
       inputValues: start.inputValues, listingValues: {}, pageNumber: 1,
@@ -126,7 +150,9 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         seen.add(item.url);
         items.push({
           kind: 'detail', url: item.url, inputIndex: start.inputIndex,
-          inputValues: start.inputValues, listingValues: item.listingValues, pageNumber: item.pageNumber,
+          inputValues: start.inputValues,
+          listingValues: { ...pageLevelValues, ...item.listingValues },
+          pageNumber: item.pageNumber,
         });
       }
       if (result.stop === 'budget') {
