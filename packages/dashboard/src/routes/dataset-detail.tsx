@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
 import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
@@ -77,6 +77,13 @@ export default function DatasetDetail() {
 
 function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: SchemaField[] }) {
   const [fields, setFields] = useState<SchemaField[]>(schema);
+  // Re-sync local state when the server's schema changes (e.g. another session
+  // saved a different origin, or this save's own invalidate() refetches it).
+  // Only fires when the `schema` prop reference actually changes, so it doesn't
+  // clobber an in-progress edit on every render — only on a genuine server update.
+  useEffect(() => {
+    setFields(schema);
+  }, [schema]);
   const utils = trpc.useUtils();
   const updateSchema = trpc.datasets.updateSchema.useMutation({
     onSuccess: () => utils.datasets.invalidate(),
@@ -102,6 +109,8 @@ function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: 
           <tr>
             <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Field</th>
             <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Type</th>
+            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Required</th>
+            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Description</th>
             <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Comes from</th>
           </tr>
         </thead>
@@ -110,6 +119,8 @@ function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: 
             <tr key={field.name} className="border-b last:border-b-0">
               <td className="py-2 pr-4 font-mono text-xs">{field.name}</td>
               <td className="py-2 pr-4 font-mono text-xs text-gray-500">{field.type}</td>
+              <td className="py-2 pr-4 text-xs text-gray-500">{field.required ? 'yes' : 'no'}</td>
+              <td className="py-2 pr-4 text-xs text-gray-500">{field.description ?? '—'}</td>
               <td className="py-2 pr-4">
                 <select
                   value={field.origin ?? 'detail'}
