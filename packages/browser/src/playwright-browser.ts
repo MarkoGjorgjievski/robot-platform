@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig } from './types.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
@@ -95,6 +95,53 @@ const POPUP_DISMISS_SELECTORS = [
   'dialog button[aria-label*="close" i]',
   '[role="dialog"] button[aria-label*="close" i]',
 ];
+
+/**
+ * Given the nearest enclosing anchor (or null), would clicking it leave the page?
+ *
+ * An anchor is only dangerous if it actually goes somewhere. `<a href="#">` and
+ * `href="javascript:void(0)"` are the standard way to build a close button, and a
+ * blanket "never click an anchor" rule would break dismissal on many real sites —
+ * so the guard has to be about the destination, not the tag.
+ */
+export function hrefNavigates(link: { href: string | null; target: string | null } | null): boolean {
+  if (!link?.href) return false;
+  const href = link.href.trim().toLowerCase();
+  if (href === '' || href === '#' || href.startsWith('#')) return false;
+  if (href.startsWith('javascript:')) return false;
+  // Opens a new tab; the page we are capturing stays put.
+  if (link.target === '_blank') return false;
+  return true;
+}
+
+/**
+ * Would clicking this element leave the page?
+ *
+ * A dismissal list broad enough to close real cookie banners is broad enough to
+ * match a link. Rather than trying to enumerate safe selectors, check the element
+ * itself at click time — that also covers selectors added later.
+ *
+ * An anchor is only dangerous if it actually goes somewhere: `<a href="#">` and
+ * `href="javascript:void(0)"` are the standard way to build a close button, and
+ * refusing to click those would break dismissal on many sites.
+ */
+async function navigatesAway(el: Locator): Promise<boolean> {
+  try {
+    // The DOM lookup happens in the page; the decision itself is hrefNavigates,
+    // which is pure and unit-tested. Inlined rather than imported because this
+    // body is serialised into the browser context.
+    const link = await el.evaluate((node) => {
+      const anchor = (node as Element).closest('a');
+      return anchor ? { href: anchor.getAttribute('href'), target: anchor.getAttribute('target') } : null;
+    });
+    return hrefNavigates(link);
+  } catch {
+    // If it cannot be inspected, treat it as safe — the post-capture URL check
+    // still catches a navigation, and being over-cautious here means never
+    // dismissing anything on pages that resist evaluation.
+    return false;
+  }
+}
 
 export class PlaywrightBrowser implements IBrowser {
   private browser: Browser | null = null;
@@ -338,12 +385,19 @@ export class PlaywrightBrowser implements IBrowser {
       for (const selector of POPUP_DISMISS_SELECTORS) {
         try {
           const el = page.locator(selector).first();
-          if (await el.isVisible({ timeout: 200 })) {
-            await el.click({ timeout: 2000, force: true });
-            await page.waitForTimeout(800);
-            dismissed = true;
-            break; // One per round — check if more popups appeared
+          if (!(await el.isVisible({ timeout: 200 }))) continue;
+          if (await navigatesAway(el)) {
+            // On Barnes & Noble a dismissal selector matched an accessory tile's
+            // link and clicked through to a different product; three captures in
+            // four ended on the wrong page, and the data that came back was wrong
+            // AND self-consistent. Refusing to click navigating elements removes
+            // the whole class — returnIfNavigatedAway remains as the net.
+            continue;
           }
+          await el.click({ timeout: 2000, force: true });
+          await page.waitForTimeout(800);
+          dismissed = true;
+          break; // One per round — check if more popups appeared
         } catch {
           // Selector not found or not clickable — try next
         }
