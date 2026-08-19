@@ -728,23 +728,22 @@ export class PlaywrightBrowser implements IBrowser {
     const page = await this.context.newPage();
 
     try {
-      // Page 1: navigate, extract, detect pagination
+      const startPage = options.startPage ?? 1;
+
+      // Page 1: navigate, extract, detect pagination. Skipped when the caller
+      // already captured it and only wants the pages after it.
       await this.navigateWithFallback(page, startUrl);
       await this.dismissPopups(page);
       await this.expandHiddenContent(page);
 
       const page1Html = await page.content();
-      const page1Data = await page.evaluate(options.extractionScript) as { data: Record<string, unknown>[]; totalRows: number };
 
-      yield {
-        url: startUrl,
-        pageNumber: 1,
-        data: page1Data.data,
-        totalRows: page1Data.totalRows,
-      };
-
-      totalItems += page1Data.data.length;
-      if (totalItems >= maxItems || maxPages <= 1) return;
+      if (startPage <= 1) {
+        const page1Data = await page.evaluate(options.extractionScript) as { data: Record<string, unknown>[]; totalRows: number };
+        yield { url: startUrl, pageNumber: 1, data: page1Data.data, totalRows: page1Data.totalRows };
+        totalItems += page1Data.data.length;
+        if (totalItems >= maxItems || maxPages <= 1) return;
+      }
 
       // Detect pagination from page 1 HTML if not provided
       if (!paginationConfig) {

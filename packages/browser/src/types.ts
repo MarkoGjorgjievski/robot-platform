@@ -59,6 +59,7 @@ export interface IBrowser {
   evaluate<T = unknown>(url: string, script: string, options?: CaptureOptions): Promise<T>;
   setContentEvaluate<T = unknown>(html: string, script: string): Promise<T>;
   close(): Promise<void>;
+  crawl(startUrl: string, options: CrawlOptions): AsyncGenerator<CrawlPage>;
 }
 
 // ─── Pagination & Crawl ─────────────────────────────────────────────────────
@@ -82,6 +83,12 @@ export type CrawlOptions = {
   extractionScript: string;
   /** Skip detection if pagination config is already known (from cache) */
   paginationConfig?: PaginationConfig;
+  /**
+   * First page to yield. Default 1. Phase 1 of the crawler captures page 1
+   * itself (it needs the full capture for selector generation), so it resumes
+   * pagination at 2 rather than paying for that page load twice.
+   */
+  startPage?: number;
 };
 
 export type CrawlPage = {
