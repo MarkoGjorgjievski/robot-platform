@@ -360,3 +360,44 @@ export const runsRelations = relations(runs, ({ one, many }) => ({
   captures: many(captures),
   extractions: many(extractions),
 }));
+
+// ─── Run Items (v2 crawler) ─────────────────────────────────────────────────
+//
+// Simultaneously the work list, the queue, and the per-URL status record. The
+// unique (run_id, url) constraint is the dedupe mechanism: the same product
+// appearing on two listing pages is queued once.
+
+export const runItems = pgTable('run_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  runId: uuid('run_id').notNull().references(() => runs.id, { onDelete: 'cascade' }),
+  // 'listing' | 'detail'
+  kind: varchar('kind', { length: 10 }).notNull(),
+  url: text('url').notNull(),
+  /** Which InputSet row this item descends from. */
+  inputIndex: integer('input_index').notNull().default(0),
+  /** Snapshot of that row, so a historical run stays reproducible if the InputSet changes. */
+  inputValues: jsonb('input_values').notNull().default({}),
+  /** Values captured on the listing page for this row (category, listing price, ...). */
+  listingValues: jsonb('listing_values').notNull().default({}),
+  /** Listing items: which page this is. Detail items: which page discovered the URL. */
+  pageNumber: integer('page_number'),
+  parentId: uuid('parent_id'),
+  // 'pending' | 'running' | 'done' | 'failed'
+  status: varchar('status', { length: 12 }).notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  error: text('error'),
+  extractionId: uuid('extraction_id').references(() => extractions.id, { onDelete: 'set null' }),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('run_items_run_url_idx').on(table.runId, table.url),
+  index('run_items_run_status_idx').on(table.runId, table.status),
+  index('run_items_run_kind_idx').on(table.runId, table.kind),
+]);
+
+export const runItemsRelations = relations(runItems, ({ one }) => ({
+  run: one(runs, { fields: [runItems.runId], references: [runs.id] }),
+  extraction: one(extractions, { fields: [runItems.extractionId], references: [extractions.id] }),
+  parent: one(runItems, { fields: [runItems.parentId], references: [runItems.id], relationName: 'run_item_parent' }),
+}));
