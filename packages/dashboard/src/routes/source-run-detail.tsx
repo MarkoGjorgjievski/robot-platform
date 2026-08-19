@@ -1,7 +1,8 @@
 import { useParams, Link } from '@tanstack/react-router';
-import { Activity, ExternalLink } from 'lucide-react';
+import { Activity, Download, ExternalLink } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
+import { runExportUrl } from '../lib/export-url';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -43,6 +44,10 @@ export default function SourceRunDetail() {
         <Activity className="h-5 w-5 text-gray-400" />
         <h1 className="text-xl font-bold tracking-tight">Run · {run.status}</h1>
         <RunStatusBadge status={run.status} />
+        <div className="ml-auto flex items-center gap-2">
+          <ExportLink runId={runId} format="csv" />
+          <ExportLink runId={runId} format="json" />
+        </div>
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
@@ -91,6 +96,20 @@ export default function SourceRunDetail() {
         fields={fields}
       />
     </div>
+  );
+}
+
+/** A plain link, not a fetch — the api-server sets Content-Disposition itself. */
+function ExportLink({ runId, format }: { runId: string; format: 'csv' | 'json' }) {
+  return (
+    <a
+      href={runExportUrl(runId, format)}
+      download
+      className="flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+    >
+      <Download className="h-3 w-3" />
+      {format.toUpperCase()}
+    </a>
   );
 }
 
