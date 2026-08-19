@@ -54,4 +54,57 @@ export const liveCorpus: LiveCorpusEntry[] = [
     pageType: 'detail',
     fields: ['discover'],
   },
+
+  // ─── Added 2026-08-19, reachable only because stealth is now on by default ───
+  // Of eleven candidates probed, four were hard-blocked (Lowe's, Adorama, Sephora,
+  // Micro Center) and three hide their product grids behind post-load rendering
+  // (Home Depot, Chewy, Decathlon). Anti-bot, not page complexity, is still what
+  // limits corpus growth — see docs/roadmap.md P3b.
+
+  {
+    // Was Cloudflare-blocked before stealth. US electronics, server-rendered,
+    // rich JSON-LD — the closest thing to an easy case in the corpus.
+    label: 'bhphoto-samsung-t7',
+    url: 'https://www.bhphotovideo.com/c/product/1559839-REG/samsung_mu_pc2t0t_am_2tb_t7_portable_ssd.html',
+    pageType: 'detail',
+    fields: ['discover'],
+    knownAbsentFields: ['variants'],
+  },
+  {
+    // Books marketplace: MANY sellers per title, each with its own price and
+    // condition. The same multi-seller shape as Newegg, on a completely different
+    // stack — this is the site that tells us whether the price-disambiguation
+    // problem in docs/ideas.md is a platform concern or a Newegg quirk.
+    // Note: AbeBooks listings are per-copy and can sell out; if this 404s the
+    // liveness check will say so, which is the intended behaviour.
+    label: 'abebooks-listing',
+    url: 'https://www.abebooks.co.uk/servlet/BookDetailsPL?bi=32500288053',
+    pageType: 'detail',
+    fields: ['discover'],
+    knownAbsentFields: ['variants'],
+  },
+  {
+    // EU fashion: GBP, EU consent regime, size variants.
+    label: 'zalando-air-force-1',
+    url: 'https://www.zalando.co.uk/nike-sportswear-air-force-1-07-trainers-white-ni112n022-a11.html',
+    pageType: 'detail',
+    fields: ['discover'],
+  },
+  {
+    // UK electronics. Three JSON-LD blocks on one page, which exercises the
+    // entity-matching added after the Barnes & Noble accessory bug.
+    label: 'currys-macbook-pro-14',
+    url: 'https://www.currys.co.uk/products/apple-macbook-pro-14-2025-m5-1-tb-ssd-silver-10292727.html',
+    pageType: 'detail',
+    fields: ['discover'],
+  },
+  {
+    // Apparel on a bespoke stack, with colour selection in the URL itself
+    // (`colorDisplayCode`) — a variant axis expressed as a query parameter rather
+    // than in the page body.
+    label: 'uniqlo-supima-tee',
+    url: 'https://www.uniqlo.com/us/en/products/E455365-000/00?colorDisplayCode=68',
+    pageType: 'detail',
+    fields: ['discover'],
+  },
 ];
