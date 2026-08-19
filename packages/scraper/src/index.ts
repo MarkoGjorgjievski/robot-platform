@@ -22,3 +22,10 @@ export { runAnalysis, type AnalysisOutcome, type AnalysisDeps, type AnalysisAgen
 export { cachedFieldsFromCache, type CachedFieldSummary } from './cached-fields-from-cache.js';
 export { describesSamePage, extractIdentifiers, filterEntitiesForPage, type EntityMatch } from './entity-match.js';
 export { filterRequestsForPage } from './entity-match.js';
+export { planRun } from './crawl/plan-run.js';
+export type { PlannedItem, PlanRunOutcome, PlanRunRequest } from './crawl/plan-run.js';
+export { resolveBudget, itemCap, HARD_ITEM_CEILING } from './crawl/budget.js';
+export { partitionSchemaByOrigin } from './crawl/partition-schema.js';
+export type { OriginField, FieldOrigin } from './crawl/partition-schema.js';
+export { mergeRow } from './crawl/merge-row.js';
+export { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
