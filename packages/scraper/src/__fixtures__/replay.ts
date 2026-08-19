@@ -20,7 +20,7 @@
 //                  XPaths execute in real Chromium with no network
 
 import { PlaywrightBrowser } from '@robot/browser';
-import type { CaptureOptions, IBrowser, PageCapture } from '@robot/browser';
+import type { CaptureOptions, CrawlOptions, CrawlPage, IBrowser, PageCapture } from '@robot/browser';
 import { runExtraction } from '../extraction-orchestrator.js';
 import type { DomainCache } from '../domain-cache.js';
 import type { Fixture } from './types.js';
@@ -75,6 +75,14 @@ class FixtureBrowser implements IBrowser {
 
   async close(): Promise<void> {
     await this.inner.close();
+  }
+
+  // Fixture replay is offline and single-page: there is no live pagination to
+  // crawl, and this method is never invoked during replay. An empty generator
+  // satisfies IBrowser without pretending crawling is something a frozen
+  // fixture can do.
+  async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {
+    return;
   }
 }
 
