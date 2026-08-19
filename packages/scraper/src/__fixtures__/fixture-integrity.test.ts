@@ -34,6 +34,18 @@ describe('fixture integrity — does the capture match its declared URL?', () =>
       it('declares a URL that carries identifiers, so the check above can bite', () => {
         // A fixture URL with no identifiers makes the previous test vacuous. Better
         // to know that than to be reassured by a check that cannot fail.
+        //
+        // Exempt for listing fixtures: a category URL (e.g.
+        // `/Video-Cards-Video-Devices/Category/ID-38`) legitimately carries no
+        // product identifier — it names a category, not one entity. That does not
+        // reopen the gap the test above closes: a listing page's own ldJson blocks
+        // (BreadcrumbList, CollectionPage, FAQPage, ItemList, ...) are never
+        // `ENTITY_TYPES` candidates in `isEntityCandidate`, so `describesSamePage`
+        // cannot false-pass a wrong *product* entity here the way it could on a
+        // detail page — there is no per-entity claim on a listing page for it to
+        // rubber-stamp.
+        if (fixture.pageType === 'listing') return;
+
         const ids = extractIdentifiers(fixture.url);
         expect(ids.size, `${label}: no identifiers in ${fixture.url} — the entity check cannot discriminate for this fixture`)
           .toBeGreaterThan(0);
