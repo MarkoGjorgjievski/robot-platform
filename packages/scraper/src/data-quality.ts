@@ -145,7 +145,12 @@ function validateString(
   if (typeof value !== 'string') return { value, issues };
 
   // Auto-fix: strip HTML tags
-  const stripped = value.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  // Tags become a SPACE, not nothing. Deleting them outright welds the words on
+  // either side together: Newegg's spec block is `…14700 MBps<br/>Max Sequential
+  // Write…`, which stripped to "14700 MBpsMax Sequential Write" in the 2026-08-19
+  // dogfood — technically HTML-free and unreadable. The collapse below tidies up
+  // the doubled spaces this introduces around inline tags.
+  const stripped = value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   if (stripped !== value) {
     if (stripped === '') {
       issues.push({ field: name, row, type: 'error', message: 'String is empty after stripping HTML' });

@@ -85,7 +85,7 @@ export class SchemaAgent {
         userText,
         image: capture.screenshot,
       });
-      return result as DiscoveredSchema;
+      return assertDiscoveredSchema(result, capture.url);
     }
 
     const json = await this.ollama!.callWithJson({
@@ -325,6 +325,39 @@ Do NOT extract data. Return ONLY XPath expressions.
 HTML:
 
 ${html}`;
+}
+
+/**
+ * Validate schema-discovery output before it leaves the agent.
+ *
+ * The Anthropic path used to `return result as DiscoveredSchema` — an unchecked
+ * cast over whatever the model put in a tool call. On 2026-08-19 that produced a
+ * Barnes & Noble run where `fields` was not an array, and the failure surfaced
+ * three layers away as `analysis.schema.fields.map is not a function`, with no
+ * indication of which page or model had misbehaved.
+ *
+ * Note the irony this fixes: the Ollama path has always normalised and thrown
+ * descriptively, so the *fallback* provider was the safer one.
+ *
+ * Well-formed output passes through untouched. Anything else goes through the
+ * same repair the Ollama path uses — which tolerates the model naming the array
+ * `schema` or `columns` — and throws with the raw payload if that fails too.
+ */
+function assertDiscoveredSchema(result: unknown, url: string): DiscoveredSchema {
+  const candidate = result as Partial<DiscoveredSchema> | null;
+  if (candidate && Array.isArray(candidate.fields) && candidate.fields.length > 0) {
+    return candidate as DiscoveredSchema;
+  }
+  if (!result || typeof result !== 'object') {
+    throw new Error(`Schema discovery for ${url} returned ${typeof result}, not an object`);
+  }
+  try {
+    return normalizeSchemaResponse(result as Record<string, unknown>);
+  } catch (err) {
+    throw new Error(
+      `Schema discovery for ${url} returned no usable fields (${(err as Error).message})`,
+    );
+  }
 }
 
 // ─── Normalization helpers for Ollama ─────────────────────────────────────────

@@ -30,6 +30,9 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
 const lines: string[] = [`# Dogfood ${stamp}`, ''];
 
 const unjudgedSites: string[] = [];
+/** Per-site PIPELINE usage, so the cost table can be built from production spend
+ *  rather than from a total inflated by the judge. */
+const pipelineTotal: Array<Record<string, { inputTokens: number; outputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; requests: number }>> = [];
 let totalResolved = 0, totalWrong = 0, totalNotOnPage = 0, totalUnverifiable = 0, totalError = 0, totalAbsent = 0, totalFields = 0;
 
 resetUsage();
@@ -54,6 +57,12 @@ for (const site of liveCorpus) {
     }
 
     const result = await caller.extract({ url: site.url, fields, pageType: site.pageType });
+
+    // Split here: everything before this line is what PRODUCTION pays per URL.
+    // Everything after is the Tier 2 judge, which ships to nobody. Reporting one
+    // combined number would put ~18 screenshot-bearing judge calls into a figure
+    // the cost model treats as extraction cost.
+    const usageAfterPipeline = snapshotUsage();
 
     // Screenshot for the judge — extract just wrote one to CAPTURES_DIR (via the cache-miss path or analyze cache-hit).
     // The captureId returned by analyze is the filename stem; if extract recapped, use the one analyze persisted.
@@ -128,12 +137,22 @@ for (const site of liveCorpus) {
       lines.push(`- [${verdict}] ${row.name}: ${valStr} (src=${row.source})`);
     }
 
-    // Per-site spend. This is the number docs/project-overview.md's cost model is
-    // supposed to be built from, and until now nothing recorded it — the table has
-    // been carried forward from a retired model, annotated as unverified.
+    // Per-site spend, split by who actually pays it. The PIPELINE figure is the
+    // one docs/project-overview.md's cost model is about; the JUDGE figure is this
+    // harness measuring itself and ships to nobody. They are not close — judging
+    // sends a full screenshot per field, so it can dominate a combined total and
+    // make extraction look several times more expensive than it is.
+    const afterJudge = snapshotUsage();
     lines.push('', '<details><summary>Tokens for this site</summary>', '');
-    lines.push('```', formatUsage(diffUsage(usageBefore, snapshotUsage())), '```');
+    lines.push('```');
+    lines.push('PIPELINE (what production pays per URL):');
+    lines.push(formatUsage(diffUsage(usageBefore, usageAfterPipeline)));
+    lines.push('');
+    lines.push('JUDGE (this harness only, not a product cost):');
+    lines.push(formatUsage(diffUsage(usageAfterPipeline, afterJudge)));
+    lines.push('```');
     lines.push('</details>', '');
+    pipelineTotal.push(diffUsage(usageBefore, usageAfterPipeline));
   } catch (err) {
     // The judge being unavailable (no credit, bad key) is not a site failure and
     // must not be swallowed per-site: every remaining field would fail the same
@@ -159,12 +178,30 @@ lines.push(`- Resolved but not confirmable from a screenshot (URLs, IDs, metadat
 lines.push(`- Judge failed to return a verdict (error / no screenshot): ${totalError}`);
 lines.push(`- Legitimately absent: ${totalAbsent}`);
 
+const pipelineSum = pipelineTotal.reduce((acc, u) => {
+  for (const [model, t] of Object.entries(u)) {
+    const a = acc[model] ?? { inputTokens: 0, outputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, requests: 0 };
+    acc[model] = {
+      inputTokens: a.inputTokens + t.inputTokens,
+      outputTokens: a.outputTokens + t.outputTokens,
+      cacheCreationTokens: a.cacheCreationTokens + t.cacheCreationTokens,
+      cacheReadTokens: a.cacheReadTokens + t.cacheReadTokens,
+      requests: a.requests + t.requests,
+    };
+  }
+  return acc;
+}, {} as (typeof pipelineTotal)[number]);
+
 lines.push('', '### Cost', '');
+lines.push(`**Pipeline only — what production pays.** This is the figure for the cost model in`,
+  `docs/project-overview.md. Across ${pipelineTotal.length} successfully processed URLs.`, '');
+lines.push('```', formatUsage(pipelineSum), '```');
+lines.push('',
+  'These were mostly cache-warm runs. A cold first run on an unknown domain pays for',
+  'schema discovery and selector generation too, and costs considerably more — that',
+  'case still needs measuring separately.', '');
+lines.push('Including the Tier 2 judge (this harness measuring itself — not a product cost):', '');
 lines.push('```', formatUsage(snapshotUsage()), '```');
-lines.push(
-  `Across ${liveCorpus.length} URLs. Divide for a per-URL figure, but note these were`,
-  'mostly cache-warm runs — a cold first run on an unknown domain costs considerably more.',
-);
 
 if (unjudgedSites.length > 0) {
   lines.push('', `> **${unjudgedSites.length} of ${liveCorpus.length} sites were UNJUDGED** (no screenshot): ${unjudgedSites.join(', ')}.`);

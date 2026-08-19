@@ -291,3 +291,23 @@ describe('validateExtractedData — array fields', () => {
     expect(data[0]!.sizes).toEqual([1, 2, 3]);
   });
 });
+
+describe('validateExtractedData — stripping must not weld words together', () => {
+  it('turns a line break into a space, not nothing', () => {
+    // Newegg's spec block, from the 2026-08-19 dogfood. Deleting the tag gave
+    // "14700 MBpsMax Sequential Write" — HTML-free and unreadable.
+    const { data } = validateExtractedData(
+      [{ specifications: '<b>Max Sequential Read:</b> Up to 14700 MBps<br/><b>Max Sequential Write:</b> Up to 13400 MBps' }],
+      [{ name: 'specifications', type: 'string', description: '', required: true }] as never,
+    );
+    expect(data[0]!.specifications).toBe('Max Sequential Read: Up to 14700 MBps Max Sequential Write: Up to 13400 MBps');
+  });
+
+  it('does not introduce doubled spaces around inline tags', () => {
+    const { data } = validateExtractedData(
+      [{ description: 'a <b>bold</b> word' }],
+      [{ name: 'description', type: 'string', description: '', required: true }] as never,
+    );
+    expect(data[0]!.description).toBe('a bold word');
+  });
+});
