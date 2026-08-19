@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
+import type { IndexedColumn } from 'drizzle-orm/pg-core';
 import { runItems } from './schema.js';
 
 describe('run_items table', () => {
@@ -29,6 +30,11 @@ describe('run_items table', () => {
     const index = config.indexes.find((i) => i.config.name === 'run_items_run_url_idx');
     expect(index).toBeDefined();
     expect(index?.config.unique).toBe(true);
-    expect(index?.config.columns.map((c) => c.name)).toEqual(['run_id', 'url']);
+    // `IndexConfig.columns` is typed `Partial<IndexedColumn | SQL>[]` — raw SQL expressions
+    // have no `.name`, so narrow to the entries that are actual indexed columns before reading it.
+    const indexedColumns = (index?.config.columns ?? []).filter(
+      (c): c is IndexedColumn => 'name' in c,
+    );
+    expect(indexedColumns.map((c) => c.name)).toEqual(['run_id', 'url']);
   });
 });
