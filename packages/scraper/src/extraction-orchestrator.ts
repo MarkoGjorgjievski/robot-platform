@@ -24,6 +24,7 @@ import { buildExtractionScript } from './executor.js';
 import { extractFromStructuredData } from './structured-extractor.js';
 import { validateFieldShape } from './shape-validator.js';
 import { corroborateValue, visibleTextFromHtml } from './corroborate-value.js';
+import { filterRequestsForPage } from './entity-match.js';
 import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
@@ -149,6 +150,11 @@ export async function runExtraction(
     // Rendered page text, computed once, used to corroborate values that came
     // from intercepted API responses rather than from the page itself.
     const pageText = visibleTextFromHtml(capture.html ?? '');
+    // Intercepted responses about a DIFFERENT entity are dropped ONCE, here, rather
+    // than in each consumer — mechanical extraction, cached-path replay, AI API
+    // analysis and cache saving all read this list, and a filter applied to only
+    // some of them is how the Barnes & Noble accessory survived the first fix.
+    const interceptedRequests = filterRequestsForPage(capture.interceptedRequests, url);
     // Schema types by field name, handed to buildExtractionScript so array-typed
     // fields collect every matching node instead of just the first.
     const fieldTypes: Record<string, string> = Object.fromEntries(
@@ -187,8 +193,8 @@ export async function runExtraction(
 
     // STEP 0.5: AI-discovered API paths
     const apiFields = schemaFields.filter((f) => f.api_path && f.source === 'api');
-    if (apiFields.length > 0 && capture.interceptedRequests.length > 0) {
-      const apiBodies = capture.interceptedRequests
+    if (apiFields.length > 0 && interceptedRequests.length > 0) {
+      const apiBodies = interceptedRequests
         .filter((r) => r.parsedJson && typeof r.parsedJson === 'object')
         .map((r) => r.parsedJson);
       for (const field of apiFields) {
@@ -212,7 +218,7 @@ export async function runExtraction(
       const mechanicalResult = extractFromStructuredData(
         capture.structuredData,
         fieldsWithHints,
-        capture.interceptedRequests,
+        interceptedRequests,
         // The REQUESTED url, not capture.url. If our own dismissal pass navigated
         // away, capture.url is the page we drifted to and its structured data will
         // match it perfectly — the comparison has to be against what was asked for.
@@ -248,8 +254,8 @@ export async function runExtraction(
     // STEP 1.5: Cached paths
     if (cache && cache.totalRuns > 0) {
       const missingForCache = fieldNames.filter((n) => finalData[n] === undefined);
-      if (missingForCache.length > 0 && capture.interceptedRequests.length > 0) {
-        const apiCacheResult = resolveApiPathsFromCache(cache.fieldPaths, capture.interceptedRequests, missingForCache);
+      if (missingForCache.length > 0 && interceptedRequests.length > 0) {
+        const apiCacheResult = resolveApiPathsFromCache(cache.fieldPaths, interceptedRequests, missingForCache);
         for (const [name, resolved] of Object.entries(apiCacheResult.resolved)) {
           tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
         }
@@ -314,7 +320,7 @@ export async function runExtraction(
     // STEP 2: AI API analysis
     const missingAfterCache = schemaFields.filter((f) => finalData[f.name] === undefined);
     const apisToTry = collectAiAnalysisSources({
-      interceptedRequests: capture.interceptedRequests,
+      interceptedRequests: interceptedRequests,
       structuredData: capture.structuredData,
     });
     if (agent && missingAfterCache.length > 0 && apisToTry.length > 0) {
@@ -459,7 +465,7 @@ export async function runExtraction(
       await saveCache({
         domain,
         pageType: resolvedPageType,
-        interceptedRequests: capture.interceptedRequests,
+        interceptedRequests: interceptedRequests,
         fieldResults,
         discoveredFieldNames: schemaFields.map((f) => f.name),
         overallConfidence: confidence,

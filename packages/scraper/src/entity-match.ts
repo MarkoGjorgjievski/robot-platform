@@ -118,6 +118,86 @@ export function describesSamePage(entity: unknown, pageUrl: string): EntityMatch
 }
 
 /**
+ * Drop intercepted API responses that are about a different entity.
+ *
+ * The JSON-LD filter alone was not enough. On Barnes & Noble the accessory data
+ * arrives through TWO channels, and fixing the more dramatic one (the capture
+ * navigating away) left the other untouched: `sku`, `description` and `variants`
+ * kept coming back as the $9.99 cover's, sourced from `api` / `api-ai`. Exactly
+ * one intercepted response — a Shopify GraphQL blob — carried the cover's
+ * identifiers and none of the page's.
+ *
+ * Same one-sided rule as `describesSamePage`: a response is dropped only when it
+ * carries identifiers AND the page carries identifiers AND they have none in
+ * common. A response with no identifiers (a reviews feed, a config blob) has
+ * offered no evidence and is kept.
+ *
+ * Coarse by design — it judges a whole response. A response containing the main
+ * product *and* related items shares an identifier and is kept intact, so the
+ * within-response scoping problem is untouched; that is `findEntitySubtree`'s
+ * territory and a separate piece of work.
+ */
+export function filterRequestsForPage<T extends { url: string; parsedJson: unknown }>(
+  requests: T[],
+  pageUrl: string,
+): T[] {
+  const pageIds = extractIdentifiers(pageUrl);
+  if (pageIds.size === 0) return requests;
+
+  return requests.filter((request) => {
+    const ids = jsonIdentifiers(request.parsedJson);
+    if (ids.size === 0) return true;
+    for (const id of ids) if (pageIds.has(id)) return true;
+    console.log(
+      `[extract] Ignoring API response about a different entity: ${request.url.slice(0, 80)}`
+      + ` (carries [${[...ids].slice(0, 3).join(', ')}], page carries [${[...pageIds].slice(0, 3).join(', ')}])`,
+    );
+    return false;
+  });
+}
+
+/**
+ * Identifier-looking values anywhere in a parsed API response.
+ *
+ * Broader than the JSON-LD walk: an API is not schema.org, so identifiers hide
+ * under any key name — `productId`, `handle`, `ean`, `itemNumber`. Rather than
+ * guess the vocabulary, collect every long digit-bearing string or number and let
+ * the overlap test decide. Bounded so a large payload cannot stall a capture.
+ */
+function jsonIdentifiers(value: unknown): Set<string> {
+  const out = new Set<string>();
+  const seen = new WeakSet<object>();
+  let nodes = 0;
+
+  const walk = (node: unknown, depth: number): void => {
+    if (nodes > MAX_ID_NODES || depth > MAX_KEY_DEPTH) return;
+    if (typeof node === 'string' || typeof node === 'number') {
+      const token = String(node);
+      if (token.length >= MIN_IDENTIFIER_LENGTH && token.length <= 32 && /^\d[\d-]*$/.test(token)) {
+        out.add(token.toLowerCase());
+      }
+      return;
+    }
+    if (!node || typeof node !== 'object') return;
+    if (seen.has(node as object)) return;
+    seen.add(node as object);
+    nodes++;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, depth + 1);
+      return;
+    }
+    for (const child of Object.values(node as Record<string, unknown>)) walk(child, depth + 1);
+  };
+
+  walk(value, 0);
+  return out;
+}
+
+/** Bound on nodes visited when scanning an API response for identifiers. */
+const MAX_ID_NODES = 20_000;
+const MAX_KEY_DEPTH = 10;
+
+/**
  * Drop structured-data entities that describe something other than this page.
  * Logs each rejection: silently discarding a site's structured data is exactly
  * the kind of thing that should be visible in a run log.

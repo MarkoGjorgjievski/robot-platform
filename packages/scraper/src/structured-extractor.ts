@@ -1,5 +1,5 @@
 import type { StructuredData, InterceptedRequest } from '@robot/browser';
-import { filterEntitiesForPage } from './entity-match.js';
+import { filterEntitiesForPage, filterRequestsForPage } from './entity-match.js';
 
 type FieldRequest = {
   name: string;
@@ -45,7 +45,11 @@ export function extractFromStructuredData(
   const paths: Record<string, string> = {};
 
   // 1. Flatten API responses (highest priority)
-  const apiFlat = flattenApiResponses(interceptedRequests ?? []);
+  // Responses about a DIFFERENT entity are dropped first. Fixing the capture
+  // navigation cleaned the json-ld channel and left this one: B&N kept returning
+  // the accessory sku, description and variants from an intercepted Shopify blob.
+  const requests = pageUrl ? filterRequestsForPage(interceptedRequests ?? [], pageUrl) : (interceptedRequests ?? []);
+  const apiFlat = flattenApiResponses(requests);
 
   // 2. Flatten JSON-LD
   const ldJson = pageUrl ? filterEntitiesForPage(structuredData.ldJson, pageUrl) : structuredData.ldJson;

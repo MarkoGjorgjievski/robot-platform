@@ -26,8 +26,38 @@ const caller = scraperRouter.createCaller({ db });
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) { console.error('ANTHROPIC_API_KEY required'); process.exit(1); }
 
+/**
+ * Run a subset of the corpus:  pnpm dogfood -- bn-nook currys
+ *
+ * Matching is substring, so a prefix is enough. Iterating on one site's bug used
+ * to mean paying for the whole corpus — ~$4 a round at eight sites versus ~$0.35
+ * for the one site actually under investigation. The harness was the expensive
+ * part of the fix-and-measure loop, not the model.
+ */
+const siteFilter = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+const corpus = siteFilter.length > 0
+  ? liveCorpus.filter((s) => siteFilter.some((f) => s.label.includes(f)))
+  : liveCorpus;
+
+if (corpus.length === 0) {
+  console.error(`No corpus site matches ${JSON.stringify(siteFilter)}. Available: ${liveCorpus.map((s) => s.label).join(', ')}`);
+  process.exit(1);
+}
+if (siteFilter.length > 0) {
+  console.log(`[dogfood] running ${corpus.length} of ${liveCorpus.length} sites: ${corpus.map((s) => s.label).join(', ')}`);
+}
+
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
-const lines: string[] = [`# Dogfood ${stamp}`, ''];
+const lines: string[] = [
+  `# Dogfood ${stamp}`,
+  '',
+  ...(siteFilter.length > 0
+    // A partial run must never be mistaken for a full one when someone reads the
+    // aggregate later.
+    ? [`> **PARTIAL RUN** — ${corpus.length} of ${liveCorpus.length} corpus sites (filter: ${siteFilter.join(', ')}).`,
+       '> The aggregate below covers only these sites.', '']
+    : []),
+];
 
 const unjudgedSites: string[] = [];
 /** Per-site PIPELINE usage, so the cost table can be built from production spend
@@ -37,7 +67,7 @@ let totalResolved = 0, totalWrong = 0, totalNotOnPage = 0, totalUnverifiable = 0
 
 resetUsage();
 
-for (const site of liveCorpus) {
+for (const site of corpus) {
   const usageBefore = snapshotUsage();
   lines.push(`## ${site.label} — ${site.url}`, '');
 
