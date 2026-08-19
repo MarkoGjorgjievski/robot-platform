@@ -12,3 +12,4 @@ packages/api-server/public/captures/*.png
 .worktrees
 .claude/
 .playwright-mcp/
+packages/scraper/fixed-path-probe.ts

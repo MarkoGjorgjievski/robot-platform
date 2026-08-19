@@ -38,6 +38,13 @@ export type BrowserOptions = {
   viewport?: { width: number; height: number };
   userAgent?: string;
   timeout?: number;
+  /**
+   * Apply anti-fingerprinting (playwright-extra + stealth) and realistic context
+   * defaults. Defaults to TRUE — the sites worth scraping are the ones checking.
+   * Set false to reproduce a vanilla launch when diagnosing whether stealth is
+   * itself the problem on some domain.
+   */
+  stealth?: boolean;
 };
 
 export type CaptureOptions = {
