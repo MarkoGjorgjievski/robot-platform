@@ -74,7 +74,9 @@ Seven captures of the same URL over ~17 minutes, reading FIXED dot-paths so extr
 
 **If confirmed**, this deserves its own spec — it touches the cache key, the schema editor, the conflict detector, and the results view, and it interacts with `variant_array`. Do not fold it into a correctness pass.
 
-### 🔬 Multi-entity pages: the chain mixes the product with its accessories (2026-08-19)
+### ✅ FIXED — the capture navigated away from the requested page (2026-08-19)
+
+> **Root cause was NOT what this entry originally claimed.** It was filed as structured-data entity confusion. The actual cause: our own popup-dismissal pass clicked a link and left the page. See the resolution at the end.
 
 **Live instance, first run against Barnes & Noble.** The page is the NOOK GlowLight 4, an e-reader. The extraction resolved 18/19 fields and most of them describe **a different product** — a $9.99 accessory cover sold on the same page:
 
@@ -97,7 +99,27 @@ The *name* is right and nearly everything else belongs to the accessory.
 
 **What the fix probably needs.** `findEntitySubtree` already exists for scoping `__NEXT_DATA__` to a product node (v1.1b Phase 0.3), and this is the same problem one level up: choosing *which entity on the page* the schema refers to, then scoping every field to it. Candidate signals: the JSON-LD block whose `name` best matches the page `<title>` or `<h1>`; the block carrying the highest-priced offer; the one the breadcrumb points at. Whatever the rule, the important property is that **all fields resolve against the same entity** — a name from one block and a price from another is worse than either alone, because it is self-consistent nonsense.
 
-**Interacts with the labelling idea above.** If the catalogue is per-domain, the entity is the axis the catalogue must be organised on: "this page offers a main product and N accessories" is a fact about the page shape, not about the customer. Worth designing the two together rather than sequentially.
+**Resolution — the diagnosis above was wrong, and the real cause was ours.**
+
+`capture.url` told the story the moment I looked at it:
+
+```
+requested : /w/nook-glowlight-4-barnes-noble/1145507276?ean=9780594205821
+captured  : /w/nook-glowlight-4-and-4e-cover-in-daffodil-barnes-noble/1140326163
+```
+
+**The browser left the page.** `dismissPopups` clicks a deliberately broad selector list — `"Close"`, `"OK"`, `[aria-label="Close"]`, `[role="dialog"] button` — and on a real page a broad click list eventually hits a link. Three captures in four ended on an accessory's product page. The JSON-LD was never wrong; it correctly described the page we had drifted to. Nothing was mixing entities, and no amount of structured-data scoping would have helped.
+
+Worth keeping as a lesson about diagnosis: I inferred "multi-entity page" from the *values*, wrote a plausible mechanism, and started building a filter for it. The URL — one field, already in the capture — refuted the whole story in seconds. Check what you were given before modelling what you were not.
+
+**Fixed two ways** (`returnIfNavigatedAway` in `playwright-browser.ts`, entity filter in `entity-match.ts`):
+
+1. After dismissal and expansion, compare `page.url()`'s pathname against the requested one. On a mismatch, log it and navigate back. Deliberately *no* second dismissal pass — that is what moved us, and a popup left standing costs far less than silently capturing a different product.
+2. `filterEntitiesForPage` drops structured-data blocks whose identifiers conflict with the **requested** URL. Kept as a safety net even though it was built for the wrong diagnosis: it is the check that would have caught this from the data alone, and it costs nothing.
+
+Verified: 4/4 captures now stay on target and extract `NOOK GlowLight 4`, $149.99, sku 9780594205821 — the guard firing on 3 of them. Previously $9.99.
+
+**What this implies beyond B&N.** Any site where dismissal clicks a link has been silently capturing the wrong page, and the resulting data looks perfect. Worth re-checking the corpus fixtures — they were captured with the same dismissal pass — and worth narrowing the dismissal selectors so they cannot match anchors at all.
 
 ### 🔬 Description-based field matching (previously attempted, deliberately disabled)
 

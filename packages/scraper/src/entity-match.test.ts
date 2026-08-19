@@ -1,0 +1,107 @@
+// Does this structured-data block describe the page we asked for?
+//
+// Barnes & Noble, 2026-08-19: the page is
+//   /w/nook-glowlight-4-barnes-noble/1145507276?ean=9780594205821   (a $149.99 e-reader)
+// and its single JSON-LD block describes
+//   /w/nook-glowlight-4-and-4e-cover-in-daffodil-barnes-noble/1140326163  (a $9.99 case)
+//
+// The block is internally consistent, well-formed, and about a different product.
+// Extraction took its price, availability, variants, features and URL, and every
+// existing guard passed it: the shape validator sees a valid price, page
+// corroboration exempts json-ld (and the cover's price IS on the page), request
+// ranking does not apply, and the conflict detector needs two paths to disagree.
+//
+// The discriminating signal is identifiers. The page URL carries 1145507276 and
+// ean 9780594205821; the block carries 1140326163 and sku 9780594120414. Nothing
+// in common.
+
+import { describe, it, expect } from 'vitest';
+import { extractIdentifiers, describesSamePage } from './entity-match.js';
+
+const BN_PAGE = 'https://www.barnesandnoble.com/w/nook-glowlight-4-barnes-noble/1145507276?ean=9780594205821';
+const BN_COVER_ENTITY = {
+  '@type': 'Product',
+  name: 'NOOK GlowLight 4 and 4e Cover in Daffodil',
+  sku: '9780594120414',
+  offers: {
+    url: 'https://www.barnesandnoble.com/w/nook-glowlight-4-and-4e-cover-in-daffodil-barnes-noble/1140326163?ean=9780594120414',
+    price: '9.99',
+  },
+};
+
+describe('extractIdentifiers', () => {
+  it('pulls long identifiers out of the path and query', () => {
+    const ids = extractIdentifiers(BN_PAGE);
+    expect(ids.has('1145507276')).toBe(true);
+    expect(ids.has('9780594205821')).toBe(true);
+  });
+
+  it('ignores short slug words that are not identifiers', () => {
+    const ids = extractIdentifiers(BN_PAGE);
+    expect(ids.has('nook')).toBe(false);
+    expect(ids.has('4')).toBe(false);
+    expect(ids.has('w')).toBe(false);
+  });
+
+  it('handles a URL with no identifiers at all', () => {
+    expect(extractIdentifiers('https://shop.example.com/about').size).toBe(0);
+  });
+
+  it('does not throw on a non-URL', () => {
+    expect(() => extractIdentifiers('not a url')).not.toThrow();
+  });
+});
+
+describe('describesSamePage', () => {
+  it('rejects the B&N accessory block on the e-reader page', () => {
+    const r = describesSamePage(BN_COVER_ENTITY, BN_PAGE);
+    if (r.ok) throw new Error('expected the accessory block to be rejected');
+    expect(r.reason).toMatch(/identifier/i);
+  });
+
+  it('accepts a block whose sku matches an identifier in the page URL', () => {
+    const entity = { '@type': 'Product', name: 'NOOK GlowLight 4', sku: '9780594205821' };
+    expect(describesSamePage(entity, BN_PAGE).ok).toBe(true);
+  });
+
+  it('accepts a block whose offer URL points at the same product path', () => {
+    const entity = {
+      '@type': 'Product', name: 'NOOK GlowLight 4',
+      offers: { url: 'https://www.barnesandnoble.com/w/nook-glowlight-4-barnes-noble/1145507276' },
+    };
+    expect(describesSamePage(entity, BN_PAGE).ok).toBe(true);
+  });
+
+  // --- Permissiveness: reject only on positive conflicting evidence ---
+
+  it('accepts a block carrying no identifiers — absence is not evidence', () => {
+    const entity = { '@type': 'Product', name: 'Some Product', offers: { price: '10.00' } };
+    expect(describesSamePage(entity, BN_PAGE).ok).toBe(true);
+  });
+
+  it('accepts anything when the page URL itself has no identifiers', () => {
+    const entity = { '@type': 'Product', name: 'X', sku: '9999999999' };
+    expect(describesSamePage(entity, 'https://shop.example.com/product').ok).toBe(true);
+  });
+
+  it('is not confused by www or trailing-slash differences', () => {
+    const entity = {
+      '@type': 'Product', name: 'NOOK GlowLight 4',
+      url: 'https://barnesandnoble.com/w/nook-glowlight-4-barnes-noble/1145507276/',
+    };
+    expect(describesSamePage(entity, BN_PAGE).ok).toBe(true);
+  });
+
+  it('accepts non-Product blocks untouched — Organization, BreadcrumbList and friends', () => {
+    // These legitimately carry unrelated identifiers and are not competing to be
+    // the page's product.
+    for (const type of ['Organization', 'BreadcrumbList', 'WebSite', 'WebPage']) {
+      expect(describesSamePage({ '@type': type, url: 'https://x.com/other/999999999' }, BN_PAGE).ok).toBe(true);
+    }
+  });
+
+  it('handles null and non-object input', () => {
+    expect(describesSamePage(null, BN_PAGE).ok).toBe(true);
+    expect(describesSamePage('nope', BN_PAGE).ok).toBe(true);
+  });
+});

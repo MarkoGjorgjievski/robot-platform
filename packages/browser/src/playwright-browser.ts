@@ -148,6 +148,7 @@ export class PlaywrightBrowser implements IBrowser {
       await this.navigateWithFallback(page, url, options);
       await this.dismissPopups(page);
       await this.expandHiddenContent(page);
+      await this.returnIfNavigatedAway(page, url, options);
 
       const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
       const clips = computeTileClips(pageHeight);
@@ -213,6 +214,44 @@ export class PlaywrightBrowser implements IBrowser {
     } finally {
       await page.close();
     }
+  }
+
+  /**
+   * Undo a navigation caused by our own popup dismissal or content expansion.
+   *
+   * Both passes click things. The dismissal selector list is deliberately broad
+   * ("Close", "OK", `[aria-label="Close"]`, `[role="dialog"] button`), and on a
+   * real page a broad click list eventually hits a link.
+   *
+   * Barnes & Noble, 2026-08-19: three captures in four ended on
+   * `/nook-glowlight-4-and-4e-cover-in-daffodil-.../1140326163` after requesting
+   * `/nook-glowlight-4-.../1145507276`. Everything downstream then described a
+   * $9.99 accessory instead of a $149.99 e-reader — and described it perfectly
+   * consistently, because the page really was the accessory's. That failure is
+   * invisible to every content-level guard: the JSON-LD was valid, the price was
+   * real, the name matched the page. Only the URL gave it away.
+   *
+   * Compares pathname only: query and fragment change legitimately (tracking
+   * params, SPA state) without meaning a different page.
+   */
+  private async returnIfNavigatedAway(page: Page, requestedUrl: string, options: CaptureOptions): Promise<void> {
+    let requestedPath: string;
+    let currentPath: string;
+    try {
+      requestedPath = new URL(requestedUrl).pathname.replace(/\/+$/, '');
+      currentPath = new URL(page.url()).pathname.replace(/\/+$/, '');
+    } catch {
+      return; // Unparseable URL — nothing safe to compare.
+    }
+    if (requestedPath === currentPath) return;
+
+    console.warn(
+      `[browser] popup dismissal navigated away from ${requestedPath} to ${currentPath} — returning.`
+      + ' Capturing the wrong page yields data that is wrong and self-consistent.',
+    );
+    // Deliberately no second dismissal pass: it is what moved us, and a popup
+    // left standing costs far less than silently capturing another product.
+    await this.navigateWithFallback(page, requestedUrl, options);
   }
 
   async close(): Promise<void> {
