@@ -11,6 +11,41 @@ import { rankInterceptedRequests } from './rank-requests.js';
 // the entire capture and every judge verdict that depended on it.
 const SCREENSHOT_TIMEOUT_MS = 60_000;
 
+/**
+ * A current, ordinary desktop Chrome UA. Playwright's default advertises
+ * HeadlessChrome, which is the single loudest automation tell.
+ *
+ * This will go stale — a UA claiming a Chrome version years behind the real one
+ * is its own signal. Worth refreshing when the stealth spike is next repeated.
+ */
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36';
+
+/**
+ * playwright-extra + the stealth plugin, loaded lazily and memoised.
+ *
+ * Lazy because it is a heavy import on a module every package pulls in, and
+ * because a failure to load it must not take down capture entirely — a vanilla
+ * browser that gets blocked on some sites beats no browser at all.
+ */
+let stealthLauncher: Promise<typeof chromium> | null = null;
+function stealthChromium(): Promise<typeof chromium> {
+  stealthLauncher ??= (async () => {
+    try {
+      const [{ chromium: extra }, { default: StealthPlugin }] = await Promise.all([
+        import('playwright-extra'),
+        import('puppeteer-extra-plugin-stealth'),
+      ]);
+      extra.use(StealthPlugin());
+      return extra as unknown as typeof chromium;
+    } catch (err) {
+      console.warn(`[browser] stealth unavailable, falling back to vanilla chromium: ${(err as Error).message}`);
+      return chromium;
+    }
+  })();
+  return stealthLauncher;
+}
+
 const nhm = new NodeHtmlMarkdown();
 
 // Common popup/consent selectors to auto-dismiss before capture
@@ -66,12 +101,33 @@ export class PlaywrightBrowser implements IBrowser {
   private context: BrowserContext | null = null;
 
   async launch(options: BrowserOptions = {}): Promise<void> {
-    this.browser = await chromium.launch({
-      headless: options.headless ?? true,
-    });
+    // Stealth is ON by default. A headless Chromium announces itself through a
+    // dozen small tells (navigator.webdriver, missing plugin arrays, a headless
+    // UA string), and the sites we most want are the ones checking. Measured
+    // 2026-08-18 on the three sites that blocked a vanilla launch:
+    //   B&H Photo  Cloudflare block  -> full product page, JSON-LD intact
+    //   Wayfair    CAPTCHA           -> full listing, 82KB of content
+    //   Etsy       CAPTCHA           -> still blocked; needs proxies or a solver
+    // Newegg, which already worked, was unaffected — this does not trade away
+    // sites that were fine.
+    const useStealth = options.stealth ?? true;
+    const launcher = useStealth ? await stealthChromium() : chromium;
+
+    this.browser = await launcher.launch({ headless: options.headless ?? true });
+
+    // A default context also leaks tells: no locale, no timezone, and a UA that
+    // says HeadlessChrome. Only defaults — per-source browser config (v1.5
+    // Phase 3) still overrides them.
+    //
+    // The viewport is deliberately left at 1280x800. Widening it was tempting
+    // while here, but viewport changes layout on responsive sites and can move
+    // XPath results, which has nothing to do with fingerprinting and was not
+    // what the spike measured. Two changes, one commit, no way to attribute a
+    // regression.
     this.context = await this.browser.newContext({
       viewport: options.viewport ?? { width: 1280, height: 800 },
-      userAgent: options.userAgent,
+      userAgent: options.userAgent ?? (useStealth ? DEFAULT_USER_AGENT : undefined),
+      ...(useStealth ? { locale: 'en-US', timezoneId: 'America/New_York' } : {}),
     });
   }
 
