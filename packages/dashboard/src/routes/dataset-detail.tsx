@@ -1,14 +1,18 @@
+import { useState } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
 import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
+import { FIELD_ORIGINS, originLabel, type FieldOrigin } from '../lib/field-origin';
 
 type SchemaField = {
   name: string;
   type: string;
   description?: string;
   required?: boolean;
+  origin?: FieldOrigin;
+  input_column?: string;
 };
 
 export default function DatasetDetail() {
@@ -38,34 +42,7 @@ export default function DatasetDetail() {
         <p className="mt-1 text-sm text-gray-600">{dataset.description}</p>
       )}
 
-      <h2 className="mt-6 text-sm font-semibold text-gray-700">Schema</h2>
-      {schema.length === 0 ? (
-        <EmptyState
-          title="No fields defined yet"
-          description="The schema editor with field-source classification is coming in Phase 3b."
-        />
-      ) : (
-        <table className="mt-2 w-full text-sm">
-          <thead className="border-b">
-            <tr>
-              <th className="py-2 text-left font-medium text-gray-600">Field</th>
-              <th className="py-2 text-left font-medium text-gray-600">Type</th>
-              <th className="py-2 text-left font-medium text-gray-600">Required</th>
-              <th className="py-2 text-left font-medium text-gray-600">Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schema.map((f) => (
-              <tr key={f.name} className="border-b last:border-b-0">
-                <td className="py-2 font-mono text-xs">{f.name}</td>
-                <td className="py-2 text-xs text-gray-600">{f.type}</td>
-                <td className="py-2 text-xs text-gray-500">{f.required ? 'yes' : 'no'}</td>
-                <td className="py-2 text-xs text-gray-500">{f.description ?? '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <SchemaFieldOrigins datasetId={dataset.id} schema={schema} />
 
       <h2 className="mt-8 text-sm font-semibold text-gray-700">
         Sources ({sources.length})
@@ -93,6 +70,70 @@ export default function DatasetDetail() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: SchemaField[] }) {
+  const [fields, setFields] = useState<SchemaField[]>(schema);
+  const utils = trpc.useUtils();
+  const updateSchema = trpc.datasets.updateSchema.useMutation({
+    onSuccess: () => utils.datasets.invalidate(),
+  });
+
+  function setOrigin(index: number, origin: FieldOrigin) {
+    setFields((prev) => prev.map((f, i) => (i === index ? { ...f, origin } : f)));
+  }
+
+  if (fields.length === 0) {
+    return <p className="mt-6 text-sm text-gray-500">This dataset has no schema fields yet.</p>;
+  }
+
+  return (
+    <div className="mt-6">
+      <h2 className="text-sm font-semibold text-gray-700">Schema fields</h2>
+      <p className="mt-1 text-xs text-gray-500">
+        Where each value comes from. Listing-page fields are captured while crawling and carried
+        down to every detail row.
+      </p>
+      <table className="mt-3 w-full text-sm">
+        <thead className="border-b">
+          <tr>
+            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Field</th>
+            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Type</th>
+            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Comes from</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map((field, i) => (
+            <tr key={field.name} className="border-b last:border-b-0">
+              <td className="py-2 pr-4 font-mono text-xs">{field.name}</td>
+              <td className="py-2 pr-4 font-mono text-xs text-gray-500">{field.type}</td>
+              <td className="py-2 pr-4">
+                <select
+                  value={field.origin ?? 'detail'}
+                  onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
+                  className="rounded border px-2 py-1 text-xs"
+                >
+                  {FIELD_ORIGINS.map((origin) => (
+                    <option key={origin} value={origin}>{originLabel(origin)}</option>
+                  ))}
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button
+        onClick={() => updateSchema.mutate({ datasetId, schema: fields })}
+        disabled={updateSchema.isPending}
+        className="mt-3 rounded border px-3 py-1 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+      >
+        {updateSchema.isPending ? 'Saving...' : 'Save field origins'}
+      </button>
+      {updateSchema.isError && (
+        <p className="mt-2 text-xs text-red-600">{updateSchema.error.message}</p>
       )}
     </div>
   );
