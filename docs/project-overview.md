@@ -201,24 +201,32 @@ Domain Intelligence (cached per domain, shared across all sources)
 
 ## Cost Model
 
-> **Unverified against the current model (2026-08-18) — but now measurable.** These figures
-> were taken on `claude-sonnet-4-20250514`, which has since been retired; the pipeline runs
-> on `claude-sonnet-5`. Per-token list pricing is the same ($3/$15 per MTok, currently $2/$10
-> intro), so they should hold or improve slightly.
->
-> Token accounting now exists (`@robot/agent`'s `usage.ts`, recorded at every call site), and
-> the dogfood reports spend per site and in total. **Replace this table with the numbers from
-> the next dogfood run**, and note that a dogfood is mostly cache-warm — a cold first run on
-> an unknown domain is the expensive case and needs measuring separately. Until then treat
-> these as the right order of magnitude, not as current measurements.
+**Measured 2026-08-19** on `claude-sonnet-5` at list rates ($3/$15 per MTok; a $2/$10
+introductory rate applies through 2026-08-31, so real spend is currently ~1/3 lower).
+Figures are **pipeline only** — the Tier 2 judge costs a further ~$0.10–0.15 per URL but
+ships to nobody. Source: `docs/testing/results/2026-08-19T03-*-dogfood.md`.
 
-| Scenario | AI Cost | Speed |
-|----------|---------|-------|
-| First run (no cache) | ~$0.12 per URL | 30-90s |
-| Cached run (same domain) | ~$0.00 | 5-20s |
-| Cache miss (fluke page) | ~$0.08 | 20-60s |
-| 1,000 URLs (same template) | ~$0.12 total | Minutes |
-| 1,000 URLs (unique domains) | ~$120 total | Hours |
+| Scenario | AI Cost | Measured on |
+|----------|---------|-------------|
+| **First run, cold domain** | **~$0.47 per URL** | B&N, no cache at all |
+| **Warm domain, most fields cached** | **~$0.12 per URL** | Newegg, 6 prior runs, 14/18 from cache |
+| **Partly warm** | **~$0.25 per URL** | Target, 2 prior runs, 4/13 from cache |
+| 1,000 URLs, same template | ~$0.47 + 999 × ~$0.12 ≈ **$120** | extrapolated |
+| 1,000 URLs, unique domains | ≈ **$470** | extrapolated |
+
+**Two corrections to what this table used to claim.**
+
+*A cold first run is ~4x more expensive than documented* — $0.47, not $0.12. It pays for
+schema discovery and selector generation, which a warm run skips entirely.
+
+*A cached run is not free.* The old table said ~$0.00. Newegg had six prior runs and still
+resolved only 14 of 18 fields from cache; the remaining four went to AI and cost $0.12. The
+cache reduces per-URL cost by roughly 4x — it does not eliminate it — because any field the
+cache cannot resolve falls through to the model on every single run. That makes
+`ai-vision`-only fields (see `docs/ideas.md`) a recurring cost, not a one-off.
+
+Speeds are unmeasured; the old 30-90s / 5-20s figures are retained nowhere because nothing
+timed them.
 
 ## Environment Variables
 
