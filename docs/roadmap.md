@@ -192,7 +192,8 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 - [ ] Cost-preview UX (deferred from v1.5)
 - [ ] Multi-tenant auth shell — surface Org level in UI; **drop legacy `extractors` / `extractor_inputs` / `credentials` / `robot_overrides` tables here** (they tie to the pre-multi-tenant extractor model and need re-modeling with proper auth)
   - Audit (2026-06-30): these tables are defined in `packages/db/src/schema.ts` but have **zero readers in the dashboard** — they're dead until re-modeled. Their tRPC routers (`extractorsRouter`, `credentialsRouter` in `packages/api/src/routers/`, ~190 lines) are likewise uncalled. `runs` carries **both** `extractorId` (legacy) and `sourceId` (current) FKs, both nullable; only `sourceId` is written by the current pipeline. The cleanup is: drop the four tables + their two routers, then drop `runs.extractorId` and its relation. Self-contained (~400 lines, ~1 day), but the column drop needs a tenant migration, so it's correctly staged here behind the auth re-model rather than done as loose cleanup.
-- [ ] Data export (CSV / JSON / webhook destinations)
+- [x] **Run export (DONE — 2026-08-19).** `GET /export/runs/{id}.csv|.json` on `@robot/api-server`, plus CSV/JSON buttons on the run detail page. Columns come from the Source schema (stable header across runs; unresolved fields keep an empty column; undeclared data keys are appended). CSV is RFC 4180 with a UTF-8 BOM, arrays/objects JSON-encoded in-cell; JSON is an envelope with run + source provenance. Unauthenticated — the run UUID is the only guard.
+- [ ] Data export: multi-run / dataset scope, webhook destinations, scheduled delivery
 - [ ] Public API surface — comes nearly free from `packages/api-server` landing in v1.5 Phase 1
 - [ ] Cost tracking per source/customer
 

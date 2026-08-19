@@ -47,7 +47,7 @@ Follow the project's own workflow rather than improvising:
 
 From `docs/roadmap.md`, in the order that makes the product real:
 
-1. **Data export** (v3 backlog, but do it first) — CSV/JSON from a run. Small, and it is the difference between a demo and a deliverable.
+1. ~~**Data export**~~ — DONE 2026-08-19. `GET /export/runs/{id}.csv|.json` plus buttons on the run detail page. Single-run scope only; multi-run/dataset export and destinations are still open.
 2. **v2 pagination + listing→detail crawler.** The data model landed in v1.5 Phase 0 (`input_sets`, `listing_mode`, `budget`) and **nothing reads it**. The extraction chain was lifted out of the tRPC router into `@robot/scraper`'s `runExtraction` precisely so the crawler can reuse it instead of duplicating it.
 3. **Batch runs with per-input status**, so an order of 500 URLs is something you can start and watch.
 

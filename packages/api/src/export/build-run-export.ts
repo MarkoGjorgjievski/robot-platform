@@ -1,0 +1,111 @@
+// Turns the rows a run persisted into a self-describing export envelope.
+//
+// Pure on purpose: everything that decides *what* an export contains lives here
+// and is testable without Postgres; `load-run-export.ts` only fetches the inputs.
+
+export type ExportSchemaField = { name: string; enabled?: boolean };
+
+export type RunExportInput = {
+  run: {
+    id: string;
+    status: string;
+    startedAt: Date | null;
+    completedAt: Date | null;
+    createdAt: Date;
+    resultCount: number | null;
+  };
+  source: {
+    slug: string;
+    name: string;
+    urlTemplate: string | null;
+    selectorsJson: unknown;
+  } | null;
+  /** The URL actually fetched, which may carry parameters the template does not. */
+  captureUrl: string | null;
+  extractionData: unknown;
+};
+
+export type RunExport = {
+  run: {
+    id: string;
+    status: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    rowCount: number;
+  };
+  source: { slug: string; name: string; url: string | null } | null;
+  fields: string[];
+  rows: Record<string, unknown>[];
+};
+
+/**
+ * Column order comes from the schema so two runs of the same Source export the
+ * same header — a consumer can diff them. Fields nothing resolved still get a
+ * column (empty cells), and data keys the schema never declared are appended
+ * rather than silently dropped.
+ */
+export function deriveColumns(
+  fields: ExportSchemaField[],
+  rows: Record<string, unknown>[],
+): string[] {
+  const columns: string[] = [];
+  const seen = new Set<string>();
+  for (const field of fields) {
+    if (field.enabled === false || seen.has(field.name)) continue;
+    seen.add(field.name);
+    columns.push(field.name);
+  }
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      columns.push(key);
+    }
+  }
+  return columns;
+}
+
+function schemaFields(selectorsJson: unknown): ExportSchemaField[] {
+  const fields = (selectorsJson as { fields?: unknown } | null)?.fields;
+  if (!Array.isArray(fields)) return [];
+  return fields.filter(
+    (f): f is ExportSchemaField =>
+      typeof f === 'object' && f !== null && typeof (f as ExportSchemaField).name === 'string',
+  );
+}
+
+export function buildRunExport(input: RunExportInput): RunExport {
+  const rows = (Array.isArray(input.extractionData) ? input.extractionData : []) as Record<string, unknown>[];
+  return {
+    run: {
+      id: input.run.id,
+      status: input.run.status,
+      startedAt: input.run.startedAt?.toISOString() ?? null,
+      completedAt: input.run.completedAt?.toISOString() ?? null,
+      createdAt: input.run.createdAt.toISOString(),
+      // The exported row count, not runs.result_count — the file describes itself.
+      rowCount: rows.length,
+    },
+    source: input.source
+      ? {
+          slug: input.source.slug,
+          name: input.source.name,
+          url: input.captureUrl ?? input.source.urlTemplate ?? null,
+        }
+      : null,
+    fields: deriveColumns(schemaFields(input.source?.selectorsJson ?? null), rows),
+    rows,
+  };
+}
+
+function slugify(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+export function exportFilename(runExport: RunExport, extension: 'csv' | 'json'): string {
+  // A run that never completed still has a creation date to name the file by.
+  const date = (runExport.run.completedAt ?? runExport.run.createdAt).slice(0, 10);
+  const name = runExport.source ? slugify(runExport.source.slug) : 'run';
+  return `${name}-${runExport.run.id.slice(0, 8)}-${date}.${extension}`;
+}
