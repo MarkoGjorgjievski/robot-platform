@@ -25,9 +25,11 @@ export type PartitionedSchema = {
 
 export function partitionSchemaByOrigin(fields: OriginField[]): PartitionedSchema {
   const out: PartitionedSchema = { detail: [], listing: [], input: [], system: [] };
+  const validOrigins = new Set<FieldOrigin>(['detail', 'listing', 'input', 'system']);
   for (const field of fields) {
     if (field.enabled === false) continue;
-    out[field.origin ?? 'detail'].push(field);
+    const origin: FieldOrigin = (field.origin && validOrigins.has(field.origin)) ? field.origin : 'detail';
+    out[origin].push(field);
   }
   return out;
 }

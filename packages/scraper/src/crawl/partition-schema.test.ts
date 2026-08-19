@@ -40,4 +40,11 @@ describe('partitionSchemaByOrigin', () => {
   it('returns empty partitions for an empty schema', () => {
     expect(partitionSchemaByOrigin([])).toEqual({ detail: [], listing: [], input: [], system: [] });
   });
+
+  it('degrades an unrecognized origin to detail', () => {
+    const result = partitionSchemaByOrigin([
+      { name: 'title', type: 'string', origin: 'api' as any },
+    ]);
+    expect(result.detail.map((f) => f.name)).toEqual(['title']);
+  });
 });
