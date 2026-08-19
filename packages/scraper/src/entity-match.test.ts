@@ -16,7 +16,7 @@
 // in common.
 
 import { describe, it, expect } from 'vitest';
-import { extractIdentifiers, describesSamePage } from './entity-match.js';
+import { extractIdentifiers, describesSamePage, filterRequestsForPage } from './entity-match.js';
 
 const BN_PAGE = 'https://www.barnesandnoble.com/w/nook-glowlight-4-barnes-noble/1145507276?ean=9780594205821';
 const BN_COVER_ENTITY = {
@@ -103,5 +103,56 @@ describe('describesSamePage', () => {
   it('handles null and non-object input', () => {
     expect(describesSamePage(null, BN_PAGE).ok).toBe(true);
     expect(describesSamePage('nope', BN_PAGE).ok).toBe(true);
+  });
+});
+
+describe('filterRequestsForPage', () => {
+  // The second channel the accessory data arrived through. Fixing the capture
+  // navigation left this one untouched: sku, description and variants kept
+  // coming back as the cover's, sourced from `api` / `api-ai`.
+  const COVER_RESPONSE = {
+    url: 'https://e9c22f-3.myshopify.com/api/2025-07/graphql.json',
+    parsedJson: {
+      data: { product: { handle: 'nook-cover-daffodil', variants: [{ sku: '9780594120414', price: '9.99' }], legacyId: 1140326163 } },
+    },
+  };
+  const MAIN_RESPONSE = {
+    url: 'https://www.barnesandnoble.com/api/product',
+    parsedJson: { product: { ean: '9780594205821', price: 149.99 } },
+  };
+  const REVIEWS_RESPONSE = {
+    url: 'https://api-cdn.yotpo.com/v3/storefront/reviews',
+    parsedJson: { reviews: [{ score: 5, title: 'Great!', content: 'Love it' }] },
+  };
+
+  it('drops a response carrying only another product identifiers', () => {
+    const kept = filterRequestsForPage([COVER_RESPONSE], BN_PAGE);
+    expect(kept).toEqual([]);
+  });
+
+  it('keeps a response about the requested product', () => {
+    expect(filterRequestsForPage([MAIN_RESPONSE], BN_PAGE)).toHaveLength(1);
+  });
+
+  it('keeps a response that carries no identifiers at all', () => {
+    // A reviews feed has offered no evidence either way; silence is not a mismatch.
+    expect(filterRequestsForPage([REVIEWS_RESPONSE], BN_PAGE)).toHaveLength(1);
+  });
+
+  it('keeps a response containing BOTH the page product and others', () => {
+    // Coarse by design: whole-response granularity. Within-response scoping is a
+    // different problem and this must not pretend to solve it.
+    const mixed = { url: 'https://x.com/api/page', parsedJson: { main: { ean: '9780594205821' }, alsoBought: [{ sku: '9780594120414' }] } };
+    expect(filterRequestsForPage([mixed], BN_PAGE)).toHaveLength(1);
+  });
+
+  it('keeps everything when the page URL has no identifiers', () => {
+    expect(filterRequestsForPage([COVER_RESPONSE], 'https://shop.example.com/product')).toHaveLength(1);
+  });
+
+  it('terminates on a self-referential payload', () => {
+    const cyclic: Record<string, unknown> = { id: '9999999999' };
+    cyclic.self = cyclic;
+    expect(() => filterRequestsForPage([{ url: 'https://x.com/a', parsedJson: cyclic }], BN_PAGE)).not.toThrow();
   });
 });
