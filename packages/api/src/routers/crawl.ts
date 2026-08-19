@@ -82,7 +82,7 @@ export const crawlRouter = router({
         const itemCount = persisted.length - listingPages;
 
         await ctx.db.update(runs)
-          .set({ status: 'planned', resultCount: itemCount, completedAt: new Date() })
+          .set({ status: 'planned', completedAt: new Date() })
           .where(eq(runs.id, run!.id));
 
         return {
