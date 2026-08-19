@@ -13,11 +13,11 @@ Exploratory items that aren't release-staged yet. When an idea is concrete enoug
 
 How we identify which extracted values map to which schema fields. Today's chain: exact name → alias list → suffix match in flattened API JSON → AI fallback. Real customer schemas have names that don't match the source data, so this chain misses easy wins.
 
-### 🎯 Label every candidate instead of picking one ("one page, many prices")
+### 🔬 Label every candidate instead of picking one ("one page, many prices")
 
-> **PREMISE NOT YET CONFIRMED — investigate before building. See "What would confirm or kill this" below.** The design is recorded because it is worth keeping; the diagnosis it rests on is one day old, partly confounded, and drawn from a single domain.
+> **PREMISE CONFIRMED 2026-08-19 — but the mechanism I proposed was WRONG. See "What the fixed-path check actually found".** The idea stands and is stronger than when it was filed; the seller-rotation story behind it does not.
 
-**The observation.** A Newegg product page exposes many price-shaped values at once, all real:
+**The observation** (values as read on 2026-08-18; several had changed by the next day — see the 2026-08-19 check below, which is the better evidence). A Newegg product page exposes many price-shaped values at once, all real:
 
 | Path | Value |
 |---|---|
@@ -45,11 +45,29 @@ Splits cleanly along the existing data model:
 
 **Cost.** Cheaper than it sounds. The API blob is already fetched, so enumerating candidates is mechanical and free. The expensive part is *labelling* them, which is one AI pass per domain, cached like everything else. The real cost is UI: six price fields presented flatly is worse than one wrong number, so grouping and sensible defaults are the actual work.
 
-**What would confirm or kill this — do this first.**
+**What the fixed-path check actually found (2026-08-19).**
 
-The causal story is **not established**. Across three runs on the same URL the price read 402.99 → 398 → 395 and the seller read `DealsADay` → `MobileMonster` → `MobileMonster`. But the *extraction source* changed at the same time (`ai-vision` → `api-ai`), so at least three things moved together and cannot be separated after the fact: which seller was featured, which path read the value, and whether the price genuinely moved. The seller name changing is decent evidence of real rotation, but it is not proof that rotation explains the price differences.
+Seven captures of the same URL over ~17 minutes, reading FIXED dot-paths so extraction-path variance was held constant. Results:
 
-- **Isolate the variables.** Capture the same URL N times over several hours with a FIXED extraction path (one specific dot-path), recording seller and price each time. If price moves while the path is fixed, the page really is rotating. If it does not, the whole "many prices" story may be mostly extraction-path variance and this idea shrinks to "pin the right path", which is already solved by `pinFieldPath`. **Costs no AI credit — Playwright only.**
+*Refuted — the mechanism.* **Every path was stable across all seven captures.** There is no per-request seller rotation. The 402.99 → 398 → 395 spread across the 2026-08-18 runs is therefore *not* explained by rotation; it is better explained by different extraction paths reading different fields, plus genuine day-to-day change. My original causal story was wrong, and it was wrong in the specific way worth remembering: three variables moved together and I attributed the effect to the most interesting one.
+
+*Confirmed — and more strongly than the original filing.* One page carries several simultaneously-valid prices. As of 2026-08-19:
+
+| Source | Value |
+|---|---|
+| **What the page DISPLAYS** (`price-current`) | **$389.99**, labelled "Save: 29%" |
+| `MainItem.OriginalUnitPrice` | 679.99 |
+| `MainItem.FinalPrice` | 399.99 |
+| `MainItem.ItemPriceRange.PriceRangeMin` | 396 |
+
+*New, and the most actionable finding.* **The displayed price matches none of the API fields.** `FinalPrice` sounds authoritative and is not what a shopper pays. So the extraction chain can return a value that is real, stable, internally consistent and *still not the number on the page* — a plausible wrong answer, which is worse than an obviously wrong one, and which neither the shape validator nor page-corroboration would catch (679.99 and 399.99 are perfectly well-formed prices).
+
+*Also.* `Seller.SellerName` was `MobileMonster` on 2026-08-18 and `null` on 2026-08-19 — the marketplace seller genuinely comes and goes day to day. A `seller` scope column will often be empty, and that emptiness is information ("sold by Newegg directly"), not a gap.
+
+**What this changes about the design.** Labelling is not just a convenience for customers choosing between equally-good options — it is the only way to distinguish *the price shown to a shopper* from *a real number in the API that means something else*. The label has to carry that distinction explicitly (`price_displayed` vs `price_list` vs `price_range_min`), and "which one does the page show" should probably be a first-class, separately-verified property, since it is the one most customers actually mean.
+
+**Still unchecked from the original list:**
+
 - **Check whether it generalises.** Newegg is a marketplace; marketplaces may be the unusual case. Count the price-shaped candidates on Target and Barnes & Noble (both already in the live corpus, both capturable). If they expose one price each, this is a marketplace feature, not a platform feature, and belongs behind a per-domain flag rather than in the core model.
 - **Check that customers actually want it.** The whole design assumes a customer wants to choose among prices. If in practice they always want "the price a shopper would pay", this is over-engineering and the simpler answer is a good per-domain default with an override.
 - **Watch for candidate explosion.** Six price fields on one domain is manageable; sixty across a schema is not. Measure before designing the UI.
