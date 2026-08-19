@@ -24,7 +24,6 @@ import { buildExtractionScript } from './executor.js';
 import { extractFromStructuredData } from './structured-extractor.js';
 import { validateFieldShape } from './shape-validator.js';
 import { corroborateValue, visibleTextFromHtml } from './corroborate-value.js';
-import { filterRequestsForPage } from './entity-match.js';
 import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
@@ -150,11 +149,9 @@ export async function runExtraction(
     // Rendered page text, computed once, used to corroborate values that came
     // from intercepted API responses rather than from the page itself.
     const pageText = visibleTextFromHtml(capture.html ?? '');
-    // Intercepted responses about a DIFFERENT entity are dropped ONCE, here, rather
-    // than in each consumer — mechanical extraction, cached-path replay, AI API
-    // analysis and cache saving all read this list, and a filter applied to only
-    // some of them is how the Barnes & Noble accessory survived the first fix.
-    const interceptedRequests = filterRequestsForPage(capture.interceptedRequests, url);
+    // NOTE: intercepted responses are NOT entity-filtered. See filterRequestsForPage
+    // in entity-match.ts for why the identifier rule is unsafe across API namespaces.
+    const interceptedRequests = capture.interceptedRequests;
     // Schema types by field name, handed to buildExtractionScript so array-typed
     // fields collect every matching node instead of just the first.
     const fieldTypes: Record<string, string> = Object.fromEntries(
