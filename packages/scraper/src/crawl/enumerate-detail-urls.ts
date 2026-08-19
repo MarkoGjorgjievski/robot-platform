@@ -61,7 +61,10 @@ export function enumerateDetailUrls(args: EnumerateArgs): EnumerateResult {
     items.push({ url, listingValues, pageNumber });
   }
 
-  if (truncated) return { items, stop: 'budget' };
+  // An exact fill (items.length === remaining, nothing left over to truncate)
+  // is still the budget being exhausted — the caller must not fetch another
+  // page believing there was room left.
+  if (truncated || (items.length > 0 && items.length >= remaining)) return { items, stop: 'budget' };
   if (items.length === 0) return { items, stop: sawAnyUrl ? 'all-duplicates' : 'empty-page' };
   return { items, stop: null };
 }
