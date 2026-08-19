@@ -119,7 +119,7 @@ Shape as declared in the v1.5 spec, with defaults applied when absent:
 - `first_n` — stop enumerating once `max_items` detail URLs exist
 - `all` — ignore `max_items`; stop only at `max_pages`
 
-Defaults are deliberately conservative: an unset budget must never mean unbounded.
+Defaults are deliberately conservative, and the thing they conserve is **requests to the site, not dollars**. AI cost per detail page collapses after the first one (§2.5), but every item is still one or two page loads against a domain whose anti-bot is the project's binding constraint. An unset budget must never mean an unbounded number of requests.
 
 A hard ceiling of **5000 items per run** applies regardless of configuration, because a mis-detected `url-pattern` template is a loop generator.
 
@@ -235,7 +235,13 @@ When a cached config produces nothing on page 2, phase 1 re-detects once, stores
 
 One `listing` item is recorded per listing page actually walked (with its `page_number`), so the plan is auditable: which pages were fetched, and which detail URLs each produced. Detail items are inserted (absolute, deduped, budget-capped). The run moves to `planned` and `plan` returns item count, per-input breakdown, warnings, and a cost estimate.
 
-The estimate uses the handoff's measured **~$0.47 cold / ~$0.20 warm per URL** in one named constant, labelled advisory rather than billing. "Warm" means the domain already has cached field paths for the `detail` page type — the same lookup the extraction chain itself does.
+**`plan` reports item count and whether the domain cache is warm. It does not report a dollar figure.**
+
+Every AI step in `runExtraction` is gated on fields still missing: STEP 2 fires on `missingAfterCache`, STEP 3 on `missingAfterApi`. Within one crawl over one domain, detail page 1 is cold (selector generation + API analysis, ~$0.47), writes the cache, and pages 2..N resolve from that cache for **$0** apart from individual pages carrying a field the cache misses. A 180-item crawl costs a few dollars, not a few hundred.
+
+The handoff's "~$0.20 warm per URL" was measured across the dogfood corpus — different sites, different page shapes, partial cache coverage — and does not describe a homogeneous crawl. Multiplying it by item count produces a confidently wrong number, which is worse than no number. Hence: report items and cache warmth, and let the operator judge.
+
+**What is worth counting is page loads**, and §8 records why.
 
 ---
 
@@ -317,7 +323,11 @@ One Drizzle migration for `run_items` and the widened run-status vocabulary, gen
 
 **Anti-bot is made worse by this feature, not better.** Walking 10 listing pages plus 200 detail pages from one IP is exactly the access pattern that degrades stealth, and four of eleven probed sites are already hard-blocked. `api-param` pagination reduces the surface (one request per page instead of a full render) but does not remove it. The proxy-budget decision in the handoff remains open and this raises its priority.
 
-**Cost is now unbounded by page count rather than by URL count.** The enumerate-then-extract gate, conservative budget defaults, and the hard ceiling are the mitigations; none of them is a substitute for looking at the plan output before running phase 2.
+**Requests and wall-clock are what scale, not AI spend.** A 180-item crawl is a few dollars of AI but 180–360 page loads and, with the 2s politeness delay, one to two and a half hours of browsing against a single domain. `evaluate()` opens a new page and re-navigates, so any item falling through to cached XPaths loads its page **twice** — precisely the warm path a crawl spends most of its time in.
+
+`setContentEvaluate(html, script)` already exists on `IBrowser` and runs a script against captured HTML with no navigation. Routing the cached-XPath tier through it removes the second load, roughly halving a warm crawl's request footprint and wall-clock. That optimisation is only worth doing because of this feature, so it belongs to this spec (§9 step 4) rather than to general scraper polish.
+
+The enumerate-then-extract gate, conservative budget defaults, and the hard ceiling are the mitigations; none is a substitute for looking at the plan output before running phase 2.
 
 **An in-process worker loses its run on restart.** Mitigated by durable `run_items` and idempotent resume, not solved. Approach C (a real queue) is the upgrade when this stops being acceptable.
 
@@ -330,7 +340,7 @@ One Drizzle migration for `run_items` and the widened run-status vocabulary, gen
 1. Field `origin`: schema model, `updateSchema` contract, minimal Dataset editor control
 2. `run_items` migration + run status vocabulary
 3. Pure crawl units (`budget`, `build-input-urls`, `enumerate-detail-urls`, `merge-row`)
-4. `IBrowser.crawl` + start-from-page-2 option + fake browser for tests
+4. `IBrowser.crawl` + start-from-page-2 option + fake browser for tests; route the cached-XPath tier through `setContentEvaluate` so a warm item stops re-navigating (§8)
 5. `plan-run` (phase 1) — HTML pagination first, plus the new Tier 1 listing fixture
 6. `detect-api-pagination` + API replay, layered in front of HTML detection
 7. `execute-run` (phase 2), including cancel and resume
