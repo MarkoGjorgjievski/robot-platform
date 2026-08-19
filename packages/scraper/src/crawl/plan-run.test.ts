@@ -112,6 +112,28 @@ describe('planRun', () => {
     expect(outcome.warnings).toContain('budget reached: 1 items');
   });
 
+  it('never fetches page 2 when page 1\'s rows exactly fill the item cap', async () => {
+    class NoCrawlBrowser extends FakeBrowser {
+      crawlCalls = 0;
+      async *crawl(_url: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {
+        this.crawlCalls++;
+        throw new Error('browser.crawl must not be called when page 1 already fills the budget');
+      }
+    }
+    const browser = new NoCrawlBrowser();
+    const outcome = await planRun(
+      { source: { ...LISTING_SOURCE, budget: { max_pages: 2, max_items: 2, mode: 'first_n' } }, schema: SCHEMA, inputSet: INPUT_SET },
+      {
+        browser,
+        agent: null,
+        extract: fakeExtract([{ detail_url: '/p/1' }, { detail_url: '/p/2' }]),
+      },
+    );
+    expect(browser.crawlCalls).toBe(0);
+    expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(2);
+    expect(outcome.warnings).toContain('budget reached: 2 items');
+  });
+
   it('emits one detail item per input row for a detail-mode source, with no listing capture', async () => {
     const outcome = await planRun(
       {

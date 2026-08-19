@@ -71,6 +71,14 @@ describe('enumerateDetailUrls', () => {
     expect(enumerateDetailUrls(args([{ [DETAIL_URL_FIELD]: '/p/1' }])).stop).toBeNull();
   });
 
+  it('reports the budget stop when a page\'s rows exactly consume the remaining budget', () => {
+    const result = enumerateDetailUrls(
+      args([{ [DETAIL_URL_FIELD]: '/p/1' }, { [DETAIL_URL_FIELD]: '/p/2' }], { remaining: 2 }),
+    );
+    expect(result.items.map((i) => i.url)).toEqual(['https://example.com/p/1', 'https://example.com/p/2']);
+    expect(result.stop).toBe('budget');
+  });
+
   it('does not mutate the caller\'s seen set', () => {
     const seen = new Set<string>();
     enumerateDetailUrls(args([{ [DETAIL_URL_FIELD]: '/p/1' }], { seen }));
