@@ -165,7 +165,20 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
     // a page-level tier answers with the listing page's own canonical URL, the
     // field counts as resolved, and row selectors are never generated — the first
     // live crawl queued the category page itself as if it were a product.
-    { name: DETAIL_URL_FIELD, type: 'url', description: 'Link to this row\'s detail page', rowScopedOnly: true },
+    {
+      name: DETAIL_URL_FIELD,
+      type: 'url',
+      // The description is the only steer the selector model gets for this field,
+      // and a vague one costs a whole crawl: asked for "link to the detail page",
+      // a live run returned the site's privacy-policy link from the footer. Name
+      // the repeating container and rule out chrome explicitly.
+      description:
+        'The hyperlink (href) on THIS result row that opens the item\'s own product/detail page. '
+        + 'The row container must be the repeating result tile in the main results grid — one per item. '
+        + 'Never a navigation, footer, breadcrumb, category, help, policy, advert or "compare" link, '
+        + 'and never the current page\'s own URL.',
+      rowScopedOnly: true,
+    },
     ...partitions.listing.map((f) => ({ name: f.name, type: f.type })),
   ];
 
