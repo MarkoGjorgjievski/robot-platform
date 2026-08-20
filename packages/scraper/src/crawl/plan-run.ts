@@ -161,7 +161,11 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
 
   // The listing page is asked for the detail link plus every listing-origin field.
   const listingFields = [
-    { name: DETAIL_URL_FIELD, type: 'url', description: 'Link to this row\'s detail page' },
+    // rowScopedOnly: a per-row link can only come from row extraction. Without it
+    // a page-level tier answers with the listing page's own canonical URL, the
+    // field counts as resolved, and row selectors are never generated — the first
+    // live crawl queued the category page itself as if it were a product.
+    { name: DETAIL_URL_FIELD, type: 'url', description: 'Link to this row\'s detail page', rowScopedOnly: true },
     ...partitions.listing.map((f) => ({ name: f.name, type: f.type })),
   ];
 
@@ -210,6 +214,11 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       }
       cacheWarm ||= page1.cacheHit;
 
+      // `data` is always a single row — right for a detail page, useless here.
+      // `rows` carries every row the row-scoped extraction produced, which is
+      // what a listing page's links actually live in.
+      const listingRows = page1.rows ?? page1.data;
+
       // Page-level listing fields: a value shown once for the whole page (the
       // category in a breadcrumb) is not per-row, so no row resolved it. A second
       // document-mode pass over the SAME capture costs no fetch — and is
@@ -217,7 +226,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // switch that the cache would otherwise believe (see CACHE_ISOLATED).
       let pageLevelValues: Record<string, unknown> = {};
       const unresolved = partitions.listing.filter(
-        (field) => !page1.data.some((row) => row[field.name] !== undefined && row[field.name] !== null),
+        (field) => !listingRows.some((row) => row[field.name] !== undefined && row[field.name] !== null),
       );
       if (unresolved.length > 0) {
         try {
@@ -258,7 +267,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         return result.stop === null ? 'continue' : 'stop';
       };
 
-      if (absorb(page1.data, start.url, 1) === 'stop') {
+      if (absorb(listingRows, start.url, 1) === 'stop') {
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
         continue;
       }
