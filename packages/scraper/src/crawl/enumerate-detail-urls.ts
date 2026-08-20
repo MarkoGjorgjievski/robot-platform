@@ -38,6 +38,19 @@ function absolute(href: unknown, pageUrl: string): string | null {
   }
 }
 
+/** Same page, ignoring the fragment — a listing linking to itself is not work. */
+function isSelfLink(candidate: string, pageUrl: string): boolean {
+  try {
+    const a = new URL(candidate);
+    const b = new URL(pageUrl);
+    a.hash = '';
+    b.hash = '';
+    return a.href === b.href;
+  } catch {
+    return false;
+  }
+}
+
 export function enumerateDetailUrls(args: EnumerateArgs): EnumerateResult {
   const { rows, pageUrl, pageNumber, seen, remaining } = args;
   if (rows.length === 0) return { items: [], stop: 'empty-page' };
@@ -50,6 +63,9 @@ export function enumerateDetailUrls(args: EnumerateArgs): EnumerateResult {
   for (const row of rows) {
     const url = absolute(row[DETAIL_URL_FIELD], pageUrl);
     if (!url) continue;
+    // A tier answering with the page's own canonical URL is how the first live
+    // crawl queued a category page as if it were a product.
+    if (isSelfLink(url, pageUrl)) continue;
     sawAnyUrl = true;
     if (local.has(url)) continue;
     if (items.length >= remaining) {

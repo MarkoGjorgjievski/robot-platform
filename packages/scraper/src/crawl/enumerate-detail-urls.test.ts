@@ -85,3 +85,27 @@ describe('enumerateDetailUrls', () => {
     expect(seen.size).toBe(0);
   });
 });
+
+describe('self-links', () => {
+  it('drops a candidate that is the listing page itself', () => {
+    const result = enumerateDetailUrls({
+      rows: [{ [DETAIL_URL_FIELD]: PAGE_URL }, { [DETAIL_URL_FIELD]: '/p/1' }],
+      pageUrl: PAGE_URL,
+      pageNumber: 1,
+      seen: new Set<string>(),
+      remaining: 100,
+    });
+    expect(result.items.map((i) => i.url)).toEqual(['https://example.com/p/1']);
+  });
+
+  it('drops a self-link that differs only by trailing slash or hash', () => {
+    const result = enumerateDetailUrls({
+      rows: [{ [DETAIL_URL_FIELD]: `${PAGE_URL}#top` }],
+      pageUrl: PAGE_URL,
+      pageNumber: 1,
+      seen: new Set<string>(),
+      remaining: 100,
+    });
+    expect(result.items).toEqual([]);
+  });
+});

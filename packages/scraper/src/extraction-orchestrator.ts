@@ -52,6 +52,15 @@ export type ExtractionFieldInput = {
   tier?: 'requested' | 'discovered';
   source?: string;
   api_path?: string;
+  /**
+   * Resolvable ONLY by row-scoped DOM extraction, never by a page-level tier.
+   *
+   * A per-row link is the motivating case. The first live crawl queued a
+   * category page as if it were a product, because an upstream tier answered
+   * `detail_url` with the page's own canonical URL — which then counted as
+   * "resolved" and stopped the chain before row selectors were ever generated.
+   */
+  rowScopedOnly?: boolean;
 };
 
 /**
@@ -96,6 +105,12 @@ export type ExtractionOutcome = {
   fieldCount: { found: number; total: number };
   fieldsByTier: { requested: ResultRow[]; discovered: ResultRow[] };
   cacheHit: boolean;
+  /**
+   * Every row row-scoped extraction produced, when it ran. `data` deliberately
+   * stays a single row — it is what the dashboard, the judge and the export all
+   * read — so a listing consumer that needs all N rows reads this instead.
+   */
+  rows?: Record<string, unknown>[];
   schemaChanges?: SchemaChange[];
   qualityIssues?: ReturnType<typeof validateExtractedData>['issues'];
 };
@@ -115,6 +130,10 @@ export async function runExtraction(
   const domain = new URL(url).hostname;
   const resolvedPageType = pageType ?? 'detail';
   const fieldNames = fields.map((f) => f.name);
+  // Fields that only row-scoped DOM extraction may answer. Every page-level tier
+  // below skips them, so they stay "missing" until STEP 3 generates row selectors.
+  const rowScoped = new Set(fields.filter((f) => f.rowScopedOnly).map((f) => f.name));
+  const pageLevel = <T extends { name: string }>(list: T[]): T[] => list.filter((f) => !rowScoped.has(f.name));
 
   const cache: DomainCache | null = await lookupCache(domain, resolvedPageType);
   const releaseLock = await acquireLock(domain);
@@ -168,6 +187,14 @@ export async function runExtraction(
       // Absent values are "not found", not "rejected" — skip silently. (Guards
       // against JSON.stringify(undefined) returning undefined → .slice crash.)
       if (value === undefined || value === null) return false;
+      // A row-scoped field takes ONLY a row-extraction value. Filtering each
+      // tier's request list is not enough: the AI-on-API tier assigns whatever
+      // the model returns, and live it volunteered `detail_url` — the listing
+      // page's own canonical URL — for a field it was never asked about.
+      if (rowScoped.has(name) && source !== 'xpath') {
+        console.log(`[extract] Rejected ${name} from ${source}: row-scoped fields come only from row extraction`);
+        return false;
+      }
       const type = fieldByName.get(name)?.type ?? 'string';
       const v = validateFieldShape(value, type, { fieldName: name });
       if (!v.ok) {
@@ -189,7 +216,7 @@ export async function runExtraction(
     }
 
     // STEP 0.5: AI-discovered API paths
-    const apiFields = schemaFields.filter((f) => f.api_path && f.source === 'api');
+    const apiFields = pageLevel(schemaFields.filter((f) => f.api_path && f.source === 'api'));
     if (apiFields.length > 0 && interceptedRequests.length > 0) {
       const apiBodies = interceptedRequests
         .filter((r) => r.parsedJson && typeof r.parsedJson === 'object')
@@ -204,7 +231,7 @@ export async function runExtraction(
     }
 
     // STEP 1: Mechanical extraction
-    const missingAfterApiPaths = schemaFields.filter((f) => finalData[f.name] === undefined);
+    const missingAfterApiPaths = pageLevel(schemaFields.filter((f) => finalData[f.name] === undefined));
     if (missingAfterApiPaths.length > 0) {
       const fieldsWithHints = missingAfterApiPaths.map((f) => ({
         name: f.name,
@@ -250,7 +277,7 @@ export async function runExtraction(
 
     // STEP 1.5: Cached paths
     if (cache && cache.totalRuns > 0) {
-      const missingForCache = fieldNames.filter((n) => finalData[n] === undefined);
+      const missingForCache = fieldNames.filter((n) => finalData[n] === undefined && !rowScoped.has(n));
       if (missingForCache.length > 0 && interceptedRequests.length > 0) {
         const apiCacheResult = resolveApiPathsFromCache(cache.fieldPaths, interceptedRequests, missingForCache);
         for (const [name, resolved] of Object.entries(apiCacheResult.resolved)) {
@@ -261,7 +288,7 @@ export async function runExtraction(
         }
       }
 
-      const stillMissing = fieldNames.filter((n) => finalData[n] === undefined);
+      const stillMissing = fieldNames.filter((n) => finalData[n] === undefined && !rowScoped.has(n));
       if (stillMissing.length > 0) {
         const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
         if (cachedXPath) {
@@ -318,7 +345,7 @@ export async function runExtraction(
     }
 
     // STEP 2: AI API analysis
-    const missingAfterCache = schemaFields.filter((f) => finalData[f.name] === undefined);
+    const missingAfterCache = pageLevel(schemaFields.filter((f) => finalData[f.name] === undefined));
     const apisToTry = collectAiAnalysisSources({
       interceptedRequests: interceptedRequests,
       structuredData: capture.structuredData,
@@ -349,6 +376,9 @@ export async function runExtraction(
     // validator then rightly rejects.
     const missingAfterApi = schemaFields.filter((f) => finalData[f.name] === undefined && f.type !== 'variant_array');
     let plan: ExtractionPlan | null = null;
+    // The full row set, kept for listing consumers. `finalData` only ever holds
+    // row 0 — right for a detail page, useless for a crawler enumerating links.
+    let extractedRows: Record<string, unknown>[] | undefined;
     if (agent && missingAfterApi.length > 0) {
       console.log(`[extract] ${missingAfterApi.length} fields still missing, XPath fallback`);
       try {
@@ -360,6 +390,7 @@ export async function runExtraction(
         const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
           url, script, { waitUntil: 'networkidle' },
         );
+        extractedRows = xpathResult.data;
         const xpathRow = xpathResult.data.length > 0 ? xpathResult.data[0]! : {};
         for (const fieldDef of plan.fields) {
           const domValue = xpathRow[fieldDef.name];
@@ -398,6 +429,8 @@ export async function runExtraction(
                   tryAssign(fieldDef.name, value, 'xpath', fieldDef.xpath, 0.7);
                 }
                 plan = retryPlan;
+                // The retry plan won, so its rows are the ones a listing consumer wants.
+                extractedRows = retryResult.data;
               }
             } catch (retryErr) {
               console.error('[extract] XPath retry failed (non-fatal):', retryErr);
@@ -426,6 +459,10 @@ export async function runExtraction(
           const tileResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
             url, tileScript, { waitUntil: 'networkidle' },
           );
+          // Tile escalation is row extraction too — a listing consumer needs its
+          // rows, not just row 0. Without this a field first resolved here left
+          // `rows` empty and the crawler enumerated nothing.
+          if (tileResult.data.length > 0) extractedRows = tileResult.data;
           const tileRow = tileResult.data.length > 0 ? tileResult.data[0]! : {};
           for (const fieldDef of tilePlan.fields) {
             const assigned = tryAssign(fieldDef.name, tileRow[fieldDef.name], 'xpath', fieldDef.xpath, 0.7);
@@ -501,6 +538,7 @@ export async function runExtraction(
       fieldCount: { found: foundFields, total: fields.length },
       fieldsByTier: { requested: requestedResults, discovered: discoveredResults },
       cacheHit: cache !== null && cache.totalRuns > 0 && Object.keys(cache.fieldPaths).length > 0,
+      rows: extractedRows,
       schemaChanges: schemaChanges.length > 0 ? schemaChanges : undefined,
       qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
     };
