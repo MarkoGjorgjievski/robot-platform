@@ -10,11 +10,72 @@ export function detectPaginationFromHtml(
   currentUrl: string,
 ): PaginationConfig | null {
   return (
+    detectLinkRelNext(html, currentUrl) ??
     detectUrlPattern(html, currentUrl) ??
     detectNextButton(html) ??
     detectPageNumbers(html) ??
     null
   );
+}
+
+// ─── Strategy 0: <link rel="next"> ─────────────────────────────────────────
+//
+// The strongest evidence a page can give, and it was being thrown away. A real
+// AbeBooks search page declares its next page in the document head:
+//
+//   <link rel="next" href="…/SearchResults?kn=python&p=1&sp=0&spo=30">
+//
+// The old code saw the substring `rel="next"` anywhere in the document and
+// returned the selector `a[rel="next"]` — which matches no element, because this
+// is a <link>, not an anchor. So the crawl stopped after page 1 while the exact
+// URL it needed sat unused in that tag.
+
+function detectLinkRelNext(html: string, currentUrl: string): PaginationConfig | null {
+  const tag = html.match(/<link\b[^>]*rel=["']next["'][^>]*>/i);
+  if (!tag) return null;
+  const href = tag[0].match(/href=["']([^"']+)["']/i);
+  if (!href) return null;
+
+  const nextUrl = resolveUrl(currentUrl, decodeEntities(href[1]!));
+  // Turn the concrete next-page URL into a template by finding the parameter
+  // that changed against the current URL — that is the page cursor.
+  const template = deriveTemplate(currentUrl, nextUrl);
+  return template
+    ? { strategy: 'url-pattern', urlTemplate: template }
+    : { strategy: 'url-pattern', urlTemplate: nextUrl };
+}
+
+function decodeEntities(value: string): string {
+  return value.replace(/&amp;/g, '&');
+}
+
+/**
+ * Given this page's URL and the declared next page's URL, produce a template
+ * with `{N}` where the page cursor sits.
+ *
+ * Works on the parameter that actually changed rather than on a list of known
+ * page-parameter names, because sites disagree about what to call it — this one
+ * uses `p` alongside `sp` and `spo`, none of which is named "page".
+ */
+function deriveTemplate(currentUrl: string, nextUrl: string): string | null {
+  try {
+    const current = new URL(currentUrl);
+    const next = new URL(nextUrl);
+    if (current.origin !== next.origin || current.pathname !== next.pathname) return null;
+
+    for (const [key, nextValue] of next.searchParams) {
+      const currentValue = current.searchParams.get(key);
+      if (currentValue === nextValue) continue;
+      if (!/^\d+$/.test(nextValue)) continue;
+      // The cursor advanced (or appeared). Everything else stays as the page set it.
+      const template = new URL(next.href);
+      template.searchParams.set(key, '{N}');
+      return decodeURIComponent(template.href);
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Strategy 1: URL Pattern ───────────────────────────────────────────────
@@ -57,8 +118,15 @@ function detectUrlPattern(html: string, currentUrl: string): PaginationConfig | 
 
 // ─── Strategy 2: Next Button ───────────────────────────────────────────────
 
+/** Carousel and slider libraries use "next" for their own arrows. Matching those
+ *  reported pagination on a page that had none — Newegg's category page carries
+ *  `swiper-slide-next` and `aria-label="Next slide"` and paginates nowhere. */
+const CAROUSEL_WORDS = /(swiper|slide|slider|carousel|gallery|thumb|banner|marquee)/i;
+
 const NEXT_BUTTON_PATTERNS: Array<{ regex: RegExp; selector: string }> = [
-  { regex: /rel=["']next["']/i, selector: 'a[rel="next"]' },
+  // Scoped to an ANCHOR: `rel="next"` on a <link> in the head is a URL, not a
+  // clickable element, and is handled by detectLinkRelNext above.
+  { regex: /<a\b[^>]*rel=["']next["']/i, selector: 'a[rel="next"]' },
   { regex: /aria-label=["']Next page["']/i, selector: '[aria-label="Next page"]' },
   { regex: /aria-label=["']Next["']/i, selector: '[aria-label="Next"]' },
   { regex: /class=["'][^"']*\bnext\b[^"']*["'][^>]*>.*?(Next|→|›|»)/is, selector: '.next a, a.next, .next button, button.next' },
@@ -67,9 +135,16 @@ const NEXT_BUTTON_PATTERNS: Array<{ regex: RegExp; selector: string }> = [
 
 function detectNextButton(html: string): PaginationConfig | null {
   for (const pattern of NEXT_BUTTON_PATTERNS) {
-    if (pattern.regex.test(html)) {
-      return { strategy: 'next-button', nextSelector: pattern.selector };
-    }
+    const match = html.match(pattern.regex);
+    if (!match) continue;
+    // Reject a match that is part of a carousel rather than a pager. Checking the
+    // surrounding markup rather than the match alone, because the give-away
+    // (`swiper-slide`, `aria-label="Next slide"`) usually sits on a neighbouring
+    // attribute of the same element.
+    const at = match.index ?? 0;
+    const context = html.slice(Math.max(0, at - 200), at + 200);
+    if (CAROUSEL_WORDS.test(context)) continue;
+    return { strategy: 'next-button', nextSelector: pattern.selector };
   }
   return null;
 }
