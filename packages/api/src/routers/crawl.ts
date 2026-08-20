@@ -11,6 +11,18 @@ import { planRun, type PlannedItem } from '@robot/scraper';
 import { runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
+/** Warnings + errors as one free-text block, or null when planning was clean. */
+export function formatPlanLog(
+  warnings: string[],
+  errors: Array<{ inputIndex: number; message: string }>,
+): string | null {
+  const lines = [
+    ...warnings.map((w) => `warning: ${w}`),
+    ...errors.map((e) => `error: input ${e.inputIndex}: ${e.message}`),
+  ];
+  return lines.length > 0 ? lines.join('\n') : null;
+}
+
 export const crawlRouter = router({
   plan: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
@@ -65,6 +77,7 @@ export const crawlRouter = router({
         // was persisted, not what planRun merely proposed.
         let persisted: Array<{ kind: string }> = [];
         if (outcome.items.length > 0) {
+          const now = new Date();
           persisted = await ctx.db.insert(runItems).values(
             outcome.items.map((item: PlannedItem) => ({
               runId: run!.id,
@@ -74,6 +87,14 @@ export const crawlRouter = router({
               inputValues: item.inputValues,
               listingValues: item.listingValues,
               pageNumber: item.pageNumber,
+              // A listing item is not work waiting to happen: planning ALREADY
+              // fetched and processed that page. Leaving it `pending` would park
+              // rows in a queue phase 2 only ever claims `kind='detail'` from,
+              // and any status rollup that forgot to filter `kind` would read
+              // a finished run as unfinished.
+              ...(item.kind === 'listing'
+                ? { status: 'done' as const, completedAt: now }
+                : { status: 'pending' as const }),
             })),
           ).onConflictDoNothing().returning({ kind: runItems.kind });
         }
@@ -81,16 +102,41 @@ export const crawlRouter = router({
         const listingPages = persisted.filter((i) => i.kind === 'listing').length;
         const itemCount = persisted.length - listingPages;
 
+        // Every input errored and nothing was planned: there is no work list, so
+        // calling this run `planned` invites phase 2 to run on nothing and hides
+        // the failure behind a green status.
+        const allInputsFailed =
+          outcome.inputs.length > 0 &&
+          outcome.inputs.every((i) => i.status === 'error') &&
+          itemCount === 0;
+
+        // Warnings and errors go to runs.logs, not runs.errorMessage: Plan B's
+        // DB-polling crawl.status can only see what is persisted, and logs is
+        // the free-text "what happened during this run" field. errorMessage is
+        // the fatal-reason channel the dashboard renders as a red banner — a
+        // `planned` run that merely carried warnings must not light that up. It
+        // is set below only when the run genuinely failed.
+        const logs = formatPlanLog(outcome.warnings, outcome.errors);
+
         await ctx.db.update(runs)
-          .set({ status: 'planned', completedAt: new Date() })
+          .set({
+            status: allInputsFailed ? 'failed' : 'planned',
+            logs,
+            errorMessage: allInputsFailed
+              ? `planning failed for all ${outcome.inputs.length} input(s)`
+              : null,
+            completedAt: new Date(),
+          })
           .where(eq(runs.id, run!.id));
 
         return {
           runId: run!.id,
+          status: allInputsFailed ? 'failed' : 'planned',
           itemCount,
           listingPages,
           warnings: outcome.warnings,
           errors: outcome.errors,
+          inputs: outcome.inputs,
           cacheWarm: outcome.cacheWarm,
         };
       } catch (err) {

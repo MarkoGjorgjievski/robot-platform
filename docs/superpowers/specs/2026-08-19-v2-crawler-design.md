@@ -295,6 +295,8 @@ New `packages/scraper/src/crawl/`, decisions in pure functions and I/O in two th
 
 `@robot/browser` changes: `crawl()` joins the `IBrowser` interface (today it exists only on the concrete class, so nothing can fake it), gains a "start from page 2" option so phase 1 does not re-fetch the page it already captured, and gains API-replay page fetching.
 
+**As built, `startPage: 2` skips only the page-1 extraction and yield — the page-1 navigation still happens**, because pagination is detected from page 1's live DOM inside `crawl()` and the click-based strategies need that page loaded. The duplicate page-1 load therefore remains until a cached `pagination_config` can be handed to `crawl()` in place of detection.
+
 ---
 
 ## 6. Testing strategy

@@ -3,6 +3,11 @@ import { describe, it, expect } from 'vitest';
 import type { IBrowser, CrawlOptions, CrawlPage, PageCapture } from '@robot/browser';
 import { planRun } from './plan-run.js';
 
+/** The real per-domain lock adds a 2s politeness delay between same-domain
+ *  requests; tests inject this instead so they exercise the acquire/release
+ *  contract without the wall clock. */
+const noopLock = async () => () => {};
+
 const FAKE_CAPTURE = {
   url: 'https://example.com/c/shelves',
   html: '<html></html>',
@@ -65,7 +70,7 @@ describe('planRun', () => {
       { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
       {
         browser: new FakeBrowser(),
-        agent: null,
+        agent: null, acquireLock: noopLock,
         extract: fakeExtract([
           { detail_url: '/p/1', category: 'Shelves' },
           { detail_url: '/p/2', category: 'Shelves' },
@@ -80,7 +85,7 @@ describe('planRun', () => {
   it('records the listing page it walked as its own item', async () => {
     const outcome = await planRun(
       { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
-      { browser: new FakeBrowser(), agent: null, extract: fakeExtract([{ detail_url: '/p/1' }]) },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: fakeExtract([{ detail_url: '/p/1' }]) },
     );
     const listings = outcome.items.filter((i) => i.kind === 'listing');
     expect(listings).toHaveLength(1);
@@ -94,7 +99,7 @@ describe('planRun', () => {
         browser: new FakeBrowser([
           { url: 'https://example.com/c/shelves?page=2', pageNumber: 2, data: [{ detail_url: '/p/3' }], totalRows: 1 },
         ]),
-        agent: null,
+        agent: null, acquireLock: noopLock,
         extract: fakeExtract([{ detail_url: '/p/1' }]),
       },
     );
@@ -106,7 +111,7 @@ describe('planRun', () => {
   it('stops at the item cap and reports it', async () => {
     const outcome = await planRun(
       { source: { ...LISTING_SOURCE, budget: { max_pages: 2, max_items: 1, mode: 'first_n' } }, schema: SCHEMA, inputSet: INPUT_SET },
-      { browser: new FakeBrowser(), agent: null, extract: fakeExtract([{ detail_url: '/p/1' }, { detail_url: '/p/2' }]) },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: fakeExtract([{ detail_url: '/p/1' }, { detail_url: '/p/2' }]) },
     );
     expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(1);
     expect(outcome.warnings).toContain('budget reached: 1 items');
@@ -125,7 +130,7 @@ describe('planRun', () => {
       { source: { ...LISTING_SOURCE, budget: { max_pages: 2, max_items: 2, mode: 'first_n' } }, schema: SCHEMA, inputSet: INPUT_SET },
       {
         browser,
-        agent: null,
+        agent: null, acquireLock: noopLock,
         extract: fakeExtract([{ detail_url: '/p/1' }, { detail_url: '/p/2' }]),
       },
     );
@@ -143,7 +148,7 @@ describe('planRun', () => {
       },
       {
         browser: new FakeBrowser(),
-        agent: null,
+        agent: null, acquireLock: noopLock,
         extract: async () => { throw new Error('detail-mode planning must not capture a listing page'); },
       },
     );
@@ -166,7 +171,7 @@ describe('planRun', () => {
         schema: SCHEMA,
         inputSet: { columns: [{ name: 'url', primary: true }], rows: [{ url: 'https://example.com/p/9' }] },
       },
-      { browser: new FakeBrowser(), agent: null, extract: async () => { throw new Error('unused'); } },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: async () => { throw new Error('unused'); } },
     );
     expect(outcome.warnings).toContain('1 listing-origin field(s) cannot resolve: this source has no listing phase');
   });
@@ -178,7 +183,7 @@ describe('planRun', () => {
         schema: SCHEMA,
         inputSet: { columns: [{ name: 'url', primary: true }], rows: [{ url: 'nope' }, { url: 'https://example.com/p/9' }] },
       },
-      { browser: new FakeBrowser(), agent: null, extract: async () => { throw new Error('unused'); } },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: async () => { throw new Error('unused'); } },
     );
     expect(outcome.items).toHaveLength(1);
     expect(outcome.errors).toEqual([{ inputIndex: 0, message: 'not an absolute http(s) URL: nope' }]);
@@ -194,7 +199,7 @@ describe('planRun', () => {
       },
       {
         browser: new FakeBrowser(),
-        agent: null,
+        agent: null, acquireLock: noopLock,
         extract: async () => {
           call++;
           if (call === 1) throw new Error('navigation timeout');
@@ -213,7 +218,7 @@ describe('planRun', () => {
         schema: SCHEMA,
         inputSet: { columns: [{ name: 'slug', primary: true }], rows: [{ slug: 'a' }, { slug: 'b' }] },
       },
-      { browser: new FakeBrowser(), agent: null, extract: fakeExtract([{ detail_url: 'https://example.com/p/same' }]) },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: fakeExtract([{ detail_url: 'https://example.com/p/same' }]) },
     );
     expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(1);
   });

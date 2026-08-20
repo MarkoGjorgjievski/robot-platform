@@ -84,9 +84,14 @@ export type CrawlOptions = {
   /** Skip detection if pagination config is already known (from cache) */
   paginationConfig?: PaginationConfig;
   /**
-   * First page to yield. Default 1. Phase 1 of the crawler captures page 1
-   * itself (it needs the full capture for selector generation), so it resumes
-   * pagination at 2 rather than paying for that page load twice.
+   * First page to YIELD. Default 1. Phase 1 of the crawler captures page 1
+   * itself (it needs the full capture for selector generation), so passing 2
+   * suppresses the duplicate extraction and the duplicate yield.
+   *
+   * It does NOT skip the page-1 navigation: pagination is detected from page 1's
+   * live DOM inside crawl(), and the next-button / page-numbers strategies click
+   * their way forward from it. So page 1 is still loaded twice until a cached
+   * `paginationConfig` can be passed in instead.
    */
   startPage?: number;
 };
