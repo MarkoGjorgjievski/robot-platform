@@ -22,9 +22,13 @@ export async function loadRunExport(db: typeof Database, runId: string): Promise
       orderBy: [desc(captures.createdAt)],
       columns: { url: true },
     }),
+    // Ordering by createdAt then id gives a stable, reproducible order even
+    // when extractions share a createdAt (e.g. issued in one transaction,
+    // where Postgres now() is transaction-start-time and identical across
+    // statements) — so a crawl's CSV reads the same way on every export.
     db.query.extractions.findMany({
       where: eq(extractions.runId, runId),
-      orderBy: [asc(extractions.createdAt)],
+      orderBy: [asc(extractions.createdAt), asc(extractions.id)],
       columns: { data: true },
     }),
   ]);
