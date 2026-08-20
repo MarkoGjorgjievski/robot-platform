@@ -207,3 +207,43 @@ export const extractVariantsTool: Tool = {
     required: ['variants', 'path_hint'],
   },
 };
+
+/**
+ * Where the repeating results begin, read off the screenshot.
+ *
+ * The selector model is shown a slice of the page, and on a large listing the
+ * results can start 680,000 characters in — far outside any budget taken from
+ * the top. A human doesn't read from the top either: they look at the page, find
+ * the heading above the results, and jump there. This asks for exactly that
+ * heading, so the slice can be anchored to it.
+ */
+export const locateResultsTool: Tool = {
+  name: 'locate_results',
+  description:
+    'Look at the screenshot and report the visible text immediately ABOVE the repeating list of results '
+    + '(products, books, articles). This anchors which part of the page gets read.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      has_results: {
+        type: 'boolean',
+        description: 'Whether the page shows a repeating list of results at all',
+      },
+      landmark_text: {
+        type: 'string',
+        description:
+          'Exact visible text of the heading, tab or label sitting directly above the first result '
+          + '(e.g. "Search Results", "Featured Items", "1-24 of 500"). Copy it verbatim as shown, '
+          + 'without surrounding punctuation. Prefer text that appears ONCE on the page. '
+          + 'Leave empty if nothing sits above the results.',
+      },
+      first_result_text: {
+        type: 'string',
+        description:
+          'Exact visible text of the FIRST result itself (its title), as a fallback anchor '
+          + 'when no heading sits above the list.',
+      },
+    },
+    required: ['has_results'],
+  },
+};
