@@ -11,7 +11,7 @@ const noopLock = async () => () => {};
 
 const FAKE_CAPTURE = {
   url: 'https://example.com/c/shelves',
-  html: '<html><h1>Shelves</h1></html>',
+  html: '<html><body><h1>Shelves</h1><a rel="next" href="/more">Next</a></body></html>',
   markdown: '',
   screenshot: Buffer.alloc(0),
   screenshotTiles: [],
