@@ -4,12 +4,17 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { PlaywrightBrowser } from '@robot/browser';
 import { SchemaAgent } from '@robot/agent';
-import { planRun, type PlannedItem } from '@robot/scraper';
-import { runs, runItems, sources } from '@robot/db';
+import { planRun, type PlannedItem, type OriginField } from '@robot/scraper';
+import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+import { claimNextItem } from '../crawl/claim-item.js';
+import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
+import { finaliseRun } from '../crawl/roll-up-run.js';
+import { executeRun } from '../crawl/execute-run.js';
+import { extractItem } from '../crawl/extract-item.js';
 
 /** Warnings + errors as one free-text block, or null when planning was clean. */
 export function formatPlanLog(
@@ -21,6 +26,38 @@ export function formatPlanLog(
     ...errors.map((e) => `error: input ${e.inputIndex}: ${e.message}`),
   ];
   return lines.length > 0 ? lines.join('\n') : null;
+}
+
+/**
+ * Runs the loop outside the request. Deliberately not awaited: 200 items at
+ * ~30s each is ~100 minutes, which no HTTP mutation can hold open. The honest
+ * limit of having no job queue is that an api-server restart pauses the run —
+ * `run_items` survives, so calling execute again resumes it.
+ */
+async function startExecution(runId: string, sourceId: string, schema: OriginField[]): Promise<void> {
+  const browser = new PlaywrightBrowser();
+  try {
+    await browser.launch({ headless: true });
+    const agent = new SchemaAgent();
+    await executeRun(runId, {
+      claim: (id) => claimNextItem(db, id),
+      extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
+      onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
+      onFailed: (itemId, message) => markItemFailed(db, itemId, message),
+      isCancelled: async () => {
+        const row = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true } });
+        return row?.status === 'cancelling';
+      },
+      finalise: (rowCount) => finaliseRun(db, runId, rowCount),
+    });
+  } catch (err) {
+    console.error(`[crawl] execution of run ${runId} failed:`, err);
+    await db.update(runs)
+      .set({ status: 'failed', errorMessage: (err as Error).message.slice(0, 1000), completedAt: new Date() })
+      .where(eq(runs.id, runId));
+  } finally {
+    await browser.close();
+  }
 }
 
 export const crawlRouter = router({
@@ -182,5 +219,71 @@ export const crawlRouter = router({
       });
 
       return { items, counts };
+    }),
+
+  status: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId),
+        columns: { id: true, status: true, resultCount: true, errorMessage: true },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+
+      const rows = await ctx.db.query.runItems.findMany({
+        where: eq(runItems.runId, input.runId),
+        columns: { kind: true, status: true },
+      });
+      const counts = { pending: 0, running: 0, done: 0, failed: 0, listing: 0, detail: 0 };
+      for (const row of rows) {
+        if (row.status in counts) counts[row.status as 'pending' | 'running' | 'done' | 'failed']++;
+        if (row.kind === 'listing') counts.listing++;
+        else counts.detail++;
+      }
+      return { status: run.status, counts, rowCount: run.resultCount ?? 0, errorMessage: run.errorMessage };
+    }),
+
+  cancel: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId), columns: { id: true },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      // The loop checks between items, so pending work stays pending and resume
+      // is the same mechanism as cancel.
+      await ctx.db.update(runs).set({ status: 'cancelling' }).where(eq(runs.id, input.runId));
+      return { status: 'cancelling' as const };
+    }),
+
+  execute: publicProcedure
+    .input(z.object({
+      runId: z.string().uuid(),
+      retryFailed: z.boolean().optional(),
+      /** Prepare the queue and return without running — used by tests. */
+      dryRun: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId),
+        with: { source: { columns: { id: true, datasetId: true }, with: { dataset: { columns: { schema: true } } } } },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      if (input.retryFailed) {
+        await ctx.db.update(runItems)
+          .set({ status: 'pending', error: null })
+          .where(and(eq(runItems.runId, input.runId), eq(runItems.status, 'failed')));
+      }
+
+      await ctx.db.update(runs).set({ status: 'extracting', startedAt: new Date() }).where(eq(runs.id, input.runId));
+      if (input.dryRun) return { runId: input.runId, started: false };
+
+      // Returns immediately: hundreds of items at ~30s each outlives any HTTP
+      // request. All state lives in run_items, so progress is read with
+      // crawl.status and a crash resumes by calling execute again.
+      void startExecution(input.runId, run.source.id, (run.source.dataset?.schema ?? []) as OriginField[]);
+      return { runId: input.runId, started: true };
     }),
 });
