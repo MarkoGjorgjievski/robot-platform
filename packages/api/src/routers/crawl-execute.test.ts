@@ -5,6 +5,7 @@ import { TRPCError } from '@trpc/server';
 import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { safeErrorMessage } from './crawl.js';
 
 const caller = createCallerFactory(appRouter)({ db });
 const SLUG = 'test-crawl-execute';
@@ -79,5 +80,32 @@ describe('crawl.execute', () => {
     await caller.crawl.execute({ runId, dryRun: true });
     const rows = await db.select().from(runItems).where(eq(runItems.runId, runId));
     expect(rows.filter((r) => r.status === 'failed')).toHaveLength(1);
+  });
+
+  it('dryRun is fully inert: it never touches the run row, since no loop starts', async () => {
+    const runId = await seedPlannedRun();
+    await caller.crawl.execute({ runId, dryRun: true });
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.status).toBe('planned');
+    expect(row!.startedAt).toBeNull();
+  });
+});
+
+// FINDING 1 (critical): startExecution's own recovery catch block must never
+// itself throw. The concrete risk is `(err as Error).message` on a rejection
+// that is not an Error instance — a string, a driver error without the Error
+// prototype, etc. — which would throw a TypeError from inside the catch block
+// and escape the deliberately-unawaited `void startExecution(...)` call as an
+// unhandled rejection, which Node treats as fatal.
+describe('safeErrorMessage', () => {
+  it('uses .message for a genuine Error', () => {
+    expect(safeErrorMessage(new Error('blocked by upstream'))).toBe('blocked by upstream');
+  });
+
+  it('stringifies a non-Error rejection instead of throwing', () => {
+    expect(safeErrorMessage('a plain string rejection')).toBe('a plain string rejection');
+    expect(safeErrorMessage(undefined)).toBe('undefined');
+    expect(safeErrorMessage(42)).toBe('42');
+    expect(safeErrorMessage({ code: 'ECONNREFUSED' })).toBe('[object Object]');
   });
 });
