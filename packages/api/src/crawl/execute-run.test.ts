@@ -62,10 +62,16 @@ describe('executeRun', () => {
   });
 
   it('checks for cancellation before doing any work at all', async () => {
-    const h = harness({ isCancelled: async () => true }, [item('1')]);
+    let claimCalls = 0;
+    const h = harness({
+      isCancelled: async () => true,
+      claim: async () => { claimCalls++; return null; },
+    }, [item('1')]);
     const outcome = await executeRun('run-1', h.deps);
     expect(outcome.cancelled).toBe(true);
     expect(h.done).toEqual([]);
+    // Finding 3: a cancelled-before-start run must never even ask for work.
+    expect(claimCalls).toBe(0);
   });
 
   it('finalises with the number of rows actually extracted', async () => {
@@ -96,5 +102,77 @@ describe('executeRun', () => {
     }, [item('1')]);
     await executeRun('run-1', h.deps);
     expect(h.failed[0]?.message).toContain('plain string');
+  });
+
+  // --- Fix round 1: recording-path failures must never kill the loop or skip finalise. ---
+
+  it('keeps going when onFailed itself throws, and counts a recording failure', async () => {
+    const attempted: string[] = [];
+    const h = harness({
+      extractItem: async (i) => {
+        if (i.id === '2') throw new Error('blocked: captcha');
+        return { row: { title: i.id }, extractionId: null };
+      },
+      onFailed: async (id) => {
+        attempted.push(id);
+        throw new Error('db blip while recording failure');
+      },
+    }, [item('1'), item('2'), item('3')]);
+
+    const outcome = await executeRun('run-1', h.deps);
+    // Item 2's genuine extraction failure couldn't even be recorded — the loop
+    // must still reach items 1 and 3.
+    expect(h.done).toEqual(['1', '3']);
+    expect(attempted).toEqual(['2']);
+    expect(outcome.extracted).toBe(2);
+    expect(outcome.failed).toBe(0);
+    expect(outcome.recordingFailures).toBe(1);
+    expect(h.rowCount()).toBe(2);
+  });
+
+  it('counts an onDone failure as a recording failure, not an extraction failure', async () => {
+    const attempted: string[] = [];
+    const h = harness({
+      onDone: async (id) => {
+        attempted.push(id);
+        throw new Error('write conflict');
+      },
+    }, [item('1'), item('2')]);
+
+    const outcome = await executeRun('run-1', h.deps);
+    expect(attempted).toEqual(['1', '2']);
+    // Genuinely scraped rows that failed to be marked done are not the same
+    // thing as a blocked page — they must not inflate `failed`.
+    expect(outcome.extracted).toBe(0);
+    expect(outcome.failed).toBe(0);
+    expect(outcome.recordingFailures).toBe(2);
+    expect(h.rowCount()).toBe(0);
+  });
+
+  it('exits the loop and still finalises when claim throws', async () => {
+    const h = harness({
+      claim: async () => { throw new Error('pool exhausted'); },
+    }, [item('1')]);
+
+    const outcome = await executeRun('run-1', h.deps);
+    expect(h.done).toEqual([]);
+    expect(outcome.extracted).toBe(0);
+    expect(outcome.failed).toBe(0);
+    // finalise must still run: crawl.status, the dashboard and the export all
+    // read the run row, and an un-finalised run is invisible to every reader.
+    expect(h.rowCount()).toBe(0);
+    expect(outcome.status).toBe('completed');
+  });
+
+  it('keeps going when isCancelled itself throws, treating it as not cancelled', async () => {
+    const h = harness({
+      isCancelled: async () => { throw new Error('flaky cancel check'); },
+    }, [item('1'), item('2')]);
+
+    const outcome = await executeRun('run-1', h.deps);
+    // A broken cancel check must never stop a working run.
+    expect(h.done).toEqual(['1', '2']);
+    expect(outcome.cancelled).toBe(false);
+    expect(outcome.extracted).toBe(2);
   });
 });
