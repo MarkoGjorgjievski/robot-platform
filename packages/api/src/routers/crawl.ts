@@ -148,4 +148,39 @@ export const crawlRouter = router({
         await browser.close();
       }
     }),
+  /**
+   * The work list a plan produced — what phase 2 will fetch, before it fetches it.
+   *
+   * Listing items first (in page order), then the detail URLs they discovered, so
+   * the shape of the crawl reads top to bottom: which pages were walked, and what
+   * each one yielded.
+   */
+  items: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const rows = await ctx.db.query.runItems.findMany({
+        where: eq(runItems.runId, input.runId),
+        columns: {
+          id: true, kind: true, url: true, status: true, pageNumber: true,
+          inputIndex: true, listingValues: true, error: true, completedAt: true,
+        },
+      });
+
+      const counts = { listing: 0, detail: 0, pending: 0, done: 0, failed: 0 };
+      for (const row of rows) {
+        if (row.kind === 'listing') counts.listing++;
+        if (row.kind === 'detail') counts.detail++;
+        if (row.status === 'pending') counts.pending++;
+        if (row.status === 'done') counts.done++;
+        if (row.status === 'failed') counts.failed++;
+      }
+
+      const items = [...rows].sort((a, b) => {
+        if (a.inputIndex !== b.inputIndex) return a.inputIndex - b.inputIndex;
+        if (a.kind !== b.kind) return a.kind === 'listing' ? -1 : 1;
+        return (a.pageNumber ?? 0) - (b.pageNumber ?? 0);
+      });
+
+      return { items, counts };
+    }),
 });

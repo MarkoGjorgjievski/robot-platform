@@ -254,3 +254,14 @@ describe('crawlRouter.plan persistence', () => {
     }
   });
 });
+
+describe('crawlRouter.items', () => {
+  it('rejects a non-uuid runId', async () => {
+    await expect(caller.crawl.items({ runId: 'nope' })).rejects.toThrow();
+  });
+
+  it('returns an empty work list for a run that has none', async () => {
+    const result = await caller.crawl.items({ runId: '00000000-0000-0000-0000-000000000000' });
+    expect(result).toEqual({ items: [], counts: { listing: 0, detail: 0, pending: 0, done: 0, failed: 0 } });
+  });
+});
