@@ -2,6 +2,12 @@
 import { describe, it, expect } from 'vitest';
 import type { IBrowser, CrawlOptions, CrawlPage, PageCapture } from '@robot/browser';
 import { planRun } from './plan-run.js';
+import type { ExtractionDeps } from '../extraction-orchestrator.js';
+
+/** The real per-domain lock adds a 2s politeness delay between same-domain
+ *  requests; tests inject this instead so they exercise the acquire/release
+ *  contract without the wall clock. */
+const noopLock = async () => () => {};
 
 const FAKE_CAPTURE = {
   url: 'https://example.com/c/shelves',
@@ -59,7 +65,7 @@ describe('page-level listing fields', () => {
     const calls: Array<{ pageType: string; fields: string[] }> = [];
     const outcome = await planRun(REQUEST, {
       browser: new FakeBrowser(),
-      agent: null,
+      agent: null, acquireLock: noopLock,
       extract: async (request) => {
         calls.push({ pageType: request.pageType ?? 'detail', fields: request.fields.map((f) => f.name) });
         // First call: the row pass resolves per-row price but no category.
@@ -86,7 +92,7 @@ describe('page-level listing fields', () => {
     const calls: Array<string[]> = [];
     await planRun(REQUEST, {
       browser: new FakeBrowser(),
-      agent: null,
+      agent: null, acquireLock: noopLock,
       extract: async (request) => {
         calls.push(request.fields.map((f) => f.name));
         if (calls.length === 1) return { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1', listing_price: '79' }] };
@@ -100,7 +106,7 @@ describe('page-level listing fields', () => {
     const pageTypes: string[] = [];
     await planRun(REQUEST, {
       browser: new FakeBrowser(),
-      agent: null,
+      agent: null, acquireLock: noopLock,
       extract: async (request) => {
         pageTypes.push(request.pageType ?? 'detail');
         if (pageTypes.length === 1) return { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1' }] };
@@ -132,7 +138,7 @@ describe('page-level listing fields', () => {
     ]);
     const outcome = await planRun(PAGINATED_REQUEST, {
       browser,
-      agent: null,
+      agent: null, acquireLock: noopLock,
       extract: async (request) =>
         request.pageType === 'listing'
           ? { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1', listing_price: '79' }] }
@@ -147,7 +153,7 @@ describe('page-level listing fields', () => {
     let calls = 0;
     await planRun(REQUEST, {
       browser: new FakeBrowser(),
-      agent: null,
+      agent: null, acquireLock: noopLock,
       extract: async () => {
         calls++;
         return { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1', category: 'Shelves', listing_price: '79' }] };
@@ -161,7 +167,7 @@ describe('page-level listing fields', () => {
     const seenCaptures: Array<PageCapture | undefined> = [];
     await planRun(REQUEST, {
       browser,
-      agent: null,
+      agent: null, acquireLock: noopLock,
       extract: async (request, deps) => {
         seenCaptures.push(deps.capture);
         return request.pageType === 'listing'
@@ -178,5 +184,39 @@ describe('page-level listing fields', () => {
     expect(seenCaptures).toHaveLength(2);
     expect(seenCaptures[0]).toBeDefined();
     expect(seenCaptures[1]).toBe(seenCaptures[0]);
+  });
+
+  it('cache-isolates the document-mode pass so it cannot touch the detail partition', async () => {
+    // The second pass says `pageType: 'detail'` only to get document-mode
+    // extraction — but pageType is ALSO the domain-cache partition key. Without
+    // the overrides below, a pass over a LISTING page bumps (domain,'detail')'s
+    // run counts and consecutiveFailures, seeds a detail cache row from the
+    // listing page's intercepted requests, and merges listing XPaths into the
+    // detail partition's fieldPaths.
+    const seen: Array<Pick<ExtractionDeps, 'lookupCache' | 'saveCache'>> = [];
+    await planRun(REQUEST, {
+      browser: new FakeBrowser(),
+      agent: null, acquireLock: noopLock,
+      extract: async (request, deps) => {
+        seen.push({ lookupCache: deps.lookupCache, saveCache: deps.saveCache });
+        return request.pageType === 'listing'
+          ? { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1' }] }
+          : { ...OUTCOME_SHAPE, data: [{ category: 'Shelves' }] };
+      },
+    });
+    expect(seen).toHaveLength(2);
+
+    // Pass 1 (row mode, pageType 'listing') is partitioned correctly, so it
+    // keeps the normal cache — that learning is what makes run 2 free.
+    expect(seen[0]?.lookupCache).toBeUndefined();
+    expect(seen[0]?.saveCache).toBeUndefined();
+
+    // Pass 2 is isolated: reads nothing, writes nothing.
+    expect(seen[1]?.lookupCache).toBeTypeOf('function');
+    expect(seen[1]?.saveCache).toBeTypeOf('function');
+    await expect(seen[1]!.lookupCache!('example.com', 'detail')).resolves.toBeNull();
+    await expect(
+      seen[1]!.saveCache!({ domain: 'example.com', pageType: 'detail' } as never),
+    ).resolves.toBeUndefined();
   });
 });
