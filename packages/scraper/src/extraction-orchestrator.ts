@@ -387,8 +387,12 @@ export async function runExtraction(
           plan.row_xpath = cache.rowSelector.xpath;
         }
         const script = buildExtractionScript(plan, fieldTypes);
-        const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
-          url, script, { waitUntil: 'networkidle' },
+        // Run against the capture the selectors were generated FROM. Re-navigating
+        // executed them against a different render: a category page whose load
+        // fell back to domcontentloaded had not painted its product grid, so a
+        // correct selector matched nothing — and it cost a second page load.
+        const xpathResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[] }>(
+          capture.html ?? '', script,
         );
         extractedRows = xpathResult.data;
         const xpathRow = xpathResult.data.length > 0 ? xpathResult.data[0]! : {};
@@ -456,8 +460,8 @@ export async function runExtraction(
             tilePlan.row_xpath = cache.rowSelector.xpath;
           }
           const tileScript = buildExtractionScript(tilePlan, fieldTypes);
-          const tileResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
-            url, tileScript, { waitUntil: 'networkidle' },
+          const tileResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[] }>(
+            capture.html ?? '', tileScript,
           );
           // Tile escalation is row extraction too — a listing consumer needs its
           // rows, not just row 0. Without this a field first resolved here left
