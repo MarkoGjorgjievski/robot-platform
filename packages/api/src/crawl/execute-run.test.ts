@@ -18,7 +18,7 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
     onDone: async (id) => { done.push(id); },
     onFailed: async (id, message) => { failed.push({ id, message }); },
     isCancelled: async () => false,
-    finalise: async (rowCount) => { finalRowCount = rowCount; return 'completed'; },
+    finalise: async (rowCount, _cancelled) => { finalRowCount = rowCount; return 'completed'; },
     ...overrides,
   };
   return { deps, done, failed, rowCount: () => finalRowCount };
@@ -162,6 +162,47 @@ describe('executeRun', () => {
     // read the run row, and an un-finalised run is invisible to every reader.
     expect(h.rowCount()).toBe(0);
     expect(outcome.status).toBe('completed');
+  });
+
+  // --- Finding 1: cancelling with pending work must settle to a status the
+  // dashboard treats as inactive, not silently revert to 'extracting'. ---
+
+  it('passes its own cancelled outcome to finalise, not re-derived from isCancelled', async () => {
+    let seen = 0;
+    let finaliseArgs: [number, boolean] | null = null;
+    const h = harness({
+      isCancelled: async () => seen >= 1,
+      extractItem: async () => { seen++; return { row: {}, extractionId: null }; },
+      finalise: async (rowCount, cancelled) => {
+        finaliseArgs = [rowCount, cancelled];
+        return cancelled ? 'cancelled' : 'completed';
+      },
+    }, [item('1'), item('2'), item('3')]);
+
+    const outcome = await executeRun('run-1', h.deps);
+    expect(outcome.cancelled).toBe(true);
+    expect(finaliseArgs).toEqual([1, true]);
+    expect(outcome.status).toBe('cancelled');
+  });
+
+  it('a cancelled run with remaining pending items ends at a status isRunActive treats as settled', async () => {
+    // Dashboard contract (packages/dashboard/src/lib/run-progress.ts,
+    // isRunActive): only 'extracting' and 'cancelling' are "active" — those are
+    // the only statuses that keep the 3s poll going. If a cancel with pending
+    // work left the run at either of those, Stop would never actually stop the
+    // UI from polling forever. This is executeRun's half of that guarantee:
+    // it must hand finalise a `cancelled` flag it can act on, not leave the
+    // rollup stuck inferring 'extracting' from pending > 0 alone.
+    const h = harness({
+      isCancelled: async () => true,
+      finalise: async (_rowCount, cancelled) => (cancelled ? 'cancelled' : 'extracting'),
+    }, [item('1'), item('2')]);
+
+    const outcome = await executeRun('run-1', h.deps);
+    expect(outcome.cancelled).toBe(true);
+    expect(h.done).toEqual([]); // pending work really is left unclaimed
+    expect(['extracting', 'cancelling']).not.toContain(outcome.status);
+    expect(outcome.status).toBe('cancelled');
   });
 
   it('keeps going when isCancelled itself throws, treating it as not cancelled', async () => {

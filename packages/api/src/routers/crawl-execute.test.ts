@@ -75,6 +75,17 @@ describe('crawl.status', () => {
   });
 });
 
+describe('crawl.items', () => {
+  // Finding 2: crawl.items had the same bug pattern crawl.status was already
+  // fixed for — pending/done/failed summed across BOTH kinds, inflating `done`
+  // against a `detail` total that excludes listing rows.
+  it('counts pending/done/failed over detail items only — mirrors the crawl.status fix', async () => {
+    const runId = await seedRunWithDoneListingAndMixedDetails();
+    const result = await caller.crawl.items({ runId });
+    expect(result.counts).toEqual({ listing: 1, detail: 4, pending: 1, done: 1, failed: 1 });
+  });
+});
+
 describe('crawl.cancel', () => {
   it('marks a run cancelling, which the loop checks between items', async () => {
     const runId = await seedPlannedRun();
