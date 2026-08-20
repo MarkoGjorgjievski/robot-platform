@@ -235,6 +235,8 @@ When a cached config produces nothing on page 2, phase 1 re-detects once, stores
 
 One `listing` item is recorded per listing page actually walked (with its `page_number`), so the plan is auditable: which pages were fetched, and which detail URLs each produced. Detail items are inserted (absolute, deduped, budget-capped). The run moves to `planned` and `plan` returns item count, per-input breakdown, warnings, and a cost estimate.
 
+A run whose inputs **all** errored, leaving zero planned items, moves to `failed` rather than `planned` — a planning phase that captured nothing is not a plan. Warnings and errors are persisted to `runs.logs` so they survive the HTTP response and remain visible to `crawl.status`; `runs.error_message` carries a one-line summary only on the `failed` path, because the dashboard renders that field as an error banner on truthiness alone.
+
 **`plan` reports item count and whether the domain cache is warm. It does not report a dollar figure.**
 
 Every AI step in `runExtraction` is gated on fields still missing: STEP 2 fires on `missingAfterCache`, STEP 3 on `missingAfterApi`. Within one crawl over one domain, detail page 1 is cold (selector generation + API analysis, ~$0.47), writes the cache, and pages 2..N resolve from that cache for **$0** apart from individual pages carrying a field the cache misses. A 180-item crawl costs a few dollars, not a few hundred.
