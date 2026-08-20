@@ -8,7 +8,7 @@ type: project
 
 ## Read this first
 
-The v2 crawler (listing → detail, two phases) is built, merged into `feat/v2-crawler-phase2`, and has now been run once against a live site end to end. **It mostly works, and the live run also found a real bug**: a shared-browser lifecycle bug in `runExtraction` that limits phase 2 to one successful extraction per run before every subsequent item fails. That bug is not fixed yet — fixing it is the next work, and it needs TDD like any other production code change (it lives in `@robot/scraper`, which is under test).
+The v2 crawler (listing → detail, two phases) is built, merged into `feat/v2-crawler-phase2`, and has now been run against a live site end to end **twice**: once that exposed a real shared-browser lifecycle bug in `runExtraction` (7/8 items failed), and once after the fix that ran clean (8/8 items done, CSV export shows all 8 rows). The bug is fixed (`376b7ac`), TDD'd, and gated — see below for both runs' numbers.
 
 ## What phase 1 and phase 2 actually do
 
@@ -21,7 +21,7 @@ The v2 crawler (listing → detail, two phases) is built, merged into `feat/v2-c
 - CLI, phase 2: `pnpm --filter @robot/api exec tsx src/crawl-execute.ts <runId>` — starts execution and polls `crawl.status` every 5s until the run leaves `extracting`/`cancelling`, then prints per-item final status.
 - Dashboard: the Source Runs page (`packages/dashboard/src/routes/source-runs.tsx`) has the button that calls `crawl.plan`. The Run detail page (`source-run-detail.tsx`) has Run/Cancel buttons wired to `crawl.execute`/`crawl.cancel`, with polling-based progress (`run-progress.ts`) — no live push yet, SSE/WebSocket is still future work.
 
-## The live run — what actually happened (2026-08-20)
+## The first live run — the bug (2026-08-20, run `2f1b29b9-...`)
 
 Ran against `abebooks-pagination` (seeded Source, budget `{mode: "first_n", max_items: 8, max_pages: 2}`), not `newegg-gpus-live` — an earlier live check had already shown the export mechanism works for one row, so this run's point was to prove multiple rows, which needed a source with a bigger budget.
 
@@ -29,7 +29,7 @@ Ran against `abebooks-pagination` (seeded Source, budget `{mode: "first_n", max_
 
 **Phase 2** (`crawl-execute.ts 2f1b29b9-...`) did not. Item 1 extracted cleanly (`product_name` from the API, `price` from XPath, 2/2 fields, confidence 100%). Every one of the remaining 7 items then failed immediately with the same error: `Browser not launched. Call launch() first.` The run still reached a terminal state correctly — `partial`, not stuck — because the failure-isolation and roll-up logic worked exactly as designed even though the underlying extraction did not.
 
-**Root cause, found by reading the code rather than guessing:** `runExtraction` (`packages/scraper/src/extraction-orchestrator.ts:485`) ends with `if (!deps.capture) await browser.close();` — a leftover from its original single-shot call site (`extractRouter.extract`, one request = one browser). `startExecution` in `packages/api/src/routers/crawl.ts` launches **one** `PlaywrightBrowser` and passes it into `extractItem` for the whole run's item loop, expecting it to persist across items. It doesn't: `PlaywrightBrowser.close()` nulls `this.context`/`this.browser`, so the very next `browser.capture()` call throws "Browser not launched." This is **not** an AbeBooks block — no interstitial, no empty HTML, no site-side signal — it is our own browser-lifecycle bug, newly exposed because phase 2 is the first caller that reuses a browser across more than one `runExtraction` call. **Not fixed in this task** — it's a `@robot/scraper` production-code bug and needs its own TDD cycle, not a docs-task drive-by.
+**Root cause, found by reading the code rather than guessing:** `runExtraction` (`packages/scraper/src/extraction-orchestrator.ts`, was line ~485) ended with `if (!deps.capture) await browser.close();` — a leftover from its original single-shot call site (`extractRouter.extract`, one request = one browser). `startExecution` in `packages/api/src/routers/crawl.ts` launches **one** `PlaywrightBrowser` and passes it into `extractItem` for the whole run's item loop, expecting it to persist across items. It doesn't: `PlaywrightBrowser.close()` nulls `this.context`/`this.browser`, so the very next `browser.capture()` call throws "Browser not launched." This was **not** an AbeBooks block — no interstitial, no empty HTML, no site-side signal — it was our own browser-lifecycle bug, newly exposed because phase 2 was the first caller that reuses a browser across more than one `runExtraction` call.
 
 **Verification queries, live run `2f1b29b9-574e-4bff-9bd4-1343f6f2f56d`:**
 
@@ -38,12 +38,39 @@ run_items: done=2 (1 listing + 1 detail), failed=7 (all detail)
 runs:      status=partial, result_count=1
 ```
 
-**CSV export** (`GET /export/runs/2f1b29b9-574e-4bff-9bd4-1343f6f2f56d.csv`): header row `_url,price,_page_number,product_name,category_name` plus **exactly 1 data row** — matching `result_count=1`, not the 8 planned. `category_name` (a listing-origin column, carried from the planning pass rather than the detail page) correctly holds its value (`Manuscript / Paper Collectible`) on that row. So: **the export mechanism itself — stable header, listing-origin propagation, one row per successfully extracted URL — is proven correct**, but the live run demonstrates it for 1 distinct `_url`, not 8. The plan-level "one row per URL" headline claim from the v2 spec is proven in mechanism, not in volume, until the browser bug above is fixed and the run repeated.
+**CSV export** (`GET /export/runs/2f1b29b9-574e-4bff-9bd4-1343f6f2f56d.csv`): header row `_url,price,_page_number,product_name,category_name` plus exactly 1 data row — matching `result_count=1`, not the 8 planned. This run's row is left in the DB as the record; it was not deleted or re-run.
+
+## The fix (2026-08-20, `376b7ac`)
+
+**Ruling: whoever launches the browser closes it.** `runExtraction` never launches a browser and, after the fix, never closes one either — on any path, including the capture-error path (which still rethrows). The guard that conflated "I captured this page myself" with "I own this browser" is gone; the invariant is now documented directly on `ExtractionDeps.browser`.
+
+- `packages/scraper/src/extraction-orchestrator.ts` — both `browser.close()` calls removed (the capture-error path and the end-of-chain path).
+- `packages/api/src/routers/scraper.ts`'s `extract` procedure launches its own single-use browser and was relying on `runExtraction` to close it; it now closes it itself in a `finally`. Its sibling `analyze` procedure was already correct (`analysis-orchestrator.ts` closes its own browser) and needed no change.
+- Audited every other production caller: `extract-item.ts` (browser owned by `startExecution`, already closes in a `finally`) and `plan-run.ts` (browser owned by the `crawl.plan` procedure, already closes in a `finally`, and always injects `capture` so the old guard was never true there — phase 1 was correctly unaffected by the original bug).
+- TDD: `packages/scraper/src/extraction-orchestrator-browser-lifecycle.test.ts` — three tests on the no-injected-capture path (the one the old guard broke), including the actual regression (two sequential `runExtraction` calls on one browser, both must succeed). All three failed against the pre-fix code for the right reason; a teeth check (re-adding the close, watching the regression test fail, then reverting) confirmed the test actually exercises the bug.
+
+## The second live run — reproof (2026-08-20, run `bd44fa22-...`)
+
+Same Source, same unchanged budget (`{max_items: 8, max_pages: 2}`), fresh plan (not a re-run of the failed one — that record stays in the DB untouched).
+
+**Phase 1** (`crawl.plan abebooks-pagination`) produced run `bd44fa22-c667-4538-9a48-0e8066c8f444`: 1 listing page walked, 8 detail items enumerated, budget reached at 8 items exactly as before.
+
+**Phase 2** (`crawl-execute.ts bd44fa22-...`) completed all 8 items — `done 8/8 · failed 0` — with the browser launched once and reused across the whole loop, which is exactly the path the bug used to break.
+
+**Verification queries, live run `bd44fa22-c667-4538-9a48-0e8066c8f444`:**
+
+```
+run_items: done=9 (1 listing + 8 detail)
+runs:      status=completed, result_count=8
+```
+
+**CSV export** (`GET /export/runs/bd44fa22-c667-4538-9a48-0e8066c8f444.csv`): header row `_url,price,_page_number,product_name,category_name` plus **8 data rows across 8 distinct `_url`s** — matching `result_count=8` and the full planned item count. The v2 spec's "one row per URL" claim is now demonstrated in volume, not just in mechanism.
 
 ## What NOT to redo
 
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
-- **Don't re-run the AbeBooks or Newegg live crawls to get a better-looking result.** The one execution run above is what happened; re-running to paper over the browser bug would hide the exact defect this task exists to surface. Fix the bug first (see below), then re-run.
+- **Don't re-run the AbeBooks or Newegg live crawls to get a better-looking result.** The two runs above (one broken, one fixed) are what happened; this task was authorised for exactly one planning + one execution run after the fix, and that budget is spent. Both runs stay in the DB as the record.
+- **The shared-browser-close bug is fixed** (`376b7ac`) — don't reopen it or re-derive the root cause; read the "The fix" section above instead.
 
 ## Open decisions (need Marko, not code)
 
@@ -52,9 +79,7 @@ runs:      status=partial, result_count=1
 
 ## Suggested next work
 
-1. **Fix the shared-browser-close bug** (`extraction-orchestrator.ts:485`). The fix likely belongs in `extract-item.ts` or `runExtraction`'s contract: either `runExtraction` needs a "don't close, caller owns the browser" mode (similar to how `deps.capture` already skips the close-on-capture-supplied path), or phase 2 needs to relaunch the browser per item. TDD — there's no existing test that runs `runExtraction` twice against one `IBrowser` and asserts the second call still has a browser to use; write that first, watch it fail, then fix.
-2. **Re-run the AbeBooks live proof** once the bug is fixed, to actually demonstrate the 8-row CSV export this task set out to prove.
-3. From `docs/roadmap.md`'s v2 section: `api-param` pagination detection and replay; caching the winning pagination config to `domain_intelligence` (the column exists, lookup reads it, nothing writes it yet); infinite scroll and load-more pagination strategies; the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically).
+1. From `docs/roadmap.md`'s v2 section: `api-param` pagination detection and replay; caching the winning pagination config to `domain_intelligence` (the column exists, lookup reads it, nothing writes it yet); infinite scroll and load-more pagination strategies; the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically).
 
 ## Cheap things worth doing whenever convenient
 
