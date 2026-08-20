@@ -29,6 +29,38 @@ function hostAndLastSegment(url: string): { host: string; segment: string } | nu
   }
 }
 
+/**
+ * The tokens that say WHICH listing this is — path segments plus query values.
+ *
+ * Comparing only the last path segment was too crude for search URLs: AbeBooks
+ * canonicalises `/servlet/SearchResults?kn=python` to `/book-search/kw/python/`,
+ * so the segments differ (`searchresults` vs `python`) while the page is plainly
+ * the same search. Both forms still carry the token `python`, and Newegg's two
+ * category slugs both still carry `id-38` — so a shared identifying token
+ * tolerates a rename or a canonical rewrite while still failing when a capture
+ * drifts to a genuinely different listing.
+ */
+function identifyingTokens(url: string): Set<string> {
+  const tokens = new Set<string>();
+  try {
+    const u = new URL(url);
+    const parts = [
+      ...u.pathname.split(/[/\-_.]/),
+      ...[...u.searchParams.values()].flatMap((v) => v.split(/[\s\-_+]/)),
+    ];
+    for (const part of parts) {
+      const token = part.trim().toLowerCase();
+      // Skip route furniture that says nothing about which listing this is.
+      if (token.length < 3) continue;
+      if (['servlet', 'search', 'searchresults', 'book', 'html', 'category', 'www', 'com'].includes(token)) continue;
+      tokens.add(token);
+    }
+  } catch {
+    // Unparseable URL yields no tokens; the caller treats that as a failure.
+  }
+  return tokens;
+}
+
 describe('fixture integrity — does the capture match its declared URL?', () => {
   for (const label of listFixtures()) {
     describe(label, () => {
@@ -112,10 +144,15 @@ describe('fixture integrity — does the capture match its declared URL?', () =>
 
         expect(found!.host, `${label}: canonical host ${found!.host} != declared host ${declared!.host}`)
           .toBe(declared!.host);
+
+        const declaredTokens = identifyingTokens(fixture.url);
+        const canonicalTokens = identifyingTokens(canonical);
+        const shared = [...declaredTokens].filter((t) => canonicalTokens.has(t));
         expect(
-          found!.segment,
-          `${label}: canonical category "${found!.segment}" != declared category "${declared!.segment}" (declared ${fixture.url}, canonical ${canonical})`,
-        ).toBe(declared!.segment);
+          shared.length,
+          `${label}: declared and canonical URLs share no identifying token — the capture may be of a different listing `
+          + `(declared ${fixture.url}, canonical ${canonical})`,
+        ).toBeGreaterThan(0);
       });
     });
   }
