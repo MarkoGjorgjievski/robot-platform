@@ -111,13 +111,77 @@ const TILE_WORDS = /(grid|card|item|product|result|tile|cell|listing|entry|post|
 
 // ─── The ladder ──────────────────────────────────────────────────────────────
 
-/** Text the screenshot reported sitting just above the results. */
+/**
+ * Markup that names itself as the results.
+ *
+ * `<ul id="srp-search-results-list" aria-label="Search Results">` sits exactly on
+ * a real book list, with `<li id="product-0">` immediately inside. An author
+ * saying "this is the results list" beats any statistic computed over the
+ * document — and it costs nothing to read.
+ */
+const RESULTS_ATTRIBUTE = new RegExp(
+  '(?:id|aria-label|data-test-id|data-testid|data-cy|role)="[^"]*'
+  + '(?:search-?results?|results?-(?:list|grid|container|items)|listing-?(?:list|grid|results)|product-?(?:list|grid))'
+  + '[^"]*"',
+  'gi',
+);
+
+function byResultsAttribute(html: string): FocusSignal | null {
+  const matches = [...html.matchAll(RESULTS_ATTRIBUTE)];
+  if (matches.length === 0) return null;
+  // The LAST such attribute: pages tend to mention their results container in a
+  // skip-link or aria description before rendering it, and the container itself
+  // is what we want to read from.
+  const chosen = matches[matches.length - 1]!;
+  return {
+    index: chosen.index ?? 0,
+    confidence: 0.92,
+    strategy: 'results-attribute',
+    detail: chosen[0].slice(0, 60),
+  };
+}
+
+/** Collapses whitespace and punctuation so screenshot text can match markup text. */
+function normalise(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * Text the screenshot reported sitting just above the results.
+ *
+ * Matching has to tolerate what a vision model actually returns. Live, one
+ * returned "Python (Over 100,000 results)" — visually exact, but not a literal
+ * substring of the markup, because the count is rendered in its own element. An
+ * exact-match-only lookup threw the entire vision signal away.
+ */
 function byLandmark(html: string, landmark?: string): FocusSignal | null {
   if (!landmark) return null;
   const trimmed = landmark.trim();
   if (trimmed.length < 3) return null;
-  const first = html.indexOf(trimmed);
-  if (first === -1) return null;
+
+  let first = html.indexOf(trimmed);
+  if (first === -1) {
+    // Match the landmark's WORDS against the original document, allowing markup
+    // and punctuation between them — "Featured Items" survives being split across
+    // a <span>, and the offset stays in the document's own coordinates. Searching
+    // a normalised copy instead would return an offset from a different string.
+    const words = normalise(trimmed).split(' ').filter((w) => w.length > 2);
+    for (let size = Math.min(4, words.length); size >= 2 && first === -1; size--) {
+      for (let start = 0; start + size <= words.length && first === -1; start++) {
+        const phrase = words.slice(start, start + size)
+          .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('[^a-z0-9]{1,80}');
+        const matches = [...html.matchAll(new RegExp(phrase, 'gi'))];
+        if (matches.length > 0) first = matches[matches.length - 1]!.index ?? -1;
+      }
+    }
+    if (first === -1) return null;
+    // Below a self-describing results container, above the statistical rungs:
+    // a partial text match is real evidence, but weaker than markup that names
+    // itself and weaker than an exact landmark hit.
+    return { index: first, confidence: 0.91, strategy: 'landmark', detail: `"${trimmed}" (partial match)` };
+  }
+
   const last = html.lastIndexOf(trimmed);
   // A landmark occurring once is a strong anchor; several occurrences means it is
   // also chrome (a repeated "Add to cart"), so trust it less.
@@ -182,6 +246,50 @@ function bySemanticRepeat(html: string, width: number): FocusSignal | null {
         confidence: score,
         strategy: 'semantic-repeat',
         detail: `<${tag}> ×${cluster.count}, gap ${cluster.medianGap}`,
+      };
+    }
+  }
+  return best;
+}
+
+/**
+ * Links whose URL SHAPE repeats — what a person means by "those all look the same".
+ *
+ * A results list points at one kind of page, so its hrefs share a path template
+ * once ids and slugs are normalised away. Scored through `clusterScore` like
+ * everything else, because the most NUMEROUS shape is usually navigation: on one
+ * real page a 32-link nav group outnumbered the twelve product tiles, and only
+ * the gap between occurrences told them apart.
+ */
+function byLinkShape(html: string, width: number): FocusSignal | null {
+  const groups = new Map<string, number[]>();
+  for (const match of html.matchAll(/<a\b[^>]*href="([^"]+)"/gi)) {
+    let shape: string;
+    try {
+      shape = new URL(match[1]!, 'https://relative.invalid')
+        .pathname.replace(/\d+/g, '#').replace(/[a-z0-9]{12,}/gi, '*');
+    } catch {
+      continue;
+    }
+    // A bare "/" is every logo and home link on the page, never a results list.
+    if (shape === '/' || shape.length < 2) continue;
+    const seen = groups.get(shape) ?? [];
+    seen.push(match.index ?? 0);
+    groups.set(shape, seen);
+  }
+
+  let best: FocusSignal | null = null;
+  let bestRaw = 0;
+  for (const [shape, at] of groups) {
+    const cluster = clusterScore(at, width);
+    if (!cluster) continue;
+    if (!best || cluster.score > bestRaw) {
+      bestRaw = cluster.score;
+      best = {
+        index: cluster.start,
+        confidence: Math.min(0.88, cluster.score),
+        strategy: 'link-shape',
+        detail: `${shape} ×${cluster.count}, gap ${cluster.medianGap}`,
       };
     }
   }
@@ -255,7 +363,9 @@ export function focusWindow(
 
   const signals = [
     byLandmark(html, options.landmark),
+    byResultsAttribute(html),
     byRepeatedClass(html, maxChars),
+    byLinkShape(html, maxChars),
     bySemanticRepeat(html, maxChars),
     byLinkDensity(html, maxChars),
     byImageCluster(html, maxChars),

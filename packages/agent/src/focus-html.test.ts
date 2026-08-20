@@ -107,3 +107,59 @@ describe('fallback ladder', () => {
     expect(focused.text.length).toBeLessThanOrEqual(1_000);
   });
 });
+
+describe('a second real page: AbeBooks search results', () => {
+  const abe = JSON.parse(readFileSync(join(CORPUS, 'abebooks-search-listing.json'), 'utf-8')) as { html: string };
+  const abeCleaned = cleanHtml(abe.html);
+
+  // A live crawl of this page queued seven facet links (pt=book, pt=mag, pt=comic
+  // …) as if they were books: the window it was shown held the refine-by-format
+  // sidebar, not the results. The mechanical ladder does NOT rescue this page —
+  // every book row carries several same-shape links close together, which
+  // collapses the gap signal the ladder leans on. The screenshot does rescue it,
+  // which is the entire reason the landmark rung exists.
+  it('is rescued by a vision landmark where the mechanical ladder is not', () => {
+    // "Search Results" appears exactly once in 445k characters, 20k above the
+    // first book link — the kind of heading a model reads straight off the page.
+    const focused = focusWindow(abeCleaned, BUDGET, { landmark: 'Search Results' });
+    expect(focused.strategy).toBe('landmark');
+    const bookLinks = [...focused.text.matchAll(/href="[^"]*\/servlet\/BookDetails[^"]*"/g)];
+    expect(bookLinks.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('results-container attributes', () => {
+  const abe2 = JSON.parse(readFileSync(join(CORPUS, 'abebooks-search-listing.json'), 'utf-8')) as { html: string };
+  const cleanedAbe = cleanHtml(abe2.html);
+
+  it('anchors on the element that says it holds the results', () => {
+    // <ul id="srp-search-results-list" aria-label="Search Results"> sits exactly
+    // on the book list, with <li id="product-0"> immediately inside it. Markup
+    // that names itself is better evidence than any statistic over the document.
+    const focused = focusWindow(cleanedAbe, BUDGET);
+    expect(focused.strategy).toBe('results-attribute');
+    const bookLinks = [...focused.text.matchAll(/href="[^"]*\/servlet\/BookDetails[^"]*"/g)];
+    expect(bookLinks.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('landmark matching tolerates what a screenshot reports', () => {
+  const abe3 = JSON.parse(readFileSync(join(CORPUS, 'abebooks-search-listing.json'), 'utf-8')) as { html: string };
+  const cleanedAbe3 = cleanHtml(abe3.html);
+
+  it('finds a landmark whose punctuation and spacing differ from the markup', () => {
+    // Live, the model returned "Python (Over 100,000 results)" — visually exact,
+    // but not a literal substring of the HTML, because the count is rendered in
+    // its own element. An exact-match-only lookup discarded the vision signal.
+    // (Tested on the Newegg page, whose markup names no results container, so
+    // the landmark rung is not outranked by one that does.)
+    const focused = focusWindow(cleaned, BUDGET, { landmark: 'Featured   Items!!' });
+    expect(focused.strategy).toBe('landmark');
+    expect(focused.text).toContain('item-container');
+  });
+
+  it('ignores a landmark with no recognisable phrase rather than anchoring at random', () => {
+    const focused = focusWindow(cleaned, BUDGET, { landmark: 'Zzz Qqq Xyzzy' });
+    expect(focused.strategy).not.toBe('landmark');
+  });
+});

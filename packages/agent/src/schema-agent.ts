@@ -3,7 +3,7 @@ import type { PageCapture } from '@robot/browser';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { OllamaProvider } from './providers/ollama.js';
 import { cleanHtml, focusWindow } from './focus-html.js';
-import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool, extractVariantsTool } from './tools.js';
+import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool, extractVariantsTool, locateResultsTool } from './tools.js';
 import {
   SCHEMA_DISCOVERY_SYSTEM,
   SELECTOR_GENERATION_SYSTEM,
@@ -98,8 +98,42 @@ export class SchemaAgent {
     return normalizeSchemaResponse(json);
   }
 
+  /**
+   * Ask the screenshot where the repeating results start.
+   *
+   * Costs one cheap vision call and repays it immediately: without an anchor the
+   * HTML slice is taken from the top of the document, and on a real category page
+   * the first product tile sat 681,000 characters in — so the model was shown the
+   * header and the nav and answered "link to this item" with the privacy policy.
+   * Returns the landmark text, or null when the page shows no repeating results.
+   */
+  async locateResults(capture: PageCapture, image?: Buffer): Promise<string | null> {
+    if (!this.anthropic) return null; // Vision-only; Ollama has no callWithTool.
+    try {
+      const result = (await this.anthropic.callWithTool({
+        system: 'You locate the repeating results on a listing page by LOOKING at the screenshot.',
+        tool: locateResultsTool,
+        userText: 'Where do the repeating results begin on this page?',
+        image: image ?? capture.screenshot,
+        maxTokens: 512,
+      })) as { has_results?: boolean; landmark_text?: string; first_result_text?: string };
+
+      if (!result.has_results) return null;
+      const landmark = (result.landmark_text ?? '').trim() || (result.first_result_text ?? '').trim();
+      return landmark.length >= 3 ? landmark : null;
+    } catch (err) {
+      // An anchor is an optimisation; failing to get one must never fail the run.
+      console.error('[agent] locateResults failed (non-fatal):', err);
+      return null;
+    }
+  }
+
   async generateSelectors(capture: PageCapture, fields: SchemaField[], pageType?: string, image?: Buffer): Promise<ExtractionPlan> {
-    const html = truncateHtml(capture.html, this.anthropic ? 50000 : 30000);
+    // Listing pages are where the window matters: a detail page's content is near
+    // the top, a results grid can be most of a megabyte down.
+    const landmark = pageType === 'listing' ? await this.locateResults(capture, image) : null;
+    if (landmark) console.log(`[agent] results landmark: "${landmark}"`);
+    const html = truncateHtml(capture.html, this.anthropic ? 50000 : 30000, landmark ?? undefined);
     const fieldSummary = fields.map(f => ({ name: f.name, type: f.type, tier: f.tier }));
     const userText = selectorGenerationUserContent(html, fieldSummary, pageType);
 
