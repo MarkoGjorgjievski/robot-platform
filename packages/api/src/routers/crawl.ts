@@ -266,9 +266,13 @@ export const crawlRouter = router({
       });
       const counts = { pending: 0, running: 0, done: 0, failed: 0, listing: 0, detail: 0 };
       for (const row of rows) {
+        if (row.kind === 'listing') { counts.listing++; continue; }
+        counts.detail++;
+        // Phase 2 never works listing items — they're planning bookkeeping,
+        // already `done` before execute ever runs. Counting them here would
+        // inflate `done` against a `detail` total that excludes them, which
+        // is exactly what produced "2 of 1 extracted" on the dashboard.
         if (row.status in counts) counts[row.status as 'pending' | 'running' | 'done' | 'failed']++;
-        if (row.kind === 'listing') counts.listing++;
-        else counts.detail++;
       }
       return { status: run.status, counts, rowCount: run.resultCount ?? 0, errorMessage: run.errorMessage };
     }),
