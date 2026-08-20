@@ -266,8 +266,11 @@ export async function runExtraction(
         const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
         if (cachedXPath) {
           try {
-            const xpathResult = await browser.evaluate<{ data: Record<string, unknown>[]; fieldCount: number }>(
-              url, cachedXPath.script, { waitUntil: 'domcontentloaded' },
+            // Against the HTML we already captured — `evaluate` would open a new
+            // page and re-navigate, doubling page loads on exactly the warm path
+            // a crawl spends most of its time in.
+            const xpathResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[]; fieldCount: number }>(
+              capture.html ?? '', cachedXPath.script,
             );
             if (xpathResult.data.length > 0) {
               for (const [name, value] of Object.entries(xpathResult.data[0]!)) {
