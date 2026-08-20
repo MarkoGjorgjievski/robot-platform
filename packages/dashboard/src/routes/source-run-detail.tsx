@@ -4,6 +4,7 @@ import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
+import { progressLabel, isRunActive } from '../lib/run-progress';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -91,6 +92,8 @@ export default function SourceRunDetail() {
         </div>
       )}
 
+      <ExecuteControls runId={runId} />
+
       <WorkList runId={runId} />
 
       <ResultsTable
@@ -131,6 +134,61 @@ function RunStatusBadge({ status }: { status: string }) {
     : status === 'running' ? 'bg-amber-100 text-amber-700'
     : 'bg-gray-100 text-gray-700';
   return <span className={`rounded px-2 py-0.5 text-[10px] uppercase ${cls}`}>{status}</span>;
+}
+
+function ExecuteControls({ runId }: { runId: string }) {
+  const utils = trpc.useUtils();
+  const statusQuery = trpc.crawl.status.useQuery(
+    { runId },
+    { refetchInterval: (query) => (isRunActive(query.state.data?.status ?? '') ? 3000 : false) },
+  );
+  const execute = trpc.crawl.execute.useMutation({
+    onSuccess: () => { utils.crawl.invalidate(); utils.runs.invalidate(); },
+  });
+  const cancel = trpc.crawl.cancel.useMutation({ onSuccess: () => utils.crawl.invalidate() });
+
+  const data = statusQuery.data;
+  if (!data || data.counts.detail === 0) return null;
+  const active = isRunActive(data.status);
+
+  return (
+    <div className="mt-6 flex items-center gap-3 rounded-md border px-4 py-3">
+      <span className="text-sm font-medium">{progressLabel(data.counts, data.status)}</span>
+      <div className="ml-auto flex items-center gap-2">
+        {active ? (
+          <button
+            onClick={() => cancel.mutate({ runId })}
+            disabled={cancel.isPending}
+            className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {cancel.isPending ? 'Stopping…' : 'Stop'}
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={() => execute.mutate({ runId })}
+              disabled={execute.isPending || data.counts.pending === 0}
+              className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              title="Fetch and extract every pending URL in the work list"
+            >
+              Extract {data.counts.pending} pending
+            </button>
+            {data.counts.failed > 0 && (
+              <button
+                onClick={() => execute.mutate({ runId, retryFailed: true })}
+                disabled={execute.isPending}
+                className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                title="Re-queue the failed items and extract them again"
+              >
+                Retry {data.counts.failed} failed
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {execute.isError && <span className="text-[11px] text-red-600">{execute.error.message}</span>}
+    </div>
+  );
 }
 
 /**
