@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, sql } from 'drizzle-orm';
 import { runs, captures, extractions } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
@@ -67,16 +67,32 @@ export const runsRouter = router({
       });
       if (!run) return null;
 
-      const [latestCapture, extractionRows] = await Promise.all([
+      const [latestCapture, extractionRows, [rowTotal]] = await Promise.all([
         ctx.db.query.captures.findFirst({
           where: eq(captures.runId, input.id),
           orderBy: [desc(captures.createdAt)],
         }),
+        // Capped at the DB layer: a 5000-extraction crawl must not pull every
+        // extraction's data into API-server memory just to discard 90% of it
+        // after slicing. Ordering by createdAt then id gives a stable order
+        // even when extractions share a createdAt (e.g. issued in one
+        // transaction, where Postgres now() is transaction-start-time and
+        // identical across statements).
         ctx.db.query.extractions.findMany({
           where: eq(extractions.runId, input.id),
-          orderBy: [asc(extractions.createdAt)],
+          orderBy: [asc(extractions.createdAt), asc(extractions.id)],
           columns: { data: true, confidence: true, rowCount: true, validationResult: true },
+          limit: VIEW_ROW_CAP,
         }),
+        // The true row total, independent of the cap above. One extraction can
+        // hold several rows (sandbox: one extraction, N rows) or many
+        // extractions can hold one row each (phase 2: N extractions, one row
+        // each) — jsonb_array_length summed in SQL is exact in both shapes and
+        // never requires reading the row data itself into memory.
+        ctx.db
+          .select({ total: sql<number>`coalesce(sum(jsonb_array_length(${extractions.data})), 0)::int` })
+          .from(extractions)
+          .where(eq(extractions.runId, input.id)),
       ]);
 
       const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
@@ -100,12 +116,16 @@ export const runsRouter = router({
         } : null,
         extraction: extractionRows.length > 0 ? {
           // Phase 2 writes one extraction per URL, so a run's rows are all of
-          // them in extraction order. Capped for the view: the table shows 100,
+          // them in extraction order. Capped for the view: the table shows 500,
           // and a 5000-item crawl must not ship megabytes to a browser. The CSV
           // export is the way to get everything.
           data: allRows.slice(0, VIEW_ROW_CAP),
           confidence: extractionRows[0]!.confidence,
-          rowCount: allRows.length,
+          // The true total, not allRows.length — the extraction query above is
+          // itself capped, so allRows can undercount once a run's extraction
+          // count exceeds VIEW_ROW_CAP (the phase 2 shape: one extraction per
+          // row).
+          rowCount: rowTotal?.total ?? 0,
           validationResult: extractionRows[0]!.validationResult,
         } : null,
       };
