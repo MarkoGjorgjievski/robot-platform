@@ -24,6 +24,7 @@ export type ExecuteDeps = {
 export type ExecuteOutcome = {
   extracted: number;
   failed: number;
+  recordingFailures: number;
   cancelled: boolean;
   status: string;
 };
@@ -31,30 +32,72 @@ export type ExecuteOutcome = {
 export async function executeRun(runId: string, deps: ExecuteDeps): Promise<ExecuteOutcome> {
   let extracted = 0;
   let failed = 0;
+  let recordingFailures = 0;
   let cancelled = false;
+  let status = '';
 
-  for (;;) {
-    // Between items, never mid-item: a cancelled run leaves clean state, and an
-    // item already claimed is finished rather than abandoned as `running`.
-    if (await deps.isCancelled()) {
-      cancelled = true;
-      break;
+  // `finalise` runs in `finally` so it fires on every exit path — normal
+  // completion, cancellation, or a claim that broke the loop early. A run
+  // left un-finalised is invisible to every reader: crawl.status, the
+  // dashboard and the export all read the run row.
+  try {
+    for (;;) {
+      // Between items, never mid-item: a cancelled run leaves clean state, and an
+      // item already claimed is finished rather than abandoned as `running`.
+      let isRunCancelled: boolean;
+      try {
+        isRunCancelled = await deps.isCancelled();
+      } catch (err) {
+        // A broken cancel check must never stop a working run.
+        console.error(`executeRun: isCancelled check failed for run ${runId}, treating as not cancelled`, err);
+        isRunCancelled = false;
+      }
+      if (isRunCancelled) {
+        cancelled = true;
+        break;
+      }
+
+      let item: ClaimedItem | null;
+      try {
+        item = await deps.claim(runId);
+      } catch (err) {
+        // No work can be obtained, so continuing would just spin — stop, but
+        // still finalise via the `finally` below.
+        console.error(`executeRun: claim failed for run ${runId}, stopping`, err);
+        break;
+      }
+      if (!item) break;
+
+      try {
+        const { extractionId } = await deps.extractItem(item);
+        try {
+          await deps.onDone(item.id, extractionId);
+          extracted++;
+        } catch (recordErr) {
+          // Genuinely extracted, but failed to be durably marked done. That is
+          // a recording failure, not an extraction failure — conflating the two
+          // would make a scraped-but-unrecorded row indistinguishable, in the
+          // failure log, from a page that was actually blocked.
+          recordingFailures++;
+          console.error(`executeRun: onDone failed to record item ${item.id}`, recordErr);
+        }
+      } catch (err) {
+        // One blocked page must never cost the other 299 in the run.
+        const message = err instanceof Error ? err.message : String(err);
+        try {
+          await deps.onFailed(item.id, message);
+          failed++;
+        } catch (recordErr) {
+          // The extraction failure itself couldn't even be recorded — still a
+          // recording failure, and the loop must still reach the rest.
+          recordingFailures++;
+          console.error(`executeRun: onFailed failed to record item ${item.id}`, recordErr);
+        }
+      }
     }
-
-    const item = await deps.claim(runId);
-    if (!item) break;
-
-    try {
-      const { extractionId } = await deps.extractItem(item);
-      await deps.onDone(item.id, extractionId);
-      extracted++;
-    } catch (err) {
-      // One blocked page must never cost the other 299 in the run.
-      await deps.onFailed(item.id, err instanceof Error ? err.message : String(err));
-      failed++;
-    }
+  } finally {
+    status = await deps.finalise(extracted);
   }
 
-  const status = await deps.finalise(extracted);
-  return { extracted, failed, cancelled, status };
+  return { extracted, failed, recordingFailures, cancelled, status };
 }
