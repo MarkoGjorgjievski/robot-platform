@@ -8,74 +8,52 @@ type: project
 
 ## Read this first
 
-The v2 crawler (listing → detail, two phases) is built, merged into `feat/v2-crawler-phase2`, and has now been run against a live site end to end **twice**: once that exposed a real shared-browser lifecycle bug in `runExtraction` (7/8 items failed), and once after the fix that ran clean (8/8 items done, CSV export shows all 8 rows). The bug is fixed (`376b7ac`), TDD'd, and gated — see below for both runs' numbers.
+**Do not start another fix-and-dogfood cycle.** The last correctness push converged on the corpus rather than on reality, each round cost real money, and half the remaining defects are design decisions rather than bugs (see *What NOT to redo* below). If you're tempted to chase extraction-quality numbers, don't — the next work is feature implementation against the roadmap.
+
+The v2 crawler (listing → detail, two phases) is built and **committed on `feat/v2-crawler-phase2`** — not merged, and not in `main`. It has been run against a live site end to end twice: once exposed a real shared-browser lifecycle bug in `runExtraction` (7/8 items failed), once after the fix ran clean (8/8 items done, CSV export shows all 8 rows). A follow-up review round found and fixed the identical bug pattern one file over (`runAnalysis` in `analysis-orchestrator.ts`) and made the "whoever launches the browser closes it" rule structural instead of a convention — see `task-9-fix2-report.md`. The full narrative — both live runs' logs, verification queries, and the root-cause walkthrough — lives in `.superpowers/sdd/2026-08-20-v2-crawler-phase2/task-9-report.md` and `task-9-fix-report.md`; this file keeps only what's still true and useful to a fresh session.
+
+## Quality/cost baseline
+
+Unrelated to the v2 crawler, but it's the number that justifies "don't start another fix-and-dogfood cycle" above: **73% of *verifiable* fields correct across the three measured domains (22 of 30). 44% of all requested fields**, the difference being values a screenshot cannot check. **Cost ~$0.47 per cold URL, ~$0.20 warm**, pipeline only. The Tier 2 judge adds ~$0.14 per URL and is not a product cost.
+
+### Corpus: 8 domains, 3 measured
+
+`newegg`, `target`, `barnesandnoble` are measured (the numbers above). `bhphoto`, `abebooks`, `zalando`, `currys`, `uniqlo` were added 2026-08-19 and have never been run for extraction quality (`abebooks` has since been used live for the v2 crawler above, which is a different kind of run — pagination/plumbing, not a quality measurement). Only `newegg` has a Tier 1 fixture among the measured domains; two other fixtures (`ikea`, `nike`) exist but cover domains that aren't in the live corpus.
 
 ## What phase 1 and phase 2 actually do
 
 - **Phase 1 — `crawl.plan`** (`packages/scraper/src/crawl/plan-run.ts`, `packages/api/src/routers/crawl.ts`'s `plan` procedure). Walks a Source's listing page(s) via the existing extraction chain (mechanical → cache → AI), detects pagination (`url-pattern` / `next-button` / `page-numbers`, heuristic first, AI fallback), and enumerates detail URLs into `run_items` — `kind: 'listing'` rows for pages walked (already `done`, they cost nothing further), `kind: 'detail'` rows `pending` and waiting for phase 2. It fetches nothing on the detail pages themselves and spends nothing per item. Budget (`max_pages` / `max_items` / `mode`) is enforced here, so a run never plans more than the Source allows.
-- **Phase 2 — `crawl.execute`** (`packages/api/src/crawl/execute-run.ts`, `extract-item.ts`, `claim-item.ts`, `record-outcome.ts`, `roll-up-run.ts`; `crawl.execute`/`crawl.status`/`crawl.cancel` procedures). Claims one pending detail item at a time (`SKIP LOCKED`, so it's safe to call again after a crash — nothing double-claims), runs it through the same extraction chain the rest of the pipeline uses, merges input + listing + detail values into one row (`mergeRow`), and records the outcome per item: `done` with an extraction id, or `failed` with a reason. One blocked or erroring page is isolated — the loop keeps going and the run still reaches a terminal status (`completed` or `partial`, derived from the DB, not a local counter). `crawl.cancel` flips the run to `cancelling`; the loop checks between items (never mid-item) and stops cleanly, leaving the rest `pending` — calling `execute` again resumes it. Runs it outside the HTTP request (deliberately not awaited, guarded so a failure can never take the api-server process down); state lives entirely in `run_items`, so an api-server restart pauses a run rather than losing it.
+- **Phase 2 — `crawl.execute`** (`packages/api/src/crawl/execute-run.ts`, `extract-item.ts`, `claim-item.ts`, `record-outcome.ts`, `roll-up-run.ts`; `crawl.execute`/`crawl.status`/`crawl.cancel` procedures). Claims one pending detail item at a time (`SKIP LOCKED`, so it's safe to call again after a crash — nothing double-claims), runs it through the same extraction chain the rest of the pipeline uses, merges input + listing + detail values into one row (`mergeRow`), and records the outcome per item: `done` with an extraction id, or `failed` with a reason. One blocked or erroring page is isolated — the loop keeps going and the run still reaches a terminal status (`completed` or `partial`, derived from the DB, not a local counter). `crawl.cancel` flips the run to `cancelling`; the loop checks between items (never mid-item) and stops cleanly, leaving the rest `pending` — calling `execute` again resumes it. **This stop-and-resume path is unit-tested but has never been exercised live** — no live crawl has actually been cancelled mid-run. Runs it outside the HTTP request (deliberately not awaited, guarded so a failure can never take the api-server process down); state lives entirely in `run_items`, so an api-server restart pauses a run rather than losing it.
 
 ## How to drive them
 
 - CLI, phase 1: `pnpm --filter @robot/api exec tsx src/crawl-plan.ts <sourceId|sourceSlug>` — prints the work list it produced and the run id.
-- CLI, phase 2: `pnpm --filter @robot/api exec tsx src/crawl-execute.ts <runId>` — starts execution and polls `crawl.status` every 5s until the run leaves `extracting`/`cancelling`, then prints per-item final status.
+- CLI, phase 2: `pnpm --filter @robot/api exec tsx src/crawl-execute.ts <runId>` — starts execution and polls `crawl.status` every 5s (240 ticks / 20 min cap) until the run leaves `extracting`/`cancelling`, then prints per-item final status. The crawl runs inside this CLI's own process, so hitting the poll cap while the run is still active exits non-zero with an explicit "still in progress" message rather than silently reporting success.
 - Dashboard: the Source Runs page (`packages/dashboard/src/routes/source-runs.tsx`) has the button that calls `crawl.plan`. The Run detail page (`source-run-detail.tsx`) has Run/Cancel buttons wired to `crawl.execute`/`crawl.cancel`, with polling-based progress (`run-progress.ts`) — no live push yet, SSE/WebSocket is still future work.
 
-## The first live run — the bug (2026-08-20, run `2f1b29b9-...`)
+## What the live runs demonstrated
 
-Ran against `abebooks-pagination` (seeded Source, budget `{mode: "first_n", max_items: 8, max_pages: 2}`), not `newegg-gpus-live` — an earlier live check had already shown the export mechanism works for one row, so this run's point was to prove multiple rows, which needed a source with a bigger budget.
+Both runs used the same seeded Source, `abebooks-pagination` (budget `{mode: "first_n", max_items: 8, max_pages: 2}`), so the results are directly comparable:
 
-**Phase 1** (`crawl.plan abebooks-pagination`) produced run `2f1b29b9-574e-4bff-9bd4-1343f6f2f56d`: 1 listing page walked, 8 detail items enumerated (deduped, budget-capped — the log shows `budget reached: 8 items`, and page 2 was never fetched because page 1 alone filled the 8-item cap). Domain cache was warm from a prior run. This part worked exactly as designed.
+- **Run 1** (`2f1b29b9-...`, pre-fix): phase 1 correctly enumerated 8 detail items, capped at page 1, never touching page 2. Phase 2 broke — item 1 succeeded, then `runExtraction` closed the shared browser it didn't own, and items 2-8 all failed with "Browser not launched." Run settled to `partial`, `result_count=1`. Left in the DB as the historical record; do not re-run it.
+- **Run 2** (`bd44fa22-c667-4538-9a48-0e8066c8f444`, post-fix `376b7ac`): same plan shape, phase 2 completed 8/8 — `run_items` = 1 listing + 8 detail, all `done`; `result_count=8`; CSV export shows 8 data rows across 8 distinct `_url`s.
+- Full step-by-step logs, the root-cause walkthrough, and verification queries: `.superpowers/sdd/2026-08-20-v2-crawler-phase2/task-9-report.md` (the bug run) and `task-9-fix-report.md` (the fix + reproof run).
 
-**Phase 2** (`crawl-execute.ts 2f1b29b9-...`) did not. Item 1 extracted cleanly (`product_name` from the API, `price` from XPath, 2/2 fields, confidence 100%). Every one of the remaining 7 items then failed immediately with the same error: `Browser not launched. Call launch() first.` The run still reached a terminal state correctly — `partial`, not stuck — because the failure-isolation and roll-up logic worked exactly as designed even though the underlying extraction did not.
+## The fix, and its follow-up
 
-**Root cause, found by reading the code rather than guessing:** `runExtraction` (`packages/scraper/src/extraction-orchestrator.ts`, was line ~485) ended with `if (!deps.capture) await browser.close();` — a leftover from its original single-shot call site (`extractRouter.extract`, one request = one browser). `startExecution` in `packages/api/src/routers/crawl.ts` launches **one** `PlaywrightBrowser` and passes it into `extractItem` for the whole run's item loop, expecting it to persist across items. It doesn't: `PlaywrightBrowser.close()` nulls `this.context`/`this.browser`, so the very next `browser.capture()` call throws "Browser not launched." This was **not** an AbeBooks block — no interstitial, no empty HTML, no site-side signal — it was our own browser-lifecycle bug, newly exposed because phase 2 was the first caller that reuses a browser across more than one `runExtraction` call.
-
-**Verification queries, live run `2f1b29b9-574e-4bff-9bd4-1343f6f2f56d`:**
-
-```
-run_items: done=2 (1 listing + 1 detail), failed=7 (all detail)
-runs:      status=partial, result_count=1
-```
-
-**CSV export** (`GET /export/runs/2f1b29b9-574e-4bff-9bd4-1343f6f2f56d.csv`): header row `_url,price,_page_number,product_name,category_name` plus exactly 1 data row — matching `result_count=1`, not the 8 planned. This run's row is left in the DB as the record; it was not deleted or re-run.
-
-## The fix (2026-08-20, `376b7ac`)
-
-**Ruling: whoever launches the browser closes it.** `runExtraction` never launches a browser and, after the fix, never closes one either — on any path, including the capture-error path (which still rethrows). The guard that conflated "I captured this page myself" with "I own this browser" is gone; the invariant is now documented directly on `ExtractionDeps.browser`.
-
-- `packages/scraper/src/extraction-orchestrator.ts` — both `browser.close()` calls removed (the capture-error path and the end-of-chain path).
-- `packages/api/src/routers/scraper.ts`'s `extract` procedure launches its own single-use browser and was relying on `runExtraction` to close it; it now closes it itself in a `finally`. Its sibling `analyze` procedure was already correct (`analysis-orchestrator.ts` closes its own browser) and needed no change.
-- Audited every other production caller: `extract-item.ts` (browser owned by `startExecution`, already closes in a `finally`) and `plan-run.ts` (browser owned by the `crawl.plan` procedure, already closes in a `finally`, and always injects `capture` so the old guard was never true there — phase 1 was correctly unaffected by the original bug).
-- TDD: `packages/scraper/src/extraction-orchestrator-browser-lifecycle.test.ts` — three tests on the no-injected-capture path (the one the old guard broke), including the actual regression (two sequential `runExtraction` calls on one browser, both must succeed). All three failed against the pre-fix code for the right reason; a teeth check (re-adding the close, watching the regression test fail, then reverting) confirmed the test actually exercises the bug.
-
-## The second live run — reproof (2026-08-20, run `bd44fa22-...`)
-
-Same Source, same unchanged budget (`{max_items: 8, max_pages: 2}`), fresh plan (not a re-run of the failed one — that record stays in the DB untouched).
-
-**Phase 1** (`crawl.plan abebooks-pagination`) produced run `bd44fa22-c667-4538-9a48-0e8066c8f444`: 1 listing page walked, 8 detail items enumerated, budget reached at 8 items exactly as before.
-
-**Phase 2** (`crawl-execute.ts bd44fa22-...`) completed all 8 items — `done 8/8 · failed 0` — with the browser launched once and reused across the whole loop, which is exactly the path the bug used to break.
-
-**Verification queries, live run `bd44fa22-c667-4538-9a48-0e8066c8f444`:**
-
-```
-run_items: done=9 (1 listing + 8 detail)
-runs:      status=completed, result_count=8
-```
-
-**CSV export** (`GET /export/runs/bd44fa22-c667-4538-9a48-0e8066c8f444.csv`): header row `_url,price,_page_number,product_name,category_name` plus **8 data rows across 8 distinct `_url`s** — matching `result_count=8` and the full planned item count. The v2 spec's "one row per URL" claim is now demonstrated in volume, not just in mechanism.
+**Ruling: whoever launches the browser closes it.** `runExtraction` (`extraction-orchestrator.ts`) no longer closes a browser it doesn't own, on any path — the invariant is documented directly on `ExtractionDeps.browser`. A review round found the identical pattern one file over: `runAnalysis` (`analysis-orchestrator.ts`) was still closing a browser it never launched, and `scraper.ts`'s `analyse` procedure had no `finally` at all, leaking a browser on its early-throw path. Both are fixed, and the rule is now structural rather than a convention each procedure has to remember: `@robot/api`'s `withBrowserSession` (`packages/api/src/browser-session.ts`) launches a browser, runs the caller's function, and always closes it in a `finally` — `extract` and `analyse` both route through it now. See `task-9-fix2-report.md` for the full fix.
 
 ## What NOT to redo
 
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
-- **Don't re-run the AbeBooks or Newegg live crawls to get a better-looking result.** The two runs above (one broken, one fixed) are what happened; this task was authorised for exactly one planning + one execution run after the fix, and that budget is spent. Both runs stay in the DB as the record.
-- **The shared-browser-close bug is fixed** (`376b7ac`) — don't reopen it or re-derive the root cause; read the "The fix" section above instead.
+- **Don't chase the price/rating "wrong" verdicts as bugs.** Four of the eight remaining wrong verdicts are cases where the extractor returned a real value and nothing said which of several valid values was wanted. They need the labelling design (Open decision 1 below), not a fix.
+- **Don't re-run the AbeBooks or Newegg live crawls to get a better-looking result.** The two v2 runs above (one broken, one fixed) are what happened; that task was authorised for exactly one planning + one execution run after the fix, and that budget is spent. Both runs stay in the DB as the record.
+- **The shared-browser-close bug is fixed** (`376b7ac`, plus the `analysis-orchestrator.ts` half and the structural `withBrowserSession` fix from the review round) — don't reopen it or re-derive the root cause; read "The fix, and its follow-up" above instead.
 
 ## Open decisions (need Marko, not code)
 
-1. **Candidate labelling** (`docs/ideas.md` → "Label every candidate instead of picking one"). Still open, unchanged from prior handoffs.
-2. **Proxy budget.** Anti-bot remains the dominant schedule risk for the pipeline generally; unrelated to the v2 crawler bug above.
+1. **Candidate labelling** (`docs/ideas.md` → "Label every candidate instead of picking one"). Premise confirmed: one Newegg page carries four simultaneously valid prices and the *displayed* price matches none of the API fields. Marko's direction — label all candidates, let the customer choose, per-domain catalogue and per-dataset selection — is recorded and deserves its own spec. Still open.
+2. **Proxy budget.** Anti-bot remains the dominant schedule risk for the pipeline generally; unrelated to the v2 crawler work above.
 
 ## Suggested next work
 
@@ -83,7 +61,8 @@ runs:      status=completed, result_count=8
 
 ## Cheap things worth doing whenever convenient
 
-- Measure the five unmeasured extraction-quality domains once (~$4) — unchanged from prior handoffs, unrelated to v2.
+- Measure the five unmeasured extraction-quality domains once (~$4): `bhphoto`, `abebooks`, `zalando`, `currys`, `uniqlo`.
+- Capture Tier 1 fixtures for the corpus so the commit-time gate covers more than one eighth of it.
 - `star_distribution` arrives as an object and is rejected as "not array".
 - Target's `availability` returns a delivery date from a poisoned cached XPath; the pin machinery to fix it already exists.
 
@@ -91,7 +70,8 @@ runs:      status=completed, result_count=8
 
 | Command | What it does |
 |---|---|
-| `pnpm -r test` | Free green gate. Needs Postgres. |
+| `docker start robot-platform-db` | Start Postgres first — the one non-obvious prerequisite on this machine. Everything below needs it running. |
+| `pnpm -r test` | Free green gate. |
 | `pnpm typecheck` | All packages, including the two that have no build step. |
 | `pnpm --filter @robot/dashboard exec tsc --noEmit` | Dashboard type check (not wired into `pnpm typecheck`). |
 | `pnpm --filter @robot/api exec tsx src/crawl-plan.ts <sourceId\|slug>` | Phase 1 CLI — plan a crawl. |
