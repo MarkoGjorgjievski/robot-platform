@@ -89,6 +89,11 @@ export const scraperRouter = router({
       const browser = new PlaywrightBrowser();
       await browser.launch({ headless: true });
 
+      // This procedure launches its own single-use browser, so it owns closing
+      // it. `runExtraction` never closes a browser it was given (see the
+      // invariant documented on `ExtractionDeps.browser`) — that guard used to
+      // live in the orchestrator and broke Phase 2's shared-browser crawl loop,
+      // so it moved out to whoever actually launches the browser.
       try {
         return await runExtraction(
           {
@@ -105,6 +110,8 @@ export const scraperRouter = router({
           code: 'INTERNAL_SERVER_ERROR',
           message: err instanceof Error ? err.message : 'Extraction failed',
         });
+      } finally {
+        await browser.close();
       }
     }),
 
