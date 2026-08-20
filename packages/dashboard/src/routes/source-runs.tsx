@@ -5,6 +5,7 @@ import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-s
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { formatDate } from '../lib/format';
 import { RunStatusDot } from '../components/run-status-dot';
+import { summariseWorkList, planCrawlLabel } from '../lib/work-list';
 
 export default function SourceRuns() {
   const { project: projectSlug, source: sourceSlug } = useParams({
@@ -32,7 +33,12 @@ export default function SourceRuns() {
 
   return (
     <div className="mt-6">
-      <h2 className="text-sm font-semibold text-gray-700">Runs ({runs.length})</h2>
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-semibold text-gray-700">Runs ({runs.length})</h2>
+        <div className="ml-auto">
+          <PlanCrawlButton sourceId={source.id} listingMode={source.listingMode} />
+        </div>
+      </div>
 
       {runs.length === 0 ? (
         <EmptyState
@@ -68,6 +74,56 @@ export default function SourceRuns() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * Plans a crawl: walks the listing pages and enumerates the detail URLs, without
+ * fetching a single one of them.
+ *
+ * The button says "Plan", not "Run", because that distinction is the whole point
+ * of the two-phase design — a human sees the fan-out before it becomes hundreds
+ * of requests against a site.
+ */
+function PlanCrawlButton({ sourceId, listingMode }: { sourceId: string; listingMode: string | null }) {
+  const utils = trpc.useUtils();
+  const plan = trpc.crawl.plan.useMutation({
+    onSuccess: () => utils.runs.invalidate(),
+  });
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={() => plan.mutate({ sourceId })}
+        disabled={plan.isPending}
+        className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        title={
+          listingMode === 'listing_to_detail'
+            ? 'Walk the listing pages and enumerate detail URLs. Fetches no detail pages.'
+            : 'Queue one work item per input row. Fetches nothing.'
+        }
+      >
+        {planCrawlLabel(plan.isPending)}
+      </button>
+      {plan.isPending && (
+        <span className="text-[11px] text-gray-500">Fetching listing pages — this takes a minute.</span>
+      )}
+      {plan.isError && <span className="max-w-xs text-right text-[11px] text-red-600">{plan.error.message}</span>}
+      {plan.data && (
+        <span className="text-[11px] text-gray-600">
+          {summariseWorkList({
+            listing: plan.data.listingPages,
+            detail: plan.data.itemCount,
+            pending: plan.data.itemCount,
+            done: plan.data.listingPages,
+            failed: 0,
+          })}
+        </span>
+      )}
+      {plan.data?.warnings.map((w) => (
+        <span key={w} className="max-w-xs text-right text-[11px] text-amber-700">{w}</span>
+      ))}
     </div>
   );
 }

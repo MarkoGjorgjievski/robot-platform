@@ -1,8 +1,9 @@
 import { useParams, Link } from '@tanstack/react-router';
-import { Activity, Download, ExternalLink } from 'lucide-react';
+import { Activity, Download, ExternalLink, ListChecks } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
+import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -90,6 +91,8 @@ export default function SourceRunDetail() {
         </div>
       )}
 
+      <WorkList runId={runId} />
+
       <ResultsTable
         data={data}
         confidence={extraction?.confidence ?? null}
@@ -128,4 +131,83 @@ function RunStatusBadge({ status }: { status: string }) {
     : status === 'running' ? 'bg-amber-100 text-amber-700'
     : 'bg-gray-100 text-gray-700';
   return <span className={`rounded px-2 py-0.5 text-[10px] uppercase ${cls}`}>{status}</span>;
+}
+
+/**
+ * The work list a plan produced: which listing pages were walked, and which
+ * detail URLs each yielded.
+ *
+ * This is the inspection point the two-phase design exists for — the fan-out is
+ * visible here BEFORE phase 2 turns it into requests, so a plan that queued the
+ * wrong links (a facet sidebar, a privacy policy) is obvious rather than
+ * expensive.
+ */
+function WorkList({ runId }: { runId: string }) {
+  const itemsQuery = trpc.crawl.items.useQuery({ runId });
+  const data = itemsQuery.data;
+  if (!data || data.items.length === 0) return null;
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center gap-3">
+        <ListChecks className="h-4 w-4 text-gray-400" />
+        <h2 className="text-sm font-semibold text-gray-700">Work list</h2>
+        <span className="text-xs text-gray-600">{summariseWorkList(data.counts)}</span>
+      </div>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b">
+            <tr>
+              <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Kind</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Page</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Status</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">URL</th>
+              <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">From the listing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.items.slice(0, 200).map((item) => (
+              <tr key={item.id} className="border-b last:border-b-0">
+                <td className="py-2 pr-4 align-top">
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${
+                    item.kind === 'listing' ? 'bg-sky-100 text-sky-700' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {item.kind}
+                  </span>
+                </td>
+                <td className="py-2 pr-4 align-top font-mono text-xs text-gray-500">{item.pageNumber ?? '—'}</td>
+                <td className="py-2 pr-4 align-top">
+                  <span className={`text-xs ${
+                    item.status === 'failed' ? 'text-red-600'
+                      : item.status === 'done' ? 'text-emerald-700' : 'text-gray-500'
+                  }`}>
+                    {item.status}
+                  </span>
+                  {item.error && <div className="max-w-[240px] font-mono text-[10px] text-red-600">{item.error}</div>}
+                </td>
+                <td className="py-2 pr-4 align-top">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block max-w-[420px] truncate font-mono text-xs text-gray-700 hover:text-gray-900"
+                    title={item.url}
+                  >
+                    {item.url}
+                  </a>
+                </td>
+                <td className="py-2 pr-4 align-top font-mono text-[11px] text-gray-500">
+                  {listingValuesLabel(item.listingValues)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {data.items.length > 200 && (
+          <p className="mt-2 text-xs text-gray-500">Showing 200 of {data.items.length} items</p>
+        )}
+      </div>
+    </div>
+  );
 }
