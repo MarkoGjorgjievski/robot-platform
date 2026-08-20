@@ -26,6 +26,28 @@ async function seedPlannedRun() {
   return run!.id;
 }
 
+/**
+ * A run whose listing item is done (planning bookkeeping, not phase-2 work)
+ * alongside detail items in every status — the shape that exposes whether
+ * crawl.status's counters are scoped to detail items or leak listing rows in.
+ */
+async function seedRunWithDoneListingAndMixedDetails() {
+  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  orgId = org!.id;
+  const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+  const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+  const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+  const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'extracting' }).returning();
+  await db.insert(runItems).values([
+    { runId: run!.id, kind: 'listing', url: 'https://example.com/c/1', inputIndex: 0, status: 'done' },
+    { runId: run!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' },
+    { runId: run!.id, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'pending' },
+    { runId: run!.id, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0, status: 'running' },
+    { runId: run!.id, kind: 'detail', url: 'https://example.com/p/4', inputIndex: 0, status: 'failed', error: 'blocked' },
+  ]);
+  return run!.id;
+}
+
 afterEach(async () => {
   if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
   orgId = null;
@@ -36,12 +58,20 @@ describe('crawl.status', () => {
     const runId = await seedPlannedRun();
     const status = await caller.crawl.status({ runId });
     expect(status.status).toBe('planned');
-    expect(status.counts).toMatchObject({ pending: 1, failed: 1, done: 1 });
+    // The listing item is already `done` at plan time, but that's planning
+    // bookkeeping, not phase-2 work — it must not count as extracted here.
+    expect(status.counts).toMatchObject({ pending: 1, failed: 1, done: 0, listing: 1, detail: 2 });
   });
 
   it('rejects an unknown run rather than reporting an empty one', async () => {
     await expect(caller.crawl.status({ runId: '00000000-0000-0000-0000-000000000000' }))
       .rejects.toThrow(/not found/i);
+  });
+
+  it('counts pending/running/done/failed over detail items only — the done listing item is planning bookkeeping, not phase-2 work', async () => {
+    const runId = await seedRunWithDoneListingAndMixedDetails();
+    const status = await caller.crawl.status({ runId });
+    expect(status.counts).toEqual({ pending: 1, running: 1, done: 1, failed: 1, listing: 1, detail: 4 });
   });
 });
 

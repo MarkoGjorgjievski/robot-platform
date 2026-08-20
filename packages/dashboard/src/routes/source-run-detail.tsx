@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
 import { Activity, Download, ExternalLink, ListChecks } from 'lucide-react';
 import { trpc } from '../lib/trpc';
@@ -148,8 +149,24 @@ function ExecuteControls({ runId }: { runId: string }) {
   const cancel = trpc.crawl.cancel.useMutation({ onSuccess: () => utils.crawl.invalidate() });
 
   const data = statusQuery.data;
+  const active = data ? isRunActive(data.status) : false;
+
+  // The poll above is the only thing telling this page a background crawl
+  // settled — the header (`runs.getWithDetails`) and the work list
+  // (`crawl.items`) aren't polled, so without this they'd sit stale until a
+  // reload. Fire the invalidation once, on the falling edge into "settled",
+  // not on every 3s tick: refetching a large work list on each poll of a long
+  // crawl is exactly the waste this codebase avoids elsewhere.
+  const wasActiveRef = useRef(active);
+  useEffect(() => {
+    if (wasActiveRef.current && !active) {
+      utils.runs.invalidate();
+      utils.crawl.invalidate();
+    }
+    wasActiveRef.current = active;
+  }, [active, utils]);
+
   if (!data || data.counts.detail === 0) return null;
-  const active = isRunActive(data.status);
 
   return (
     <div className="mt-6 flex items-center gap-3 rounded-md border px-4 py-3">
