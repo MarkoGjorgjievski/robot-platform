@@ -2,7 +2,7 @@
 // already reads, so exports and the run detail view can never disagree about
 // which extraction a run's rows come from.
 
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 import { runs, captures, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { buildRunExport, type RunExport } from './build-run-export.js';
@@ -16,23 +16,28 @@ export async function loadRunExport(db: typeof Database, runId: string): Promise
   });
   if (!run) return null;
 
-  const [latestCapture, latestExtraction] = await Promise.all([
+  const [latestCapture, extractionRows] = await Promise.all([
     db.query.captures.findFirst({
       where: eq(captures.runId, runId),
       orderBy: [desc(captures.createdAt)],
       columns: { url: true },
     }),
-    db.query.extractions.findFirst({
+    db.query.extractions.findMany({
       where: eq(extractions.runId, runId),
-      orderBy: [desc(extractions.createdAt)],
+      orderBy: [asc(extractions.createdAt)],
       columns: { data: true },
     }),
   ]);
+
+  // Phase 2 writes one extraction per URL, so a run's rows are the concatenation
+  // of them in the order they were extracted. A single-extraction run (the
+  // sandbox flow) flattens to exactly what it was before.
+  const rows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
 
   return buildRunExport({
     run,
     source: run.source ?? null,
     captureUrl: latestCapture?.url ?? null,
-    extractionData: latestExtraction?.data ?? null,
+    extractionData: rows,
   });
 }

@@ -1,7 +1,9 @@
 import { z } from 'zod';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 import { runs, captures, extractions } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+
+const VIEW_ROW_CAP = 500;
 
 export const runsRouter = router({
   list: publicProcedure
@@ -65,16 +67,19 @@ export const runsRouter = router({
       });
       if (!run) return null;
 
-      const [latestCapture, latestExtraction] = await Promise.all([
+      const [latestCapture, extractionRows] = await Promise.all([
         ctx.db.query.captures.findFirst({
           where: eq(captures.runId, input.id),
           orderBy: [desc(captures.createdAt)],
         }),
-        ctx.db.query.extractions.findFirst({
+        ctx.db.query.extractions.findMany({
           where: eq(extractions.runId, input.id),
-          orderBy: [desc(extractions.createdAt)],
+          orderBy: [asc(extractions.createdAt)],
+          columns: { data: true, confidence: true, rowCount: true, validationResult: true },
         }),
       ]);
+
+      const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
 
       return {
         run: {
@@ -93,11 +98,15 @@ export const runsRouter = router({
           url: latestCapture.url,
           screenshotPath: latestCapture.screenshotPath,
         } : null,
-        extraction: latestExtraction ? {
-          data: latestExtraction.data,
-          confidence: latestExtraction.confidence,
-          rowCount: latestExtraction.rowCount,
-          validationResult: latestExtraction.validationResult,
+        extraction: extractionRows.length > 0 ? {
+          // Phase 2 writes one extraction per URL, so a run's rows are all of
+          // them in extraction order. Capped for the view: the table shows 100,
+          // and a 5000-item crawl must not ship megabytes to a browser. The CSV
+          // export is the way to get everything.
+          data: allRows.slice(0, VIEW_ROW_CAP),
+          confidence: extractionRows[0]!.confidence,
+          rowCount: allRows.length,
+          validationResult: extractionRows[0]!.validationResult,
         } : null,
       };
     }),
