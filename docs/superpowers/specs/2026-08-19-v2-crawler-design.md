@@ -235,6 +235,8 @@ When a cached config produces nothing on page 2, phase 1 re-detects once, stores
 
 One `listing` item is recorded per listing page actually walked (with its `page_number`), so the plan is auditable: which pages were fetched, and which detail URLs each produced. Detail items are inserted (absolute, deduped, budget-capped). The run moves to `planned` and `plan` returns item count, per-input breakdown, warnings, and a cost estimate.
 
+A run whose inputs **all** errored, leaving zero planned items, moves to `failed` rather than `planned` — a planning phase that captured nothing is not a plan. Warnings and errors are persisted to `runs.logs` so they survive the HTTP response and remain visible to `crawl.status`; `runs.error_message` carries a one-line summary only on the `failed` path, because the dashboard renders that field as an error banner on truthiness alone.
+
 **`plan` reports item count and whether the domain cache is warm. It does not report a dollar figure.**
 
 Every AI step in `runExtraction` is gated on fields still missing: STEP 2 fires on `missingAfterCache`, STEP 3 on `missingAfterApi`. Within one crawl over one domain, detail page 1 is cold (selector generation + API analysis, ~$0.47), writes the cache, and pages 2..N resolve from that cache for **$0** apart from individual pages carrying a field the cache misses. A 180-item crawl costs a few dollars, not a few hundred.
@@ -294,6 +296,8 @@ New `packages/scraper/src/crawl/`, decisions in pure functions and I/O in two th
 `packages/api/src/routers/crawl.ts` stays thin: `plan`, `execute`, `status`, `cancel`.
 
 `@robot/browser` changes: `crawl()` joins the `IBrowser` interface (today it exists only on the concrete class, so nothing can fake it), gains a "start from page 2" option so phase 1 does not re-fetch the page it already captured, and gains API-replay page fetching.
+
+**As built, `startPage: 2` skips only the page-1 extraction and yield — the page-1 navigation still happens**, because pagination is detected from page 1's live DOM inside `crawl()` and the click-based strategies need that page loaded. The duplicate page-1 load therefore remains until a cached `pagination_config` can be handed to `crawl()` in place of detection.
 
 ---
 

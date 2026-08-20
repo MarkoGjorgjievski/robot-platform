@@ -3,6 +3,16 @@ import { eq, sql, and } from 'drizzle-orm';
 import { datasets, projects, orgs, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 
+/** One Dataset schema field. `origin` says WHERE the field is resolved; absent means 'detail'. */
+export const datasetSchemaFieldSchema = z.object({
+  name: z.string().min(1),
+  type: z.string().min(1),
+  required: z.boolean().optional(),
+  description: z.string().optional(),
+  origin: z.enum(['detail', 'listing', 'input', 'system']).optional(),
+  input_column: z.string().optional(),
+});
+
 export const datasetsRouter = router({
   listByProject: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
@@ -93,14 +103,7 @@ export const datasetsRouter = router({
     .input(
       z.object({
         datasetId: z.string().uuid(),
-        schema: z.array(
-          z.object({
-            name: z.string().min(1),
-            type: z.string().min(1),
-            required: z.boolean().optional(),
-            description: z.string().optional(),
-          }),
-        ),
+        schema: z.array(datasetSchemaFieldSchema),
       }),
     )
     .mutation(async ({ ctx, input }) => {

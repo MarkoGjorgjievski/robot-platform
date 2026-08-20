@@ -9,6 +9,7 @@ import { inputsRouter } from './inputs';
 import { credentialsRouter } from './credentials';
 import { runsRouter } from './runs';
 import { sandboxRouter } from './sandbox';
+import { crawlRouter } from './crawl';
 import { scraperRouter } from './scraper';
 import { overridesRouter } from './overrides';
 import { capturesRouter } from './captures';
@@ -25,6 +26,7 @@ export const appRouter = router({
   credentials: credentialsRouter,
   runs: runsRouter,
   sandbox: sandboxRouter,
+  crawl: crawlRouter,
   scraper: scraperRouter,
   overrides: overridesRouter,
   captures: capturesRouter,
