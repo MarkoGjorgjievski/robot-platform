@@ -16,6 +16,7 @@ import { resolveBudget, itemCap } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
 import { enumerateDetailUrls, DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
+import { detectPagination, type PaginationAgent } from './detect-pagination.js';
 
 export type PlannedItem = {
   kind: 'listing' | 'detail';
@@ -289,21 +290,44 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         continue;
       }
 
+      // Decide HOW this listing paginates before paying for a page load. crawl()
+      // would otherwise re-navigate to page 1 just to inspect markup we already
+      // captured — and on a page with no pagination at all (a category page with
+      // a carousel and nothing else) that load buys nothing.
+      const pagination = capture
+        ? await detectPagination(capture, deps.agent as PaginationAgent | null)
+        : { config: null, source: 'none' as const };
+      if (!pagination.config) {
+        warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+        report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        continue;
+      }
+
       // Pages 2+ replay page 1's plan — no further AI.
       // buildExtractionScript(plan, fieldTypes): the second argument is a
       // name → type map, so `detail_url` is collected as a URL, not a text node.
       const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' }, start.url);
+      const detailsBeforePaging = detailCount();
       try {
         for await (const page of deps.browser.crawl(start.url, {
           extractionScript: script,
           maxPages: budget.maxPages,
           startPage: 2,
+          paginationConfig: pagination.config,
         })) {
           items.push({
             kind: 'listing', url: page.url, inputIndex: start.inputIndex,
             inputValues: start.inputValues, listingValues: {}, pageNumber: page.pageNumber,
           });
           if (absorb(page.data, page.url, page.pageNumber) === 'stop') break;
+        }
+        // Verification, not trust: a detected config that yields nothing new is a
+        // false positive — a carousel arrow, or a selector for an element that is
+        // not there. Say so, so it is never cached as this domain's pattern.
+        if (detailCount() === detailsBeforePaging) {
+          warnings.push(
+            `pagination (${pagination.source}: ${pagination.config.strategy}) produced no new items on ${start.url}`,
+          );
         }
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
       } catch (err) {
