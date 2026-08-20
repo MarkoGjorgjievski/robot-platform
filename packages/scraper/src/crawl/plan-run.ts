@@ -292,7 +292,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // Pages 2+ replay page 1's plan — no further AI.
       // buildExtractionScript(plan, fieldTypes): the second argument is a
       // name → type map, so `detail_url` is collected as a URL, not a text node.
-      const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' });
+      const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' }, start.url);
       try {
         for await (const page of deps.browser.crawl(start.url, {
           extractionScript: script,

@@ -386,7 +386,7 @@ export async function runExtraction(
         if (cache?.rowSelector) {
           plan.row_xpath = cache.rowSelector.xpath;
         }
-        const script = buildExtractionScript(plan, fieldTypes);
+        const script = buildExtractionScript(plan, fieldTypes, capture.url ?? url);
         // Run against the capture the selectors were generated FROM. Re-navigating
         // executed them against a different render: a category page whose load
         // fell back to domcontentloaded had not painted its product grid, so a
@@ -423,7 +423,7 @@ export async function runExtraction(
                 rowCount: xpathResult.data.length,
                 previousRowXpath: plan.row_xpath,
               });
-              const retryScript = buildExtractionScript(retryPlan, fieldTypes);
+              const retryScript = buildExtractionScript(retryPlan, fieldTypes, capture.url ?? url);
               const retryResult = await browser.evaluate<{ data: Record<string, unknown>[] }>(
                 url, retryScript, { waitUntil: 'networkidle' },
               );
@@ -459,7 +459,7 @@ export async function runExtraction(
           if (cache?.rowSelector) {
             tilePlan.row_xpath = cache.rowSelector.xpath;
           }
-          const tileScript = buildExtractionScript(tilePlan, fieldTypes);
+          const tileScript = buildExtractionScript(tilePlan, fieldTypes, capture.url ?? url);
           const tileResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[] }>(
             capture.html ?? '', tileScript,
           );

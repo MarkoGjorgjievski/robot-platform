@@ -23,6 +23,15 @@ export type ExecutorResult = {
 export function buildExtractionScript(
   plan: ExtractionPlan,
   fieldTypes: Record<string, string> = {},
+  /**
+   * The URL the markup came from, for resolving relative links.
+   *
+   * Row extraction runs against CAPTURED html, where `window.location` is
+   * about:blank — so a relative href fails to absolutise, and the url-type guard
+   * then nulls the field, silently dropping every link on any site that writes
+   * its hrefs relatively.
+   */
+  baseUrl?: string,
 ): string {
   // `SelectorField.xpath` is typed `string`, but plans arrive as an unchecked
   // `as ExtractionPlan` cast over LLM tool output — and the tool is not `strict`,
@@ -41,6 +50,11 @@ export function buildExtractionScript(
 
   return `
     (() => {
+      // Declared first: extractValue below reads it, and a const declared in a
+      // later block is out of scope there — the ReferenceError was swallowed by
+      // the transform's own catch, silently leaving every link relative.
+      const BASE_URL = ${JSON.stringify(baseUrl ?? '')};
+
       function xpathQuery(contextNode, xpath) {
         try {
           // Determine context: absolute xpaths (start with /) use document,
@@ -111,7 +125,15 @@ export function buildExtractionScript(
         if (el.closest?.('script') || el.closest?.('style')) return null;
 
         let value;
-        if (field.attribute === 'textContent') {
+        // The xpath may already select the attribute node — models routinely write
+        // .//a[@class="title"]/@href AND set attribute:"href". An attribute node has
+        // no getAttribute, so this returned null, every field in the row was empty,
+        // the row was dropped, and a page full of links yielded nothing. Falls
+        // through to the transforms below: an href found this way still needs
+        // absolute_url like any other.
+        if (el.nodeType === 2) {
+          value = el.nodeValue ?? el.value ?? null;
+        } else if (field.attribute === 'textContent') {
           value = el.textContent?.trim() ?? null;
           // Reject values that look like code/JSON
           if (value && (value.startsWith('{') || value.startsWith('function ') || value.startsWith('[{') || value.length > 5000)) {
@@ -137,7 +159,7 @@ export function buildExtractionScript(
         }
         if (field.transform === 'parse_date') value = value.trim();
         if (field.transform === 'absolute_url' && value && !value.startsWith('http')) {
-          try { value = new URL(value, window.location.href).href; } catch {}
+          try { value = new URL(value, BASE_URL || window.location.href).href; } catch {}
         }
 
         // Post-processing: clean up common junk patterns
