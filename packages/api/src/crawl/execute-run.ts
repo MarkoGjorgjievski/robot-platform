@@ -18,7 +18,14 @@ export type ExecuteDeps = {
   onDone: (itemId: string, extractionId: string | null) => Promise<void>;
   onFailed: (itemId: string, message: string) => Promise<void>;
   isCancelled: () => Promise<boolean>;
-  finalise: (rowCount: number) => Promise<string>;
+  /**
+   * `cancelled` is the loop's own outcome, not re-derived by re-reading
+   * `isCancelled()` — the run row can move on between the last check and
+   * finalise. Without threading it through, a cancel-with-pending-work run
+   * rolls up as `'extracting'` (rollUpStatus sees `pending > 0` with no way
+   * to know a stop was requested) and the dashboard polls forever.
+   */
+  finalise: (rowCount: number, cancelled: boolean) => Promise<string>;
 };
 
 export type ExecuteOutcome = {
@@ -96,7 +103,7 @@ export async function executeRun(runId: string, deps: ExecuteDeps): Promise<Exec
       }
     }
   } finally {
-    status = await deps.finalise(extracted);
+    status = await deps.finalise(extracted, cancelled);
   }
 
   return { extracted, failed, recordingFailures, cancelled, status };

@@ -5,10 +5,21 @@ import { and, eq, sql } from 'drizzle-orm';
 import { runs, runItems } from '@robot/db';
 import type { db as Database } from '@robot/db';
 
-export type RunRollup = 'completed' | 'partial' | 'failed' | 'extracting';
+export type RunRollup = 'completed' | 'partial' | 'failed' | 'extracting' | 'cancelled';
 
-export function rollUpStatus(counts: { pending: number; done: number; failed: number }): RunRollup {
-  if (counts.pending > 0) return 'extracting';
+/**
+ * `cancelled` reflects whether the run was told to stop (`status='cancelling'`)
+ * — not whether it actually has pending work. Only when BOTH are true does the
+ * roll-up settle to `'cancelled'`: pending work really is left unclaimed, and
+ * saying so is honest. If nothing is pending, the work genuinely all finished
+ * before the cancel took effect — rolling that up as `'cancelled'` would be a
+ * lie, so it falls through to the normal completed/partial/failed logic.
+ */
+export function rollUpStatus(
+  counts: { pending: number; done: number; failed: number },
+  cancelled = false,
+): RunRollup {
+  if (counts.pending > 0) return cancelled ? 'cancelled' : 'extracting';
   if (counts.failed === 0) return 'completed';
   // `partial` exists because at scale "480 of 500 succeeded" is the normal
   // outcome, and a binary completed/failed cannot express it.
@@ -34,6 +45,7 @@ export function rollUpStatus(counts: { pending: number; done: number; failed: nu
 export async function finaliseRun(
   db: typeof Database,
   runId: string,
+  cancelled = false,
 ): Promise<RunRollup> {
   const [counts] = await db
     .select({
@@ -49,7 +61,7 @@ export async function finaliseRun(
     pending: Number(counts?.pending ?? 0),
     done,
     failed: Number(counts?.failed ?? 0),
-  });
+  }, cancelled);
 
   await db.update(runs)
     .set({

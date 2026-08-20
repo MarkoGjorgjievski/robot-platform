@@ -69,7 +69,10 @@ async function startExecution(runId: string, sourceId: string, schema: OriginFie
       },
       // No rowCount passed: finaliseRun derives it from the DB itself, so a
       // stale local counter from this loop can never overwrite a truer total.
-      finalise: () => finaliseRun(db, runId),
+      // `cancelled` IS threaded through — it's executeRun's own record of
+      // whether the loop broke on a cancel check, and finaliseRun needs it to
+      // roll a still-pending run up to 'cancelled' instead of 'extracting'.
+      finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
@@ -235,8 +238,13 @@ export const crawlRouter = router({
 
       const counts = { listing: 0, detail: 0, pending: 0, done: 0, failed: 0 };
       for (const row of rows) {
-        if (row.kind === 'listing') counts.listing++;
-        if (row.kind === 'detail') counts.detail++;
+        if (row.kind === 'listing') { counts.listing++; continue; }
+        counts.detail++;
+        // Same bug pattern crawl.status already had fixed: a listing item is
+        // planning bookkeeping, already `done` before phase 2 ever runs.
+        // Counting it into pending/done/failed here would inflate `done`
+        // against a `detail` total that excludes it — exactly what produced
+        // "2 of 1 extracted" on the dashboard before that fix.
         if (row.status === 'pending') counts.pending++;
         if (row.status === 'done') counts.done++;
         if (row.status === 'failed') counts.failed++;

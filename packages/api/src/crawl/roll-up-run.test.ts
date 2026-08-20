@@ -36,6 +36,24 @@ describe('rollUpStatus', () => {
     // empty result, not an error.
     expect(rollUpStatus({ pending: 0, done: 0, failed: 0 })).toBe('completed');
   });
+
+  // Finding 1: a cancel with pending work left must settle to 'cancelled', not
+  // silently revert to 'extracting' (which the dashboard treats as still active
+  // and polls forever).
+  it('settles to cancelled when told to stop and work is still pending', () => {
+    expect(rollUpStatus({ pending: 3, done: 5, failed: 1 }, true)).toBe('cancelled');
+  });
+
+  it('rolls up normally when cancelled but nothing is pending — the work genuinely finished, saying "cancelled" would be a lie', () => {
+    expect(rollUpStatus({ pending: 0, done: 12, failed: 0 }, true)).toBe('completed');
+    expect(rollUpStatus({ pending: 0, done: 480, failed: 20 }, true)).toBe('partial');
+    expect(rollUpStatus({ pending: 0, done: 0, failed: 8 }, true)).toBe('failed');
+  });
+
+  it('cancelled: false (or omitted) leaves today\'s behaviour unchanged', () => {
+    expect(rollUpStatus({ pending: 3, done: 5, failed: 1 }, false)).toBe('extracting');
+    expect(rollUpStatus({ pending: 3, done: 5, failed: 1 })).toBe('extracting');
+  });
 });
 
 describe('finaliseRun', () => {
