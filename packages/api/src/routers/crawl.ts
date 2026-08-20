@@ -29,10 +29,29 @@ export function formatPlanLog(
 }
 
 /**
+ * A rejection reaching startExecution's recovery path can be anything — a
+ * genuine Error, a string, a bare object from a driver that doesn't use the
+ * Error prototype. `.message` on a non-Error is undefined, and `undefined
+ * .slice(...)` throws — from inside the very catch block whose job is to
+ * report the failure safely. This never throws, for any input.
+ */
+export function safeErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
  * Runs the loop outside the request. Deliberately not awaited: 200 items at
  * ~30s each is ~100 minutes, which no HTTP mutation can hold open. The honest
  * limit of having no job queue is that an api-server restart pauses the run —
  * `run_items` survives, so calling execute again resumes it.
+ *
+ * This function must never reject in a way that escapes to its caller as an
+ * unhandled promise rejection — the caller deliberately does not await it, and
+ * under default Node behaviour an unhandled rejection kills the process,
+ * taking the whole api-server (and the dashboard it serves) down with it. So
+ * every step of the failure path — reading the error, and recording it — is
+ * itself guarded; the `.catch()` at the call site is belt-and-braces for
+ * anything this function's own guards still missed.
  */
 async function startExecution(runId: string, sourceId: string, schema: OriginField[]): Promise<void> {
   const browser = new PlaywrightBrowser();
@@ -48,13 +67,24 @@ async function startExecution(runId: string, sourceId: string, schema: OriginFie
         const row = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true } });
         return row?.status === 'cancelling';
       },
-      finalise: (rowCount) => finaliseRun(db, runId, rowCount),
+      // No rowCount passed: finaliseRun derives it from the DB itself, so a
+      // stale local counter from this loop can never overwrite a truer total.
+      finalise: () => finaliseRun(db, runId),
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
-    await db.update(runs)
-      .set({ status: 'failed', errorMessage: (err as Error).message.slice(0, 1000), completedAt: new Date() })
-      .where(eq(runs.id, runId));
+    try {
+      await db.update(runs)
+        .set({ status: 'failed', errorMessage: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })
+        .where(eq(runs.id, runId));
+    } catch (recoveryErr) {
+      // If the DB is what broke, recording the failure will break the same
+      // way — that must not become a second, uncaught throw. There's nothing
+      // more we can do here beyond logging; crawl.status will show the run
+      // stuck at 'extracting', which is the honest state, and a restart or a
+      // fixed DB lets a re-issued execute resume it.
+      console.error(`[crawl] failed to record failure status for run ${runId}:`, recoveryErr);
+    }
   } finally {
     await browser.close();
   }
@@ -277,13 +307,26 @@ export const crawlRouter = router({
           .where(and(eq(runItems.runId, input.runId), eq(runItems.status, 'failed')));
       }
 
-      await ctx.db.update(runs).set({ status: 'extracting', startedAt: new Date() }).where(eq(runs.id, input.runId));
+      // dryRun exists to test the requeue behaviour above without launching a
+      // browser: it must be fully inert otherwise, so the status flip below —
+      // the observable sign that a loop is running — happens only past this
+      // return.
       if (input.dryRun) return { runId: input.runId, started: false };
+
+      await ctx.db.update(runs).set({ status: 'extracting', startedAt: new Date() }).where(eq(runs.id, input.runId));
 
       // Returns immediately: hundreds of items at ~30s each outlives any HTTP
       // request. All state lives in run_items, so progress is read with
       // crawl.status and a crash resumes by calling execute again.
-      void startExecution(input.runId, run.source.id, (run.source.dataset?.schema ?? []) as OriginField[]);
+      //
+      // Deliberately not awaited. startExecution guards its own failure path,
+      // but this `.catch()` is a second line of defense: nothing thrown by a
+      // background crawl may become an unhandled rejection that kills the
+      // api-server process serving the dashboard.
+      void startExecution(input.runId, run.source.id, (run.source.dataset?.schema ?? []) as OriginField[])
+        .catch((err) => {
+          console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
+        });
       return { runId: input.runId, started: true };
     }),
 });
