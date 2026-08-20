@@ -32,8 +32,9 @@ const PRODUCT_ROWS = [
 class RowBrowser implements IBrowser {
   async launch(): Promise<void> {}
   async capture(): Promise<PageCapture> { return CAPTURE; }
-  async evaluate<T>(): Promise<T> { return { data: PRODUCT_ROWS, fieldCount: 1 } as T; }
-  async setContentEvaluate<T>(): Promise<T> { return { data: [], fieldCount: 0 } as T; }
+  // Row extraction runs against the capture, never a fresh navigation.
+  async evaluate<T>(): Promise<T> { throw new Error('row extraction must not re-navigate'); }
+  async setContentEvaluate<T>(): Promise<T> { return { data: PRODUCT_ROWS, fieldCount: 1 } as T; }
   async close(): Promise<void> {}
   async *crawl(): AsyncGenerator<never> {}
 }
@@ -116,5 +117,38 @@ describe('the tier response, not just its request', () => {
     );
     expect(outcome.sources.detail_url).toBeUndefined();
     expect(outcome.data[0]?.detail_url ?? null).toBeNull();
+  });
+});
+
+describe('selectors run against the page they were generated from', () => {
+  it('never re-navigates to execute row extraction', async () => {
+    // Selectors were generated from the capture. Executing them via a fresh
+    // navigation ran them against a DIFFERENT render — live, a category page
+    // that fell back to domcontentloaded had not painted its grid yet, so a
+    // correct selector matched nothing.
+    class CountingBrowser implements IBrowser {
+      navigations = 0;
+      setContentCalls = 0;
+      async launch(): Promise<void> {}
+      async capture(): Promise<PageCapture> { return CAPTURE; }
+      async evaluate<T>(): Promise<T> {
+        this.navigations++;
+        return { data: PRODUCT_ROWS, fieldCount: 1 } as T;
+      }
+      async setContentEvaluate<T>(): Promise<T> {
+        this.setContentCalls++;
+        return { data: PRODUCT_ROWS, fieldCount: 1 } as T;
+      }
+      async close(): Promise<void> {}
+      async *crawl(): AsyncGenerator<never> {}
+    }
+    const browser = new CountingBrowser();
+    const outcome = await runExtraction(
+      { url: fixture.url, pageType: 'listing', fields: [{ name: 'detail_url', type: 'url', rowScopedOnly: true }] },
+      { browser, agent: selfUrlAgent(), capture: CAPTURE, ...OFFLINE },
+    );
+    expect(browser.navigations).toBe(0);
+    expect(browser.setContentCalls).toBeGreaterThan(0);
+    expect(outcome.rows?.length).toBe(PRODUCT_ROWS.length);
   });
 });

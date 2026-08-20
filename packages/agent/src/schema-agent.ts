@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { PageCapture } from '@robot/browser';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { OllamaProvider } from './providers/ollama.js';
+import { cleanHtml, focusWindow } from './focus-html.js';
 import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool, extractVariantsTool } from './tools.js';
 import {
   SCHEMA_DISCOVERY_SYSTEM,
@@ -406,24 +407,22 @@ function normalizeSelectors(raw: unknown): ExtractionPlan['fields'] {
   })).filter(f => f.name && f.xpath);
 }
 
-function truncateHtml(html: string, maxChars: number): string {
-  // Strip elements that waste tokens but never contain extractable data.
-  // Conservative: only remove things we're certain are junk.
-  // JSON-LD, meta tags, and structured data are already extracted separately.
-  let cleaned = html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, '')
-    .replace(/<link\b[^>]*\/?>/gi, '')
-    .replace(/<meta\b[^>]*\/?>/gi, '')
-    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, '')
-    // Collapse whitespace
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-
-  if (cleaned.length <= maxChars) return cleaned;
-  const cutPoint = cleaned.lastIndexOf('>', maxChars);
-  return cutPoint > 0 ? cleaned.slice(0, cutPoint + 1) : cleaned.slice(0, maxChars);
+/**
+ * The slice of the page the model is shown.
+ *
+ * Was: the first `maxChars` characters. On a 790,000-character category page
+ * that meant the header, the nav and the filter widgets — and not one product
+ * tile, which started at character 681,000. The model dutifully answered "the
+ * link to this item's page" with the site's privacy policy, because that was
+ * what it could see. `focusWindow` finds the region the page's repeating content
+ * actually lives in. `landmark` is text a vision pass read off the screenshot as
+ * sitting just above the results — the most direct signal when it is available.
+ */
+function truncateHtml(html: string, maxChars: number, landmark?: string): string {
+  const focused = focusWindow(cleanHtml(html), maxChars, { landmark });
+  if (focused.index > 0) {
+    console.log(`[agent] HTML window: ${focused.strategy} at ${focused.index} of ${html.length} chars`);
+  }
+  return focused.text;
 }
+
