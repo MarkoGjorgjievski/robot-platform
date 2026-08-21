@@ -207,3 +207,96 @@ describe('planRun — a stale cached config', () => {
     expect(deps.crawlCalls).toHaveLength(1);
   });
 });
+
+describe('planRun — a walk that mostly re-fetched page 1', () => {
+  it('warns when the walk gained only a trickle against page 1, and still caches', async () => {
+    // The AbeBooks shape, live-proven 2026-08-21: `deriveTemplate` pinned the
+    // real pager (`p=1`) and paged the `ds` filter instead, so pages 2 and 3
+    // re-served page 1. Three stray items leaked past dedupe — enough to satisfy
+    // `gained > 0`, so a broken template was cached and, because the only warning
+    // fires on `gained === 0`, the run said nothing at all about it. The gate
+    // stays as it is (a working pager near the item cap legitimately gains 1-2);
+    // what must not stay is the silence.
+    const deps = fakeDeps({
+      page1: Array.from({ length: 10 }, (_, i) => `https://listing.example/p/${i + 1}`),
+      cachedConfig: null,
+      pages: [['https://listing.example/p/99']],
+    });
+
+    const outcome = await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const thin = outcome.warnings.find((w) => w.includes('gained only'));
+    expect(thin).toBeDefined();
+    // Evidence an operator can act on: the URL, page 1's yield, the walk's gain,
+    // and which strategy produced it.
+    expect(thin).toContain('https://listing.example/search');
+    expect(thin).toContain('page 1 yielded 10');
+    expect(thin).toContain('gained only 1');
+    expect(thin).toContain('url-pattern');
+    // A warning, not a gate: the config is still cached.
+    expect(deps.saved).toHaveLength(1);
+  });
+
+  it('does NOT warn when the walk was cut short by the item budget', async () => {
+    // This is the shape the controller protected: `absorb` passes
+    // `remaining: cap - detailCount()` down, so a WORKING pager on a nearly-full
+    // budget legitimately returns one item. Warning here would cry wolf on every
+    // correct run of this repo's own default budget.
+    const deps = fakeDeps({
+      page1: Array.from({ length: 20 }, (_, i) => `https://listing.example/p/${i + 1}`),
+      cachedConfig: null,
+      pages: [['https://listing.example/p/91', 'https://listing.example/p/92', 'https://listing.example/p/93']],
+    });
+
+    const outcome = await planRun(fakeRequest({ maxPages: 3, maxItems: 21 }), deps);
+
+    expect(outcome.warnings.filter((w) => w.includes('gained only'))).toEqual([]);
+    expect(outcome.warnings).toContain('budget reached: 21 items');
+  });
+});
+
+describe('planRun — overwriting a stored config', () => {
+  it('names the config it replaced when the stale path writes a new one', async () => {
+    // Spec §4 accepts one-config-per-domain collisions on the premise that "the
+    // thrash is visible — each overwrite is preceded by a warning naming the
+    // URL". As implemented that was false: the retry reassigns `gained` before
+    // the `gained === 0` check, so the overwrite happened in total silence.
+    // (`savePaginationConfig`'s console.log never reaches outcome.warnings, so
+    // it never reaches runs.logs either.)
+    const deps = fakeDeps({
+      cachedConfig: CACHED_CONFIG,
+      pages: [[], ['https://listing.example/p/9']],
+    });
+
+    const outcome = await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.saved).toHaveLength(1);
+    const overwrite = outcome.warnings.find((w) => w.includes('replacing'));
+    expect(overwrite).toBeDefined();
+    expect(overwrite).toContain(CACHED_CONFIG.strategy); // the config being lost
+    expect(overwrite).toContain('url-pattern');          // the one taking its place
+    expect(overwrite).toContain('https://listing.example/search');
+    expect(overwrite).toContain('listing.example');
+  });
+});
+
+describe('planRun — a cache WRITE that fails', () => {
+  it('still reports the input as planned, with a warning rather than an error', async () => {
+    // Symmetry with the read side (which already degrades to a warning): by the
+    // time savePagination runs, the walk is done and every detail URL is already
+    // in `items`. A DB blip on a bookkeeping write must not relabel a completed
+    // input as failed — phase 2 would then be told to skip work that exists.
+    const deps = fakeDeps({
+      cachedConfig: null,
+      pages: [['https://listing.example/p/3']],
+      savePagination: (async () => { throw new Error('db unreachable'); }) as PlanRunDeps['savePagination'],
+    });
+
+    const outcome = await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.inputs.map((i) => i.status)).toEqual(['planned']);
+    expect(outcome.items.some((i) => i.url === 'https://listing.example/p/3')).toBe(true);
+    expect(outcome.warnings.some((w) => w.includes('pagination cache save failed'))).toBe(true);
+  });
+});

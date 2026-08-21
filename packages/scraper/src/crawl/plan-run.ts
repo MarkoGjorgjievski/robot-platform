@@ -16,7 +16,7 @@ import { lookupDomainCache, savePaginationConfig } from '../domain-cache.js';
 import { resolveBudget, itemCap } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
-import { enumerateDetailUrls, DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
+import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumerate-detail-urls.js';
 import { detectPagination, type PaginationAgent } from './detect-pagination.js';
 
 export type PlannedItem = {
@@ -103,6 +103,24 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
   lookupCache: async () => null,
   saveCache: async () => {},
 };
+
+/**
+ * Below this share of page 1's yield, a walk is REPORTED as suspicious.
+ *
+ * Reported, not refused. `gained > 0` stays the caching gate deliberately:
+ * `absorb` hands `remaining: cap - detailCount()` to `enumerateDetailUrls`, so a
+ * perfectly working pager legitimately returns one or two items once the item
+ * budget is nearly full — which is exactly this repo's default `{max_items: 8,
+ * max_pages: 2}` shape. Turning this ratio into a gate would refuse correct
+ * configs, the cache would never warm, and the feature would deliver nothing.
+ *
+ * The number it exists for: AbeBooks, 2026-08-21. Page 1 yielded 30, pages 2+3
+ * yielded 2 and 1, because `deriveTemplate` paged the `ds` filter while pinning
+ * `p=1` — the real pager. 3/30 = 0.1. Three stray items past dedupe satisfied
+ * `gained > 0`, so a broken template was cached in total silence: the only
+ * warning in this block fires on `gained === 0`, and this pager leaks.
+ */
+const THIN_WALK_SHARE = 0.25;
 
 export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promise<PlanRunOutcome> {
   const { source, schema, inputSet } = request;
@@ -270,7 +288,14 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         inputValues: start.inputValues, listingValues: {}, pageNumber: 1,
       });
 
-      const absorb = (rows: Array<Record<string, unknown>>, pageUrl: string, pageNumber: number): 'stop' | 'continue' => {
+      /**
+       * Returns the RAW stop reason, not a boolean. Callers need to tell
+       * `'budget'` apart from the others: a walk cut short by the item cap is
+       * expected to gain few items and must never be reported as a thin walk
+       * (see THIN_WALK_SHARE). Collapsing this to 'stop' | 'continue' is what
+       * forced that distinction to be re-inferred, badly, further down.
+       */
+      const absorb = (rows: Array<Record<string, unknown>>, pageUrl: string, pageNumber: number): StopReason => {
         const result = enumerateDetailUrls({ rows, pageUrl, pageNumber, seen, remaining: cap - detailCount() });
         for (const item of result.items) {
           seen.add(item.url);
@@ -281,21 +306,25 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             pageNumber: item.pageNumber,
           });
         }
-        if (result.stop === 'budget') {
-          warnings.push(`budget reached: ${cap} items`);
-          return 'stop';
-        }
-        return result.stop === null ? 'continue' : 'stop';
+        if (result.stop === 'budget') warnings.push(`budget reached: ${cap} items`);
+        return result.stop;
       };
 
-      if (absorb(listingRows, start.url, 1) === 'stop') {
+      if (absorb(listingRows, start.url, 1) !== null) {
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
         continue;
       }
+
       if (budget.maxPages <= 1 || !page1.plan) {
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
         continue;
       }
+
+      // Page 1's own yield for THIS input, counted after its absorb and before
+      // any walk: the honest basis a walk's gain is compared against. Not the
+      // extracted row count — dedupe and the item cap both sit between the rows
+      // and the work list, and it is the work list that matters.
+      const page1Gain = detailCount() - detailsBefore;
 
       // Decide HOW this listing paginates before paying for a page load. crawl()
       // would otherwise re-navigate to page 1 just to inspect markup we already
@@ -331,9 +360,15 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // name → type map, so `detail_url` is collected as a URL, not a text node.
       const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' }, start.url);
 
-      /** Walk pages 2..maxPages with `config`; answer how many NEW items it added. */
-      const walkPages = async (config: PaginationConfig): Promise<number> => {
+      /**
+       * Walk pages 2..maxPages with `config`; answer how many NEW items it added
+       * and whether the item budget is what ended it. `budgetStopped` is carried
+       * out rather than guessed at: it is the difference between "this pager is
+       * broken" and "we asked for 8 items and got them".
+       */
+      const walkPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
         const before = detailCount();
+        let budgetStopped = false;
         for await (const page of deps.browser.crawl(start.url, {
           extractionScript: script,
           maxPages: budget.maxPages,
@@ -344,15 +379,21 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             kind: 'listing', url: page.url, inputIndex: start.inputIndex,
             inputValues: start.inputValues, listingValues: {}, pageNumber: page.pageNumber,
           });
-          if (absorb(page.data, page.url, page.pageNumber) === 'stop') break;
+          const stop = absorb(page.data, page.url, page.pageNumber);
+          if (stop !== null) {
+            budgetStopped = stop === 'budget';
+            break;
+          }
         }
-        return detailCount() - before;
+        return { gained: detailCount() - before, budgetStopped };
       };
 
       try {
-        let gained = await walkPages(pagination.config);
+        let { gained, budgetStopped } = await walkPages(pagination.config);
         let winning = pagination.config;
         let winningSource = pagination.source;
+        /** The config this run is about to overwrite, if any. */
+        let replacing: PaginationConfig | null = null;
 
         // A CACHED config that produced nothing means the site changed its pager
         // since we learned it. Re-detect from this run's own capture and try once
@@ -374,9 +415,11 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             // that apart from a genuinely dead config. The cost is bounded — one
             // extra walk, once — and the alternative is caching a "this domain
             // is unpageable" conclusion drawn from a single bad afternoon.
-            gained = await walkPages(fresh.config);
+            ({ gained, budgetStopped } = await walkPages(fresh.config));
             winning = fresh.config;
             winningSource = fresh.source;
+            // The stored config is about to be replaced, not merely written.
+            replacing = pagination.config;
           }
         }
 
@@ -384,11 +427,45 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // it drove has actually produced new URLs. A cached config that worked is
         // already stored, so re-writing it would be noise.
         if (gained > 0 && winningSource !== 'cache') {
-          await savePagination(paginationDomain, winning);
+          // Spec §4 accepts one-config-per-domain collisions on the explicit
+          // premise that "the thrash is visible". It was not: the retry above
+          // reassigns `gained`, so the `gained === 0` warning below is skipped
+          // and the overwrite happened in silence. (`savePaginationConfig`'s
+          // console.log is not a warning — it never reaches `outcome.warnings`,
+          // so it never reaches `runs.logs`.) Say what is being lost.
+          if (replacing) {
+            warnings.push(
+              `pagination config for ${paginationDomain} rewritten on ${start.url}: `
+              + `the cached ${replacing.strategy} config produced no new items, `
+              + `replacing it with a re-detected ${winningSource}: ${winning.strategy} config that gained ${gained}`,
+            );
+          }
+          // The write is bookkeeping that happens AFTER the walk: every detail
+          // URL is already in `items` and already planned. A DB blip here must
+          // degrade to a warning, exactly as the cache READ above does — not
+          // relabel a completed input as an error and hand phase 2 a lie.
+          try {
+            await savePagination(paginationDomain, winning);
+          } catch (err) {
+            warnings.push(
+              `pagination cache save failed on ${start.url}: ${(err as Error).message} `
+              + `— the walk's items are planned; the config was not stored`,
+            );
+          }
         }
         if (gained === 0) {
           warnings.push(
             `pagination (${winningSource}: ${winning.strategy}) produced no new items on ${start.url}`,
+          );
+        } else if (!budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE) {
+          // Not a refusal — the config above is already cached. This is the
+          // evidence a future fix to `deriveTemplate` will be built from, so it
+          // names everything needed to reproduce: which page, how much page 1
+          // gave, how little the walk added, and which strategy did it.
+          warnings.push(
+            `pagination (${winningSource}: ${winning.strategy}) gained only ${gained} new item(s) on ${start.url} `
+            + `where page 1 yielded ${page1Gain}, and the item budget was not what stopped it `
+            + `— pages 2+ are likely re-serving page 1; the config was cached anyway, review it`,
           );
         }
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
