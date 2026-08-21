@@ -3,9 +3,18 @@ import type { PaginationConfig, CrawlOptions, CrawlPage, PageCapture } from '@ro
 import type { PlanRunDeps, PlanRunRequest } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
 
+// Deliberately a shape mechanical detection can never produce from `listingHtml`
+// below: that HTML has a <link rel="next"> (a url-pattern source) and no
+// `a.cached-next` anywhere. If this were byte-identical to what mechanical
+// detection derives, the warm-cache test could pass whether or not the cache
+// was ever consulted -- mechanical detection would answer first either way,
+// and the assertion would be vacuous. Keep it a next-button config (or
+// otherwise divergent from listingHtml's own markup) so a broken cache-read
+// path is observable. Do not "simplify" this back to a url-pattern config
+// that matches the fixture HTML.
 export const CACHED_CONFIG: PaginationConfig = {
-  strategy: 'url-pattern',
-  urlTemplate: 'https://listing.example/search?page={N}',
+  strategy: 'next-button',
+  nextSelector: 'a.cached-next',
 };
 
 /** Page 1 markup: two products, and a rel=next mechanical detection can find. */
