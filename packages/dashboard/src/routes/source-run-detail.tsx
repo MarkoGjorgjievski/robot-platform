@@ -5,7 +5,7 @@ import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
-import { progressLabel, isRunActive } from '../lib/run-progress';
+import { progressLabel, isRunActive, runControls } from '../lib/run-progress';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -168,11 +168,39 @@ function ExecuteControls({ runId }: { runId: string }) {
 
   if (!data || data.counts.detail === 0) return null;
 
+  // Extract and Retry are offered on their counts alone, never gated on
+  // `active` — see runControls. A run stalled at `extracting`/`cancelling`
+  // with no loop behind it must stay actionable from this page, which is the
+  // only place most operators will ever see it.
+  const controls = runControls(data.status, data.counts);
+
   return (
     <div className="mt-6 flex items-center gap-3 rounded-md border px-4 py-3">
       <span className="text-sm font-medium">{progressLabel(data.counts, data.status)}</span>
       <div className="ml-auto flex items-center gap-2">
-        {active ? (
+        {controls.showExtract && (
+          <button
+            onClick={() => execute.mutate({ runId })}
+            disabled={execute.isPending}
+            className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            title={active
+              ? 'Resume this run — safe while it is running: already-claimed URLs are skipped'
+              : 'Fetch and extract every pending URL in the work list'}
+          >
+            Extract {data.counts.pending} pending
+          </button>
+        )}
+        {controls.showRetry && (
+          <button
+            onClick={() => execute.mutate({ runId, retryFailed: true })}
+            disabled={execute.isPending}
+            className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            title="Re-queue the failed items and extract them again"
+          >
+            Retry {data.counts.failed} failed
+          </button>
+        )}
+        {controls.showStop && (
           <button
             onClick={() => cancel.mutate({ runId })}
             disabled={cancel.isPending}
@@ -180,30 +208,10 @@ function ExecuteControls({ runId }: { runId: string }) {
           >
             {cancel.isPending ? 'Stopping…' : 'Stop'}
           </button>
-        ) : (
-          <>
-            <button
-              onClick={() => execute.mutate({ runId })}
-              disabled={execute.isPending || data.counts.pending === 0}
-              className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              title="Fetch and extract every pending URL in the work list"
-            >
-              Extract {data.counts.pending} pending
-            </button>
-            {data.counts.failed > 0 && (
-              <button
-                onClick={() => execute.mutate({ runId, retryFailed: true })}
-                disabled={execute.isPending}
-                className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                title="Re-queue the failed items and extract them again"
-              >
-                Retry {data.counts.failed} failed
-              </button>
-            )}
-          </>
         )}
       </div>
       {execute.isError && <span className="text-[11px] text-red-600">{execute.error.message}</span>}
+      {cancel.isError && <span className="text-[11px] text-red-600">{cancel.error.message}</span>}
     </div>
   );
 }
