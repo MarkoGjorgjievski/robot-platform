@@ -26,8 +26,14 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  await browser?.close();
-  await site?.close();
+  // The server close must happen even if the browser close throws: it is the
+  // one holding a listening socket, and a socket that outlives the file keeps
+  // the vitest event loop alive with no failing test to explain why.
+  try {
+    await browser?.close();
+  } finally {
+    await site?.close();
+  }
 });
 
 const script = () => buildExtractionScript(
