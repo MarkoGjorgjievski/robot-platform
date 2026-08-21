@@ -21,23 +21,37 @@ export const CACHED_CONFIG: PaginationConfig = {
 export const listingHtml = `<html><head><link rel="next" href="https://listing.example/search?page=2"></head>
 <body><a class="p" href="/p/1">One</a><a class="p" href="/p/2">Two</a></body></html>`;
 
+/**
+ * One savePagination call, BOTH arguments. The domain is recorded deliberately:
+ * an earlier version of this fake discarded it, so `savePagination(start.url, …)`
+ * — a one-token slip, since `start.url` and `paginationDomain` sit on adjacent
+ * lines and are both in scope — kept every test green while production wrote
+ * every row under a full URL that `lookupDomainCache(hostname, 'listing')` can
+ * never read again. Assert the domain, not just the config.
+ */
+export type SavedConfig = { domain: string; config: PaginationConfig };
+
 export type FakeDeps = PlanRunDeps & {
   /** Every options object browser.crawl() was called with, in order. */
   crawlCalls: CrawlOptions[];
-  /** Every config handed to savePagination, in order. */
-  saved: PaginationConfig[];
+  /** Every (domain, config) pair handed to savePagination, in order. */
+  saved: SavedConfig[];
 };
 
 export function fakeDeps(over: {
   cachedConfig: PaginationConfig | null;
   /** Detail URLs each crawled page yields, in page order. Default: one new page. */
   pages?: string[][];
+  /** Detail URLs page 1's extraction yields. Default: two. */
+  page1?: string[];
   agent?: { detectPagination: (html: string) => Promise<unknown> };
   lookupCache?: PlanRunDeps['lookupCache'];
+  savePagination?: PlanRunDeps['savePagination'];
 }): FakeDeps {
   const crawlCalls: CrawlOptions[] = [];
-  const saved: PaginationConfig[] = [];
+  const saved: SavedConfig[] = [];
   const pages = over.pages ?? [['https://listing.example/p/3']];
+  const page1 = over.page1 ?? ['https://listing.example/p/1', 'https://listing.example/p/2'];
 
   const capture = {
     url: 'https://listing.example/search',
@@ -66,11 +80,8 @@ export function fakeDeps(over: {
     } as unknown as PlanRunDeps['browser'],
     agent: (over.agent ?? null) as PlanRunDeps['agent'],
     extract: (async () => ({
-      data: [{ [DETAIL_URL_FIELD]: 'https://listing.example/p/1' }],
-      rows: [
-        { [DETAIL_URL_FIELD]: 'https://listing.example/p/1' },
-        { [DETAIL_URL_FIELD]: 'https://listing.example/p/2' },
-      ],
+      data: [{ [DETAIL_URL_FIELD]: page1[0] }],
+      rows: page1.map((u) => ({ [DETAIL_URL_FIELD]: u })),
       plan: { row_xpath: '//a', fields: [{ name: DETAIL_URL_FIELD, xpath: './@href' }] },
       confidence: 1,
       sources: {},
@@ -83,7 +94,8 @@ export function fakeDeps(over: {
       ?? (vi.fn().mockResolvedValue(
         over.cachedConfig ? { paginationConfig: over.cachedConfig } : null,
       ) as unknown as PlanRunDeps['lookupCache']),
-    savePagination: (async (_domain: string, config: PaginationConfig) => { saved.push(config); }) as PlanRunDeps['savePagination'],
+    savePagination: over.savePagination
+      ?? ((async (domain: string, config: PaginationConfig) => { saved.push({ domain, config }); }) as PlanRunDeps['savePagination']),
     crawlCalls,
     saved,
   };
