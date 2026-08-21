@@ -54,7 +54,15 @@ export function runControls(status: string, counts: RunCounts): RunControls {
     // would leave Stop as the only button on exactly the run that needs
     // rescuing, with `requeueStaleRunningItems` reachable only from the CLI.
     // Closing the trap for items 1..N-1 but not item N is not closing it.
-    showExtract: counts.pending > 0 || counts.running > 0,
+    // ...and `isRunActive` closes the last row of the trap table. A run can be
+    // active with pending 0, running 0 AND failed 0: an api-server killed
+    // between the final `markItemDone` and `finaliseRun` leaves every item
+    // `done` and the run row never rolled up. On counts alone that state
+    // offered Stop and nothing else — the original trap verbatim, where Stop
+    // writes `cancelling` that no loop will ever observe. One `execute` there
+    // claims nothing and finalises the run immediately, which is exactly the
+    // repair it needs.
+    showExtract: counts.pending > 0 || counts.running > 0 || isRunActive(status),
     showRetry: counts.failed > 0,
     showStop: isRunActive(status),
   };
@@ -69,8 +77,15 @@ export function runControls(status: string, counts: RunCounts): RunControls {
  * pending work, that is the number to show: pending items are claimable
  * immediately, whereas a stalled one is only reclaimed once it is past the
  * staleness threshold.
+ *
+ * With neither pending nor running work, the button is on screen only because
+ * the run is still active with every item finished (see `runControls`). Both
+ * other labels would be lies there — there are no pending URLs to extract and
+ * no stalled work to resume — so it says what the click actually does: roll the
+ * run up to its terminal status.
  */
 export function extractButtonLabel(counts: RunCounts): string {
+  if (counts.pending === 0 && counts.running === 0) return 'Finish run';
   if (counts.pending === 0 && counts.running > 0) {
     return `Resume ${counts.running} stalled`;
   }

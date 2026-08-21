@@ -67,9 +67,22 @@ describe('runControls', () => {
     expect(runControls('completed', counts({ done: 8 })).showStop).toBe(false);
   });
 
-  it('hides Extract when there is nothing pending to extract', () => {
+  it('hides Extract on a settled run with nothing pending — there is nothing left to do', () => {
     expect(runControls('completed', counts({ done: 8 })).showExtract).toBe(false);
-    expect(runControls('extracting', counts({ done: 8 })).showExtract).toBe(false);
+    expect(runControls('partial', counts({ done: 6, failed: 2 })).showExtract).toBe(false);
+    expect(runControls('cancelled', counts({ done: 3 })).showExtract).toBe(false);
+  });
+
+  it('offers Extract on an active run whose items are ALL finished', () => {
+    // The last row of the trap table, and the only combination the
+    // counts-based rule left stranded: pending 0, running 0, failed 0, status
+    // still active. An api-server killed between the final markItemDone and
+    // finaliseRun leaves exactly this — every item `done`, the run row never
+    // rolled up. Keying Extract off the counts alone offered Stop and nothing
+    // else here, which is the original trap verbatim: Stop writes `cancelling`
+    // that no loop will ever observe. One execute settles the run instead.
+    expect(runControls('extracting', counts({ pending: 0, running: 0, failed: 0, done: 8 })).showExtract).toBe(true);
+    expect(runControls('cancelling', counts({ pending: 0, running: 0, failed: 0, done: 8 })).showExtract).toBe(true);
   });
 
   it('offers Extract when the only unfinished item is one stuck at running', () => {
@@ -85,6 +98,19 @@ describe('runControls', () => {
 
   it('offers Extract for pending and running work together', () => {
     expect(runControls('extracting', counts({ pending: 2, running: 1, done: 5 })).showExtract).toBe(true);
+  });
+
+  it('offers Retry whenever something failed, active or not', () => {
+    // Same reasoning as Extract: a run stuck active with only failed items left
+    // must still be actionable, and re-entry is safe by design (SKIP LOCKED).
+    expect(runControls('partial', counts({ failed: 2, done: 6 })).showRetry).toBe(true);
+    expect(runControls('extracting', counts({ failed: 2, done: 6 })).showRetry).toBe(true);
+    expect(runControls('completed', counts({ done: 8 })).showRetry).toBe(false);
+  });
+
+  it('offers a planned run its first extract', () => {
+    const controls = runControls('planned', counts({ pending: 8 }));
+    expect(controls).toEqual({ showExtract: true, showRetry: false, showStop: false });
   });
 });
 
@@ -109,16 +135,13 @@ describe('extractButtonLabel', () => {
     expect(extractButtonLabel(counts({ pending: 2, running: 1, done: 5 }))).toBe('Extract 2 pending');
   });
 
-  it('offers Retry whenever something failed, active or not', () => {
-    // Same reasoning as Extract: a run stuck active with only failed items left
-    // must still be actionable, and re-entry is safe by design (SKIP LOCKED).
-    expect(runControls('partial', counts({ failed: 2, done: 6 })).showRetry).toBe(true);
-    expect(runControls('extracting', counts({ failed: 2, done: 6 })).showRetry).toBe(true);
-    expect(runControls('completed', counts({ done: 8 })).showRetry).toBe(false);
-  });
-
-  it('offers a planned run its first extract', () => {
-    const controls = runControls('planned', counts({ pending: 8 }));
-    expect(controls).toEqual({ showExtract: true, showRetry: false, showStop: false });
+  it('says a run with no work left is being finished, not extracted', () => {
+    // Extract is shown here only because the status is still active with every
+    // item finished (see runControls). There is no pending work and no stalled
+    // work, so both other labels would be lies: "Extract 0 pending" reads as a
+    // no-op, and "Resume 0 stalled" describes work that does not exist. What
+    // the click actually does is roll the run up to its terminal status.
+    expect(extractButtonLabel(counts({ pending: 0, running: 0, done: 8 }))).toBe('Finish run');
+    expect(extractButtonLabel(counts({ pending: 0, running: 0, done: 6, failed: 2 }))).toBe('Finish run');
   });
 });
