@@ -21,7 +21,15 @@
 - Out of scope: `api-param` detection and replay, infinite scroll, load-more, URL-shape keying, multiple ranked configs per domain.
 - `pnpm -r test` needs Postgres: `docker start robot-platform-db` first.
 - Verify types with `pnpm typecheck --force` — a plain run is FULL TURBO cached and proves nothing. `api-server` and `dashboard` are not in that graph; check the dashboard separately with `pnpm --filter @robot/dashboard exec tsc --noEmit`.
-- Leave no `test-%` rows behind. `select count(*) from orgs where slug like 'test-%'` must be 0, and DB-backed tests clean up their own `domain_intelligence` rows.
+- Leave no test rows behind. `select count(*) from orgs where slug like 'test-%'` must be 0, and DB-backed tests clean up their own `domain_intelligence` rows.
+- **The `test-%` prefix is not the whole hygiene gate.** The `planRun` unit tests plan against the fixture hostnames `example.com` and `listing.example`, neither of which starts with `test-`; an unstubbed `savePagination` wrote real `domain_intelligence` rows under those names and the prefix check never saw them. Check the fixture domains explicitly, and run it AFTER a full suite run, not after a manual delete:
+
+  ```bash
+  docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
+    -c "select domain, page_type from domain_intelligence where domain in ('example.com','listing.example') or domain like 'test-%';"
+  ```
+
+  Zero rows. If a new fake hostname enters the `planRun` fakes, add it to this list.
 
 ---
 
@@ -986,7 +994,7 @@ git commit -m "docs: the multi-page walk and pagination caching, proven live"
 
 ## Done when
 
-- `pnpm -r test`, `pnpm typecheck --force`, and `pnpm --filter @robot/dashboard exec tsc --noEmit` are all clean, and `select count(*) from orgs where slug like 'test-%'` is 0.
+- `pnpm -r test`, `pnpm typecheck --force`, and `pnpm --filter @robot/dashboard exec tsc --noEmit` are all clean; `select count(*) from orgs where slug like 'test-%'` is 0; and `select domain, page_type from domain_intelligence where domain in ('example.com','listing.example') or domain like 'test-%'` returns zero rows after a full suite run.
 - A verified pagination config is written to `domain_intelligence.pagination_config` and replayed on the next plan for that domain.
 - A config whose walk produced nothing is never written.
 - A stale cached config re-detects and retries exactly once, and a second failure leaves the stored config alone with a warning.
