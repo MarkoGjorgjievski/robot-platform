@@ -15,6 +15,7 @@ import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
+import { isRunCancelled } from '../crawl/is-cancelled.js';
 import { executeRun } from '../crawl/execute-run.js';
 import { extractItem } from '../crawl/extract-item.js';
 
@@ -80,10 +81,9 @@ async function startExecution(runId: string, sourceId: string, schema: OriginFie
         extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
         onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
         onFailed: (itemId, message) => markItemFailed(db, itemId, message),
-        isCancelled: async () => {
-          const row = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true } });
-          return row?.status === 'cancelling';
-        },
+        // Both `cancelling` (the stop request) and `cancelled` (a stop another
+        // loop already carried out) end this loop — see is-cancelled.ts.
+        isCancelled: () => isRunCancelled(db, runId),
         // No rowCount passed: finaliseRun derives it from the DB itself, so a
         // stale local counter from this loop can never overwrite a truer total.
         // `cancelled` IS threaded through — it's executeRun's own record of
