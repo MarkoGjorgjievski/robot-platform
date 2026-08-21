@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { db, runs, sources, orgs, projects, datasets, captures, extractions } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { loadRunExport } from '../export/load-run-export.js';
 
 const createCaller = createCallerFactory(appRouter);
 const caller = createCaller({ db });
@@ -151,6 +152,32 @@ describe('runsRouter', () => {
       const result = await caller.runs.getWithDetails({ id: runId });
       expect(result?.extraction?.data).toEqual([{ title: 'Only' }]);
       expect(result?.extraction?.rowCount).toBe(1);
+    });
+  });
+
+  // The view caps at VIEW_ROW_CAP because a browser table does not need 5,000
+  // rows. The export is deliberately uncapped, because a customer's CSV is the
+  // deliverable and a short one is a wrong one. That contrast is the whole
+  // design, and until now nothing would have failed if someone had "tidied" the
+  // cap into `loadRunExport` — the largest export fixture was 3 rows. Same
+  // seeded run, both readers, so the two properties are asserted against each
+  // other rather than in isolation.
+  describe('the view caps, the export does not', () => {
+    it('exports all 505 rows of a run the view shows 500 of', async () => {
+      const runId = await seedRunWithManySingleRowExtractions(505);
+
+      const view = await caller.runs.getWithDetails({ id: runId });
+      expect(view?.extraction?.data).toHaveLength(500);
+      expect(view?.extraction?.rowCount).toBe(505);
+
+      const exported = await loadRunExport(db, runId);
+      expect(exported?.rows).toHaveLength(505);
+      // Not just the count: every seeded row is actually present, so a cap
+      // applied at the extraction level rather than the row level fails too.
+      const titles = new Set(exported?.rows.map((r) => r.title));
+      expect(titles.size).toBe(505);
+      expect(titles.has('Row 0')).toBe(true);
+      expect(titles.has('Row 504')).toBe(true);
     });
   });
 });
