@@ -5,11 +5,11 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
-import { PlaywrightBrowser } from '@robot/browser';
 import { SchemaAgent } from '@robot/agent';
 import { planRun, type PlannedItem, type OriginField } from '@robot/scraper';
 import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+import { withBrowserSession } from '../browser-session.js';
 import { claimNextItem } from '../crawl/claim-item.js';
 import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
@@ -55,25 +55,31 @@ export function safeErrorMessage(err: unknown): string {
  * anything this function's own guards still missed.
  */
 async function startExecution(runId: string, sourceId: string, schema: OriginField[]): Promise<void> {
-  const browser = new PlaywrightBrowser();
   try {
-    await browser.launch({ headless: true });
-    const agent = new SchemaAgent();
-    await executeRun(runId, {
-      claim: (id) => claimNextItem(db, id),
-      extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
-      onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
-      onFailed: (itemId, message) => markItemFailed(db, itemId, message),
-      isCancelled: async () => {
-        const row = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true } });
-        return row?.status === 'cancelling';
-      },
-      // No rowCount passed: finaliseRun derives it from the DB itself, so a
-      // stale local counter from this loop can never overwrite a truer total.
-      // `cancelled` IS threaded through — it's executeRun's own record of
-      // whether the loop broke on a cancel check, and finaliseRun needs it to
-      // roll a still-pending run up to 'cancelled' instead of 'extracting'.
-      finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
+    // `withBrowserSession` owns launch-and-always-close, including the case
+    // where `launch()` itself throws part-way. The hand-rolled
+    // try/finally this replaces closed on every path too, but only because
+    // this procedure remembered to write it — and its `finally { await
+    // browser.close(); }` would have let a throwing close() replace the real
+    // execution error on its way out.
+    await withBrowserSession(async (browser) => {
+      const agent = new SchemaAgent();
+      await executeRun(runId, {
+        claim: (id) => claimNextItem(db, id),
+        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
+        onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
+        onFailed: (itemId, message) => markItemFailed(db, itemId, message),
+        isCancelled: async () => {
+          const row = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { status: true } });
+          return row?.status === 'cancelling';
+        },
+        // No rowCount passed: finaliseRun derives it from the DB itself, so a
+        // stale local counter from this loop can never overwrite a truer total.
+        // `cancelled` IS threaded through — it's executeRun's own record of
+        // whether the loop broke on a cancel check, and finaliseRun needs it to
+        // roll a still-pending run up to 'cancelled' instead of 'extracting'.
+        finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
+      });
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
@@ -89,8 +95,6 @@ async function startExecution(runId: string, sourceId: string, schema: OriginFie
       // fixed DB lets a re-issued execute resume it.
       console.error(`[crawl] failed to record failure status for run ${runId}:`, recoveryErr);
     }
-  } finally {
-    await browser.close();
   }
 }
 
@@ -108,6 +112,10 @@ export const crawlRouter = router({
       if (!source.inputSet) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${input.sourceId} has no InputSet to plan from` });
       }
+      // Bound here rather than read inside the planRun closure below: a
+      // property narrowing (`source.inputSet` is not null) does not survive
+      // into a callback, but a const does.
+      const inputSet = source.inputSet;
 
       // Nothing has been written yet, so a failure above leaves no trace to clean up.
       const [run] = await ctx.db.insert(runs).values({
@@ -120,11 +128,16 @@ export const crawlRouter = router({
       // From here on, the run row exists: every exit path (including a launch
       // failure) must land it in a terminal status, and the browser — whether
       // or not it ever launched — must be closed.
-      const browser = new PlaywrightBrowser();
+      //
+      // `withBrowserSession` owns that close, on every path including a
+      // `launch()` that throws part-way. It replaces a hand-rolled
+      // `finally { await browser.close(); }` that had the exact defect the
+      // helper's inner try/catch prevents: a throwing close() there replaced
+      // the real planning error with a cleanup error. Scoping the session to
+      // the walk itself also means no chromium is held open across the DB
+      // writes below.
       try {
-        await browser.launch({ headless: true });
-
-        const outcome = await planRun(
+        const outcome = await withBrowserSession((browser) => planRun(
           {
             source: {
               listingMode: source.listingMode,
@@ -134,12 +147,12 @@ export const crawlRouter = router({
             },
             schema: ((source.dataset?.schema ?? []) as Array<{ name: string; type: string }>),
             inputSet: {
-              columns: (source.inputSet.columns ?? []) as Array<{ name: string; primary?: boolean; propagate?: boolean }>,
-              rows: (source.inputSet.rows ?? []) as Array<Record<string, unknown>>,
+              columns: (inputSet.columns ?? []) as Array<{ name: string; primary?: boolean; propagate?: boolean }>,
+              rows: (inputSet.rows ?? []) as Array<Record<string, unknown>>,
             },
           },
           { browser, agent: new SchemaAgent() },
-        );
+        ));
 
         // onConflictDoNothing() is the dedupe backstop for a URL surfaced twice
         // (e.g. two input rows landing on the same listing entry) — it cannot
@@ -212,11 +225,12 @@ export const crawlRouter = router({
         };
       } catch (err) {
         await ctx.db.update(runs)
-          .set({ status: 'failed', errorMessage: (err as Error).message, completedAt: new Date() })
+          // safeErrorMessage, not `(err as Error).message`: a rejection that
+          // is not an Error (a string, a driver object) would otherwise write
+          // `undefined` into the run's fatal-reason field.
+          .set({ status: 'failed', errorMessage: safeErrorMessage(err), completedAt: new Date() })
           .where(eq(runs.id, run!.id));
         throw err;
-      } finally {
-        await browser.close();
       }
     }),
   /**
