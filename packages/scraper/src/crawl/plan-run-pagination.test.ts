@@ -155,3 +155,42 @@ describe('planRun — writing the config back', () => {
     expect(deps.saved).toEqual([]);
   });
 });
+
+describe('planRun — a stale cached config', () => {
+  it('re-detects and retries once when the cached config yields nothing', async () => {
+    // First walk (cached config): nothing. Second walk (fresh config): items.
+    const deps = fakeDeps({
+      cachedConfig: CACHED_CONFIG,
+      pages: [[], ['https://listing.example/p/9']],
+    });
+
+    const outcome = await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.crawlCalls).toHaveLength(2);
+    // The retry must not reuse the config that just failed.
+    expect(deps.crawlCalls[1]?.paginationConfig).not.toEqual(CACHED_CONFIG);
+    // And the replacement is stored only because its own walk verified it.
+    expect(deps.saved).toHaveLength(1);
+    expect(outcome.items.some((i) => i.url === 'https://listing.example/p/9')).toBe(true);
+  });
+
+  it('gives up after ONE retry rather than looping', async () => {
+    const deps = fakeDeps({ cachedConfig: CACHED_CONFIG, pages: [[], []] });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.crawlCalls).toHaveLength(2);
+    // A re-detection that also produced nothing is not evidence of anything:
+    // the stored config stays, and a human sees the warning.
+    expect(deps.saved).toEqual([]);
+  });
+
+  it('does not retry when the config that failed was freshly detected', async () => {
+    // Re-detecting would just produce the same answer from the same capture.
+    const deps = fakeDeps({ cachedConfig: null, pages: [[]] });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.crawlCalls).toHaveLength(1);
+  });
+});
