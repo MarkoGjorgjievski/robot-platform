@@ -129,6 +129,23 @@ describe('planRun — writing the config back', () => {
     expect(deps.saved).toEqual([]);
   });
 
+  it('stores NOTHING when page 2 only re-serves URLs page 1 already produced', async () => {
+    // The case above yields no page at all. THIS is the one that actually bites:
+    // a page 2 that exists, extracts fine, and hands back the same products —
+    // the signature of a site that clamps an out-of-range page number back to
+    // page 1, and of a "next" selector that never moved. `gained` must count
+    // NEW items, not extracted rows, or every such site caches a config that
+    // walks in a circle forever.
+    const deps = fakeDeps({
+      cachedConfig: null,
+      pages: [['https://listing.example/p/1', 'https://listing.example/p/2']],
+    });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.saved).toEqual([]);
+  });
+
   it('does not rewrite a cached config that worked', async () => {
     // It is already stored and already correct; a write here is pure noise.
     const deps = fakeDeps({ cachedConfig: CACHED_CONFIG, pages: [['https://listing.example/p/3']] });
