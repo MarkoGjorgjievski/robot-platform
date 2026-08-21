@@ -5,6 +5,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { domainIntelligence } from '@robot/db';
+import { withBrowserSession } from '../browser-session.js';
 
 // ─── Shared field shape ─────────────────────────────────────────────────────
 
@@ -39,26 +40,27 @@ export const scraperRouter = router({
       // Schema discovery lives in @robot/scraper. This procedure validates input,
       // wires the live collaborators, and decides where screenshots go — the one
       // part that genuinely belongs to the HTTP host.
-      const { PlaywrightBrowser } = await import('@robot/browser');
       const { SchemaAgent } = await import('@robot/agent');
       const { runAnalysis } = await import('@robot/scraper');
 
-      const browser = new PlaywrightBrowser();
-      await browser.launch({ headless: true });
-
+      // `withBrowserSession` launches this procedure's single-use browser and
+      // closes it on every exit path, including `runAnalysis`'s early throw
+      // (no cached schema and no agent available) — see browser-session.ts.
       try {
-        return await runAnalysis(input, {
-          browser,
-          agent: new SchemaAgent(),
-          persistScreenshot: async (screenshot) => {
-            const id = randomUUID();
-            const filename = `${id}.png`;
-            const dir = getCapturesDir();
-            await mkdir(dir, { recursive: true });
-            await writeFile(join(dir, filename), screenshot);
-            return { id, url: `/captures/${filename}` };
-          },
-        });
+        return await withBrowserSession((browser) =>
+          runAnalysis(input, {
+            browser,
+            agent: new SchemaAgent(),
+            persistScreenshot: async (screenshot) => {
+              const id = randomUUID();
+              const filename = `${id}.png`;
+              const dir = getCapturesDir();
+              await mkdir(dir, { recursive: true });
+              await writeFile(join(dir, filename), screenshot);
+              return { id, url: `/captures/${filename}` };
+            },
+          }),
+        );
       } catch (err) {
         if (err instanceof TRPCError) throw err;
         throw new TRPCError({
@@ -82,22 +84,27 @@ export const scraperRouter = router({
       // The extraction chain itself lives in @robot/scraper. This procedure is the
       // transport boundary: validate input, wire up the live collaborators, and map
       // failures onto TRPCError. See extraction-orchestrator.ts for the chain.
-      const { PlaywrightBrowser } = await import('@robot/browser');
       const { SchemaAgent } = await import('@robot/agent');
       const { runExtraction } = await import('@robot/scraper');
 
-      const browser = new PlaywrightBrowser();
-      await browser.launch({ headless: true });
-
+      // This procedure launches its own single-use browser. `runExtraction`
+      // never closes a browser it was given (see the invariant documented on
+      // `ExtractionDeps.browser`) — that guard used to live in the
+      // orchestrator and broke Phase 2's shared-browser crawl loop, so
+      // closing moved out to whoever actually launches the browser:
+      // `withBrowserSession` (browser-session.ts), which closes it on every
+      // exit path including a throw here.
       try {
-        return await runExtraction(
-          {
-            url: input.url,
-            fields: input.fields,
-            pageType: input.pageType,
-            previousResults: input.previousResults,
-          },
-          { browser, agent: new SchemaAgent() },
+        return await withBrowserSession((browser) =>
+          runExtraction(
+            {
+              url: input.url,
+              fields: input.fields,
+              pageType: input.pageType,
+              previousResults: input.previousResults,
+            },
+            { browser, agent: new SchemaAgent() },
+          ),
         );
       } catch (err) {
         if (err instanceof TRPCError) throw err;

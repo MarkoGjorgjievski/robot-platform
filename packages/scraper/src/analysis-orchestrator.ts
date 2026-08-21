@@ -31,6 +31,19 @@ export type AnalysisAgent = {
 };
 
 export type AnalysisDeps = {
+  /**
+   * The caller owns this browser's entire lifecycle — `runAnalysis` neither
+   * launches it nor closes it, on the cache-hit path or the cache-miss path,
+   * including when either path errors.
+   *
+   * Why: this mirrors the rule on `ExtractionDeps.browser` in
+   * extraction-orchestrator.ts, fixed after a shared browser reused across
+   * Phase 2's item loop got closed mid-loop and every item after the first
+   * failed with "Browser not launched." `runAnalysis` currently only has
+   * single-use callers, but closing here would silently reintroduce the same
+   * trap for a future caller that reuses a browser across calls — so the
+   * caller closes it, in `@robot/api`'s `withBrowserSession` (browser-session.ts).
+   */
   browser: IBrowser;
   agent: AnalysisAgent | null;
   lookupCache?: typeof lookupDomainCache;
@@ -76,12 +89,9 @@ export async function runAnalysis(
   // Cache miss — capture and ask the model.
   if (!agent) throw new Error(`No cached schema for ${domain} and no agent available to discover one`);
 
-  let capture: PageCapture;
-  try {
-    capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
-  } finally {
-    await browser.close();
-  }
+  const capture: PageCapture = await browser.capture(
+    url, { waitUntil: 'networkidle', interceptNetworkRequests: true },
+  );
 
   const persisted = persistScreenshot ? await persistScreenshot(capture.screenshot) : null;
   const schema = await agent.discoverSchema(capture, userFields.length > 0 ? userFields : undefined);
@@ -159,8 +169,6 @@ async function analyzeFromCache(args: {
     if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
   } catch (err) {
     console.error('[analyze] capture failed (non-fatal, showing cache without live values):', err);
-  } finally {
-    await browser.close();
   }
 
   const cachedFields = cachedFieldsFromCache(cache.fieldPaths, liveValues);
