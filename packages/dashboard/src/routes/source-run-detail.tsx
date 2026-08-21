@@ -5,7 +5,7 @@ import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
-import { progressLabel, isRunActive, runControls } from '../lib/run-progress';
+import { progressLabel, isRunActive, runControls, extractButtonLabel } from '../lib/run-progress';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -185,9 +185,9 @@ function ExecuteControls({ runId }: { runId: string }) {
             className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             title={active
               ? 'Resume this run — safe while it is running: already-claimed URLs are skipped'
-              : 'Fetch and extract every pending URL in the work list'}
+              : 'Fetch and extract every pending URL in the work list, and reclaim any item abandoned mid-extraction'}
           >
-            Extract {data.counts.pending} pending
+            {extractButtonLabel(data.counts)}
           </button>
         )}
         {controls.showRetry && (

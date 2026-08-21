@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { progressLabel, isRunActive, runControls, type RunCounts } from './run-progress';
+import { progressLabel, isRunActive, runControls, extractButtonLabel, type RunCounts } from './run-progress';
 
 describe('progressLabel', () => {
   it('counts what is finished against what was planned', () => {
@@ -70,6 +70,43 @@ describe('runControls', () => {
   it('hides Extract when there is nothing pending to extract', () => {
     expect(runControls('completed', counts({ done: 8 })).showExtract).toBe(false);
     expect(runControls('extracting', counts({ done: 8 })).showExtract).toBe(false);
+  });
+
+  it('offers Extract when the only unfinished item is one stuck at running', () => {
+    // The last-item case. An api-server restart on item 8 of 8 leaves
+    // pending=0, running=1: the run is correctly non-terminal (rollUpStatus
+    // counts `running`), so Stop shows — and if Extract keyed off `pending`
+    // alone it would not, leaving the requeue that fixes this reachable only
+    // from the CLI. A fix that closes the trap for items 1..N-1 but not item N
+    // has not closed it.
+    expect(runControls('extracting', counts({ pending: 0, running: 1, done: 7 })).showExtract).toBe(true);
+    expect(runControls('cancelling', counts({ pending: 0, running: 1, done: 7 })).showExtract).toBe(true);
+  });
+
+  it('offers Extract for pending and running work together', () => {
+    expect(runControls('extracting', counts({ pending: 2, running: 1, done: 5 })).showExtract).toBe(true);
+  });
+});
+
+describe('extractButtonLabel', () => {
+  const counts = (over: Partial<RunCounts> = {}): RunCounts =>
+    ({ pending: 0, running: 0, done: 0, failed: 0, listing: 1, detail: 8, ...over });
+
+  it('counts the pending URLs when there are any', () => {
+    expect(extractButtonLabel(counts({ pending: 3, done: 5 }))).toBe('Extract 3 pending');
+  });
+
+  it('names stalled work as stalled rather than saying "Extract 0 pending"', () => {
+    // `running` with nothing pending is not pending work and must not be
+    // described as such — and "Extract 0 pending" on the one button that can
+    // rescue the run would read as a no-op.
+    expect(extractButtonLabel(counts({ pending: 0, running: 1, done: 7 }))).toBe('Resume 1 stalled');
+  });
+
+  it('leads with the pending count when there is both', () => {
+    // Pending items are claimable immediately; stalled ones only after the
+    // staleness threshold. The immediately-actionable number is the honest one.
+    expect(extractButtonLabel(counts({ pending: 2, running: 1, done: 5 }))).toBe('Extract 2 pending');
   });
 
   it('offers Retry whenever something failed, active or not', () => {
