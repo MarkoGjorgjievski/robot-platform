@@ -18,6 +18,16 @@ import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { executeRun } from '../crawl/execute-run.js';
 import { extractItem } from '../crawl/extract-item.js';
 
+/**
+ * The statuses `crawl.cancel` will act on: a run phase 2 is working, or one
+ * already asked to stop (so a second Stop is idempotent rather than an error).
+ * Deliberately the same set `isRunActive` calls active on the dashboard side —
+ * cancel is a message to a running loop, and the other statuses have no loop
+ * to send it to. `planning` is excluded too: phase 1 never checks for a
+ * cancel, so accepting one there would report a stop that never happens.
+ */
+const CANCELLABLE_STATUSES = ['extracting', 'cancelling'];
+
 /** Warnings + errors as one free-text block, or null when planning was clean. */
 export function formatPlanLog(
   warnings: string[],
@@ -305,9 +315,21 @@ export const crawlRouter = router({
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const run = await ctx.db.query.runs.findFirst({
-        where: eq(runs.id, input.runId), columns: { id: true },
+        where: eq(runs.id, input.runId), columns: { id: true, status: true },
       });
       if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      // Only a run something is actually working can be stopped. `cancelling`
+      // is a request addressed to a loop: written on a run with no loop behind
+      // it, nothing ever observes it and nothing ever finalises it, while
+      // `isRunActive` reports it as active and the dashboard polls it forever.
+      // That is a permanent trap, and it was reachable on any run in any
+      // status — including a `completed` one — from the CLI or any API client.
+      if (!CANCELLABLE_STATUSES.includes(run.status)) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Run ${input.runId} is not active (status: ${run.status}) and cannot be cancelled`,
+        });
+      }
       // The loop checks between items, so pending work stays pending and resume
       // is the same mechanism as cancel.
       await ctx.db.update(runs).set({ status: 'cancelling' }).where(eq(runs.id, input.runId));
