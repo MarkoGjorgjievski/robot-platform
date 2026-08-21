@@ -350,17 +350,38 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       };
 
       try {
-        const gained = await walkPages(pagination.config);
+        let gained = await walkPages(pagination.config);
+        let winning = pagination.config;
+        let winningSource = pagination.source;
+
+        // A CACHED config that produced nothing means the site changed its pager
+        // since we learned it. Re-detect from this run's own capture and try once
+        // more — bounded at one retry, because a second failure is a site we
+        // cannot page today, not a reason to keep fetching.
+        //
+        // A freshly detected config that failed gets no retry: re-detecting would
+        // read the same capture and reach the same answer.
+        if (gained === 0 && pagination.source === 'cache') {
+          // Non-null: we only get here after `pagination.config` was truthy
+          // (checked above), which only happens once `capture` was truthy —
+          // `detectPagination` above was called with this same `capture`.
+          const fresh = await detectPagination(capture!, deps.agent as PaginationAgent | null);
+          if (fresh.config) {
+            gained = await walkPages(fresh.config);
+            winning = fresh.config;
+            winningSource = fresh.source;
+          }
+        }
 
         // Verification, not trust: a config is worth remembering only once a walk
         // it drove has actually produced new URLs. A cached config that worked is
         // already stored, so re-writing it would be noise.
-        if (gained > 0 && pagination.source !== 'cache') {
-          await savePagination(paginationDomain, pagination.config);
+        if (gained > 0 && winningSource !== 'cache') {
+          await savePagination(paginationDomain, winning);
         }
         if (gained === 0) {
           warnings.push(
-            `pagination (${pagination.source}: ${pagination.config.strategy}) produced no new items on ${start.url}`,
+            `pagination (${winningSource}: ${winning.strategy}) produced no new items on ${start.url}`,
           );
         }
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
