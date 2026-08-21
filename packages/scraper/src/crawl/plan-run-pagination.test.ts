@@ -115,7 +115,20 @@ describe('planRun — writing the config back', () => {
     await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
 
     expect(deps.saved).toHaveLength(1);
-    expect(deps.saved[0]?.strategy).toBe('url-pattern');
+    expect(deps.saved[0]?.config.strategy).toBe('url-pattern');
+  });
+
+  it('keys the stored config by hostname, not by the start URL', async () => {
+    // `savePagination(paginationDomain, …)` and `savePagination(start.url, …)`
+    // are one token apart and both compile. Only the hostname is readable again:
+    // the read side is `lookupDomainCache(new URL(start.url).hostname, 'listing')`.
+    // Write a full URL here and the cache silently never warms again — which is
+    // invisible unless a test looks at the domain argument.
+    const deps = fakeDeps({ cachedConfig: null, pages: [['https://listing.example/p/3']] });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.saved.map((s) => s.domain)).toEqual(['listing.example']);
   });
 
   it('stores NOTHING when the walk produced no new items', async () => {
