@@ -29,7 +29,7 @@ Unrelated to the v2 crawler, but it's the number that justifies "don't start ano
 
 - CLI, phase 1: `pnpm --filter @robot/api exec tsx src/crawl-plan.ts <sourceId|sourceSlug>` — prints the work list it produced and the run id.
 - CLI, phase 2: `pnpm --filter @robot/api exec tsx src/crawl-execute.ts <runId>` — starts execution and polls `crawl.status` every 5s (240 ticks / 20 min cap) until the run leaves `extracting`/`cancelling`, then prints per-item final status. The crawl runs inside this CLI's own process, so hitting the poll cap while the run is still active exits non-zero with an explicit "still in progress" message rather than silently reporting success.
-- Dashboard: the Source Runs page (`packages/dashboard/src/routes/source-runs.tsx`) has the button that calls `crawl.plan`. The Run detail page (`source-run-detail.tsx`) has Run/Cancel buttons wired to `crawl.execute`/`crawl.cancel`, with polling-based progress (`run-progress.ts`) — no live push yet, SSE/WebSocket is still future work.
+- Dashboard: the Source Runs page (`packages/dashboard/src/routes/source-runs.tsx`) has the button that calls `crawl.plan`. The Run detail page (`source-run-detail.tsx`) has **Extract N pending** / **Retry N failed** / **Stop**, wired to `crawl.execute`/`crawl.cancel`, with polling-based progress (`run-progress.ts`) — no live push yet, SSE/WebSocket is still future work. Which buttons appear is decided by `runControls` in `run-progress.ts`: Extract and Retry key off the item counts alone and are deliberately NOT hidden while the run is active, because a run can sit at `extracting` with no loop behind it and must stay recoverable from this page.
 
 ## What the live runs demonstrated
 
@@ -72,8 +72,8 @@ Both runs used the same seeded Source, `abebooks-pagination` (budget `{mode: "fi
 |---|---|
 | `docker start robot-platform-db` | Start Postgres first — the one non-obvious prerequisite on this machine. Everything below needs it running. |
 | `pnpm -r test` | Free green gate. |
-| `pnpm typecheck` | All packages, including the two that have no build step. |
-| `pnpm --filter @robot/dashboard exec tsc --noEmit` | Dashboard type check (not wired into `pnpm typecheck`). |
+| `pnpm typecheck` | **Not all packages.** Five turbo tasks: `tsc --noEmit` in `@robot/db` and `@robot/api`, plus the `build` (`tsc`) of `@robot/browser`, `@robot/agent` and `@robot/scraper`, which typecheck as a side effect of emitting. `@robot/api-server` and `@robot/dashboard` have no `typecheck` script at all and are **not** covered. |
+| `pnpm --filter @robot/dashboard exec tsc --noEmit` | The dashboard type check, which `pnpm typecheck` does not run. Nothing equivalent exists for `@robot/api-server` — it is unchecked until someone adds the script. |
 | `pnpm --filter @robot/api exec tsx src/crawl-plan.ts <sourceId\|slug>` | Phase 1 CLI — plan a crawl. |
 | `pnpm --filter @robot/api exec tsx src/crawl-execute.ts <runId>` | Phase 2 CLI — execute a planned run, spends money. |
 | `pnpm test:judge` | Calibrates both judges against known answers (live, paid). |
