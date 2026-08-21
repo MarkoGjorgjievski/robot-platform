@@ -5,7 +5,9 @@ import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
-import { progressLabel, isRunActive, runControls, extractButtonLabel } from '../lib/run-progress';
+import {
+  progressLabel, isRunActive, runControls, extractButtonLabel, extractButtonTitle, requeueNotice,
+} from '../lib/run-progress';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -174,8 +176,17 @@ function ExecuteControls({ runId }: { runId: string }) {
   // only place most operators will ever see it.
   const controls = runControls(data.status, data.counts);
 
+  // What the last execute actually reclaimed. `crawl.execute` returns the
+  // count because "Resume N stalled" appears as soon as an item is `running`,
+  // while the reclaim behind it only acts past the staleness threshold — so
+  // inside that window the click really did launch a browser and really did
+  // change nothing, and saying so beats leaving the operator to click again.
+  const notice = execute.data && !execute.isPending
+    ? requeueNotice(execute.data.requeued, data.counts)
+    : null;
+
   return (
-    <div className="mt-6 flex items-center gap-3 rounded-md border px-4 py-3">
+    <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md border px-4 py-3">
       <span className="text-sm font-medium">{progressLabel(data.counts, data.status)}</span>
       <div className="ml-auto flex items-center gap-2">
         {controls.showExtract && (
@@ -183,9 +194,7 @@ function ExecuteControls({ runId }: { runId: string }) {
             onClick={() => execute.mutate({ runId })}
             disabled={execute.isPending}
             className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-            title={active
-              ? 'Resume this run — safe while it is running: already-claimed URLs are skipped'
-              : 'Fetch and extract every pending URL in the work list, and reclaim any item abandoned mid-extraction'}
+            title={extractButtonTitle(data.status, data.counts)}
           >
             {extractButtonLabel(data.counts)}
           </button>
@@ -210,6 +219,7 @@ function ExecuteControls({ runId }: { runId: string }) {
           </button>
         )}
       </div>
+      {notice && <span className="basis-full text-[11px] text-gray-600">{notice}</span>}
       {execute.isError && <span className="text-[11px] text-red-600">{execute.error.message}</span>}
       {cancel.isError && <span className="text-[11px] text-red-600">{cancel.error.message}</span>}
     </div>

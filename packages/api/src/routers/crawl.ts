@@ -358,7 +358,12 @@ export const crawlRouter = router({
       // "call execute again" recovery actually reach it. The threshold inside
       // is ~50x one item's duration, so a live concurrent loop cannot lose a
       // claim to this.
-      await requeueStaleRunningItems(ctx.db, input.runId);
+      // The count is returned to the caller, not just acted on: the dashboard's
+      // "Resume N stalled" button appears the moment an item is `running`,
+      // while the reclaim only acts past the threshold — so inside that window
+      // a click did real work (a chromium launch) and changed nothing visible.
+      // Reporting what was actually reclaimed is what lets the UI say so.
+      const requeued = await requeueStaleRunningItems(ctx.db, input.runId);
 
       if (input.retryFailed) {
         await ctx.db.update(runItems)
@@ -370,7 +375,7 @@ export const crawlRouter = router({
       // browser: it must be fully inert otherwise, so the status flip below —
       // the observable sign that a loop is running — happens only past this
       // return.
-      if (input.dryRun) return { runId: input.runId, started: false };
+      if (input.dryRun) return { runId: input.runId, started: false, requeued };
 
       // Guarded: `markRunExtracting` flips anything but a `cancelling` run, so
       // a second execute arriving between a Stop and the loop noticing it
@@ -393,6 +398,6 @@ export const crawlRouter = router({
         .catch((err) => {
           console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
         });
-      return { runId: input.runId, started: true };
+      return { runId: input.runId, started: true, requeued };
     }),
 });
