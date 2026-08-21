@@ -247,6 +247,40 @@ export async function pinFieldPath(input: {
   return true;
 }
 
+/**
+ * The page-type partition a pagination config belongs to. Pagination is a
+ * property of listing pages; a detail page has none.
+ */
+const PAGINATION_PAGE_TYPE = 'listing';
+
+/**
+ * Store the pagination config that WORKED for a domain.
+ *
+ * Only ever called with a config whose walk verifiably produced new detail
+ * URLs — a config that yields nothing is a false positive (a carousel arrow, a
+ * selector for an element that is not there), and caching one would make every
+ * later run on this domain replay a known-bad answer for free.
+ *
+ * There is no `null` case on purpose. A failed detection leaves whatever is
+ * stored alone: absence of evidence is not evidence of absence, and a domain
+ * with no config already behaves correctly by detecting from scratch.
+ *
+ * One config per domain, deliberately. A site whose search results and category
+ * pages paginate differently will see the two overwrite each other; that is
+ * visible in planRun's warnings, and the verify-then-replace rule means a wrong
+ * config never survives a run that disproves it.
+ */
+export async function savePaginationConfig(domain: string, config: PaginationConfig): Promise<void> {
+  await db
+    .insert(domainIntelligence)
+    .values({ domain, pageType: PAGINATION_PAGE_TYPE, paginationConfig: config })
+    .onConflictDoUpdate({
+      target: [domainIntelligence.domain, domainIntelligence.pageType],
+      set: { paginationConfig: config, updatedAt: new Date() },
+    });
+  console.log(`[cache] pagination for ${domain}: ${config.strategy}`);
+}
+
 /** Max automatic paths kept per field. Protected paths are additional to this. */
 const MAX_PATHS_PER_FIELD = 5;
 
