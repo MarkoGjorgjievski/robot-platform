@@ -156,6 +156,7 @@ describe('per-input breakdown', () => {
         browser: new FakeBrowser(),
         agent: null,
         acquireLock: noopLock,
+        lookupCache: async () => null,
         extract: async () => {
           call++;
           if (call === 1) throw new Error('navigation timeout');
@@ -208,6 +209,7 @@ describe('domain lock', () => {
           events.push('acquire');
           return () => { events.push('release'); };
         },
+        lookupCache: async () => null,
         extract: async () => {
           events.push('extract');
           return rowsOf([{ detail_url: '/p/1', category: 'A' }]);

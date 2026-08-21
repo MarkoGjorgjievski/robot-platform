@@ -70,7 +70,7 @@ describe('planRun', () => {
       { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
       {
         browser: new FakeBrowser(),
-        agent: null, acquireLock: noopLock,
+        agent: null, acquireLock: noopLock, lookupCache: async () => null,
         extract: fakeExtract([
           { detail_url: '/p/1', category: 'Shelves' },
           { detail_url: '/p/2', category: 'Shelves' },
@@ -85,7 +85,7 @@ describe('planRun', () => {
   it('records the listing page it walked as its own item', async () => {
     const outcome = await planRun(
       { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
-      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: fakeExtract([{ detail_url: '/p/1' }]) },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, lookupCache: async () => null, extract: fakeExtract([{ detail_url: '/p/1' }]) },
     );
     const listings = outcome.items.filter((i) => i.kind === 'listing');
     expect(listings).toHaveLength(1);
@@ -99,7 +99,7 @@ describe('planRun', () => {
         browser: new FakeBrowser([
           { url: 'https://example.com/c/shelves?page=2', pageNumber: 2, data: [{ detail_url: '/p/3' }], totalRows: 1 },
         ]),
-        agent: null, acquireLock: noopLock,
+        agent: null, acquireLock: noopLock, lookupCache: async () => null,
         extract: fakeExtract([{ detail_url: '/p/1' }]),
       },
     );
@@ -218,7 +218,7 @@ describe('planRun', () => {
         schema: SCHEMA,
         inputSet: { columns: [{ name: 'slug', primary: true }], rows: [{ slug: 'a' }, { slug: 'b' }] },
       },
-      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, extract: fakeExtract([{ detail_url: 'https://example.com/p/same' }]) },
+      { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, lookupCache: async () => null, extract: fakeExtract([{ detail_url: 'https://example.com/p/same' }]) },
     );
     expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(1);
   });
