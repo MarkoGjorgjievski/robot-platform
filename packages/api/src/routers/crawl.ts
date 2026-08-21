@@ -262,7 +262,13 @@ export const crawlRouter = router({
         },
       });
 
-      const counts = { listing: 0, detail: 0, pending: 0, done: 0, failed: 0 };
+      // `running` is counted here, exactly as crawl.status counts it. Omitting
+      // it made the two readers of one run disagree about what it contained:
+      // pending + done + failed stopped summing to `detail` the moment an item
+      // stalled, so a run with work in flight read as if items had simply
+      // vanished. A per-status breakdown that fails to account for every item
+      // is how "2 of 1 extracted" reached this branch once already.
+      const counts = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };
       for (const row of rows) {
         if (row.kind === 'listing') { counts.listing++; continue; }
         counts.detail++;
@@ -271,9 +277,7 @@ export const crawlRouter = router({
         // Counting it into pending/done/failed here would inflate `done`
         // against a `detail` total that excludes it — exactly what produced
         // "2 of 1 extracted" on the dashboard before that fix.
-        if (row.status === 'pending') counts.pending++;
-        if (row.status === 'done') counts.done++;
-        if (row.status === 'failed') counts.failed++;
+        if (row.status in counts) counts[row.status as 'pending' | 'running' | 'done' | 'failed']++;
       }
 
       const items = [...rows].sort((a, b) => {
