@@ -82,7 +82,28 @@ describe('crawl.items', () => {
   it('counts pending/done/failed over detail items only — mirrors the crawl.status fix', async () => {
     const runId = await seedRunWithDoneListingAndMixedDetails();
     const result = await caller.crawl.items({ runId });
-    expect(result.counts).toEqual({ listing: 1, detail: 4, pending: 1, done: 1, failed: 1 });
+    expect(result.counts).toEqual({ listing: 1, detail: 4, pending: 1, running: 1, done: 1, failed: 1 });
+  });
+
+  // N5: crawl.items omitted `running` after crawl.status started counting it,
+  // so the two readers of one run disagreed about what it contained — here
+  // pending + done + failed stopped summing to `detail` the moment an item
+  // stalled. Nothing misreported yet, but a reader whose per-status counts
+  // silently fail to account for every item is precisely how "2 of 1
+  // extracted" got onto this branch once already.
+  it('accounts for every detail item, so the statuses sum to the detail total', async () => {
+    const runId = await seedRunWithDoneListingAndMixedDetails();
+    const { counts } = await caller.crawl.items({ runId });
+    expect(counts.pending + counts.running + counts.done + counts.failed).toBe(counts.detail);
+  });
+
+  it('agrees with crawl.status about what the run contains', async () => {
+    const runId = await seedRunWithDoneListingAndMixedDetails();
+    const [items, status] = await Promise.all([
+      caller.crawl.items({ runId }),
+      caller.crawl.status({ runId }),
+    ]);
+    expect(items.counts).toEqual(status.counts);
   });
 });
 
