@@ -13,6 +13,7 @@ import { router, publicProcedure } from '../trpc';
 import { claimNextItem } from '../crawl/claim-item.js';
 import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
+import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { executeRun } from '../crawl/execute-run.js';
 import { extractItem } from '../crawl/extract-item.js';
 
@@ -312,6 +313,15 @@ export const crawlRouter = router({
       });
       if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
       if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      // An item abandoned at `running` — the api-server died mid-item — is
+      // work nothing will ever pick up: `claimNextItem` claims `pending` only,
+      // and `retryFailed` requeues `failed` only. Reclaiming it here, on every
+      // entry rather than behind an opt-in flag, is what makes the documented
+      // "call execute again" recovery actually reach it. The threshold inside
+      // is ~50x one item's duration, so a live concurrent loop cannot lose a
+      // claim to this.
+      await requeueStaleRunningItems(ctx.db, input.runId);
 
       if (input.retryFailed) {
         await ctx.db.update(runItems)

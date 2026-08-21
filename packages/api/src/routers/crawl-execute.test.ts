@@ -150,3 +150,47 @@ describe('safeErrorMessage', () => {
     expect(safeErrorMessage({ code: 'ECONNREFUSED' })).toBe('[object Object]');
   });
 });
+
+// Fix 1(b): an item abandoned at `running` (api-server restart mid-item) is
+// invisible to claimNextItem, which claims `pending` only. `execute` is the
+// documented recovery ("call execute again"), so `execute` is where the
+// reclaim has to happen — unconditionally, not behind retryFailed.
+describe('crawl.execute — stale running items', () => {
+  async function seedRunWithStaleRunningItem(startedMinutesAgo: number) {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+    const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'extracting' }).returning();
+    await db.insert(runItems).values([
+      { runId: run!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' },
+      {
+        runId: run!.id, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0,
+        status: 'running', startedAt: new Date(Date.now() - startedMinutesAgo * 60_000), attempts: 1,
+      },
+    ]);
+    return run!.id;
+  }
+
+  it('requeues an item stuck at running, without being asked to retry anything', async () => {
+    const runId = await seedRunWithStaleRunningItem(45);
+    await caller.crawl.execute({ runId, dryRun: true });
+
+    const rows = await db.select().from(runItems).where(eq(runItems.runId, runId));
+    const stuck = rows.find((r) => r.url === 'https://example.com/p/2');
+    expect(stuck!.status).toBe('pending');
+    // ...and it is now visible to the reader the dashboard drives its buttons
+    // from, which is what makes the run recoverable from the UI at all.
+    const status = await caller.crawl.status({ runId });
+    expect(status.counts).toMatchObject({ pending: 1, running: 0, done: 1 });
+  });
+
+  it('leaves a freshly claimed item alone — a live loop must not have its work stolen', async () => {
+    const runId = await seedRunWithStaleRunningItem(1);
+    await caller.crawl.execute({ runId, dryRun: true });
+
+    const rows = await db.select().from(runItems).where(eq(runItems.runId, runId));
+    expect(rows.find((r) => r.url === 'https://example.com/p/2')!.status).toBe('running');
+  });
+});

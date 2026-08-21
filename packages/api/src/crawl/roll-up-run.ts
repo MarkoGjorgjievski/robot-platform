@@ -16,10 +16,17 @@ export type RunRollup = 'completed' | 'partial' | 'failed' | 'extracting' | 'can
  * lie, so it falls through to the normal completed/partial/failed logic.
  */
 export function rollUpStatus(
-  counts: { pending: number; done: number; failed: number },
+  counts: { pending: number; running: number; done: number; failed: number },
   cancelled = false,
 ): RunRollup {
-  if (counts.pending > 0) return cancelled ? 'cancelled' : 'extracting';
+  // `running` is unfinished work exactly as `pending` is — an item claimed by
+  // `claimNextItem` and never resolved (an api-server restart mid-item is the
+  // way that happens) must not be rolled up as if it were never there. Leaving
+  // it out is what let a run of 8 with item 5 stuck `running` report
+  // `completed` with resultCount=7 and no complaint anywhere. `running` is a
+  // required field, not optional-with-a-default, so a future caller has to
+  // decide about it rather than silently reintroduce this.
+  if (counts.pending > 0 || counts.running > 0) return cancelled ? 'cancelled' : 'extracting';
   if (counts.failed === 0) return 'completed';
   // `partial` exists because at scale "480 of 500 succeeded" is the normal
   // outcome, and a binary completed/failed cannot express it.
@@ -50,6 +57,7 @@ export async function finaliseRun(
   const [counts] = await db
     .select({
       pending: sql<number>`count(*) filter (where ${runItems.status} = 'pending')::int`,
+      running: sql<number>`count(*) filter (where ${runItems.status} = 'running')::int`,
       done: sql<number>`count(*) filter (where ${runItems.status} = 'done')::int`,
       failed: sql<number>`count(*) filter (where ${runItems.status} = 'failed')::int`,
     })
@@ -59,6 +67,7 @@ export async function finaliseRun(
   const done = Number(counts?.done ?? 0);
   const status = rollUpStatus({
     pending: Number(counts?.pending ?? 0),
+    running: Number(counts?.running ?? 0),
     done,
     failed: Number(counts?.failed ?? 0),
   }, cancelled);
