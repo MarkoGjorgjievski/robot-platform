@@ -14,6 +14,7 @@ import { claimNextItem } from '../crawl/claim-item.js';
 import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
+import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { executeRun } from '../crawl/execute-run.js';
 import { extractItem } from '../crawl/extract-item.js';
 
@@ -349,7 +350,14 @@ export const crawlRouter = router({
       // return.
       if (input.dryRun) return { runId: input.runId, started: false };
 
-      await ctx.db.update(runs).set({ status: 'extracting', startedAt: new Date() }).where(eq(runs.id, input.runId));
+      // Guarded: `markRunExtracting` flips anything but a `cancelling` run, so
+      // a second execute arriving between a Stop and the loop noticing it
+      // cannot silently void that Stop. Re-entry itself stays permitted —
+      // crash-resume is exactly this call arriving on an `extracting` run —
+      // and a run whose status did NOT flip still gets a loop, because that
+      // loop's first between-items check is what finally settles a
+      // `cancelling` run whose original loop already died.
+      await markRunExtracting(ctx.db, input.runId);
 
       // Returns immediately: hundreds of items at ~30s each outlives any HTTP
       // request. All state lives in run_items, so progress is read with
