@@ -196,7 +196,7 @@ Strategy order, with automatic fallback at each step:
 cached config → api-param → url-pattern → next-button → page-numbers
 ```
 
-The winner is written to `domain_intelligence.pagination_config` for `(domain, 'listing')`, so later runs — including other customers' — pay nothing for detection.
+The winner is written to `domain_intelligence.pagination_config` for `(domain, 'listing')`, so later runs — including other customers' — replay a known-good answer instead of re-detecting. **Correction (2026-08-21):** mechanical detection (`url-pattern` / `next-button` / `page-numbers` via `detectPaginationFromHtml`) was already free, so caching saves nothing there — the saving is real only on domains where mechanical detection fails and the AI fallback fires. The durable win is **determinism**, not cost: a domain that needed AI two runs ago replays the same answer instead of re-rolling detection (and possibly landing on a different, untested strategy) on every plan. See `docs/superpowers/specs/2026-08-21-pagination-proof-and-caching-design.md` §1 and `docs/handoff.md`.
 
 #### `api-param` (preferred when available)
 
