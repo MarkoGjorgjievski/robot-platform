@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
 import { saveDomainCache, lookupDomainCache, resolveFromCache } from './domain-cache.js';
@@ -14,6 +14,7 @@ async function cleanup() {
 
 describe('saveDomainCache — discovered-but-unresolved fields', () => {
   beforeEach(cleanup);
+  afterAll(cleanup);
 
   it('persists empty-path entries for discovered fields that did not resolve', async () => {
     await saveDomainCache({
