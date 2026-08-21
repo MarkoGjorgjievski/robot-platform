@@ -87,12 +87,45 @@ describe('crawl.items', () => {
 });
 
 describe('crawl.cancel', () => {
-  it('marks a run cancelling, which the loop checks between items', async () => {
+  const setStatus = (runId: string, status: string) =>
+    db.update(runs).set({ status }).where(eq(runs.id, runId));
+
+  it('marks an extracting run cancelling, which the loop checks between items', async () => {
     const runId = await seedPlannedRun();
+    await setStatus(runId, 'extracting');
+
     const result = await caller.crawl.cancel({ runId });
     expect(result.status).toBe('cancelling');
     const [row] = await db.select().from(runs).where(eq(runs.id, runId));
     expect(row!.status).toBe('cancelling');
+  });
+
+  it('is idempotent on a run that is already stopping', async () => {
+    const runId = await seedPlannedRun();
+    await setStatus(runId, 'cancelling');
+    await expect(caller.crawl.cancel({ runId })).resolves.toMatchObject({ status: 'cancelling' });
+  });
+
+  // Cancelling a run nothing is working writes `cancelling`, which no loop
+  // will ever observe and therefore nothing will ever finalise — and
+  // `isRunActive` reports it as active, so the dashboard polls it forever.
+  // That is the same permanent trap the Run detail page's Stop button used to
+  // create, reachable here from the CLI or any API client.
+  it.each(['completed', 'partial', 'failed', 'cancelled', 'planned', 'planning'])(
+    'refuses to cancel a run that is not active (%s)',
+    async (status) => {
+      const runId = await seedPlannedRun();
+      await setStatus(runId, status);
+
+      await expect(caller.crawl.cancel({ runId })).rejects.toThrow(/not active|cannot be cancelled/i);
+      const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+      expect(row!.status).toBe(status);
+    },
+  );
+
+  it('rejects an unknown run rather than pretending to stop it', async () => {
+    await expect(caller.crawl.cancel({ runId: '00000000-0000-0000-0000-000000000000' }))
+      .rejects.toThrow(/not found/i);
   });
 });
 
