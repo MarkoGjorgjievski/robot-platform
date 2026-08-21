@@ -1,6 +1,7 @@
 // packages/api/src/crawl/execute-run.test.ts
 import { describe, it, expect } from 'vitest';
 import { executeRun, type ExecuteDeps } from './execute-run.js';
+import { rollUpStatus } from './roll-up-run.js';
 import type { ClaimedItem } from './claim-item.js';
 
 const item = (id: string): ClaimedItem => ({
@@ -18,7 +19,23 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
     onDone: async (id) => { done.push(id); },
     onFailed: async (id, message) => { failed.push({ id, message }); },
     isCancelled: async () => false,
-    finalise: async (rowCount, _cancelled) => { finalRowCount = rowCount; return 'completed'; },
+    // The stub answers with what production answers. `finaliseRun` reads the
+    // item counts out of the DB and hands them to `rollUpStatus`; this harness
+    // holds the same counts in memory (the queue is what is still pending), so
+    // it calls the same function rather than inventing a status.
+    //
+    // It used to hard-code 'completed'. That is how the "claim throws" test
+    // below came to assert a *green* outcome for a path that in production
+    // leaves the run at 'extracting' with nothing running it — the stuck-run
+    // state the dashboard could not act on. A stub that disagrees with
+    // production doesn't test production; it describes a system nobody ships.
+    finalise: async (rowCount, cancelled) => {
+      finalRowCount = rowCount;
+      return rollUpStatus(
+        { pending: queue.length, running: 0, done: done.length, failed: failed.length },
+        cancelled,
+      );
+    },
     ...overrides,
   };
   return { deps, done, failed, rowCount: () => finalRowCount };
@@ -161,7 +178,16 @@ describe('executeRun', () => {
     // finalise must still run: crawl.status, the dashboard and the export all
     // read the run row, and an un-finalised run is invisible to every reader.
     expect(h.rowCount()).toBe(0);
-    expect(outcome.status).toBe('completed');
+    // ...but what it writes is NOT a green terminal status. The item is still
+    // pending and no cancel was requested, so `rollUpStatus` returns
+    // 'extracting' — a run that looks live with nothing running it. This test
+    // asserted 'completed' for nine tasks and three review rounds, purely
+    // because the harness hard-coded that answer, and that false green is what
+    // hid the dashboard trap: `isRunActive('extracting')` is true, so the Run
+    // detail page offered Stop and nothing else, polled every 3s forever, and
+    // the documented "call execute again" recovery was unreachable from the UI.
+    expect(outcome.status).toBe('extracting');
+    expect(outcome.status).not.toBe('completed');
   });
 
   // --- Finding 1: cancelling with pending work must settle to a status the
