@@ -8,7 +8,7 @@
 // listing-origin field. Mechanical, cached-path, cached-XPath and AI tiers all
 // apply unchanged, so a domain crawled before costs nothing here.
 
-import type { IBrowser, PageCapture } from '@robot/browser';
+import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
 import { runExtraction, type ExtractionAgent, type ExtractionDeps, type ExtractionOutcome } from '../extraction-orchestrator.js';
 import { buildExtractionScript } from '../executor.js';
 import { acquireDomainLock } from '../domain-lock.js';
@@ -306,7 +306,17 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // fails it also skips the AI call. Looked up under 'listing' because that
       // is the only page type that paginates.
       const paginationDomain = new URL(start.url).hostname;
-      const cachedPagination = (await lookupCache(paginationDomain, 'listing'))?.paginationConfig ?? null;
+      // The cache is advisory here exactly as it is everywhere else in this
+      // codebase: a lookup failure (DB blip, malformed stored JSON, connection
+      // drop mid-run) must degrade to "treat this domain as cold" for THIS
+      // input only, not abort the whole plan and silently drop every input
+      // after it.
+      let cachedPagination: PaginationConfig | null = null;
+      try {
+        cachedPagination = (await lookupCache(paginationDomain, 'listing'))?.paginationConfig ?? null;
+      } catch (err) {
+        warnings.push(`pagination cache lookup failed on ${start.url}: ${(err as Error).message} — treating as cold`);
+      }
       const pagination = capture
         ? await detectPagination(capture, deps.agent as PaginationAgent | null, cachedPagination)
         : { config: null, source: 'none' as const };
