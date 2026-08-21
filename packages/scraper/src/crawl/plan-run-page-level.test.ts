@@ -138,7 +138,7 @@ describe('page-level listing fields', () => {
     ]);
     const outcome = await planRun(PAGINATED_REQUEST, {
       browser,
-      agent: null, acquireLock: noopLock, lookupCache: async () => null,
+      agent: null, acquireLock: noopLock, lookupCache: async () => null, savePagination: async () => {},
       extract: async (request) =>
         request.pageType === 'listing'
           ? { ...OUTCOME_SHAPE, data: [{ detail_url: '/p/1', listing_price: '79' }] }
