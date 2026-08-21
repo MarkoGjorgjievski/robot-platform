@@ -12,6 +12,7 @@ import type { IBrowser, PageCapture } from '@robot/browser';
 import { runExtraction, type ExtractionAgent, type ExtractionDeps, type ExtractionOutcome } from '../extraction-orchestrator.js';
 import { buildExtractionScript } from '../executor.js';
 import { acquireDomainLock } from '../domain-lock.js';
+import { lookupDomainCache, savePaginationConfig } from '../domain-cache.js';
 import { resolveBudget, itemCap } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
@@ -68,6 +69,10 @@ export type PlanRunDeps = {
    * 2s spacing; defaults to the real one.
    */
   acquireLock?: typeof acquireDomainLock;
+  /** Reads the stored pagination config. Injectable so tests need no database. */
+  lookupCache?: typeof lookupDomainCache;
+  /** Writes a pagination config that a walk has just verified. */
+  savePagination?: typeof savePaginationConfig;
 };
 
 /**
@@ -103,6 +108,8 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
   const { source, schema, inputSet } = request;
   const extract = deps.extract ?? runExtraction;
   const acquireLock = deps.acquireLock ?? acquireDomainLock;
+  const lookupCache = deps.lookupCache ?? lookupDomainCache;
+  const savePagination = deps.savePagination ?? savePaginationConfig;
   const budget = resolveBudget(source.budget);
   const cap = itemCap(budget);
   const partitions = partitionSchemaByOrigin(schema);
@@ -294,8 +301,14 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // would otherwise re-navigate to page 1 just to inspect markup we already
       // captured — and on a page with no pagination at all (a category page with
       // a carousel and nothing else) that load buys nothing.
+      // A config this domain has already proven beats re-rolling detection: it is
+      // the same answer every run, and on a domain where mechanical detection
+      // fails it also skips the AI call. Looked up under 'listing' because that
+      // is the only page type that paginates.
+      const paginationDomain = new URL(start.url).hostname;
+      const cachedPagination = (await lookupCache(paginationDomain, 'listing'))?.paginationConfig ?? null;
       const pagination = capture
-        ? await detectPagination(capture, deps.agent as PaginationAgent | null)
+        ? await detectPagination(capture, deps.agent as PaginationAgent | null, cachedPagination)
         : { config: null, source: 'none' as const };
       if (!pagination.config) {
         warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
