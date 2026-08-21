@@ -131,10 +131,17 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Amber is for a run still in motion. It used to branch on `'running'`, which
+ * is an ITEM status — `run_items.status` — that a run row never holds, so the
+ * one state worth colouring differently never was. The run statuses are
+ * planning -> planned -> extracting -> completed | partial | failed, plus
+ * cancelling / cancelled.
+ */
 function RunStatusBadge({ status }: { status: string }) {
   const cls = status === 'completed' ? 'bg-emerald-100 text-emerald-700'
     : status === 'failed' ? 'bg-red-100 text-red-700'
-    : status === 'running' ? 'bg-amber-100 text-amber-700'
+    : isRunActive(status) || status === 'planning' ? 'bg-amber-100 text-amber-700'
     : 'bg-gray-100 text-gray-700';
   return <span className={`rounded px-2 py-0.5 text-[10px] uppercase ${cls}`}>{status}</span>;
 }
