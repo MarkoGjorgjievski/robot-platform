@@ -367,6 +367,13 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           // `detectPagination` above was called with this same `capture`.
           const fresh = await detectPagination(capture!, deps.agent as PaginationAgent | null);
           if (fresh.config) {
+            // Deliberately NOT short-circuited when `fresh.config` is identical
+            // to the config that just failed. That happens when the walk failed
+            // for a reason unrelated to the pager (a transient hiccup, a page
+            // that loaded slowly), and re-walking it is the cheapest way to tell
+            // that apart from a genuinely dead config. The cost is bounded — one
+            // extra walk, once — and the alternative is caching a "this domain
+            // is unpageable" conclusion drawn from a single bad afternoon.
             gained = await walkPages(fresh.config);
             winning = fresh.config;
             winningSource = fresh.source;
