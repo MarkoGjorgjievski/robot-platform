@@ -107,3 +107,34 @@ describe('planRun — pagination cache lookup failure isolation', () => {
     expect(outcome.warnings.some((w) => w.includes('pagination cache lookup failed'))).toBe(true);
   });
 });
+
+describe('planRun — writing the config back', () => {
+  it('stores a freshly detected config once its walk produced new items', async () => {
+    const deps = fakeDeps({ cachedConfig: null, pages: [['https://listing.example/p/3']] });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.saved).toHaveLength(1);
+    expect(deps.saved[0]?.strategy).toBe('url-pattern');
+  });
+
+  it('stores NOTHING when the walk produced no new items', async () => {
+    // A detected config that yields nothing is a false positive — a carousel
+    // arrow, or a selector for an element that is not on the page. Caching it
+    // would make every later run on this domain replay a known-bad answer.
+    const deps = fakeDeps({ cachedConfig: null, pages: [[]] });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.saved).toEqual([]);
+  });
+
+  it('does not rewrite a cached config that worked', async () => {
+    // It is already stored and already correct; a write here is pure noise.
+    const deps = fakeDeps({ cachedConfig: CACHED_CONFIG, pages: [['https://listing.example/p/3']] });
+
+    await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.saved).toEqual([]);
+  });
+});

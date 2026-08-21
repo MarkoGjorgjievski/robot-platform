@@ -330,13 +330,15 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // buildExtractionScript(plan, fieldTypes): the second argument is a
       // name → type map, so `detail_url` is collected as a URL, not a text node.
       const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' }, start.url);
-      const detailsBeforePaging = detailCount();
-      try {
+
+      /** Walk pages 2..maxPages with `config`; answer how many NEW items it added. */
+      const walkPages = async (config: PaginationConfig): Promise<number> => {
+        const before = detailCount();
         for await (const page of deps.browser.crawl(start.url, {
           extractionScript: script,
           maxPages: budget.maxPages,
           startPage: 2,
-          paginationConfig: pagination.config,
+          paginationConfig: config,
         })) {
           items.push({
             kind: 'listing', url: page.url, inputIndex: start.inputIndex,
@@ -344,10 +346,19 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           });
           if (absorb(page.data, page.url, page.pageNumber) === 'stop') break;
         }
-        // Verification, not trust: a detected config that yields nothing new is a
-        // false positive — a carousel arrow, or a selector for an element that is
-        // not there. Say so, so it is never cached as this domain's pattern.
-        if (detailCount() === detailsBeforePaging) {
+        return detailCount() - before;
+      };
+
+      try {
+        const gained = await walkPages(pagination.config);
+
+        // Verification, not trust: a config is worth remembering only once a walk
+        // it drove has actually produced new URLs. A cached config that worked is
+        // already stored, so re-writing it would be noise.
+        if (gained > 0 && pagination.source !== 'cache') {
+          await savePagination(paginationDomain, pagination.config);
+        }
+        if (gained === 0) {
           warnings.push(
             `pagination (${pagination.source}: ${pagination.config.strategy}) produced no new items on ${start.url}`,
           );
