@@ -30,8 +30,12 @@ export async function serveFixturePages(pages: ServedPage[]): Promise<ServedSite
     requests.push(path);
     const html = byPath.get(path);
     if (html === undefined) {
-      // A 404 rather than a fallback page: a crawler that walks past the end of
-      // the fixture must fail loudly, not silently re-extract something.
+      // A 404 rather than a fallback page: Playwright's page.goto() does not
+      // throw on a 4xx and navigateToPage() never inspects the response
+      // status, so this isn't loud in the way an error would be — it's just
+      // absorbed as an ordinary "0 items extracted" page, which is exactly
+      // what stops a walk that runs past the end of the fixture set. A
+      // fallback page that echoed real content back would hide that instead.
       res.writeHead(404, { 'content-type': 'text/plain' });
       res.end('no such fixture page');
       return;
@@ -42,7 +46,15 @@ export async function serveFixturePages(pages: ServedPage[]): Promise<ServedSite
 
   // Port 0: the OS hands us a free ephemeral port. A fixed port turns "something
   // else is listening" into a confusing suite failure.
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      // listen() succeeded — an error now belongs to some later request, not
+      // to startup, so stop treating it as a reason to reject this promise.
+      server.off('error', reject);
+      resolve();
+    });
+  });
   const address = server.address();
   const port = typeof address === 'object' && address !== null ? address.port : 0;
 
