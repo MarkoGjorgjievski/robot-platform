@@ -38,6 +38,19 @@ class RecordingBrowser implements IBrowser {
   async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
 }
 
+/**
+ * `launch()` throws part-way. This is not hypothetical: `PlaywrightBrowser
+ * .launch` is two steps — `launcher.launch()` then `newContext()` — so a
+ * failure in the second leaves a live chromium process behind that only
+ * `close()` will reap.
+ */
+class ThrowingLaunchBrowser extends RecordingBrowser {
+  override async launch(): Promise<void> {
+    this.launchCalls++;
+    throw new Error('launch failed');
+  }
+}
+
 /** Same as RecordingBrowser, but `close()` itself throws. */
 class ThrowingCloseBrowser extends RecordingBrowser {
   override async close(): Promise<void> {
@@ -80,6 +93,47 @@ describe('withBrowserSession', () => {
         throw new Error('fn failed');
       }, () => browser),
     ).rejects.toThrow('fn failed');
+  });
+
+  it('closes the browser when launch() itself throws, and propagates the error', async () => {
+    // `launch()` used to sit OUTSIDE the try, so a launch that failed after
+    // spawning the process leaked a live chromium with no close() ever called
+    // — and every subsequent call leaked another. PlaywrightBrowser.close() is
+    // null-safe, so closing a half-launched browser is always allowed.
+    const browser = new ThrowingLaunchBrowser();
+
+    await expect(
+      withBrowserSession(async () => 'never runs', () => browser),
+    ).rejects.toThrow('launch failed');
+
+    expect(browser.launchCalls).toBe(1);
+    expect(browser.closeCalls).toBe(1);
+  });
+
+  it('does not run the function when launch() throws', async () => {
+    const browser = new ThrowingLaunchBrowser();
+    let ran = false;
+
+    await expect(
+      withBrowserSession(async () => { ran = true; }, () => browser),
+    ).rejects.toThrow('launch failed');
+
+    expect(ran).toBe(false);
+  });
+
+  it('a throwing close() does not mask a launch error either', async () => {
+    class BothThrow extends ThrowingLaunchBrowser {
+      override async close(): Promise<void> {
+        this.closeCalls++;
+        throw new Error('close failed');
+      }
+    }
+    const browser = new BothThrow();
+
+    await expect(
+      withBrowserSession(async () => 'never runs', () => browser),
+    ).rejects.toThrow('launch failed');
+    expect(browser.closeCalls).toBe(1);
   });
 
   it('a throwing close() after a successful function still surfaces the result path cleanly (does not throw the close error)', async () => {

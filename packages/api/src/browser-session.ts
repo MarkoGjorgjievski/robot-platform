@@ -27,8 +27,14 @@ export async function withBrowserSession<T>(
   browserFactory: () => IBrowser = () => new PlaywrightBrowser(),
 ): Promise<T> {
   const browser = browserFactory();
-  await browser.launch({ headless: true });
   try {
+    // `launch()` belongs INSIDE the try. `PlaywrightBrowser.launch` is two
+    // steps — `launcher.launch()` then `newContext()` — so a throw from the
+    // second leaves a live chromium process that only `close()` reaps. With
+    // the launch outside, that process leaked with no close ever called, and
+    // every subsequent call leaked another. `PlaywrightBrowser.close()` is
+    // null-safe, so closing a browser that never finished launching is fine.
+    await browser.launch({ headless: true });
     return await fn(browser);
   } finally {
     try {
