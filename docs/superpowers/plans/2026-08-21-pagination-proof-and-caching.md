@@ -875,7 +875,7 @@ git commit -m "test(crawl): Tier 1 gate for multi-page walking over served fixtu
 
 ---
 
-### Task 6: Prove it live, and say what is true
+### Task 6: Prove the walk live, and say what is true
 
 **Files:**
 - Modify: `docs/handoff.md`, `docs/roadmap.md`
@@ -883,76 +883,103 @@ git commit -m "test(crawl): Tier 1 gate for multi-page walking over served fixtu
 **Interfaces:**
 - Consumes: everything above.
 
-This task spends real money and makes real requests to a live site. It is authorised for ONE planning run and ONE execution run. Do not raise any budget beyond what Step 1 sets, and do not re-run for a better-looking result — a second distinct failure is information worth reporting.
+This task makes real requests to a live site. **It deliberately fetches NO detail pages**, because per-item extraction is what costs money and it is already proven live (a previous run extracted 8/8 AbeBooks detail URLs). What is unproven is *planning across pages*: walking to pages 2 and 3, deduping across them, and writing the config. Steps 1-5 cost roughly $0-0.60 — a handful of listing page loads, plus one AI pagination detection only if mechanical detection fails.
 
-- [ ] **Step 1: Raise the AbeBooks budget so page 2 is actually reached**
+**Why `max_pages` must be the binding cap.** The earlier run stopped at 8 items on listing page 1 because `max_items` filled first — which is exactly why the walk is unproven. Setting `max_items` to another small number risks repeating that: if page 1 carries 20+ results, a cap of 20 fills on page 1 again and page 2 is never fetched, so the task would spend money and prove nothing. Set `max_items` deliberately HIGH so that `max_pages` is what stops the walk.
 
-The existing budget stops at 8 items on page 1, which is exactly why multi-page walking is unproven.
+Steps 6-7 are optional and cost about $1; take them only if the controller confirms.
+
+- [ ] **Step 1: Set a budget where pages, not items, are the limit**
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "update sources set budget = '{\"mode\":\"first_n\",\"max_items\":20,\"max_pages\":3}'::jsonb where slug='abebooks-pagination' returning slug, budget;"
+  -c "update sources set budget = '{\"mode\":\"first_n\",\"max_items\":60,\"max_pages\":3}'::jsonb where slug='abebooks-pagination' returning slug, budget;"
 ```
 
-- [ ] **Step 2: Plan the crawl**
+Record the previous budget value before overwriting it, so it can be restored.
+
+- [ ] **Step 2: Plan the crawl (listing pages only — no detail page is fetched)**
 
 ```bash
 pnpm --filter @robot/api exec tsx src/crawl-plan.ts abebooks-pagination
 ```
 
-Record the run id. Expected: more than one `listing` item, and detail URLs carrying `page_number` 2 (and 3, if the cap allows).
+Record the run id. Expected: three `listing` items (pages 1, 2, 3), detail URLs carrying more than one distinct `page_number`, and a console line showing the pagination `source` (`mechanical` or `ai`).
+
+If it still plans page 1 only, that is a REAL FINDING, not a setup error — capture the warning verbatim (`no pagination detected on …` or `pagination (…) produced no new items on …`) and report it. Do not raise the budget again and re-run.
 
 - [ ] **Step 3: Verify the walk actually happened**
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
   -c "select kind, page_number, count(*) from run_items where run_id='<run-id>' group by 1,2 order by 1,2;"
+```
+
+Expected: `listing` rows for pages 1, 2 and 3, and `detail` rows spread across more than one `page_number`. A single `page_number` means the walk did not advance — report it rather than explaining it away.
+
+- [ ] **Step 4: Verify the config was written — the first time this column has ever been populated**
+
+```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
   -c "select domain, page_type, pagination_config from domain_intelligence where domain like '%abebooks%';"
 ```
 
-Expected: `listing` rows for pages 1 and 2 (at least), detail rows carrying more than one distinct `page_number`, and a non-null `pagination_config` on the `(abebooks.com, listing)` row. That last one is the first time this column has ever been written.
+Expected: a non-null `pagination_config` on the `(…abebooks…, listing)` row.
 
-- [ ] **Step 4: Plan a second time and confirm the domain is warm**
+- [ ] **Step 5: Plan again and confirm the domain is warm**
 
 ```bash
 pnpm --filter @robot/api exec tsx src/crawl-plan.ts abebooks-pagination
 ```
 
-Expected: the same fan-out, with the console showing pagination `source: cache`. Record whether anything else changed.
+Expected: the same fan-out, with the pagination `source` now reported as `cache`. This is the whole feature demonstrated end to end: detect once, replay thereafter.
 
-- [ ] **Step 5: Execute one of the runs end to end**
+- [ ] **Step 6 (OPTIONAL — costs ~$1, only with the controller's confirmation): live-exercise cancel and resume**
+
+The docs currently mark `crawl.cancel` stop-and-resume as unit-tested-only. This is the cheapest opportunity to change that, because a run is already planned.
+
+Start executing, and stop it after a handful of items rather than letting it finish — you pay only for what is extracted:
 
 ```bash
 pnpm --filter @robot/api exec tsx src/crawl-execute.ts <run-id>
+# in a second terminal, once a few items report done:
+docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
+  -c "update runs set status='cancelling' where id='<run-id>';"
 ```
 
-Expected: every detail item reaches `done` or `failed` with a recorded reason, and the run reaches `completed` or `partial`.
+Expected: the CLI settles, the run reaches `cancelled`, and the remaining items are still `pending`. Then resume and stop it a second time:
 
-- [ ] **Step 6: Live-exercise cancel and resume**
+```bash
+pnpm --filter @robot/api exec tsx src/crawl-execute.ts <run-id>
+# stop it again the same way after a couple more items
+```
 
-While a run is executing, in another terminal, stop it and then resume it:
+Expected: the second call picks up the pending items rather than starting over or refusing. Leave the rest pending — do NOT let the run drain 60 items.
+
+- [ ] **Step 7 (only if Step 6 ran): restore the budget**
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "update runs set status='cancelling' where id='<run-id>';"
-# watch the CLI settle, then:
-pnpm --filter @robot/api exec tsx src/crawl-execute.ts <run-id>
+  -c "update sources set budget = '<the value recorded in Step 1>'::jsonb where slug='abebooks-pagination';"
 ```
 
-Expected: the run settles to `cancelled` with items still `pending`, and the second call resumes and finishes them. This is the claim the docs currently mark unit-tested-only; either it holds and the caveat goes, or it does not and that is the most valuable finding in this plan.
+- [ ] **Step 8: Record what is true**
 
-- [ ] **Step 7: Record what is true**
+Update `docs/handoff.md` with the real numbers: listing pages walked, detail URLs enumerated per page, whether the config was written and then replayed as `source: cache` on the second plan, and — if Step 6 ran — the cancel/resume result.
 
-Update `docs/handoff.md` with the real numbers: listing pages walked, detail items per page, whether the config was cached and replayed on the second plan, and the cancel/resume result. Update `docs/roadmap.md`'s v2 section to mark multi-page pagination and config caching as delivered — **only for what the run actually demonstrated**. If `max_pages` never bound because `max_items` filled first again, say so rather than implying otherwise.
+Update `docs/roadmap.md`'s v2 section to mark the multi-page walk and pagination-config caching as delivered, **only for what the run actually demonstrated**. Specifically:
 
-Correct the "pay nothing for detection" claim wherever it appears (the v2 spec §2.4 and any doc echoing it): mechanical detection was already free, so the saving is real only where the AI fallback fires; the durable win is determinism.
+- If Step 6 did not run, `crawl.cancel` stop-and-resume stays marked unit-tested-only. Do not quietly drop the caveat.
+- The run proves *planning* across pages. It does NOT re-prove per-item extraction; say that the 8/8 execution proof is the earlier run, not this one.
+- **Infinite scroll and load-more remain unsupported and unproven.** The only strategies that exist are `url-pattern`, `next-button` and `page-numbers`; a listing that loads by scrolling produces `no pagination detected — planned page 1 only`. State that plainly in the roadmap so nobody reads "multi-page pagination delivered" as covering it. The `api-param` strategy specced in v2 §2.4 is the intended answer for those sites and is still unbuilt.
 
-- [ ] **Step 8: Commit**
+Correct the "pay nothing for detection" claim wherever it appears (v2 spec §2.4 and any doc echoing it): mechanical detection was already free, so the saving is real only where the AI fallback fires; the durable win is determinism.
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add docs/handoff.md docs/roadmap.md
-git commit -m "docs: pagination caching and the multi-page walk, proven live"
+git commit -m "docs: the multi-page walk and pagination caching, proven live"
 ```
 
 ---
