@@ -80,6 +80,29 @@ describe('requeueStaleRunningItems', () => {
     expect(rows.map((r) => r.status).sort()).toEqual(['done', 'done', 'failed', 'pending']);
   });
 
+  // The `kind = 'detail'` filter had no test: no fixture ever seeded a
+  // `listing` row at `running` past the threshold, so deleting that clause left
+  // the whole suite green. A guard nothing exercises is a guard that can be
+  // removed by accident — the same gap two earlier findings were about.
+  it('leaves a stale `listing` item alone — listing rows are not phase-2 work', async () => {
+    // Planning writes listing rows `done`, so this shape means something went
+    // wrong upstream. That is exactly when the guard has to hold: requeueing a
+    // listing row parks it in the queue `claimNextItem` draws from, where it
+    // would either be extracted as if it were a detail page or sit `pending`
+    // forever and keep the run's roll-up non-terminal.
+    const runId = await seedRun();
+    await db.insert(runItems).values([
+      { runId, kind: 'listing', url: 'https://example.com/c/1', inputIndex: 0, status: 'running', startedAt: minutesAgo(45) },
+      { runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'running', startedAt: minutesAgo(45) },
+    ]);
+
+    // One, not two: the detail item only.
+    expect(await requeueStaleRunningItems(db, runId)).toBe(1);
+    const rows = await db.select().from(runItems).where(eq(runItems.runId, runId));
+    expect(rows.find((r) => r.kind === 'listing')!.status).toBe('running');
+    expect(rows.find((r) => r.kind === 'detail')!.status).toBe('pending');
+  });
+
   it('touches only the run it was asked about', async () => {
     const runId = await seedRun();
     const [otherRun] = await db.insert(runs)
