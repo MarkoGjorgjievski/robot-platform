@@ -54,7 +54,8 @@ export function runControls(status: string, counts: RunCounts): RunControls {
     // would leave Stop as the only button on exactly the run that needs
     // rescuing, with `requeueStaleRunningItems` reachable only from the CLI.
     // Closing the trap for items 1..N-1 but not item N is not closing it.
-    // ...and `isRunActive` closes the last row of the trap table. A run can be
+    //
+    // `isRunActive` then closes the last row of the trap table. A run can be
     // active with pending 0, running 0 AND failed 0: an api-server killed
     // between the final `markItemDone` and `finaliseRun` leaves every item
     // `done` and the run row never rolled up. On counts alone that state
@@ -90,4 +91,57 @@ export function extractButtonLabel(counts: RunCounts): string {
     return `Resume ${counts.running} stalled`;
   }
   return `Extract ${counts.pending} pending`;
+}
+
+/**
+ * How long an item must sit at `running` before `crawl.execute` reclaims it.
+ *
+ * Duplicated from `STALE_RUNNING_MS` in @robot/api's `crawl/requeue-stale.ts`
+ * rather than imported: that module reaches the DB layer, which has no business
+ * in a browser bundle. The server-side value is pinned by its own test; keep
+ * the two in step if either moves.
+ */
+export const STALE_RECLAIM_MINUTES = 30;
+
+/**
+ * The Extract button's tooltip — what this click will actually do.
+ *
+ * The copy this replaces promised, unconditionally, to "reclaim any item
+ * abandoned mid-extraction". The reclaim is real but it is *aged*: an item is
+ * only given back once it has been at `running` past the threshold. So on the
+ * run most likely to be showing this tooltip — one with a stalled item a few
+ * minutes old — the promise was simply false, and the click that followed it
+ * launched a browser and changed nothing. Naming the threshold is what turns
+ * "nothing happened" into "not yet, and here is when".
+ */
+export function extractButtonTitle(status: string, counts: RunCounts): string {
+  if (counts.pending === 0 && counts.running === 0) {
+    return 'Roll this run up to its final status — every item has already finished.';
+  }
+  if (counts.running > 0) {
+    return `Extract every pending URL, and give back any item left at "running" for more than ${STALE_RECLAIM_MINUTES} minutes. A more recent one is assumed to still be in progress and is left alone.`;
+  }
+  if (isRunActive(status)) {
+    return 'Resume this run — safe while it is running: already-claimed URLs are skipped.';
+  }
+  return 'Fetch and extract every pending URL in the work list.';
+}
+
+/**
+ * What to tell the operator after an execute, given what it reclaimed.
+ *
+ * The case this exists for is `requeued === 0` with stalled items on screen:
+ * the button said "Resume N stalled", a chromium launched, nothing was claimed,
+ * and the run finalised straight back to `extracting` — no visible change and
+ * no explanation, at the cost of a browser launch per click. Silence there
+ * reads as a broken button.
+ */
+export function requeueNotice(requeued: number, counts: RunCounts): string | null {
+  if (requeued > 0) {
+    return `Reclaimed ${requeued} stalled item${requeued === 1 ? '' : 's'}.`;
+  }
+  if (counts.running > 0) {
+    return `Nothing reclaimed yet — an item is only given back after ${STALE_RECLAIM_MINUTES} minutes at "running", so a more recent one is left to the loop that claimed it.`;
+  }
+  return null;
 }

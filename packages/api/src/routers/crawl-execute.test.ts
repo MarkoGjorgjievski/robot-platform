@@ -226,4 +226,23 @@ describe('crawl.execute — stale running items', () => {
     const rows = await db.select().from(runItems).where(eq(runItems.runId, runId));
     expect(rows.find((r) => r.url === 'https://example.com/p/2')!.status).toBe('running');
   });
+
+  // N3: the dashboard's "Resume N stalled" button appears the moment
+  // `running > 0`, but the reclaim only acts past the 30-minute threshold.
+  // Without the count in the response, a click inside that window launched a
+  // chromium, claimed nothing, finalised straight back to `extracting`, and
+  // told the operator nothing — while the tooltip promised it had "reclaimed
+  // any item abandoned mid-extraction". The caller has to be able to say what
+  // actually happened.
+  it('reports how many stalled items it reclaimed', async () => {
+    const runId = await seedRunWithStaleRunningItem(45);
+    const result = await caller.crawl.execute({ runId, dryRun: true });
+    expect(result.requeued).toBe(1);
+  });
+
+  it('reports zero when the stalled item is still inside the threshold', async () => {
+    const runId = await seedRunWithStaleRunningItem(1);
+    const result = await caller.crawl.execute({ runId, dryRun: true });
+    expect(result.requeued).toBe(0);
+  });
 });

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { progressLabel, isRunActive, runControls, extractButtonLabel, type RunCounts } from './run-progress';
+import {
+  progressLabel, isRunActive, runControls, extractButtonLabel, extractButtonTitle,
+  requeueNotice, STALE_RECLAIM_MINUTES, type RunCounts,
+} from './run-progress';
 
 describe('progressLabel', () => {
   it('counts what is finished against what was planned', () => {
@@ -143,5 +146,59 @@ describe('extractButtonLabel', () => {
     // the click actually does is roll the run up to its terminal status.
     expect(extractButtonLabel(counts({ pending: 0, running: 0, done: 8 }))).toBe('Finish run');
     expect(extractButtonLabel(counts({ pending: 0, running: 0, done: 6, failed: 2 }))).toBe('Finish run');
+  });
+});
+
+// N3: "Resume N stalled" appears the moment an item is `running`, but the
+// reclaim behind it only acts once that item is past the staleness threshold.
+// Inside that window the click launched a chromium, claimed nothing, finalised
+// straight back to `extracting` and said nothing — while the tooltip claimed it
+// had "reclaimed any item abandoned mid-extraction". Both halves of that lie
+// get fixed: the tooltip states the threshold, and the outcome is reported.
+describe('extractButtonTitle', () => {
+  const counts = (over: Partial<RunCounts> = {}): RunCounts =>
+    ({ pending: 0, running: 0, done: 0, failed: 0, listing: 1, detail: 8, ...over });
+
+  it('states the threshold instead of promising an immediate reclaim', () => {
+    const title = extractButtonTitle('extracting', counts({ pending: 0, running: 1, done: 7 }));
+    expect(title).toContain(`${STALE_RECLAIM_MINUTES} minutes`);
+    // The old copy promised the click would "reclaim any item abandoned
+    // mid-extraction" — unconditionally, which is what made it a lie.
+    expect(title).not.toMatch(/reclaim any item/i);
+  });
+
+  it('describes finishing, not extracting, when nothing is left to do', () => {
+    expect(extractButtonTitle('extracting', counts({ done: 8 }))).toMatch(/final status|finish/i);
+  });
+
+  it('says re-entry is safe on a run that may still have a loop behind it', () => {
+    expect(extractButtonTitle('extracting', counts({ pending: 3 }))).toMatch(/already-claimed/i);
+  });
+
+  it('describes a plain first extract on an inactive run', () => {
+    expect(extractButtonTitle('planned', counts({ pending: 8 }))).toMatch(/every pending URL/i);
+  });
+});
+
+describe('requeueNotice', () => {
+  const counts = (over: Partial<RunCounts> = {}): RunCounts =>
+    ({ pending: 0, running: 0, done: 0, failed: 0, listing: 1, detail: 8, ...over });
+
+  it('reports what was actually reclaimed', () => {
+    expect(requeueNotice(2, counts({ pending: 2, done: 6 }))).toBe('Reclaimed 2 stalled items.');
+    expect(requeueNotice(1, counts({ pending: 1, done: 7 }))).toBe('Reclaimed 1 stalled item.');
+  });
+
+  it('explains the silence when a stalled item was too young to reclaim', () => {
+    // The whole point: the operator clicked "Resume 1 stalled", a browser
+    // launched, and nothing on screen changed. Saying why beats saying nothing.
+    const notice = requeueNotice(0, counts({ running: 1, done: 7 }));
+    expect(notice).toContain(`${STALE_RECLAIM_MINUTES} minutes`);
+    expect(notice).toMatch(/nothing|no item/i);
+  });
+
+  it('stays quiet on an ordinary extract, where there was nothing to reclaim', () => {
+    expect(requeueNotice(0, counts({ pending: 5 }))).toBeNull();
+    expect(requeueNotice(0, counts({ done: 8 }))).toBeNull();
   });
 });
