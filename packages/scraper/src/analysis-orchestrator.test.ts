@@ -57,7 +57,9 @@ describe('runAnalysis — known domain', () => {
 
     expect(out.cached).toBe(true);
     expect(out.schema.fields.map((f) => f.name)).toContain('title');
-    expect(browser.closed).toBe(true);
+    // The caller owns the browser's lifecycle — see AnalysisDeps.browser and
+    // analysis-orchestrator-browser-lifecycle.test.ts for the regression this guards.
+    expect(browser.closed).toBe(false);
   });
 
   it('adds a user-requested field the cache has never seen', async () => {
@@ -80,7 +82,7 @@ describe('runAnalysis — known domain', () => {
     );
     expect(out.cached).toBe(true);
     expect(out.schema.fields.length).toBeGreaterThan(0);
-    expect(browser.closed).toBe(true);
+    expect(browser.closed).toBe(false);
   });
 
   it('persists a screenshot through the injected hook, not the filesystem', async () => {

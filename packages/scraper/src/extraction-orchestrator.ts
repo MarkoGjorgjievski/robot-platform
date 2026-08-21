@@ -81,6 +81,20 @@ export type ExtractionAgent = {
  * chain used to do. Fixture replay overrides them to run offline.
  */
 export type ExtractionDeps = {
+  /**
+   * The caller owns this browser's entire lifecycle — `runExtraction` neither
+   * launches it nor closes it, on any path, including capture failure.
+   *
+   * Why: Phase 2's `startExecution` launches ONE browser and reuses it across
+   * an entire crawl item loop via `extractItem`, which injects no `capture`.
+   * `runExtraction` used to close the browser itself whenever `deps.capture`
+   * was absent — a guard that conflated "I captured this page myself" with
+   * "I own this browser." Item 1 succeeded, closed the shared browser, and
+   * every subsequent item failed with "Browser not launched." Single-shot
+   * callers that launch their own browser (e.g. `scraper.ts`'s `extract`
+   * procedure) are responsible for closing it themselves, typically in a
+   * `finally` around the call.
+   */
   browser: IBrowser;
   agent: ExtractionAgent | null;
   lookupCache?: typeof lookupDomainCache;
@@ -143,12 +157,7 @@ export async function runExtraction(
     if (deps.capture) {
       capture = deps.capture;
     } else {
-      try {
-        capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
-      } catch (err) {
-        await browser.close();
-        throw err;
-      }
+      capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
     }
 
     const schemaFields: SchemaField[] = fields.map((f) => ({
@@ -481,8 +490,6 @@ export async function runExtraction(
         }
       }
     }
-
-    if (!deps.capture) await browser.close();
 
     // STEP 4: Confidence + save cache
     const foundFields = Object.keys(finalData).length;

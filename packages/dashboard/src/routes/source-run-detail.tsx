@@ -1,9 +1,13 @@
+import { useEffect, useRef } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
 import { Activity, Download, ExternalLink, ListChecks } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
+import {
+  progressLabel, isRunActive, runControls, extractButtonLabel, extractButtonTitle, requeueNotice,
+} from '../lib/run-progress';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -91,6 +95,8 @@ export default function SourceRunDetail() {
         </div>
       )}
 
+      <ExecuteControls runId={runId} />
+
       <WorkList runId={runId} />
 
       <ResultsTable
@@ -125,12 +131,106 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Amber is for a run still in motion. It used to branch on `'running'`, which
+ * is an ITEM status — `run_items.status` — that a run row never holds, so the
+ * one state worth colouring differently never was. The run statuses are
+ * planning -> planned -> extracting -> completed | partial | failed, plus
+ * cancelling / cancelled.
+ */
 function RunStatusBadge({ status }: { status: string }) {
   const cls = status === 'completed' ? 'bg-emerald-100 text-emerald-700'
     : status === 'failed' ? 'bg-red-100 text-red-700'
-    : status === 'running' ? 'bg-amber-100 text-amber-700'
+    : isRunActive(status) || status === 'planning' ? 'bg-amber-100 text-amber-700'
     : 'bg-gray-100 text-gray-700';
   return <span className={`rounded px-2 py-0.5 text-[10px] uppercase ${cls}`}>{status}</span>;
+}
+
+function ExecuteControls({ runId }: { runId: string }) {
+  const utils = trpc.useUtils();
+  const statusQuery = trpc.crawl.status.useQuery(
+    { runId },
+    { refetchInterval: (query) => (isRunActive(query.state.data?.status ?? '') ? 3000 : false) },
+  );
+  const execute = trpc.crawl.execute.useMutation({
+    onSuccess: () => { utils.crawl.invalidate(); utils.runs.invalidate(); },
+  });
+  const cancel = trpc.crawl.cancel.useMutation({ onSuccess: () => utils.crawl.invalidate() });
+
+  const data = statusQuery.data;
+  const active = data ? isRunActive(data.status) : false;
+
+  // The poll above is the only thing telling this page a background crawl
+  // settled — the header (`runs.getWithDetails`) and the work list
+  // (`crawl.items`) aren't polled, so without this they'd sit stale until a
+  // reload. Fire the invalidation once, on the falling edge into "settled",
+  // not on every 3s tick: refetching a large work list on each poll of a long
+  // crawl is exactly the waste this codebase avoids elsewhere.
+  const wasActiveRef = useRef(active);
+  useEffect(() => {
+    if (wasActiveRef.current && !active) {
+      utils.runs.invalidate();
+      utils.crawl.invalidate();
+    }
+    wasActiveRef.current = active;
+  }, [active, utils]);
+
+  if (!data || data.counts.detail === 0) return null;
+
+  // Extract and Retry are offered on their counts alone, never gated on
+  // `active` — see runControls. A run stalled at `extracting`/`cancelling`
+  // with no loop behind it must stay actionable from this page, which is the
+  // only place most operators will ever see it.
+  const controls = runControls(data.status, data.counts);
+
+  // What the last execute actually reclaimed. `crawl.execute` returns the
+  // count because "Resume N stalled" appears as soon as an item is `running`,
+  // while the reclaim behind it only acts past the staleness threshold — so
+  // inside that window the click really did launch a browser and really did
+  // change nothing, and saying so beats leaving the operator to click again.
+  const notice = execute.data && !execute.isPending
+    ? requeueNotice(execute.data.requeued, data.counts)
+    : null;
+
+  return (
+    <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md border px-4 py-3">
+      <span className="text-sm font-medium">{progressLabel(data.counts, data.status)}</span>
+      <div className="ml-auto flex items-center gap-2">
+        {controls.showExtract && (
+          <button
+            onClick={() => execute.mutate({ runId })}
+            disabled={execute.isPending}
+            className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            title={extractButtonTitle(data.status, data.counts)}
+          >
+            {extractButtonLabel(data.counts)}
+          </button>
+        )}
+        {controls.showRetry && (
+          <button
+            onClick={() => execute.mutate({ runId, retryFailed: true })}
+            disabled={execute.isPending}
+            className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            title="Re-queue the failed items and extract them again"
+          >
+            Retry {data.counts.failed} failed
+          </button>
+        )}
+        {controls.showStop && (
+          <button
+            onClick={() => cancel.mutate({ runId })}
+            disabled={cancel.isPending}
+            className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {cancel.isPending ? 'Stopping…' : 'Stop'}
+          </button>
+        )}
+      </div>
+      {notice && <span className="basis-full text-[11px] text-gray-600">{notice}</span>}
+      {execute.isError && <span className="text-[11px] text-red-600">{execute.error.message}</span>}
+      {cancel.isError && <span className="text-[11px] text-red-600">{cancel.error.message}</span>}
+    </div>
+  );
 }
 
 /**

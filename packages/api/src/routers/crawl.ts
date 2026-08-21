@@ -4,12 +4,30 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq } from 'drizzle-orm';
-import { PlaywrightBrowser } from '@robot/browser';
+import { and, eq } from 'drizzle-orm';
 import { SchemaAgent } from '@robot/agent';
-import { planRun, type PlannedItem } from '@robot/scraper';
-import { runs, runItems, sources } from '@robot/db';
+import { planRun, type PlannedItem, type OriginField } from '@robot/scraper';
+import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+import { withBrowserSession } from '../browser-session.js';
+import { claimNextItem } from '../crawl/claim-item.js';
+import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
+import { finaliseRun } from '../crawl/roll-up-run.js';
+import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
+import { markRunExtracting } from '../crawl/mark-extracting.js';
+import { isRunCancelled } from '../crawl/is-cancelled.js';
+import { executeRun } from '../crawl/execute-run.js';
+import { extractItem } from '../crawl/extract-item.js';
+
+/**
+ * The statuses `crawl.cancel` will act on: a run phase 2 is working, or one
+ * already asked to stop (so a second Stop is idempotent rather than an error).
+ * Deliberately the same set `isRunActive` calls active on the dashboard side —
+ * cancel is a message to a running loop, and the other statuses have no loop
+ * to send it to. `planning` is excluded too: phase 1 never checks for a
+ * cancel, so accepting one there would report a stop that never happens.
+ */
+const CANCELLABLE_STATUSES = ['extracting', 'cancelling'];
 
 /** Warnings + errors as one free-text block, or null when planning was clean. */
 export function formatPlanLog(
@@ -21,6 +39,74 @@ export function formatPlanLog(
     ...errors.map((e) => `error: input ${e.inputIndex}: ${e.message}`),
   ];
   return lines.length > 0 ? lines.join('\n') : null;
+}
+
+/**
+ * A rejection reaching startExecution's recovery path can be anything — a
+ * genuine Error, a string, a bare object from a driver that doesn't use the
+ * Error prototype. `.message` on a non-Error is undefined, and `undefined
+ * .slice(...)` throws — from inside the very catch block whose job is to
+ * report the failure safely. This never throws, for any input.
+ */
+export function safeErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Runs the loop outside the request. Deliberately not awaited: 200 items at
+ * ~30s each is ~100 minutes, which no HTTP mutation can hold open. The honest
+ * limit of having no job queue is that an api-server restart pauses the run —
+ * `run_items` survives, so calling execute again resumes it.
+ *
+ * This function must never reject in a way that escapes to its caller as an
+ * unhandled promise rejection — the caller deliberately does not await it, and
+ * under default Node behaviour an unhandled rejection kills the process,
+ * taking the whole api-server (and the dashboard it serves) down with it. So
+ * every step of the failure path — reading the error, and recording it — is
+ * itself guarded; the `.catch()` at the call site is belt-and-braces for
+ * anything this function's own guards still missed.
+ */
+async function startExecution(runId: string, sourceId: string, schema: OriginField[]): Promise<void> {
+  try {
+    // `withBrowserSession` owns launch-and-always-close, including the case
+    // where `launch()` itself throws part-way. The hand-rolled
+    // try/finally this replaces closed on every path too, but only because
+    // this procedure remembered to write it — and its `finally { await
+    // browser.close(); }` would have let a throwing close() replace the real
+    // execution error on its way out.
+    await withBrowserSession(async (browser) => {
+      const agent = new SchemaAgent();
+      await executeRun(runId, {
+        claim: (id) => claimNextItem(db, id),
+        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
+        onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
+        onFailed: (itemId, message) => markItemFailed(db, itemId, message),
+        // Both `cancelling` (the stop request) and `cancelled` (a stop another
+        // loop already carried out) end this loop — see is-cancelled.ts.
+        isCancelled: () => isRunCancelled(db, runId),
+        // No rowCount passed: finaliseRun derives it from the DB itself, so a
+        // stale local counter from this loop can never overwrite a truer total.
+        // `cancelled` IS threaded through — it's executeRun's own record of
+        // whether the loop broke on a cancel check, and finaliseRun needs it to
+        // roll a still-pending run up to 'cancelled' instead of 'extracting'.
+        finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
+      });
+    });
+  } catch (err) {
+    console.error(`[crawl] execution of run ${runId} failed:`, err);
+    try {
+      await db.update(runs)
+        .set({ status: 'failed', errorMessage: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })
+        .where(eq(runs.id, runId));
+    } catch (recoveryErr) {
+      // If the DB is what broke, recording the failure will break the same
+      // way — that must not become a second, uncaught throw. There's nothing
+      // more we can do here beyond logging; crawl.status will show the run
+      // stuck at 'extracting', which is the honest state, and a restart or a
+      // fixed DB lets a re-issued execute resume it.
+      console.error(`[crawl] failed to record failure status for run ${runId}:`, recoveryErr);
+    }
+  }
 }
 
 export const crawlRouter = router({
@@ -37,6 +123,10 @@ export const crawlRouter = router({
       if (!source.inputSet) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${input.sourceId} has no InputSet to plan from` });
       }
+      // Bound here rather than read inside the planRun closure below: a
+      // property narrowing (`source.inputSet` is not null) does not survive
+      // into a callback, but a const does.
+      const inputSet = source.inputSet;
 
       // Nothing has been written yet, so a failure above leaves no trace to clean up.
       const [run] = await ctx.db.insert(runs).values({
@@ -49,11 +139,16 @@ export const crawlRouter = router({
       // From here on, the run row exists: every exit path (including a launch
       // failure) must land it in a terminal status, and the browser — whether
       // or not it ever launched — must be closed.
-      const browser = new PlaywrightBrowser();
+      //
+      // `withBrowserSession` owns that close, on every path including a
+      // `launch()` that throws part-way. It replaces a hand-rolled
+      // `finally { await browser.close(); }` that had the exact defect the
+      // helper's inner try/catch prevents: a throwing close() there replaced
+      // the real planning error with a cleanup error. Scoping the session to
+      // the walk itself also means no chromium is held open across the DB
+      // writes below.
       try {
-        await browser.launch({ headless: true });
-
-        const outcome = await planRun(
+        const outcome = await withBrowserSession((browser) => planRun(
           {
             source: {
               listingMode: source.listingMode,
@@ -63,12 +158,12 @@ export const crawlRouter = router({
             },
             schema: ((source.dataset?.schema ?? []) as Array<{ name: string; type: string }>),
             inputSet: {
-              columns: (source.inputSet.columns ?? []) as Array<{ name: string; primary?: boolean; propagate?: boolean }>,
-              rows: (source.inputSet.rows ?? []) as Array<Record<string, unknown>>,
+              columns: (inputSet.columns ?? []) as Array<{ name: string; primary?: boolean; propagate?: boolean }>,
+              rows: (inputSet.rows ?? []) as Array<Record<string, unknown>>,
             },
           },
           { browser, agent: new SchemaAgent() },
-        );
+        ));
 
         // onConflictDoNothing() is the dedupe backstop for a URL surfaced twice
         // (e.g. two input rows landing on the same listing entry) — it cannot
@@ -141,11 +236,12 @@ export const crawlRouter = router({
         };
       } catch (err) {
         await ctx.db.update(runs)
-          .set({ status: 'failed', errorMessage: (err as Error).message, completedAt: new Date() })
+          // safeErrorMessage, not `(err as Error).message`: a rejection that
+          // is not an Error (a string, a driver object) would otherwise write
+          // `undefined` into the run's fatal-reason field.
+          .set({ status: 'failed', errorMessage: safeErrorMessage(err), completedAt: new Date() })
           .where(eq(runs.id, run!.id));
         throw err;
-      } finally {
-        await browser.close();
       }
     }),
   /**
@@ -166,13 +262,22 @@ export const crawlRouter = router({
         },
       });
 
-      const counts = { listing: 0, detail: 0, pending: 0, done: 0, failed: 0 };
+      // `running` is counted here, exactly as crawl.status counts it. Omitting
+      // it made the two readers of one run disagree about what it contained:
+      // pending + done + failed stopped summing to `detail` the moment an item
+      // stalled, so a run with work in flight read as if items had simply
+      // vanished. A per-status breakdown that fails to account for every item
+      // is how "2 of 1 extracted" reached this branch once already.
+      const counts = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };
       for (const row of rows) {
-        if (row.kind === 'listing') counts.listing++;
-        if (row.kind === 'detail') counts.detail++;
-        if (row.status === 'pending') counts.pending++;
-        if (row.status === 'done') counts.done++;
-        if (row.status === 'failed') counts.failed++;
+        if (row.kind === 'listing') { counts.listing++; continue; }
+        counts.detail++;
+        // Same bug pattern crawl.status already had fixed: a listing item is
+        // planning bookkeeping, already `done` before phase 2 ever runs.
+        // Counting it into pending/done/failed here would inflate `done`
+        // against a `detail` total that excludes it — exactly what produced
+        // "2 of 1 extracted" on the dashboard before that fix.
+        if (row.status in counts) counts[row.status as 'pending' | 'running' | 'done' | 'failed']++;
       }
 
       const items = [...rows].sort((a, b) => {
@@ -182,5 +287,121 @@ export const crawlRouter = router({
       });
 
       return { items, counts };
+    }),
+
+  status: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId),
+        columns: { id: true, status: true, resultCount: true, errorMessage: true },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+
+      const rows = await ctx.db.query.runItems.findMany({
+        where: eq(runItems.runId, input.runId),
+        columns: { kind: true, status: true },
+      });
+      const counts = { pending: 0, running: 0, done: 0, failed: 0, listing: 0, detail: 0 };
+      for (const row of rows) {
+        if (row.kind === 'listing') { counts.listing++; continue; }
+        counts.detail++;
+        // Phase 2 never works listing items — they're planning bookkeeping,
+        // already `done` before execute ever runs. Counting them here would
+        // inflate `done` against a `detail` total that excludes them, which
+        // is exactly what produced "2 of 1 extracted" on the dashboard.
+        if (row.status in counts) counts[row.status as 'pending' | 'running' | 'done' | 'failed']++;
+      }
+      return { status: run.status, counts, rowCount: run.resultCount ?? 0, errorMessage: run.errorMessage };
+    }),
+
+  cancel: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId), columns: { id: true, status: true },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      // Only a run something is actually working can be stopped. `cancelling`
+      // is a request addressed to a loop: written on a run with no loop behind
+      // it, nothing ever observes it and nothing ever finalises it, while
+      // `isRunActive` reports it as active and the dashboard polls it forever.
+      // That is a permanent trap, and it was reachable on any run in any
+      // status — including a `completed` one — from the CLI or any API client.
+      if (!CANCELLABLE_STATUSES.includes(run.status)) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Run ${input.runId} is not active (status: ${run.status}) and cannot be cancelled`,
+        });
+      }
+      // The loop checks between items, so pending work stays pending and resume
+      // is the same mechanism as cancel.
+      await ctx.db.update(runs).set({ status: 'cancelling' }).where(eq(runs.id, input.runId));
+      return { status: 'cancelling' as const };
+    }),
+
+  execute: publicProcedure
+    .input(z.object({
+      runId: z.string().uuid(),
+      retryFailed: z.boolean().optional(),
+      /** Prepare the queue and return without running — used by tests. */
+      dryRun: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId),
+        with: { source: { columns: { id: true, datasetId: true }, with: { dataset: { columns: { schema: true } } } } },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      // An item abandoned at `running` — the api-server died mid-item — is
+      // work nothing will ever pick up: `claimNextItem` claims `pending` only,
+      // and `retryFailed` requeues `failed` only. Reclaiming it here, on every
+      // entry rather than behind an opt-in flag, is what makes the documented
+      // "call execute again" recovery actually reach it. The threshold inside
+      // is ~50x one item's duration, so a live concurrent loop cannot lose a
+      // claim to this.
+      // The count is returned to the caller, not just acted on: the dashboard's
+      // "Resume N stalled" button appears the moment an item is `running`,
+      // while the reclaim only acts past the threshold — so inside that window
+      // a click did real work (a chromium launch) and changed nothing visible.
+      // Reporting what was actually reclaimed is what lets the UI say so.
+      const requeued = await requeueStaleRunningItems(ctx.db, input.runId);
+
+      if (input.retryFailed) {
+        await ctx.db.update(runItems)
+          .set({ status: 'pending', error: null })
+          .where(and(eq(runItems.runId, input.runId), eq(runItems.status, 'failed')));
+      }
+
+      // dryRun exists to test the requeue behaviour above without launching a
+      // browser: it must be fully inert otherwise, so the status flip below —
+      // the observable sign that a loop is running — happens only past this
+      // return.
+      if (input.dryRun) return { runId: input.runId, started: false, requeued };
+
+      // Guarded: `markRunExtracting` flips anything but a `cancelling` run, so
+      // a second execute arriving between a Stop and the loop noticing it
+      // cannot silently void that Stop. Re-entry itself stays permitted —
+      // crash-resume is exactly this call arriving on an `extracting` run —
+      // and a run whose status did NOT flip still gets a loop, because that
+      // loop's first between-items check is what finally settles a
+      // `cancelling` run whose original loop already died.
+      await markRunExtracting(ctx.db, input.runId);
+
+      // Returns immediately: hundreds of items at ~30s each outlives any HTTP
+      // request. All state lives in run_items, so progress is read with
+      // crawl.status and a crash resumes by calling execute again.
+      //
+      // Deliberately not awaited. startExecution guards its own failure path,
+      // but this `.catch()` is a second line of defense: nothing thrown by a
+      // background crawl may become an unhandled rejection that kills the
+      // api-server process serving the dashboard.
+      void startExecution(input.runId, run.source.id, (run.source.dataset?.schema ?? []) as OriginField[])
+        .catch((err) => {
+          console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
+        });
+      return { runId: input.runId, started: true, requeued };
     }),
 });

@@ -1,0 +1,55 @@
+// packages/api/src/crawl/record-outcome.test.ts
+import { describe, it, expect, afterEach } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
+import { markItemDone, markItemFailed } from './record-outcome.js';
+
+const SLUG = 'test-record-outcome';
+let orgId: string | null = null;
+
+async function seedItem() {
+  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  orgId = org!.id;
+  const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+  const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+  const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+  const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'extracting' }).returning();
+  const [item] = await db.insert(runItems).values({
+    runId: run!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'running',
+  }).returning();
+  return { itemId: item!.id };
+}
+
+afterEach(async () => {
+  if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+  orgId = null;
+});
+
+describe('markItemDone', () => {
+  it('records success with its extraction and a completion time', async () => {
+    const { itemId } = await seedItem();
+    await markItemDone(db, itemId, null);
+    const [row] = await db.select().from(runItems).where(eq(runItems.id, itemId));
+    expect(row!.status).toBe('done');
+    expect(row!.completedAt).toBeInstanceOf(Date);
+    expect(row!.error).toBeNull();
+  });
+});
+
+describe('markItemFailed', () => {
+  it('records the failure reason, because a bare failed status explains nothing', async () => {
+    const { itemId } = await seedItem();
+    await markItemFailed(db, itemId, 'navigation timeout after 30000ms');
+    const [row] = await db.select().from(runItems).where(eq(runItems.id, itemId));
+    expect(row!.status).toBe('failed');
+    expect(row!.error).toBe('navigation timeout after 30000ms');
+    expect(row!.completedAt).toBeInstanceOf(Date);
+  });
+
+  it('truncates a huge error rather than storing a stack dump', async () => {
+    const { itemId } = await seedItem();
+    await markItemFailed(db, itemId, 'x'.repeat(5000));
+    const [row] = await db.select().from(runItems).where(eq(runItems.id, itemId));
+    expect(row!.error!.length).toBeLessThanOrEqual(1000);
+  });
+});

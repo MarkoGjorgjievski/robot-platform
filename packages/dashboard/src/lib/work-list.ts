@@ -1,8 +1,15 @@
-/** Counts as `crawl.items` reports them. */
+/**
+ * Counts as `crawl.items` reports them.
+ *
+ * `running` is optional here only because this summary predates it: the field
+ * is always present on the wire, and it is listed so the type keeps describing
+ * the whole payload rather than quietly drifting from it again.
+ */
 export type WorkListCounts = {
   listing: number;
   detail: number;
   pending: number;
+  running?: number;
   done: number;
   failed: number;
 };
