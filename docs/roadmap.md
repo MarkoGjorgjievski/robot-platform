@@ -100,16 +100,19 @@ Thread A multimodal reverse-search selectors + ai-vision fallback; entity-subtre
 
 Two-phase crawler: `crawl.plan` walks listing pages and enumerates detail URLs into `run_items` without fetching them; `crawl.execute` fetches and extracts each pending item, one extraction per URL, with per-item status and no automatic retries. Both phases proven end to end against a live site (`abebooks-pagination`) — see `docs/handoff.md` for the run's actual numbers. An initial live run exposed a shared-browser lifecycle bug in `runExtraction` that limited throughput to 1/8 items; fixed same day (`376b7ac`) and reproven with a second live run at 8/8.
 
+**Two things inside "done" are not proven, and the open list below is ordered accordingly.** (1) **Multi-page pagination has never run live.** The live run's 8 items filled `max_items` on listing page 1, so page 2 was never fetched — the crawler has, to date, only ever walked one listing page. Pattern *detection* is fixture-tested; *walking* pages 2..N has no live proof and no offline gate either. (2) **`crawl.cancel` stop-and-resume is unit-tested only.** No live crawl has ever been cancelled mid-run, so the between-items stop, the `cancelled` roll-up and the resume-by-calling-execute-again path have never been exercised against a real run.
+
 - [x] `crawl()` method on `@robot/browser` — page-by-page async generator, `startPage` support.
-- [x] AI auto-detects pagination patterns — `url-pattern`, `next-button`, `page-numbers` strategies via `detectPagination` (heuristic + AI fallback), verified against real captured pages. **Infinite scroll and load-more are not among the detected strategies** — still open, see below.
+- [x] AI auto-detects pagination patterns — `url-pattern`, `next-button`, `page-numbers` strategies via `detectPagination` (heuristic + AI fallback), verified against real captured pages. Detection only: what the crawler does with a detected pattern — following it to page 2 and beyond — is the unproven half above. **Infinite scroll and load-more are not among the detected strategies** — still open, see below.
 - [x] **Listing → Detail crawler:** `planRun` follows links from listing to detail pages, live-proven on AbeBooks (1 listing page → 8 detail URLs enumerated, deduped, budget-capped). Absorbs BBC-style cases — instead of fighting custom React listings, fetch each detail page.
 - [x] Honor per-Source pagination budget (max_pages / max_items / mode) — `max_items` is live-proven: `abebooks-pagination`'s `{max_items: 8, max_pages: 2}` stopped enumeration at exactly 8 items on page 1 and logged `budget reached: 8 items`. `max_pages` and `mode` were exercised in the same run but not proven independently — page 1 alone filled the item cap, so page 2 (and the `max_pages` limit itself) was never actually reached.
 - [x] Batch extraction with per-input status tracking — `crawl.execute` claims one pending item at a time (`SKIP LOCKED`), records each outcome (`done` with an extraction id, or `failed` with a reason) independently, and rolls the run up to `completed` or `partial` from the DB rather than a local counter. First live run proved status tracking and failure isolation (each of 7 failures got its own recorded reason and the run still reached a terminal `partial` state) but not throughput — a shared-browser lifecycle bug in `runExtraction` limited it to 1/8. Fixed (`376b7ac`, `packages/scraper/src/extraction-orchestrator.ts`: `runExtraction` no longer closes a browser it doesn't own) and reproven live: run `bd44fa22-c667-4538-9a48-0e8066c8f444` completed 8/8, `result_count=8`, CSV export 8 data rows across 8 distinct `_url`s.
-- [ ] Pagination pattern cached in `DomainIntelligence.pagination_config` — the column exists and is read on lookup, but nothing writes it yet; every plan run re-detects pagination from scratch even on a warm domain.
-- [ ] Infinite scroll and load-more pagination strategies
+- [ ] **NEXT: prove the multi-page walk, then cache what won.** Two halves of one piece of work. (a) A run that actually reaches page 2 and beyond — a budget whose `max_items` exceeds one listing page's worth, so `max_pages` and `mode` are exercised for the first time — plus an offline gate for it, since a fixture that stops at page 1 cannot catch a broken page-2 walk. (b) Pagination pattern cached in `DomainIntelligence.pagination_config`: the column exists and is read on lookup, but nothing writes it yet, so every plan run re-detects pagination from scratch even on a warm domain. Caching a config nothing has walked past page 1 with would be caching an unverified answer, which is why (a) comes first.
 - [ ] `api-param` pagination detection and replay
+- [ ] Infinite scroll and load-more pagination strategies
 - [ ] Progressive confidence (1 → 5 → 20 → 1000 URLs)
 - [ ] Real job queue — an api-server restart still pauses a run (`run_items` survives, so calling `execute` again resumes it, but nothing resumes it automatically)
+  - [ ] **Prerequisite:** `domain-lock.ts`'s waiter handling does not serialize more than two waiters. N callers awaiting the same in-flight promise all wake together, all serve the politeness delay concurrently, and each then installs its own map entry with the last write overwriting the rest — so the lock stops being a lock at 3+ waiters. Pre-existing and harmless today, because nothing creates three concurrent runs against the same domain. A job queue is exactly the thing that will, so it has to be fixed as part of that work rather than after it.
 
 (Note: the *data model* for input sets, source type selection, and budget already landed in v1.5 Phase 0. v2 is the pipeline work that consumes that model.)
 
@@ -181,7 +184,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 
 ### v2 — Dashboard hooks for pipeline work
 
-- [x] Run progress UI for batch extractions (DONE — 2026-08-20). Source Runs page triggers `crawl.plan`; Run detail page has Run/Cancel buttons wired to `crawl.execute` / `crawl.cancel`, polling-based progress. SSE/WebSocket still deferred.
+- [x] Run progress UI for batch extractions (DONE — 2026-08-20). Source Runs page triggers `crawl.plan`; Run detail page has Extract N pending / Retry N failed / Stop, wired to `crawl.execute` / `crawl.cancel`, polling-based progress. SSE/WebSocket still deferred.
 - [ ] Pagination preview / pre-run cost estimate
 - [ ] Per-input status grid beyond the work list already shipped (which inputs succeeded / failed in a run, at a glance)
 - [ ] InputSet CSV import + bulk paste
@@ -211,7 +214,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 - **v1.1 and v1.5 run in parallel.** Both are pipeline-only or dashboard-only and don't share files. v1.1 touches scraper subsystems; v1.5 Phase 5 is the dashboard. v1.1a (extraction completeness) shipped 2026-05-19.
 - **v2 listing→detail subsumes the BBC fix and the Amazon reseller side-panel.** Both former v1.1 items become moot because the new strategy is "always go to the detail page when listing extraction is lossy."
 
-**How to apply:** v1.5 is complete (Phases 0-5 done). v1.1 (backend stability) remains the open Track A polish item; v2's core pipeline (plan + execute, listing→detail, budget) and its dashboard hooks are now done and live-proven — see `docs/handoff.md`. What remains of v2 is api-param pagination, caching the winning pagination config, infinite scroll/load-more, progressive confidence, and a real job queue.
+**How to apply:** v1.5 is complete (Phases 0-5 done). v1.1 (backend stability) remains the open Track A polish item; v2's core pipeline (plan + execute, listing→detail, budget) and its dashboard hooks are now done and live-proven — see `docs/handoff.md`. What remains of v2, in order: proving the multi-page walk live and caching the winning pagination config, then api-param pagination, infinite scroll/load-more, progressive confidence, and a real job queue.
 
 ---
 
