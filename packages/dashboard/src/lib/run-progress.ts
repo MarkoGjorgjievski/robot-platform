@@ -47,8 +47,32 @@ export type RunControls = {
  */
 export function runControls(status: string, counts: RunCounts): RunControls {
   return {
-    showExtract: counts.pending > 0,
+    // `running` counts as work a re-entered loop could pick up, not just
+    // `pending`. If the LAST item of a run is the one abandoned at `running`
+    // (an api-server restart on item 8 of 8), then pending is 0 while the run
+    // is correctly still non-terminal — and keying this off `pending` alone
+    // would leave Stop as the only button on exactly the run that needs
+    // rescuing, with `requeueStaleRunningItems` reachable only from the CLI.
+    // Closing the trap for items 1..N-1 but not item N is not closing it.
+    showExtract: counts.pending > 0 || counts.running > 0,
     showRetry: counts.failed > 0,
     showStop: isRunActive(status),
   };
+}
+
+/**
+ * What the Extract button says for these counts.
+ *
+ * `running` items are not pending, so they must not be counted as pending —
+ * "Extract 0 pending" on the one button that can rescue a stalled run would
+ * read as a no-op and invite the operator to give up. When there is genuinely
+ * pending work, that is the number to show: pending items are claimable
+ * immediately, whereas a stalled one is only reclaimed once it is past the
+ * staleness threshold.
+ */
+export function extractButtonLabel(counts: RunCounts): string {
+  if (counts.pending === 0 && counts.running > 0) {
+    return `Resume ${counts.running} stalled`;
+  }
+  return `Extract ${counts.pending} pending`;
 }
