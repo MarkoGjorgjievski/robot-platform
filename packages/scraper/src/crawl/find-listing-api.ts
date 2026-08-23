@@ -42,12 +42,15 @@ export type ListingApiMatch = {
   matched: number;
 };
 
-/** Every dot path (to MAX_DEPTH) holding an array whose first element is an object. */
+/** Every dot path (to MAX_DEPTH) holding an array whose first element is a plain object. */
 function arrayPaths(node: unknown, prefix = '', depth = 0): string[] {
   if (depth > MAX_DEPTH || node === null || typeof node !== 'object') return [];
   const found: string[] = [];
   if (Array.isArray(node)) {
-    if (node.length > 0 && typeof node[0] === 'object' && node[0] !== null) found.push(prefix);
+    const first = node[0];
+    if (node.length > 0 && typeof first === 'object' && first !== null && !Array.isArray(first)) {
+      found.push(prefix);
+    }
     return found;
   }
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
