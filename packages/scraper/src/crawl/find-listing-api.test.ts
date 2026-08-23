@@ -49,6 +49,20 @@ describe('findListingApi', () => {
     expect(findListingApi([posted, failed, notJson], PAGE1)).toBeNull();
   });
 
+  it('rejects a response flagged non-JSON even when parsedJson is populated', () => {
+    // Playwright's capture never produces this combination — it only ever sets
+    // isJson: true alongside a populated parsedJson — but findListingApi is a
+    // pure function whose contract is GET/JSON/2xx, and it must not rely on
+    // caller discipline to hold. A body that carries every page-1 URL must
+    // still be rejected on isJson alone.
+    const inconsistent = req(
+      'https://x.example/api/inconsistent',
+      { results: PAGE1.map((u) => ({ link: u })) },
+      { isJson: false },
+    );
+    expect(findListingApi([inconsistent], PAGE1)).toBeNull();
+  });
+
   it('finds items nested under a wrapper object', () => {
     const nested = req('https://x.example/api/s?page=1', {
       data: { products: PAGE1.map((u) => ({ href: u })) },
