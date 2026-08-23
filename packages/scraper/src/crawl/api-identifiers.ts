@@ -12,6 +12,12 @@
  * everything. An identifier has to be long enough that a coincidental match is
  * not the likely explanation. Same reasoning, and the same number, as
  * `MIN_IDENTIFIER_LENGTH` in `entity-match.ts`.
+ *
+ * It is NOT the same rule, though, and the difference is deliberate:
+ * `entity-match.ts` additionally requires a digit, because it is hunting a
+ * product identifier. Here a pure slug — `python-programming` — is a perfectly
+ * good comparison key, and demanding a digit would blind detection to every
+ * site whose detail URLs are words. Do not "align" the two by adding that test.
  */
 const MIN_IDENTIFIER_LENGTH = 6;
 
