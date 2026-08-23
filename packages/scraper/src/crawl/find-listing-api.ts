@@ -12,7 +12,7 @@
 // a listing's URLs, never twenty.
 
 import type { InterceptedRequest } from '@robot/browser';
-import { collectFromJson, identifierFromUrl } from './api-identifiers.js';
+import { collectFromJson, getPath, identifierFromUrl } from './api-identifiers.js';
 
 /** At least this many of page 1's URLs must appear. Stops a tiny listing qualifying a widget. */
 export const API_MATCH_MIN_COUNT = 3;
@@ -109,11 +109,6 @@ export function findListingApi(
 }
 
 function getFirstItem(json: unknown, itemsPath: string): unknown {
-  const parts = itemsPath === '' ? [] : itemsPath.split('.');
-  let current: unknown = json;
-  for (const key of parts) {
-    if (current === null || typeof current !== 'object') return undefined;
-    current = (current as Record<string, unknown>)[key];
-  }
-  return Array.isArray(current) ? current[0] : undefined;
+  const items = getPath(json, itemsPath);
+  return Array.isArray(items) ? items[0] : undefined;
 }
