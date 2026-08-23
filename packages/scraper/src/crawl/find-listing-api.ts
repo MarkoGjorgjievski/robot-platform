@@ -78,7 +78,12 @@ export function findListingApi(
         const matched = ids.filter((id) => wanted.has(id)).length;
         const share = matched / wanted.size;
         if (matched < API_MATCH_MIN_COUNT || share < API_MATCH_MIN_SHARE) continue;
-        if (!best || share > best.share || (share === best.share && matched > best.matched)) {
+        // No tie-break on `matched` needed: `wanted.size` is fixed for this whole
+        // call, so `share = matched / wanted.size` is strictly monotonic in
+        // `matched`. Equal share therefore always means equal matched — two
+        // candidates can never tie on share with different matched counts within
+        // a single findListingApi call.
+        if (!best || share > best.share) {
           best = { request, itemsPath, urlPath, share, matched };
         }
       }
