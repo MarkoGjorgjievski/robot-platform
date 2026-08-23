@@ -72,6 +72,17 @@ describe('findListingApi', () => {
     expect(match?.urlPath).toBe('href');
   });
 
+  it('finds items when the JSON body is itself the array', () => {
+    // A listing endpoint that returns `[{...}, {...}]` directly, with no
+    // wrapper object. arrayPaths can return '' as a candidate path and
+    // getFirstItem already special-cases it, but nothing previously exercised
+    // this shape.
+    const bareArray = req('https://x.example/api/list', PAGE1.map((u) => ({ link: u })));
+    const match = findListingApi([bareArray], PAGE1);
+    expect(match?.itemsPath).toBe('');
+    expect(match?.urlPath).toBe('link');
+  });
+
   it('does not search past MAX_DEPTH', () => {
     // Three wrapper levels (a.b.c) puts the array one level too deep
     // (a.b.c.d) — MAX_DEPTH's documented contract, pinned so a silent removal
