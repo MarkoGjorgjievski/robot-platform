@@ -75,4 +75,17 @@ describe('overlapShare', () => {
     const shifted = Array.from({ length: 30 }, (_, i) => `id${i + 1}`);
     expect(overlapShare(page1, shifted)).toBeGreaterThan(REPLAY_MAX_OVERLAP);
   });
+
+  it('measures against page 1, so a probe padded with new items still counts as a repeat', () => {
+    // The discriminating case, and the one the AbeBooks incident argues for: a
+    // probe handing back most of page 1 PLUS a pile of new items is still
+    // re-serving page 1. Dividing by the probe's larger set scores this
+    // 6/20 = 0.3 and ACCEPTS a broken pager; dividing by page 1's set scores it
+    // 6/10 = 0.6 and rejects it. Nothing else in this file can tell the two apart.
+    const page1 = Array.from({ length: 10 }, (_, i) => `old${i}`);
+    const probe = [...page1.slice(0, 6), ...Array.from({ length: 14 }, (_, i) => `new${i}`)];
+
+    expect(overlapShare(page1, probe)).toBeCloseTo(0.6);
+    expect(overlapShare(page1, probe)).toBeGreaterThan(REPLAY_MAX_OVERLAP);
+  });
 });
