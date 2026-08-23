@@ -22,6 +22,17 @@ export const API_MATCH_MIN_SHARE = 0.5;
 /** How deep to search for an array of objects. Deeper than this is not a results payload. */
 const MAX_DEPTH = 3;
 
+/**
+ * Scan at most this many items of any one candidate array. Real listing pages
+ * run from a handful of items up to a few hundred (the reviewer's measured
+ * worst case, 300, is itself called out as a plausible real shape); 1000 gives
+ * generous headroom above that so a genuine listing is never truncated, while
+ * still bounding a pathological payload — a full catalog dump or unrelated
+ * cache blob nested at a candidate path — that could otherwise be orders of
+ * magnitude larger and dominate runtime for no benefit.
+ */
+export const MAX_ITEMS_SCANNED = 1000;
+
 export type ListingApiMatch = {
   request: InterceptedRequest;
   itemsPath: string;
@@ -74,7 +85,7 @@ export function findListingApi(
     for (const itemsPath of arrayPaths(request.parsedJson)) {
       const sample = getFirstItem(request.parsedJson, itemsPath);
       for (const urlPath of stringPaths(sample)) {
-        const ids = collectFromJson(request.parsedJson, itemsPath, urlPath);
+        const ids = collectFromJson(request.parsedJson, itemsPath, urlPath, MAX_ITEMS_SCANNED);
         const matched = ids.filter((id) => wanted.has(id)).length;
         const share = matched / wanted.size;
         if (matched < API_MATCH_MIN_COUNT || share < API_MATCH_MIN_SHARE) continue;
@@ -85,6 +96,10 @@ export function findListingApi(
         // a single findListingApi call.
         if (!best || share > best.share) {
           best = { request, itemsPath, urlPath, share, matched };
+          // A perfect match can't be beaten — every one of page 1's URLs is
+          // already accounted for — so stop scanning the remaining candidates
+          // and requests entirely.
+          if (share >= 1) return best;
         }
       }
     }

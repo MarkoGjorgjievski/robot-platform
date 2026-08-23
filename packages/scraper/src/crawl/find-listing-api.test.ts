@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { InterceptedRequest } from '@robot/browser';
-import { findListingApi } from './find-listing-api.js';
+import { findListingApi, MAX_ITEMS_SCANNED } from './find-listing-api.js';
 
 const PAGE1 = Array.from({ length: 10 }, (_, i) => `https://x.example/p/10000${i}`);
 
@@ -76,6 +76,19 @@ describe('findListingApi', () => {
     const partial = req('https://x.example/api/a', { results: PAGE1.slice(0, 6).map((u) => ({ link: u })) });
     const full = req('https://x.example/api/b', { results: PAGE1.map((u) => ({ link: u })) });
     expect(findListingApi([partial, full], PAGE1)?.request.url).toBe(full.url);
+  });
+
+  it('does not scan past MAX_ITEMS_SCANNED items in a single array', () => {
+    // All ten of page 1's identifiers sit just past the cap; the scanned range
+    // holds only filler, so the cap is what keeps this from matching. If the
+    // cap were silently dropped, this candidate would match 10/10 and win.
+    const filler = Array.from({ length: MAX_ITEMS_SCANNED }, (_, i) => ({
+      link: `https://x.example/f/filler-item-${i}`,
+    }));
+    const buried = req('https://x.example/api/huge', {
+      results: [...filler, ...PAGE1.map((u) => ({ link: u }))],
+    });
+    expect(findListingApi([buried], PAGE1)).toBeNull();
   });
 
   it('rejects a big sidebar that clears the count bar but not the share bar', () => {
