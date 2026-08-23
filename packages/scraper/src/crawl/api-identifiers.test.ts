@@ -69,4 +69,19 @@ describe('collectFromJson', () => {
     const nested = { d: { rows: [{ meta: { href: '/p/333333' } }] } };
     expect(collectFromJson(nested, 'd.rows', 'meta.href')).toEqual(['333333']);
   });
+
+  it('stops scanning after `limit` items when given one', () => {
+    const many = {
+      results: Array.from({ length: 5 }, (_, i) => ({ link: `/p/aaaa${i}00` })),
+    };
+    // Item index 3 and 4 sit past a limit of 3 and must not be collected.
+    expect(collectFromJson(many, 'results', 'link', 3)).toEqual(['aaaa000', 'aaaa100', 'aaaa200']);
+  });
+
+  it('scans the whole array when `limit` is omitted', () => {
+    const many = {
+      results: Array.from({ length: 5 }, (_, i) => ({ link: `/p/aaaa${i}00` })),
+    };
+    expect(collectFromJson(many, 'results', 'link')).toHaveLength(5);
+  });
 });

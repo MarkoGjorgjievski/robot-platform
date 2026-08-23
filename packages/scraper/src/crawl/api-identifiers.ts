@@ -57,13 +57,22 @@ export function identifierFromUrl(url: string): string | null {
   return last;
 }
 
-/** Every identifier reachable at `itemsPath[].urlPath`, in order, skipping items that have none. */
-export function collectFromJson(json: unknown, itemsPath: string, urlPath: string): string[] {
+/**
+ * Every identifier reachable at `itemsPath[].urlPath`, in order, skipping items
+ * that have none.
+ *
+ * `limit`, when given, stops after that many items instead of walking the
+ * whole array. Additive and defaulted so every existing caller is unchanged;
+ * it exists for callers (like `findListingApi`) that must bound how much
+ * synchronous work an arbitrarily large intercepted payload can cost them.
+ */
+export function collectFromJson(json: unknown, itemsPath: string, urlPath: string, limit?: number): string[] {
   const items = getPath(json, itemsPath);
   if (!Array.isArray(items)) return [];
+  const count = limit === undefined ? items.length : Math.min(limit, items.length);
   const out: string[] = [];
-  for (const item of items) {
-    const raw = getPath(item, urlPath);
+  for (let i = 0; i < count; i++) {
+    const raw = getPath(items[i], urlPath);
     if (typeof raw !== 'string') continue;
     const id = identifierFromUrl(raw);
     if (id) out.push(id);
