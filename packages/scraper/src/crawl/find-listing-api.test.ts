@@ -72,6 +72,16 @@ describe('findListingApi', () => {
     expect(match?.urlPath).toBe('href');
   });
 
+  it('does not search past MAX_DEPTH', () => {
+    // Three wrapper levels (a.b.c) puts the array one level too deep
+    // (a.b.c.d) — MAX_DEPTH's documented contract, pinned so a silent removal
+    // of the check doesn't go unnoticed the way it did in review.
+    const tooDeep = req('https://x.example/api/deep', {
+      a: { b: { c: { d: PAGE1.map((u) => ({ link: u })) } } },
+    });
+    expect(findListingApi([tooDeep], PAGE1)).toBeNull();
+  });
+
   it('prefers the higher-share candidate when two qualify', () => {
     const partial = req('https://x.example/api/a', { results: PAGE1.slice(0, 6).map((u) => ({ link: u })) });
     const full = req('https://x.example/api/b', { results: PAGE1.map((u) => ({ link: u })) });
