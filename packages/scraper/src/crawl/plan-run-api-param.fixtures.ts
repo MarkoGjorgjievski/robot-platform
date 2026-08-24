@@ -1,4 +1,5 @@
 import type { PaginationConfig, PageCapture, InterceptedRequest, CrawlOptions } from '@robot/browser';
+import type { FetchedBody } from './api-param-fetch.js';
 import type { PlanRunDeps, PlanRunRequest } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
 
@@ -124,6 +125,17 @@ export function apiParamDeps(over: {
    * stay SILENT about rather than warn on.
    */
   intercepted?: InterceptedRequest[];
+  /**
+   * Replace the `FetchedBody` the WALK receives for the Nth fetched URL
+   * (0-based, so 0 is page 2). Merged over the well-formed default.
+   *
+   * The default body is hardcoded `status: 200, error: null`, which means the
+   * walk's response guards can never fire and every one of them is deletable
+   * with the suite green — spec §7's "a non-2xx or non-JSON page ends the loop
+   * without losing page 1's work" had no test at all. Probe batches are left
+   * alone: detection has its own guards and its own tests.
+   */
+  bodies?: Record<number, Partial<FetchedBody>>;
 }): ApiParamDeps {
   const evaluateCalls: string[] = [];
   const fetchedUrls: string[] = [];
@@ -163,12 +175,16 @@ export function apiParamDeps(over: {
         // later one is the walk. With a cached config there is no probe, so the
         // first evaluate is already the walk.
         const isProbe = over.cachedConfig === null && evaluateCalls.length === 1;
-        return urls.map((url, i) => ({
-          url,
-          status: 200,
-          json: body(isProbe ? probe : (pages[i] ?? [])),
-          error: null,
-        }));
+        return urls.map((url, i) => {
+          const wellFormed = {
+            url,
+            status: 200,
+            json: body(isProbe ? probe : (pages[i] ?? [])),
+            error: null,
+          };
+          const override = isProbe ? undefined : over.bodies?.[i];
+          return override ? { ...wellFormed, ...override } : wellFormed;
+        });
       },
       async *crawl(_url: string, options: CrawlOptions) {
         // An api-param config must never reach here. Recorded so a test can say so.

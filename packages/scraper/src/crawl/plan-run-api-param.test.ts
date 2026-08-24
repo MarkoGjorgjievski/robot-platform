@@ -311,20 +311,111 @@ describe('planRun — walking an api-param config', () => {
     expect(outcome.warnings.some((w) => w.includes('likely re-serving page 1'))).toBe(false);
   });
 
-  it('survives a cached api-param config that is missing its fields', async () => {
-    // Fix 4. Unreachable from cold detection, but a legacy or corrupted cache
-    // row can hold one. Without the guard `apiTemplate.replace(...)` throws on
-    // undefined, the outer handler catches it, and this input is downgraded to
-    // `status: 'error'` — losing page 1's already-planned items, which spec §3
-    // says a pagination failure must never do.
-    const deps = apiParamDeps({ cachedConfig: { strategy: 'api-param' } });
+  describe('a cached api-param config that is missing a field', () => {
+    // Unreachable from cold detection, but a legacy or corrupted cache row can
+    // hold one. Without the guard the walk either throws (`apiTemplate.replace`
+    // on undefined, `itemsPath.split` on undefined) or silently builds
+    // `offset=NaN` URLs — and a throw is caught by the outer handler, which
+    // downgrades the input to `status: 'error'` and loses page 1's
+    // already-planned items. Spec §3 says a pagination failure must never do
+    // that.
+    //
+    // One case per condition, each missing EXACTLY one field. The original
+    // single case passed `{ strategy: 'api-param' }`, which trips all four at
+    // once — so `!step` and the two path checks could each be deleted with the
+    // suite green. That is the "two constraints at once" pattern that has bitten
+    // this branch three times.
+    const TEMPLATE = 'https://listing.example/api?kn=py&offset={N}';
+    const cases: Array<{ missing: string; config: PaginationConfig }> = [
+      { missing: 'every field', config: { strategy: 'api-param' } },
+      { missing: 'apiTemplate', config: { strategy: 'api-param', step: 2, itemsPath: 'results', urlPath: 'link' } },
+      { missing: 'step', config: { strategy: 'api-param', apiTemplate: TEMPLATE, itemsPath: 'results', urlPath: 'link' } },
+      { missing: 'itemsPath', config: { strategy: 'api-param', apiTemplate: TEMPLATE, step: 2, urlPath: 'link' } },
+      { missing: 'urlPath', config: { strategy: 'api-param', apiTemplate: TEMPLATE, step: 2, itemsPath: 'results' } },
+    ];
 
-    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+    for (const { missing, config } of cases) {
+      it(`keeps page 1's work when ${missing} is absent`, async () => {
+        // `intercepted: []` so the stale re-detect finds nothing to re-detect:
+        // this test is about the guard, and a successful re-detect would add
+        // items and fetches that have nothing to do with it.
+        const deps = apiParamDeps({ cachedConfig: config, intercepted: [] });
 
-    expect(outcome.errors).toEqual([]);
-    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
-    expect(detailUrls).toEqual(PAGE1);
-    expect(outcome.inputs[0]?.status).toBe('planned');
+        const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+        expect(outcome.errors).toEqual([]);
+        expect(outcome.inputs[0]?.status).toBe('planned');
+        const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+        expect(detailUrls).toEqual(PAGE1);
+        // The silent half: a missing `step` builds `offset=NaN` rather than
+        // throwing, so nothing above would notice it.
+        expect(deps.fetchedUrls.filter((u) => u.includes('NaN'))).toEqual([]);
+      });
+    }
+  });
+
+  describe('a page that did not come back cleanly', () => {
+    // Spec §7 lists this row — "a non-2xx or non-JSON page ends the loop without
+    // losing page 1's work" — and it had no test: the fixture hardcoded
+    // `status: 200, error: null`, so the walk's response guards could never
+    // fire and each was deletable with the suite green.
+    const surviving = (outcome: Awaited<ReturnType<typeof planRun>>) =>
+      outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+
+    it('ends the walk on a non-JSON page, keeping page 1 and absorbing nothing after it', async () => {
+      const deps = apiParamDeps({
+        cachedConfig: API_CONFIG,
+        intercepted: [],
+        pages: [[], ['https://listing.example/p/300001']],
+        bodies: { 0: { error: 'not json', json: null } },
+      });
+
+      const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+      expect(surviving(outcome)).toEqual(PAGE1);
+      expect(outcome.errors).toEqual([]);
+      // Page 3 was fetched in the same batch but must never be reached.
+      expect(surviving(outcome)).not.toContain('https://listing.example/p/300001');
+      expect(outcome.items.filter((i) => i.kind === 'listing').map((i) => i.pageNumber)).toEqual([1]);
+    });
+
+    it('does not absorb a page whose record carries an error, however well its body parses', async () => {
+      // This is the half with teeth. A `json: null` body is ALSO stopped one
+      // line later by the emptiness check, so `json === null` alone cannot be
+      // isolated (it is documented as belt-and-braces where it stands). An error
+      // record that nonetheless carries a parseable results array can only be
+      // stopped by the error check — and if it is not stopped, the walk plans
+      // items out of a response the page reported as failed.
+      const deps = apiParamDeps({
+        cachedConfig: API_CONFIG,
+        intercepted: [],
+        pages: [[]],
+        bodies: { 0: { error: 'net::ERR_ABORTED', json: { results: [{ link: '/p/700001' }] } } },
+      });
+
+      const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+      expect(surviving(outcome)).toEqual(PAGE1);
+      expect(outcome.errors).toEqual([]);
+    });
+
+    it('does not absorb a non-2xx page', async () => {
+      // Detection checks `body.status`; the walk did not. A 429 or a 403 from
+      // an anti-bot tier commonly comes back as a well-formed JSON envelope,
+      // and one that happens to hold an array at the cached `itemsPath` would
+      // have been absorbed as if it were a page of results.
+      const deps = apiParamDeps({
+        cachedConfig: API_CONFIG,
+        intercepted: [],
+        pages: [[]],
+        bodies: { 0: { status: 429, error: null, json: { results: [{ link: '/p/800001' }] } } },
+      });
+
+      const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+      expect(surviving(outcome)).toEqual(PAGE1);
+      expect(outcome.errors).toEqual([]);
+    });
   });
 
   it('numbers walked pages from 2, in fetch order', async () => {

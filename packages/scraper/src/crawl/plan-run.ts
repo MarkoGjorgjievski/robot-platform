@@ -464,7 +464,23 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         let budgetStopped = false;
         for (let i = 0; i < bodies.length; i++) {
           const body = bodies[i]!;
-          if (body.error !== null || body.json === null) break;
+          // A page that did not come back cleanly ends the walk. Split into
+          // three so each is independently deletable and independently tested,
+          // the same way `probeApiParamUnsafe` splits its probe guards.
+          if (body.error !== null) break;
+          // The walk checks `status` because detection does, and the asymmetry
+          // was not deliberate — it was an omission. An anti-bot 403 or a 429
+          // commonly arrives as a well-formed JSON envelope, and one holding an
+          // array at the cached `itemsPath` would otherwise be absorbed as a
+          // page of results and cached as a working config.
+          if (body.status < 200 || body.status >= 300) break;
+          // Belt-and-braces, not load-bearing, and labelled so per this file's
+          // convention: a null body reaches `rowUrls` as a non-array and comes
+          // back empty, which the emptiness check below stops on the very next
+          // line. It cannot be isolated by a test because deleting it changes no
+          // outcome. Kept because `FetchedBody` permits the shape and a future
+          // producer of one need not preserve the coincidence.
+          if (body.json === null) break;
           const { usable, refused } = rowUrls(body.json, itemsPath, urlPath, start.url, shape);
           if (usable.length === 0 && refused !== null) {
             // Spec §4: a value that is not a URL for THIS listing is not a
