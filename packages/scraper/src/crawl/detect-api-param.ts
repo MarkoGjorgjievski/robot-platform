@@ -43,19 +43,35 @@ export type ApiParamAttempt = {
    *                       name `rankCandidates` recognises. Wants a new name.
    * - `none-verified`   — candidates were probed and every one re-served page 1.
    *                       Wants the step or overlap heuristics tuned.
+   * - `detection-threw` — the never-throw wrapper caught something. This is a
+   *                       BUG in detection, not a site behaviour, and it is the
+   *                       one reason a caller must report regardless of
+   *                       `considered` (see below).
    */
-  reason: 'verified' | 'no-listing-api' | 'no-candidates' | 'none-verified';
+  reason: 'verified' | 'no-listing-api' | 'no-candidates' | 'none-verified' | 'detection-threw';
   /**
    * How many intercepted responses were even ELIGIBLE to be the listing API —
    * GET, JSON, 2xx. Zero means there was genuinely nothing to consider, and a
    * caller must stay silent rather than warn: most listing pages make no JSON
    * XHR at all, and warning on every one of them would drown the signal.
+   *
+   * EXCEPT when `reason` is `detection-threw`. The catch cannot know what the
+   * count was — the throw may have happened before or after it was computed —
+   * so it reports 0, which under the rule above would silence the one outcome
+   * that most needs saying. Callers gate on `considered > 0 || reason ===
+   * 'detection-threw'`.
    */
   considered: number;
 };
 
-const NO_ATTEMPT: ApiParamAttempt = {
-  config: null, tried: [], endpoint: null, reason: 'no-listing-api', considered: 0,
+/**
+ * What the never-throw wrapper reports. NOT `no-listing-api`: that is the
+ * commonest and most boring outcome on this corpus, so a swallowed throw
+ * wearing its clothes produced zero operator signal — which is the exact
+ * complaint the previous round's warning work was written to close.
+ */
+const THREW: ApiParamAttempt = {
+  config: null, tried: [], endpoint: null, reason: 'detection-threw', considered: 0,
 };
 
 /** Responses that could, in principle, have been the listing API. */
@@ -84,7 +100,7 @@ export async function probeApiParam(
   try {
     return await probeApiParamUnsafe(capture, page1Urls, browser);
   } catch {
-    return NO_ATTEMPT;
+    return THREW;
   }
 }
 
