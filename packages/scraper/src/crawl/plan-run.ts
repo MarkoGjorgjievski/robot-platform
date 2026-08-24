@@ -18,6 +18,8 @@ import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
 import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumerate-detail-urls.js';
 import { detectPagination, type PaginationAgent } from './detect-pagination.js';
+import { fetchInPage } from './api-param-fetch.js';
+import { getPath } from './api-identifiers.js';
 
 export type PlannedItem = {
   kind: 'listing' | 'detail';
@@ -121,6 +123,18 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
  * warning in this block fires on `gained === 0`, and this pager leaks.
  */
 const THIN_WALK_SHARE = 0.25;
+
+/** The raw URL strings at `itemsPath[].urlPath`, in order. */
+function collectRowUrls(json: unknown, itemsPath: string, urlPath: string): string[] {
+  const items = getPath(json, itemsPath);
+  if (!Array.isArray(items)) return [];
+  const out: string[] = [];
+  for (const item of items) {
+    const raw = getPath(item, urlPath);
+    if (typeof raw === 'string' && raw.length > 0) out.push(raw);
+  }
+  return out;
+}
 
 export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promise<PlanRunOutcome> {
   const { source, schema, inputSet } = request;
@@ -346,8 +360,13 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       } catch (err) {
         warnings.push(`pagination cache lookup failed on ${start.url}: ${(err as Error).message} — treating as cold`);
       }
+      const page1Urls = listingRows
+        .map((row) => row[DETAIL_URL_FIELD])
+        .filter((u): u is string => typeof u === 'string');
       const pagination = capture
-        ? await detectPagination(capture, deps.agent as PaginationAgent | null, cachedPagination)
+        ? await detectPagination(capture, deps.agent as PaginationAgent | null, cachedPagination, {
+            browser: deps.browser, page1Urls,
+          })
         : { config: null, source: 'none' as const };
       if (!pagination.config) {
         warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
@@ -366,7 +385,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
        * out rather than guessed at: it is the difference between "this pager is
        * broken" and "we asked for 8 items and got them".
        */
-      const walkPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
+      const walkHtmlPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
         const before = detailCount();
         let budgetStopped = false;
         for await (const page of deps.browser.crawl(start.url, {
@@ -387,6 +406,47 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         }
         return { gained: detailCount() - before, budgetStopped };
       };
+
+      /**
+       * Walk an api-param config: fetch pages 2..maxPages as JSON in ONE page
+       * context, and feed each page's URLs through the same `absorb` the HTML
+       * walk uses — so dedupe, the item cap and the stop reasons behave
+       * identically no matter which strategy produced the URLs.
+       */
+      const walkApiPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
+        const before = detailCount();
+        const { apiTemplate, step, itemsPath, urlPath } = config;
+        if (!apiTemplate || !step || itemsPath === undefined || urlPath === undefined) {
+          return { gained: 0, budgetStopped: false };
+        }
+        const urls: string[] = [];
+        for (let page = 2; page <= budget.maxPages; page++) {
+          urls.push(apiTemplate.replace('{N}', String(step * (page - 1))));
+        }
+        const bodies = await fetchInPage(deps.browser, start.url, urls);
+
+        let budgetStopped = false;
+        for (let i = 0; i < bodies.length; i++) {
+          const body = bodies[i]!;
+          if (body.error !== null || body.json === null) break;
+          const pageUrls = collectRowUrls(body.json, itemsPath, urlPath);
+          if (pageUrls.length === 0) break;
+          const pageNumber = i + 2;
+          items.push({
+            kind: 'listing', url: body.url, inputIndex: start.inputIndex,
+            inputValues: start.inputValues, listingValues: {}, pageNumber,
+          });
+          const stop = absorb(pageUrls.map((u) => ({ [DETAIL_URL_FIELD]: u })), body.url, pageNumber);
+          if (stop !== null) {
+            budgetStopped = stop === 'budget';
+            break;
+          }
+        }
+        return { gained: detailCount() - before, budgetStopped };
+      };
+
+      const walkPages = (config: PaginationConfig) =>
+        (config.strategy === 'api-param' ? walkApiPages(config) : walkHtmlPages(config));
 
       try {
         let { gained, budgetStopped } = await walkPages(pagination.config);
