@@ -65,13 +65,38 @@ export interface IBrowser {
 // ─── Pagination & Crawl ─────────────────────────────────────────────────────
 
 export type PaginationConfig = {
-  strategy: 'url-pattern' | 'next-button' | 'page-numbers';
+  strategy: 'url-pattern' | 'next-button' | 'page-numbers' | 'api-param';
   /** For url-pattern: URL with {N} placeholder, e.g. "https://example.com/search?page={N}" */
   urlTemplate?: string;
   /** For next-button: CSS selector for the next page element */
   nextSelector?: string;
   /** For page-numbers: CSS selector for page number links container */
   pageSelector?: string;
+  /**
+   * For api-param: the listing endpoint with the paging parameter's value
+   * replaced by {N}. A template, not a captured URL, for the same reason
+   * `urlTemplate` is one — a captured URL carries a value that is wrong on
+   * every subsequent page.
+   */
+  apiTemplate?: string;
+  /** For api-param: the query parameter that pages, e.g. "offset". */
+  paramName?: string;
+  /** For api-param: how much to advance it per page — 1 for page-style, the page size for offset-style. */
+  step?: number;
+  /**
+   * For api-param: the paging parameter's value on PAGE 1 — the base the walk
+   * counts up from. `apiTemplate` replaces that value with `{N}` wholesale, so
+   * without this the walk has no way to know where the pager starts, and a
+   * page-style pager (which starts at 1, not 0) gets re-served page 1 while
+   * never reaching the last page. Optional, defaulting to 0, so configs cached
+   * before this field existed — all of them offset-style, all of them starting
+   * at 0 — keep behaving exactly as they did.
+   */
+  from?: number;
+  /** For api-param: dot path to the results array inside the response. */
+  itemsPath?: string;
+  /** For api-param: dot path to the detail URL inside each result. */
+  urlPath?: string;
 };
 
 export type CrawlOptions = {

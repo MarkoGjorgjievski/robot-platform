@@ -1,14 +1,16 @@
 ---
 name: Session handoff — state, decisions, and what to do next
-description: Where the project stands as of 2026-08-21 and how to pick it up. Read this before starting.
+description: Where the project stands as of 2026-08-24 and how to pick it up. Read this before starting.
 type: project
 ---
 
-# Handoff — 2026-08-21
+# Handoff — 2026-08-24
 
 ## Read this first
 
 **Do not start another fix-and-dogfood cycle.** The last correctness push converged on the corpus rather than on reality, each round cost real money, and half the remaining defects are design decisions rather than bugs (see *What NOT to redo* below). If you're tempted to chase extraction-quality numbers, don't — the next work is feature implementation against the roadmap.
+
+**`api-param` pagination is implemented and gated offline, but NOT live-proven.** The `feat/api-param-pagination` branch built it end to end — proving a paging parameter by experiment (probe a page-1-identified JSON endpoint with candidate query params, reject any candidate whose response overlaps page 1's items too much) before it is ever used or cached — and gated it with unit tests plus a Tier 1 fixture-server test that fails if page 2 re-serves page 1. The one live run authorised to prove it (`newegg-gpus-live`, 2026-08-24, run `c889faea-3417-4d36-97cd-1907e55653af`) **fell through to the existing `mechanical` (`url-pattern`) pagination — `api-param` never got a candidate to try.** Do not read "API pagination delivered" as covering the live case; it covers only the offline-gated path. Full detail: "`api-param` pagination — live proof (2026-08-24)" below.
 
 **The multi-page pagination walk is now live-proven, and it live-proved a real bug on the same run.** `crawl.plan` against `abebooks-pagination` walked listing pages 1, 2 and 3, wrote `domain_intelligence.pagination_config` for the first time in this repo's history, and replayed it from cache on a second plan. But the URLs it walked to on AbeBooks were wrong — `deriveTemplate` chose the `ds` query parameter as the page cursor and pinned `p=1`, when `p` is AbeBooks' actual pager, so pages 2 and 3 re-requested page 1 in substance. The stray items that leaked past dedupe (2 and 1, against page 1's 30) were enough to satisfy the `gained > 0` verification gate, so a broken template got cached and then had to be purged by hand. Full detail, evidence, and the live cancel/resume proof: see "Pagination walk + caching — live proof (2026-08-21)" below.
 
@@ -71,6 +73,51 @@ page 3: https://www.abebooks.com/servlet/SearchResults?ds=3&dym=on&kn=python&p=1
 
 **Budget note:** `abebooks-pagination`'s budget was raised to `{max_items: 60, max_pages: 3}` for this proof and restored to its original `{max_items: 8, max_pages: 2}` afterward — confirmed by SQL in `task-6-report.md`.
 
+## `api-param` pagination — live proof (2026-08-24)
+
+Tasks 1-7 of `.superpowers/sdd/2026-08-22-api-param-pagination/` built and fixture-gated `api-param`: `planRun` finds the intercepted response that carries page 1's own detail URLs (`findListingApi`, requiring both `API_MATCH_MIN_COUNT = 3` matches and `API_MATCH_MIN_SHARE = 0.5` share, so a small widget or a recommendations blob can't qualify), ranks paging-parameter candidates from that endpoint's own URL, probes each one, and accepts a candidate only if its response's items overlap page 1's by at most `REPLAY_MAX_OVERLAP = 0.5` (`overlapShare` in `api-param-candidates.ts`) — a parameter is never used or cached until a probe has shown it returns genuinely different data. Detection is wrapped so it can never throw (`probeApiParam`/`detectApiParam` in `detect-api-param.ts`) and reached the case Task 5's review round added: when an endpoint was found but no candidate verified, `plan-run.ts` emits a warning naming the endpoint and every candidate tried. Task 8 (this entry) is the live proof — the part fixtures cannot give.
+
+**Target and method.** `newegg-gpus-live` — the corpus entry recorded in `docs/roadmap.md` as exercising "JSON-LD + APIs" (P3b, 2026-08-18) — was chosen specifically because it is the only seeded source whose extraction chain touches intercepted APIs at all; AbeBooks was considered and rejected (its search results are server-rendered HTML, proven by the 2026-08-21 walk above, so it almost certainly exposes no JSON endpoint carrying detail URLs — running it would have spent money demonstrating a negative). Budget was raised from `{max_items: 5, max_pages: 1}` to `{max_items: 60, max_pages: 3}` (so `max_pages` would bind) for one plan run, then restored. Full transcript, SQL, and run id: `.superpowers/sdd/2026-08-22-api-param-pagination/task-8-report.md`.
+
+**What happened: no anti-bot interstitial, a clean category-page capture, and `api-param` fell through.** `crawl-plan.ts` against `newegg-gpus-live` (run `c889faea-3417-4d36-97cd-1907e55653af`) planned 60 detail items across all 3 listing pages (12 / 36 / 12 by `page_number`) in 134s. `domain_intelligence.pagination_config` for `(www.newegg.com, listing)` is `{"strategy": "url-pattern", "urlTemplate": "https://www.newegg.com/p/pl?N=100006662&page={N}"}` — the pre-existing mechanical HTML pager, not `api-param`. **No warning was printed at the time of the run** — and that silence was a gap, not a finding. The warning as it then stood only fired when `findListingApi` had found a candidate *endpoint* and no parameter verified against it, so the "no endpoint at all" case said nothing, and the diagnosis below had to be reconstructed by hand from intercepted-request dumps. **That gap is now closed** (`apiParamReason` in `plan-run.ts`): an attempt carries a reason — `no-listing-api`, `no-candidates`, `none-verified` — plus how many GET/JSON/2xx responses were considered, and `planRun` emits one reason-specific warning whenever there was anything to consider at all. A future run in this situation will say so directly. **Re-running this same plan would now produce a warning where the transcript below shows none; the transcript is the record of what the code did on 2026-08-24, not of what it does today.** Here, `findListingApi` returned `null` outright — of the 34 intercepted requests (10 JSON-bearing), none had an array-of-objects overlapping page 1's 12 detail-URL identifiers at ≥3 matches / ≥50% share. The browser's own log line for the largest JSON response, `api/CountryApi` (1144 bytes), confirms it's a locale widget, not a product feed. Field extraction (a separate, independent code path) corroborates the same conclusion from the other direction: `detail_url` for this run was sourced from `json-ld`/`xpath` (`[extract] Sources: {"category_name":"json-ld","detail_url":"xpath"}`), never from an API path, meaning no listing API was visible to the AI-API extraction tier either. **This is the "no candidate endpoint at all" case — distinct from "endpoint found, every candidate rejected."** The `REPLAY_MAX_OVERLAP` overlap check in `api-param-candidates.ts` was never reached; the miss happened one gate earlier, at `findListingApi`'s multiplicity bar in `find-listing-api.ts`.
+
+**What this means for the thresholds.** `API_MATCH_MIN_COUNT = 3`, `API_MATCH_MIN_SHARE = 0.5`, and `REPLAY_MAX_OVERLAP = 0.5` were all picked from reasoning, not traffic, when this feature was designed. This run is the first real data point, and what it shows is negative but specific: on this one real category page, the observed match count/share for every intercepted JSON response against page 1's 12 detail-URL identifiers was low enough that none crossed `API_MATCH_MIN_COUNT`/`API_MATCH_MIN_SHARE` (the exact matched/share numbers per candidate response were not logged — `findListingApi` returns only the best match or `null`, not a ranked list of near-misses — so "how close" is not knowable from this run without adding that instrumentation). No candidate ever reached the `overlapShare`/`REPLAY_MAX_OVERLAP` check, so this run says nothing about whether `0.5` is the right overlap bar — it only exercises the earlier gate. Newegg's category page renders its listing server-side (HTML + JSON-LD); the JSON it does expose over the wire on this page is unrelated widget/telemetry traffic, not the product grid. That is a fact about this one page, not a refutation of the `api-param` design — a listing that genuinely paginates by replaying its own JSON (the case this feature targets) would behave differently, and this corpus does not currently contain one that both (a) is known to load its grid from a same-origin JSON endpoint and (b) is safe to hit live without an anti-bot block.
+
+**What this run does NOT prove.** `api-param`'s detection-and-probe machinery, its overlap guard, and its `planRun` JSON-walk integration remain proven only offline (unit tests + the Tier 1 fixture-server test, which fails if a fixture's page 2 re-serves page 1). No real site has yet been observed picking `source: api-param`. **Cursor-based APIs, POST/GraphQL endpoints, and DOM-driven infinite scroll remain wholly unsupported** — `api-param` only ever considers GET requests carrying a page-number-shaped query parameter (see `rankCandidates` in `api-param-candidates.ts`); none of the corpus's live sources have been shown to need those, and nothing in this task changes that gap. The (still unbuilt) DOM-scroll cycle referenced in the roadmap's v2 section is what would eventually cover infinite scroll and load-more — `api-param` does not and was never meant to.
+
+## `api-param` pre-merge fix wave (2026-08-24)
+
+A whole-branch review of `feat/api-param-pagination` returned DO NOT MERGE. Eight findings plus
+minors, all fixed on the branch (`ec1b840`..`1820aaa`); full write-up with every teeth-check in
+`.superpowers/sdd/2026-08-22-api-param-pagination/merge-fix-report.md`. The two that matter beyond
+this feature:
+
+**The walk fabricated detail URLs, and cached the config that did it** — the 2026-08-21 AbeBooks
+failure class with a new trigger. `collectRowUrls` accepted any non-empty string at
+`itemsPath[].urlPath`, and the walk resolved it against the API endpoint's own URL rather than the
+listing page's. Two demonstrated failures: an API answering in bare slugs produced
+`/java-in-depth` where the real URL is `/books/java-in-depth` (detection verifies a slug API
+happily — identifiers compare as trailing path segments), and a cross-origin API host
+(`api.<site>` fronting `www.<site>`) put every page-2+ URL on the wrong host. In both cases
+`gained > 0`, nothing warned, and the config reached the cross-customer domain cache. Now resolved
+against the listing page, and each value measured against the shape page 1 itself demonstrated —
+same origin, inside the longest directory prefix page 1's own detail URLs agree on. A refusal stops
+the walk, keeps page 1, names the value, and caches nothing (`api-row-urls.ts`). Spec §4 required
+this and it had never been implemented.
+
+**A credential that persists in the client cannot pin which document issued a request.** The Tier 1
+cookie gate's comment claimed that verification succeeding "is itself the proof that the fetch ran
+in the page". It was not: the browser's cookie jar outlives one `evaluate`, so the proof only held
+because that test ran first in a freshly launched browser. Mutating the walk's navigation target
+left all 192 tests green. Both gates now assert the `Referer` a same-origin fetch sets to the full
+URL of the issuing document. Worth remembering the next time a fixture is built to prove where a
+request came from.
+
+Also corrected, because it is easy to believe otherwise: `fetch(credentials: 'include')` restores
+cookies and HTTP Basic/Digest auth, **never** a JS-set `Authorization` or CSRF header. A site whose
+listing XHRs carry a JS-set bearer token 401s every probe and correctly falls through — but a 401
+there must not be read as "the parameter was wrong". Spec §3 had claimed the opposite.
+
 ## What NOT to redo
 
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
@@ -79,6 +126,7 @@ page 3: https://www.abebooks.com/servlet/SearchResults?ds=3&dym=on&kn=python&p=1
 - **The shared-browser-close bug is fixed** (`376b7ac`, plus the `analysis-orchestrator.ts` half and the structural `withBrowserSession` fix from the review round) — don't reopen it or re-derive the root cause; read "The fix, and its follow-up" above instead.
 - **Don't re-run the pagination-walk or cancel/resume proofs to get a better-looking result.** Runs `4bf71da9…`, `aeaab1db…` and the two cancel/resume cycles are the record; that budget is spent and restored. If `deriveTemplate`'s AbeBooks bug gets fixed, a fresh live run to reprove it is legitimate new work, not a re-run of this one.
 - **The `deriveTemplate` wrong-page-parameter bug is a known, recorded finding — don't re-derive it, and don't patch it as a drive-by.** See "Pagination walk + caching — live proof" above and `task-6-report.md` for the evidence. It needs its own cycle (design problem: choosing the right pager parameter when several query params look plausible), not a quick fix bolted onto whatever else is in flight.
+- **Don't re-run the `api-param` live proof against `newegg-gpus-live` to get a better-looking result.** Run `c889faea-3417-4d36-97cd-1907e55653af` (2026-08-24) is the record; that budget is spent and the source's budget is restored to `{max_items: 5, max_pages: 1}`. It fell through to `mechanical` — see "`api-param` pagination — live proof (2026-08-24)" above. If a corpus site is added that is known to load its listing from a same-origin JSON endpoint, a fresh live run against *that* site is legitimate new work, not a re-run of this one.
 
 ## Open decisions (need Marko, not code)
 
@@ -88,7 +136,7 @@ page 3: https://www.abebooks.com/servlet/SearchResults?ds=3&dym=on&kn=python&p=1
 ## Suggested next work
 
 1. **Fix `deriveTemplate`'s page-parameter choice** (in `@robot/browser`), or tighten the `gained > 0` verification gate in `plan-run.ts` (or both) — the AbeBooks bug above. This is the most concrete, evidence-backed item on this list.
-2. From `docs/roadmap.md`'s v2 section: `api-param` pagination detection and replay (still unbuilt); infinite scroll and load-more pagination strategies (still unbuilt — no listing that loads by scroll can be paged today); the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically).
+2. From `docs/roadmap.md`'s v2 section: infinite scroll and load-more pagination strategies (still unbuilt — no listing that loads by scroll can be paged today, and `api-param` does not cover it either); the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically). `api-param` pagination detection and replay is now built and offline-gated (see above) but still wants a live site that actually exercises it — the corpus doesn't currently have a confirmed one.
 
 ## Cheap things worth doing whenever convenient
 

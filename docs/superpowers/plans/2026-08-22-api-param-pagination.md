@@ -940,7 +940,22 @@ describe('detectApiParam', () => {
   });
 
   it('REJECTS a parameter whose probe returns page 1 again', async () => {
-    // The AbeBooks bug, as a test. Every probe answers page 1, so nothing verifies.
+    // The AbeBooks bug, as a test — and the fixture has to make every probe come
+    // back FULL of page 1's items, not empty. An empty probe is rejected earlier,
+    // by the `probeIds.length === 0` check, so a fixture that returns nothing
+    // would pass this test with the overlap guard deleted. It must be the overlap
+    // guard, and only the overlap guard, that says no here.
+    const browser = fakeBrowser({
+      'https://x.example/api/search?kn=py&offset=10&ds=1': PAGE1,
+      'https://x.example/api/search?kn=py&offset=1&ds=1': PAGE1,
+    });
+
+    expect(await detectApiParam(capture([apiRequest(PAGE1)]), PAGE1, browser)).toBeNull();
+  });
+
+  it('answers null when every probe comes back empty', async () => {
+    // The neighbouring guard, kept honest separately: an endpoint that returns no
+    // items for the next page tells us nothing, and must not be read as "verified".
     const browser = fakeBrowser({});
 
     expect(await detectApiParam(capture([apiRequest(PAGE1)]), PAGE1, browser)).toBeNull();
@@ -1096,9 +1111,13 @@ Expected: PASS — 5 new tests, and the existing `detect-pagination` tests still
 
 - [ ] **Step 5: Teeth check**
 
-Delete the `overlapShare(...) > REPLAY_MAX_OVERLAP` guard. Re-run. Expected: "REJECTS a parameter whose probe returns page 1 again" FAILS, because a bogus config is now returned. Restore.
+Delete the `overlapShare(...) > REPLAY_MAX_OVERLAP` guard. Re-run. Expected: "REJECTS a parameter whose probe returns page 1 again" FAILS, because a bogus config is now returned — and "answers null when every probe comes back empty" must still PASS, since a different guard rejects that one.
 
 This is the single most important teeth check in the plan — it is the AbeBooks bug. If it does not fail, stop and report.
+
+Then delete the `probeIds.length === 0` check instead and re-run. Expected: "answers null when every probe comes back empty" FAILS, and the overlap test still passes. Restore.
+
+Two guards sit next to each other here, and each must be shown to reject on its own. An earlier draft of this plan gave the overlap test an empty-probe fixture, so the length check rejected it first and the overlap guard could have been deleted with the suite green — the AbeBooks regression test proving nothing about AbeBooks.
 
 - [ ] **Step 6: Gates and commit**
 
@@ -1123,7 +1142,9 @@ git commit -m "feat(crawl): api-param detection, proven by probe before use"
 
 Context — **why this is a small change.** `plan-run.ts` already has the whole apparatus: verification (`gained > 0`), the bounded stale retry, cache write, the thin-walk warning, the overwrite warning. All of it keys off `walkPages(config) → { gained, budgetStopped }`. So `api-param` needs exactly one thing: a walker with that same signature. Do **not** restructure the surrounding block.
 
-Page URLs come from `apiTemplate` with `{N}` replaced by `from + step * n`. The starting value is not stored on the config, so pages are generated from `step * n` beginning at page 2 — that is `step * 1`, `step * 2`, … which matches what `probeUrl` verified (`from + step`, with `from` being page 1's value, normally 0 or 1). Where `from` is not 0, the first template value equals `from + step` by construction of `templateFor`, because the template replaces the parameter wholesale.
+Page URLs come from `apiTemplate` with `{N}` replaced by `from + step * n`, where `from` is the paging parameter's value on page 1 and is CARRIED ON THE CONFIG.
+
+> **Corrected 2026-08-24 (commit c80851e).** This paragraph originally said the starting value need not be stored, because "the first template value equals `from + step` by construction of `templateFor`, since the template replaces the parameter wholesale". That is backwards: wholesale replacement DISCARDS `from`. `probeUrl` verifies at `from + step`; `templateFor` throws `from` away; `PaginationConfig` had no field to carry it; so `step * (page - 1)` equalled the verified value only when `from` was 0. Page-style pagers (`page`, `p`, `pageNumber`, `pageNum`) start at 1, so every such walk re-requested page 1 and never reached `maxPages`. `PaginationConfig.from` now carries it, defaulting to 0 for configs cached before the field existed.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1167,7 +1188,10 @@ describe('planRun — walking an api-param config', () => {
   });
 
   it('a page that returns nothing new ends the walk and caches nothing', async () => {
-    const deps = apiParamDeps({ cachedConfig: null, detected: API_CONFIG, pages: [[]] });
+    // Cold: detection probes and verifies, then the walk fetches and gets
+    // nothing. `gained` is 0, so the verify-before-cache rule must refuse to
+    // store the config even though detection itself succeeded.
+    const deps = apiParamDeps({ cachedConfig: null, pages: [[]] });
 
     await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
 
@@ -1176,13 +1200,149 @@ describe('planRun — walking an api-param config', () => {
 });
 ```
 
-Create the fixture module `packages/scraper/src/crawl/plan-run-api-param.fixtures.ts`, modelled on the existing `plan-run-pagination.fixtures.ts` (read it first and match its shape — same `fakeDeps` idea, same `saved` recording, same `PlanRunRequest` construction). It must expose:
+Create the fixture module `packages/scraper/src/crawl/plan-run-api-param.fixtures.ts`:
 
-- `API_CONFIG: PaginationConfig` — `{ strategy: 'api-param', apiTemplate: 'https://listing.example/api?kn=py&offset={N}', paramName: 'offset', step: 2, itemsPath: 'results', urlPath: 'link' }`
-- `apiParamRequest(budget)` — same shape as `fakeRequest` there, with one input row.
-- `apiParamDeps({ cachedConfig, detected, pages })` — a `PlanRunDeps` whose `browser.evaluate` returns one `FetchedBody` per requested URL, serving `pages[n]` for the nth fetched URL, and which records `evaluateCalls`, `fetchedUrls`, `crawlCalls` and `saved`.
+```typescript
+import type { PaginationConfig, PageCapture, InterceptedRequest, CrawlOptions } from '@robot/browser';
+import type { PlanRunDeps, PlanRunRequest } from './plan-run.js';
+import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
 
-**`API_CONFIG` uses `step: 2` deliberately.** A step of 1 would make `offset=2` for page 2 indistinguishable from a page counter, and the second test would pass under a bug that ignored `step` entirely.
+/** Detail URLs page 1's own extraction yields. Long enough to be identifiers. */
+export const PAGE1 = [
+  'https://listing.example/p/100001',
+  'https://listing.example/p/100002',
+  'https://listing.example/p/100003',
+];
+
+/**
+ * `step: 2` is deliberate. With a step of 1, page 2's `offset=1` is
+ * indistinguishable from a plain page counter, so a walker that ignored `step`
+ * entirely and just counted pages would produce identical URLs and the
+ * substitution test would pass while broken. Two makes the two behaviours
+ * diverge on the very first page.
+ */
+export const API_CONFIG: PaginationConfig = {
+  strategy: 'api-param',
+  apiTemplate: 'https://listing.example/api?kn=py&offset={N}',
+  paramName: 'offset',
+  step: 2,
+  itemsPath: 'results',
+  urlPath: 'link',
+};
+
+const body = (urls: string[]) => ({ results: urls.map((link) => ({ link })) });
+
+export type SavedConfig = { domain: string; config: PaginationConfig };
+
+export type ApiParamDeps = PlanRunDeps & {
+  /** The page URL each `browser.evaluate` call navigated to, in order. */
+  evaluateCalls: string[];
+  /** Every URL requested inside a fetch script, flattened, in order. */
+  fetchedUrls: string[];
+  /** Populated only if something wrongly routes an api-param config to crawl(). */
+  crawlCalls: CrawlOptions[];
+  saved: SavedConfig[];
+};
+
+export function apiParamDeps(over: {
+  cachedConfig: PaginationConfig | null;
+  /** Detail URLs served for the walk's 1st, 2nd, … fetched URL. */
+  pages?: string[][];
+  /** Detail URLs served to every probe during cold detection. Must differ from PAGE1. */
+  probe?: string[];
+}): ApiParamDeps {
+  const evaluateCalls: string[] = [];
+  const fetchedUrls: string[] = [];
+  const crawlCalls: CrawlOptions[] = [];
+  const saved: SavedConfig[] = [];
+  const pages = over.pages ?? [['https://listing.example/p/200001']];
+  const probe = over.probe ?? ['https://listing.example/p/900001', 'https://listing.example/p/900002'];
+
+  // A real intercepted response carrying page 1's URLs, so COLD runs exercise
+  // the actual detectApiParam rather than a stub of it.
+  const apiRequest = {
+    url: 'https://listing.example/api?kn=py&offset=0',
+    method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {},
+    responseBody: JSON.stringify(body(PAGE1)), contentType: 'application/json',
+    bodySize: 200, isJson: true, parsedJson: body(PAGE1), timestamp: 0,
+  } as InterceptedRequest;
+
+  const capture = {
+    url: 'https://listing.example/search',
+    html: '<html><body>listing</body></html>',
+    screenshot: '',
+    screenshotTiles: [],
+    interceptedRequests: [apiRequest],
+  } as unknown as PageCapture;
+
+  return {
+    browser: {
+      capture: async () => capture,
+      // Mirrors Task 4's buildFetchScript contract: read the URL list out of the
+      // generated script, answer one FetchedBody per URL.
+      evaluate: async (pageUrl: string, script: string) => {
+        evaluateCalls.push(pageUrl);
+        const urls: string[] = JSON.parse(script.match(/const urls = (\[.*?\]);/s)![1]!);
+        urls.forEach((u) => fetchedUrls.push(u));
+        // On a cold run the FIRST evaluate is detection's probe batch; every
+        // later one is the walk. With a cached config there is no probe, so the
+        // first evaluate is already the walk.
+        const isProbe = over.cachedConfig === null && evaluateCalls.length === 1;
+        return urls.map((url, i) => ({
+          url,
+          status: 200,
+          json: body(isProbe ? probe : (pages[i] ?? [])),
+          error: null,
+        }));
+      },
+      async *crawl(_url: string, options: CrawlOptions) {
+        // An api-param config must never reach here. Recorded so a test can say so.
+        crawlCalls.push(options);
+      },
+    } as unknown as PlanRunDeps['browser'],
+    agent: null,
+    extract: (async () => ({
+      data: [{ [DETAIL_URL_FIELD]: PAGE1[0] }],
+      rows: PAGE1.map((u) => ({ [DETAIL_URL_FIELD]: u })),
+      plan: { row_xpath: '//a', fields: [{ name: DETAIL_URL_FIELD, xpath: './@href' }] },
+      confidence: 1,
+      sources: {},
+      fieldCount: { found: 1, total: 1 },
+      fieldsByTier: { requested: [], discovered: [] },
+      cacheHit: false,
+    })) as unknown as PlanRunDeps['extract'],
+    acquireLock: async () => () => {},
+    lookupCache: (async () => (
+      over.cachedConfig ? { paginationConfig: over.cachedConfig } : null
+    )) as unknown as PlanRunDeps['lookupCache'],
+    savePagination: (async (domain: string, config: PaginationConfig) => {
+      saved.push({ domain, config });
+    }) as PlanRunDeps['savePagination'],
+    evaluateCalls,
+    fetchedUrls,
+    crawlCalls,
+    saved,
+  };
+}
+
+export function apiParamRequest(budget: { maxPages: number; maxItems: number }): PlanRunRequest {
+  return {
+    source: {
+      listingMode: 'listing_to_detail',
+      inputStrategy: 'direct',
+      urlTemplate: 'https://listing.example/search',
+      budget: { max_pages: budget.maxPages, max_items: budget.maxItems, mode: 'first_n' },
+    },
+    schema: [{ name: DETAIL_URL_FIELD, type: 'url', origin: 'listing' }],
+    // inputStrategy is 'direct', so buildInputUrls needs a real row to read the
+    // start URL from — an empty rows array yields zero start URLs and the
+    // pagination block never runs at all.
+    inputSet: { columns: [{ name: 'url', primary: true }], rows: [{ url: 'https://listing.example/search' }] },
+  } as unknown as PlanRunRequest;
+}
+```
+
+Note on the third test: with `cachedConfig: null` the run probes first and then walks, so `evaluateCalls` is 2 there — only the first test (which supplies a cached config, so there is no probe) may assert a single evaluate.
 
 - [ ] **Step 2: Run the test and watch it fail**
 
@@ -1446,17 +1606,25 @@ This task makes real requests to a live site. **Plan only — it fetches listing
 
 - [ ] **Step 1: Pick a target and set a page-bound budget**
 
-Use `abebooks-pagination`. Its HTML pagination is known-broken (`deriveTemplate` pages the `ds` filter), which makes it the ideal test of whether `api-param` takes precedence and does better. Set `max_items` high so `max_pages` is the binding cap, and record the previous value:
+Use **`newegg-gpus-live`**, not `abebooks-pagination`.
+
+An earlier draft of this plan named AbeBooks, on the reasoning that its HTML pagination is known-broken (`deriveTemplate` pages the `ds` filter) so it would show `api-param` doing better. That reasoning was wrong in a way worth recording: AbeBooks' search results are **server-rendered**, and the previous cycle walked its HTML pagination successfully. It almost certainly exposes no JSON endpoint carrying detail URLs, so `api-param` would correctly fall through and the run would spend money demonstrating a negative.
+
+`newegg-gpus-live` is a category listing on a domain the roadmap records as **"JSON-LD + APIs"** — the corpus entry chosen precisely because it exercises the intercepted-API branch of the extraction chain. It is the only seeded source that can actually put this feature under load. Note that Newegg's *search* pages have served an anti-bot interstitial before; the *category* page used here has planned cleanly many times.
+
+Set `max_items` high so `max_pages` is the binding cap, and record the previous value so step 4 can restore it:
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "update sources set budget = '{\"mode\":\"first_n\",\"max_items\":60,\"max_pages\":3}'::jsonb where slug='abebooks-pagination' returning slug, budget;"
+  -c "update sources set budget = '{\"mode\":\"first_n\",\"max_items\":60,\"max_pages\":3}'::jsonb where slug='newegg-gpus-live' returning slug, budget;"
 ```
+
+If Newegg serves an interstitial instead of the category page, stop and report it — do not silently switch targets. A blocked capture is a fact about the corpus, and this project has twice mistaken one for a code defect.
 
 - [ ] **Step 2: Plan, and capture what detection chose**
 
 ```bash
-pnpm --filter @robot/api exec tsx src/crawl-plan.ts abebooks-pagination
+pnpm --filter @robot/api exec tsx src/crawl-plan.ts newegg-gpus-live
 ```
 
 Record the run id and the pagination `source` line. **Either outcome is a result worth having:**
@@ -1469,7 +1637,7 @@ Record the run id and the pagination `source` line. **Either outcome is a result
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
   -c "select kind, page_number, count(*) from run_items where run_id='<run-id>' group by 1,2 order by 1,2;"
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "select pagination_config from domain_intelligence where domain like '%abebooks%' and page_type='listing';"
+  -c "select pagination_config from domain_intelligence where domain like '%newegg%' and page_type='listing';"
 ```
 
 If `api-param` won, expect detail items spread across more than one `page_number` **and a per-page count close to page 1's** — the 30/2/1 shape is what a broken pager looks like, and its absence is the headline result. If the counts are thin again, say so plainly.
@@ -1478,7 +1646,7 @@ If `api-param` won, expect detail items spread across more than one `page_number
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "update sources set budget = '<the value recorded in step 1>'::jsonb where slug='abebooks-pagination';"
+  -c "update sources set budget = '<the value recorded in step 1>'::jsonb where slug='newegg-gpus-live';"
 ```
 
 - [ ] **Step 5: Record what is true**
