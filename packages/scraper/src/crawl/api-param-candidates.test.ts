@@ -37,6 +37,16 @@ describe('rankCandidates', () => {
   it('carries the parameter\'s current value so the probe can advance from it', () => {
     expect(rankCandidates('https://x.example/a?offset=60', 30)[0]).toMatchObject({ from: 60, step: 30 });
   });
+
+  it('never emits a step of 0, which could not advance anything', () => {
+    // An offset-style parameter with a page size of 0 would otherwise get
+    // `step: 0` pushed as the FIRST, preferred hypothesis — and probing it
+    // rebuilds page 1's own URL. Only the fallback push was guarded; both are
+    // now. The real caller cannot reach this (detectApiParam bails when page 1
+    // yielded no identifiers), but this function is exported and tested alone.
+    expect(rankCandidates('https://x.example/a?offset=5', 0))
+      .toEqual([{ paramName: 'offset', from: 5, step: 1 }]);
+  });
 });
 
 describe('probeUrl', () => {
@@ -67,6 +77,16 @@ describe('overlapShare', () => {
 
   it('is 0 when the probe returned nothing', () => {
     expect(overlapShare(['a1', 'b2'], [])).toBe(0);
+  });
+
+  it('counts a repeated identifier once, not twice', () => {
+    // Both sides are de-duplicated deliberately, and nothing else in this file
+    // forces it: every other fixture happens to use arrays with no internal
+    // duplicates, so a raw non-deduped implementation scores them identically.
+    // Here the two diverge — deduped 1 of 2 distinct ids is 0.5, raw counting
+    // is 1 of 3 entries, 0.667 — and a real payload with a duplicated result
+    // would silently shift the verdict against REPLAY_MAX_OVERLAP.
+    expect(overlapShare(['a1', 'a1', 'b2'], ['a1'])).toBe(0.5);
   });
 
   it('rejects a mostly-overlapping window at the documented threshold', () => {
