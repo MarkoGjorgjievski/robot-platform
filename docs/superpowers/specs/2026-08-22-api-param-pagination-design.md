@@ -20,7 +20,7 @@ We already intercept every XHR during capture, with URL, method, headers and par
 | Choosing the paging parameter | Rank candidates by name, then **prove the winner by replay** | The AbeBooks bug, caught in one JSON fetch instead of by a human reading item counts days later |
 | Choosing the step | Name implies it (`page` → 1, `offset`/`start`/`skip` → page size); if verification fails, try the other before discarding the parameter | A wrong step produces an overlapping window, which the same check catches |
 | Cursor APIs | **Out of scope.** Numeric parameters only | An opaque cursor cannot be bumped, so the verify-by-replay loop does not apply; those sites fall to the DOM-scroll cycle |
-| Where replay runs | Inside the page via `page.evaluate(fetch)` | Cookies, auth headers and CSRF tokens apply automatically; the request is indistinguishable from the site's own |
+| Where replay runs | Inside the page via `page.evaluate(fetch)` | Session cookies (and HTTP auth) apply automatically, and the request carries the site's origin. **Not** JS-set headers — see §3 |
 | Ladder position | Ahead of `url-pattern` / `next-button` / `page-numbers` | v2 spec §2.4 |
 
 ## What exists, and what is missing
@@ -101,7 +101,9 @@ So the work splits along that seam. **The page fetches; Node decides.** Two `eva
 
 `buildExtractionScript` is the established precedent for handing the page a generated script and getting structured data back; these scripts are simpler, because all they do is fetch and return.
 
-Requests use `fetch(url, { credentials: 'include' })` from the page's own origin, so session cookies, auth headers and CSRF tokens apply without being reconstructed in Node — the difference between a request that works and one that returns a login page.
+Requests use `fetch(url, { credentials: 'include' })` from the page's own origin, so session cookies — and any HTTP-level Basic/Digest auth — apply without being reconstructed in Node. That is the difference between a request that works and one that returns a login page on the large majority of sites, which authorise by cookie.
+
+**Corrected 2026-08-24 — the original wording overclaimed.** `credentials: 'include'` restores *credentials*, not *headers*. A JS-set `Authorization: Bearer …` or `X-CSRF-Token` is written by the site's own JavaScript on each XHR; it lives nowhere the credential store can reach, so a fetch issued from the page carries neither. On a site whose listing XHRs are authorised that way, **every probe 401s**, api-param records `none-verified`, and detection falls through to the HTML strategies. That is the correct outcome — no work is lost — but a 401 here must not be read as "the parameter was wrong". Replaying those headers off the matching `InterceptedRequest` is the fix, and it is deliberately out of scope for this cycle.
 
 Both scripts must be defensive in-page: a non-2xx response, a body that is not JSON, or a network error is recorded against that URL and the script returns what it has rather than throwing. A pagination failure must never lose the work page 1 already planned.
 

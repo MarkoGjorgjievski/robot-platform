@@ -1,0 +1,197 @@
+// Detect API pagination by PROVING it, not by guessing it.
+//
+// The HTML path picks a parameter by name and finds out whether it was right
+// from item counts, days later, if a human notices. Here the answer is one small
+// JSON fetch away, so the parameter is never used — and never cached — until a
+// probe has shown it returns different data.
+
+import type { IBrowser, InterceptedRequest, PageCapture, PaginationConfig } from '@robot/browser';
+import { collectFromJson } from './api-identifiers.js';
+import { findListingApi } from './find-listing-api.js';
+import {
+  rankCandidates, probeUrl, templateFor, overlapShare, REPLAY_MAX_OVERLAP,
+} from './api-param-candidates.js';
+import { fetchInPage } from './api-param-fetch.js';
+
+export type ApiParamDetection = {
+  config: PaginationConfig;
+  /** Every candidate probed, for the warning when none verifies. */
+  tried: string[];
+};
+
+/**
+ * The full result of an attempt, including the cases `detectApiParam` collapses
+ * to `null` — a caller that wants to warn about a failed attempt (naming the
+ * endpoint and what was tried) needs `tried`/`endpoint` even when `config` is
+ * null, which a `T | null` return can't carry.
+ */
+export type ApiParamAttempt = {
+  config: PaginationConfig | null;
+  tried: string[];
+  /** The listing endpoint that was probed, or null if none was even found. */
+  endpoint: string | null;
+  /**
+   * WHY this attempt ended where it did. The live Newegg run is the reason
+   * this exists: api-param did not apply, mechanical pagination answered
+   * instead, and `runs.logs` carried only "budget reached: 60 items" — because
+   * the only diagnostic covered "a listing API was found but no candidate
+   * verified", which was not what happened. The three failure reasons want
+   * three different fixes, so they are reported as three different things:
+   *
+   * - `no-listing-api`  — nothing intercepted carried page 1's detail URLs.
+   * - `no-candidates`   — the endpoint matched, but its query string holds no
+   *                       name `rankCandidates` recognises. Wants a new name.
+   * - `none-verified`   — candidates were probed and every one re-served page 1.
+   *                       Wants the step or overlap heuristics tuned.
+   * - `detection-threw` — the never-throw wrapper caught something. This is a
+   *                       BUG in detection, not a site behaviour, and it is the
+   *                       one reason a caller must report regardless of
+   *                       `considered` (see below).
+   */
+  reason: 'verified' | 'no-listing-api' | 'no-candidates' | 'none-verified' | 'detection-threw';
+  /**
+   * How many intercepted responses were even ELIGIBLE to be the listing API —
+   * GET, JSON, 2xx. Zero means there was genuinely nothing to consider, and a
+   * caller must stay silent rather than warn: most listing pages make no JSON
+   * XHR at all, and warning on every one of them would drown the signal.
+   *
+   * EXCEPT when `reason` is `detection-threw`. The catch cannot know what the
+   * count was — the throw may have happened before or after it was computed —
+   * so it reports 0, which under the rule above would silence the one outcome
+   * that most needs saying. Callers gate on `considered > 0 || reason ===
+   * 'detection-threw'`.
+   */
+  considered: number;
+};
+
+/**
+ * What the never-throw wrapper reports. NOT `no-listing-api`: that is the
+ * commonest and most boring outcome on this corpus, so a swallowed throw
+ * wearing its clothes produced zero operator signal — which is the exact
+ * complaint the previous round's warning work was written to close.
+ */
+const THREW: ApiParamAttempt = {
+  config: null, tried: [], endpoint: null, reason: 'detection-threw', considered: 0,
+};
+
+/** Responses that could, in principle, have been the listing API. */
+function eligibleCount(requests: InterceptedRequest[]): number {
+  return requests.filter((r) => (
+    r.method === 'GET' && r.isJson && r.parsedJson !== null
+    && r.responseStatus >= 200 && r.responseStatus < 300
+  )).length;
+}
+
+/**
+ * Attempt api-param detection, in full — never throws.
+ *
+ * Detection is an optimisation layered on top of work that is already planned
+ * (spec §3): a bad response, a malformed candidate, or — historically — a
+ * relative endpoint URL reaching `new URL()` in `api-param-candidates.ts` must
+ * degrade to "nothing found", exactly as `fetchInPage` degrades a page-context
+ * failure to `[]`, never propagate as a thrown error out of detection and cost
+ * the caller page 1's already-planned items.
+ */
+export async function probeApiParam(
+  capture: PageCapture,
+  page1Urls: string[],
+  browser: IBrowser,
+): Promise<ApiParamAttempt> {
+  try {
+    return await probeApiParamUnsafe(capture, page1Urls, browser);
+  } catch {
+    return THREW;
+  }
+}
+
+async function probeApiParamUnsafe(
+  capture: PageCapture,
+  page1Urls: string[],
+  browser: IBrowser,
+): Promise<ApiParamAttempt> {
+  const requests = capture.interceptedRequests ?? [];
+  const considered = eligibleCount(requests);
+  const match = findListingApi(requests, page1Urls);
+  if (!match) return { config: null, tried: [], endpoint: null, reason: 'no-listing-api', considered };
+
+  const page1Ids = collectFromJson(match.request.parsedJson, match.itemsPath, match.urlPath);
+  const pageSize = page1Ids.length;
+  // Belt-and-braces, not load-bearing: `findListingApi` only returns a match
+  // once at least `API_MATCH_MIN_COUNT` (3) identifiers were found via these
+  // SAME `itemsPath`/`urlPath`, so `page1Ids` — recomputed here with the same
+  // paths — cannot come back empty for a `match`. Kept and labelled anyway,
+  // per this file's convention (see the URL-invariant note in
+  // `api-param-candidates.ts`), so a future reader does not mistake "cheap
+  // defensive check" for "reachable branch".
+  if (pageSize === 0) {
+    return { config: null, tried: [], endpoint: match.request.url, reason: 'no-candidates', considered };
+  }
+
+  const candidates = rankCandidates(match.request.url, pageSize);
+  // Also belt-and-braces: an empty `candidates` array falls through the loop
+  // below to `return null` on its own (there is nothing to iterate), so this
+  // early return changes no behaviour. It documents that fact rather than
+  // leaving a reader to wonder whether skipping straight to the fallback here
+  // is doing something the loop wouldn't.
+  if (candidates.length === 0) {
+    return { config: null, tried: [], endpoint: match.request.url, reason: 'no-candidates', considered };
+  }
+
+  // One batch for every candidate: they are small JSON requests, and issuing
+  // them together costs one navigation instead of one per hypothesis.
+  const probes = candidates.map((c) => probeUrl(match.request.url, c));
+  const bodies = await fetchInPage(browser, capture.url ?? match.request.url, probes);
+  const byUrl = new Map(bodies.map((b) => [b.url, b]));
+
+  const tried: string[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i]!;
+    const body = byUrl.get(probes[i]!);
+    tried.push(`${candidate.paramName}+${candidate.step}`);
+    if (!body) continue;
+    // Split from `json === null` so each is independently deletable and
+    // independently tested: a network/parse error and a bad HTTP status are
+    // different failure modes, and a probe that trips one must not be mistaken
+    // for a probe that trips the other.
+    if (body.error !== null) continue;
+    if (body.json === null) continue;
+    if (body.status < 200 || body.status >= 300) continue;
+
+    const probeIds = collectFromJson(body.json, match.itemsPath, match.urlPath);
+    if (probeIds.length === 0) continue;
+    // The load-bearing line: a probe that hands back page 1's items is a wrong
+    // hypothesis, however well-formed its response.
+    if (overlapShare(page1Ids, probeIds) > REPLAY_MAX_OVERLAP) continue;
+
+    return {
+      config: {
+        strategy: 'api-param',
+        apiTemplate: templateFor(match.request.url, candidate.paramName),
+        paramName: candidate.paramName,
+        // The value page 1 held. `templateFor` overwrites it with `{N}`, so this
+        // is the only place it survives — and `probeUrl` verified `from + step`,
+        // which is precisely the first URL the walk must ask for.
+        from: candidate.from,
+        step: candidate.step,
+        itemsPath: match.itemsPath,
+        urlPath: match.urlPath,
+      },
+      tried,
+      endpoint: match.request.url,
+      reason: 'verified',
+      considered,
+    };
+  }
+
+  return { config: null, tried, endpoint: match.request.url, reason: 'none-verified', considered };
+}
+
+/** Convenience wrapper over `probeApiParam` for callers that only care about success. */
+export async function detectApiParam(
+  capture: PageCapture,
+  page1Urls: string[],
+  browser: IBrowser,
+): Promise<ApiParamDetection | null> {
+  const attempt = await probeApiParam(capture, page1Urls, browser);
+  return attempt.config ? { config: attempt.config, tried: attempt.tried } : null;
+}

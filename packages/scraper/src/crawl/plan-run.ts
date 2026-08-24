@@ -17,7 +17,9 @@ import { resolveBudget, itemCap } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
 import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumerate-detail-urls.js';
-import { detectPagination, type PaginationAgent } from './detect-pagination.js';
+import { detectPagination, type PaginationAgent, type PaginationDetection } from './detect-pagination.js';
+import { fetchInPage } from './api-param-fetch.js';
+import { page1Shape, rowUrls } from './api-row-urls.js';
 
 export type PlannedItem = {
   kind: 'listing' | 'detail';
@@ -122,6 +124,79 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
  */
 const THIN_WALK_SHARE = 0.25;
 
+/**
+ * What a page-2+ walk answers with.
+ *
+ * `budgetStopped` and `refused` are both carried OUT rather than re-derived at
+ * the call site, because both are invisible from `gained` alone: a walk cut
+ * short by the item cap looks thin, and a walk that caught the API inventing
+ * URLs on page 3 looks successful.
+ */
+type WalkResult = {
+  gained: number;
+  /** Was the item budget what ended it? Not "this pager is broken". */
+  budgetStopped: boolean;
+  /** Did any page hand back values that are not detail URLs for this listing? */
+  refused: boolean;
+};
+
+/**
+ * How many pages the api-param walk may fetch in ONE batch.
+ *
+ * The HTML walker needs no equivalent: `browser.crawl` is a lazy async
+ * generator, so it stops at the first empty page and `max_pages` is only ever
+ * an upper bound it may not reach. The api walker cannot work that way — spec
+ * §3 batches pages 2..N into a single `evaluate` precisely to pay one
+ * navigation instead of one per page — so every URL it builds IS fetched,
+ * sequentially, in the page context, with no per-request timeout, before Node
+ * sees any of them.
+ *
+ * And nothing above bounds it. `resolveBudget` puts a ceiling on `max_items`
+ * (HARD_ITEM_CEILING) but none at all on `max_pages`, so `max_pages: 100` meant
+ * 99 back-to-back requests at an endpoint whose owner is, on this corpus,
+ * running anti-bot as the binding constraint. That is a burst indistinguishable
+ * from scraping-you-mean-it, and the politeness delay the domain lock enforces
+ * sits OUTSIDE it — it spaces inputs, not the fetches within one batch.
+ *
+ * Ten is chosen against the shapes that actually occur: this repo's default
+ * budget is `{max_pages: 3}`, the live proofs used 3, and ten leaves generous
+ * headroom while keeping a single burst to something a human operator would
+ * also do by hand. A walk that legitimately needs more than ten pages is the
+ * signal that payload termination signals are worth their extra navigations —
+ * that is the documented revisit condition, recorded in docs/roadmap.md under
+ * v2.
+ */
+export const API_WALK_MAX_BATCH = 10;
+
+/**
+ * The api-param miss, in words a human tuning the heuristics can act on.
+ *
+ * The three reasons want three different fixes — a new name in `RANKED`, a
+ * changed step/overlap rule, or a look at why the listing API was not
+ * recognised — so collapsing them to one sentence is what made the live Newegg
+ * run uninformative.
+ */
+function apiParamReason(
+  reason: NonNullable<PaginationDetection['apiParamAttempt']>['reason'],
+  endpoint: string | null,
+  tried: string[],
+): string {
+  switch (reason) {
+    case 'detection-threw':
+      return 'detection threw and was abandoned — a bug in api-param detection, not a site '
+        + 'behaviour; page 1 is unaffected and the HTML strategies were tried instead';
+    case 'no-candidates':
+      return `${endpoint} carried page 1's detail URLs, but its query string holds no recognised paging parameter`;
+    case 'none-verified':
+      return `probed ${endpoint} with candidate(s) ${tried.join(', ') || '(none)'} `
+        + '— none returned a genuinely different page';
+    // 'verified' never reaches here: detectPagination returns before recording
+    // an attempt once a config exists.
+    default:
+      return "no intercepted JSON response carried page 1's detail URLs";
+  }
+}
+
 export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promise<PlanRunOutcome> {
   const { source, schema, inputSet } = request;
   const extract = deps.extract ?? runExtraction;
@@ -135,6 +210,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
   const items: PlannedItem[] = [];
   const warnings: string[] = [];
   const seen = new Set<string>();
+  /**
+   * Domains whose api-param miss has already been reported this run.
+   *
+   * The reason is a property of the DOMAIN's traffic — which endpoint was
+   * intercepted, which parameter names its query string holds — not of the
+   * InputSet row that happened to trigger the look. Reporting per input turned a
+   * 100-row source into 100 identical lines in `runs.logs`, which drowns the
+   * signal exactly as warning on every JSON-less listing page would.
+   */
+  const apiParamReported = new Set<string>();
 
   const { urls, errors } = buildInputUrls({
     strategy: source.inputStrategy,
@@ -295,8 +380,35 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
        * (see THIN_WALK_SHARE). Collapsing this to 'stop' | 'continue' is what
        * forced that distinction to be re-inferred, badly, further down.
        */
+      /**
+       * The detail URLs page 1's own rows actually BECAME — after resolution,
+       * after the self-link drop, after dedupe. Recorded by `absorb` rather
+       * than recomputed here, because a second place deciding what a row's
+       * `detail_url` resolves to is a second place for the two to drift.
+       *
+       * This, and not the raw extraction, is what `page1Shape` is built from.
+       * One junk anchor is enough otherwise: a '#' in a listing row resolves to
+       * the listing page itself, whose directory is '/', and `commonDirectory`
+       * collapses the prefix for the WHOLE walk to '/'. `enumerateDetailUrls`
+       * already refuses that row — its comment records a live crawl queueing a
+       * category page as if it were a product — so a shape built from it is a
+       * run measuring itself against a row it had already rejected, and the
+       * measured consequence was `/api/internal/v2/product/887766` being
+       * admitted as a detail URL.
+       *
+       * Dedupe narrows this: a URL another input already queued is absent here,
+       * which can only make the prefix LONGER and the check stricter. That
+       * direction is the safe one — a false refusal costs a warning and page
+       * 1's items, a false acceptance costs a fabricated URL cached across
+       * customers — and it is the trade `api-row-urls.ts` documents.
+       */
+      let page1DetailUrls: string[] = [];
+
       const absorb = (rows: Array<Record<string, unknown>>, pageUrl: string, pageNumber: number): StopReason => {
         const result = enumerateDetailUrls({ rows, pageUrl, pageNumber, seen, remaining: cap - detailCount() });
+        // Page 1 is absorbed exactly once per input, and always before a walk
+        // can start, so this is populated by the time `page1Shape` reads it.
+        if (pageNumber === 1) page1DetailUrls = result.items.map((planned) => planned.url);
         for (const item of result.items) {
           seen.add(item.url);
           items.push({
@@ -346,9 +458,27 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       } catch (err) {
         warnings.push(`pagination cache lookup failed on ${start.url}: ${(err as Error).message} — treating as cold`);
       }
+      const page1Urls = listingRows
+        .map((row) => row[DETAIL_URL_FIELD])
+        .filter((u): u is string => typeof u === 'string');
       const pagination = capture
-        ? await detectPagination(capture, deps.agent as PaginationAgent | null, cachedPagination)
+        ? await detectPagination(capture, deps.agent as PaginationAgent | null, cachedPagination, {
+            browser: deps.browser, page1Urls,
+          })
         : { config: null, source: 'none' as const };
+      // api-param is the cheapest, best-verified rung, so a miss is worth
+      // surfacing regardless of what (if anything) answered instead — this is
+      // the raw material for tuning `api-param-candidates.ts`'s heuristics from
+      // real traffic, and it is otherwise invisible: `detectPagination` only
+      // reports which tier WON, not what api-param tried and rejected.
+      if (pagination.apiParamAttempt && !apiParamReported.has(paginationDomain)) {
+        apiParamReported.add(paginationDomain);
+        const { endpoint, tried, reason, considered } = pagination.apiParamAttempt;
+        warnings.push(
+          `api-param pagination not applied on ${start.url}: ${apiParamReason(reason, endpoint, tried)} `
+          + `(${considered} intercepted JSON response(s) considered)`,
+        );
+      }
       if (!pagination.config) {
         warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
@@ -366,7 +496,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
        * out rather than guessed at: it is the difference between "this pager is
        * broken" and "we asked for 8 items and got them".
        */
-      const walkPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
+      const walkHtmlPages = async (config: PaginationConfig): Promise<WalkResult> => {
         const before = detailCount();
         let budgetStopped = false;
         for await (const page of deps.browser.crawl(start.url, {
@@ -385,11 +515,135 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             break;
           }
         }
-        return { gained: detailCount() - before, budgetStopped };
+        return { gained: detailCount() - before, budgetStopped, refused: false };
       };
 
+      /**
+       * Walk an api-param config: fetch pages 2..maxPages as JSON in ONE page
+       * context, and feed each page's URLs through the same `absorb` the HTML
+       * walk uses — so dedupe, the item cap and the stop reasons behave
+       * identically no matter which strategy produced the URLs.
+       */
+      const walkApiPages = async (config: PaginationConfig): Promise<WalkResult> => {
+        const before = detailCount();
+        const { apiTemplate, step, itemsPath, urlPath } = config;
+        if (!apiTemplate || !step || itemsPath === undefined || urlPath === undefined) {
+          return { gained: 0, budgetStopped: false, refused: false };
+        }
+        // Where the pager STARTS, not zero. `templateFor` builds `apiTemplate`
+        // by overwriting the paging parameter wholesale, which discards the
+        // value page 1 held — so `from` is carried on the config beside it, and
+        // `from + step` is exactly the URL `probeUrl` verified. Defaulted to 0
+        // for configs cached before the field existed.
+        // Validated, not merely defaulted. `step` has `!step` above, which catches
+        // 0, NaN and undefined; `from` had only `?? 0`, and a string `from`
+        // CONCATENATES rather than NaN-ing — `'2' + 2` is `'22'`, a
+        // plausible-looking URL for a page nobody asked for. Absent is fine and
+        // means 0 (configs cached before the field existed); present-but-not-an-
+        // integer is a corrupt row and refuses the walk, exactly as a missing
+        // `step` does.
+        if (config.from !== undefined && !Number.isInteger(config.from)) {
+          return { gained: 0, budgetStopped: false, refused: false };
+        }
+        const from = config.from ?? 0;
+        const lastPage = Math.min(budget.maxPages, API_WALK_MAX_BATCH + 1);
+        if (budget.maxPages > lastPage) {
+          warnings.push(
+            `api-param walk capped at ${API_WALK_MAX_BATCH} page(s) per batch on ${start.url}: `
+            + `max_pages is ${budget.maxPages}, and the api walk fetches its whole batch in one `
+            + 'burst from the page context — see API_WALK_MAX_BATCH',
+          );
+        }
+        const urls: string[] = [];
+        for (let page = 2; page <= lastPage; page++) {
+          urls.push(apiTemplate.replace('{N}', String(from + step * (page - 1))));
+        }
+        const bodies = await fetchInPage(deps.browser, start.url, urls);
+
+        // What page 1's own detail URLs demonstrate, computed once. Every value
+        // the API hands back is measured against this before it is planned.
+        const shape = page1Shape(page1DetailUrls, start.url);
+
+        let budgetStopped = false;
+        /**
+         * Did any page hand back a value that is not a detail URL for this
+         * listing? Carried out of the walk rather than inferred from `gained`,
+         * because the two disagree the moment the refusal lands on page 3
+         * rather than page 2: `gained` is then > 0 and the verify-before-cache
+         * gate — which reads only `gained` — waves the config through.
+         */
+        let refused = false;
+        for (let i = 0; i < bodies.length; i++) {
+          const body = bodies[i]!;
+          // A page that did not come back cleanly ends the walk. Split into
+          // three so each is independently deletable and independently tested,
+          // the same way `probeApiParamUnsafe` splits its probe guards.
+          if (body.error !== null) break;
+          // The walk checks `status` because detection does, and the asymmetry
+          // was not deliberate — it was an omission. An anti-bot 403 or a 429
+          // commonly arrives as a well-formed JSON envelope, and one holding an
+          // array at the cached `itemsPath` would otherwise be absorbed as a
+          // page of results and cached as a working config.
+          if (body.status < 200 || body.status >= 300) break;
+          // Belt-and-braces, not load-bearing, and labelled so per this file's
+          // convention: a null body reaches `rowUrls` as a non-array and comes
+          // back empty, which the emptiness check below stops on the very next
+          // line. It cannot be isolated by a test because deleting it changes no
+          // outcome. Kept because `FetchedBody` permits the shape and a future
+          // producer of one need not preserve the coincidence.
+          if (body.json === null) break;
+          const { usable, refused: refusedValue } = rowUrls(body.json, itemsPath, urlPath, start.url, shape);
+          // ANY refusal condemns the WHOLE page, not just the rows that missed.
+          //
+          // The alternative — drop the offending rows, keep the rest — is what
+          // this branch used to do whenever `usable` was non-empty, and it is
+          // the 2026-08-21 failure class in miniature: `/books/a` alongside
+          // `/ebooks/b` produced gained > 0, no warning, and a config written
+          // to the cross-customer domain cache. A listing whose detail URLs
+          // span two directories is ordinary, so that was not a corner.
+          //
+          // Refusing the page is the honest reading. `shape` is a claim about
+          // what a detail URL looks like on THIS listing, derived from page 1's
+          // own agreement; a row outside it says the claim is wrong. Once it is
+          // wrong, the rows that happen to fit it are not independently
+          // trustworthy — they are simply the subset a broken model failed to
+          // reject. Page 1's items are kept, the value is named, and nothing is
+          // cached (see `refused` at the walk's return).
+          if (refusedValue !== null) {
+            refused = true;
+            warnings.push(
+              `api-param walk abandoned on ${start.url}: ${body.url} returned values that are `
+              + `not detail URLs for this listing (e.g. "${refusedValue}") `
+              + '— falling through rather than fabricating URLs; nothing was cached',
+            );
+            break;
+          }
+          if (usable.length === 0) break;
+          const pageNumber = i + 2;
+          items.push({
+            kind: 'listing', url: body.url, inputIndex: start.inputIndex,
+            inputValues: start.inputValues, listingValues: {}, pageNumber,
+          });
+          // Resolved against the LISTING page, not against `body.url`. The rows
+          // came out of an API response, but the relative URLs in them are the
+          // SITE's — resolving "/p/200001" against an api.<site> endpoint puts
+          // every page-2+ item on the wrong host. `walkHtmlPages` gets this
+          // right by passing `page.url`; there is no equivalent here, because
+          // an API response is not the page the links belong to.
+          const stop = absorb(usable.map((u) => ({ [DETAIL_URL_FIELD]: u })), start.url, pageNumber);
+          if (stop !== null) {
+            budgetStopped = stop === 'budget';
+            break;
+          }
+        }
+        return { gained: detailCount() - before, budgetStopped, refused };
+      };
+
+      const walkPages = (config: PaginationConfig) =>
+        (config.strategy === 'api-param' ? walkApiPages(config) : walkHtmlPages(config));
+
       try {
-        let { gained, budgetStopped } = await walkPages(pagination.config);
+        let { gained, budgetStopped, refused } = await walkPages(pagination.config);
         let winning = pagination.config;
         let winningSource = pagination.source;
         /** The config this run is about to overwrite, if any. */
@@ -406,7 +660,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           // Non-null: we only get here after `pagination.config` was truthy
           // (checked above), which only happens once `capture` was truthy —
           // `detectPagination` above was called with this same `capture`.
-          const fresh = await detectPagination(capture!, deps.agent as PaginationAgent | null);
+          // Same ladder as the cold call, api-param rung included. Omitting the
+          // 4th argument here left the retry with mechanical -> ai only, which
+          // meant a domain whose api-param config went stale could never be
+          // re-detected as api-param — the cheapest and best-verified rung,
+          // permanently lost to exactly the domains that had proven they could
+          // use it. `capture` is this run's own, so it carries the same
+          // intercepted responses the cold path would have read.
+          const fresh = await detectPagination(capture!, deps.agent as PaginationAgent | null, null, {
+            browser: deps.browser, page1Urls,
+          });
           if (fresh.config) {
             // Deliberately NOT short-circuited when `fresh.config` is identical
             // to the config that just failed. That happens when the walk failed
@@ -415,7 +678,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             // that apart from a genuinely dead config. The cost is bounded — one
             // extra walk, once — and the alternative is caching a "this domain
             // is unpageable" conclusion drawn from a single bad afternoon.
-            ({ gained, budgetStopped } = await walkPages(fresh.config));
+            ({ gained, budgetStopped, refused } = await walkPages(fresh.config));
             winning = fresh.config;
             winningSource = fresh.source;
             // The stored config is about to be replaced, not merely written.
@@ -426,7 +689,13 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // Verification, not trust: a config is worth remembering only once a walk
         // it drove has actually produced new URLs. A cached config that worked is
         // already stored, so re-writing it would be noise.
-        if (gained > 0 && winningSource !== 'cache') {
+        // `!refused` is a gate, not a nicety: a walk that was abandoned because
+        // the API handed back values that are not detail URLs for this listing has
+        // already been caught fabricating, and the page it managed to absorb before
+        // that is no evidence the config works. Reading `gained` alone let exactly
+        // that config reach the cross-customer cache whenever the refusal landed on
+        // any page after the first walked one.
+        if (gained > 0 && !refused && winningSource !== 'cache') {
           // Spec §4 accepts one-config-per-domain collisions on the explicit
           // premise that "the thrash is visible". It was not: the retry above
           // reassigns `gained`, so the `gained === 0` warning below is skipped
@@ -457,7 +726,14 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           warnings.push(
             `pagination (${winningSource}: ${winning.strategy}) produced no new items on ${start.url}`,
           );
-        } else if (!budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE) {
+        } else if (!refused && !budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE) {
+          // `!refused` guards the CLAIM, not the diagnosis. A walk refused on a
+          // later page still has `gained > 0` from the pages that passed, and
+          // can easily land under the thin-walk share — but this message ends
+          // "the config was cached anyway", and a refused walk is precisely the
+          // case where it was not. The refusal warning above already says what
+          // happened; adding a second, false sentence beside it is worse than
+          // saying nothing.
           // Not a refusal — the config above is already cached. This is the
           // evidence a future fix to `deriveTemplate` will be built from, so it
           // names everything needed to reproduce: which page, how much page 1
