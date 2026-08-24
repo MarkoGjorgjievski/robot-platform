@@ -18,6 +18,30 @@ describe('findLoadMore', () => {
       .toBe('button.more-btn');
   });
 
+  it('prefers the id over the class when a clickable has both', () => {
+    // Real "Load more" buttons routinely carry both. No prior fixture gave a
+    // clickable both attributes, so a return-order swap (class checked before
+    // id) passed every existing test — and would silently hand back a less
+    // stable class selector when a stable id existed.
+    expect(findLoadMore('<div id="results"></div><button id="more" class="btn more-btn">Load more</button>'))
+      .toBe('#more');
+  });
+
+  it('captures the actual tag, not just <button>', () => {
+    // Every prior fixture used <button>. A link-rendered "Load more" would get
+    // a selector matching nothing if the tag were hardcoded — pagination
+    // silently disabled rather than erroring.
+    expect(findLoadMore('<div id="results"></div><a class="btn more-link" href="#">Load more</a>'))
+      .toBe('a.more-link');
+  });
+
+  it('recognizes wording even when markup splits the label', () => {
+    // <button>Load <b>more</b></button> and icon-plus-label buttons are the
+    // common real shape; nothing previously nested markup inside the label.
+    expect(findLoadMore('<div id="results"></div><button id="more">Load <b>more</b></button>'))
+      .toBe('#more');
+  });
+
   it('ignores a clickable whose text is not a load-more wording', () => {
     // "Subscribe" and "More filters" are the false positives that would click
     // something destructive or useless.
