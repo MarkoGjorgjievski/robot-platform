@@ -141,3 +141,85 @@ export async function serveFixturePages(pages: ServedPage[]): Promise<ServedSite
     }),
   };
 }
+
+/** One product card. `data-row` is the hook the extraction xpath and the stamp both use. */
+const card = (href: string) => `<div data-row class="item"><a href="${href}">x</a></div>`;
+
+/**
+ * A listing that appends its next batch when scrolled near the bottom.
+ *
+ * Batches after the first live in a JS array rather than the markup, deliberately:
+ * if they were in the initial HTML, a crawler that never scrolled would still
+ * extract them and every Tier 1 assertion here would pass against a broken loop.
+ *
+ * `recycle` additionally removes cards scrolled past, reproducing a virtualized
+ * list — the case where labels vanish with their nodes and the URL dedupe has to
+ * carry correctness on its own.
+ */
+export function scrollFixturePage(
+  opts: { batches: string[][]; recycle?: boolean; endless?: boolean },
+): string {
+  const [first = [], ...rest] = opts.batches;
+  // Built at template-interpolation time, not as a runtime `if (recycle)` guard:
+  // a guard's body is JS source text present in the output HTML regardless of
+  // which way the condition evaluates, so the "RECYCLE" marker would show up in
+  // every page's markup. Only interpolating the line in when `opts.recycle` is
+  // set keeps the marker (and thus the behavior it names) truly conditional.
+  const recycleLine = opts.recycle ? `/* RECYCLE */ results.innerHTML = '';` : '';
+  return `<!doctype html><html><body>
+<div id="results">${first.map(card).join('')}</div>
+<div style="height:2000px"></div>
+<script>
+  const rest = ${JSON.stringify(rest)};
+  const endless = ${opts.endless ? 'true' : 'false'};
+  const results = document.getElementById('results');
+  let served = 0;
+  addEventListener('scroll', () => {
+    if (window.scrollY + window.innerHeight < document.body.scrollHeight - 50) return;
+    // Endless: a fresh card every round, forever. The only thing that can stop
+    // a walk here is MAX_SCROLL_ROUNDS.
+    if (endless) {
+      const d = document.createElement('div');
+      d.setAttribute('data-row', '');
+      d.innerHTML = '<a href="/p/9' + String(served++).padStart(5, '0') + '">x</a>';
+      results.appendChild(d);
+      return;
+    }
+    if (served >= rest.length) return;
+    const batch = rest[served++];
+    ${recycleLine}
+    for (const href of batch) {
+      const d = document.createElement('div');
+      d.setAttribute('data-row', '');
+      d.className = 'item';
+      d.innerHTML = '<a href="' + href + '">x</a>';
+      results.appendChild(d);
+    }
+  });
+</script></body></html>`;
+}
+
+/** The same listing, advanced by a button instead of a scroll. The button removes itself when spent. */
+export function loadMoreFixturePage(opts: { batches: string[][] }): string {
+  const [first = [], ...rest] = opts.batches;
+  return `<!doctype html><html><body>
+<div id="results">${first.map(card).join('')}</div>
+<button id="more">Load more</button>
+<script>
+  const rest = ${JSON.stringify(rest)};
+  const results = document.getElementById('results');
+  const btn = document.getElementById('more');
+  let served = 0;
+  btn.addEventListener('click', () => {
+    const batch = rest[served++] || [];
+    for (const href of batch) {
+      const d = document.createElement('div');
+      d.setAttribute('data-row', '');
+      d.className = 'item';
+      d.innerHTML = '<a href="' + href + '">x</a>';
+      results.appendChild(d);
+    }
+    if (served >= rest.length) btn.remove();
+  });
+</script></body></html>`;
+}

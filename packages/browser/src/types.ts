@@ -65,7 +65,7 @@ export interface IBrowser {
 // ─── Pagination & Crawl ─────────────────────────────────────────────────────
 
 export type PaginationConfig = {
-  strategy: 'url-pattern' | 'next-button' | 'page-numbers' | 'api-param';
+  strategy: 'url-pattern' | 'next-button' | 'page-numbers' | 'api-param' | 'dom-scroll';
   /** For url-pattern: URL with {N} placeholder, e.g. "https://example.com/search?page={N}" */
   urlTemplate?: string;
   /** For next-button: CSS selector for the next page element */
@@ -97,6 +97,12 @@ export type PaginationConfig = {
   itemsPath?: string;
   /** For api-param: dot path to the detail URL inside each result. */
   urlPath?: string;
+  /**
+   * For dom-scroll: the clickable that advances the listing, when one was found.
+   * Absent means the listing advances by scrolling alone. Stored so a warm run
+   * skips the search rather than re-deriving it.
+   */
+  loadMoreSelector?: string;
 };
 
 export type CrawlOptions = {
