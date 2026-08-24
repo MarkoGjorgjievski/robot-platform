@@ -83,6 +83,16 @@ export type PaginationConfig = {
   paramName?: string;
   /** For api-param: how much to advance it per page — 1 for page-style, the page size for offset-style. */
   step?: number;
+  /**
+   * For api-param: the paging parameter's value on PAGE 1 — the base the walk
+   * counts up from. `apiTemplate` replaces that value with `{N}` wholesale, so
+   * without this the walk has no way to know where the pager starts, and a
+   * page-style pager (which starts at 1, not 0) gets re-served page 1 while
+   * never reaching the last page. Optional, defaulting to 0, so configs cached
+   * before this field existed — all of them offset-style, all of them starting
+   * at 0 — keep behaving exactly as they did.
+   */
+  from?: number;
   /** For api-param: dot path to the results array inside the response. */
   itemsPath?: string;
   /** For api-param: dot path to the detail URL inside each result. */

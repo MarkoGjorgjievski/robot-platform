@@ -431,9 +431,15 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         if (!apiTemplate || !step || itemsPath === undefined || urlPath === undefined) {
           return { gained: 0, budgetStopped: false };
         }
+        // Where the pager STARTS, not zero. `templateFor` builds `apiTemplate`
+        // by overwriting the paging parameter wholesale, which discards the
+        // value page 1 held — so `from` is carried on the config beside it, and
+        // `from + step` is exactly the URL `probeUrl` verified. Defaulted to 0
+        // for configs cached before the field existed.
+        const from = config.from ?? 0;
         const urls: string[] = [];
         for (let page = 2; page <= budget.maxPages; page++) {
-          urls.push(apiTemplate.replace('{N}', String(step * (page - 1))));
+          urls.push(apiTemplate.replace('{N}', String(from + step * (page - 1))));
         }
         const bodies = await fetchInPage(deps.browser, start.url, urls);
 
