@@ -380,8 +380,35 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
        * (see THIN_WALK_SHARE). Collapsing this to 'stop' | 'continue' is what
        * forced that distinction to be re-inferred, badly, further down.
        */
+      /**
+       * The detail URLs page 1's own rows actually BECAME — after resolution,
+       * after the self-link drop, after dedupe. Recorded by `absorb` rather
+       * than recomputed here, because a second place deciding what a row's
+       * `detail_url` resolves to is a second place for the two to drift.
+       *
+       * This, and not the raw extraction, is what `page1Shape` is built from.
+       * One junk anchor is enough otherwise: a '#' in a listing row resolves to
+       * the listing page itself, whose directory is '/', and `commonDirectory`
+       * collapses the prefix for the WHOLE walk to '/'. `enumerateDetailUrls`
+       * already refuses that row — its comment records a live crawl queueing a
+       * category page as if it were a product — so a shape built from it is a
+       * run measuring itself against a row it had already rejected, and the
+       * measured consequence was `/api/internal/v2/product/887766` being
+       * admitted as a detail URL.
+       *
+       * Dedupe narrows this: a URL another input already queued is absent here,
+       * which can only make the prefix LONGER and the check stricter. That
+       * direction is the safe one — a false refusal costs a warning and page
+       * 1's items, a false acceptance costs a fabricated URL cached across
+       * customers — and it is the trade `api-row-urls.ts` documents.
+       */
+      let page1DetailUrls: string[] = [];
+
       const absorb = (rows: Array<Record<string, unknown>>, pageUrl: string, pageNumber: number): StopReason => {
         const result = enumerateDetailUrls({ rows, pageUrl, pageNumber, seen, remaining: cap - detailCount() });
+        // Page 1 is absorbed exactly once per input, and always before a walk
+        // can start, so this is populated by the time `page1Shape` reads it.
+        if (pageNumber === 1) page1DetailUrls = result.items.map((planned) => planned.url);
         for (const item of result.items) {
           seen.add(item.url);
           items.push({
@@ -535,7 +562,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
 
         // What page 1's own detail URLs demonstrate, computed once. Every value
         // the API hands back is measured against this before it is planned.
-        const shape = page1Shape(page1Urls, start.url);
+        const shape = page1Shape(page1DetailUrls, start.url);
 
         let budgetStopped = false;
         /**

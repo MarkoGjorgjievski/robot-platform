@@ -198,6 +198,31 @@ describe('planRun — walking an api-param config', () => {
     expect(deps.saved).toEqual([]);
   });
 
+  it('builds the shape from the rows enumeration KEPT, not from the raw extraction', async () => {
+    // `page1Shape` was fed `listingRows.map(row => row[DETAIL_URL_FIELD])`,
+    // unfiltered — while `enumerateDetailUrls` drops self-links, because a tier
+    // answering with the page's own canonical URL is how the first live crawl
+    // queued a category page as if it were a product. ONE such row is enough:
+    // '#' resolves to the listing page, whose directory is '/', and
+    // `commonDirectory` collapses the prefix for the whole walk to '/'. Every
+    // guard downstream of the prefix then has nothing to hold, and the API's
+    // own internal path is admitted as a detail URL.
+    const deps = apiParamDeps({
+      cachedConfig: null,
+      page1: [...PAGE1, '#'],
+      pages: [['/api/internal/v2/product/887766']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    // The junk anchor is a self-link and was never work; page 1's real URLs are.
+    expect(detailUrls).toEqual(PAGE1);
+    expect(detailUrls.some((u) => u.includes('/api/internal/'))).toBe(false);
+    expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+    expect(deps.saved).toEqual([]);
+  });
+
   it('resolves page 2+ URLs against the LISTING page, not the API endpoint', async () => {
     // Fix 1, half two. api.<site> fronting www.<site> is ordinary. Resolving a
     // row's "/p/200001" against the API response's own URL puts every page-2+
