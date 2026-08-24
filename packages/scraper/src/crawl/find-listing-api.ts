@@ -80,40 +80,70 @@ export function findListingApi(
   const wanted = new Set(page1Urls.map(identifierFromUrl).filter((id): id is string => id !== null));
   if (wanted.size === 0) return null;
 
-  let best: ListingApiMatch | null = null;
-
+  // Every (response, array path) pair worth scanning, collected BEFORE any
+  // scanning starts and ordered by array length, longest first.
+  //
+  // This is not a behaviour change. The winner is the lexicographic maximum of
+  // (share, then array length), and a maximum does not depend on visiting
+  // order — except among candidates tying on BOTH keys, and those necessarily
+  // have equal array length, so a stable sort (every engine since ES2019)
+  // leaves their relative order exactly as interception produced it.
+  // `[small, large]` and `[large, small]` both still answer `large`.
+  //
+  // What the order buys is the ONE short-circuit that is safe here; see below.
+  const candidates: Array<{ request: InterceptedRequest; itemsPath: string; items: unknown[] }> = [];
   for (const request of requests) {
     if (request.method !== 'GET') continue;
     if (!request.isJson || request.parsedJson === null) continue;
     if (request.responseStatus < 200 || request.responseStatus >= 300) continue;
-
     for (const itemsPath of arrayPaths(request.parsedJson)) {
       // `arrayPaths` only yields a path whose value is a non-empty array of
       // objects, so this cast holds by construction.
-      const items = getPath(request.parsedJson, itemsPath) as unknown[];
-      for (const urlPath of stringPaths(items[0])) {
-        const ids = collectFromJson(request.parsedJson, itemsPath, urlPath, MAX_ITEMS_SCANNED);
-        const matched = ids.filter((id) => wanted.has(id)).length;
-        const share = matched / wanted.size;
-        if (matched < API_MATCH_MIN_COUNT || share < API_MATCH_MIN_SHARE) continue;
-        // Spec §1: "prefer the one with the highest share, then the largest
-        // array." A tie-break on `matched` WOULD be unreachable — `wanted.size`
-        // is fixed for the whole call, so share is strictly monotonic in matched
-        // — but array length is a different dimension entirely, and two
-        // endpoints carrying the same page-1 URLs in windows of different sizes
-        // tie on share exactly. Prefer the fuller window: it means fewer
-        // requests for the same catalogue, against a corpus whose binding
-        // constraint is anti-bot.
-        //
-        // There is deliberately NO early return on `share >= 1` any more. It was
-        // an optimisation, and with this tie-break it became a wrong answer: a
-        // perfect-share candidate found first would win over a perfect-share
-        // candidate with a bigger array. The scan it saved is already bounded by
-        // MAX_ITEMS_SCANNED per array.
-        if (!best || share > best.share || (share === best.share && items.length > best.arrayLength)) {
-          best = { request, itemsPath, urlPath, share, matched, arrayLength: items.length };
-        }
+      candidates.push({ request, itemsPath, items: getPath(request.parsedJson, itemsPath) as unknown[] });
+    }
+  }
+  candidates.sort((a, b) => b.items.length - a.items.length);
+
+  let best: ListingApiMatch | null = null;
+
+  for (const { request, itemsPath, items } of candidates) {
+    for (const urlPath of stringPaths(items[0])) {
+      const ids = collectFromJson(request.parsedJson, itemsPath, urlPath, MAX_ITEMS_SCANNED);
+      const matched = ids.filter((id) => wanted.has(id)).length;
+      const share = matched / wanted.size;
+      if (matched < API_MATCH_MIN_COUNT || share < API_MATCH_MIN_SHARE) continue;
+      // Spec §1: "prefer the one with the highest share, then the largest
+      // array." A tie-break on `matched` WOULD be unreachable — `wanted.size`
+      // is fixed for the whole call, so share is strictly monotonic in matched
+      // — but array length is a different dimension entirely, and two
+      // endpoints carrying the same page-1 URLs in windows of different sizes
+      // tie on share exactly. Prefer the fuller window: it means fewer
+      // requests for the same catalogue, against a corpus whose binding
+      // constraint is anti-bot.
+      if (!best || share > best.share || (share === best.share && items.length > best.arrayLength)) {
+        best = { request, itemsPath, urlPath, share, matched, arrayLength: items.length };
       }
+      // The bound this function lost when the tie-break went in, restored in
+      // the only form the tie-break permits.
+      //
+      // The naive `if (share >= 1) return best` was genuinely incompatible:
+      // with it, `findListingApi([small, large])` answers `small`, and
+      // interception order decides the winner. But the reason it was
+      // incompatible is that a LARGER array might still be coming — and
+      // scanning longest-first makes that impossible. `best` was set on this
+      // candidate or an earlier (so at least as long) one, and every candidate
+      // still to come is at most as long as this one — hence at most
+      // `best.arrayLength`. Beating a share of 1 needs either a higher share
+      // (there is none) or a STRICTLY larger array (there is none). Nothing
+      // remaining can win, so stopping cannot change the answer.
+      //
+      // What it costs to omit: measured on the shape the original perf ruling
+      // used — 30 responses x 300 items x 21 string fields x 3 array paths,
+      // all under MAX_ITEMS_SCANNED — this call takes 3898 ms without the
+      // return and 1 ms with it. That is synchronous, blocking, and paid once
+      // per listing input. MAX_ITEMS_SCANNED does not cover it: it caps items
+      // inside ONE array, not responses x array paths x string fields.
+      if (best.share >= 1) return best;
     }
   }
 

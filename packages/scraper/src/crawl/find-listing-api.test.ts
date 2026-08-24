@@ -127,6 +127,42 @@ describe('findListingApi', () => {
     expect(findListingApi([large, small], PAGE1)?.request.url).toBe(large.url);
   });
 
+  it('stops scanning once a perfect match with the largest array is in hand', () => {
+    // The bound. An earlier round measured ~4.9s of synchronous blocking here
+    // and answered with two cheap limits, one of which — the early return on a
+    // perfect share — had to go when spec §1's largest-array tie-break landed,
+    // justified as "already bounded by MAX_ITEMS_SCANNED". That constant caps
+    // items inside ONE array; it does nothing about responses x array paths x
+    // string fields. Re-measured on the original ruling's shape (30 responses,
+    // 300 items, 21 string fields, 3 array paths), the call had gone back to
+    // ~3.9s.
+    //
+    // Candidates are now scanned longest array first, which makes the early
+    // return safe again: nothing still to come can be larger, so nothing can
+    // beat a share of 1. This test is what stops that return being deleted a
+    // second time — the getter fires if, and only if, a candidate that cannot
+    // win is scanned anyway.
+    const reads: string[] = [];
+    const later = req('https://x.example/api/later', {
+      results: [
+        { link: 'https://x.example/q/other-000001' },
+        { get link() { reads.push('scanned'); return 'https://x.example/q/other-000002'; } },
+      ],
+    });
+    const winner = req('https://x.example/api/winner', {
+      results: [
+        ...PAGE1.map((u) => ({ link: u })),
+        ...Array.from({ length: 5 }, (_, i) => ({ link: `https://x.example/p/30000${i}` })),
+      ],
+    });
+    // `req` stringifies the body to build `responseBody`, which reads the
+    // getter once. Only what findListingApi does is under test.
+    reads.length = 0;
+
+    expect(findListingApi([later, winner], PAGE1)?.request.url).toBe(winner.url);
+    expect(reads).toEqual([]);
+  });
+
   it('does not scan past MAX_ITEMS_SCANNED items in a single array', () => {
     // All ten of page 1's identifiers sit just past the cap; the scanned range
     // holds only filler, so the cap is what keeps this from matching. If the
