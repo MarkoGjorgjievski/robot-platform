@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { PageCapture } from '@robot/browser';
+import type { IBrowser, InterceptedRequest, PageCapture } from '@robot/browser';
 import { detectPagination, type PaginationAgent } from './detect-pagination.js';
 
 const capture = (html: string, url = 'https://shop.example.com/s?q=x') =>
@@ -7,6 +7,39 @@ const capture = (html: string, url = 'https://shop.example.com/s?q=x') =>
 
 const PAGINATED = '<html><body><a rel="next" href="/s/more">Next</a></body></html>';
 const PLAIN = '<html><body><div class="results"><p>one</p></div></body></html>';
+
+// Fixture for the api-param rung — the 4th, optional parameter. Mirrors
+// detect-api-param.test.ts's fixtures, kept local so this file's existing
+// tests (which pass no 4th argument at all) are left completely undisturbed.
+const API_PAGE1 = Array.from({ length: 10 }, (_, i) => `https://api-shop.example/p/10000${i}`);
+const API_PAGE2 = Array.from({ length: 10 }, (_, i) => `https://api-shop.example/p/20000${i}`);
+const API_ENDPOINT = 'https://api-shop.example/api/search?offset=0';
+
+function apiCapture(): PageCapture {
+  const json = { results: API_PAGE1.map((u) => ({ link: u })) };
+  const request: InterceptedRequest = {
+    url: API_ENDPOINT, method: 'GET', resourceType: 'xhr', responseStatus: 200,
+    responseHeaders: {}, responseBody: JSON.stringify(json), contentType: 'application/json',
+    bodySize: 100, isJson: true, parsedJson: json, timestamp: 0,
+  } as InterceptedRequest;
+  // No mechanical pagination markup and no agent below — anything other than
+  // 'none'/'api-param' would mean a different tier answered first.
+  return { url: 'https://api-shop.example/list', html: PLAIN, interceptedRequests: [request] } as unknown as PageCapture;
+}
+
+function apiFakeBrowser(): IBrowser {
+  return {
+    evaluate: async (_pageUrl: string, script: string) => {
+      const urls: string[] = JSON.parse(script.match(/const urls = (\[.*?\]);/s)![1]!);
+      return urls.map((url) => ({
+        url,
+        status: 200,
+        json: url.includes('offset=10') ? { results: API_PAGE2.map((u) => ({ link: u })) } : { results: [] },
+        error: null,
+      }));
+    },
+  } as unknown as IBrowser;
+}
 
 const aiAgent = (result: Awaited<ReturnType<PaginationAgent['detectPagination']>>): PaginationAgent => ({
   async detectPagination() { return result; },
@@ -52,6 +85,25 @@ describe('detectPagination', () => {
 
   it('reports none when there is no markup and no agent', async () => {
     expect(await detectPagination(capture(PLAIN), null)).toEqual({ config: null, source: 'none' });
+  });
+
+  it('uses api-param as the first rung when a 4th argument supplies a browser and page 1 URLs', async () => {
+    const result = await detectPagination(apiCapture(), null, null, {
+      browser: apiFakeBrowser(),
+      page1Urls: API_PAGE1,
+    });
+    expect(result.source).toBe('api-param');
+    expect(result.config?.strategy).toBe('api-param');
+    expect(result.config?.paramName).toBe('offset');
+  });
+
+  it('skips api-param entirely when the 4th argument is absent, even against a fixture that would verify', async () => {
+    // Same capture that verifies api-param above — proving this isn't "the
+    // fixture happens not to match", but that omitting the 4th argument truly
+    // is inert, exactly as existing callers (that don't pass one) require.
+    const result = await detectPagination(apiCapture(), null);
+    expect(result.source).not.toBe('api-param');
+    expect(result).toEqual({ config: null, source: 'none' });
   });
 });
 

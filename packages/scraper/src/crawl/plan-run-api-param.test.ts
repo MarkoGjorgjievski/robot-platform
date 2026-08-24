@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { PaginationConfig } from '@robot/browser';
 import { planRun } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
-import { apiParamDeps, apiParamRequest, API_CONFIG } from './plan-run-api-param.fixtures.js';
+import { apiParamDeps, apiParamRequest, API_CONFIG, PAGE1 } from './plan-run-api-param.fixtures.js';
 
 describe('planRun — walking an api-param config', () => {
   it('enumerates detail URLs out of paged JSON without a page load per page', async () => {
@@ -49,5 +49,23 @@ describe('planRun — walking an api-param config', () => {
     // claim being made here is about the api-param path specifically.
     expect(deps.crawlCalls).toHaveLength(0);
     expect(deps.fetchedUrls.length).toBeGreaterThan(0);
+  });
+
+  it('warns with the endpoint and candidates tried when api-param is attempted but nothing verifies', async () => {
+    // `ApiParamDetection.tried` used to be built and dropped on the floor —
+    // this is the "raw material for tuning the heuristics from real traffic"
+    // the spec asks for, and it must land in `outcome.warnings` (and so in
+    // `runs.logs`) rather than vanish. Setting the probe response to PAGE1's
+    // own items makes every candidate fail verification (full overlap), so
+    // detection is attempted and rejects everything — the case the warning
+    // exists for.
+    const deps = apiParamDeps({ cachedConfig: null, probe: PAGE1 });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const warning = outcome.warnings.find((w) => w.includes('api-param pagination not verified'));
+    expect(warning).toBeDefined();
+    expect(warning).toContain('https://listing.example/api?kn=py&offset=0');
+    expect(warning).toContain('offset+');
   });
 });
