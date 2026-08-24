@@ -98,7 +98,23 @@ describe('the scroll walk against a real page', () => {
   it('bounds a listing that never goes quiet', async () => {
     // `/endless` appends a new card on every scroll, forever. Without
     // MAX_SCROLL_ROUNDS this test does not fail — it hangs, which is worse.
+    //
+    // The upper bound alone is not a teeth-check: with the up-then-down scroll
+    // trigger reverted to a bottom-only scrollTo, growth stalls after round 2
+    // (Chromium's scroll anchoring leaves the viewport already at the bottom,
+    // so the next scrollTo moves nothing and fires no 'scroll' event), the walk
+    // goes quiet at QUIET_ROUNDS and stops having yielded a single page — and
+    // `pages.length <= 50` is satisfied by 1 just as happily as by 49. The lower
+    // bound forces the walk to have actually run out MAX_SCROLL_ROUNDS rather
+    // than gone quiet early.
+    //
+    // Measured directly against this fixture with the real (working) trigger:
+    // rounds 2..50 all grow (endless never stops), so pages.length is 49 every
+    // run. The floor is set well below that measured value — high enough that
+    // the broken-trigger's 1 page cannot pass, comfortably below 49 to absorb
+    // any timing slack in a real browser.
     const pages = await walk('/endless');
+    expect(pages.length).toBeGreaterThanOrEqual(40);
     expect(pages.length).toBeLessThanOrEqual(50);
   }, 120_000);
 });
