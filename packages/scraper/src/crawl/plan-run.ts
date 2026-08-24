@@ -125,6 +125,22 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
 const THIN_WALK_SHARE = 0.25;
 
 /**
+ * What a page-2+ walk answers with.
+ *
+ * `budgetStopped` and `refused` are both carried OUT rather than re-derived at
+ * the call site, because both are invisible from `gained` alone: a walk cut
+ * short by the item cap looks thin, and a walk that caught the API inventing
+ * URLs on page 3 looks successful.
+ */
+type WalkResult = {
+  gained: number;
+  /** Was the item budget what ended it? Not "this pager is broken". */
+  budgetStopped: boolean;
+  /** Did any page hand back values that are not detail URLs for this listing? */
+  refused: boolean;
+};
+
+/**
  * How many pages the api-param walk may fetch in ONE batch.
  *
  * The HTML walker needs no equivalent: `browser.crawl` is a lazy async
@@ -453,7 +469,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
        * out rather than guessed at: it is the difference between "this pager is
        * broken" and "we asked for 8 items and got them".
        */
-      const walkHtmlPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
+      const walkHtmlPages = async (config: PaginationConfig): Promise<WalkResult> => {
         const before = detailCount();
         let budgetStopped = false;
         for await (const page of deps.browser.crawl(start.url, {
@@ -472,7 +488,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             break;
           }
         }
-        return { gained: detailCount() - before, budgetStopped };
+        return { gained: detailCount() - before, budgetStopped, refused: false };
       };
 
       /**
@@ -481,11 +497,11 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
        * walk uses — so dedupe, the item cap and the stop reasons behave
        * identically no matter which strategy produced the URLs.
        */
-      const walkApiPages = async (config: PaginationConfig): Promise<{ gained: number; budgetStopped: boolean }> => {
+      const walkApiPages = async (config: PaginationConfig): Promise<WalkResult> => {
         const before = detailCount();
         const { apiTemplate, step, itemsPath, urlPath } = config;
         if (!apiTemplate || !step || itemsPath === undefined || urlPath === undefined) {
-          return { gained: 0, budgetStopped: false };
+          return { gained: 0, budgetStopped: false, refused: false };
         }
         // Where the pager STARTS, not zero. `templateFor` builds `apiTemplate`
         // by overwriting the paging parameter wholesale, which discards the
@@ -500,7 +516,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // integer is a corrupt row and refuses the walk, exactly as a missing
         // `step` does.
         if (config.from !== undefined && !Number.isInteger(config.from)) {
-          return { gained: 0, budgetStopped: false };
+          return { gained: 0, budgetStopped: false, refused: false };
         }
         const from = config.from ?? 0;
         const lastPage = Math.min(budget.maxPages, API_WALK_MAX_BATCH + 1);
@@ -522,6 +538,14 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         const shape = page1Shape(page1Urls, start.url);
 
         let budgetStopped = false;
+        /**
+         * Did any page hand back a value that is not a detail URL for this
+         * listing? Carried out of the walk rather than inferred from `gained`,
+         * because the two disagree the moment the refusal lands on page 3
+         * rather than page 2: `gained` is then > 0 and the verify-before-cache
+         * gate — which reads only `gained` — waves the config through.
+         */
+        let refused = false;
         for (let i = 0; i < bodies.length; i++) {
           const body = bodies[i]!;
           // A page that did not come back cleanly ends the walk. Split into
@@ -541,15 +565,28 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           // outcome. Kept because `FetchedBody` permits the shape and a future
           // producer of one need not preserve the coincidence.
           if (body.json === null) break;
-          const { usable, refused } = rowUrls(body.json, itemsPath, urlPath, start.url, shape);
-          if (usable.length === 0 && refused !== null) {
-            // Spec §4: a value that is not a URL for THIS listing is not a
-            // detail URL we may invent. Stop rather than plan it, keep page 1's
-            // items, and leave `gained` where it is so the verify-before-cache
-            // gate refuses to store a config that cannot enumerate.
+          const { usable, refused: refusedValue } = rowUrls(body.json, itemsPath, urlPath, start.url, shape);
+          // ANY refusal condemns the WHOLE page, not just the rows that missed.
+          //
+          // The alternative — drop the offending rows, keep the rest — is what
+          // this branch used to do whenever `usable` was non-empty, and it is
+          // the 2026-08-21 failure class in miniature: `/books/a` alongside
+          // `/ebooks/b` produced gained > 0, no warning, and a config written
+          // to the cross-customer domain cache. A listing whose detail URLs
+          // span two directories is ordinary, so that was not a corner.
+          //
+          // Refusing the page is the honest reading. `shape` is a claim about
+          // what a detail URL looks like on THIS listing, derived from page 1's
+          // own agreement; a row outside it says the claim is wrong. Once it is
+          // wrong, the rows that happen to fit it are not independently
+          // trustworthy — they are simply the subset a broken model failed to
+          // reject. Page 1's items are kept, the value is named, and nothing is
+          // cached (see `refused` at the walk's return).
+          if (refusedValue !== null) {
+            refused = true;
             warnings.push(
               `api-param walk abandoned on ${start.url}: ${body.url} returned values that are `
-              + `not detail URLs for this listing (e.g. "${refused}") `
+              + `not detail URLs for this listing (e.g. "${refusedValue}") `
               + '— falling through rather than fabricating URLs; nothing was cached',
             );
             break;
@@ -572,14 +609,14 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             break;
           }
         }
-        return { gained: detailCount() - before, budgetStopped };
+        return { gained: detailCount() - before, budgetStopped, refused };
       };
 
       const walkPages = (config: PaginationConfig) =>
         (config.strategy === 'api-param' ? walkApiPages(config) : walkHtmlPages(config));
 
       try {
-        let { gained, budgetStopped } = await walkPages(pagination.config);
+        let { gained, budgetStopped, refused } = await walkPages(pagination.config);
         let winning = pagination.config;
         let winningSource = pagination.source;
         /** The config this run is about to overwrite, if any. */
@@ -614,7 +651,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             // that apart from a genuinely dead config. The cost is bounded — one
             // extra walk, once — and the alternative is caching a "this domain
             // is unpageable" conclusion drawn from a single bad afternoon.
-            ({ gained, budgetStopped } = await walkPages(fresh.config));
+            ({ gained, budgetStopped, refused } = await walkPages(fresh.config));
             winning = fresh.config;
             winningSource = fresh.source;
             // The stored config is about to be replaced, not merely written.
@@ -625,7 +662,13 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // Verification, not trust: a config is worth remembering only once a walk
         // it drove has actually produced new URLs. A cached config that worked is
         // already stored, so re-writing it would be noise.
-        if (gained > 0 && winningSource !== 'cache') {
+        // `!refused` is a gate, not a nicety: a walk that was abandoned because
+        // the API handed back values that are not detail URLs for this listing has
+        // already been caught fabricating, and the page it managed to absorb before
+        // that is no evidence the config works. Reading `gained` alone let exactly
+        // that config reach the cross-customer cache whenever the refusal landed on
+        // any page after the first walked one.
+        if (gained > 0 && !refused && winningSource !== 'cache') {
           // Spec §4 accepts one-config-per-domain collisions on the explicit
           // premise that "the thrash is visible". It was not: the retry above
           // reassigns `gained`, so the `gained === 0` warning below is skipped

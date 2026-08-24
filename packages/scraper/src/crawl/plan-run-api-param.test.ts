@@ -151,6 +151,53 @@ describe('planRun — walking an api-param config', () => {
     expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
   });
 
+  it('refuses a page that MIXES in-shape and out-of-shape rows, rather than keeping the half it likes', async () => {
+    // The refusal branch used to require `usable.length === 0`, so a page with
+    // one good row and one bad one hit neither branch: the bad row was dropped
+    // in silence, `gained` went up, and the config was written to the
+    // cross-customer domain cache. That is the 2026-08-21 failure class
+    // arriving through the fix written to prevent it, and it is reachable on
+    // any listing whose detail URLs span two directories.
+    const deps = apiParamDeps({
+      cachedConfig: null,
+      page1: SLUG_PAGE1,
+      probe: ['ruby-metaprogramming', 'elixir-in-action', 'clojure-applied'],
+      pages: [['/books/d-scala-primer', '/ebooks/e-elixir-primer']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    // The whole page is refused: the shape assumption is what failed, and the
+    // rows that happen to fit it are not independently trustworthy.
+    expect(detailUrls).toEqual(SLUG_PAGE1);
+    expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+    expect(deps.saved).toEqual([]);
+  });
+
+  it('does not cache a config whose walk was refused on a LATER page', async () => {
+    // The refusal comment leans on `gained` staying at 0 to keep the config out
+    // of the cache — which only holds when page 2 is the page that was refused.
+    // Refuse page 3 instead and `gained` is 1, so the verify-before-cache gate
+    // waves through a config that has already been caught inventing URLs.
+    const deps = apiParamDeps({
+      cachedConfig: null,
+      page1: SLUG_PAGE1,
+      probe: ['ruby-metaprogramming', 'elixir-in-action', 'clojure-applied'],
+      pages: [['/books/d-scala-primer'], ['/ebooks/e-elixir-primer']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    // Page 2 was clean, so its item is planned — the work is not thrown away.
+    expect(detailUrls).toContain('https://listing.example/books/d-scala-primer');
+    expect(detailUrls.some((u) => u.includes('/ebooks/'))).toBe(false);
+    expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+    // But a config caught fabricating on ANY page is not a config to remember.
+    expect(deps.saved).toEqual([]);
+  });
+
   it('resolves page 2+ URLs against the LISTING page, not the API endpoint', async () => {
     // Fix 1, half two. api.<site> fronting www.<site> is ordinary. Resolving a
     // row's "/p/200001" against the API response's own URL puts every page-2+
