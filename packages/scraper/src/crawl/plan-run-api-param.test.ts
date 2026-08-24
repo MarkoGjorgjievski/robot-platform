@@ -96,7 +96,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { PaginationConfig } from '@robot/browser';
-import { planRun } from './plan-run.js';
+import { planRun, API_WALK_MAX_BATCH } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
 import {
   apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, UNRELATED_API, PAGE1,
@@ -445,6 +445,27 @@ describe('planRun — walking an api-param config', () => {
     const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
     expect(detailUrls).toContain('https://listing.example/p/400001');
     expect(deps.crawlCalls).toHaveLength(0);
+  });
+
+  it('caps the batch rather than firing max_pages requests in one burst', async () => {
+    // `resolveBudget` puts no ceiling on `max_pages` at all — `max_items` has
+    // HARD_ITEM_CEILING, `max_pages` has nothing — so `max_pages: 100` built 99
+    // URLs and fetched every one of them SEQUENTIALLY from the page context,
+    // with no per-request timeout, before Node inspected a single response. The
+    // HTML walker cannot do this: it is a lazy generator that stops at the first
+    // empty page. This one had no equivalent brake, against a corpus whose
+    // binding constraint is anti-bot.
+    const deps = apiParamDeps({
+      cachedConfig: API_CONFIG,
+      intercepted: [],
+      pages: Array.from({ length: 200 }, (_, i) => [`https://listing.example/p/9${1000 + i}`]),
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 100, maxItems: 5000 }), deps);
+
+    expect(deps.fetchedUrls).toHaveLength(API_WALK_MAX_BATCH);
+    // Not silently: an operator who asked for 100 pages and got 11 must be told.
+    expect(outcome.warnings.some((w) => w.includes('api-param walk capped at'))).toBe(true);
   });
 
   it('numbers walked pages from 2, in fetch order', async () => {

@@ -125,6 +125,34 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
 const THIN_WALK_SHARE = 0.25;
 
 /**
+ * How many pages the api-param walk may fetch in ONE batch.
+ *
+ * The HTML walker needs no equivalent: `browser.crawl` is a lazy async
+ * generator, so it stops at the first empty page and `max_pages` is only ever
+ * an upper bound it may not reach. The api walker cannot work that way — spec
+ * §3 batches pages 2..N into a single `evaluate` precisely to pay one
+ * navigation instead of one per page — so every URL it builds IS fetched,
+ * sequentially, in the page context, with no per-request timeout, before Node
+ * sees any of them.
+ *
+ * And nothing above bounds it. `resolveBudget` puts a ceiling on `max_items`
+ * (HARD_ITEM_CEILING) but none at all on `max_pages`, so `max_pages: 100` meant
+ * 99 back-to-back requests at an endpoint whose owner is, on this corpus,
+ * running anti-bot as the binding constraint. That is a burst indistinguishable
+ * from scraping-you-mean-it, and the politeness delay the domain lock enforces
+ * sits OUTSIDE it — it spaces inputs, not the fetches within one batch.
+ *
+ * Ten is chosen against the shapes that actually occur: this repo's default
+ * budget is `{max_pages: 3}`, the live proofs used 3, and ten leaves generous
+ * headroom while keeping a single burst to something a human operator would
+ * also do by hand. A walk that legitimately needs more than ten pages is the
+ * signal that payload termination signals are worth their extra navigations —
+ * that is the documented revisit condition, recorded in docs/roadmap.md under
+ * v2.
+ */
+export const API_WALK_MAX_BATCH = 10;
+
+/**
  * The api-param miss, in words a human tuning the heuristics can act on.
  *
  * The three reasons want three different fixes — a new name in `RANKED`, a
@@ -451,8 +479,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // `from + step` is exactly the URL `probeUrl` verified. Defaulted to 0
         // for configs cached before the field existed.
         const from = config.from ?? 0;
+        const lastPage = Math.min(budget.maxPages, API_WALK_MAX_BATCH + 1);
+        if (budget.maxPages > lastPage) {
+          warnings.push(
+            `api-param walk capped at ${API_WALK_MAX_BATCH} page(s) per batch on ${start.url}: `
+            + `max_pages is ${budget.maxPages}, and the api walk fetches its whole batch in one `
+            + 'burst from the page context — see API_WALK_MAX_BATCH',
+          );
+        }
         const urls: string[] = [];
-        for (let page = 2; page <= budget.maxPages; page++) {
+        for (let page = 2; page <= lastPage; page++) {
           urls.push(apiTemplate.replace('{N}', String(from + step * (page - 1))));
         }
         const bodies = await fetchInPage(deps.browser, start.url, urls);
