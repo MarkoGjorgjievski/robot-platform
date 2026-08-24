@@ -10,7 +10,14 @@ import { createServer } from 'node:http';
 export type ServedPage = {
   /** Path INCLUDING any query string, e.g. "/list?page=2" — matched exactly. */
   path: string;
+  /** The response body. Named `html` because that is what it is for every HTML fixture. */
   html: string;
+  /**
+   * Defaults to HTML. Set to `application/json` to serve an API endpoint from the
+   * SAME origin as the pages — which is what makes an in-page `fetch` behave like
+   * the site's own, cookies and all.
+   */
+  contentType?: string;
 };
 
 export type ServedSite = {
@@ -22,14 +29,14 @@ export type ServedSite = {
 };
 
 export async function serveFixturePages(pages: ServedPage[]): Promise<ServedSite> {
-  const byPath = new Map(pages.map((p) => [p.path, p.html]));
+  const byPath = new Map(pages.map((p) => [p.path, p]));
   const requests: string[] = [];
 
   const server = createServer((req, res) => {
     const path = req.url ?? '/';
     requests.push(path);
-    const html = byPath.get(path);
-    if (html === undefined) {
+    const page = byPath.get(path);
+    if (page === undefined) {
       // A 404 rather than a fallback page: Playwright's page.goto() does not
       // throw on a 4xx and navigateToPage() never inspects the response
       // status, so this isn't loud in the way an error would be — it's just
@@ -40,8 +47,8 @@ export async function serveFixturePages(pages: ServedPage[]): Promise<ServedSite
       res.end('no such fixture page');
       return;
     }
-    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    res.end(html);
+    res.writeHead(200, { 'content-type': page.contentType ?? 'text/html; charset=utf-8' });
+    res.end(page.html);
   });
 
   // Port 0: the OS hands us a free ephemeral port. A fixed port turns "something
