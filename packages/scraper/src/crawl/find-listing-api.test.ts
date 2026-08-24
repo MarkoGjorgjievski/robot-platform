@@ -99,6 +99,34 @@ describe('findListingApi', () => {
     expect(findListingApi([partial, full], PAGE1)?.request.url).toBe(full.url);
   });
 
+  it('prefers the LARGER results array when two candidates tie on share', () => {
+    // Spec §1: "prefer the one with the highest share, then the largest array."
+    // Only the share comparison was ever implemented. An earlier commit removed
+    // a tie-break on `matched` as unreachable — correct reasoning (share is
+    // strictly monotonic in matched for a fixed `wanted.size`) — but `matched`
+    // is not the dimension the spec names, and the comment left behind read as
+    // though the requirement had been addressed. Mutating `share > best.share`
+    // to `>=` left the whole suite green.
+    //
+    // Both of these carry all ten of page 1's URLs, so both score share 1. The
+    // second serves a fuller page — ten more items beyond page 1's — and is the
+    // better endpoint to page from: a bigger window means fewer requests for the
+    // same catalogue, against a corpus whose binding constraint is anti-bot.
+    const small = req('https://x.example/api/small?offset=0', {
+      results: PAGE1.map((u) => ({ link: u })),
+    });
+    const large = req('https://x.example/api/large?offset=0', {
+      results: [
+        ...PAGE1.map((u) => ({ link: u })),
+        ...Array.from({ length: 10 }, (_, i) => ({ link: `https://x.example/p/20000${i}` })),
+      ],
+    });
+
+    expect(findListingApi([small, large], PAGE1)?.request.url).toBe(large.url);
+    // And interception order must not be what decides it.
+    expect(findListingApi([large, small], PAGE1)?.request.url).toBe(large.url);
+  });
+
   it('does not scan past MAX_ITEMS_SCANNED items in a single array', () => {
     // All ten of page 1's identifiers sit just past the cap; the scanned range
     // holds only filler, so the cap is what keeps this from matching. If the
