@@ -39,10 +39,12 @@ class FakeBrowser implements IBrowser {
     for (const page of this.pages) if (page.pageNumber >= from) yield page;
   }
 
+  // Reachable now: a max_pages:1 budget (see the domain-lock tests below)
+  // routes straight to the scroll fallback without detecting HTML/api-param
+  // pagination first. Empty by default, same as crawl() above, so tests that
+  // are not ABOUT pagination see the same single-page outcome as before.
   // eslint-disable-next-line require-yield
-  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
-    throw new Error('not used');
-  }
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {}
 }
 
 const OUTCOME_SHAPE = {
