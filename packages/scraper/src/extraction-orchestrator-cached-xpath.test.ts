@@ -8,7 +8,7 @@
 // green test means the tier actually ran and actually produced the value.
 
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, PageCapture, CrawlPage, CrawlOptions } from '@robot/browser';
+import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, ScrollOptions } from '@robot/browser';
 import { runExtraction } from './extraction-orchestrator.js';
 import type { DomainCache } from './domain-cache.js';
 
@@ -75,6 +75,11 @@ class RecordingBrowser implements IBrowser {
   }
   async close(): Promise<void> {}
   async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used');
+  }
 }
 
 describe('cached XPath tier', () => {

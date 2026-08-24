@@ -5,7 +5,7 @@
 // This replays the REAL captured listing page, so the tier that answered live
 // is the tier under test here.
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, PageCapture } from '@robot/browser';
+import type { IBrowser, PageCapture, CrawlPage, ScrollOptions } from '@robot/browser';
 import type { ExtractionPlan, SchemaField } from '@robot/agent';
 import { loadFixture } from '../__fixtures__/load.js';
 import { runExtraction, type ExtractionAgent } from '../extraction-orchestrator.js';
@@ -37,6 +37,11 @@ class RowBrowser implements IBrowser {
   async setContentEvaluate<T>(): Promise<T> { return { data: PRODUCT_ROWS, fieldCount: 1 } as T; }
   async close(): Promise<void> {}
   async *crawl(): AsyncGenerator<never> {}
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used');
+  }
 }
 
 /** Answers every field with the page's own URL — what the live model did. */
@@ -141,6 +146,11 @@ describe('selectors run against the page they were generated from', () => {
       }
       async close(): Promise<void> {}
       async *crawl(): AsyncGenerator<never> {}
+
+      // eslint-disable-next-line require-yield
+      async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+        throw new Error('not used');
+      }
     }
     const browser = new CountingBrowser();
     const outcome = await runExtraction(

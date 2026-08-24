@@ -1,6 +1,6 @@
 // packages/scraper/src/crawl/plan-run-page-level.test.ts
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, CrawlOptions, CrawlPage, PageCapture } from '@robot/browser';
+import type { IBrowser, CrawlOptions, CrawlPage, PageCapture, ScrollOptions } from '@robot/browser';
 import { planRun } from './plan-run.js';
 import type { ExtractionDeps } from '../extraction-orchestrator.js';
 
@@ -33,6 +33,11 @@ class FakeBrowser implements IBrowser {
   async *crawl(_url: string, options: CrawlOptions): AsyncGenerator<CrawlPage> {
     const from = options.startPage ?? 1;
     for (const page of this.pages) if (page.pageNumber >= from) yield page;
+  }
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used');
   }
 }
 
