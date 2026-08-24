@@ -368,6 +368,18 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             browser: deps.browser, page1Urls,
           })
         : { config: null, source: 'none' as const };
+      // api-param is the cheapest, best-verified rung, so a miss is worth
+      // surfacing regardless of what (if anything) answered instead — this is
+      // the raw material for tuning `api-param-candidates.ts`'s heuristics from
+      // real traffic, and it is otherwise invisible: `detectPagination` only
+      // reports which tier WON, not what api-param tried and rejected.
+      if (pagination.apiParamAttempt) {
+        const { endpoint, tried } = pagination.apiParamAttempt;
+        warnings.push(
+          `api-param pagination not verified on ${start.url}: probed ${endpoint} `
+          + `with candidate(s) ${tried.join(', ') || '(none)'} — none returned a genuinely different page`,
+        );
+      }
       if (!pagination.config) {
         warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);

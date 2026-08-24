@@ -10,7 +10,7 @@
 
 import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
 import { detectPaginationFromHtml } from '@robot/browser';
-import { detectApiParam } from './detect-api-param.js';
+import { probeApiParam } from './detect-api-param.js';
 
 /** The AI collaborator, declared structurally so tests need no API key. */
 export type PaginationAgent = {
@@ -27,6 +27,15 @@ export type PaginationDetection = {
   config: PaginationConfig | null;
   /** Which tier answered — recorded so a bad config is traceable to its source. */
   source: 'cache' | 'api-param' | 'mechanical' | 'ai' | 'none';
+  /**
+   * Present only when api-param was attempted (a listing endpoint was found and
+   * candidates were probed) but none verified, whatever tier ultimately
+   * answered instead. This is the raw material for tuning the heuristics in
+   * `api-param-candidates.ts` from real traffic — a human reading `runs.logs`
+   * needs to see which endpoint was probed and which candidates were tried, or
+   * a silent api-param miss is indistinguishable from "there was no API to try".
+   */
+  apiParamAttempt?: { endpoint: string; tried: string[] };
 };
 
 export async function detectPagination(
@@ -44,20 +53,27 @@ export async function detectPagination(
 
   // First rung: the cheapest and the best-verified. No page load beyond one
   // navigation, no AI, and an answer demonstrated rather than inferred.
+  let apiParamAttempt: PaginationDetection['apiParamAttempt'];
   if (api && api.page1Urls.length > 0) {
-    const apiParam = await detectApiParam(capture, api.page1Urls, api.browser);
-    if (apiParam) return { config: apiParam.config, source: 'api-param' };
+    const attempt = await probeApiParam(capture, api.page1Urls, api.browser);
+    if (attempt.config) return { config: attempt.config, source: 'api-param' };
+    // An endpoint was found and candidates were probed, but none verified.
+    // Carried forward so whichever tier answers instead still reports it —
+    // this is what fires the warning in `planRun`, not a `source` value.
+    if (attempt.endpoint) apiParamAttempt = { endpoint: attempt.endpoint, tried: attempt.tried };
   }
+  const withAttempt = (result: PaginationDetection): PaginationDetection =>
+    apiParamAttempt ? { ...result, apiParamAttempt } : result;
 
   const mechanical = detectPaginationFromHtml(capture.html ?? '', capture.url);
-  if (mechanical) return { config: mechanical, source: 'mechanical' };
+  if (mechanical) return withAttempt({ config: mechanical, source: 'mechanical' });
 
   // The AI sees the screenshot, and pagination is a visual thing — "1 2 3 › Next"
   // at the foot of the page. This fallback existed unused since v1.0.
-  if (!agent) return { config: null, source: 'none' };
+  if (!agent) return withAttempt({ config: null, source: 'none' });
   try {
     const result = await agent.detectPagination(capture.html ?? '');
-    if (!result.has_pagination || result.strategy === 'none') return { config: null, source: 'none' };
+    if (!result.has_pagination || result.strategy === 'none') return withAttempt({ config: null, source: 'none' });
     const config: PaginationConfig = {
       strategy: result.strategy,
       ...(result.url_template ? { urlTemplate: result.url_template } : {}),
@@ -66,11 +82,11 @@ export async function detectPagination(
     };
     // A strategy with no way to act on it is not a detection.
     if (!config.urlTemplate && !config.nextSelector && !config.pageSelector) {
-      return { config: null, source: 'none' };
+      return withAttempt({ config: null, source: 'none' });
     }
-    return { config, source: 'ai' };
+    return withAttempt({ config, source: 'ai' });
   } catch {
     // Detection is an optimisation, never a reason to lose the work already planned.
-    return { config: null, source: 'none' };
+    return withAttempt({ config: null, source: 'none' });
   }
 }
