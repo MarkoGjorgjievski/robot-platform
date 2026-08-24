@@ -40,6 +40,8 @@ export type ListingApiMatch = {
   /** Fraction of page 1's identifiers found. */
   share: number;
   matched: number;
+  /** How many items the array at `itemsPath` holds. Spec §1's tie-break. */
+  arrayLength: number;
 };
 
 /** Every dot path (to MAX_DEPTH) holding an array whose first element is a plain object. */
@@ -86,32 +88,34 @@ export function findListingApi(
     if (request.responseStatus < 200 || request.responseStatus >= 300) continue;
 
     for (const itemsPath of arrayPaths(request.parsedJson)) {
-      const sample = getFirstItem(request.parsedJson, itemsPath);
-      for (const urlPath of stringPaths(sample)) {
+      // `arrayPaths` only yields a path whose value is a non-empty array of
+      // objects, so this cast holds by construction.
+      const items = getPath(request.parsedJson, itemsPath) as unknown[];
+      for (const urlPath of stringPaths(items[0])) {
         const ids = collectFromJson(request.parsedJson, itemsPath, urlPath, MAX_ITEMS_SCANNED);
         const matched = ids.filter((id) => wanted.has(id)).length;
         const share = matched / wanted.size;
         if (matched < API_MATCH_MIN_COUNT || share < API_MATCH_MIN_SHARE) continue;
-        // No tie-break on `matched` needed: `wanted.size` is fixed for this whole
-        // call, so `share = matched / wanted.size` is strictly monotonic in
-        // `matched`. Equal share therefore always means equal matched — two
-        // candidates can never tie on share with different matched counts within
-        // a single findListingApi call.
-        if (!best || share > best.share) {
-          best = { request, itemsPath, urlPath, share, matched };
-          // A perfect match can't be beaten — every one of page 1's URLs is
-          // already accounted for — so stop scanning the remaining candidates
-          // and requests entirely.
-          if (share >= 1) return best;
+        // Spec §1: "prefer the one with the highest share, then the largest
+        // array." A tie-break on `matched` WOULD be unreachable — `wanted.size`
+        // is fixed for the whole call, so share is strictly monotonic in matched
+        // — but array length is a different dimension entirely, and two
+        // endpoints carrying the same page-1 URLs in windows of different sizes
+        // tie on share exactly. Prefer the fuller window: it means fewer
+        // requests for the same catalogue, against a corpus whose binding
+        // constraint is anti-bot.
+        //
+        // There is deliberately NO early return on `share >= 1` any more. It was
+        // an optimisation, and with this tie-break it became a wrong answer: a
+        // perfect-share candidate found first would win over a perfect-share
+        // candidate with a bigger array. The scan it saved is already bounded by
+        // MAX_ITEMS_SCANNED per array.
+        if (!best || share > best.share || (share === best.share && items.length > best.arrayLength)) {
+          best = { request, itemsPath, urlPath, share, matched, arrayLength: items.length };
         }
       }
     }
   }
 
   return best;
-}
-
-function getFirstItem(json: unknown, itemsPath: string): unknown {
-  const items = getPath(json, itemsPath);
-  return Array.isArray(items) ? items[0] : undefined;
 }
