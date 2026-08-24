@@ -99,7 +99,7 @@ import type { PaginationConfig } from '@robot/browser';
 import { planRun, API_WALK_MAX_BATCH } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
 import {
-  apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, UNRELATED_API, PAGE1,
+  apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, UNRELATED_API, RELATIVE_URL_API, PAGE1,
   CROSS_ORIGIN_CONFIG, SLUG_PAGE1,
 } from './plan-run-api-param.fixtures.js';
 
@@ -230,6 +230,51 @@ describe('planRun — walking an api-param config', () => {
     expect(warning).toBeDefined();
     expect(warning).toContain("no intercepted JSON response carried page 1's detail URLs");
     expect(warning).toContain('1 intercepted JSON response(s) considered');
+  });
+
+  it('says so when detection THREW rather than pretending nothing was considered', async () => {
+    // `probeApiParam`'s catch returned NO_ATTEMPT, whose `considered: 0` is
+    // documented to mean "there was genuinely nothing to consider" — the one
+    // case the caller must stay silent about. So a swallowed throw produced
+    // exactly zero operator signal, and looked identical to the commonest and
+    // most boring outcome. The never-throw wrapper is right; reporting the throw
+    // as a non-event is not.
+    const deps = apiParamDeps({ cachedConfig: null, intercepted: [RELATIVE_URL_API] });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const warning = outcome.warnings.find((w) => w.includes('api-param pagination not applied'));
+    expect(warning).toBeDefined();
+    expect(warning).toContain('detection threw');
+    // Page 1's work is untouched — a detection bug must not cost it.
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url)).toEqual(PAGE1);
+  });
+
+  it('says the api-param miss ONCE per domain, not once per input row', async () => {
+    // The warning fires inside the per-input loop, so a 100-row InputSet against
+    // one domain emitted 100 identical lines into `runs.logs` — the same
+    // drowning-the-signal failure the `considered > 0` gate exists to prevent,
+    // arriving by a different route. The reason is a property of the domain's
+    // traffic, not of the input row.
+    const deps = apiParamDeps({
+      cachedConfig: null,
+      intercepted: [UNRELATED_API],
+      page1ByInput: {
+        'https://listing.example/a': ['https://listing.example/p/100001', 'https://listing.example/p/100002'],
+        'https://listing.example/b': ['https://listing.example/p/200001', 'https://listing.example/p/200002'],
+      },
+    });
+
+    const outcome = await planRun(
+      apiParamRequest({ maxPages: 3, maxItems: 50 }, ['https://listing.example/a', 'https://listing.example/b']),
+      deps,
+    );
+
+    // Both inputs really did reach the pagination block — otherwise this passes
+    // for the wrong reason (a second input that never got there).
+    expect(outcome.warnings.filter((w) => w.includes('no pagination detected'))).toHaveLength(2);
+    expect(outcome.warnings.filter((w) => w.includes('api-param pagination not applied'))).toHaveLength(1);
   });
 
   it('stays silent when there was no JSON response to consider', async () => {
@@ -466,6 +511,24 @@ describe('planRun — walking an api-param config', () => {
     expect(deps.fetchedUrls).toHaveLength(API_WALK_MAX_BATCH);
     // Not silently: an operator who asked for 100 pages and got 11 must be told.
     expect(outcome.warnings.some((w) => w.includes('api-param walk capped at'))).toBe(true);
+  });
+
+  it('refuses a cached config whose `from` is not an integer', async () => {
+    // `step` gets `!step`, which catches 0, NaN and undefined. `from` had only
+    // `?? 0`, so a string survived — and a string CONCATENATES rather than
+    // NaN-ing: from '2' with step 2 builds `offset=22`, a plausible-looking URL
+    // for a page nobody asked for, whose response would then be absorbed and its
+    // config cached.
+    const deps = apiParamDeps({
+      cachedConfig: { ...API_CONFIG, from: '2' as unknown as number },
+      intercepted: [],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(outcome.errors).toEqual([]);
+    expect(outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url)).toEqual(PAGE1);
+    expect(deps.fetchedUrls).toEqual([]);
   });
 
   it('numbers walked pages from 2, in fetch order', async () => {

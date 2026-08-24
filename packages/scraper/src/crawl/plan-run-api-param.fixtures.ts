@@ -93,6 +93,20 @@ export const UNRELATED_API: InterceptedRequest = {
   parsedJson: body(['https://listing.example/p/999001']), timestamp: 0,
 } as InterceptedRequest;
 
+/**
+ * A listing API whose URL is RELATIVE — the shape the never-throw wrapper in
+ * `detect-api-param.ts` exists for. `findListingApi` never parses the request
+ * URL, so this matches page 1 happily; `rankCandidates` then hands it to
+ * `new URL()` without a base and it throws.
+ */
+export const RELATIVE_URL_API: InterceptedRequest = {
+  url: '/api?kn=py&offset=0',
+  method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {},
+  responseBody: JSON.stringify(body(PAGE1)),
+  contentType: 'application/json', bodySize: 200, isJson: true,
+  parsedJson: body(PAGE1), timestamp: 0,
+} as InterceptedRequest;
+
 export type SavedConfig = { domain: string; config: PaginationConfig };
 
 export type ApiParamDeps = PlanRunDeps & {
@@ -143,6 +157,15 @@ export function apiParamDeps(over: {
    * again, and the retry cannot be observed at all.
    */
   pagesAfterProbe?: string[][];
+  /**
+   * Page 1's detail URLs per START URL, for multi-input runs.
+   *
+   * Needed because every input otherwise extracts the SAME page-1 URLs, and the
+   * second input's absorb returns `'all-duplicates'` — which `continue`s before
+   * the pagination block is reached at all. Any claim about what happens across
+   * inputs is vacuous without this.
+   */
+  page1ByInput?: Record<string, string[]>;
 }): ApiParamDeps {
   const evaluateCalls: string[] = [];
   let probeSeen = false;
@@ -204,16 +227,19 @@ export function apiParamDeps(over: {
       },
     } as unknown as PlanRunDeps['browser'],
     agent: null,
-    extract: (async () => ({
-      data: [{ [DETAIL_URL_FIELD]: page1[0] }],
-      rows: page1.map((u) => ({ [DETAIL_URL_FIELD]: u })),
+    extract: (async (req: { url: string }) => {
+      const rows = over.page1ByInput?.[req.url] ?? page1;
+      return {
+      data: [{ [DETAIL_URL_FIELD]: rows[0] }],
+      rows: rows.map((u) => ({ [DETAIL_URL_FIELD]: u })),
       plan: { row_xpath: '//a', fields: [{ name: DETAIL_URL_FIELD, xpath: './@href' }] },
       confidence: 1,
       sources: {},
       fieldCount: { found: 1, total: 1 },
       fieldsByTier: { requested: [], discovered: [] },
       cacheHit: false,
-    })) as unknown as PlanRunDeps['extract'],
+      };
+    }) as unknown as PlanRunDeps['extract'],
     acquireLock: async () => () => {},
     lookupCache: (async () => (
       over.cachedConfig ? { paginationConfig: over.cachedConfig } : null
@@ -228,7 +254,11 @@ export function apiParamDeps(over: {
   };
 }
 
-export function apiParamRequest(budget: { maxPages: number; maxItems: number }): PlanRunRequest {
+export function apiParamRequest(
+  budget: { maxPages: number; maxItems: number },
+  /** Start URLs, one InputSet row each. Defaults to the single listing page. */
+  startUrls: string[] = ['https://listing.example/search'],
+): PlanRunRequest {
   return {
     source: {
       listingMode: 'listing_to_detail',
@@ -240,6 +270,9 @@ export function apiParamRequest(budget: { maxPages: number; maxItems: number }):
     // inputStrategy is 'direct', so buildInputUrls needs a real row to read the
     // start URL from — an empty rows array yields zero start URLs and the
     // pagination block never runs at all.
-    inputSet: { columns: [{ name: 'url', primary: true }], rows: [{ url: 'https://listing.example/search' }] },
+    inputSet: {
+      columns: [{ name: 'url', primary: true }],
+      rows: startUrls.map((url) => ({ url })),
+    },
   } as unknown as PlanRunRequest;
 }

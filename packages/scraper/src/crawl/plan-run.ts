@@ -166,6 +166,9 @@ function apiParamReason(
   tried: string[],
 ): string {
   switch (reason) {
+    case 'detection-threw':
+      return 'detection threw and was abandoned — a bug in api-param detection, not a site '
+        + 'behaviour; page 1 is unaffected and the HTML strategies were tried instead';
     case 'no-candidates':
       return `${endpoint} carried page 1's detail URLs, but its query string holds no recognised paging parameter`;
     case 'none-verified':
@@ -191,6 +194,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
   const items: PlannedItem[] = [];
   const warnings: string[] = [];
   const seen = new Set<string>();
+  /**
+   * Domains whose api-param miss has already been reported this run.
+   *
+   * The reason is a property of the DOMAIN's traffic — which endpoint was
+   * intercepted, which parameter names its query string holds — not of the
+   * InputSet row that happened to trigger the look. Reporting per input turned a
+   * 100-row source into 100 identical lines in `runs.logs`, which drowns the
+   * signal exactly as warning on every JSON-less listing page would.
+   */
+  const apiParamReported = new Set<string>();
 
   const { urls, errors } = buildInputUrls({
     strategy: source.inputStrategy,
@@ -415,7 +428,8 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // the raw material for tuning `api-param-candidates.ts`'s heuristics from
       // real traffic, and it is otherwise invisible: `detectPagination` only
       // reports which tier WON, not what api-param tried and rejected.
-      if (pagination.apiParamAttempt) {
+      if (pagination.apiParamAttempt && !apiParamReported.has(paginationDomain)) {
+        apiParamReported.add(paginationDomain);
         const { endpoint, tried, reason, considered } = pagination.apiParamAttempt;
         warnings.push(
           `api-param pagination not applied on ${start.url}: ${apiParamReason(reason, endpoint, tried)} `
@@ -478,6 +492,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // value page 1 held — so `from` is carried on the config beside it, and
         // `from + step` is exactly the URL `probeUrl` verified. Defaulted to 0
         // for configs cached before the field existed.
+        // Validated, not merely defaulted. `step` has `!step` above, which catches
+        // 0, NaN and undefined; `from` had only `?? 0`, and a string `from`
+        // CONCATENATES rather than NaN-ing — `'2' + 2` is `'22'`, a
+        // plausible-looking URL for a page nobody asked for. Absent is fine and
+        // means 0 (configs cached before the field existed); present-but-not-an-
+        // integer is a corrupt row and refuses the walk, exactly as a missing
+        // `step` does.
+        if (config.from !== undefined && !Number.isInteger(config.from)) {
+          return { gained: 0, budgetStopped: false };
+        }
         const from = config.from ?? 0;
         const lastPage = Math.min(budget.maxPages, API_WALK_MAX_BATCH + 1);
         if (budget.maxPages > lastPage) {

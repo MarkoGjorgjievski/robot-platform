@@ -65,7 +65,11 @@ export async function detectPagination(
     // api-param did not apply, and something was eligible to be considered.
     // Carried forward so whichever tier answers instead still reports it —
     // this is what fires the warning in `planRun`, not a `source` value.
-    if (rest.considered > 0) apiParamAttempt = rest;
+    //
+    // `detection-threw` is carried REGARDLESS of `considered`: the catch that
+    // produces it cannot know the count and reports 0, and a detection bug is
+    // the one outcome that must never be filtered out as "nothing to say".
+    if (rest.considered > 0 || rest.reason === 'detection-threw') apiParamAttempt = rest;
   }
   const withAttempt = (result: PaginationDetection): PaginationDetection =>
     apiParamAttempt ? { ...result, apiParamAttempt } : result;

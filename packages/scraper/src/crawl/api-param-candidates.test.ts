@@ -108,4 +108,10 @@ describe('overlapShare', () => {
     expect(overlapShare(page1, probe)).toBeCloseTo(0.6);
     expect(overlapShare(page1, probe)).toBeGreaterThan(REPLAY_MAX_OVERLAP);
   });
+  it('answers 0 rather than NaN when page 1 produced no identifiers', () => {
+    // Without the guard this is 0/0 = NaN, and `NaN > REPLAY_MAX_OVERLAP` is
+    // false — so EVERY candidate would clear the replay check and the one
+    // load-bearing test in this design would certify anything.
+    expect(overlapShare([], ['a1'])).toBe(0);
+  });
 });
