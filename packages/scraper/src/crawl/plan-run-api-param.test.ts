@@ -275,6 +275,11 @@ describe('planRun — walking an api-param config', () => {
     // is that phantom page the second assertion pins.
     const deps = apiParamDeps({
       cachedConfig: API_CONFIG,
+      // The walk gains nothing here, which now triggers the bounded stale
+      // re-detect — and that re-detect can reach api-param again (see the
+      // re-detection test below). Nothing intercepted keeps it out of the way
+      // so the fetch count below still measures this walk's batch.
+      intercepted: [],
       pages: [[], ['https://listing.example/p/500001']],
     });
 
@@ -416,6 +421,30 @@ describe('planRun — walking an api-param config', () => {
       expect(surviving(outcome)).toEqual(PAGE1);
       expect(outcome.errors).toEqual([]);
     });
+  });
+
+  it('can re-detect api-param when a cached api-param config goes stale', async () => {
+    // The bounded stale retry called `detectPagination(capture, agent)` with no
+    // 4th argument, so its ladder was mechanical -> ai. A domain whose api-param
+    // config went stale could therefore NEVER be re-detected as api-param, even
+    // though the fresh capture holds everything needed — and the cheapest,
+    // best-verified rung would be permanently lost to that domain. The cold call
+    // passed the argument; the retry did not, and nothing explained why.
+    const deps = apiParamDeps({
+      // A config whose parameter the site has stopped honouring.
+      cachedConfig: { ...API_CONFIG, apiTemplate: 'https://listing.example/api?kn=py&stale={N}' },
+      pages: [[]],
+      pagesAfterProbe: [['https://listing.example/p/400001']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 2, maxItems: 50 }), deps);
+
+    expect(deps.saved).toHaveLength(1);
+    expect(deps.saved[0]?.config.strategy).toBe('api-param');
+    expect(deps.saved[0]?.config.apiTemplate).toBe('https://listing.example/api?kn=py&offset={N}');
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    expect(detailUrls).toContain('https://listing.example/p/400001');
+    expect(deps.crawlCalls).toHaveLength(0);
   });
 
   it('numbers walked pages from 2, in fetch order', async () => {
