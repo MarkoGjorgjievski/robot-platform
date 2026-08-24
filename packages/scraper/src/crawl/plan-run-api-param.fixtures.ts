@@ -62,13 +62,22 @@ export function apiParamDeps(over: {
   cachedConfig: PaginationConfig | null;
   /** Detail URLs served for the walk's 1st, 2nd, … fetched URL. */
   pages?: string[][];
-  /** Detail URLs served to every probe during cold detection. Must differ from PAGE1. */
+  /** Detail URLs served to every probe during cold detection. Must differ from page 1's. */
   probe?: string[];
+  /**
+   * Page 1's own detail URLs — both what row extraction yields and what the
+   * intercepted listing API carries. Overridable because some claims only
+   * become testable at a particular page-1 size: the thin-walk ratio is
+   * `gained < page1Gain * 0.25`, which with the default three URLs cannot be
+   * satisfied by any `gained > 0`.
+   */
+  page1?: string[];
 }): ApiParamDeps {
   const evaluateCalls: string[] = [];
   const fetchedUrls: string[] = [];
   const crawlCalls: CrawlOptions[] = [];
   const saved: SavedConfig[] = [];
+  const page1 = over.page1 ?? PAGE1;
   const pages = over.pages ?? [['https://listing.example/p/200001']];
   const probe = over.probe ?? ['https://listing.example/p/900001', 'https://listing.example/p/900002'];
 
@@ -77,8 +86,8 @@ export function apiParamDeps(over: {
   const apiRequest = {
     url: 'https://listing.example/api?kn=py&offset=0',
     method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {},
-    responseBody: JSON.stringify(body(PAGE1)), contentType: 'application/json',
-    bodySize: 200, isJson: true, parsedJson: body(PAGE1), timestamp: 0,
+    responseBody: JSON.stringify(body(page1)), contentType: 'application/json',
+    bodySize: 200, isJson: true, parsedJson: body(page1), timestamp: 0,
   } as InterceptedRequest;
 
   const capture = {
@@ -116,8 +125,8 @@ export function apiParamDeps(over: {
     } as unknown as PlanRunDeps['browser'],
     agent: null,
     extract: (async () => ({
-      data: [{ [DETAIL_URL_FIELD]: PAGE1[0] }],
-      rows: PAGE1.map((u) => ({ [DETAIL_URL_FIELD]: u })),
+      data: [{ [DETAIL_URL_FIELD]: page1[0] }],
+      rows: page1.map((u) => ({ [DETAIL_URL_FIELD]: u })),
       plan: { row_xpath: '//a', fields: [{ name: DETAIL_URL_FIELD, xpath: './@href' }] },
       confidence: 1,
       sources: {},

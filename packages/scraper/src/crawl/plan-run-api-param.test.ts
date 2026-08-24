@@ -16,6 +16,84 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { describe, it, expect } from 'vitest';
 import type { PaginationConfig } from '@robot/browser';
 import { planRun } from './plan-run.js';
@@ -103,5 +181,90 @@ describe('planRun — walking an api-param config', () => {
     expect(deps.fetchedUrls[1]).toContain('page=3');
     // And nothing asks for page 1 again.
     expect(deps.fetchedUrls.some((u) => u.includes('page=1'))).toBe(false);
+  });
+
+  it('stops at the first empty page instead of walking on past it', async () => {
+    // Fix 2. The break on an empty page was unverified: the only test with
+    // empty pages had them ALL empty, so continuing past the break changed
+    // nothing. Page 2 is empty and page 3 is not.
+    //
+    // Note what this can and cannot prove. Absorbing p/500001 is ALREADY
+    // impossible without the break: `absorb([])` returns `'empty-page'`, which
+    // is a non-null stop and ends the loop on the next line. So the break's own
+    // contribution is the line before it — an empty page must not be recorded
+    // in the work list as a listing page that was walked. Deleting the break
+    // pushes a `kind: 'listing'` item for a page that yielded nothing, and it
+    // is that phantom page the second assertion pins.
+    const deps = apiParamDeps({
+      cachedConfig: API_CONFIG,
+      pages: [[], ['https://listing.example/p/500001']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    expect(detailUrls).not.toContain('https://listing.example/p/500001');
+    // Page 1 is the only listing page this run actually got anything from.
+    expect(outcome.items.filter((i) => i.kind === 'listing').map((i) => i.pageNumber)).toEqual([1]);
+    // Both URLs were still requested in the one batch — the break governs what
+    // is absorbed and recorded, not how many URLs the batch asked for.
+    expect(deps.fetchedUrls).toHaveLength(2);
+  });
+
+  it('does not call a budget-stopped walk a thin walk', async () => {
+    // Fix 3. `budgetStopped` had no test: hard-coding it either way passed
+    // everything. Page 1 yields 8 against a cap of 9, so the walk can absorb
+    // exactly one more item before the cap bites — 1 < 8 * 0.25, which is the
+    // thin-walk shape exactly. The item budget is what stopped it, so the
+    // "likely re-serving page 1" warning must NOT fire.
+    const page1 = Array.from({ length: 8 }, (_, i) => `https://listing.example/p/10000${i}`);
+    const deps = apiParamDeps({
+      cachedConfig: API_CONFIG,
+      page1,
+      pages: [['https://listing.example/p/200001', 'https://listing.example/p/200002', 'https://listing.example/p/200003']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 9 }), deps);
+
+    // The cap really did bite — otherwise this test would pass for the wrong
+    // reason (a walk that was never thin in the first place).
+    expect(outcome.warnings.some((w) => w.startsWith('budget reached: 9 items'))).toBe(true);
+    expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(9);
+    expect(outcome.warnings.some((w) => w.includes('likely re-serving page 1'))).toBe(false);
+  });
+
+  it('survives a cached api-param config that is missing its fields', async () => {
+    // Fix 4. Unreachable from cold detection, but a legacy or corrupted cache
+    // row can hold one. Without the guard `apiTemplate.replace(...)` throws on
+    // undefined, the outer handler catches it, and this input is downgraded to
+    // `status: 'error'` — losing page 1's already-planned items, which spec §3
+    // says a pagination failure must never do.
+    const deps = apiParamDeps({ cachedConfig: { strategy: 'api-param' } });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(outcome.errors).toEqual([]);
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    expect(detailUrls).toEqual(PAGE1);
+    expect(outcome.inputs[0]?.status).toBe('planned');
+  });
+
+  it('numbers walked pages from 2, in fetch order', async () => {
+    // Fix 5. `pageNumber = i + 2` was asserted nowhere, so an off-by-one would
+    // have shipped invisibly — and pageNumber is what phase 2 and the results
+    // browser attribute an item to.
+    const deps = apiParamDeps({
+      cachedConfig: API_CONFIG,
+      pages: [['https://listing.example/p/200001'], ['https://listing.example/p/300001']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const pageOf = new Map(
+      outcome.items.filter((i) => i.kind === 'detail').map((i) => [i.url, i.pageNumber]),
+    );
+    expect(pageOf.get(PAGE1[0]!)).toBe(1);
+    expect(pageOf.get('https://listing.example/p/200001')).toBe(2);
+    expect(pageOf.get('https://listing.example/p/300001')).toBe(3);
   });
 });
