@@ -15,10 +15,12 @@
 // verification succeeding is itself the proof that the fetch ran in the page,
 // same-origin, with credentials.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, type PaginationConfig } from '@robot/browser';
 import { serveFixturePages, type ServedSite } from '../__fixtures__/serve.js';
 import { detectApiParam } from './detect-api-param.js';
 import { fetchInPage } from './api-param-fetch.js';
+import { planRun, type PlanRunDeps, type PlanRunRequest } from './plan-run.js';
+import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
 
 const PAGE1 = ['/p/1000001', '/p/1000002', '/p/1000003', '/p/1000004'];
 const PAGE2 = ['/p/2000001', '/p/2000002', '/p/2000003', '/p/2000004'];
@@ -92,7 +94,80 @@ describe('api-param against a real origin', () => {
     // config assertion three lines up.
     const probeIndex = site.requests.indexOf('/api?kn=py&offset=4');
     expect(site.requestHeaders[probeIndex]?.cookie).toContain(SESSION);
+    // And WHICH document issued it. The cookie assertion above only says the
+    // browser had the cookie — which stays true for the rest of this file no
+    // matter where a later fetch is issued from, because the jar outlives one
+    // evaluate. Referer names the page.
+    expect(site.requestHeaders[probeIndex]?.referer).toBe(`${site.baseUrl}/list`);
   }, 60_000);
+
+  it("walks pages 2..N through planRun, from the listing page's own context", async () => {
+    // Detection's target was pinned by the gate above; the WALK's was not.
+    // Mutating `fetchInPage(deps.browser, start.url, urls)` to navigate anywhere
+    // else left the entire suite green, because the only Tier 1 gate over a real
+    // origin drove detectApiParam and never planRun.
+    //
+    // Here the walk is the thing under test. /api serves items only to a caller
+    // carrying the cookie /list handed out, so page 2 coming back with items is
+    // itself the proof that the fetch ran in the listing page's context.
+    const config: PaginationConfig = {
+      strategy: 'api-param',
+      apiTemplate: `${site.baseUrl}/api?kn=py&offset={N}`,
+      paramName: 'offset',
+      from: 0,
+      step: 4,
+      itemsPath: 'results',
+      urlPath: 'link',
+    };
+    const request: PlanRunRequest = {
+      source: {
+        listingMode: 'listing_to_detail',
+        inputStrategy: 'direct',
+        urlTemplate: `${site.baseUrl}/list`,
+        budget: { max_pages: 2, max_items: 50, mode: 'first_n' },
+      },
+      schema: [{ name: DETAIL_URL_FIELD, type: 'url', origin: 'listing' }],
+      inputSet: { columns: [{ name: 'url', primary: true }], rows: [{ url: `${site.baseUrl}/list` }] },
+    } as unknown as PlanRunRequest;
+    const deps: PlanRunDeps = {
+      browser,
+      agent: null,
+      // Page 1's rows are stubbed: this gate is about the WALK, and a real
+      // extraction would drag an API key and the whole AI ladder in with it.
+      extract: (async () => ({
+        data: [{ [DETAIL_URL_FIELD]: PAGE1[0] }],
+        rows: PAGE1.map((u) => ({ [DETAIL_URL_FIELD]: u })),
+        plan: { row_xpath: '//a', fields: [{ name: DETAIL_URL_FIELD, xpath: './@href' }] },
+        confidence: 1, sources: {}, fieldCount: { found: 1, total: 1 },
+        fieldsByTier: { requested: [], discovered: [] }, cacheHit: false,
+      })) as unknown as PlanRunDeps['extract'],
+      acquireLock: async () => () => {},
+      lookupCache: (async () => ({ paginationConfig: config })) as unknown as PlanRunDeps['lookupCache'],
+      savePagination: (async () => {}) as PlanRunDeps['savePagination'],
+    };
+
+    const outcome = await planRun(request, deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    // Page 2's four items, absolute and on the listing's origin.
+    for (const path of PAGE2) expect(detailUrls).toContain(`${site.baseUrl}${path}`);
+    expect(outcome.items.filter((i) => i.kind === 'listing').map((i) => i.pageNumber)).toEqual([1, 2]);
+    expect(outcome.errors).toEqual([]);
+    const index = site.requests.lastIndexOf('/api?kn=py&offset=4');
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(site.requestHeaders[index]?.cookie).toContain(SESSION);
+    // The cookie alone does NOT pin the navigation target, and that matters:
+    // this browser's cookie jar outlives a single evaluate, and planRun has
+    // already captured /list before the walk runs — so the cookie is in the jar
+    // no matter where the walk navigates. Mutating the walk's page URL kept the
+    // whole suite green on the cookie assertion alone.
+    //
+    // Referer does pin it. A same-origin fetch sends the FULL URL of the page
+    // that issued it (Chromium's default strict-origin-when-cross-origin), so
+    // this asserts which document the request came out of, not merely which
+    // browser.
+    expect(site.requestHeaders[index]?.referer).toBe(`${site.baseUrl}/list`);
+  }, 120_000);
 
   it('a cookie-less caller — i.e. Node — gets nothing from the same endpoint', async () => {
     // The gate above only has teeth if the cookie is genuinely what stands
