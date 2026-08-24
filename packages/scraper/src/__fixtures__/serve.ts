@@ -152,9 +152,16 @@ const card = (href: string) => `<div data-row class="item"><a href="${href}">x</
  * if they were in the initial HTML, a crawler that never scrolled would still
  * extract them and every Tier 1 assertion here would pass against a broken loop.
  *
- * `recycle` additionally removes cards scrolled past, reproducing a virtualized
- * list — the case where labels vanish with their nodes and the URL dedupe has to
- * carry correctness on its own.
+ * `recycle` additionally re-renders the whole list from scratch on every batch,
+ * reproducing a virtualized list: the nodes already on the page are thrown away
+ * and rebuilt, so any attribute stamped on them goes with them. Previously-seen
+ * cards come back unstamped and are yielded again — the URL dedupe upstream is
+ * what carries correctness, which is the point of the case.
+ *
+ * Deleting those cards for good instead would not model a virtualized list, it
+ * would model a shrinking one: an item removed and never re-rendered cannot be
+ * found by any crawler, so the assertion that the walk still sees it could not
+ * pass no matter what the walk did.
  */
 export function scrollFixturePage(
   opts: { batches: string[][]; recycle?: boolean; endless?: boolean },
@@ -167,7 +174,9 @@ export function scrollFixturePage(
   // the test that asserts its ABSENCE there would be unable to fail. Only
   // interpolating the line in when `opts.recycle` is set keeps the statement
   // (and thus the behavior it names) truly conditional in the source.
-  const recycleLine = opts.recycle ? `/* RECYCLE */ results.innerHTML = '';` : '';
+  const recycleLine = opts.recycle
+    ? `/* RECYCLE */ results.innerHTML = ''; batch = rendered;`
+    : '';
   return `<!doctype html><html><body>
 <div id="results">${first.map(card).join('')}</div>
 <div style="height:2000px"></div>
@@ -175,6 +184,9 @@ export function scrollFixturePage(
   const rest = ${JSON.stringify(rest)};
   const endless = ${opts.endless ? 'true' : 'false'};
   const results = document.getElementById('results');
+  // Every href rendered so far, batch 1 included. Only the recycling page reads
+  // it — it is what a re-render puts back on the page.
+  const rendered = ${JSON.stringify(first)};
   let served = 0;
   let lastServed = 0;
   addEventListener('scroll', () => {
@@ -198,7 +210,8 @@ export function scrollFixturePage(
       return;
     }
     if (served >= rest.length) return;
-    const batch = rest[served++];
+    let batch = rest[served++];
+    for (const href of batch) rendered.push(href);
     ${recycleLine}
     for (const href of batch) {
       const d = document.createElement('div');

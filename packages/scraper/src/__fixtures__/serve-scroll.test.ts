@@ -25,6 +25,14 @@ describe('scrollFixturePage', () => {
       .toContain("results.innerHTML = ''");
     expect(scrollFixturePage({ batches: [['/p/100001']] }))
       .not.toContain("results.innerHTML = ''");
+    // And the re-render that follows the clear. Clearing alone is a list that
+    // SHRINKS, not a virtualized one: the cards would be gone for good and the
+    // Tier 1 test asserting the walk still sees them could not pass for any
+    // implementation. The two statements only mean "virtualized" together.
+    expect(scrollFixturePage({ batches: [['/p/100001']], recycle: true }))
+      .toContain('batch = rendered');
+    expect(scrollFixturePage({ batches: [['/p/100001']] }))
+      .not.toContain('batch = rendered');
   });
 
   it('stamps every generated card with the attribute later tasks select on', () => {
