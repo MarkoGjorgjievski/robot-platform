@@ -1604,17 +1604,25 @@ This task makes real requests to a live site. **Plan only — it fetches listing
 
 - [ ] **Step 1: Pick a target and set a page-bound budget**
 
-Use `abebooks-pagination`. Its HTML pagination is known-broken (`deriveTemplate` pages the `ds` filter), which makes it the ideal test of whether `api-param` takes precedence and does better. Set `max_items` high so `max_pages` is the binding cap, and record the previous value:
+Use **`newegg-gpus-live`**, not `abebooks-pagination`.
+
+An earlier draft of this plan named AbeBooks, on the reasoning that its HTML pagination is known-broken (`deriveTemplate` pages the `ds` filter) so it would show `api-param` doing better. That reasoning was wrong in a way worth recording: AbeBooks' search results are **server-rendered**, and the previous cycle walked its HTML pagination successfully. It almost certainly exposes no JSON endpoint carrying detail URLs, so `api-param` would correctly fall through and the run would spend money demonstrating a negative.
+
+`newegg-gpus-live` is a category listing on a domain the roadmap records as **"JSON-LD + APIs"** — the corpus entry chosen precisely because it exercises the intercepted-API branch of the extraction chain. It is the only seeded source that can actually put this feature under load. Note that Newegg's *search* pages have served an anti-bot interstitial before; the *category* page used here has planned cleanly many times.
+
+Set `max_items` high so `max_pages` is the binding cap, and record the previous value so step 4 can restore it:
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "update sources set budget = '{\"mode\":\"first_n\",\"max_items\":60,\"max_pages\":3}'::jsonb where slug='abebooks-pagination' returning slug, budget;"
+  -c "update sources set budget = '{\"mode\":\"first_n\",\"max_items\":60,\"max_pages\":3}'::jsonb where slug='newegg-gpus-live' returning slug, budget;"
 ```
+
+If Newegg serves an interstitial instead of the category page, stop and report it — do not silently switch targets. A blocked capture is a fact about the corpus, and this project has twice mistaken one for a code defect.
 
 - [ ] **Step 2: Plan, and capture what detection chose**
 
 ```bash
-pnpm --filter @robot/api exec tsx src/crawl-plan.ts abebooks-pagination
+pnpm --filter @robot/api exec tsx src/crawl-plan.ts newegg-gpus-live
 ```
 
 Record the run id and the pagination `source` line. **Either outcome is a result worth having:**
@@ -1627,7 +1635,7 @@ Record the run id and the pagination `source` line. **Either outcome is a result
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
   -c "select kind, page_number, count(*) from run_items where run_id='<run-id>' group by 1,2 order by 1,2;"
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "select pagination_config from domain_intelligence where domain like '%abebooks%' and page_type='listing';"
+  -c "select pagination_config from domain_intelligence where domain like '%newegg%' and page_type='listing';"
 ```
 
 If `api-param` won, expect detail items spread across more than one `page_number` **and a per-page count close to page 1's** — the 30/2/1 shape is what a broken pager looks like, and its absence is the headline result. If the counts are thin again, say so plainly.
@@ -1636,7 +1644,7 @@ If `api-param` won, expect detail items spread across more than one `page_number
 
 ```bash
 docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform \
-  -c "update sources set budget = '<the value recorded in step 1>'::jsonb where slug='abebooks-pagination';"
+  -c "update sources set budget = '<the value recorded in step 1>'::jsonb where slug='newegg-gpus-live';"
 ```
 
 - [ ] **Step 5: Record what is true**
