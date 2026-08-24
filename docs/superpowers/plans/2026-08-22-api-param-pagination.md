@@ -940,7 +940,22 @@ describe('detectApiParam', () => {
   });
 
   it('REJECTS a parameter whose probe returns page 1 again', async () => {
-    // The AbeBooks bug, as a test. Every probe answers page 1, so nothing verifies.
+    // The AbeBooks bug, as a test — and the fixture has to make every probe come
+    // back FULL of page 1's items, not empty. An empty probe is rejected earlier,
+    // by the `probeIds.length === 0` check, so a fixture that returns nothing
+    // would pass this test with the overlap guard deleted. It must be the overlap
+    // guard, and only the overlap guard, that says no here.
+    const browser = fakeBrowser({
+      'https://x.example/api/search?kn=py&offset=10&ds=1': PAGE1,
+      'https://x.example/api/search?kn=py&offset=1&ds=1': PAGE1,
+    });
+
+    expect(await detectApiParam(capture([apiRequest(PAGE1)]), PAGE1, browser)).toBeNull();
+  });
+
+  it('answers null when every probe comes back empty', async () => {
+    // The neighbouring guard, kept honest separately: an endpoint that returns no
+    // items for the next page tells us nothing, and must not be read as "verified".
     const browser = fakeBrowser({});
 
     expect(await detectApiParam(capture([apiRequest(PAGE1)]), PAGE1, browser)).toBeNull();
@@ -1096,9 +1111,13 @@ Expected: PASS — 5 new tests, and the existing `detect-pagination` tests still
 
 - [ ] **Step 5: Teeth check**
 
-Delete the `overlapShare(...) > REPLAY_MAX_OVERLAP` guard. Re-run. Expected: "REJECTS a parameter whose probe returns page 1 again" FAILS, because a bogus config is now returned. Restore.
+Delete the `overlapShare(...) > REPLAY_MAX_OVERLAP` guard. Re-run. Expected: "REJECTS a parameter whose probe returns page 1 again" FAILS, because a bogus config is now returned — and "answers null when every probe comes back empty" must still PASS, since a different guard rejects that one.
 
 This is the single most important teeth check in the plan — it is the AbeBooks bug. If it does not fail, stop and report.
+
+Then delete the `probeIds.length === 0` check instead and re-run. Expected: "answers null when every probe comes back empty" FAILS, and the overlap test still passes. Restore.
+
+Two guards sit next to each other here, and each must be shown to reject on its own. An earlier draft of this plan gave the overlap test an empty-probe fixture, so the length check rejected it first and the overlap guard could have been deleted with the suite green — the AbeBooks regression test proving nothing about AbeBooks.
 
 - [ ] **Step 6: Gates and commit**
 
