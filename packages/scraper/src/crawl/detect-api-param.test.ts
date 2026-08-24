@@ -15,7 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { IBrowser, InterceptedRequest, PageCapture } from '@robot/browser';
-import { detectApiParam } from './detect-api-param.js';
+import { detectApiParam, probeApiParam } from './detect-api-param.js';
 
 const PAGE1 = Array.from({ length: 10 }, (_, i) => `https://x.example/p/10000${i}`);
 const PAGE2 = Array.from({ length: 10 }, (_, i) => `https://x.example/p/20000${i}`);
@@ -186,5 +186,56 @@ describe('detectApiParam', () => {
     expect(result?.config.paramName).toBe('page');
     expect(result?.config.from).toBe(1);
     expect(result?.config.step).toBe(1);
+  });
+});
+
+describe('probeApiParam — why api-param did not apply', () => {
+  // The live Newegg run fell through to mechanical pagination and `runs.logs`
+  // carried only "budget reached: 60 items". Task 5's warning did not fire
+  // because it only covered "a listing API was found but no candidate
+  // verified" — not "no listing API was found at all". The first real-traffic
+  // data point this feature produced therefore told us nothing about why it did
+  // not apply, which is exactly what that warning existed to prevent.
+
+  it('separates "nothing was even eligible" from "nothing matched"', async () => {
+    // A JSON GET that carries none of page 1's URLs: something WAS considered,
+    // so the miss is worth reporting and the count says how much was looked at.
+    const considered = await probeApiParam(capture([apiRequest(PAGE3)]), PAGE1, fakeBrowser({}));
+    expect(considered.config).toBeNull();
+    expect(considered.reason).toBe('no-listing-api');
+    expect(considered.considered).toBe(1);
+
+    // A page with no JSON XHR at all has nothing to report, and a warning on
+    // every such input would drown the signal this exists to carry.
+    const nothing = { ...apiRequest(PAGE1), isJson: false, parsedJson: null };
+    const silent = await probeApiParam(capture([nothing]), PAGE1, fakeBrowser({}));
+    expect(silent.reason).toBe('no-listing-api');
+    expect(silent.considered).toBe(0);
+  });
+
+  it('separates "the endpoint has no paging parameter" from "every candidate failed"', async () => {
+    // Same outcome, opposite fixes: the first wants a new name in RANKED, the
+    // second wants the step or overlap heuristics tuned.
+    const noParam = apiRequest(PAGE1, 'https://x.example/api/search?kn=py');
+    const bare = await probeApiParam(capture([noParam]), PAGE1, fakeBrowser({}));
+    expect(bare.reason).toBe('no-candidates');
+    expect(bare.endpoint).toBe('https://x.example/api/search?kn=py');
+    expect(bare.tried).toEqual([]);
+
+    const failing = await probeApiParam(capture([apiRequest(PAGE1)]), PAGE1, fakeBrowser({
+      'https://x.example/api/search?kn=py&offset=10&ds=1': PAGE1,
+      'https://x.example/api/search?kn=py&offset=1&ds=1': PAGE1,
+    }));
+    expect(failing.reason).toBe('none-verified');
+    expect(failing.tried).toEqual(['offset+10', 'offset+1']);
+  });
+
+  it('reports a verified attempt as verified', async () => {
+    const attempt = await probeApiParam(capture([apiRequest(PAGE1)]), PAGE1, fakeBrowser({
+      'https://x.example/api/search?kn=py&offset=10&ds=1': PAGE2,
+    }));
+
+    expect(attempt.reason).toBe('verified');
+    expect(attempt.considered).toBe(1);
   });
 });

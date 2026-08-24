@@ -10,7 +10,7 @@
 
 import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
 import { detectPaginationFromHtml } from '@robot/browser';
-import { probeApiParam } from './detect-api-param.js';
+import { probeApiParam, type ApiParamAttempt } from './detect-api-param.js';
 
 /** The AI collaborator, declared structurally so tests need no API key. */
 export type PaginationAgent = {
@@ -28,14 +28,19 @@ export type PaginationDetection = {
   /** Which tier answered — recorded so a bad config is traceable to its source. */
   source: 'cache' | 'api-param' | 'mechanical' | 'ai' | 'none';
   /**
-   * Present only when api-param was attempted (a listing endpoint was found and
-   * candidates were probed) but none verified, whatever tier ultimately
-   * answered instead. This is the raw material for tuning the heuristics in
-   * `api-param-candidates.ts` from real traffic — a human reading `runs.logs`
-   * needs to see which endpoint was probed and which candidates were tried, or
-   * a silent api-param miss is indistinguishable from "there was no API to try".
+   * Present whenever api-param failed to apply and there was genuinely
+   * something to consider (at least one GET/JSON/2xx intercepted response),
+   * whatever tier ultimately answered instead. This is the raw material for
+   * tuning the heuristics in `api-param-candidates.ts` from real traffic — a
+   * human reading `runs.logs` needs to see WHY, or a silent api-param miss is
+   * indistinguishable from "there was no API to try".
+   *
+   * Gated on `considered > 0` rather than on an endpoint having been found: a
+   * listing that made no JSON XHR at all has nothing to report, and the live
+   * Newegg run showed the opposite gate (endpoint found) misses the case that
+   * actually happens most — no listing API matched at all.
    */
-  apiParamAttempt?: { endpoint: string; tried: string[] };
+  apiParamAttempt?: Omit<ApiParamAttempt, 'config'>;
 };
 
 export async function detectPagination(
@@ -55,12 +60,12 @@ export async function detectPagination(
   // navigation, no AI, and an answer demonstrated rather than inferred.
   let apiParamAttempt: PaginationDetection['apiParamAttempt'];
   if (api && api.page1Urls.length > 0) {
-    const attempt = await probeApiParam(capture, api.page1Urls, api.browser);
-    if (attempt.config) return { config: attempt.config, source: 'api-param' };
-    // An endpoint was found and candidates were probed, but none verified.
+    const { config, ...rest } = await probeApiParam(capture, api.page1Urls, api.browser);
+    if (config) return { config, source: 'api-param' };
+    // api-param did not apply, and something was eligible to be considered.
     // Carried forward so whichever tier answers instead still reports it —
     // this is what fires the warning in `planRun`, not a `source` value.
-    if (attempt.endpoint) apiParamAttempt = { endpoint: attempt.endpoint, tried: attempt.tried };
+    if (rest.considered > 0) apiParamAttempt = rest;
   }
   const withAttempt = (result: PaginationDetection): PaginationDetection =>
     apiParamAttempt ? { ...result, apiParamAttempt } : result;

@@ -98,7 +98,7 @@ import { describe, it, expect } from 'vitest';
 import type { PaginationConfig } from '@robot/browser';
 import { planRun } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
-import { apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, PAGE1 } from './plan-run-api-param.fixtures.js';
+import { apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, UNRELATED_API, PAGE1 } from './plan-run-api-param.fixtures.js';
 
 describe('planRun — walking an api-param config', () => {
   it('enumerates detail URLs out of paged JSON without a page load per page', async () => {
@@ -147,7 +147,7 @@ describe('planRun — walking an api-param config', () => {
     expect(deps.fetchedUrls.length).toBeGreaterThan(0);
   });
 
-  it('warns with the endpoint and candidates tried when api-param is attempted but nothing verifies', async () => {
+  it('warns with the endpoint and candidates tried when candidates were probed and none verified', async () => {
     // `ApiParamDetection.tried` used to be built and dropped on the floor —
     // this is the "raw material for tuning the heuristics from real traffic"
     // the spec asks for, and it must land in `outcome.warnings` (and so in
@@ -159,10 +159,39 @@ describe('planRun — walking an api-param config', () => {
 
     const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
 
-    const warning = outcome.warnings.find((w) => w.includes('api-param pagination not verified'));
+    const warning = outcome.warnings.find((w) => w.includes('api-param pagination not applied'));
     expect(warning).toBeDefined();
     expect(warning).toContain('https://listing.example/api?kn=py&offset=0');
     expect(warning).toContain('offset+');
+    expect(warning).toContain('none returned a genuinely different page');
+    expect(warning).toContain('1 intercepted JSON response(s) considered');
+  });
+
+  it('names a listing-API miss instead of reporting nothing at all', async () => {
+    // The live Newegg gap. api-param did not apply, mechanical pagination
+    // answered instead, and the only line in `runs.logs` was "budget reached".
+    // Task 5's warning covered "a listing API was found but nothing verified"
+    // and nothing else, so "no listing API was found" — the case that actually
+    // happened — was silent.
+    const deps = apiParamDeps({ cachedConfig: null, intercepted: [UNRELATED_API] });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const warning = outcome.warnings.find((w) => w.includes('api-param pagination not applied'));
+    expect(warning).toBeDefined();
+    expect(warning).toContain("no intercepted JSON response carried page 1's detail URLs");
+    expect(warning).toContain('1 intercepted JSON response(s) considered');
+  });
+
+  it('stays silent when there was no JSON response to consider', async () => {
+    // The other half of the same requirement. Most listings make no JSON XHR
+    // at all; a warning on every one of them would drown the signal the two
+    // tests above depend on.
+    const deps = apiParamDeps({ cachedConfig: null, intercepted: [] });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(outcome.warnings.some((w) => w.includes('api-param'))).toBe(false);
   });
 
   it('starts the walk at the value the probe verified, not at page 1 over again', async () => {
