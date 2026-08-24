@@ -19,7 +19,7 @@ import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build
 import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumerate-detail-urls.js';
 import { detectPagination, type PaginationAgent, type PaginationDetection } from './detect-pagination.js';
 import { fetchInPage } from './api-param-fetch.js';
-import { getPath } from './api-identifiers.js';
+import { page1Shape, rowUrls } from './api-row-urls.js';
 
 export type PlannedItem = {
   kind: 'listing' | 'detail';
@@ -148,18 +148,6 @@ function apiParamReason(
     default:
       return "no intercepted JSON response carried page 1's detail URLs";
   }
-}
-
-/** The raw URL strings at `itemsPath[].urlPath`, in order. */
-function collectRowUrls(json: unknown, itemsPath: string, urlPath: string): string[] {
-  const items = getPath(json, itemsPath);
-  if (!Array.isArray(items)) return [];
-  const out: string[] = [];
-  for (const item of items) {
-    const raw = getPath(item, urlPath);
-    if (typeof raw === 'string' && raw.length > 0) out.push(raw);
-  }
-  return out;
 }
 
 export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promise<PlanRunOutcome> {
@@ -469,18 +457,40 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         }
         const bodies = await fetchInPage(deps.browser, start.url, urls);
 
+        // What page 1's own detail URLs demonstrate, computed once. Every value
+        // the API hands back is measured against this before it is planned.
+        const shape = page1Shape(page1Urls, start.url);
+
         let budgetStopped = false;
         for (let i = 0; i < bodies.length; i++) {
           const body = bodies[i]!;
           if (body.error !== null || body.json === null) break;
-          const pageUrls = collectRowUrls(body.json, itemsPath, urlPath);
-          if (pageUrls.length === 0) break;
+          const { usable, refused } = rowUrls(body.json, itemsPath, urlPath, start.url, shape);
+          if (usable.length === 0 && refused !== null) {
+            // Spec §4: a value that is not a URL for THIS listing is not a
+            // detail URL we may invent. Stop rather than plan it, keep page 1's
+            // items, and leave `gained` where it is so the verify-before-cache
+            // gate refuses to store a config that cannot enumerate.
+            warnings.push(
+              `api-param walk abandoned on ${start.url}: ${body.url} returned values that are `
+              + `not detail URLs for this listing (e.g. "${refused}") `
+              + '— falling through rather than fabricating URLs; nothing was cached',
+            );
+            break;
+          }
+          if (usable.length === 0) break;
           const pageNumber = i + 2;
           items.push({
             kind: 'listing', url: body.url, inputIndex: start.inputIndex,
             inputValues: start.inputValues, listingValues: {}, pageNumber,
           });
-          const stop = absorb(pageUrls.map((u) => ({ [DETAIL_URL_FIELD]: u })), body.url, pageNumber);
+          // Resolved against the LISTING page, not against `body.url`. The rows
+          // came out of an API response, but the relative URLs in them are the
+          // SITE's — resolving "/p/200001" against an api.<site> endpoint puts
+          // every page-2+ item on the wrong host. `walkHtmlPages` gets this
+          // right by passing `page.url`; there is no equivalent here, because
+          // an API response is not the page the links belong to.
+          const stop = absorb(usable.map((u) => ({ [DETAIL_URL_FIELD]: u })), start.url, pageNumber);
           if (stop !== null) {
             budgetStopped = stop === 'budget';
             break;
