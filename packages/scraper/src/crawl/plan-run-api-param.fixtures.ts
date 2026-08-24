@@ -44,6 +44,38 @@ export const PAGE_STYLE_CONFIG: PaginationConfig = {
   urlPath: 'link',
 };
 
+/**
+ * The same pager, served from a DIFFERENT ORIGIN than the listing it pages.
+ *
+ * `api.<site>` fronting `www.<site>` is one of the commonest real shapes. The
+ * walk resolves each row's relative URL against SOMETHING; if it resolves
+ * against the API response's own URL, every page-2+ detail URL lands on the API
+ * host, and every one of them is wrong.
+ */
+export const CROSS_ORIGIN_CONFIG: PaginationConfig = {
+  strategy: 'api-param',
+  apiTemplate: 'https://api.listing.example/v1/search?kn=py&offset={N}',
+  paramName: 'offset',
+  from: 0,
+  step: 3,
+  itemsPath: 'results',
+  urlPath: 'link',
+};
+
+/**
+ * Page 1's detail URLs on a site whose API answers in bare slugs.
+ *
+ * Deliberately two segments deep: a slug the API returns (`java-in-depth`)
+ * resolves against the listing page to `/java-in-depth`, which is a plausible
+ * URL on the RIGHT origin and still 404s — so the fabrication is invisible to
+ * any check that only compares hosts.
+ */
+export const SLUG_PAGE1 = [
+  'https://listing.example/books/python-programming',
+  'https://listing.example/books/rust-for-rustaceans',
+  'https://listing.example/books/go-in-action',
+];
+
 const body = (urls: string[]) => ({ results: urls.map((link) => ({ link })) });
 
 /**

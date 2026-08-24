@@ -98,7 +98,10 @@ import { describe, it, expect } from 'vitest';
 import type { PaginationConfig } from '@robot/browser';
 import { planRun } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
-import { apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, UNRELATED_API, PAGE1 } from './plan-run-api-param.fixtures.js';
+import {
+  apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, UNRELATED_API, PAGE1,
+  CROSS_ORIGIN_CONFIG, SLUG_PAGE1,
+} from './plan-run-api-param.fixtures.js';
 
 describe('planRun — walking an api-param config', () => {
   it('enumerates detail URLs out of paged JSON without a page load per page', async () => {
@@ -118,6 +121,52 @@ describe('planRun — walking an api-param config', () => {
     // One evaluate for the whole walk — not one per page, and no browser.crawl().
     expect(deps.evaluateCalls).toHaveLength(1);
     expect(deps.crawlCalls).toHaveLength(0);
+  });
+
+
+  it('refuses to fabricate detail URLs from bare slugs, and caches nothing when it does', async () => {
+    // Fix 1, half one. Detection genuinely passes on a slug API: identifiers are
+    // compared as trailing path segments, and `MIN_IDENTIFIER_LENGTH`'s own
+    // comment blesses a pure slug as a comparison key. So the probe returns
+    // different slugs, overlap is 0, the config verifies — and then the walk
+    // turns "java-in-depth" into https://listing.example/java-in-depth when the
+    // real URL is /books/java-in-depth. Spec §4: fall through rather than
+    // fabricate.
+    const deps = apiParamDeps({
+      cachedConfig: null,
+      page1: SLUG_PAGE1,
+      probe: ['ruby-metaprogramming', 'elixir-in-action', 'clojure-applied'],
+      pages: [['java-in-depth'], ['scala-with-cats']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    // Page 1's own work survives untouched — a pagination failure never costs it.
+    expect(detailUrls).toEqual(SLUG_PAGE1);
+    // And nothing outside the shape page 1 demonstrated was planned.
+    expect(detailUrls.every((u) => u.startsWith('https://listing.example/books/'))).toBe(true);
+    // The whole point: an unverifiable walk must not reach the domain cache.
+    expect(deps.saved).toEqual([]);
+    expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+  });
+
+  it('resolves page 2+ URLs against the LISTING page, not the API endpoint', async () => {
+    // Fix 1, half two. api.<site> fronting www.<site> is ordinary. Resolving a
+    // row's "/p/200001" against the API response's own URL puts every page-2+
+    // detail URL on the API host, gains > 0, and caches the config in silence.
+    const deps = apiParamDeps({
+      cachedConfig: CROSS_ORIGIN_CONFIG,
+      pages: [['/p/200001', '/p/200002'], ['/p/300001']],
+    });
+
+    const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+    expect(detailUrls.length).toBeGreaterThan(PAGE1.length);
+    for (const url of detailUrls) expect(new URL(url).origin).toBe('https://listing.example');
+    expect(detailUrls).toContain('https://listing.example/p/200001');
+    expect(detailUrls).toContain('https://listing.example/p/300001');
   });
 
   it('substitutes {N} with the value the probe verified', async () => {
