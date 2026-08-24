@@ -536,7 +536,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           // Non-null: we only get here after `pagination.config` was truthy
           // (checked above), which only happens once `capture` was truthy —
           // `detectPagination` above was called with this same `capture`.
-          const fresh = await detectPagination(capture!, deps.agent as PaginationAgent | null);
+          // Same ladder as the cold call, api-param rung included. Omitting the
+          // 4th argument here left the retry with mechanical -> ai only, which
+          // meant a domain whose api-param config went stale could never be
+          // re-detected as api-param — the cheapest and best-verified rung,
+          // permanently lost to exactly the domains that had proven they could
+          // use it. `capture` is this run's own, so it carries the same
+          // intercepted responses the cold path would have read.
+          const fresh = await detectPagination(capture!, deps.agent as PaginationAgent | null, null, {
+            browser: deps.browser, page1Urls,
+          });
           if (fresh.config) {
             // Deliberately NOT short-circuited when `fresh.config` is identical
             // to the config that just failed. That happens when the walk failed

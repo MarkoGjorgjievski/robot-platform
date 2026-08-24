@@ -136,8 +136,16 @@ export function apiParamDeps(over: {
    * alone: detection has its own guards and its own tests.
    */
   bodies?: Record<number, Partial<FetchedBody>>;
+  /**
+   * Detail URLs the walk serves once a re-detect has probed — i.e. the SECOND
+   * walk, driven by a freshly detected config after a cached one produced
+   * nothing. Without this the stale-retry walk replays `pages`, gains nothing
+   * again, and the retry cannot be observed at all.
+   */
+  pagesAfterProbe?: string[][];
 }): ApiParamDeps {
   const evaluateCalls: string[] = [];
+  let probeSeen = false;
   const fetchedUrls: string[] = [];
   const crawlCalls: CrawlOptions[] = [];
   const saved: SavedConfig[] = [];
@@ -171,15 +179,19 @@ export function apiParamDeps(over: {
         evaluateCalls.push(pageUrl);
         const urls: string[] = JSON.parse(script.match(/const urls = (\[.*?\]);/s)![1]!);
         urls.forEach((u) => fetchedUrls.push(u));
-        // On a cold run the FIRST evaluate is detection's probe batch; every
-        // later one is the walk. With a cached config there is no probe, so the
-        // first evaluate is already the walk.
-        const isProbe = over.cachedConfig === null && evaluateCalls.length === 1;
+        // On a cold run the FIRST evaluate is detection's probe batch and every
+        // later one is a walk. With a cached config the first evaluate is
+        // already the walk — a probe batch appears only when that walk gained
+        // nothing and the bounded stale re-detect ran, which makes it the
+        // SECOND.
+        const isProbe = evaluateCalls.length === (over.cachedConfig === null ? 1 : 2);
+        const walkPages = probeSeen && over.pagesAfterProbe ? over.pagesAfterProbe : pages;
+        if (isProbe) probeSeen = true;
         return urls.map((url, i) => {
           const wellFormed = {
             url,
             status: 200,
-            json: body(isProbe ? probe : (pages[i] ?? [])),
+            json: body(isProbe ? probe : (walkPages[i] ?? [])),
             error: null,
           };
           const override = isProbe ? undefined : over.bodies?.[i];
