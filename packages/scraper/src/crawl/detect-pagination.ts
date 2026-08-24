@@ -8,8 +8,9 @@
 // Doing it here, from the capture, means: no extra fetch, the AI fallback finally
 // has a caller, and the resulting config can be cached per domain later.
 
-import type { PageCapture, PaginationConfig } from '@robot/browser';
+import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
 import { detectPaginationFromHtml } from '@robot/browser';
+import { detectApiParam } from './detect-api-param.js';
 
 /** The AI collaborator, declared structurally so tests need no API key. */
 export type PaginationAgent = {
@@ -25,15 +26,28 @@ export type PaginationAgent = {
 export type PaginationDetection = {
   config: PaginationConfig | null;
   /** Which tier answered — recorded so a bad config is traceable to its source. */
-  source: 'cache' | 'mechanical' | 'ai' | 'none';
+  source: 'cache' | 'api-param' | 'mechanical' | 'ai' | 'none';
 };
 
 export async function detectPagination(
   capture: PageCapture,
   agent: PaginationAgent | null,
   cached?: PaginationConfig | null,
+  /**
+   * Supplied only by callers that have page 1's detail URLs and a browser — i.e.
+   * planRun. When absent, api-param is skipped and this behaves exactly as
+   * before, so no existing caller changes.
+   */
+  api?: { browser: IBrowser; page1Urls: string[] },
 ): Promise<PaginationDetection> {
   if (cached) return { config: cached, source: 'cache' };
+
+  // First rung: the cheapest and the best-verified. No page load beyond one
+  // navigation, no AI, and an answer demonstrated rather than inferred.
+  if (api && api.page1Urls.length > 0) {
+    const apiParam = await detectApiParam(capture, api.page1Urls, api.browser);
+    if (apiParam) return { config: apiParam.config, source: 'api-param' };
+  }
 
   const mechanical = detectPaginationFromHtml(capture.html ?? '', capture.url);
   if (mechanical) return { config: mechanical, source: 'mechanical' };
