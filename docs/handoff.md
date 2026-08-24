@@ -85,6 +85,39 @@ Tasks 1-7 of `.superpowers/sdd/2026-08-22-api-param-pagination/` built and fixtu
 
 **What this run does NOT prove.** `api-param`'s detection-and-probe machinery, its overlap guard, and its `planRun` JSON-walk integration remain proven only offline (unit tests + the Tier 1 fixture-server test, which fails if a fixture's page 2 re-serves page 1). No real site has yet been observed picking `source: api-param`. **Cursor-based APIs, POST/GraphQL endpoints, and DOM-driven infinite scroll remain wholly unsupported** — `api-param` only ever considers GET requests carrying a page-number-shaped query parameter (see `rankCandidates` in `api-param-candidates.ts`); none of the corpus's live sources have been shown to need those, and nothing in this task changes that gap. The (still unbuilt) DOM-scroll cycle referenced in the roadmap's v2 section is what would eventually cover infinite scroll and load-more — `api-param` does not and was never meant to.
 
+## `api-param` pre-merge fix wave (2026-08-24)
+
+A whole-branch review of `feat/api-param-pagination` returned DO NOT MERGE. Eight findings plus
+minors, all fixed on the branch (`ec1b840`..`1820aaa`); full write-up with every teeth-check in
+`.superpowers/sdd/2026-08-22-api-param-pagination/merge-fix-report.md`. The two that matter beyond
+this feature:
+
+**The walk fabricated detail URLs, and cached the config that did it** — the 2026-08-21 AbeBooks
+failure class with a new trigger. `collectRowUrls` accepted any non-empty string at
+`itemsPath[].urlPath`, and the walk resolved it against the API endpoint's own URL rather than the
+listing page's. Two demonstrated failures: an API answering in bare slugs produced
+`/java-in-depth` where the real URL is `/books/java-in-depth` (detection verifies a slug API
+happily — identifiers compare as trailing path segments), and a cross-origin API host
+(`api.<site>` fronting `www.<site>`) put every page-2+ URL on the wrong host. In both cases
+`gained > 0`, nothing warned, and the config reached the cross-customer domain cache. Now resolved
+against the listing page, and each value measured against the shape page 1 itself demonstrated —
+same origin, inside the longest directory prefix page 1's own detail URLs agree on. A refusal stops
+the walk, keeps page 1, names the value, and caches nothing (`api-row-urls.ts`). Spec §4 required
+this and it had never been implemented.
+
+**A credential that persists in the client cannot pin which document issued a request.** The Tier 1
+cookie gate's comment claimed that verification succeeding "is itself the proof that the fetch ran
+in the page". It was not: the browser's cookie jar outlives one `evaluate`, so the proof only held
+because that test ran first in a freshly launched browser. Mutating the walk's navigation target
+left all 192 tests green. Both gates now assert the `Referer` a same-origin fetch sets to the full
+URL of the issuing document. Worth remembering the next time a fixture is built to prove where a
+request came from.
+
+Also corrected, because it is easy to believe otherwise: `fetch(credentials: 'include')` restores
+cookies and HTTP Basic/Digest auth, **never** a JS-set `Authorization` or CSRF header. A site whose
+listing XHRs carry a JS-set bearer token 401s every probe and correctly falls through — but a 401
+there must not be read as "the parameter was wrong". Spec §3 had claimed the opposite.
+
 ## What NOT to redo
 
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
