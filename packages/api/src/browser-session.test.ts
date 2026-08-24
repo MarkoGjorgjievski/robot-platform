@@ -7,7 +7,7 @@
 // Playwright involved.
 
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, CaptureOptions, BrowserOptions } from '@robot/browser';
+import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, CaptureOptions, BrowserOptions, ScrollOptions } from '@robot/browser';
 import { withBrowserSession } from './browser-session.js';
 
 /** Records launch/close calls; never touches a real browser. */
@@ -36,6 +36,11 @@ class RecordingBrowser implements IBrowser {
   }
 
   async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used in these tests');
+  }
 }
 
 /**

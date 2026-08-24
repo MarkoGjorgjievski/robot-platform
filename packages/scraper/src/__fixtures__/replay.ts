@@ -20,7 +20,7 @@
 //                  XPaths execute in real Chromium with no network
 
 import { PlaywrightBrowser } from '@robot/browser';
-import type { CaptureOptions, CrawlOptions, CrawlPage, IBrowser, PageCapture } from '@robot/browser';
+import type { CaptureOptions, CrawlOptions, CrawlPage, IBrowser, PageCapture, ScrollOptions } from '@robot/browser';
 import { runExtraction } from '../extraction-orchestrator.js';
 import type { DomainCache } from '../domain-cache.js';
 import type { Fixture } from './types.js';
@@ -83,6 +83,11 @@ class FixtureBrowser implements IBrowser {
   // fixture can do.
   async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {
     return;
+  }
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('FixtureBrowser cannot scroll — fixture replay is a frozen snapshot');
   }
 }
 

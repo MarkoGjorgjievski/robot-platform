@@ -60,6 +60,7 @@ export interface IBrowser {
   setContentEvaluate<T = unknown>(html: string, script: string): Promise<T>;
   close(): Promise<void>;
   crawl(startUrl: string, options: CrawlOptions): AsyncGenerator<CrawlPage>;
+  scrollPages(startUrl: string, options: ScrollOptions): AsyncGenerator<CrawlPage>;
 }
 
 // ─── Pagination & Crawl ─────────────────────────────────────────────────────
@@ -132,4 +133,15 @@ export type CrawlPage = {
   pageNumber: number;
   data: Record<string, unknown>[];
   totalRows: number;
+};
+
+export type ScrollOptions = {
+  /** The extraction script from buildExtractionScript, scoped by the walk to unstamped rows. */
+  extractionScript: string;
+  /** Page 1's own row xpath — used to count rows, stamp them, and scope extraction. */
+  rowXpath: string;
+  /** Stop once this many items have been yielded across all rounds. */
+  maxItems?: number;
+  /** When present, advance by clicking this instead of scrolling. */
+  loadMoreSelector?: string;
 };
