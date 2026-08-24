@@ -43,5 +43,11 @@ describe('planRun — walking an api-param config', () => {
     await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
 
     expect(deps.saved).toEqual([]);
+    // Pin WHICH walker produced that nothing. Without this the test passes under
+    // the HTML walker too — its stubbed crawl generator also yields nothing, so
+    // `gained === 0` either way and `saved === []` cannot tell them apart. The
+    // claim being made here is about the api-param path specifically.
+    expect(deps.crawlCalls).toHaveLength(0);
+    expect(deps.fetchedUrls.length).toBeGreaterThan(0);
   });
 });
