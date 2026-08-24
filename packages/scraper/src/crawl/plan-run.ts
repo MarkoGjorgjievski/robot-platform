@@ -726,7 +726,14 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           warnings.push(
             `pagination (${winningSource}: ${winning.strategy}) produced no new items on ${start.url}`,
           );
-        } else if (!budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE) {
+        } else if (!refused && !budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE) {
+          // `!refused` guards the CLAIM, not the diagnosis. A walk refused on a
+          // later page still has `gained > 0` from the pages that passed, and
+          // can easily land under the thin-walk share — but this message ends
+          // "the config was cached anyway", and a refused walk is precisely the
+          // case where it was not. The refusal warning above already says what
+          // happened; adding a second, false sentence beside it is worse than
+          // saying nothing.
           // Not a refusal — the config above is already cached. This is the
           // evidence a future fix to `deriveTemplate` will be built from, so it
           // names everything needed to reproduce: which page, how much page 1
