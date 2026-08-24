@@ -223,6 +223,82 @@ describe('planRun — walking an api-param config', () => {
     expect(deps.saved).toEqual([]);
   });
 
+  describe('every guard the walk refuses on, isolated', () => {
+    // `api-row-urls.test.ts` pins these guards at the module level. These three
+    // prove the SAME refusals survive the whole planRun path — detection,
+    // probing, the fetch batch, `absorb` — and land as a warning with page 1's
+    // work intact and nothing cached. Each is built so that exactly one guard,
+    // deleted, changes the outcome.
+
+    /** A listing spread over three directories: the prefix degenerates to '/'. */
+    const MIXED_PAGE1 = [
+      'https://listing.example/books/python-programming',
+      'https://listing.example/dvd/blade-runner-1982',
+      'https://listing.example/music/kind-of-blue',
+    ];
+
+    it('refuses bare slugs on a listing whose prefix degenerated to /', async () => {
+      // Isolates `isUrlShaped`. The existing slug test travels through the
+      // PREFIX check — SLUG_PAGE1 all sits in /books/ — so it stays green with
+      // `isUrlShaped` deleted. Here page 1 has demonstrated no directory at
+      // all, so the prefix admits everything same-origin, and only "is this
+      // value shaped like a URL?" stands between the walk and a fabricated
+      // https://listing.example/java-in-depth.
+      const deps = apiParamDeps({
+        cachedConfig: null,
+        page1: MIXED_PAGE1,
+        probe: ['ruby-metaprogramming', 'elixir-in-action', 'clojure-applied'],
+        pages: [['java-in-depth'], ['scala-with-cats']],
+      });
+
+      const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+      const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+      expect(detailUrls).toEqual(MIXED_PAGE1);
+      expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+      expect(deps.saved).toEqual([]);
+    });
+
+    it('refuses a URL-shaped, in-prefix row served from another host', async () => {
+      // Isolates the ORIGIN check — which, before this test, no test required.
+      // The cross-origin fixture proves the RESOLUTION BASE is the listing
+      // page, and it does so with RELATIVE row values, which can only ever
+      // resolve to the listing's own origin. An absolute CDN URL is the case
+      // the origin check was actually written for: URL-shaped, and its
+      // pathname sits squarely inside page 1's /p/ prefix.
+      const deps = apiParamDeps({
+        cachedConfig: null,
+        pages: [['https://cdn.other.example/p/200001']],
+      });
+
+      const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+      const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+      expect(detailUrls).toEqual(PAGE1);
+      expect(detailUrls.some((u) => u.includes('cdn.other.example'))).toBe(false);
+      expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+      expect(deps.saved).toEqual([]);
+    });
+
+    it('refuses same-origin rows that live outside page 1s directory', async () => {
+      // Isolates the PREFIX check. Both values are same-origin and carry real
+      // path structure, so `isUrlShaped` and the origin check wave them
+      // through; only the prefix notices that the API is answering with its
+      // own internal paths and a cart action rather than product URLs.
+      const deps = apiParamDeps({
+        cachedConfig: null,
+        pages: [['/api/internal/v2/product/887766', '/cart/add?sku=887766']],
+      });
+
+      const outcome = await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+      const detailUrls = outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url);
+      expect(detailUrls).toEqual(PAGE1);
+      expect(outcome.warnings.some((w) => w.includes('not detail URLs for this listing'))).toBe(true);
+      expect(deps.saved).toEqual([]);
+    });
+  });
+
   it('resolves page 2+ URLs against the LISTING page, not the API endpoint', async () => {
     // Fix 1, half two. api.<site> fronting www.<site> is ordinary. Resolving a
     // row's "/p/200001" against the API response's own URL puts every page-2+
