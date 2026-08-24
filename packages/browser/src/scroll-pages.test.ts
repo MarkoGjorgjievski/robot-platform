@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unseenXpath, rowCountScript, stampScript, SEEN_ATTR } from './scroll-pages.js';
+import { unseenXpath, rowCountScript, stampScript, scopeExtractionScript, SEEN_ATTR } from './scroll-pages.js';
 
 describe('unseenXpath', () => {
   it('scopes an xpath to rows that have not been stamped', () => {
@@ -55,5 +55,36 @@ describe('stampScript', () => {
     // which a naive single-quoted interpolation would not produce, so the
     // check does not depend on SEEN_ATTR ever containing a quote to catch it.
     expect(stampScript('//div[@data-row]')).toContain(JSON.stringify(SEEN_ATTR));
+  });
+});
+
+describe('scopeExtractionScript', () => {
+  const ROW_XPATH = '//div[@data-row]';
+
+  it('rewrites the rowXpath ASSIGNMENT, not merely the first occurrence of the xpath text', () => {
+    // The xpath text appears once earlier — a decoy assignment for an unrelated
+    // variable — before the real `const rowXpath = "...";` assignment that
+    // buildExtractionScript emits (see executor.ts). String.replace with a
+    // string pattern rewrites only the first match; if this function did that
+    // naively against the bare xpath text, it would rewrite the decoy and
+    // leave the actual assignment (and thus the scoping) untouched.
+    const extractionScript = [
+      `const decoy = ${JSON.stringify(ROW_XPATH)};`,
+      `const rowXpath = ${JSON.stringify(ROW_XPATH)};`,
+      `const pageType = "auto";`,
+    ].join('\n');
+
+    const scoped = scopeExtractionScript(extractionScript, ROW_XPATH);
+
+    // The decoy is untouched.
+    expect(scoped).toContain(`const decoy = ${JSON.stringify(ROW_XPATH)};`);
+    // The real assignment is scoped to unseen rows.
+    expect(scoped).toContain(`const rowXpath = ${JSON.stringify(unseenXpath(ROW_XPATH))};`);
+    expect(scoped).not.toContain(`const rowXpath = ${JSON.stringify(ROW_XPATH)};`);
+  });
+
+  it('forces LISTING mode', () => {
+    const extractionScript = `const rowXpath = ${JSON.stringify(ROW_XPATH)};\nconst pageType = "detail";`;
+    expect(scopeExtractionScript(extractionScript, ROW_XPATH)).toContain('const pageType = "listing";');
   });
 });

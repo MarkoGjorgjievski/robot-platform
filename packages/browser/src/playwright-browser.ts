@@ -5,7 +5,7 @@ import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
-import { rowCountScript, stampScript, unseenXpath } from './scroll-pages.js';
+import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
 // default. Raised deliberately: a slow screenshot costs seconds, a failed one costs
@@ -874,9 +874,7 @@ export class PlaywrightBrowser implements IBrowser {
         // after 2 quiet rounds (~6s). LISTING mode has no such fallback — zero
         // matched rows is simply zero results.
         const extracted = await page.evaluate(
-          options.extractionScript
-            .replace(options.rowXpath, unseenXpath(options.rowXpath))
-            .replace(/const pageType = "[^"]*";/, 'const pageType = "listing";'),
+          scopeExtractionScript(options.extractionScript, options.rowXpath),
         ) as { data: Record<string, unknown>[]; totalRows: number };
 
         if (!grew && extracted.data.length === 0) {
