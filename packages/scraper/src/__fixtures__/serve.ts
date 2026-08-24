@@ -160,11 +160,13 @@ export function scrollFixturePage(
   opts: { batches: string[][]; recycle?: boolean; endless?: boolean },
 ): string {
   const [first = [], ...rest] = opts.batches;
-  // Built at template-interpolation time, not as a runtime `if (recycle)` guard:
-  // a guard's body is JS source text present in the output HTML regardless of
-  // which way the condition evaluates, so the "RECYCLE" marker would show up in
-  // every page's markup. Only interpolating the line in when `opts.recycle` is
-  // set keeps the marker (and thus the behavior it names) truly conditional.
+  // Interpolated at template-build time, not as a runtime `if (recycle)` guard:
+  // a runtime guard's body is JS source text present in the output HTML
+  // regardless of which way the condition evaluates, so the recycle statement
+  // would show up in every page's markup — including a non-recycling one — and
+  // the test that asserts its ABSENCE there would be unable to fail. Only
+  // interpolating the line in when `opts.recycle` is set keeps the statement
+  // (and thus the behavior it names) truly conditional in the source.
   const recycleLine = opts.recycle ? `/* RECYCLE */ results.innerHTML = '';` : '';
   return `<!doctype html><html><body>
 <div id="results">${first.map(card).join('')}</div>
@@ -174,13 +176,23 @@ export function scrollFixturePage(
   const endless = ${opts.endless ? 'true' : 'false'};
   const results = document.getElementById('results');
   let served = 0;
+  let lastServed = 0;
   addEventListener('scroll', () => {
     if (window.scrollY + window.innerHeight < document.body.scrollHeight - 50) return;
+    // One batch per 300ms. A single scrollTo(0, scrollHeight) fires 'scroll'
+    // repeatedly as the page grows beneath a bottom-pinned viewport — measured
+    // in real Chromium: three events, three batches, from ONE call. Without this
+    // throttle the fixture hands over the whole listing in one round and any
+    // per-round assertion passes or fails for the wrong reason. A real listing
+    // has network latency between batches; this is that, made deterministic.
+    if (Date.now() - lastServed < 300) return;
+    lastServed = Date.now();
     // Endless: a fresh card every round, forever. The only thing that can stop
     // a walk here is MAX_SCROLL_ROUNDS.
     if (endless) {
       const d = document.createElement('div');
       d.setAttribute('data-row', '');
+      d.className = 'item';
       d.innerHTML = '<a href="/p/9' + String(served++).padStart(5, '0') + '">x</a>';
       results.appendChild(d);
       return;
