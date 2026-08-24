@@ -1,3 +1,18 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { describe, it, expect } from 'vitest';
 import type { IBrowser, InterceptedRequest, PageCapture } from '@robot/browser';
 import { detectApiParam } from './detect-api-param.js';
@@ -156,5 +171,20 @@ describe('detectApiParam', () => {
     });
 
     expect(await detectApiParam(capture([apiRequest(PAGE1)]), PAGE1, browser)).toBeNull();
+  });
+
+  it("records the paging parameter's page-1 value on the config", async () => {
+    // `templateFor` replaces that value with `{N}` wholesale, so `from` is the
+    // only thing left telling a walk where this pager starts. Page-style
+    // parameters hold 1 on page 1, and the probe that verified this config
+    // asked for `from + step` — the walk must ask for the same thing.
+    const pageEndpoint = 'https://x.example/api/search?kn=py&page=1';
+    const browser = fakeBrowser({ 'https://x.example/api/search?kn=py&page=2': PAGE2 });
+
+    const result = await detectApiParam(capture([apiRequest(PAGE1, pageEndpoint)]), PAGE1, browser);
+
+    expect(result?.config.paramName).toBe('page');
+    expect(result?.config.from).toBe(1);
+    expect(result?.config.step).toBe(1);
   });
 });

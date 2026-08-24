@@ -114,6 +114,10 @@ async function probeApiParamUnsafe(
         strategy: 'api-param',
         apiTemplate: templateFor(match.request.url, candidate.paramName),
         paramName: candidate.paramName,
+        // The value page 1 held. `templateFor` overwrites it with `{N}`, so this
+        // is the only place it survives — and `probeUrl` verified `from + step`,
+        // which is precisely the first URL the walk must ask for.
+        from: candidate.from,
         step: candidate.step,
         itemsPath: match.itemsPath,
         urlPath: match.urlPath,

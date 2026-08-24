@@ -1,8 +1,26 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { describe, it, expect } from 'vitest';
 import type { PaginationConfig } from '@robot/browser';
 import { planRun } from './plan-run.js';
 import { DETAIL_URL_FIELD } from './enumerate-detail-urls.js';
-import { apiParamDeps, apiParamRequest, API_CONFIG, PAGE1 } from './plan-run-api-param.fixtures.js';
+import { apiParamDeps, apiParamRequest, API_CONFIG, PAGE_STYLE_CONFIG, PAGE1 } from './plan-run-api-param.fixtures.js';
 
 describe('planRun — walking an api-param config', () => {
   it('enumerates detail URLs out of paged JSON without a page load per page', async () => {
@@ -67,5 +85,23 @@ describe('planRun — walking an api-param config', () => {
     expect(warning).toBeDefined();
     expect(warning).toContain('https://listing.example/api?kn=py&offset=0');
     expect(warning).toContain('offset+');
+  });
+
+  it('starts the walk at the value the probe verified, not at page 1 over again', async () => {
+    // Fix 1. `probeUrl` verifies `from + step`; the template discards `from`,
+    // so a walk built from `step * (page - 1)` alone re-requests page 1's own
+    // parameter value and stops one page short of maxPages. Page-style pagers
+    // start at 1, so the whole walk is shifted a page late.
+    const deps = apiParamDeps({
+      cachedConfig: PAGE_STYLE_CONFIG,
+      pages: [['https://listing.example/p/200001'], ['https://listing.example/p/300001']],
+    });
+
+    await planRun(apiParamRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.fetchedUrls[0]).toContain('page=2');
+    expect(deps.fetchedUrls[1]).toContain('page=3');
+    // And nothing asks for page 1 again.
+    expect(deps.fetchedUrls.some((u) => u.includes('page=1'))).toBe(false);
   });
 });

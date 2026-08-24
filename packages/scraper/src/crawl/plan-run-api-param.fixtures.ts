@@ -25,6 +25,25 @@ export const API_CONFIG: PaginationConfig = {
   urlPath: 'link',
 };
 
+/**
+ * A page-style pager that starts at ONE, not zero — the shape Fix 1 exists for.
+ *
+ * `page`/`p`/`pageNumber` pagers almost always hold 1 on page 1 and advance by
+ * 1, so `probeUrl` verifies `page=2` (`from + step`). A walk that computes
+ * `step * (page - 1)` and ignores `from` asks for `page=1` first — page 1 again
+ * — and never reaches `maxPages`. Offset-style pagers hide this because their
+ * `from` happens to be 0, which is exactly why API_CONFIG never caught it.
+ */
+export const PAGE_STYLE_CONFIG: PaginationConfig = {
+  strategy: 'api-param',
+  apiTemplate: 'https://listing.example/api?kn=py&page={N}',
+  paramName: 'page',
+  from: 1,
+  step: 1,
+  itemsPath: 'results',
+  urlPath: 'link',
+};
+
 const body = (urls: string[]) => ({ results: urls.map((link) => ({ link })) });
 
 export type SavedConfig = { domain: string; config: PaginationConfig };
