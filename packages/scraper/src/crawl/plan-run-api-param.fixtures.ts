@@ -46,6 +46,20 @@ export const PAGE_STYLE_CONFIG: PaginationConfig = {
 
 const body = (urls: string[]) => ({ results: urls.map((link) => ({ link })) });
 
+/**
+ * A JSON GET that is eligible to BE the listing API — right method, right
+ * content type, 2xx — but carries none of page 1's URLs. Something was
+ * considered; nothing matched. Distinct from a page that made no JSON XHR at
+ * all, which is the case api-param must say nothing about.
+ */
+export const UNRELATED_API: InterceptedRequest = {
+  url: 'https://listing.example/api/recommendations?slot=3',
+  method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {},
+  responseBody: JSON.stringify(body(['https://listing.example/p/999001'])),
+  contentType: 'application/json', bodySize: 60, isJson: true,
+  parsedJson: body(['https://listing.example/p/999001']), timestamp: 0,
+} as InterceptedRequest;
+
 export type SavedConfig = { domain: string; config: PaginationConfig };
 
 export type ApiParamDeps = PlanRunDeps & {
@@ -72,6 +86,12 @@ export function apiParamDeps(over: {
    * satisfied by any `gained > 0`.
    */
   page1?: string[];
+  /**
+   * The capture's intercepted requests, replacing the default listing API.
+   * `[]` means "this page made no JSON XHR at all" — the case api-param must
+   * stay SILENT about rather than warn on.
+   */
+  intercepted?: InterceptedRequest[];
 }): ApiParamDeps {
   const evaluateCalls: string[] = [];
   const fetchedUrls: string[] = [];
@@ -95,7 +115,7 @@ export function apiParamDeps(over: {
     html: '<html><body>listing</body></html>',
     screenshot: '',
     screenshotTiles: [],
-    interceptedRequests: [apiRequest],
+    interceptedRequests: over.intercepted ?? [apiRequest],
   } as unknown as PageCapture;
 
   return {

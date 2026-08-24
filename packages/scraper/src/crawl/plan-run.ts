@@ -17,7 +17,7 @@ import { resolveBudget, itemCap } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
 import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumerate-detail-urls.js';
-import { detectPagination, type PaginationAgent } from './detect-pagination.js';
+import { detectPagination, type PaginationAgent, type PaginationDetection } from './detect-pagination.js';
 import { fetchInPage } from './api-param-fetch.js';
 import { getPath } from './api-identifiers.js';
 
@@ -123,6 +123,32 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
  * warning in this block fires on `gained === 0`, and this pager leaks.
  */
 const THIN_WALK_SHARE = 0.25;
+
+/**
+ * The api-param miss, in words a human tuning the heuristics can act on.
+ *
+ * The three reasons want three different fixes — a new name in `RANKED`, a
+ * changed step/overlap rule, or a look at why the listing API was not
+ * recognised — so collapsing them to one sentence is what made the live Newegg
+ * run uninformative.
+ */
+function apiParamReason(
+  reason: NonNullable<PaginationDetection['apiParamAttempt']>['reason'],
+  endpoint: string | null,
+  tried: string[],
+): string {
+  switch (reason) {
+    case 'no-candidates':
+      return `${endpoint} carried page 1's detail URLs, but its query string holds no recognised paging parameter`;
+    case 'none-verified':
+      return `probed ${endpoint} with candidate(s) ${tried.join(', ') || '(none)'} `
+        + '— none returned a genuinely different page';
+    // 'verified' never reaches here: detectPagination returns before recording
+    // an attempt once a config exists.
+    default:
+      return "no intercepted JSON response carried page 1's detail URLs";
+  }
+}
 
 /** The raw URL strings at `itemsPath[].urlPath`, in order. */
 function collectRowUrls(json: unknown, itemsPath: string, urlPath: string): string[] {
@@ -374,10 +400,10 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // real traffic, and it is otherwise invisible: `detectPagination` only
       // reports which tier WON, not what api-param tried and rejected.
       if (pagination.apiParamAttempt) {
-        const { endpoint, tried } = pagination.apiParamAttempt;
+        const { endpoint, tried, reason, considered } = pagination.apiParamAttempt;
         warnings.push(
-          `api-param pagination not verified on ${start.url}: probed ${endpoint} `
-          + `with candidate(s) ${tried.join(', ') || '(none)'} — none returned a genuinely different page`,
+          `api-param pagination not applied on ${start.url}: ${apiParamReason(reason, endpoint, tried)} `
+          + `(${considered} intercepted JSON response(s) considered)`,
         );
       }
       if (!pagination.config) {

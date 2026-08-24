@@ -5,7 +5,7 @@
 // JSON fetch away, so the parameter is never used — and never cached — until a
 // probe has shown it returns different data.
 
-import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
+import type { IBrowser, InterceptedRequest, PageCapture, PaginationConfig } from '@robot/browser';
 import { collectFromJson } from './api-identifiers.js';
 import { findListingApi } from './find-listing-api.js';
 import {
@@ -30,9 +30,41 @@ export type ApiParamAttempt = {
   tried: string[];
   /** The listing endpoint that was probed, or null if none was even found. */
   endpoint: string | null;
+  /**
+   * WHY this attempt ended where it did. The live Newegg run is the reason
+   * this exists: api-param did not apply, mechanical pagination answered
+   * instead, and `runs.logs` carried only "budget reached: 60 items" — because
+   * the only diagnostic covered "a listing API was found but no candidate
+   * verified", which was not what happened. The three failure reasons want
+   * three different fixes, so they are reported as three different things:
+   *
+   * - `no-listing-api`  — nothing intercepted carried page 1's detail URLs.
+   * - `no-candidates`   — the endpoint matched, but its query string holds no
+   *                       name `rankCandidates` recognises. Wants a new name.
+   * - `none-verified`   — candidates were probed and every one re-served page 1.
+   *                       Wants the step or overlap heuristics tuned.
+   */
+  reason: 'verified' | 'no-listing-api' | 'no-candidates' | 'none-verified';
+  /**
+   * How many intercepted responses were even ELIGIBLE to be the listing API —
+   * GET, JSON, 2xx. Zero means there was genuinely nothing to consider, and a
+   * caller must stay silent rather than warn: most listing pages make no JSON
+   * XHR at all, and warning on every one of them would drown the signal.
+   */
+  considered: number;
 };
 
-const NO_ATTEMPT: ApiParamAttempt = { config: null, tried: [], endpoint: null };
+const NO_ATTEMPT: ApiParamAttempt = {
+  config: null, tried: [], endpoint: null, reason: 'no-listing-api', considered: 0,
+};
+
+/** Responses that could, in principle, have been the listing API. */
+function eligibleCount(requests: InterceptedRequest[]): number {
+  return requests.filter((r) => (
+    r.method === 'GET' && r.isJson && r.parsedJson !== null
+    && r.responseStatus >= 200 && r.responseStatus < 300
+  )).length;
+}
 
 /**
  * Attempt api-param detection, in full — never throws.
@@ -61,8 +93,10 @@ async function probeApiParamUnsafe(
   page1Urls: string[],
   browser: IBrowser,
 ): Promise<ApiParamAttempt> {
-  const match = findListingApi(capture.interceptedRequests ?? [], page1Urls);
-  if (!match) return NO_ATTEMPT;
+  const requests = capture.interceptedRequests ?? [];
+  const considered = eligibleCount(requests);
+  const match = findListingApi(requests, page1Urls);
+  if (!match) return { config: null, tried: [], endpoint: null, reason: 'no-listing-api', considered };
 
   const page1Ids = collectFromJson(match.request.parsedJson, match.itemsPath, match.urlPath);
   const pageSize = page1Ids.length;
@@ -73,7 +107,9 @@ async function probeApiParamUnsafe(
   // per this file's convention (see the URL-invariant note in
   // `api-param-candidates.ts`), so a future reader does not mistake "cheap
   // defensive check" for "reachable branch".
-  if (pageSize === 0) return { config: null, tried: [], endpoint: match.request.url };
+  if (pageSize === 0) {
+    return { config: null, tried: [], endpoint: match.request.url, reason: 'no-candidates', considered };
+  }
 
   const candidates = rankCandidates(match.request.url, pageSize);
   // Also belt-and-braces: an empty `candidates` array falls through the loop
@@ -81,7 +117,9 @@ async function probeApiParamUnsafe(
   // early return changes no behaviour. It documents that fact rather than
   // leaving a reader to wonder whether skipping straight to the fallback here
   // is doing something the loop wouldn't.
-  if (candidates.length === 0) return { config: null, tried: [], endpoint: match.request.url };
+  if (candidates.length === 0) {
+    return { config: null, tried: [], endpoint: match.request.url, reason: 'no-candidates', considered };
+  }
 
   // One batch for every candidate: they are small JSON requests, and issuing
   // them together costs one navigation instead of one per hypothesis.
@@ -124,10 +162,12 @@ async function probeApiParamUnsafe(
       },
       tried,
       endpoint: match.request.url,
+      reason: 'verified',
+      considered,
     };
   }
 
-  return { config: null, tried, endpoint: match.request.url };
+  return { config: null, tried, endpoint: match.request.url, reason: 'none-verified', considered };
 }
 
 /** Convenience wrapper over `probeApiParam` for callers that only care about success. */
