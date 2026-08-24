@@ -23,6 +23,16 @@ describe('rowCountScript', () => {
     expect(script).toContain('//div[@data-row]');
     expect(script).not.toContain(SEEN_ATTR);
   });
+
+  it('embeds the xpath as data, not as code', () => {
+    // A selector carrying a quote must not be able to close the string and run.
+    // Mirrors stampScript's own nasty-xpath test below — rowCountScript had no
+    // equivalent, so a naive `"${rowXpath}"` interpolation here would emit a
+    // syntax error at page.evaluate() time for a selector like this one,
+    // silently breaking the growth count.
+    const nasty = `//div[@class="a'b"]`;
+    expect(rowCountScript(nasty)).toContain(JSON.stringify(nasty));
+  });
 });
 
 describe('stampScript', () => {
@@ -35,5 +45,15 @@ describe('stampScript', () => {
     // A selector carrying a quote must not be able to close the string and run.
     const nasty = `//div[@class="a'b"]`;
     expect(stampScript(nasty)).toContain(JSON.stringify(nasty));
+  });
+
+  it('embeds SEEN_ATTR as data, not as code', () => {
+    // Same class of bug as the xpath above, on the SECOND embedded argument
+    // (setAttribute's name). Today's SEEN_ATTR value happens to contain no
+    // quote, so a naive `'${SEEN_ATTR}'` template would still run — this
+    // asserts the JSON.stringify form specifically (note the double quotes),
+    // which a naive single-quoted interpolation would not produce, so the
+    // check does not depend on SEEN_ATTR ever containing a quote to catch it.
+    expect(stampScript('//div[@data-row]')).toContain(JSON.stringify(SEEN_ATTR));
   });
 });
