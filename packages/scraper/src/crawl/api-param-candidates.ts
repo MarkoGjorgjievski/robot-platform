@@ -37,13 +37,28 @@ export function rankCandidates(endpointUrl: string, pageSize: number): Candidate
     // an overlapping window, which only a replay can tell apart from a real page.
     const implied = (PAGE_STYLE as readonly string[]).includes(name) ? 1 : pageSize;
     const other = implied === 1 ? pageSize : 1;
-    out.push({ paramName: name, from, step: implied });
+    // Both pushes are guarded, not just the fallback. A step of 0 — reachable
+    // when an offset-style parameter meets a pageSize of 0 — is a hypothesis
+    // that cannot advance: `probeUrl` would rebuild page 1's own URL. The real
+    // caller never gets here (detectApiParam returns before ranking when page 1
+    // yielded no identifiers), but this function is exported and tested on its
+    // own, and a candidate list containing a non-advancing step contradicts what
+    // `Candidate.step` says it means.
+    if (implied > 0) out.push({ paramName: name, from, step: implied });
     if (other !== implied && other > 0) out.push({ paramName: name, from, step: other });
   }
   return out;
 }
 
-/** The endpoint with `c.paramName` advanced one page, everything else untouched. */
+/**
+ * The endpoint with `c.paramName` advanced one page, everything else untouched.
+ *
+ * `endpointUrl` must be ABSOLUTE — this and `templateFor` both build a `new URL`
+ * without a base, which throws on a relative path. That holds by construction:
+ * the endpoint always comes from an `InterceptedRequest`, and a browser reports
+ * those absolute. Recorded rather than guarded, because a defensive branch here
+ * would be code no test could reach.
+ */
 export function probeUrl(endpointUrl: string, c: Candidate): string {
   const url = new URL(endpointUrl);
   url.searchParams.set(c.paramName, String(c.from + c.step));
