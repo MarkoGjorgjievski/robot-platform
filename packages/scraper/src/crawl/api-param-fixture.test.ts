@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
 import { serveFixturePages, type ServedSite } from '../__fixtures__/serve.js';
 import { detectApiParam } from './detect-api-param.js';
+import { fetchInPage } from './api-param-fetch.js';
 
 const PAGE1 = ['/p/1000001', '/p/1000002', '/p/1000003', '/p/1000004'];
 const PAGE2 = ['/p/2000001', '/p/2000002', '/p/2000003', '/p/2000004'];
@@ -49,8 +50,12 @@ beforeAll(async () => {
     { path: '/list', html: '<html><body>listing</body></html>', setCookie: `${SESSION}; Path=/` },
     gated('/api?kn=py&offset=0', PAGE1),
     gated('/api?kn=py&offset=4', PAGE2),
-    // The wrong-step probe: offset bumped by 1 re-serves page 1's window.
-    gated('/api?kn=py&offset=1', PAGE1),
+    // No decoy at offset=1. It used to sit here described as "the wrong-step
+    // probe", but it never played that role: an offset-style parameter implies a
+    // step of one page size, so `offset+4` ranks FIRST, verifies, and the loop
+    // returns before `offset+1` is ever inspected. Step fallback is covered by
+    // detect-api-param.test.ts, "falls back to the other step for the same
+    // parameter before discarding it", where the ranking is arranged to reach it.
   ]);
 }, 60_000);
 
@@ -98,5 +103,46 @@ describe('api-param against a real origin', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ results: [] });
+  }, 60_000);
+});
+
+/**
+ * The same cookie gate, with the API on a SECOND loopback port.
+ *
+ * Why a second port matters: the same-origin fixture above cannot tell
+ * `credentials: 'include'` from `credentials: 'same-origin'` — both attach the
+ * cookie when the fetch target is the page's own origin, so mutating the real
+ * fetch to `'same-origin'` leaves that gate green. And an API on its own host
+ * (`api.<site>` fronting `www.<site>`) is the shape that actually matters on
+ * real sites.
+ *
+ * Two ports on 127.0.0.1 are different ORIGINS — CORS applies, and the API must
+ * echo the caller's origin with `Allow-Credentials` — but the same SITE for
+ * cookies, which ignore the port. So the cookie is in the jar and only
+ * `'include'` will send it.
+ */
+describe('api-param across origins', () => {
+  let api: ServedSite;
+
+  beforeAll(async () => {
+    api = await serveFixturePages([{ ...gated('/api?kn=py&offset=4', PAGE2), cors: true }]);
+  }, 60_000);
+
+  afterAll(async () => { await api?.close(); });
+
+  it('fetches a cross-origin API with the listing page cookies', async () => {
+    const target = `${api.baseUrl}/api?kn=py&offset=4`;
+
+    const bodies = await fetchInPage(browser, `${site.baseUrl}/list`, [target]);
+
+    expect(bodies).toHaveLength(1);
+    // A cookie-less caller gets 401 + an empty results array (see `gated`), so
+    // these three assertions are exactly the difference `credentials` makes.
+    expect(bodies[0]?.error).toBeNull();
+    expect(bodies[0]?.status).toBe(200);
+    expect((bodies[0]?.json as { results: unknown[] }).results).toHaveLength(PAGE2.length);
+    // And the cookie really was what got it in.
+    const index = api.requests.indexOf('/api?kn=py&offset=4');
+    expect(api.requestHeaders[index]?.cookie).toContain(SESSION);
   }, 60_000);
 });

@@ -38,6 +38,20 @@ export type ServedPage = {
   deniedStatus?: number;
   /** Body for a refused request. Default `""`. */
   deniedBody?: string;
+  /**
+   * Answer cross-origin requests with credentialed CORS headers.
+   *
+   * Needed to serve an API from a SECOND loopback port. Two ports on 127.0.0.1
+   * are different ORIGINS (so CORS applies) but the same SITE for cookie
+   * purposes (cookies ignore the port), which is precisely the configuration
+   * that isolates `credentials`: only `'include'` attaches the cookie to a
+   * cross-origin fetch, so `'same-origin'` and `'omit'` are refused by the
+   * cookie gate while a same-origin fixture cannot tell the three apart.
+   *
+   * The allowed origin is ECHOED rather than `*`, because a browser rejects a
+   * credentialed response carrying the wildcard.
+   */
+  cors?: boolean;
 };
 
 export type ServedSite = {
@@ -80,12 +94,25 @@ export async function serveFixturePages(pages: ServedPage[]): Promise<ServedSite
       res.end('no such fixture page');
       return;
     }
+    const cors: Record<string, string> = page.cors
+      ? {
+        'access-control-allow-origin': (req.headers.origin as string | undefined) ?? '*',
+        'access-control-allow-credentials': 'true',
+        vary: 'origin',
+      }
+      : {};
     if (page.requireCookie !== undefined && !cookiePairs(req.headers.cookie).includes(page.requireCookie)) {
-      res.writeHead(page.deniedStatus ?? 403, { 'content-type': page.contentType ?? 'text/plain' });
+      // The denial carries the CORS headers too. Without them the browser hides
+      // the 401 behind an opaque network error, and the test would be asserting
+      // on a CORS misconfiguration instead of on the cookie gate.
+      res.writeHead(page.deniedStatus ?? 403, { 'content-type': page.contentType ?? 'text/plain', ...cors });
       res.end(page.deniedBody ?? '');
       return;
     }
-    const headers: Record<string, string> = { 'content-type': page.contentType ?? 'text/html; charset=utf-8' };
+    const headers: Record<string, string> = {
+      'content-type': page.contentType ?? 'text/html; charset=utf-8',
+      ...cors,
+    };
     if (page.setCookie !== undefined) headers['set-cookie'] = page.setCookie;
     res.writeHead(200, headers);
     res.end(page.html);
