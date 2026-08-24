@@ -1142,7 +1142,9 @@ git commit -m "feat(crawl): api-param detection, proven by probe before use"
 
 Context — **why this is a small change.** `plan-run.ts` already has the whole apparatus: verification (`gained > 0`), the bounded stale retry, cache write, the thin-walk warning, the overwrite warning. All of it keys off `walkPages(config) → { gained, budgetStopped }`. So `api-param` needs exactly one thing: a walker with that same signature. Do **not** restructure the surrounding block.
 
-Page URLs come from `apiTemplate` with `{N}` replaced by `from + step * n`. The starting value is not stored on the config, so pages are generated from `step * n` beginning at page 2 — that is `step * 1`, `step * 2`, … which matches what `probeUrl` verified (`from + step`, with `from` being page 1's value, normally 0 or 1). Where `from` is not 0, the first template value equals `from + step` by construction of `templateFor`, because the template replaces the parameter wholesale.
+Page URLs come from `apiTemplate` with `{N}` replaced by `from + step * n`, where `from` is the paging parameter's value on page 1 and is CARRIED ON THE CONFIG.
+
+> **Corrected 2026-08-24 (commit c80851e).** This paragraph originally said the starting value need not be stored, because "the first template value equals `from + step` by construction of `templateFor`, since the template replaces the parameter wholesale". That is backwards: wholesale replacement DISCARDS `from`. `probeUrl` verifies at `from + step`; `templateFor` throws `from` away; `PaginationConfig` had no field to carry it; so `step * (page - 1)` equalled the verified value only when `from` was 0. Page-style pagers (`page`, `p`, `pageNumber`, `pageNum`) start at 1, so every such walk re-requested page 1 and never reached `maxPages`. `PaginationConfig.from` now carries it, defaulting to 0 for configs cached before the field existed.
 
 - [ ] **Step 1: Write the failing test**
 
