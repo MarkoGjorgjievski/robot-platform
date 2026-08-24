@@ -769,7 +769,16 @@ Add to `packages/browser/src/playwright-browser.ts`, beside `crawl()`:
           if (!await btn.isVisible({ timeout: 1000 }).catch(() => false)) break;
           await btn.click({ timeout: 5000 }).catch(() => {});
         } else {
-          await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
+          // UP, then down — not straight to the bottom. Chromium's scroll
+          // anchoring keeps the viewport pinned to the bottom as content grows,
+          // so by the next round `scrollTo(0, scrollHeight)` is already at max:
+          // it moves nothing and fires no scroll event, and a listing that
+          // advances on scroll never advances again.
+          //
+          // Measured against the fixture, four batches, one round each:
+          //   scrollTo(bottom) alone      → [1, 2, 2, 2]  (stalls after one)
+          //   scrollTo(0) then bottom     → [1, 2, 3, 4]
+          await page.evaluate('window.scrollTo(0, 0); window.scrollTo(0, document.body.scrollHeight);');
         }
 
         // Wait for growth rather than a fixed delay: a fast site proceeds at once,
