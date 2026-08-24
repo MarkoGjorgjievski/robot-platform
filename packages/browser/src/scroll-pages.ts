@@ -46,3 +46,27 @@ export function stampScript(rowXpath: string): string {
   return n;
 })()`;
 }
+
+/**
+ * Scope a generated extraction script (from `@robot/scraper`'s
+ * `buildExtractionScript`) to unseen rows, and force LISTING mode.
+ *
+ * Rewrites the `const rowXpath = "...";` ASSIGNMENT specifically, not the
+ * first occurrence of the row xpath text anywhere in the script.
+ * `String.replace` with a string pattern rewrites only the first match, and a
+ * script that mentions the row xpath earlier — inside a field's own xpath, a
+ * decoy value, a comment — would otherwise get the rewrite applied there
+ * instead, silently, with the actual assignment left untouched and scoping
+ * just stopping to work with no error anywhere.
+ *
+ * The exact shape matched here — `const rowXpath = ${JSON.stringify(rowXpath)};`
+ * — comes from `buildExtractionScript` in `packages/scraper/src/executor.ts`;
+ * change one, check the other.
+ */
+export function scopeExtractionScript(extractionScript: string, rowXpath: string): string {
+  const assignment = `const rowXpath = ${JSON.stringify(rowXpath)};`;
+  const scopedAssignment = `const rowXpath = ${JSON.stringify(unseenXpath(rowXpath))};`;
+  return extractionScript
+    .replace(assignment, scopedAssignment)
+    .replace(/const pageType = "[^"]*";/, 'const pageType = "listing";');
+}
