@@ -85,7 +85,15 @@ export const scraperRouter = router({
       // transport boundary: validate input, wire up the live collaborators, and map
       // failures onto TRPCError. See extraction-orchestrator.ts for the chain.
       const { SchemaAgent } = await import('@robot/agent');
-      const { runExtraction } = await import('@robot/scraper');
+      const { runExtraction, discoverCandidateCatalogue } = await import('@robot/scraper');
+
+      // Catalogue discovery is an enrichment, injected only when we have a key
+      // to pay for it — undefined skips discovery entirely (see ExtractionDeps).
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      const discoverCatalogue = apiKey
+        ? (evidence: Parameters<typeof discoverCandidateCatalogue>[0]) =>
+            discoverCandidateCatalogue(evidence, { apiKey })
+        : undefined;
 
       // This procedure launches its own single-use browser. `runExtraction`
       // never closes a browser it was given (see the invariant documented on
@@ -103,7 +111,7 @@ export const scraperRouter = router({
               pageType: input.pageType,
               previousResults: input.previousResults,
             },
-            { browser, agent: new SchemaAgent() },
+            { browser, agent: new SchemaAgent(), discoverCatalogue },
           ),
         );
       } catch (err) {

@@ -27,8 +27,11 @@ import { corroborateValue, visibleTextFromHtml } from './corroborate-value.js';
 import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
+  saveCandidateCatalogue,
   type PathSource, type DomainCache,
 } from './domain-cache.js';
+import type { CandidateCatalogue } from './candidate-catalogue.js';
+import type { CatalogueEvidence } from './catalogue-discovery.js';
 import { acquireDomainLock } from './domain-lock.js';
 import { detectSchemaChanges, formatSchemaChanges, type SchemaChange } from './schema-evolution.js';
 import { validateExtractedData } from './data-quality.js';
@@ -102,6 +105,14 @@ export type ExtractionDeps = {
   acquireLock?: typeof acquireDomainLock;
   /** Skip the live capture and use this instead (fixture replay). */
   capture?: PageCapture;
+  /**
+   * The AI-native discovery pass (Task 5's `discoverCandidateCatalogue`),
+   * injected rather than imported — importing it directly would give
+   * @robot/scraper an agent dependency it doesn't otherwise have, purely for
+   * tests. Undefined skips discovery entirely (e.g. no ANTHROPIC_API_KEY).
+   */
+  discoverCatalogue?: (evidence: CatalogueEvidence) => Promise<CandidateCatalogue>;
+  saveCatalogue?: (domain: string, pageType: string, catalogue: CandidateCatalogue) => Promise<void>;
 };
 
 export type ExtractionRequest = {
@@ -524,6 +535,33 @@ export async function runExtraction(
       console.log(`[extract] Saved domain intelligence for ${domain}`);
     } catch (err) {
       console.error('[extract] Cache save failed (non-fatal):', err);
+    }
+
+    // v2.5 catalogue discovery: one labelled pass per domain, only when the
+    // catalogue is cold, only after a successful extraction, and NEVER able to
+    // fail the run — the catalogue is an enrichment, not a dependency.
+    //
+    // Runs after `saveCache` above, not before: `saveCandidateCatalogue` is
+    // update-only and silently no-ops without an existing domain_intelligence
+    // row (Task 2), while `saveCache` upserts one. That ordering is load-bearing
+    // — moving this block earlier would make the very first run for a domain
+    // silently drop its catalogue.
+    if (deps.discoverCatalogue && cache && Object.keys(cache.candidateCatalogue ?? {}).length === 0) {
+      try {
+        const catalogue = await deps.discoverCatalogue({
+          apiBodies: interceptedRequests.filter((r) => r.parsedJson).map((r) => r.parsedJson),
+          jsonLdBlocks: capture.structuredData.ldJson,
+          meta: capture.structuredData.meta,
+          fieldResults: Object.entries(fieldResults).map(([name, r]) => ({
+            name, value: r.value, source: r.source, path: r.path,
+          })),
+        });
+        if (Object.keys(catalogue).length > 0) {
+          await (deps.saveCatalogue ?? saveCandidateCatalogue)(domain, resolvedPageType, catalogue);
+        }
+      } catch (err) {
+        console.error('[extract] catalogue discovery failed (non-fatal):', err);
+      }
     }
 
     // STEP 5: Quality validation
