@@ -182,9 +182,12 @@ call.
 - Remaining conflicts (same candidate, or unlabelled paths) additionally require
   `lastUrl` equality — values observed on different pages are staleness, not
   conflict (triage class 4).
-- `valuesMatch` gains numeric normalization: `"$299.00"` and `299` compare equal
-  (strip currency/formatting before numeric comparison; strings that aren't
-  number-shaped keep exact comparison). Kills triage class 3.
+- `valuesMatch` numeric normalization: **already implemented** — plan-phase
+  investigation (2026-08-25) found `valuesMatch` (domain-cache.ts:767) strips
+  formatting and compares numerically with 5% tolerance, so `"$299.00"` vs
+  `299` never reached the real conflict detector (the triage's SQL counted raw
+  distinct strings and overcounted this class). The plan carries a
+  regression-lock test instead of a change.
 
 ## 7. Dashboard
 
