@@ -10,7 +10,7 @@ type: project
 
 **Do not start another fix-and-dogfood cycle.** The last correctness push converged on the corpus rather than on reality, each round cost real money, and half the remaining defects are design decisions rather than bugs (see *What NOT to redo* below). If you're tempted to chase extraction-quality numbers, don't — the next work is feature implementation against the roadmap.
 
-**DOM-scroll pagination is now LIVE-PROVEN — and the same two runs exposed a real defect in the warm path.** 2026-08-25. A cold plan against `uniqlo-scroll-live` walked a listing that shows 37 products on its first screen and enumerated **220 detail URLs across 4 scroll rounds with zero duplicates**, ending on the quiet-round rule rather than the budget, and cached `{"strategy":"dom-scroll"}`. The **second** plan against the same source read that config from cache and then gained **nothing** from scrolling — 144 items, page 1 only. The page still grows on scroll (re-probed after both runs), so that is our defect, not the site's. Full detail and the leading explanation: "DOM-scroll pagination — live proof (2026-08-25)" below. Merge commit `382eacd`. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
+**DOM-scroll pagination runs against a real site, enumerates past page 1, and caches — but it does NOT enumerate a listing to exhaustion, and the first write-up of its live proof overstated it.** 2026-08-25. Three plan runs against `uniqlo-scroll-live`, a page holding ~221 products. The scroll walk yields **exactly three rounds — 36 / 36 / 4 — and stops**, identically across runs, and plans every row it yields (no duplicates, no refusals). The cold run's headline "220 of 221" was page 1's own 144 **plus** the walk's 76: two partial views summing to near the right number by coincidence, not the walk reaching the end of the list. **Do not read "dom-scroll live-proven" as "a scroll listing is enumerated completely."** Full evidence, the correction, and what is still unknown: "DOM-scroll pagination — live proof (2026-08-25)" below. Merge commit `382eacd`. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
 
 **`api-param` pagination is implemented and gated offline, but NOT live-proven.** The `feat/api-param-pagination` branch built it end to end — proving a paging parameter by experiment (probe a page-1-identified JSON endpoint with candidate query params, reject any candidate whose response overlaps page 1's items too much) before it is ever used or cached — and gated it with unit tests plus a Tier 1 fixture-server test that fails if page 2 re-serves page 1. The one live run authorised to prove it (`newegg-gpus-live`, 2026-08-24, run `c889faea-3417-4d36-97cd-1907e55653af`) **fell through to the existing `mechanical` (`url-pattern`) pagination — `api-param` never got a candidate to try.** Do not read "API pagination delivered" as covering the live case; it covers only the offline-gated path. Full detail: "`api-param` pagination — live proof (2026-08-24)" below.
 
@@ -150,7 +150,39 @@ so the quiet-round rule could be exercised live rather than the budget simply bi
   never consults the cache — so Step 4's warm-replay proof would have been untestable. `max_pages` is not
   consulted by this strategy anyway, so raising it changes nothing about the walk.
 
-**Cold run — the proof (run `a2c67dc9-eeb2-442d-bea3-56e3f27bbcf9`, 173.2s).** 220 detail items, 220
+> **CORRECTION (same day, after the audit-trail fix `c029cc6`).** Everything from
+> "Cold run" to the end of the warm-run analysis below was written before scroll rounds
+> were observable, and two of its conclusions are wrong. A third plan run
+> (`4dd07799-eacd-4eb7-8551-a59ae87ea1df`) with the trail in place shows:
+>
+> | Run | page 1 | scroll rounds (rows/planned) | total |
+> |---|---|---|---|
+> | cold `a2c67dc9` | 144 | 36 / 36 / 4 | 220 |
+> | warm `03c5cc22` | 144 | *(no trail — not observable)* | 144 |
+> | warm `4dd07799` | **72** | 36 / 36 / 4, every row planned | 148 |
+>
+> - **"Ended by the quiet-round rule at the list's end" is not supported.** The walk yields
+>   exactly three rounds and stops, identically in both runs where it ran, on a page holding
+>   ~221 products. 220 was page 1's 144 plus the walk's 76 — two partial views summing.
+>   The budget never bound, but neither did the end of the list.
+> - **The warm-path row-definition theory is dead.** `planned` equals `rows` in all three
+>   rounds, so the walk plans everything it yields: nothing is being lost to a bad
+>   `row_xpath`, and nothing is being lost to duplicates.
+> - **Page-1 extraction is itself variable** (144, 144, 72) — capture scrolls the page while
+>   tiling screenshots, so how much has loaded when page 1 is extracted is a race. That is a
+>   second, independent source of variance and it is not the scroll walk's doing.
+> - **The zero-gain warm run did NOT reproduce.** Run `4dd07799` gained 76. Whatever
+>   happened in `03c5cc22` is still unexplained; it is now bounded to "no rounds yielded" vs
+>   "rounds yielded, all duplicates", and the trail will say which if it recurs.
+>
+> **Open question for the next cycle:** why three rounds? The free probe walks the same page
+> 37 → 73 → 109 → 145 → 181 → 217 → 221 with 2.5s pauses, so the content is there. The walk
+> stopping at ~113 products points at the generator's growth wait
+> (`GROWTH_TIMEOUT_MS = 3000`) or its quiet-round accounting, neither of which is observable
+> from outside. Instrumenting the generator's per-round row counts is the next step — the
+> trail records what was *yielded*, not what the generator *saw*.
+
+**Cold run — as originally written (run `a2c67dc9-eeb2-442d-bea3-56e3f27bbcf9`, 173.2s).** 220 detail items, 220
 distinct URLs, **zero duplicates**. Detail items by `page_number`, which for this strategy is the scroll
 round: **144 / 36 / 36 / 4**. The budget of 250 never bound, so the walk was ended by two consecutive quiet
 rounds — **the quiet-round rule, live**. The final +4 round matches the probe's taper exactly.
@@ -264,14 +296,20 @@ capping rounds at `max_pages` left the whole suite green.
 found now leads, and the "duplicate listing row" item was promoted out of cosmetic because it is what
 stopped the run from being self-diagnosing.
 
-0. **A warm `dom-scroll` run silently degrades to page 1** — the live defect above. `row_xpath` is not
-   part of the cached config, and nothing verifies that a warm scroll walk still gains what the cold one
-   did. Needs its own cycle; the design question is whether `dom-scroll` should cache its row definition
-   alongside the strategy, and what a warm walk should do when it gains nothing (today: one bounded
-   re-detect, which did not recover this).
-0b. **Per-round `listing` rows collapse under the unique index**, because scrolling never changes the URL
-   — so a run cannot tell "no rounds" from "all rounds duplicated". Fix this *first*: it is cheap, and
-   without it the re-run that diagnoses item 0 is as blind as this one was.
+0. **The walk stops after three rounds and does not exhaust the listing.** The headline open item,
+   and the one that decides whether this feature delivers what it claims. `planned == rows` every round,
+   so nothing is lost to dedupe or to a bad row definition — the walk simply stops early, at ~113 of
+   ~221 products, while the free probe keeps growing the same page to 221. Suspects, in order:
+   the generator's growth wait (`GROWTH_TIMEOUT_MS = 3000`, a race against how fast a batch renders)
+   and the quiet-round accounting. **Instrument the generator's per-round row counts first** — the
+   audit trail records what was *yielded*, not what the generator *saw*, and that gap is now the
+   blind spot.
+0b. ~~Per-round `listing` rows collapse under the unique index.~~ **Fixed** in `c029cc6`: rounds are
+   not pages, so the trail lives on page 1's row as `listing_values.scroll_rounds`, one entry per
+   yielded round carrying `rows` and `planned`. This is what produced the correction above.
+0c. **Page-1 extraction is racy** (144 / 144 / 72 across three runs of the same URL) because capture
+   scrolls while tiling screenshots. Independent of the scroll walk, but it makes every total
+   irreproducible and it masked the walk's early stop by summing to a plausible number.
 
 1. **`walkScrollPages` breaks on any non-null `absorb` result, so `'all-duplicates'` ends a scroll walk
    after ONE quiet round** — bypassing `QUIET_ROUNDS` and contradicting the spec's own stop-signal
