@@ -3,6 +3,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Globe, Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
+import { formatValue } from '../lib/format';
 
 export default function DomainDetail() {
   const { domain } = useParams({ from: '/domains/$domain' });
@@ -149,7 +150,7 @@ function SelectorsTable({
                           <span className="text-red-600"> (served)</span>
                         )}
                         <span className="text-red-500"> · </span>
-                        {String(cand.value).slice(0, 60)}
+                        {formatValue(cand.value).slice(0, 60)}
                       </span>
                     </li>
                   ))}
@@ -191,7 +192,7 @@ function SelectorsTable({
                     {conflict ? (
                       <span
                         className="text-red-700"
-                        title={conflict.candidates.map((c) => `${c.source}: ${String(c.value)}`).join('\n')}
+                        title={conflict.candidates.map((c) => `${c.source}: ${formatValue(c.value)}`).join('\n')}
                       >
                         ⚠ {conflict.candidates.length} values
                       </span>
@@ -200,7 +201,7 @@ function SelectorsTable({
                     )}
                   </td>
                   <td className="max-w-xs truncate px-3 py-1.5 text-gray-600">
-                    {s.lastValue == null ? '—' : String(s.lastValue).slice(0, 80)}
+                    {s.lastValue == null ? '—' : formatValue(s.lastValue).slice(0, 80)}
                   </td>
                 </tr>
               );

@@ -3,6 +3,7 @@ import { useParams } from '@tanstack/react-router';
 import { Loader2, AlertCircle, ArrowRight, ArrowUpCircle } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
+import { formatValue } from '../lib/format';
 import { ResultsTable } from '../components/results-table';
 import { GraduateForm } from '../components/graduate-form';
 
@@ -270,8 +271,8 @@ function SchemaEditor({
                 <td className="py-2 text-xs text-gray-600">{field.type}</td>
                 <td className="py-2 font-mono text-xs text-gray-500">
                   {field.example_value ? (
-                    <span className="block max-w-[200px] truncate" title={String(field.example_value)}>
-                      {String(field.example_value)}
+                    <span className="block max-w-[200px] truncate" title={formatValue(field.example_value)}>
+                      {formatValue(field.example_value)}
                     </span>
                   ) : (
                     <span className="text-gray-300">—</span>

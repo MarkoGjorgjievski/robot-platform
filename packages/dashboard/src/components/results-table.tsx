@@ -1,4 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
+import { formatValue } from '../lib/format';
 
 type SchemaField = {
   name: string;
@@ -60,8 +61,8 @@ export function ResultsTable({
                   {fieldNames.map((name) => (
                     <td key={name} className="py-2 pr-4 align-top font-mono text-xs">
                       {row[name] != null ? (
-                        <span className="block max-w-[300px] truncate" title={String(row[name])}>
-                          {String(row[name])}
+                        <span className="block max-w-[300px] truncate" title={formatValue(row[name])}>
+                          {formatValue(row[name])}
                         </span>
                       ) : (
                         <span className="text-gray-300">—</span>

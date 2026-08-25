@@ -52,4 +52,9 @@ describe('listingValuesLabel', () => {
   it('hides keys whose value never resolved, rather than showing null', () => {
     expect(listingValuesLabel({ category_name: 'Books', missing: null })).toBe('category_name: Books');
   });
+
+  it('renders structured values as JSON, never [object Object]', () => {
+    expect(listingValuesLabel({ scroll_rounds: [{ rows: 180, planned: 36 }] }))
+      .toBe('scroll_rounds: [{"rows":180,"planned":36}]');
+  });
 });
