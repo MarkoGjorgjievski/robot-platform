@@ -369,10 +369,15 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         }
       }
 
-      items.push({
-        kind: 'listing', url: start.url, inputIndex: start.inputIndex,
-        inputValues: start.inputValues, listingValues: {}, pageNumber: 1,
-      });
+      // Held by reference, not just pushed: the scroll walk records what each
+      // of its rounds did on THIS row (see `scrollTrail` below). Scrolling never
+      // navigates, so a scroll round has no listing URL of its own to hang a row
+      // from — page 1's row is the only honest place for that trail.
+      const page1ListingItem = {
+        kind: 'listing' as const, url: start.url, inputIndex: start.inputIndex,
+        inputValues: start.inputValues, listingValues: {} as Record<string, unknown>, pageNumber: 1,
+      };
+      items.push(page1ListingItem);
 
       /**
        * Returns the RAW stop reason, not a boolean. Callers need to tell
@@ -457,6 +462,8 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       const walkScrollPages = async (config: PaginationConfig): Promise<WalkResult> => {
         const before = detailCount();
         let budgetStopped = false;
+        /** One entry per round the generator actually yielded. See below. */
+        const scrollTrail: Array<{ round: number; rows: number; planned: number }> = [];
         // `maxItems` is deliberately NOT passed, and there is no value that
         // would be correct. The generator counts RAW YIELDED ROWS — it runs in
         // the browser and cannot see `absorb`, which is what turns rows into
@@ -478,10 +485,17 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           rowXpath: page1.plan!.row_xpath,
           ...(config.loadMoreSelector ? { loadMoreSelector: config.loadMoreSelector } : {}),
         })) {
-          items.push({
-            kind: 'listing', url: round.url, inputIndex: start.inputIndex,
-            inputValues: start.inputValues, listingValues: {}, pageNumber: round.pageNumber,
-          });
+          // No per-round `listing` row. Scrolling never changes the URL, so
+          // every round produced a row carrying the SAME url, and run_items'
+          // unique (run_id, url) index — inserted with .onConflictDoNothing()
+          // in `crawl.ts` — silently kept the first and dropped the rest. The
+          // rows were not merely redundant: they LOOKED like a per-round audit
+          // trail while recording nothing, and the 2026-08-25 live proof could
+          // not tell "the generator yielded no rounds" from "every round was
+          // duplicates" because of it. That index is load-bearing for detail
+          // dedupe and is not the thing to relax, so the trail goes on page 1's
+          // row instead, where one row per round is not being asked for.
+          const plannedBefore = detailCount();
           // Resolved against the LISTING page (`start.url`), not `round.url`.
           // The generator yields rows page 1's own extraction script already
           // pulled out of the live DOM, so any relative href in them is the
@@ -490,10 +504,27 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           // already, for the api-param walk, when it resolved against the
           // wrong base.
           const stop = absorb(round.data, start.url, round.pageNumber);
+          // Recorded BEFORE the stop check, so the round that ended the walk is
+          // in the trail too — that round is usually the interesting one.
+          // `rows` is what the DOM handed back; `planned` is what survived
+          // dedupe. Equal means a gaining round; `rows > 0, planned: 0` is a
+          // window that re-served cards already seen; no entry at all means the
+          // generator never yielded. Those are three different diagnoses and
+          // they were previously one.
+          scrollTrail.push({
+            round: round.pageNumber,
+            rows: round.totalRows ?? round.data.length,
+            planned: detailCount() - plannedBefore,
+          });
           if (stop !== null) {
             budgetStopped = stop === 'budget';
             break;
           }
+        }
+        // Attached only when there is something to say, so an absent key means
+        // "no rounds" rather than "this run predates the trail".
+        if (scrollTrail.length > 0) {
+          page1ListingItem.listingValues = { ...page1ListingItem.listingValues, scroll_rounds: scrollTrail };
         }
         return { gained: detailCount() - before, budgetStopped, refused: false };
       };
