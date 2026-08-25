@@ -43,6 +43,13 @@
       "when": 1787149210723,
       "tag": "0005_spicy_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787668673327,
+      "tag": "0006_candidate_catalogue",
+      "breakpoints": true
     }
   ]
 }
