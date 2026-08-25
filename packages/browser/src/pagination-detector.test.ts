@@ -84,6 +84,44 @@ describe('detectPaginationFromHtml', () => {
     });
   });
 
+  describe('rel=next template — choosing the page parameter among several numeric candidates', () => {
+    // The AbeBooks failure class, live-proven 2026-08-21: the next-page URL
+    // carries several numeric params the current URL lacks, and only one of
+    // them is the page cursor. The (current, next) PAIR cannot tell them apart
+    // — the discriminating evidence is the page's own pager-link series.
+
+    it('picks the stride-1 series param over an offset and a constant, whatever the URL param order', () => {
+      // ds is a page-size constant (first in the URL, the old first-match victim),
+      // spo is an offset (stride 30), p is the pager (stride 1 across the series).
+      const html = `
+        <link rel="next" href="/s?ds=30&amp;q=x&amp;p=1&amp;spo=30">
+        <nav>
+          <a href="/s?ds=30&amp;q=x&amp;p=1&amp;spo=30">2</a>
+          <a href="/s?ds=30&amp;q=x&amp;p=2&amp;spo=60">3</a>
+        </nav>`;
+      const result = detectPaginationFromHtml(html, 'https://shop.example.com/s?q=x');
+      expect(result!.strategy).toBe('url-pattern');
+      expect(result!.urlTemplate).toContain('p={N}');
+      expect(result!.urlTemplate).toContain('ds=30');
+      expect(result!.urlTemplate).toContain('spo=30');
+    });
+
+    it('falls back to a known pager name when the page offers no link series', () => {
+      // Only the rel=next link exists. foo iterates first and is numeric, but
+      // `page` is a name only a pager uses.
+      const html = `<link rel="next" href="/s?foo=2&amp;q=x&amp;page=1">`;
+      const result = detectPaginationFromHtml(html, 'https://shop.example.com/s?q=x');
+      expect(result!.urlTemplate).toContain('page={N}');
+      expect(result!.urlTemplate).toContain('foo=2');
+    });
+
+    it('keeps the first-changed-param behaviour when there is no series and no known name', () => {
+      const html = `<link rel="next" href="/s?aaa=2&amp;q=x">`;
+      const result = detectPaginationFromHtml(html, 'https://shop.example.com/s?q=x');
+      expect(result!.urlTemplate).toContain('aaa={N}');
+    });
+  });
+
   describe('No pagination', () => {
     it('returns null for pages without pagination', () => {
       const html = `<div><h1>Product</h1><p>Description</p></div>`;

@@ -35,6 +35,16 @@ describe('a real paginated search page (AbeBooks)', () => {
     expect(config?.urlTemplate).toContain('abebooks.com');
     expect(config?.urlTemplate).toContain('{N}');
   });
+
+  it('templates the page parameter the pager series varies, not the first numeric param in the URL', () => {
+    // Live-proven failure, 2026-08-21: `ds` (the page-size constant, first in
+    // the rel=next URL) was templated, so the walk fetched pages sized 2 and 3
+    // items. This page's own pager links vary `p` (1, 2 — stride 1) and `spo`
+    // (30, 60 — an offset), while `ds=30` is pinned on every link.
+    const config = detectPaginationFromHtml(page.html, page.url);
+    expect(config?.urlTemplate).toContain('p={N}');
+    expect(config?.urlTemplate).toContain('ds=30');
+  });
 });
 
 describe('a real listing page with no pagination (Newegg category)', () => {

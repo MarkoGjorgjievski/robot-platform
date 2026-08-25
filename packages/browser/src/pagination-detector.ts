@@ -38,8 +38,11 @@ function detectLinkRelNext(html: string, currentUrl: string): PaginationConfig |
 
   const nextUrl = resolveUrl(currentUrl, decodeEntities(href[1]!));
   // Turn the concrete next-page URL into a template by finding the parameter
-  // that changed against the current URL — that is the page cursor.
-  const template = deriveTemplate(currentUrl, nextUrl);
+  // that changed against the current URL — that is the page cursor. The page's
+  // own markup goes along, because when SEVERAL params changed, the (current,
+  // next) pair alone cannot say which one is the cursor — the pager-link
+  // series in the page can.
+  const template = deriveTemplate(currentUrl, nextUrl, html);
   return template
     ? { strategy: 'url-pattern', urlTemplate: template }
     : { strategy: 'url-pattern', urlTemplate: nextUrl };
@@ -53,29 +56,86 @@ function decodeEntities(value: string): string {
  * Given this page's URL and the declared next page's URL, produce a template
  * with `{N}` where the page cursor sits.
  *
- * Works on the parameter that actually changed rather than on a list of known
- * page-parameter names, because sites disagree about what to call it — this one
- * uses `p` alongside `sp` and `spo`, none of which is named "page".
+ * Works on the parameters that actually changed rather than on a list of known
+ * page-parameter names alone, because sites disagree about what to call the
+ * cursor. When SEVERAL numeric params changed, the pair of URLs cannot say
+ * which one pages — AbeBooks' next URL grows `ds=30` (page size), `p=1` (the
+ * pager), `sp=0` and `spo=30` (an offset) all at once, and templating the
+ * first one walked pages sized 2 and 3 items on the 2026-08-21 live proof.
+ * The discriminating evidence is the page's own pager-link series, so the
+ * html rides along and `choosePageParam` reads it.
  */
-function deriveTemplate(currentUrl: string, nextUrl: string): string | null {
+function deriveTemplate(currentUrl: string, nextUrl: string, html: string): string | null {
   try {
     const current = new URL(currentUrl);
     const next = new URL(nextUrl);
     if (current.origin !== next.origin || current.pathname !== next.pathname) return null;
 
+    // Every numeric param that advanced (or appeared) is a candidate cursor.
+    const candidates: string[] = [];
     for (const [key, nextValue] of next.searchParams) {
       const currentValue = current.searchParams.get(key);
       if (currentValue === nextValue) continue;
       if (!/^\d+$/.test(nextValue)) continue;
-      // The cursor advanced (or appeared). Everything else stays as the page set it.
-      const template = new URL(next.href);
-      template.searchParams.set(key, '{N}');
-      return decodeURIComponent(template.href);
+      if (!candidates.includes(key)) candidates.push(key);
     }
-    return null;
+    if (candidates.length === 0) return null;
+
+    const chosen = choosePageParam(candidates, next, html) ?? candidates[0]!;
+    // The cursor varies. Everything else stays as the page set it.
+    const template = new URL(next.href);
+    template.searchParams.set(chosen, '{N}');
+    return decodeURIComponent(template.href);
   } catch {
     return null;
   }
+}
+
+/**
+ * Parameter names only ever used for a page cursor. A prior, not a gate: it
+ * breaks ties among series-corroborated candidates and stands in when the page
+ * offers no series at all — it never overrules the series evidence.
+ */
+const KNOWN_PAGE_PARAMS = /^(page|p|pg|pn|pageindex|page_?num(?:ber)?)$/i;
+
+/**
+ * Pick the candidate that the page's own pager-link series says is the cursor.
+ *
+ * Across the same-origin, same-path links in the page, the real page parameter
+ * takes several values in steps of 1 (`p`: 1, 2, …); an offset steps by the
+ * page size (`spo`: 30, 60, …); a constant like `ds=30` never varies at all —
+ * a constant is not a cursor, whatever position it holds in the URL. Ranking:
+ * stride-1 series param > any series-varying param > (no series evidence) a
+ * known pager name among the candidates > null, which sends the caller to the
+ * pre-2026-08-25 first-changed-param behaviour.
+ */
+function choosePageParam(candidates: string[], next: URL, html: string): string | null {
+  const seriesValues = new Map<string, Set<number>>(candidates.map((k) => [k, new Set()]));
+  for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    let url: URL;
+    try {
+      url = new URL(decodeEntities(match[1]!), next.href);
+    } catch {
+      continue;
+    }
+    if (url.origin !== next.origin || url.pathname !== next.pathname) continue;
+    for (const key of candidates) {
+      const value = url.searchParams.get(key);
+      if (value !== null && /^\d+$/.test(value)) seriesValues.get(key)!.add(Number(value));
+    }
+  }
+
+  const varying = candidates.filter((k) => seriesValues.get(k)!.size >= 2);
+  if (varying.length > 0) {
+    const strideOne = varying.filter((k) => {
+      const values = [...seriesValues.get(k)!].sort((a, b) => a - b);
+      return values.some((v, i) => i > 0 && v - values[i - 1]! === 1);
+    });
+    const pool = strideOne.length > 0 ? strideOne : varying;
+    return pool.find((k) => KNOWN_PAGE_PARAMS.test(k)) ?? pool[0]!;
+  }
+
+  return candidates.find((k) => KNOWN_PAGE_PARAMS.test(k)) ?? null;
 }
 
 // ─── Strategy 1: URL Pattern ───────────────────────────────────────────────
