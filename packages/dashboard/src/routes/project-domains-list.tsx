@@ -2,6 +2,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Globe, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState } from '../components/page-states';
+import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function ProjectDomainsList() {
@@ -25,10 +26,12 @@ export default function ProjectDomainsList() {
         <span>/</span>
         <span className="text-gray-700">Domains</span>
       </div>
-      <h1 className="mt-2 text-xl font-bold tracking-tight">Domains in this project</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Distinct hostnames touched by this project's sources. Useful when fixing a site that affects multiple sources.
-      </p>
+      <div className="mt-2">
+        <PageHeader
+          title="Domains in this project"
+          description="Distinct hostnames touched by this project's sources. Useful when fixing a site that affects multiple sources."
+        />
+      </div>
 
       {domains.length === 0 ? (
         <EmptyState
@@ -36,13 +39,13 @@ export default function ProjectDomainsList() {
           description="As sources are added to this project, their domains appear here."
         />
       ) : (
-        <ul className="mt-6 divide-y rounded-md border">
+        <ul className="card mt-6 divide-y divide-gray-100">
           {domains.map((d) => (
             <li key={d.hostname}>
               <Link
                 to="/p/$project/domains/$domain"
                 params={{ project: projectSlug, domain: d.hostname }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Globe className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">

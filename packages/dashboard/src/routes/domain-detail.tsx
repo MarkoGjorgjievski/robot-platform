@@ -27,16 +27,16 @@ export default function DomainDetail() {
 
       <div className="mt-2 flex items-center gap-3">
         <Globe className="h-5 w-5 text-gray-400" />
-        <h1 className="font-mono text-xl font-bold tracking-tight">{domain}</h1>
+        <h1 className="font-mono text-xl font-semibold tracking-tight">{domain}</h1>
       </div>
 
       {pageTypes.map((pt) => (
-        <div key={pt.pageType} className="mt-6 rounded-md border p-4">
+        <div key={pt.pageType} className="card mt-6 p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">{pt.pageType}</h2>
-            <div className="flex gap-2 text-[10px] uppercase">
-              {pt.hasJsonLd && <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">JSON-LD</span>}
-              {pt.hasNextData && <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">NextData</span>}
+            <h2 className="text-sm font-medium text-gray-900">{pt.pageType}</h2>
+            <div className="flex gap-2">
+              {pt.hasJsonLd && <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">JSON-LD</span>}
+              {pt.hasNextData && <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">NextData</span>}
             </div>
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
@@ -49,19 +49,19 @@ export default function DomainDetail() {
         </div>
       ))}
 
-      <h2 className="mt-8 text-sm font-semibold text-gray-700">
+      <h2 className="mt-8 text-sm font-medium text-gray-900">
         Sources across customers touching {domain} ({sources.length})
       </h2>
       {sources.length === 0 ? (
         <EmptyState title="No graduated sources touch this domain yet" description="Sandbox-only activity isn't listed here." />
       ) : (
-        <ul className="mt-2 divide-y rounded-md border">
+        <ul className="card mt-2 divide-y divide-gray-100">
           {sources.map((s) => (
             <li key={s.id}>
               <Link
                 to="/p/$project/sources/$source"
                 params={{ project: s.projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Layers className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
@@ -160,21 +160,21 @@ function SelectorsTable({
           </ul>
         </div>
       )}
-      <div className="mt-4 overflow-hidden rounded border">
+      <div className="card mt-4 overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-gray-50 uppercase text-gray-500">
-            <tr>
-              <th className="px-3 py-2 font-medium">Field</th>
-              <th className="px-3 py-2 font-medium">Source</th>
-              <th className="cursor-pointer px-3 py-2 font-medium" onClick={() => setAsc((v) => !v)}>
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50/60">
+              <th className="micro-label px-3 py-2 text-left">Field</th>
+              <th className="micro-label px-3 py-2 text-left">Source</th>
+              <th className="micro-label cursor-pointer px-3 py-2 text-left" onClick={() => setAsc((v) => !v)}>
                 Hit-rate {asc ? '▲' : '▼'}
               </th>
-              <th className="px-3 py-2 font-medium">Hits/miss</th>
-              <th className="px-3 py-2 font-medium">Conflict</th>
-              <th className="px-3 py-2 font-medium">Last value</th>
+              <th className="micro-label px-3 py-2 text-left">Hits/miss</th>
+              <th className="micro-label px-3 py-2 text-left">Conflict</th>
+              <th className="micro-label px-3 py-2 text-left">Last value</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody>
             {sorted.map((s, i) => {
               const resolved = s.source !== null;
               const weak = resolved && s.hitRate < 50;
@@ -183,12 +183,12 @@ function SelectorsTable({
               // reliably wrong, which is exactly the case worth looking at.
               const rowClass = conflict ? 'bg-red-50' : weak ? 'bg-orange-50' : resolved ? '' : 'text-gray-400';
               return (
-                <tr key={`${s.field}-${i}`} className={rowClass}>
-                  <td className="px-3 py-1.5 font-mono">{s.field}</td>
-                  <td className="px-3 py-1.5 text-gray-600">{s.source ?? '—'}</td>
-                  <td className="px-3 py-1.5">{resolved ? `${s.hitRate}%` : '—'}</td>
-                  <td className="px-3 py-1.5 text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
-                  <td className="px-3 py-1.5">
+                <tr key={`${s.field}-${i}`} className={`border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60 ${rowClass}`}>
+                  <td className="px-3 py-2 font-mono">{s.field}</td>
+                  <td className="px-3 py-2 text-gray-600">{s.source ?? '—'}</td>
+                  <td className="px-3 py-2">{resolved ? `${s.hitRate}%` : '—'}</td>
+                  <td className="px-3 py-2 text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
+                  <td className="px-3 py-2">
                     {conflict ? (
                       <span
                         className="text-red-700"
@@ -200,7 +200,7 @@ function SelectorsTable({
                       <span className="text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="max-w-xs truncate px-3 py-1.5 text-gray-600">
+                  <td className="max-w-xs truncate px-3 py-2 text-gray-600">
                     {s.lastValue == null ? '—' : formatValue(s.lastValue).slice(0, 80)}
                   </td>
                 </tr>
@@ -216,8 +216,8 @@ function SelectorsTable({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="font-medium">{value}</div>
+      <div className="micro-label">{label}</div>
+      <div className="mt-1 font-medium">{value}</div>
     </div>
   );
 }

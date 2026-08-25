@@ -91,7 +91,7 @@ export default function SandboxDetail() {
         <div className="mt-6 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
           No schema yet.{' '}
           <button
-            className="font-medium text-gray-900 underline"
+            className="font-medium text-accent-700 underline-offset-2 hover:underline"
             onClick={() => {
               analyzeStartedRef.current = true;
               setError(null);
@@ -123,7 +123,7 @@ export default function SandboxDetail() {
             <button
               onClick={() => setGraduateExpanded(true)}
               disabled={graduateExpanded || extractMutation.isPending}
-              className="flex h-9 items-center gap-2 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="btn-quiet flex h-9 items-center gap-2 px-4 text-sm disabled:opacity-50"
             >
               <ArrowUpCircle className="h-4 w-4" />
               Graduate
@@ -134,7 +134,7 @@ export default function SandboxDetail() {
                 extractMutation.mutate({ slug, fields });
               }}
               disabled={extractMutation.isPending || fields.filter((f) => f.enabled !== false).length === 0}
-              className="flex h-9 items-center gap-2 rounded-md bg-gray-900 px-4 text-sm font-medium text-white disabled:opacity-50"
+              className="btn-primary h-9"
             >
               {extractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
               {latestRun ? 'Re-extract' : 'Extract'}
@@ -182,9 +182,9 @@ function Header({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <h1 className="text-xl font-bold tracking-tight">{source.name}</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{source.name}</h1>
       {schema?.pageType && (
-        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-600">
+        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">
           {schema.pageType}
         </span>
       )}
@@ -193,7 +193,7 @@ function Header({
           href={source.urlTemplate}
           target="_blank"
           rel="noopener"
-          className="ml-auto truncate font-mono text-xs text-gray-500 hover:text-gray-700"
+          className="ml-auto truncate font-mono text-xs text-gray-500 hover:text-accent-700"
         >
           {source.urlTemplate}
         </a>
@@ -241,8 +241,8 @@ function SchemaEditor({
     <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[1fr_280px]">
       <div>
         <table className="w-full text-sm">
-          <thead className="border-b">
-            <tr>
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50/60">
               <th className="w-8 py-2">
                 <input
                   type="checkbox"
@@ -251,14 +251,14 @@ function SchemaEditor({
                   className="h-4 w-4"
                 />
               </th>
-              <th className="py-2 text-left font-medium text-gray-600">Field</th>
-              <th className="py-2 text-left font-medium text-gray-600">Type</th>
-              <th className="py-2 text-left font-medium text-gray-600">Example</th>
+              <th className="micro-label py-2 text-left">Field</th>
+              <th className="micro-label py-2 text-left">Type</th>
+              <th className="micro-label py-2 text-left">Example</th>
             </tr>
           </thead>
           <tbody>
             {fields.map((field) => (
-              <tr key={field.name} className="border-b last:border-b-0">
+              <tr key={field.name} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
                 <td className="py-2">
                   <input
                     type="checkbox"
@@ -288,7 +288,7 @@ function SchemaEditor({
           <img
             src={screenshotUrl(screenshotPath) ?? ''}
             alt="Page screenshot"
-            className="w-full rounded border"
+            className="card w-full"
           />
         </div>
       )}

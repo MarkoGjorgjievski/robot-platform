@@ -23,7 +23,7 @@ export default function ProjectHome() {
     <div>
       <div className="flex items-center gap-3">
         <Folder className="h-5 w-5 text-gray-400" />
-        <h1 className="text-xl font-bold tracking-tight">{project.name}</h1>
+        <h1 className="text-xl font-semibold tracking-tight">{project.name}</h1>
       </div>
       {project.description && (
         <p className="mt-1 text-sm text-gray-600">{project.description}</p>
@@ -37,8 +37,8 @@ export default function ProjectHome() {
       </div>
 
       {lastRun ? (
-        <div className="mt-6 rounded-md border p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Last run</div>
+        <div className="card mt-6 p-4">
+          <div className="micro-label">Last run</div>
           <Link
             to="/p/$project/sources/$source/runs/$run"
             params={{ project: projectSlug, source: lastRun.sourceSlug ?? '', run: lastRun.id }}
@@ -74,8 +74,8 @@ function StatCard({
   link?: { to: string; params: Record<string, string> };
 }) {
   const content = (
-    <div className="rounded-md border p-3 transition-colors hover:bg-gray-50">
-      <div className="flex items-center gap-2 text-xs text-gray-500">
+    <div className="card p-3 transition-colors hover:bg-gray-50/60">
+      <div className="micro-label flex items-center gap-2">
         {icon}
         <span>{label}</span>
       </div>

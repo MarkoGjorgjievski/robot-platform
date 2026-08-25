@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { Folder, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState } from '../components/page-states';
+import { PageHeader } from '../components/page-header';
 
 export default function ProjectsList() {
   const listQuery = trpc.projects.list.useQuery();
@@ -14,29 +15,29 @@ export default function ProjectsList() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold tracking-tight">Projects</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Customer engagements. {projects.length} {projects.length === 1 ? 'project' : 'projects'}.
-      </p>
+      <PageHeader
+        title="Projects"
+        description={`Customer engagements. ${projects.length} ${projects.length === 1 ? 'project' : 'projects'}.`}
+      />
 
       {projects.length === 0 ? (
         <EmptyState
           title="No projects yet"
           description="Graduate a Sandbox source to create your first project (coming in Phase 4)."
           action={
-            <Link to="/sandbox" className="text-sm font-medium text-gray-900 underline">
+            <Link to="/sandbox" className="text-sm font-medium text-accent-700 underline-offset-2 hover:underline">
               Go to Sandbox
             </Link>
           }
         />
       ) : (
-        <ul className="mt-6 divide-y rounded-md border">
+        <ul className="card mt-6 divide-y divide-gray-100">
           {projects.map((p) => (
             <li key={p.id}>
               <Link
                 to="/p/$project"
                 params={{ project: p.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Folder className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">

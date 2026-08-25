@@ -20,10 +20,10 @@ export default function SourceConfig() {
 
   return (
     <div className="mt-6">
-      <h2 className="text-sm font-semibold text-gray-700">Configuration</h2>
+      <h2 className="text-sm font-medium text-gray-900">Configuration</h2>
       <p className="mt-1 text-xs text-gray-500">Read-only. Editing comes in Phase 3b.</p>
 
-      <dl className="mt-4 divide-y rounded-md border text-sm">
+      <dl className="card mt-4 divide-y divide-gray-100 text-sm">
         <Row label="Strategy" value={source.inputStrategy ?? '—'} />
         <Row label="URL template" value={source.urlTemplate ?? '—'} mono />
         <Row label="Listing mode" value={source.listingMode ?? '—'} />
@@ -38,7 +38,7 @@ export default function SourceConfig() {
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="grid grid-cols-[160px_1fr] px-4 py-2">
-      <dt className="text-xs text-gray-500">{label}</dt>
+      <dt className="micro-label">{label}</dt>
       <dd className={mono ? 'font-mono text-xs' : 'text-sm'}>{value}</dd>
     </div>
   );
