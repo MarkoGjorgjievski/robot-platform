@@ -91,6 +91,40 @@ describe('planRun — the scroll fallback', () => {
     expect(deps.saved[0]?.config.strategy).toBe('dom-scroll');
   });
 
+  // ── The budget is PLANNED items, not yielded rows ───────────────────────
+  //
+  // A virtualized listing — spec §4's central case — recycles its cards, so
+  // rows already extracted come back UNSTAMPED and are re-yielded by design.
+  // `absorb`'s dedupe is what turns rows into planned items, and it lives in
+  // Node where the generator cannot see it. Handing the generator the item cap
+  // therefore spends the budget on rows the run will throw away: ask for 10 and
+  // silently get 5, with no 'budget reached' warning and no thin-walk warning
+  // either (the fallback `continue`s before that check). Silent
+  // under-delivery, on exactly the listings this feature exists for.
+  it('spends the item budget on planned items, not on re-served rows', async () => {
+    // Eight rounds, three rows each: both of page 1's URLs recycled back plus
+    // one genuinely new product. 24 raw rows carry 8 new items.
+    const recycled = Array.from({ length: 8 }, (_, i) => [
+      PAGE1[0]!, PAGE1[1]!, `https://listing.example/p/20000${i + 1}`,
+    ]);
+    const deps = scrollDeps({ rounds: recycled });
+
+    // 2 from page 1 + 8 from the walk is exactly the cap. A row-counted budget
+    // would stop the generator after round 3 (9 rows yielded >= 8 remaining),
+    // having planned 5.
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 10 }), deps);
+
+    // Nothing was handed to the generator to count rows against — the option
+    // exists on ScrollOptions and PlaywrightBrowser honours it, so the only
+    // thing keeping this walk honest is that planRun does not set it.
+    expect(deps.scrollCalls[0]).not.toHaveProperty('maxItems');
+    expect(detailUrls(outcome)).toHaveLength(10);
+    expect(detailUrls(outcome)).toContain('https://listing.example/p/200008');
+    // The cap is what ended it, and `absorb` said so — which is also what
+    // keeps this walk out of the thin-walk warning.
+    expect(outcome.warnings).toContain('budget reached: 10 items');
+  });
+
   // ── A scroll walk that throws ───────────────────────────────────────────
   //
   // `scrollPages` is a live Playwright walk: `context.newPage()`,

@@ -140,7 +140,17 @@ export type ScrollOptions = {
   extractionScript: string;
   /** Page 1's own row xpath — used to count rows, stamp them, and scope extraction. */
   rowXpath: string;
-  /** Stop once this many items have been yielded across all rounds. */
+  /**
+   * Stop once this many RAW ROWS have been yielded across all rounds — the
+   * generator's own ceiling, counted before anything in Node dedupes them.
+   *
+   * Not an item budget, and not usable as one: a virtualized listing re-serves
+   * recycled cards, so N yielded rows can be far fewer than N distinct items.
+   * A caller that wants "plan at most N items" must break the `for await`
+   * itself, which runs this generator's `finally` and closes its page — see
+   * `walkScrollPages` in @robot/scraper's plan-run.ts, which does exactly that
+   * and deliberately passes nothing here.
+   */
   maxItems?: number;
   /** When present, advance by clicking this instead of scrolling. */
   loadMoreSelector?: string;
