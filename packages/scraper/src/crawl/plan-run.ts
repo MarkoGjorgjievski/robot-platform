@@ -545,11 +545,31 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // the one rung a `max_pages: 1` config CAN use, instead of falling
       // through HTML/api-param detection it could never use first.
       if (budget.maxPages <= 1) {
-        const scrolled = await tryScrollFallback();
-        if (!scrolled) {
-          warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+        // Wrapped, because this branch `continue`s BEFORE the try/catch further
+        // down that isolates a pagination failure to its own input — and
+        // `tryScrollFallback` is a live Playwright walk. `scrollPages` opens its
+        // own page and runs `navigateWithFallback`, `dismissPopups`, three
+        // `page.evaluate` calls and `page.close()` in its `finally`; none of
+        // those are `.catch`-guarded (only `waitForFunction` and the load-more
+        // click are). Unwrapped, one rate-limited or SPA-routing input rejects
+        // `planRun` itself, the caller marks the run failed, and `insert(runItems)`
+        // is never reached — so every OTHER input's already-planned detail URLs
+        // are discarded. Same outcome shape as the main path's catch: a
+        // per-input error, and the run carries on.
+        //
+        // Duplicated at the give-up branch below rather than factored out: the
+        // two branches are reached by different paths, and a shared wrapper
+        // could be removed once and silently unguard both.
+        try {
+          const scrolled = await tryScrollFallback();
+          if (!scrolled) {
+            warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+          }
+          report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        } catch (err) {
+          errors.push({ inputIndex: start.inputIndex, message: `pagination failed: ${(err as Error).message}` });
+          report(start.inputIndex, 'error', detailCount() - detailsBefore);
         }
-        report(start.inputIndex, 'planned', detailCount() - detailsBefore);
         continue;
       }
 
@@ -603,11 +623,21 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // that scroll-loads never would. This is the last rung, and the only
         // way to know is to try: a listing that is genuinely finished costs
         // one quiet round and stops.
-        const scrolled = await tryScrollFallback();
-        if (!scrolled) {
-          warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+        // Wrapped for the same reason the `max_pages <= 1` branch above is:
+        // this `continue` also fires before the try/catch below, so a throw out
+        // of the live scroll walk would reject `planRun` and take every other
+        // input's planned work with it. See that comment for the full list of
+        // unguarded throw sources inside `scrollPages`.
+        try {
+          const scrolled = await tryScrollFallback();
+          if (!scrolled) {
+            warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+          }
+          report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        } catch (err) {
+          errors.push({ inputIndex: start.inputIndex, message: `pagination failed: ${(err as Error).message}` });
+          report(start.inputIndex, 'error', detailCount() - detailsBefore);
         }
-        report(start.inputIndex, 'planned', detailCount() - detailsBefore);
         continue;
       }
 
