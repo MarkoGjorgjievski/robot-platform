@@ -175,7 +175,7 @@ export type PathConflict = {
  * auto-reset. A poisoned path and a legitimately changed price look identical
  * from here.
  */
-export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>): PathConflict[] {
+export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>, catalogue?: CandidateCatalogue): PathConflict[] {
   const conflicts: PathConflict[] = [];
 
   for (const [field, pathSet] of Object.entries(fieldPaths ?? {})) {
@@ -183,6 +183,29 @@ export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>): P
       (p) => p.lastValue !== null && p.lastValue !== undefined && p.lastValue !== '',
     );
     if (withValues.length < 2) continue;
+
+    // Same-page observations only: two paths last exercised on different URLs
+    // are telling you about staleness, not disagreement (triage class 4,
+    // 2026-08-25 — AbeBooks' api path and xpath path held titles of two
+    // different books). Rows predating lastUrl keep the old behaviour.
+    const urls = new Set(withValues.map((p) => p.lastUrl).filter((u): u is string => !!u));
+    if (urls.size > 1) continue;
+
+    // Paths that map to DIFFERENT labelled candidates of a concept are the
+    // catalogue working, not a conflict. Same-label disagreement still fires —
+    // that is the poison signal this detector exists for.
+    if (catalogue) {
+      const labelOf = (p: FieldPath): string | null => {
+        for (const candidates of Object.values(catalogue)) {
+          const hit = candidates.find((c) => c.path === p.path);
+          if (hit) return hit.label;
+        }
+        return null;
+      };
+      const labels = withValues.map(labelOf);
+      const distinctKnown = new Set(labels.filter((l): l is string => l !== null));
+      if (distinctKnown.size > 1 && labels.every((l) => l !== null)) continue;
+    }
 
     const first = withValues[0]!.lastValue;
     if (withValues.every((p) => valuesMatch(p.lastValue, first))) continue;
@@ -654,7 +677,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
     // Same rule for disagreement: report, never resolve it automatically. Two
     // paths returning different values is how a poisoned path announces itself,
     // and until now the cache detected it (conflictCount) and told nobody.
-    for (const conflict of detectPathConflicts(mergedPaths)) {
+    for (const conflict of detectPathConflicts(mergedPaths, sanitizeCatalogue(existing.candidateCatalogue))) {
       const shown = conflict.candidates
         .map((c) => `${c.source}=${String(JSON.stringify(c.value)).slice(0, 40)}`)
         .join(' vs ');

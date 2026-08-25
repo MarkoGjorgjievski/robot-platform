@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { detectPathConflicts, pinFieldPath } from '@robot/scraper';
+import { detectPathConflicts, pinFieldPath, sanitizeCatalogue } from '@robot/scraper';
 import { eq, sql, and } from 'drizzle-orm';
 import { domains, sources, datasets, projects, orgs, domainIntelligence } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -217,6 +217,7 @@ export const domainsRouter = router({
           // degradation is flagged for human review and never auto-reset.
           conflicts: detectPathConflicts(
             (r.fieldPaths ?? {}) as Parameters<typeof detectPathConflicts>[0],
+            sanitizeCatalogue(r.candidateCatalogue),
           ),
         };
       });
