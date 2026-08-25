@@ -10,6 +10,8 @@ type: project
 
 **Do not start another fix-and-dogfood cycle.** The last correctness push converged on the corpus rather than on reality, each round cost real money, and half the remaining defects are design decisions rather than bugs (see *What NOT to redo* below). If you're tempted to chase extraction-quality numbers, don't — the next work is feature implementation against the roadmap.
 
+**DOM-scroll / load-more pagination is built, merged, and proven in a real browser — but not on a real site.** Merge commit `382eacd`, 2026-08-25. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
+
 **`api-param` pagination is implemented and gated offline, but NOT live-proven.** The `feat/api-param-pagination` branch built it end to end — proving a paging parameter by experiment (probe a page-1-identified JSON endpoint with candidate query params, reject any candidate whose response overlaps page 1's items too much) before it is ever used or cached — and gated it with unit tests plus a Tier 1 fixture-server test that fails if page 2 re-serves page 1. The one live run authorised to prove it (`newegg-gpus-live`, 2026-08-24, run `c889faea-3417-4d36-97cd-1907e55653af`) **fell through to the existing `mechanical` (`url-pattern`) pagination — `api-param` never got a candidate to try.** Do not read "API pagination delivered" as covering the live case; it covers only the offline-gated path. Full detail: "`api-param` pagination — live proof (2026-08-24)" below.
 
 **The multi-page pagination walk is now live-proven, and it live-proved a real bug on the same run.** `crawl.plan` against `abebooks-pagination` walked listing pages 1, 2 and 3, wrote `domain_intelligence.pagination_config` for the first time in this repo's history, and replayed it from cache on a second plan. But the URLs it walked to on AbeBooks were wrong — `deriveTemplate` chose the `ds` query parameter as the page cursor and pinned `p=1`, when `p` is AbeBooks' actual pager, so pages 2 and 3 re-requested page 1 in substance. The stray items that leaked past dedupe (2 and 1, against page 1's 30) were enough to satisfy the `gained > 0` verification gate, so a broken template got cached and then had to be purged by hand. Full detail, evidence, and the live cancel/resume proof: see "Pagination walk + caching — live proof (2026-08-21)" below.
@@ -118,6 +120,93 @@ cookies and HTTP Basic/Digest auth, **never** a JS-set `Authorization` or CSRF h
 listing XHRs carry a JS-set bearer token 401s every probe and correctly falls through — but a 401
 there must not be read as "the parameter was wrong". Spec §3 had claimed the opposite.
 
+## DOM-scroll pagination (2026-08-25)
+
+The transport-agnostic last rung. Every other strategy needs a thing to act on — a URL template, a
+next button, numbered links, a JSON endpoint with a page parameter. A listing that loads by scrolling
+has none of them, and until now produced `no pagination detected … — planned page 1 only`.
+
+**What it does.** `IBrowser.scrollPages` (`packages/browser/src/playwright-browser.ts`) is an async
+generator that owns its page for the duration: it scrolls (or clicks a heuristic-matched load-more
+button), waits for the row count to actually grow rather than sleeping a fixed delay, re-runs page 1's
+own extraction plan scoped to unlabelled rows, stamps what it extracted, and yields the batch. It has
+to live in the browser package: `IBrowser.evaluate(url, script)` navigates, so a Node-driven loop would
+reload the page every round and destroy everything already loaded. `planRun` calls it from two places —
+the give-up point where detection came back empty, and the `max_pages <= 1` branch, which is the one
+rung such a config can actually use.
+
+**Three things that are load-bearing and non-obvious, each established by measurement, not reasoning:**
+
+- **The scroll trigger scrolls UP and then down.** `window.scrollTo(0, document.body.scrollHeight)`
+  alone yields row counts `[1, 2, 2, 2]` — it stalls after one batch, because the page is already at the
+  bottom and no new scroll event fires. `scrollTo(0, 0)` then `scrollTo(0, bottom)` yields `[1, 2, 3, 4]`.
+  The comment in the source records both sequences; don't "simplify" it back.
+- **`rowCountScript` deliberately counts ALL rows, stamped or not.** The growth wait is about the DOM
+  growing, not about new *unseen* rows appearing; counting only unstamped rows makes a recycling list
+  look permanently quiet.
+- **The extraction script forces LISTING page-type.** `buildExtractionScript`'s `auto` heuristic flips to
+  detail mode at 0-or-1 rows, and detail mode's fallback re-searches the whole document — which defeats
+  the quiet-round check and produced five 60s timeouts before it was found. This was invisible to string
+  assertions and to mutation testing; it only surfaced by running the built artifact in a real browser.
+
+**Budgets.** `max_items` is the only budget consulted, and it counts **planned items, not yielded rows** —
+`absorb`'s dedupe is what turns rows into items and it lives in Node, where the generator cannot see it.
+`max_pages` is deliberately ignored so a Source configured for HTML pagination cannot silently cap a
+scroll listing at two rounds. That makes `max_items`, `QUIET_ROUNDS = 2` and `MAX_SCROLL_ROUNDS = 50`
+load-bearing rather than backstops, which is why the last exists.
+
+**Labels are an optimisation, never correctness.** Rows are stamped `data-robot-seen` so round N extracts
+only new cards — linear instead of quadratic over a 500-item scroll. When a virtualized list recycles a
+node the stamp goes with it, the card is re-extracted, and the URL dedupe discards it. Nothing breaks.
+
+**No AI fallback for the load-more selector, on purpose.** The spec allowed one; the cycle did not build it,
+and the whole-branch review sharpened the reason: `gained > 0` does not verify a *button*. A "Show more
+colours" facet toggle yields real, well-formed detail URLs and would satisfy that gate — so an AI-chosen
+selector would be an unverified answer entering the cache tier, which is the failure this project has
+been burned by twice (the AbeBooks `ds` template, the api-param fabricated URLs). If it is ever built, it
+needs a verification that distinguishes "more of the same list" from "a different subset of the list".
+
+**Quality of the gate.** The whole-branch review prescribed eight mutations and **all eight were killed** —
+this repo's first clean mutation sweep, after a cycle that produced ten tests that ran fine and proved
+nothing. Two worth remembering: `QUIET_ROUNDS 2 → 1` fails exactly one test *while making the suite
+faster* (a mutation that looks like an improvement), and deleting the stamping script fails six tests, of
+which only one fails on a **value** rather than a 60s timeout — the kind of coverage that quietly
+evaporates during a timeout-tuning session.
+
+**Pre-merge fix wave** (`c9f3105`, `41ed593`, `c1d4dbd`). The review returned DO NOT MERGE on one finding:
+both scroll call sites sat **outside** the per-input try/catch that isolates a pagination failure, because
+both `continue` before it. A throw from the live walk — `navigateWithFallback`, `dismissPopups`, any
+`page.evaluate`, none of them `.catch`-guarded — therefore rejected `planRun` itself, so the run was marked
+`failed` and `insert(runItems)` was never reached: **every already-planned input's detail URLs discarded.**
+Verified with a throwing stub at both sites, not by reading. Fixed with a wrapper at each site, duplicated
+rather than factored out precisely so one deletion cannot unguard both. Two more fixed in the same wave:
+the item budget counting yielded rows (silent under-delivery on exactly the virtualized listings this
+feature exists for), and the multi-round property having no teeth — every fixture used a single round, so
+capping rounds at `max_pages` left the whole suite green.
+
+**Open follow-ups, in rough priority order.** None blocks use; the first is the one to watch during the
+live proof.
+
+1. **`walkScrollPages` breaks on any non-null `absorb` result, so `'all-duplicates'` ends a scroll walk
+   after ONE quiet round** — bypassing `QUIET_ROUNDS` and contradicting the spec's own stop-signal
+   decision ("a single slow round is not the end of a list; treating it as one is silent truncation").
+   Reachable: the generator waits for *row-count* growth, and on a virtualized list growth can be pure
+   recycling, so a window re-serving only seen cards reads as all-duplicates mid-list. Not fixed in the
+   wave because the break is shared verbatim with the HTML and api-param walkers, where it IS
+   load-bearing — diverging scroll from them is a design decision, not a three-line fix.
+2. The `max_pages <= 1` branch never consults the cache before scrolling, so it can overwrite a proven
+   config without the `replacing` warning the main path emits, and re-writes it once per input.
+3. A domain with a stale **non-scroll** cached config can never reach the scroll rung — a site that
+   replaces its pager with infinite scroll stays stuck on page 1 until someone clears the row by hand.
+4. `[role=button]` is in the spec's load-more heuristic but in neither the code nor the tests.
+5. A false-positive `loadMoreSelector` disables scrolling entirely, because the trigger is an if/else.
+6. `ScrollOptions.maxItems` now has no production caller; only its doc comment stands between a future
+   caller and the row-vs-item bug that was just fixed.
+
+**What this does NOT prove.** No live site has exercised it. Cursor-based APIs, POST and GraphQL endpoints
+remain uncovered by `api-param`, and are covered by this rung only insofar as they make the DOM grow —
+which is the whole point of the design, but is untested against a real one.
+
 ## What NOT to redo
 
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
@@ -125,6 +214,7 @@ there must not be read as "the parameter was wrong". Spec §3 had claimed the op
 - **Don't re-run the AbeBooks or Newegg live crawls to get a better-looking result.** The two v2 runs above (one broken, one fixed) are what happened; that task was authorised for exactly one planning + one execution run after the fix, and that budget is spent. Both runs stay in the DB as the record.
 - **The shared-browser-close bug is fixed** (`376b7ac`, plus the `analysis-orchestrator.ts` half and the structural `withBrowserSession` fix from the review round) — don't reopen it or re-derive the root cause; read "The fix, and its follow-up" above instead.
 - **Don't re-run the pagination-walk or cancel/resume proofs to get a better-looking result.** Runs `4bf71da9…`, `aeaab1db…` and the two cancel/resume cycles are the record; that budget is spent and restored. If `deriveTemplate`'s AbeBooks bug gets fixed, a fresh live run to reprove it is legitimate new work, not a re-run of this one.
+- **Don't rebuild or "simplify" the three measured details in `scrollPages`** — the up-then-down scroll trigger, `rowCountScript` counting all rows, and the forced LISTING page-type. Each was established by watching real Chromium behave, each carries a comment saying why, and each looks like dead weight to a reader who wasn't there. See "DOM-scroll pagination (2026-08-25)" above.
 - **The `deriveTemplate` wrong-page-parameter bug is a known, recorded finding — don't re-derive it, and don't patch it as a drive-by.** See "Pagination walk + caching — live proof" above and `task-6-report.md` for the evidence. It needs its own cycle (design problem: choosing the right pager parameter when several query params look plausible), not a quick fix bolted onto whatever else is in flight.
 - **Don't re-run the `api-param` live proof against `newegg-gpus-live` to get a better-looking result.** Run `c889faea-3417-4d36-97cd-1907e55653af` (2026-08-24) is the record; that budget is spent and the source's budget is restored to `{max_items: 5, max_pages: 1}`. It fell through to `mechanical` — see "`api-param` pagination — live proof (2026-08-24)" above. If a corpus site is added that is known to load its listing from a same-origin JSON endpoint, a fresh live run against *that* site is legitimate new work, not a re-run of this one.
 
@@ -136,7 +226,8 @@ there must not be read as "the parameter was wrong". Spec §3 had claimed the op
 ## Suggested next work
 
 1. **Fix `deriveTemplate`'s page-parameter choice** (in `@robot/browser`), or tighten the `gained > 0` verification gate in `plan-run.ts` (or both) — the AbeBooks bug above. This is the most concrete, evidence-backed item on this list.
-2. From `docs/roadmap.md`'s v2 section: infinite scroll and load-more pagination strategies (still unbuilt — no listing that loads by scroll can be paged today, and `api-param` does not cover it either); the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically). `api-param` pagination detection and replay is now built and offline-gated (see above) but still wants a live site that actually exercises it — the corpus doesn't currently have a confirmed one.
+2. **Live-prove DOM-scroll** (Task 6 of `docs/superpowers/plans/2026-08-24-dom-scroll-pagination.md`, unstarted and needing approval): find a corpus-safe site that genuinely infinite-scrolls, confirm with `HEADFUL=1` that scrolling adds products *before* spending anything, then plan-only with the budget shaped so `max_items` binds. Fix follow-up 1 above (the `'all-duplicates'` single-quiet-round stop) first or alongside — it is what a real virtualized listing would trigger.
+3. From `docs/roadmap.md`'s v2 section: the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically). `api-param` pagination detection and replay is now built and offline-gated (see above) but still wants a live site that actually exercises it — the corpus doesn't currently have a confirmed one.
 
 ## Cheap things worth doing whenever convenient
 
