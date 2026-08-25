@@ -2,6 +2,7 @@ import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
 import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
+import { sanitizeCatalogue, type CandidateCatalogue } from './candidate-catalogue.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,7 @@ export type DomainCache = {
   successRate: number;
   paginationConfig: PaginationConfig | null;
   rowSelector: { xpath: string; source: 'human'; setAt: string } | null;
+  candidateCatalogue: CandidateCatalogue;
 };
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ export async function lookupDomainCache(domain: string, pageType: string): Promi
     successRate: totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0,
     paginationConfig: (result.paginationConfig as PaginationConfig) ?? null,
     rowSelector: (result.rowSelector as DomainCache['rowSelector']) ?? null,
+    candidateCatalogue: sanitizeCatalogue(result.candidateCatalogue),
   };
 }
 
@@ -279,6 +282,34 @@ export async function savePaginationConfig(domain: string, config: PaginationCon
       set: { paginationConfig: config, updatedAt: new Date() },
     });
   console.log(`[cache] pagination for ${domain}: ${config.strategy}`);
+}
+
+/** Write a freshly discovered catalogue. Sanitized on the way in; an empty
+ *  sanitize result is still written (an explicit "nothing labelled" is data). */
+export async function saveCandidateCatalogue(
+  domain: string, pageType: string, catalogue: CandidateCatalogue,
+): Promise<void> {
+  const clean = sanitizeCatalogue(catalogue);
+  await db
+    .update(domainIntelligence)
+    .set({ candidateCatalogue: clean, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ));
+  console.log(`[cache] candidate catalogue for ${domain}/${pageType}: ${Object.keys(clean).length} concept(s)`);
+}
+
+/** The refresh primitive: clear now, rebuild on the next successful extraction. */
+export async function clearCandidateCatalogue(domain: string, pageType: string): Promise<void> {
+  await db
+    .update(domainIntelligence)
+    .set({ candidateCatalogue: {}, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ));
+  console.log(`[cache] candidate catalogue cleared for ${domain}/${pageType}`);
 }
 
 /** Max automatic paths kept per field. Protected paths are additional to this. */
