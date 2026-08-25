@@ -516,8 +516,19 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
             rows: round.totalRows ?? round.data.length,
             planned: detailCount() - plannedBefore,
           });
-          if (stop !== null) {
-            budgetStopped = stop === 'budget';
+          // ONLY the budget ends a scroll walk from here. 'all-duplicates' is
+          // the normal shape of a scroll round, not a signal the list ended:
+          // the generator navigates its own page, so its first round is
+          // whatever that page had already lazily loaded — usually a subset of
+          // page 1 — and a virtualized listing re-serves recycled cards for the
+          // same reason. Treating either as terminal is what capped a live walk
+          // at 148 of 220 items. When the list genuinely ends the generator's
+          // quiet-round rule stops yielding and the `for await` ends on its own;
+          // MAX_SCROLL_ROUNDS bounds the pathological case. That division is the
+          // spec's: the generator decides when the page stopped growing, the
+          // caller decides only about budget and dedupe.
+          if (stop === 'budget') {
+            budgetStopped = true;
             break;
           }
         }

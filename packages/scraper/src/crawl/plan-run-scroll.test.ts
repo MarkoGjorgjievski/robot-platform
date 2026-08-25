@@ -252,3 +252,53 @@ describe('planRun — the scroll round audit trail', () => {
     ]);
   });
 });
+
+describe('planRun — a fully-duplicate scroll round is not the end of the list', () => {
+  // Root cause found by instrumenting the generator on 2026-08-25.
+  //
+  // `scrollPages` navigates its OWN page. Whatever a lazy listing has already
+  // loaded by the time it starts is a race, and it observed 36, 108 and ~144
+  // rows on three runs of the same URL. Page 1's rows, meanwhile, come from
+  // `capture` — a DIFFERENT navigation, which observed 144, 144 and 72. The
+  // generator used to stamp its whole initial view before the first scroll, on
+  // the assumption the caller already had it; the two views only ever overlapped
+  // by luck, and everything in the gap was stamped and never yielded. One live
+  // run planned 148 of 220 that way, silently.
+  //
+  // So the generator now yields what it can see and lets `absorb` dedupe, which
+  // is what the spec always said ("correctness comes from absorb's seen set;
+  // labels only make it cheaper"). That makes an ALL-DUPLICATE round normal
+  // rather than terminal — it is the expected shape of the first round, and of
+  // any recycled window — so it must not stop the walk.
+  const trail = (o: Awaited<ReturnType<typeof planRun>>) =>
+    (o.items.find((i) => i.kind === 'listing' && i.url === 'https://listing.example/list')
+      ?.listingValues as { scroll_rounds?: Array<{ round: number; rows: number; planned: number }> })
+      ?.scroll_rounds;
+
+  it('keeps walking past a round that is entirely rows page 1 already had', async () => {
+    const deps = scrollDeps({ rounds: [PAGE1, ['https://listing.example/p/900001']] });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    // Before the fix the duplicate round returned 'all-duplicates', broke the
+    // loop, and this URL was never reached.
+    expect(detailUrls(outcome)).toContain('https://listing.example/p/900001');
+    expect(trail(outcome)).toEqual([
+      { round: 2, rows: PAGE1.length, planned: 0 },
+      { round: 3, rows: 1, planned: 1 },
+    ]);
+  });
+
+  it('still stops the walk when the item budget is genuinely full', async () => {
+    // The other half: 'budget' must remain terminal, or the walk runs to
+    // MAX_SCROLL_ROUNDS on every large listing. maxItems 3 = PAGE1's 2 + 1.
+    const rounds = [['https://listing.example/p/900001', 'https://listing.example/p/900002'], ['https://listing.example/p/900003']];
+    const deps = scrollDeps({ rounds });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 3 }), deps);
+
+    expect(detailUrls(outcome)).toHaveLength(3);
+    expect(trail(outcome)).toHaveLength(1);
+    expect(outcome.warnings.some((w) => w.includes('budget reached'))).toBe(true);
+  });
+});
