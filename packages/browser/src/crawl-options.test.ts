@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, CrawlOptions, CrawlPage } from './types.js';
+import type { IBrowser, CrawlOptions, CrawlPage, ScrollOptions } from './types.js';
 
 /** A stand-in proving IBrowser is implementable without Playwright — which is
  *  exactly what the crawler's tests need and what the interface did not allow. */
@@ -16,6 +16,11 @@ class FakeBrowser implements IBrowser {
       if (page.pageNumber < from) continue;
       yield page;
     }
+  }
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used');
   }
 }
 

@@ -1,10 +1,11 @@
 import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
-import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig } from './types.js';
+import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
+import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
 // default. Raised deliberately: a slow screenshot costs seconds, a failed one costs
@@ -788,6 +789,105 @@ export class PlaywrightBrowser implements IBrowser {
 
         totalItems += pageData.data.length;
         console.log(`[crawl] Page ${pageNum}: ${pageData.data.length} items (${totalItems} total)`);
+      }
+    } finally {
+      await page.close();
+    }
+  }
+
+  /** Consecutive rounds yielding nothing new before the listing is called finished. */
+  private static readonly QUIET_ROUNDS = 2;
+  /** How long to wait for the row count to grow before treating a round as quiet. */
+  private static readonly GROWTH_TIMEOUT_MS = 3000;
+  /** Hard bound so a page that grows forever cannot loop forever. Not a budget knob. */
+  private static readonly MAX_SCROLL_ROUNDS = 50;
+  /** Pacing between rounds. Scrolling in a tight loop is a louder bot signal than fetching. */
+  private static readonly SCROLL_PACING_MS = 500;
+
+  /**
+   * Walk a listing that only reveals more rows on scroll (or on clicking a
+   * "load more" control), yielding each round's newly-seen rows.
+   *
+   * Lives on IBrowser beside crawl() rather than as a Node-driven loop because
+   * evaluate(url, script) NAVIGATES — reloading the page every round would
+   * destroy everything already loaded into it.
+   */
+  async *scrollPages(startUrl: string, options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    if (!this.context) throw new Error('Browser not launched. Call launch() first.');
+    const maxItems = options.maxItems ?? Number.MAX_SAFE_INTEGER;
+    const page = await this.context.newPage();
+    let yielded = 0;
+
+    try {
+      await this.navigateWithFallback(page, startUrl);
+      await this.dismissPopups(page);
+
+      let quiet = 0;
+      for (let round = 2; round <= PlaywrightBrowser.MAX_SCROLL_ROUNDS; round++) {
+        if (yielded >= maxItems) break;
+
+        const before = await page.evaluate(rowCountScript(options.rowXpath)) as number;
+
+        // Stamp BEFORE advancing: everything currently on the page has either been
+        // extracted by a previous round or belongs to page 1, which the caller
+        // already has. Anything appearing after this point is what we want.
+        await page.evaluate(stampScript(options.rowXpath));
+
+        if (options.loadMoreSelector) {
+          const btn = page.locator(options.loadMoreSelector).first();
+          if (!await btn.isVisible({ timeout: 1000 }).catch(() => false)) break;
+          await btn.click({ timeout: 5000 }).catch(() => {});
+        } else {
+          // UP, then down — not straight to the bottom. Chromium's scroll
+          // anchoring keeps the viewport pinned to the bottom as content grows,
+          // so by the next round `scrollTo(0, scrollHeight)` is already at max:
+          // it moves nothing and fires no scroll event, and a listing that
+          // advances on scroll never advances again.
+          //
+          // Measured against the fixture, four batches, one round each:
+          //   scrollTo(bottom) alone      → [1, 2, 2, 2]  (stalls after one)
+          //   scrollTo(0) then bottom     → [1, 2, 3, 4]
+          await page.evaluate('window.scrollTo(0, 0); window.scrollTo(0, document.body.scrollHeight);');
+        }
+
+        // Wait for growth rather than a fixed delay: a fast site proceeds at once,
+        // a slow one still gets its chance, and the timeout only binds when
+        // nothing is coming.
+        const grew = await page.waitForFunction(
+          `(${rowCountScript(options.rowXpath)}) > ${before}`,
+          undefined,
+          { timeout: PlaywrightBrowser.GROWTH_TIMEOUT_MS },
+        ).then(() => true).catch(() => false);
+
+        // Also force LISTING mode. buildExtractionScript's 'auto' page-type
+        // heuristic decides listing-vs-detail from the matched row COUNT
+        // (`rows.length > 1`) — fine for a normal page, wrong here, because the
+        // unseen-scoped count legitimately swings to 0 or 1 every round. At 0 or
+        // 1 it drops into DETAIL mode, whose fallback re-searches the whole
+        // DOCUMENT with an absolute xpath when a field doesn't match the row —
+        // surfacing an already-seen field from elsewhere on the page instead of
+        // an empty result. That defeats the quiet-round check below: a truly
+        // quiet round no longer reports zero rows, so `quiet` never reaches
+        // QUIET_ROUNDS and the walk runs every round out to MAX_SCROLL_ROUNDS.
+        // Measured against `/done` (a page that never grows again): without
+        // this the walk takes ~50 rounds x 3s to time out instead of stopping
+        // after 2 quiet rounds (~6s). LISTING mode has no such fallback — zero
+        // matched rows is simply zero results.
+        const extracted = await page.evaluate(
+          scopeExtractionScript(options.extractionScript, options.rowXpath),
+        ) as { data: Record<string, unknown>[]; totalRows: number };
+
+        if (!grew && extracted.data.length === 0) {
+          if (++quiet >= PlaywrightBrowser.QUIET_ROUNDS) break;
+          continue;
+        }
+        quiet = 0;
+
+        if (extracted.data.length > 0) {
+          yield { url: page.url(), pageNumber: round, data: extracted.data, totalRows: extracted.totalRows };
+          yielded += extracted.data.length;
+        }
+        await page.waitForTimeout(PlaywrightBrowser.SCROLL_PACING_MS);
       }
     } finally {
       await page.close();
