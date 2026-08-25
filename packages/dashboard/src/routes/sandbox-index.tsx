@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router';
 import { Loader2, Globe, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { formatDate } from '../lib/format';
+import { PageHeader } from '../components/page-header';
 
 export default function SandboxIndex() {
   const listQuery = trpc.sandbox.list.useQuery();
@@ -23,21 +24,21 @@ export default function SandboxIndex() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold tracking-tight">Sandbox</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Throwaway drafts. {sources.length} recent {sources.length === 1 ? 'source' : 'sources'}.
-      </p>
+      <PageHeader
+        title="Sandbox"
+        description={`Throwaway drafts. ${sources.length} recent ${sources.length === 1 ? 'source' : 'sources'}.`}
+      />
 
       {sources.length === 0 ? (
-        <div className="mt-8 rounded-md border border-dashed p-12 text-center text-sm text-gray-500">
+        <div className="card mt-8 border-dashed p-12 text-center text-sm text-gray-500">
           No sandbox sources yet.{' '}
-          <Link to="/" className="font-medium text-gray-900 underline">
+          <Link to="/" className="font-medium text-accent-700 underline-offset-2 hover:underline">
             Paste a URL
           </Link>{' '}
           to get started.
         </div>
       ) : (
-        <ul className="mt-6 divide-y rounded-md border">
+        <ul className="card mt-6 divide-y divide-gray-100">
           {sources.map((s) => {
             const host = (() => {
               try {
@@ -51,7 +52,7 @@ export default function SandboxIndex() {
                 <Link
                   to="/sandbox/$shortid"
                   params={{ shortid: s.slug }}
-                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
                 >
                   <Globe className="h-4 w-4 text-gray-400" />
                   <div className="min-w-0 flex-1">

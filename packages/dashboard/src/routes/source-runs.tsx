@@ -34,7 +34,7 @@ export default function SourceRuns() {
   return (
     <div className="mt-6">
       <div className="flex items-center gap-3">
-        <h2 className="text-sm font-semibold text-gray-700">Runs ({runs.length})</h2>
+        <h2 className="text-sm font-medium text-gray-900">Runs ({runs.length})</h2>
         <div className="ml-auto">
           <PlanCrawlButton sourceId={source.id} listingMode={source.listingMode} />
         </div>
@@ -46,13 +46,13 @@ export default function SourceRuns() {
           description="Each extraction creates a Run row. Click 'Extract' on a graduated source to create the first one."
         />
       ) : (
-        <ul className="mt-4 divide-y rounded-md border">
+        <ul className="card mt-4 divide-y divide-gray-100">
           {runs.map((r) => (
             <li key={r.id}>
               <Link
                 to="/p/$project/sources/$source/runs/$run"
                 params={{ project: projectSlug, source: sourceSlug, run: r.id }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <RunStatusDot status={r.status} />
                 <Activity className="h-4 w-4 text-gray-400" />
@@ -97,7 +97,7 @@ function PlanCrawlButton({ sourceId, listingMode }: { sourceId: string; listingM
       <button
         onClick={() => plan.mutate({ sourceId })}
         disabled={plan.isPending}
-        className="rounded border px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        className="btn-quiet disabled:opacity-50"
         title={
           listingMode === 'listing_to_detail'
             ? 'Walk the listing pages and enumerate detail URLs. Fetches no detail pages.'

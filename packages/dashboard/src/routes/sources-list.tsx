@@ -2,6 +2,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState } from '../components/page-states';
+import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourcesList() {
@@ -28,10 +29,12 @@ export default function SourcesList() {
         <span>/</span>
         <span className="text-gray-700">Sources</span>
       </div>
-      <h1 className="mt-2 text-xl font-bold tracking-tight">Sources</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        All sources in this project. {sources.length} {sources.length === 1 ? 'source' : 'sources'}.
-      </p>
+      <div className="mt-2">
+        <PageHeader
+          title="Sources"
+          description={<>All sources in this project. {sources.length} {sources.length === 1 ? 'source' : 'sources'}.</>}
+        />
+      </div>
 
       {sources.length === 0 ? (
         <EmptyState
@@ -39,13 +42,13 @@ export default function SourcesList() {
           description="Sources appear here when they're graduated from Sandbox or created in a Dataset (coming in Phase 3b/4)."
         />
       ) : (
-        <ul className="mt-6 divide-y rounded-md border">
+        <ul className="card mt-6 divide-y divide-gray-100">
           {sources.map((s) => (
             <li key={s.id}>
               <Link
                 to="/p/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Layers className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
@@ -54,7 +57,7 @@ export default function SourcesList() {
                     {s.datasetSlug ? `${s.datasetName} · ` : ''}{s.urlTemplate}
                   </div>
                 </div>
-                <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] uppercase text-gray-600">
+                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">
                   {s.inputStrategy ?? 'unknown'}
                 </span>
                 <ArrowRight className="h-4 w-4 text-gray-400" />

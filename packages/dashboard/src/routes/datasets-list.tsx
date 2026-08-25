@@ -2,6 +2,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Database, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
+import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function DatasetsList() {
@@ -28,10 +29,12 @@ export default function DatasetsList() {
   return (
     <div>
       <Breadcrumbs projectSlug={projectSlug} projectName={statsQuery.data.project.name} />
-      <h1 className="mt-2 text-xl font-bold tracking-tight">Datasets</h1>
-      <p className="mt-1 text-sm text-gray-600">
-        Schemas + the sources that feed them. {datasets.length} {datasets.length === 1 ? 'dataset' : 'datasets'}.
-      </p>
+      <div className="mt-2">
+        <PageHeader
+          title="Datasets"
+          description={<>Schemas + the sources that feed them. {datasets.length} {datasets.length === 1 ? 'dataset' : 'datasets'}.</>}
+        />
+      </div>
 
       {datasets.length === 0 ? (
         <EmptyState
@@ -39,13 +42,13 @@ export default function DatasetsList() {
           description="Datasets group sources by their data shape. They're created during Sandbox source graduation (coming in Phase 4)."
         />
       ) : (
-        <ul className="mt-6 divide-y rounded-md border">
+        <ul className="card mt-6 divide-y divide-gray-100">
           {datasets.map((d) => (
             <li key={d.id}>
               <Link
                 to="/p/$project/datasets/$dataset"
                 params={{ project: projectSlug, dataset: d.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Database className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">

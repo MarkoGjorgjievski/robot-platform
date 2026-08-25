@@ -135,10 +135,10 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
   const canPickExistingDataset = projectMode === 'existing' && (datasetsQuery.data?.length ?? 0) > 0;
 
   return (
-    <div className="mt-6 rounded-md border border-gray-300 bg-gray-50 p-5">
+    <div className="card mt-6 p-5">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">Graduate to a real project</h2>
+          <h2 className="text-sm font-medium text-gray-900">Graduate to a real project</h2>
           <p className="mt-1 text-xs text-gray-600">
             Move this Sandbox source into a Project + Dataset. Runs and extracted data are preserved.
           </p>
@@ -155,7 +155,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
 
       {/* Project picker */}
       <fieldset className="mt-4">
-        <legend className="text-xs font-medium text-gray-700">Project</legend>
+        <legend className="micro-label">Project</legend>
         <div className="mt-2 flex gap-3 text-sm">
           <label className="flex items-center gap-1">
             <input
@@ -182,7 +182,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
             value={existingProjectSlug}
             onChange={(e) => setExistingProjectSlug(e.target.value)}
             disabled={pending}
-            className="mt-2 h-9 w-full rounded-md border border-gray-300 px-2 text-sm disabled:opacity-50"
+            className="mt-2 h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
           >
             <option value="">Choose a project…</option>
             {availableProjects.map((p) => (
@@ -199,7 +199,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
               onChange={(e) => setNewProjectName(e.target.value)}
               placeholder="Project name"
               disabled={pending}
-              className="h-9 rounded-md border border-gray-300 px-2 text-sm disabled:opacity-50"
+              className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
             />
             <input
               type="text"
@@ -210,7 +210,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
               }}
               placeholder="project-slug"
               disabled={pending}
-              className="h-9 rounded-md border border-gray-300 px-2 font-mono text-xs disabled:opacity-50"
+              className="h-9 rounded-md border border-gray-300 bg-white px-2 font-mono text-xs placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
             />
           </div>
         )}
@@ -218,7 +218,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
 
       {/* Dataset picker */}
       <fieldset className="mt-4">
-        <legend className="text-xs font-medium text-gray-700">Dataset</legend>
+        <legend className="micro-label">Dataset</legend>
         <div className="mt-2 flex gap-3 text-sm">
           <label className="flex items-center gap-1">
             <input
@@ -245,7 +245,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
             value={existingDatasetSlug}
             onChange={(e) => setExistingDatasetSlug(e.target.value)}
             disabled={pending || projectMode !== 'existing'}
-            className="mt-2 h-9 w-full rounded-md border border-gray-300 px-2 text-sm disabled:opacity-50"
+            className="mt-2 h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
           >
             <option value="">
               {projectMode !== 'existing' ? 'Pick an existing project first' : 'Choose a dataset…'}
@@ -264,7 +264,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
               onChange={(e) => setNewDatasetName(e.target.value)}
               placeholder="Dataset name (e.g. Products)"
               disabled={pending}
-              className="h-9 rounded-md border border-gray-300 px-2 text-sm disabled:opacity-50"
+              className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
             />
             <input
               type="text"
@@ -275,7 +275,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
               }}
               placeholder="dataset-slug"
               disabled={pending}
-              className="h-9 rounded-md border border-gray-300 px-2 font-mono text-xs disabled:opacity-50"
+              className="h-9 rounded-md border border-gray-300 bg-white px-2 font-mono text-xs placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
             />
           </div>
         )}
@@ -283,7 +283,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
 
       {/* Source name/slug */}
       <fieldset className="mt-4">
-        <legend className="text-xs font-medium text-gray-700">Source</legend>
+        <legend className="micro-label">Source</legend>
         <div className="mt-2 grid grid-cols-2 gap-3">
           <input
             type="text"
@@ -291,7 +291,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
             onChange={(e) => setSourceName(e.target.value)}
             placeholder="Source name"
             disabled={pending}
-            className="h-9 rounded-md border border-gray-300 px-2 text-sm disabled:opacity-50"
+            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
           />
           <input
             type="text"
@@ -302,7 +302,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
             }}
             placeholder="source-slug"
             disabled={pending}
-            className="h-9 rounded-md border border-gray-300 px-2 font-mono text-xs disabled:opacity-50"
+            className="h-9 rounded-md border border-gray-300 bg-white px-2 font-mono text-xs placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
           />
         </div>
       </fieldset>
@@ -325,7 +325,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
             onChange={(e) => setInputSetName(e.target.value)}
             placeholder="InputSet name (e.g. Acme ASINs Q1)"
             disabled={pending}
-            className="mt-2 h-9 w-full rounded-md border border-gray-300 px-2 text-sm disabled:opacity-50"
+            className="mt-2 h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm placeholder:text-gray-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50"
           />
         )}
         {!promoteInputSet && (
@@ -342,7 +342,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="h-9 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 disabled:opacity-50"
+          className="btn-quiet h-9 px-4 text-sm disabled:opacity-50"
         >
           Cancel
         </button>
@@ -350,7 +350,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
           type="button"
           onClick={handleSubmit}
           disabled={pending}
-          className="flex h-9 items-center gap-2 rounded-md bg-gray-900 px-4 text-sm font-medium text-white disabled:opacity-50"
+          className="btn-primary h-9"
         >
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           Graduate

@@ -3,6 +3,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
+import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { FIELD_ORIGINS, originLabel, type FieldOrigin } from '../lib/field-origin';
 
@@ -37,14 +38,13 @@ export default function DatasetDetail() {
   return (
     <div>
       <Breadcrumbs projectSlug={projectSlug} datasetName={dataset.name} />
-      <h1 className="mt-2 text-xl font-bold tracking-tight">{dataset.name}</h1>
-      {dataset.description && (
-        <p className="mt-1 text-sm text-gray-600">{dataset.description}</p>
-      )}
+      <div className="mt-2">
+        <PageHeader title={dataset.name} description={dataset.description} />
+      </div>
 
       <SchemaFieldOrigins datasetId={dataset.id} schema={schema} />
 
-      <h2 className="mt-8 text-sm font-semibold text-gray-700">
+      <h2 className="mt-8 text-sm font-medium text-gray-900">
         Sources ({sources.length})
       </h2>
       {sources.length === 0 ? (
@@ -53,13 +53,13 @@ export default function DatasetDetail() {
           description="Sources for this dataset will appear here when they're created. (Bulk-create UX coming in Phase 3b.)"
         />
       ) : (
-        <ul className="mt-2 divide-y rounded-md border">
+        <ul className="card mt-2 divide-y divide-gray-100">
           {sources.map((s) => (
             <li key={s.id}>
               <Link
                 to="/p/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Layers className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
@@ -99,47 +99,49 @@ function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: 
 
   return (
     <div className="mt-6">
-      <h2 className="text-sm font-semibold text-gray-700">Schema fields</h2>
+      <h2 className="text-sm font-medium text-gray-900">Schema fields</h2>
       <p className="mt-1 text-xs text-gray-500">
         Where each value comes from. Listing-page fields are captured while crawling and carried
         down to every detail row.
       </p>
-      <table className="mt-3 w-full text-sm">
-        <thead className="border-b">
-          <tr>
-            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Field</th>
-            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Type</th>
-            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Required</th>
-            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Description</th>
-            <th className="py-2 pr-4 text-left text-xs font-medium text-gray-600">Comes from</th>
-          </tr>
-        </thead>
-        <tbody>
-          {fields.map((field, i) => (
-            <tr key={field.name} className="border-b last:border-b-0">
-              <td className="py-2 pr-4 font-mono text-xs">{field.name}</td>
-              <td className="py-2 pr-4 font-mono text-xs text-gray-500">{field.type}</td>
-              <td className="py-2 pr-4 text-xs text-gray-500">{field.required ? 'yes' : 'no'}</td>
-              <td className="py-2 pr-4 text-xs text-gray-500">{field.description ?? '—'}</td>
-              <td className="py-2 pr-4">
-                <select
-                  value={field.origin ?? 'detail'}
-                  onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
-                  className="rounded border px-2 py-1 text-xs"
-                >
-                  {FIELD_ORIGINS.map((origin) => (
-                    <option key={origin} value={origin}>{originLabel(origin)}</option>
-                  ))}
-                </select>
-              </td>
+      <div className="card mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50/60">
+              <th className="micro-label px-3 py-2 text-left">Field</th>
+              <th className="micro-label px-3 py-2 text-left">Type</th>
+              <th className="micro-label px-3 py-2 text-left">Required</th>
+              <th className="micro-label px-3 py-2 text-left">Description</th>
+              <th className="micro-label px-3 py-2 text-left">Comes from</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {fields.map((field, i) => (
+              <tr key={field.name} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
+                <td className="px-3 py-2 font-mono text-xs">{field.name}</td>
+                <td className="px-3 py-2 font-mono text-xs text-gray-500">{field.type}</td>
+                <td className="px-3 py-2 text-xs text-gray-500">{field.required ? 'yes' : 'no'}</td>
+                <td className="px-3 py-2 text-xs text-gray-500">{field.description ?? '—'}</td>
+                <td className="px-3 py-2">
+                  <select
+                    value={field.origin ?? 'detail'}
+                    onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
+                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
+                  >
+                    {FIELD_ORIGINS.map((origin) => (
+                      <option key={origin} value={origin}>{originLabel(origin)}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <button
         onClick={() => updateSchema.mutate({ datasetId, schema: fields })}
         disabled={updateSchema.isPending}
-        className="mt-3 rounded border px-3 py-1 text-xs font-medium hover:bg-gray-50 disabled:opacity-50"
+        className="btn-quiet mt-3 disabled:opacity-50"
       >
         {updateSchema.isPending ? 'Saving...' : 'Save field origins'}
       </button>

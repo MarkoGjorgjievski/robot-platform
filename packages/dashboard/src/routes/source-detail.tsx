@@ -56,8 +56,8 @@ export default function SourceDetailLayout() {
 
       <div className="mt-2 flex items-center gap-3">
         <Layers className="h-5 w-5 text-gray-400" />
-        <h1 className="text-xl font-bold tracking-tight">{source.name}</h1>
-        <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] uppercase text-gray-600">
+        <h1 className="text-xl font-semibold tracking-tight">{source.name}</h1>
+        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">
           {source.inputStrategy ?? 'unknown'}
         </span>
         {source.urlTemplate && (
@@ -65,7 +65,7 @@ export default function SourceDetailLayout() {
             href={source.urlTemplate}
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 truncate font-mono text-xs text-gray-500 hover:text-gray-700"
+            className="ml-auto flex items-center gap-1 truncate font-mono text-xs text-gray-500 hover:text-accent-700"
           >
             <span className="truncate max-w-md">{source.urlTemplate}</span>
             <ExternalLink className="h-3 w-3 flex-shrink-0" />

@@ -34,12 +34,12 @@ export default function ProjectDomainDetail() {
 
       <div className="mt-2 flex items-center gap-3">
         <Globe className="h-5 w-5 text-gray-400" />
-        <h1 className="font-mono text-xl font-bold tracking-tight">{domain}</h1>
+        <h1 className="font-mono text-xl font-semibold tracking-tight">{domain}</h1>
       </div>
 
       {intelligence && (
-        <div className="mt-6 rounded-md border p-4">
-          <h2 className="text-sm font-semibold text-gray-700">Cached intelligence</h2>
+        <div className="card mt-6 p-4">
+          <h2 className="text-sm font-medium text-gray-900">Cached intelligence</h2>
           <p className="mt-1 text-xs text-gray-500">
             Cross-customer knowledge accumulated for this domain.
           </p>
@@ -52,7 +52,7 @@ export default function ProjectDomainDetail() {
         </div>
       )}
 
-      <h2 className="mt-8 text-sm font-semibold text-gray-700">
+      <h2 className="mt-8 text-sm font-medium text-gray-900">
         Sources in this project touching {domain} ({sources.length})
       </h2>
       {sources.length === 0 ? (
@@ -61,13 +61,13 @@ export default function ProjectDomainDetail() {
           description="If you see this on a domain page you navigated to, the project's sources changed since the listing was generated."
         />
       ) : (
-        <ul className="mt-2 divide-y rounded-md border">
+        <ul className="card mt-2 divide-y divide-gray-100">
           {sources.map((s) => (
             <li key={s.id}>
               <Link
                 to="/p/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50"
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Layers className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
@@ -89,8 +89,8 @@ export default function ProjectDomainDetail() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="font-medium">{value}</div>
+      <div className="micro-label">{label}</div>
+      <div className="mt-1 font-medium">{value}</div>
     </div>
   );
 }
