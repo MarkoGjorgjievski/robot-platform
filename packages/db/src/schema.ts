@@ -268,6 +268,9 @@ export const domainIntelligence = pgTable('domain_intelligence', {
   paginationConfig: jsonb('pagination_config'),
   // Human-pinned row container selector (click-to-select backend); null = AI-generated each run
   rowSelector: jsonb('row_selector'),
+  // What this domain CAN yield per concept — labelled candidates, discovered
+  // once per domain by the v2.5 labelling pass. Never serves values.
+  candidateCatalogue: jsonb('candidate_catalogue').default({}).notNull(),
   // Structured data availability
   hasJsonLd: boolean('has_json_ld').default(false).notNull(),
   hasNextData: boolean('has_next_data').default(false).notNull(),
