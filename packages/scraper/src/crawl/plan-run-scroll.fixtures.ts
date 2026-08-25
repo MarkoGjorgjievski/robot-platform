@@ -57,7 +57,18 @@ export function scrollDeps(over: {
       async *scrollPages(_url: string, options: ScrollOptions): AsyncGenerator<CrawlPage> {
         scrollCalls.push(options);
         if (over.scrollThrows) throw new Error(over.scrollThrows);
+        // `maxItems` is honoured the way PlaywrightBrowser.scrollPages honours
+        // it — counted in RAW YIELDED ROWS, incremented before anything dedupes
+        // them, checked at the top of the next round. That unit is the whole
+        // point of modelling it here: the generator runs in the browser and
+        // cannot see `absorb`, so on a virtualized listing that re-serves
+        // recycled cards a row budget stops the walk long before that many
+        // items have been PLANNED. A fake that quietly ignored this option
+        // could not tell a caller that passes it from one that does not.
+        let yielded = 0;
+        const maxItems = options.maxItems ?? Number.MAX_SAFE_INTEGER;
         for (let i = 0; i < rounds.length; i++) {
+          if (yielded >= maxItems) break;
           const batch = rounds[i]!;
           if (batch.length === 0) continue;
           yield {
@@ -66,6 +77,7 @@ export function scrollDeps(over: {
             data: batch.map((u) => ({ [DETAIL_URL_FIELD]: u })),
             totalRows: batch.length,
           };
+          yielded += batch.length;
         }
       },
     } as unknown as PlanRunDeps['browser'],

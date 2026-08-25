@@ -457,10 +457,25 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       const walkScrollPages = async (config: PaginationConfig): Promise<WalkResult> => {
         const before = detailCount();
         let budgetStopped = false;
+        // `maxItems` is deliberately NOT passed, and there is no value that
+        // would be correct. The generator counts RAW YIELDED ROWS — it runs in
+        // the browser and cannot see `absorb`, which is what turns rows into
+        // planned items. On a virtualized listing (spec §4's central case)
+        // recycled cards come back unstamped and are re-yielded by design, so
+        // a row budget of N stops the walk having planned far fewer than N:
+        // `max_items: 200` against a list re-serving ~40% of its window plans
+        // ~120 URLs and reports nothing wrong, because `absorb` never got to
+        // return 'budget' and the thin-walk warning sits past a `continue`.
+        //
+        // The budget is enforced below instead, where dedupe already lives:
+        // `absorb` returns 'budget' the moment the cap is genuinely full and
+        // breaks this loop, which runs the generator's `finally` and closes
+        // its page exactly as an exhausted generator would. The generator
+        // keeps its own hard bounds (MAX_SCROLL_ROUNDS and the quiet-round
+        // check); what it does not keep is a budget stated in the wrong unit.
         for await (const round of deps.browser.scrollPages(start.url, {
           extractionScript: script,
           rowXpath: page1.plan!.row_xpath,
-          maxItems: cap - detailCount(),
           ...(config.loadMoreSelector ? { loadMoreSelector: config.loadMoreSelector } : {}),
         })) {
           items.push({
