@@ -90,4 +90,54 @@ describe('planRun — the scroll fallback', () => {
     expect(deps.saved).toHaveLength(1);
     expect(deps.saved[0]?.config.strategy).toBe('dom-scroll');
   });
+
+  // ── A scroll walk that throws ───────────────────────────────────────────
+  //
+  // `scrollPages` is a live Playwright walk: `context.newPage()`,
+  // `navigateWithFallback`, `dismissPopups`, three `page.evaluate` calls and
+  // `page.close()` in its `finally` are all unguarded, so a rate-limited site
+  // (this project's binding corpus constraint) or an SPA that route-changes on
+  // scroll throws straight out of the generator.
+  //
+  // Both call sites `continue` BEFORE the try/catch further down that turns a
+  // pagination failure into a per-input error. Unwrapped, that throw rejects
+  // `planRun` itself — and `packages/api/src/routers/crawl.ts` marks the run
+  // failed without ever reaching `insert(runItems)`, so every EARLIER input's
+  // detail URLs are discarded. One rate-limited category page out of forty
+  // costs the whole run. Before this branch, that input produced a warning and
+  // the run completed.
+  //
+  // Two tests, not one: the two call sites are reached by different paths
+  // (max_pages <= 1 short-circuits before detection; max_pages > 1 arrives at
+  // the give-up branch after it), so guarding one leaves the other naked.
+
+  it('turns a scroll failure into a per-input error rather than rejecting the run (max_pages: 3)', async () => {
+    const deps = scrollDeps({ scrollThrows: 'net::ERR_TIMED_OUT' });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(outcome.errors).toHaveLength(1);
+    expect(outcome.errors[0]?.inputIndex).toBe(0);
+    expect(outcome.errors[0]?.message).toContain('pagination failed');
+    expect(outcome.errors[0]?.message).toContain('net::ERR_TIMED_OUT');
+    // The same shape the main path produces: the input is reported as an
+    // error, and page 1's own work survives.
+    expect(outcome.inputs).toEqual([{ inputIndex: 0, itemCount: PAGE1.length, status: 'error' }]);
+    expect(detailUrls(outcome)).toEqual(PAGE1);
+    expect(deps.saved).toEqual([]);
+  });
+
+  it('turns a scroll failure into a per-input error rather than rejecting the run (max_pages: 1)', async () => {
+    const deps = scrollDeps({ scrollThrows: 'net::ERR_TIMED_OUT' });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 1, maxItems: 50 }), deps);
+
+    expect(outcome.errors).toHaveLength(1);
+    expect(outcome.errors[0]?.inputIndex).toBe(0);
+    expect(outcome.errors[0]?.message).toContain('pagination failed');
+    expect(outcome.errors[0]?.message).toContain('net::ERR_TIMED_OUT');
+    expect(outcome.inputs).toEqual([{ inputIndex: 0, itemCount: PAGE1.length, status: 'error' }]);
+    expect(detailUrls(outcome)).toEqual(PAGE1);
+    expect(deps.saved).toEqual([]);
+  });
 });

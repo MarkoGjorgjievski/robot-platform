@@ -26,6 +26,16 @@ export function scrollDeps(over: {
   /** Detail URLs each scroll round yields, in order. */
   rounds?: string[][];
   html?: string;
+  /**
+   * Make the walk throw instead of yielding, the way the real generator can.
+   * `scrollPages` opens its own page and runs `navigateWithFallback`,
+   * `dismissPopups`, three `page.evaluate` calls and `page.close()` in its
+   * `finally` — none of them .catch-guarded — so a rate-limited site, a
+   * navigation timeout or an SPA that route-changes on scroll ('Execution
+   * context was destroyed') all surface here as a plain rejection. Thrown
+   * before the first yield, which is where newPage/navigateWithFallback fail.
+   */
+  scrollThrows?: string;
 }): ScrollDeps {
   const scrollCalls: ScrollOptions[] = [];
   const crawlCalls: unknown[] = [];
@@ -46,6 +56,7 @@ export function scrollDeps(over: {
       async *crawl(_url: string, options: unknown) { crawlCalls.push(options); },
       async *scrollPages(_url: string, options: ScrollOptions): AsyncGenerator<CrawlPage> {
         scrollCalls.push(options);
+        if (over.scrollThrows) throw new Error(over.scrollThrows);
         for (let i = 0; i < rounds.length; i++) {
           const batch = rounds[i]!;
           if (batch.length === 0) continue;
