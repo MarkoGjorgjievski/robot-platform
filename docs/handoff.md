@@ -10,7 +10,7 @@ type: project
 
 **Do not start another fix-and-dogfood cycle.** The last correctness push converged on the corpus rather than on reality, each round cost real money, and half the remaining defects are design decisions rather than bugs (see *What NOT to redo* below). If you're tempted to chase extraction-quality numbers, don't — the next work is feature implementation against the roadmap.
 
-**DOM-scroll / load-more pagination is built, merged, and proven in a real browser — but not on a real site.** Merge commit `382eacd`, 2026-08-25. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
+**DOM-scroll pagination is now LIVE-PROVEN — and the same two runs exposed a real defect in the warm path.** 2026-08-25. A cold plan against `uniqlo-scroll-live` walked a listing that shows 37 products on its first screen and enumerated **220 detail URLs across 4 scroll rounds with zero duplicates**, ending on the quiet-round rule rather than the budget, and cached `{"strategy":"dom-scroll"}`. The **second** plan against the same source read that config from cache and then gained **nothing** from scrolling — 144 items, page 1 only. The page still grows on scroll (re-probed after both runs), so that is our defect, not the site's. Full detail and the leading explanation: "DOM-scroll pagination — live proof (2026-08-25)" below. Merge commit `382eacd`. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
 
 **`api-param` pagination is implemented and gated offline, but NOT live-proven.** The `feat/api-param-pagination` branch built it end to end — proving a paging parameter by experiment (probe a page-1-identified JSON endpoint with candidate query params, reject any candidate whose response overlaps page 1's items too much) before it is ever used or cached — and gated it with unit tests plus a Tier 1 fixture-server test that fails if page 2 re-serves page 1. The one live run authorised to prove it (`newegg-gpus-live`, 2026-08-24, run `c889faea-3417-4d36-97cd-1907e55653af`) **fell through to the existing `mechanical` (`url-pattern`) pagination — `api-param` never got a candidate to try.** Do not read "API pagination delivered" as covering the live case; it covers only the offline-gated path. Full detail: "`api-param` pagination — live proof (2026-08-24)" below.
 
@@ -120,6 +120,82 @@ cookies and HTTP Basic/Digest auth, **never** a JS-set `Authorization` or CSRF h
 listing XHRs carry a JS-set bearer token 401s every probe and correctly falls through — but a 401
 there must not be read as "the parameter was wrong". Spec §3 had claimed the opposite.
 
+## DOM-scroll pagination — live proof (2026-08-25)
+
+Task 6 of `docs/superpowers/plans/2026-08-24-dom-scroll-pagination.md`. **Plan-only** — listing pages
+only, no detail fetches.
+
+**Target selection was evidence-first, and that is the transferable part.** The `api-param` live proof
+failed because its target came from a roadmap note; Newegg renders its grid server-side, so the strategy
+never got a candidate to try. This time nothing was spent until a free probe
+(`packages/browser/scroll-probe.mts`) had shown the page actually grows. Three candidates, measured by
+counting distinct product links across scroll rounds:
+
+| Candidate | Series | Verdict |
+|---|---|---|
+| `uniqlo.com/us/en/men/tops` | 37 → 73 → 109 → 145 → 181 → 217 → **221** | grows, then tapers — a real finite scroll list |
+| `target.com/c/laptops…` | 0, flat, empty `<title>` | anti-bot block page, not a listing |
+| `currys.co.uk/…/laptops` | 116, flat | server-rendered, paginated |
+
+The Uniqlo taper (+36 per round, then +4) is what made it the right target: it proves the list *ends*,
+so the quiet-round rule could be exercised live rather than the budget simply binding.
+
+**Budget rulings, both deliberate departures from the plan's text.** The plan's Step 2 says
+`{max_items: 40, max_pages: 1}`. Both numbers were changed, for reasons worth keeping:
+
+- **`max_items: 250`, not 40.** In plan-only mode item count does not drive spend — the AI cost is page-1
+  schema discovery, identical either way. With 37 products on the first screen a cap of 40 binds after one
+  round and proves little more than the fixtures already do. 250 let the walk run to natural exhaustion.
+- **`max_pages: 3`, not 1.** `max_pages: 1` takes the short-circuit branch that (by follow-up 2 below)
+  never consults the cache — so Step 4's warm-replay proof would have been untestable. `max_pages` is not
+  consulted by this strategy anyway, so raising it changes nothing about the walk.
+
+**Cold run — the proof (run `a2c67dc9-eeb2-442d-bea3-56e3f27bbcf9`, 173.2s).** 220 detail items, 220
+distinct URLs, **zero duplicates**. Detail items by `page_number`, which for this strategy is the scroll
+round: **144 / 36 / 36 / 4**. The budget of 250 never bound, so the walk was ended by two consecutive quiet
+rounds — **the quiet-round rule, live**. The final +4 round matches the probe's taper exactly.
+`domain_intelligence.pagination_config` for `(www.uniqlo.com, listing)` is `{"strategy": "dom-scroll"}`.
+The reason-specific `api-param` warning added in the previous cycle also fired correctly and for the right
+reason ("no intercepted JSON response carried page 1's detail URLs, 2 considered"), which is incidental
+live confirmation that *that* fix works.
+
+**Warm run — the defect (run `03c5cc22-57f0-4ece-a30e-934e591c9a62`, 176.8s).** `domain cache: warm`, so
+the cached config was read. But: **144 detail items, `page_number` 1 only**, all 144 a subset of the cold
+run's 220. The scroll walk gained nothing, and the only signal was
+`pagination (cache: dom-scroll) produced no new items` — which reads as *"the list is finished"*, not
+*"I stopped 76 products early"*.
+
+**What is established, and what is inference.** Proven: both runs' numbers above; the page still grows on
+scroll when re-probed *after* both runs, so this is not throttling and not a site change; `rowSelector` is
+written in exactly one place in the codebase (`packages/api/src/routers/scraper.ts:130`, with
+`source: 'human'`), so the automatic path **never** persists it; and the two runs recorded *different*
+row-level `detail_url` xpaths (`.//@href` cold, `.//a[contains(@class,"product-tile__link")]/@href` warm).
+
+Inferred, and needing its own cycle to confirm: **`dom-scroll` is the first cached strategy whose
+behaviour depends on something the cache does not store.** `url-pattern` caches a self-contained template;
+`{"strategy": "dom-scroll"}` caches nothing about *what a row is*, yet the walk's growth detection
+(`rowCountScript`), its stamping, and its extraction scoping (`unseenXpath`) all key off `row_xpath`,
+which is re-derived per run. A warm run can therefore scroll with a different row definition than the one
+that was verified when the config was cached.
+
+**One thing the run could NOT distinguish, and why.** "The generator yielded zero rounds" and "rounds were
+yielded but every row was a duplicate" produce identical evidence — same item count, same warning, same
+`page_number` distribution. The per-round `listing` rows would have told them apart, but scrolling never
+changes the URL, so all of a run's per-round listing rows collapse to one under the unique index. That was
+logged as a cosmetic follow-up on the branch; it is not cosmetic, it destroys the per-round audit trail,
+and it is now the first thing to fix before re-running this.
+
+**What this run does NOT prove.** No detail page was fetched, so per-item extraction is untouched by it.
+The load-more *button* trigger was never exercised — Uniqlo scrolls, and `findLoadMore` returned nothing,
+so the cached config has no `loadMoreSelector`. Cursor APIs and POST/GraphQL remain uncovered by
+`api-param`; this strategy covers them only incidentally, and nothing about those transports was tested.
+No anti-bot interference on Uniqlo across four separate sessions; **Target blocked every request**, which
+is a corpus fact.
+
+**Corpus addition.** `uniqlo-scroll-live` is seeded (source `ffff6666-…-006`, input set
+`eeee5555-…-005`) and is the corpus's only known infinite-scroll target. Its budget is left at the
+conservative `{max_items: 40, max_pages: 3}`; the 250 used for the proof was a deliberate one-run raise.
+
 ## DOM-scroll pagination (2026-08-25)
 
 The transport-agnostic last rung. Every other strategy needs a thing to act on — a URL template, a
@@ -184,8 +260,18 @@ the item budget counting yielded rows (silent under-delivery on exactly the virt
 feature exists for), and the multi-round property having no teeth — every fixture used a single round, so
 capping rounds at `max_pages` left the whole suite green.
 
-**Open follow-ups, in rough priority order.** None blocks use; the first is the one to watch during the
-live proof.
+**Open follow-ups, in rough priority order.** Reordered after the live proof: the warm-path defect it
+found now leads, and the "duplicate listing row" item was promoted out of cosmetic because it is what
+stopped the run from being self-diagnosing.
+
+0. **A warm `dom-scroll` run silently degrades to page 1** — the live defect above. `row_xpath` is not
+   part of the cached config, and nothing verifies that a warm scroll walk still gains what the cold one
+   did. Needs its own cycle; the design question is whether `dom-scroll` should cache its row definition
+   alongside the strategy, and what a warm walk should do when it gains nothing (today: one bounded
+   re-detect, which did not recover this).
+0b. **Per-round `listing` rows collapse under the unique index**, because scrolling never changes the URL
+   — so a run cannot tell "no rounds" from "all rounds duplicated". Fix this *first*: it is cheap, and
+   without it the re-run that diagnoses item 0 is as blind as this one was.
 
 1. **`walkScrollPages` breaks on any non-null `absorb` result, so `'all-duplicates'` ends a scroll walk
    after ONE quiet round** — bypassing `QUIET_ROUNDS` and contradicting the spec's own stop-signal
@@ -230,6 +316,13 @@ which is the whole point of the design, but is untested against a real one.
 3. From `docs/roadmap.md`'s v2 section: the progressive-confidence ladder (1 → 5 → 20 → 1000 URLs); a real job queue (an api-server restart still pauses a run — `run_items` survives so `execute` resumes it, but nothing resumes it automatically). `api-param` pagination detection and replay is now built and offline-gated (see above) but still wants a live site that actually exercises it — the corpus doesn't currently have a confirmed one.
 
 ## Cheap things worth doing whenever convenient
+
+- **Never pick a live pagination target without `packages/browser/scroll-probe.mts` first.** It is free —
+  no LLM, no database — navigates a candidate listing, scrolls it, and prints the distinct-product-link
+  count per round. Two live proofs have now turned on this: `api-param`'s failed because its target was
+  chosen from a roadmap note, and `dom-scroll`'s succeeded because three candidates were measured before
+  anything was spent. Usage: `pnpm --filter @robot/browser exec tsx scroll-probe.mts "<url>" ["<url>"...]`,
+  with `HEADFUL=1` to watch it.
 
 - Measure the five unmeasured extraction-quality domains once (~$4): `bhphoto`, `abebooks`, `zalando`, `currys`, `uniqlo`.
 - Capture Tier 1 fixtures for the corpus so the commit-time gate covers more than one eighth of it.
