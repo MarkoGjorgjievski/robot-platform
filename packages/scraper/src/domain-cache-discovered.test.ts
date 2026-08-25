@@ -20,6 +20,7 @@ describe('saveDomainCache — discovered-but-unresolved fields', () => {
     await saveDomainCache({
       domain: DOMAIN,
       pageType: PAGE_TYPE,
+      url: `https://${DOMAIN}/p/1`,
       interceptedRequests: [],
       fieldResults: {
         title: { value: 'Hello', source: 'json-ld', path: '$.name', confidence: 0.95 },
@@ -44,6 +45,7 @@ describe('saveDomainCache — discovered-but-unresolved fields', () => {
     await saveDomainCache({
       domain: DOMAIN,
       pageType: PAGE_TYPE,
+      url: `https://${DOMAIN}/p/1`,
       interceptedRequests: [],
       fieldResults: {
         weight: { value: '12.3 Ounce', source: 'ai-vision', path: '', confidence: 0.5 },
@@ -68,6 +70,7 @@ describe('saveDomainCache — discovered-but-unresolved fields', () => {
     await saveDomainCache({
       domain: DOMAIN,
       pageType: PAGE_TYPE,
+      url: `https://${DOMAIN}/p/1`,
       interceptedRequests: [],
       fieldResults: {},
       discoveredFieldNames: ['sizes'],
@@ -78,6 +81,7 @@ describe('saveDomainCache — discovered-but-unresolved fields', () => {
     await saveDomainCache({
       domain: DOMAIN,
       pageType: PAGE_TYPE,
+      url: `https://${DOMAIN}/p/1`,
       interceptedRequests: [],
       fieldResults: {},
       discoveredFieldNames: ['sizes'],

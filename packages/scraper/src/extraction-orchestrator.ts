@@ -513,6 +513,7 @@ export async function runExtraction(
       await saveCache({
         domain,
         pageType: resolvedPageType,
+        url: capture.url ?? url,
         interceptedRequests: interceptedRequests,
         fieldResults,
         discoveredFieldNames: schemaFields.map((f) => f.name),
