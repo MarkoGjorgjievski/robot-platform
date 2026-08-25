@@ -2,7 +2,7 @@ import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
 import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
-import { sanitizeCatalogue, type CandidateCatalogue } from './candidate-catalogue.js';
+import { sanitizeCatalogue, type CandidateCatalogue, type Candidate } from './candidate-catalogue.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -386,10 +386,24 @@ function comparePaths(a: FieldPath, b: FieldPath): number {
   return sourceAuthority(b.source) - sourceAuthority(a.source);
 }
 
+/** The concept a schema field maps to: explicit selection first, else the
+ *  field's name matched against concept names (exact, then naive plural). */
+function findConcept(
+  catalogue: CandidateCatalogue,
+  fieldName: string,
+  selection?: { concept: string },
+): Candidate[] | null {
+  if (selection) return catalogue[selection.concept] ?? null;
+  if (catalogue[fieldName]) return catalogue[fieldName]!;
+  const singular = fieldName.replace(/s$/, '');
+  return catalogue[singular] ?? null;
+}
+
 export function resolveFromCache(
   fieldPaths: Record<string, FieldPathSet>,
   allExtractedData: Record<string, unknown>,
   requestedFields: string[],
+  opts?: { catalogue?: CandidateCatalogue; selections?: Record<string, { concept: string; label: string }> },
 ): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
   const resolved: Record<string, ResolvedField> = {};
 
@@ -400,6 +414,26 @@ export function resolveFromCache(
     // Sort paths: human first, then by recency-weighted hit rate, then — only when
     // those tie — by how authoritative the source is about this page's entity.
     const ranked = [...pathSet.paths].sort(comparePaths);
+
+    // v2.5 serving order (spec §6.1): the customer's own selection first, then
+    // the vision-verified displayed candidate, then the statistical ranking.
+    // A selection that maps to no catalogue entry (label renamed, catalogue
+    // refreshed) degrades to the next rung and is logged — never a failure.
+    const concept = opts?.catalogue ? findConcept(opts.catalogue, fieldName, opts?.selections?.[fieldName]) : null;
+    const hoist = (predicate: (p: FieldPath) => boolean) => {
+      const i = ranked.findIndex(predicate);
+      if (i > 0) ranked.unshift(ranked.splice(i, 1)[0]!);
+    };
+    const selection = opts?.selections?.[fieldName];
+    const selectedPath = selection && concept
+      ? concept.find((c) => c.label === selection.label)?.path ?? null
+      : null;
+    if (selection && !selectedPath) {
+      console.warn(`[cache] selection "${selection.concept}/${selection.label}" for field "${fieldName}" matches no catalogue candidate — serving default`);
+    }
+    const displayedPath = concept?.find((c) => c.displayed === true)?.path ?? null;
+    if (displayedPath) hoist((p) => p.path === displayedPath);
+    if (selectedPath) hoist((p) => p.path === selectedPath);
 
     // Try each path — collect all values that resolve
     const candidates: Array<{ value: unknown; path: FieldPath }> = [];

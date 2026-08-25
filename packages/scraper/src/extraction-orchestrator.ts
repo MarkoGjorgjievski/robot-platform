@@ -64,6 +64,8 @@ export type ExtractionFieldInput = {
    * "resolved" and stopped the chain before row selectors were ever generated.
    */
   rowScopedOnly?: boolean;
+  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
+  candidate?: { concept: string; label: string };
 };
 
 /**
@@ -331,7 +333,10 @@ export async function runExtraction(
         }
       }
 
-      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames);
+      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames, {
+        catalogue: cache.candidateCatalogue,
+        selections: Object.fromEntries(fields.filter((f) => f.candidate).map((f) => [f.name, f.candidate!])),
+      });
       if (cacheResult.overallConfidence > 0) {
         for (const [name, resolved] of Object.entries(cacheResult.resolved)) {
           tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
