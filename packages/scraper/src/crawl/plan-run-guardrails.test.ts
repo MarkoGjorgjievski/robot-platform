@@ -6,7 +6,7 @@
 // control is needed.
 
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, CrawlOptions, CrawlPage, PageCapture } from '@robot/browser';
+import type { IBrowser, CrawlOptions, CrawlPage, PageCapture, ScrollOptions } from '@robot/browser';
 import { planRun } from './plan-run.js';
 import { acquireDomainLock } from '../domain-lock.js';
 
@@ -38,6 +38,13 @@ class FakeBrowser implements IBrowser {
     const from = options.startPage ?? 1;
     for (const page of this.pages) if (page.pageNumber >= from) yield page;
   }
+
+  // Reachable now: a max_pages:1 budget (see the domain-lock tests below)
+  // routes straight to the scroll fallback without detecting HTML/api-param
+  // pagination first. Empty by default, same as crawl() above, so tests that
+  // are not ABOUT pagination see the same single-page outcome as before.
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {}
 }
 
 const OUTCOME_SHAPE = {

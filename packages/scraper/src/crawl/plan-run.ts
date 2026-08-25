@@ -9,6 +9,7 @@
 // apply unchanged, so a domain crawled before costs nothing here.
 
 import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
+import { findLoadMore } from '@robot/browser';
 import { runExtraction, type ExtractionAgent, type ExtractionDeps, type ExtractionOutcome } from '../extraction-orchestrator.js';
 import { buildExtractionScript } from '../executor.js';
 import { acquireDomainLock } from '../domain-lock.js';
@@ -427,8 +428,163 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         continue;
       }
 
-      if (budget.maxPages <= 1 || !page1.plan) {
+      if (!page1.plan) {
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        continue;
+      }
+
+      // Looked up under 'listing' because that is the only page type that
+      // paginates. Computed here, ahead of detection, because both the
+      // max_pages:1 short-circuit below and the ordinary give-up branch
+      // further down need it, and neither is guaranteed to run before the
+      // other.
+      const paginationDomain = new URL(start.url).hostname;
+
+      // Pages 2+ replay page 1's plan — no further AI. Built here rather than
+      // where the HTML/api-param walks use it, for the same reason: the
+      // scroll fallback needs it whether or not detection below ever runs.
+      // buildExtractionScript(plan, fieldTypes): the second argument is a
+      // name → type map, so `detail_url` is collected as a URL, not a text node.
+      const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' }, start.url);
+
+      /**
+       * Walk a scroll-loading listing: grow the page, absorb what appeared.
+       *
+       * Feeds the SAME `absorb` the other two walkers use, so dedupe, the item
+       * cap and the stop reasons behave identically — which is what lets a
+       * virtualized listing re-serve a recycled card without planning it twice.
+       */
+      const walkScrollPages = async (config: PaginationConfig): Promise<WalkResult> => {
+        const before = detailCount();
+        let budgetStopped = false;
+        // `maxItems` is deliberately NOT passed, and there is no value that
+        // would be correct. The generator counts RAW YIELDED ROWS — it runs in
+        // the browser and cannot see `absorb`, which is what turns rows into
+        // planned items. On a virtualized listing (spec §4's central case)
+        // recycled cards come back unstamped and are re-yielded by design, so
+        // a row budget of N stops the walk having planned far fewer than N:
+        // `max_items: 200` against a list re-serving ~40% of its window plans
+        // ~120 URLs and reports nothing wrong, because `absorb` never got to
+        // return 'budget' and the thin-walk warning sits past a `continue`.
+        //
+        // The budget is enforced below instead, where dedupe already lives:
+        // `absorb` returns 'budget' the moment the cap is genuinely full and
+        // breaks this loop, which runs the generator's `finally` and closes
+        // its page exactly as an exhausted generator would. The generator
+        // keeps its own hard bounds (MAX_SCROLL_ROUNDS and the quiet-round
+        // check); what it does not keep is a budget stated in the wrong unit.
+        for await (const round of deps.browser.scrollPages(start.url, {
+          extractionScript: script,
+          rowXpath: page1.plan!.row_xpath,
+          ...(config.loadMoreSelector ? { loadMoreSelector: config.loadMoreSelector } : {}),
+        })) {
+          items.push({
+            kind: 'listing', url: round.url, inputIndex: start.inputIndex,
+            inputValues: start.inputValues, listingValues: {}, pageNumber: round.pageNumber,
+          });
+          // Resolved against the LISTING page (`start.url`), not `round.url`.
+          // The generator yields rows page 1's own extraction script already
+          // pulled out of the live DOM, so any relative href in them is the
+          // page's, not wherever the round happens to report its URL from.
+          // `walkApiPages` below documents the same defect shipping once
+          // already, for the api-param walk, when it resolved against the
+          // wrong base.
+          const stop = absorb(round.data, start.url, round.pageNumber);
+          if (stop !== null) {
+            budgetStopped = stop === 'budget';
+            break;
+          }
+        }
+        return { gained: detailCount() - before, budgetStopped, refused: false };
+      };
+
+      /**
+       * The scroll walk, tried as the last rung before this input's
+       * pagination gives up. Shared by two call sites: the max_pages:1
+       * short-circuit right below (which skips detection entirely) and the
+       * ordinary give-up branch once detection further down has come back
+       * empty. Returns whether the walk gained anything — the two call sites
+       * differ only in what they do next once they know that.
+       */
+      const tryScrollFallback = async (): Promise<boolean> => {
+        const firstDetailUrl = listingRows
+          .map((row) => row[DETAIL_URL_FIELD])
+          .find((u): u is string => typeof u === 'string' && u.length > 0);
+        // Anchor the position rule on a URL page 1 actually produced, so a
+        // "Show more" in a filter sidebar above the grid is not mistaken for
+        // the pager. Passing nothing here would leave that guard inert.
+        // The PATH, not the absolute URL. Extraction resolves hrefs against
+        // the page, so `detail_url` is absolute while the markup almost
+        // always carries `/p/100001` — anchoring on the absolute form would
+        // never match and the position rule would sit inert, which is the
+        // failure this argument exists to prevent.
+        const anchorPath = firstDetailUrl
+          ? (() => { try { return new URL(firstDetailUrl).pathname; } catch { return firstDetailUrl; } })()
+          : undefined;
+        const loadMoreSelector = findLoadMore(capture?.html ?? '', anchorPath) ?? undefined;
+        const scrollConfig: PaginationConfig = {
+          strategy: 'dom-scroll',
+          ...(loadMoreSelector ? { loadMoreSelector } : {}),
+        };
+        const scrolled = await walkScrollPages(scrollConfig);
+        if (scrolled.gained > 0) {
+          try {
+            await savePagination(paginationDomain, scrollConfig);
+          } catch (err) {
+            warnings.push(
+              `pagination cache save failed on ${start.url}: ${(err as Error).message} `
+              + `— the walk's items are planned; the config was not stored`,
+            );
+          }
+          return true;
+        }
+        return false;
+      };
+
+      // `max_pages` legitimately still bounds the HTML and api-param walks
+      // further down (crawl()'s `maxPages`, walkApiPages' `lastPage`) — a
+      // source with `max_pages: 1` would walk zero pages through either one
+      // regardless, so running detectPagination and its cache lookup for such
+      // a source would buy nothing and cost a live navigation plus a DB round
+      // trip on every single-page-budget input. Deleting the check outright
+      // would pay that cost on every one of them, including the many that
+      // have nothing to do with scrolling.
+      //
+      // But `max_pages: 1` is exactly the budget an operator sets for a
+      // listing that scroll-loads — pages are meaningless there, and per this
+      // feature's constraint the scroll walk consults `max_items` only, never
+      // `max_pages`. Left as the single combined check this used to be, that
+      // operator's listing could never be discovered: the `continue` fired
+      // before detection, and therefore before the give-up line the scroll
+      // fallback hangs off of. So this is its own branch, going straight to
+      // the one rung a `max_pages: 1` config CAN use, instead of falling
+      // through HTML/api-param detection it could never use first.
+      if (budget.maxPages <= 1) {
+        // Wrapped, because this branch `continue`s BEFORE the try/catch further
+        // down that isolates a pagination failure to its own input — and
+        // `tryScrollFallback` is a live Playwright walk. `scrollPages` opens its
+        // own page and runs `navigateWithFallback`, `dismissPopups`, three
+        // `page.evaluate` calls and `page.close()` in its `finally`; none of
+        // those are `.catch`-guarded (only `waitForFunction` and the load-more
+        // click are). Unwrapped, one rate-limited or SPA-routing input rejects
+        // `planRun` itself, the caller marks the run failed, and `insert(runItems)`
+        // is never reached — so every OTHER input's already-planned detail URLs
+        // are discarded. Same outcome shape as the main path's catch: a
+        // per-input error, and the run carries on.
+        //
+        // Duplicated at the give-up branch below rather than factored out: the
+        // two branches are reached by different paths, and a shared wrapper
+        // could be removed once and silently unguard both.
+        try {
+          const scrolled = await tryScrollFallback();
+          if (!scrolled) {
+            warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+          }
+          report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        } catch (err) {
+          errors.push({ inputIndex: start.inputIndex, message: `pagination failed: ${(err as Error).message}` });
+          report(start.inputIndex, 'error', detailCount() - detailsBefore);
+        }
         continue;
       }
 
@@ -444,9 +600,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // a carousel and nothing else) that load buys nothing.
       // A config this domain has already proven beats re-rolling detection: it is
       // the same answer every run, and on a domain where mechanical detection
-      // fails it also skips the AI call. Looked up under 'listing' because that
-      // is the only page type that paginates.
-      const paginationDomain = new URL(start.url).hostname;
+      // fails it also skips the AI call.
       // The cache is advisory here exactly as it is everywhere else in this
       // codebase: a lookup failure (DB blip, malformed stored JSON, connection
       // drop mid-run) must degrade to "treat this domain as cold" for THIS
@@ -480,15 +634,27 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         );
       }
       if (!pagination.config) {
-        warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
-        report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        // Nothing in the markup says how this listing advances — but a page
+        // that scroll-loads never would. This is the last rung, and the only
+        // way to know is to try: a listing that is genuinely finished costs
+        // one quiet round and stops.
+        // Wrapped for the same reason the `max_pages <= 1` branch above is:
+        // this `continue` also fires before the try/catch below, so a throw out
+        // of the live scroll walk would reject `planRun` and take every other
+        // input's planned work with it. See that comment for the full list of
+        // unguarded throw sources inside `scrollPages`.
+        try {
+          const scrolled = await tryScrollFallback();
+          if (!scrolled) {
+            warnings.push(`no pagination detected on ${start.url} — planned page 1 only`);
+          }
+          report(start.inputIndex, 'planned', detailCount() - detailsBefore);
+        } catch (err) {
+          errors.push({ inputIndex: start.inputIndex, message: `pagination failed: ${(err as Error).message}` });
+          report(start.inputIndex, 'error', detailCount() - detailsBefore);
+        }
         continue;
       }
-
-      // Pages 2+ replay page 1's plan — no further AI.
-      // buildExtractionScript(plan, fieldTypes): the second argument is a
-      // name → type map, so `detail_url` is collected as a URL, not a text node.
-      const script = buildExtractionScript(page1.plan, { [DETAIL_URL_FIELD]: 'url' }, start.url);
 
       /**
        * Walk pages 2..maxPages with `config`; answer how many NEW items it added
@@ -639,8 +805,11 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         return { gained: detailCount() - before, budgetStopped, refused };
       };
 
-      const walkPages = (config: PaginationConfig) =>
-        (config.strategy === 'api-param' ? walkApiPages(config) : walkHtmlPages(config));
+      const walkPages = (config: PaginationConfig): Promise<WalkResult> => {
+        if (config.strategy === 'api-param') return walkApiPages(config);
+        if (config.strategy === 'dom-scroll') return walkScrollPages(config);
+        return walkHtmlPages(config);
+      };
 
       try {
         let { gained, budgetStopped, refused } = await walkPages(pagination.config);

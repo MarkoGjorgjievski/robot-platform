@@ -225,6 +225,12 @@ export function apiParamDeps(over: {
         // An api-param config must never reach here. Recorded so a test can say so.
         crawlCalls.push(options);
       },
+      // Reachable now: when api-param detection comes back empty, planRun
+      // tries the scroll fallback before giving up. Empty by default — none
+      // of these tests are about scrolling, and an empty round preserves the
+      // exact "no pagination detected" outcome they already assert on.
+      // eslint-disable-next-line require-yield
+      async *scrollPages() {},
     } as unknown as PlanRunDeps['browser'],
     agent: null,
     extract: (async (req: { url: string }) => {

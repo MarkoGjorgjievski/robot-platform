@@ -14,7 +14,7 @@
 // broke) and must keep failing for the shared-browser loop to be re-broken.
 
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, CaptureOptions } from '@robot/browser';
+import type { IBrowser, PageCapture, CrawlPage, CrawlOptions, CaptureOptions, ScrollOptions } from '@robot/browser';
 import { runExtraction } from './extraction-orchestrator.js';
 
 function makeCapture(url: string): PageCapture {
@@ -81,6 +81,11 @@ class RecordingBrowser implements IBrowser {
   }
 
   async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used');
+  }
 }
 
 /** Same recording behaviour, but `capture()` throws — for the error-path test. */
@@ -106,6 +111,11 @@ class ThrowingBrowser implements IBrowser {
   }
 
   async *crawl(_startUrl: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
+
+  // eslint-disable-next-line require-yield
+  async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {
+    throw new Error('not used');
+  }
 }
 
 const FIELDS = [{ name: 'title', type: 'string' }];
