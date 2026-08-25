@@ -385,6 +385,50 @@ stopped the run from being self-diagnosing.
 remain uncovered by `api-param`, and are covered by this rung only insofar as they make the DOM grow —
 which is the whole point of the design, but is untested against a real one.
 
+## Cache-conflict triage (2026-08-25)
+
+Marko's "cache conflicts / AI indecisive" complaint, triaged against the actual
+`domain_intelligence` contents (15 conflicting fields across 4 domains). Every candidate value was
+inspected; the classification below is from that evidence, not from the taxonomy that predicted it.
+
+**The mechanisms actually present — five, not three:**
+
+1. **Poisoned paths** (wrong-entity paths with perfect hit records). Confirmed instances:
+   Newegg `product_name` ← api `Configs[0].name` (a feature-flag label — the motivating case
+   already documented in `domain-cache.ts`); Newegg `image_url` ← json-ld `thumbnailUrl` (a
+   YouTube review thumbnail, and it OUTRANKED the real og:image on hits 6-2); Newegg listing
+   `detail_url` ← `.//a` / `.//a[@href]` (privacy-policy links, low-ranked but present); B&N
+   `image_url` ← a Yotpo *customer review photo*. Two structural findings: **a poisoned path can
+   never prune itself** — `hits` counts "returned non-empty", so garbage paths have 100% hit
+   rates and the ≤10% prune bar never triggers; and **a sole poisoned path is invisible to
+   conflict detection**, which needs ≥2 valued paths — Target `availability` (delivery date) is
+   exactly this, so the worst case never appears in the conflicts UI.
+2. **Multiple simultaneously valid values** — the biggest bucket, and exactly Open decision 1 /
+   vision Pillar 1: Newegg `category` (breadcrumb "Internal SSDs" vs API "SSD"), `description`
+   (json-ld long vs meta short), Target `review_count` (rating count 5 vs review count 3 — two
+   different metrics), B&N `rating_value`/`review_count` (site's json-ld vs Yotpo — two different
+   review systems). No fix exists at the extraction layer; needs labelling.
+3. **Format-only disagreement**: Target `price` "$299.00" (api) vs `299` (api-ai) — same fact,
+   `valuesMatch` sees a conflict. A normalization in `valuesMatch` would silence this class.
+4. **Stale cross-page comparisons** (false conflicts): AbeBooks `product_name` api-vs-xpath and
+   Newegg `product_name` json-ld-vs-og:title "conflicts" compare `lastValue`s captured on
+   *different pages* (different products entirely). `detectPathConflicts` has no way to know two
+   paths were last exercised on different URLs. **Cross-validation flip-flop, the third
+   predicted mechanism, was NOT observed — what looks like it is this staleness artifact.**
+5. **AI path-identity churn**: `ai-discovered-variants` uses the AI's prose *description* as the
+   path key, so every re-discovery adds a "new" path (Newegg `variants`: 5 near-duplicate
+   entries). Inflates conflicts and crowds the 5-path cap.
+
+**Acted on (2026-08-25):** Newegg `product_name` pinned to json-ld `name`, Newegg `image_url`
+pinned to meta `og:image` — via the real `pinFieldPath` machinery, verified in the DB (one pin per
+field, losers kept with stats). The pin machinery itself is fully wired end to end (ranking,
+prune protection, tRPC, domain-detail UI) — nothing needed building.
+
+**Left for Marko:** Target `availability` (delete the sole poisoned path by hand + re-discover, or
+wait for labelling); the low-ranked junk `detail_url` xpaths (harmless while outranked); classes
+2-5, which are design work — class 2 is the candidate-labelling spec (v2.5), classes 3-5 are
+small extraction-layer fixes worth folding into that same cycle.
+
 ## What NOT to redo
 
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
@@ -419,7 +463,7 @@ which is the whole point of the design, but is untested against a real one.
 - Measure the five unmeasured extraction-quality domains once (~$4): `bhphoto`, `abebooks`, `zalando`, `currys`, `uniqlo`.
 - Capture Tier 1 fixtures for the corpus so the commit-time gate covers more than one eighth of it.
 - `star_distribution` arrives as an object and is rejected as "not array".
-- Target's `availability` returns a delivery date from a poisoned cached XPath; the pin machinery to fix it already exists.
+- Target's `availability` returns a delivery date from a poisoned cached XPath — and **pinning cannot fix it**: it is the field's ONLY cached path, so there is nothing better to pin (see "Cache-conflict triage (2026-08-25)" below). It needs the path deleted by hand plus a re-discovery run, or the labelling design.
 
 ## Commands worth knowing
 
