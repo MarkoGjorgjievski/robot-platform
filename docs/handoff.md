@@ -10,7 +10,7 @@ type: project
 
 **Do not start another fix-and-dogfood cycle.** The last correctness push converged on the corpus rather than on reality, each round cost real money, and half the remaining defects are design decisions rather than bugs (see *What NOT to redo* below). If you're tempted to chase extraction-quality numbers, don't — the next work is feature implementation against the roadmap.
 
-**DOM-scroll pagination runs against a real site, enumerates past page 1, and caches — but it does NOT enumerate a listing to exhaustion, and the first write-up of its live proof overstated it.** 2026-08-25. Three plan runs against `uniqlo-scroll-live`, a page holding ~221 products. The scroll walk yields **exactly three rounds — 36 / 36 / 4 — and stops**, identically across runs, and plans every row it yields (no duplicates, no refusals). The cold run's headline "220 of 221" was page 1's own 144 **plus** the walk's 76: two partial views summing to near the right number by coincidence, not the walk reaching the end of the list. **Do not read "dom-scroll live-proven" as "a scroll listing is enumerated completely."** Full evidence, the correction, and what is still unknown: "DOM-scroll pagination — live proof (2026-08-25)" below. Merge commit `382eacd`. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
+**DOM-scroll pagination is live-proven and now delivers a complete listing reproducibly.** 2026-08-25, after a root-cause fix (`5473e89`). Five plan runs against `uniqlo-scroll-live`, a page holding 220 product tiles. The first three under-delivered unpredictably — 220, then 144, then 148 — and the 220 was luck, not correctness. Root cause: `scrollPages` opens its **own** page and used to stamp everything already loaded there before the first scroll, on the assumption the caller had it; but page 1's rows come from `capture`, a **different** navigation, and the two views overlap only by coincidence. Everything in the gap was stamped unseen and never yielded. Fixed by yielding the first round and letting `absorb` dedupe — which is what the spec always said. **The last two runs planned 220 of 220 both times, while page 1's own view still swung 144 vs 108 and the walk compensated exactly.** Full narrative, including two wrong diagnoses on the way: "DOM-scroll pagination — live proof (2026-08-25)" below. Merge commit `382eacd`. A listing that reveals products only when scrolled now has a strategy: `IBrowser.scrollPages` grows the DOM and yields what appeared, `planRun` tries it as the last rung when every other strategy came back empty, and a walk that gains items caches `{strategy: 'dom-scroll'}`. It is exercised end to end in **real Chromium** against fixture pages that append on scroll, recycle nodes, pause a round, and never go quiet — so "offline" here means no network and no spend, not a mock. **No live site has run it.** Task 6 of its plan (live proof) is deliberately unstarted and needs Marko's approval plus a `HEADFUL=1` pre-check that scrolling actually adds products on the chosen target. Full detail: "DOM-scroll pagination (2026-08-25)" below.
 
 **`api-param` pagination is implemented and gated offline, but NOT live-proven.** The `feat/api-param-pagination` branch built it end to end — proving a paging parameter by experiment (probe a page-1-identified JSON endpoint with candidate query params, reject any candidate whose response overlaps page 1's items too much) before it is ever used or cached — and gated it with unit tests plus a Tier 1 fixture-server test that fails if page 2 re-serves page 1. The one live run authorised to prove it (`newegg-gpus-live`, 2026-08-24, run `c889faea-3417-4d36-97cd-1907e55653af`) **fell through to the existing `mechanical` (`url-pattern`) pagination — `api-param` never got a candidate to try.** Do not read "API pagination delivered" as covering the live case; it covers only the offline-gated path. Full detail: "`api-param` pagination — live proof (2026-08-24)" below.
 
@@ -150,7 +150,51 @@ so the quiet-round rule could be exercised live rather than the budget simply bi
   never consults the cache — so Step 4's warm-replay proof would have been untestable. `max_pages` is not
   consulted by this strategy anyway, so raising it changes nothing about the walk.
 
-> **CORRECTION (same day, after the audit-trail fix `c029cc6`).** Everything from
+> **RESOLVED (same day, commit `5473e89`).** The walk now plans 220 of 220 on this
+> listing, twice in a row. Root cause and the two wrong turns on the way to it are below;
+> the run-by-run numbers in this section are kept because the *pattern* across them is the
+> evidence, and because two confident diagnoses died here.
+>
+> | Run | page 1 saw | scroll rounds (rows→planned) | planned | verdict |
+> |---|---|---|---|---|
+> | `a2c67dc9` cold | 144 | *(no trail yet)* 36 / 36 / 4 | 220 | right by luck |
+> | `03c5cc22` warm | 144 | *(no trail yet)* — gained 0 | 144 | lost 76 |
+> | `4dd07799` warm | 72 | 36→36, 36→36, 4→4 | 148 | lost 72 |
+> | `71af7d6b` **fixed** | 144 | **180→36**, 36→36, 4→4 | **220** | complete |
+> | `3c007f3a` **fixed** | 108 | **180→72**, 36→36, 4→4 | **220** | complete |
+>
+> **Root cause.** `scrollPages` opens its OWN page, and how much a lazy listing has loaded
+> by the time it starts is a race — 36, 108 and ~144 rows were observed on the same URL.
+> Page 1's rows come from `capture`, a different navigation, which observed 144, 144 and 72.
+> The generator stamped its whole initial view before the first scroll, reasoning it
+> "belongs to page 1, which the caller already has". The two views overlap only by
+> coincidence; everything in the gap was stamped unseen and never yielded, invisibly,
+> because a stamped row is indistinguishable from one already reported.
+>
+> **The fix, and why it is the spec's own rule.** The generator now yields what it can see
+> on the first round and lets `absorb` dedupe. Spec §4 already said correctness comes from
+> the caller's `seen` set and that labels are only an optimisation — stamping the initial
+> view had quietly promoted the label to load-bearing. The last two rows above are the
+> proof: the round-2 `planned` count (36 vs 72) absorbs page 1's swing (144 vs 108) and the
+> total lands on 220 either way. **The total is now invariant under the race that used to
+> determine it.**
+>
+> **Coupled change.** Once the first round yields the initial view, that round is usually
+> ALL duplicates of page 1 — which used to break the walk. Only `'budget'` is terminal now;
+> a fully-duplicate round is the normal shape of a scroll round, and the generator's
+> quiet-round rule is what decides the list has ended. That closes the old follow-up 1.
+>
+> **Two wrong diagnoses, kept because both were confidently written down.** First: "the
+> warm path caches no row definition, so `row_xpath` drifts." Dead — `planned == rows` in
+> every round, so nothing was being mis-scoped. Second: "the walk stops after three rounds
+> and never exhausts the listing." Also dead — the walk reaches the end and stops correctly
+> on two quiet rounds; it was the *start* that was wrong, not the end. Both survived because
+> the totals were plausible. What killed them was instrumenting the generator
+> (`SCROLL_DEBUG=1`) and watching it run.
+>
+> <details><summary>Superseded analysis, kept for the reasoning trail</summary>
+>
+> **CORRECTION (after the audit-trail fix `c029cc6`).** Everything from
 > "Cold run" to the end of the warm-run analysis below was written before scroll rounds
 > were observable, and two of its conclusions are wrong. A third plan run
 > (`4dd07799-eacd-4eb7-8551-a59ae87ea1df`) with the trail in place shows:
@@ -217,7 +261,9 @@ changes the URL, so all of a run's per-round listing rows collapse to one under 
 logged as a cosmetic follow-up on the branch; it is not cosmetic, it destroys the per-round audit trail,
 and it is now the first thing to fix before re-running this.
 
-**What this run does NOT prove.** No detail page was fetched, so per-item extraction is untouched by it.
+</details>
+
+**What these runs do NOT prove.** No detail page was fetched, so per-item extraction is untouched by them.
 The load-more *button* trigger was never exercised — Uniqlo scrolls, and `findLoadMore` returned nothing,
 so the cached config has no `loadMoreSelector`. Cursor APIs and POST/GraphQL remain uncovered by
 `api-param`; this strategy covers them only incidentally, and nothing about those transports was tested.
@@ -296,20 +342,18 @@ capping rounds at `max_pages` left the whole suite green.
 found now leads, and the "duplicate listing row" item was promoted out of cosmetic because it is what
 stopped the run from being self-diagnosing.
 
-0. **The walk stops after three rounds and does not exhaust the listing.** The headline open item,
-   and the one that decides whether this feature delivers what it claims. `planned == rows` every round,
-   so nothing is lost to dedupe or to a bad row definition — the walk simply stops early, at ~113 of
-   ~221 products, while the free probe keeps growing the same page to 221. Suspects, in order:
-   the generator's growth wait (`GROWTH_TIMEOUT_MS = 3000`, a race against how fast a batch renders)
-   and the quiet-round accounting. **Instrument the generator's per-round row counts first** — the
-   audit trail records what was *yielded*, not what the generator *saw*, and that gap is now the
-   blind spot.
+0. ~~The walk does not exhaust the listing.~~ **Fixed** in `5473e89` — root cause was the generator
+   discarding its own initial view, not an early stop. 220 of 220, twice. See the RESOLVED block above.
 0b. ~~Per-round `listing` rows collapse under the unique index.~~ **Fixed** in `c029cc6`: rounds are
    not pages, so the trail lives on page 1's row as `listing_values.scroll_rounds`, one entry per
-   yielded round carrying `rows` and `planned`. This is what produced the correction above.
-0c. **Page-1 extraction is racy** (144 / 144 / 72 across three runs of the same URL) because capture
-   scrolls while tiling screenshots. Independent of the scroll walk, but it makes every total
-   irreproducible and it masked the walk's early stop by summing to a plausible number.
+   yielded round carrying `rows` and `planned`. Every diagnosis since came off that trail.
+0c. **Page-1 extraction is racy** — the same URL yielded 144, 144, 72 and 108 rows across runs, because
+   capture scrolls while tiling screenshots. **No longer a correctness problem for scroll listings**
+   (the walk compensates exactly), but it is untouched everywhere else, and any non-scroll listing
+   still silently plans whatever happened to have loaded. Worth its own look.
+0d. **The load-more button trigger has never run live.** Uniqlo scrolls, so `findLoadMore` returned
+   nothing and the cached config carries no `loadMoreSelector`. That half of the strategy is still
+   fixture-only.
 
 1. **`walkScrollPages` breaks on any non-null `absorb` result, so `'all-duplicates'` ends a scroll walk
    after ONE quiet round** — bypassing `QUIET_ROUNDS` and contradicting the spec's own stop-signal
