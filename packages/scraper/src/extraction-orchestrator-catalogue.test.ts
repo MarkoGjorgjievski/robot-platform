@@ -153,4 +153,30 @@ describe('cold-catalogue discovery trigger', () => {
     expect(discoverCatalogue).toHaveBeenCalledTimes(1);
     expect(saveCatalogue).not.toHaveBeenCalled();
   });
+
+  it('runs discovery on a domain\'s first-ever extraction, when no cache row exists yet', async () => {
+    const browser = new RecordingBrowser();
+    const discoverCatalogue = vi.fn().mockResolvedValue(DISCOVERED_CATALOGUE);
+    const saveCatalogue = vi.fn().mockResolvedValue(undefined);
+
+    await runExtraction(
+      { url: 'https://example.com/p/1', fields: [{ name: 'title', type: 'string' }], pageType: 'detail' },
+      {
+        browser,
+        agent: null,
+        capture: CAPTURE,
+        // No domain_intelligence row exists yet — lookupCache returns null, the
+        // paradigm cold case. saveCache upserts one during this very run; the
+        // gate must still treat this as "empty" and fire discovery.
+        lookupCache: async () => null,
+        saveCache: async () => {},
+        acquireLock: async () => () => {},
+        discoverCatalogue,
+        saveCatalogue,
+      },
+    );
+
+    expect(discoverCatalogue).toHaveBeenCalledTimes(1);
+    expect(saveCatalogue).toHaveBeenCalledWith('example.com', 'detail', DISCOVERED_CATALOGUE);
+  });
 });

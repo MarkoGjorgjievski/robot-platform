@@ -541,12 +541,17 @@ export async function runExtraction(
     // catalogue is cold, only after a successful extraction, and NEVER able to
     // fail the run — the catalogue is an enrichment, not a dependency.
     //
+    // `cache` is null when this is the domain+pageType's first-ever extraction
+    // — no domain_intelligence row existed when `lookupCache` ran above. That
+    // is the emptiest possible catalogue state (spec §4), not a reason to skip:
+    // treat "no row" the same as "row with an empty catalogue".
+    //
     // Runs after `saveCache` above, not before: `saveCandidateCatalogue` is
     // update-only and silently no-ops without an existing domain_intelligence
-    // row (Task 2), while `saveCache` upserts one. That ordering is load-bearing
-    // — moving this block earlier would make the very first run for a domain
-    // silently drop its catalogue.
-    if (deps.discoverCatalogue && cache && Object.keys(cache.candidateCatalogue ?? {}).length === 0) {
+    // row (Task 2). `saveCache` just upserted that row (whether `cache` was
+    // null or not), so by the time we get here the row this write needs is
+    // guaranteed to exist — that ordering is load-bearing.
+    if (deps.discoverCatalogue && (!cache || Object.keys(cache.candidateCatalogue ?? {}).length === 0)) {
       try {
         const catalogue = await deps.discoverCatalogue({
           apiBodies: interceptedRequests.filter((r) => r.parsedJson).map((r) => r.parsedJson),
