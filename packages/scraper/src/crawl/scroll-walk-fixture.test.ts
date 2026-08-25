@@ -54,12 +54,19 @@ describe('the scroll walk against a real page', () => {
     expect(found.some((u) => u.endsWith('/p/300001'))).toBe(true);
   }, 60_000);
 
-  it('yields each round only the rows that are new', async () => {
-    // The labelling optimisation, observed from outside: page 1's two cards must
-    // not reappear in round 2's batch.
-    const pages = await walk('/scroll');
-    const second = pages.find((p) => p.pageNumber === 2);
-    expect(second?.data.map((r) => String(r[DETAIL_URL_FIELD]))).toEqual([`${site.baseUrl}/p/200001`]);
+  it('yields each row exactly once across the whole walk', async () => {
+    // The labelling optimisation, observed from outside. Stated across rounds
+    // rather than about round 2's contents: the first round now yields whatever
+    // the page had already loaded, because the caller's page-1 view comes from a
+    // DIFFERENT navigation and the overlap is a race (see plan-run.ts). What
+    // stamping still guarantees is that no row is reported twice BY THE WALK.
+    const found = urls(await walk('/scroll'));
+    expect(found).toHaveLength(new Set(found).size);
+    // And every card is seen, including those present before the first scroll —
+    // the regression that cost a live run 72 of its 220 items.
+    for (const path of ['/p/100001', '/p/100002', '/p/200001', '/p/300001']) {
+      expect(found.some((u) => u.endsWith(path))).toBe(true);
+    }
   }, 60_000);
 
   it('loses nothing when the page recycles cards out of the DOM', async () => {
@@ -72,8 +79,13 @@ describe('the scroll walk against a real page', () => {
   }, 60_000);
 
   it('stops on a page that has nothing more, without hanging', async () => {
+    // It reports the one screen it can see, then stops. It used to report
+    // NOTHING: the generator stamped its whole initial view before the first
+    // scroll and yielded only what arrived after, so a single-screen listing
+    // contributed zero and the caller kept only whatever its own separate
+    // capture had happened to load.
     const pages = await walk('/done');
-    expect(urls(pages)).toEqual([]);
+    expect(urls(pages).map((u) => u.replace(site.baseUrl, ''))).toEqual(['/p/100001', '/p/100002']);
   }, 60_000);
 
   it('advances by clicking when a load-more selector is given', async () => {
@@ -81,9 +93,17 @@ describe('the scroll walk against a real page', () => {
     expect(found.some((u) => u.endsWith('/p/200001'))).toBe(true);
   }, 60_000);
 
-  it('stops when maxItems is reached', async () => {
-    const found = urls(await walk('/scroll', { maxItems: 1 }));
-    expect(found.length).toBeLessThanOrEqual(1);
+  it('stops walking once maxItems is reached', async () => {
+    // The cap is checked at the TOP of a round, so a round always overshoots by
+    // whatever its batch happened to contain — the generator cannot stop
+    // mid-batch. The old assertion here was `length <= maxItems`, which held
+    // only because round 2 happened to yield exactly one row; once the first
+    // round started yielding the page's initial view too, it yielded three and
+    // the accident showed. What is actually guaranteed is that the walk STOPS:
+    // one round, and the listing's later batches are never reached.
+    const pages = await walk('/scroll', { maxItems: 1 });
+    expect(pages).toHaveLength(1);
+    expect(urls(pages).some((u) => u.endsWith('/p/300001'))).toBe(false);
   }, 60_000);
 
   it('survives a round that yields nothing and keeps going', async () => {

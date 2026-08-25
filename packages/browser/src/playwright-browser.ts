@@ -823,15 +823,38 @@ export class PlaywrightBrowser implements IBrowser {
       await this.dismissPopups(page);
 
       let quiet = 0;
+      if (process.env.SCROLL_DEBUG) {
+        console.log(
+          `[scroll] start url=${page.url()} ` +
+          `rows=${await page.evaluate(rowCountScript(options.rowXpath))} ` +
+          `title=${JSON.stringify(await page.title().catch(() => '?'))}`,
+        );
+      }
       for (let round = 2; round <= PlaywrightBrowser.MAX_SCROLL_ROUNDS; round++) {
         if (yielded >= maxItems) break;
 
         const before = await page.evaluate(rowCountScript(options.rowXpath)) as number;
 
-        // Stamp BEFORE advancing: everything currently on the page has either been
-        // extracted by a previous round or belongs to page 1, which the caller
-        // already has. Anything appearing after this point is what we want.
-        await page.evaluate(stampScript(options.rowXpath));
+        // Stamp BEFORE advancing, so the next extraction sees only what arrived
+        // since — but NOT on the first round.
+        //
+        // The old code stamped here unconditionally, reasoning that everything
+        // currently on the page "belongs to page 1, which the caller already
+        // has". That is false, and it cost a live run 72 of its 220 items. This
+        // generator opens its OWN page: how much a lazy listing has loaded by
+        // the time it starts is a race, measured at 36, 108 and ~144 rows on
+        // three runs of the same URL. Page 1's rows come from `capture`, a
+        // different navigation, measured at 144, 144 and 72. The two views
+        // overlap only by coincidence, and everything in the gap was stamped
+        // unseen and never yielded — silently, because a stamped row is
+        // indistinguishable from one already reported.
+        //
+        // So the first round yields whatever it can see and lets the caller's
+        // `absorb` discard what it already has. That is the spec's own rule —
+        // correctness comes from the caller's dedupe, stamping is only an
+        // optimisation — and stamping here had quietly made the label
+        // load-bearing for correctness.
+        if (round > 2) await page.evaluate(stampScript(options.rowXpath));
 
         if (options.loadMoreSelector) {
           const btn = page.locator(options.loadMoreSelector).first();
@@ -876,6 +899,18 @@ export class PlaywrightBrowser implements IBrowser {
         const extracted = await page.evaluate(
           scopeExtractionScript(options.extractionScript, options.rowXpath),
         ) as { data: Record<string, unknown>[]; totalRows: number };
+
+        // The audit trail on the caller's side records what was YIELDED, which
+        // by construction cannot show a quiet round — the round that ends a
+        // walk is exactly the one that yields nothing. Gated because a walk of
+        // 50 rounds would otherwise print 50 lines on every production run.
+        if (process.env.SCROLL_DEBUG) {
+          const after = await page.evaluate(rowCountScript(options.rowXpath)) as number;
+          console.log(
+            `[scroll] round ${round}: rows ${before} -> ${after} (grew=${grew}) ` +
+            `extracted=${extracted.data.length} of ${extracted.totalRows} unstamped, quiet=${quiet}`,
+          );
+        }
 
         if (!grew && extracted.data.length === 0) {
           if (++quiet >= PlaywrightBrowser.QUIET_ROUNDS) break;
