@@ -31,3 +31,4 @@ export { partitionSchemaByOrigin } from './crawl/partition-schema.js';
 export type { OriginField, FieldOrigin } from './crawl/partition-schema.js';
 export { mergeRow } from './crawl/merge-row.js';
 export { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
+export { buildCataloguePrompt, parseCatalogueResponse, discoverCandidateCatalogue, type CatalogueEvidence } from './catalogue-discovery.js';
