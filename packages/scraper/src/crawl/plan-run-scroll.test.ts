@@ -199,3 +199,56 @@ describe('planRun — the scroll fallback', () => {
     expect(deps.saved).toEqual([]);
   });
 });
+
+describe('planRun — the scroll round audit trail', () => {
+  // The live proof (2026-08-25, run 03c5cc22-…) could not answer the only
+  // question that mattered about its own failure: did the generator yield no
+  // rounds, or did it yield rounds whose rows were all already seen? Those have
+  // different causes and, before this, identical evidence — same item count,
+  // same "produced no new items" warning, same page_number distribution.
+  //
+  // The per-round `listing` rows were supposed to tell them apart and cannot:
+  // scrolling never changes the URL, so every round's row carries the SAME url
+  // and they all collapse to one under run_items' unique (run_id, url) index,
+  // which `crawl.ts` inserts with .onConflictDoNothing(). That index is
+  // load-bearing for detail dedupe and is not the thing to relax.
+  const trail = (o: Awaited<ReturnType<typeof planRun>>) =>
+    (o.items.find((i) => i.kind === 'listing' && i.url === 'https://listing.example/list')
+      ?.listingValues as { scroll_rounds?: Array<{ round: number; rows: number; planned: number }> })
+      ?.scroll_rounds;
+
+  it('records a round that yielded rows but planned none of them', async () => {
+    // The virtualized case: the window re-serves cards already planned from
+    // page 1. `rows` is what the DOM handed back, `planned` is what survived
+    // dedupe — and the gap between them is the whole diagnosis.
+    const deps = scrollDeps({ rounds: [PAGE1] });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(trail(outcome)).toEqual([{ round: 2, rows: PAGE1.length, planned: 0 }]);
+  });
+
+  it('records no rounds at all when the generator yielded none', async () => {
+    // The other half of the ambiguity, and the reason the assertion above is
+    // not enough on its own: a walk that never yields must be distinguishable
+    // from one that yields duplicates. If both produce the same trail, this
+    // pair of tests has bought nothing.
+    const deps = scrollDeps({ rounds: [[]] });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(trail(outcome)).toBeUndefined();
+  });
+
+  it('records each round of a walk that is genuinely gaining', async () => {
+    const rounds = [['https://listing.example/p/200001'], ['https://listing.example/p/200002', 'https://listing.example/p/200003']];
+    const deps = scrollDeps({ rounds });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(trail(outcome)).toEqual([
+      { round: 2, rows: 1, planned: 1 },
+      { round: 3, rows: 2, planned: 2 },
+    ]);
+  });
+});
