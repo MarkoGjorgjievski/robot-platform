@@ -19,6 +19,8 @@ export type FieldPath = {
   lastUsedAt: string;
   /** Operator-chosen path. Outranks every automatic signal and is never pruned. */
   pinned?: boolean;
+  /** URL of the page this path last resolved on; conflict detection compares only same-page observations. */
+  lastUrl?: string;
 };
 
 /** All paths for a single field, ranked by reliability */
@@ -595,6 +597,8 @@ export function getByDotPath(obj: unknown, path: string): unknown {
 export type ExtractionOutcome = {
   domain: string;
   pageType: string;
+  /** URL of the page this outcome was extracted from; stamped onto each resolved path as `lastUrl`. */
+  url: string;
   interceptedRequests: InterceptedRequest[];
   /** field name → { value, source, path, confidence } */
   fieldResults: Record<string, {
@@ -636,7 +640,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
   if (existing) {
     // Merge new paths into existing cache
     const existingPaths = (existing.fieldPaths ?? {}) as Record<string, FieldPathSet>;
-    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, outcome.discoveredFieldNames, isSuccess, now);
+    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, outcome.discoveredFieldNames, isSuccess, now, outcome.url);
 
     const newTotalRuns = (existing.totalRuns ?? 0) + 1;
     const newSuccessfulRuns = (existing.successfulRuns ?? 0) + (isSuccess ? 1 : 0);
@@ -678,7 +682,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
       domain: outcome.domain,
       pageType: outcome.pageType,
       apiEndpoints,
-      fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now),
+      fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now, outcome.url),
       hasJsonLd: outcome.hasJsonLd,
       hasNextData: outcome.hasNextData,
       totalRuns: 1,
@@ -690,12 +694,13 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function mergeFieldPaths(
+export function mergeFieldPaths(
   existing: Record<string, FieldPathSet>,
   newResults: ExtractionOutcome['fieldResults'],
   discoveredFieldNames: string[],
   isSuccess: boolean,
   now: string,
+  lastUrl?: string,
 ): Record<string, FieldPathSet> {
   const merged = { ...existing };
 
@@ -707,6 +712,22 @@ function mergeFieldPaths(
     }
 
     const pathSet = merged[fieldName];
+
+    // AI-description sources use prose as their "path", so every re-discovery
+    // words it differently and the cache accretes near-duplicates (five for
+    // Newegg variants by 2026-08-25). Identity for them is the SOURCE: a new
+    // description replaces the old one in place, stats carried forward.
+    if (result.source === 'ai-discovered-variants') {
+      const prior = pathSet.paths.find(p => p.source === 'ai-discovered-variants');
+      if (prior) {
+        prior.path = result.path;
+        prior.lastValue = result.value;
+        prior.lastUsedAt = now;
+        if (lastUrl) prior.lastUrl = lastUrl;
+        prior.hits += 1;
+        continue;
+      }
+    }
 
     // Find existing path with same source + path
     const existingPath = pathSet.paths.find(
@@ -724,6 +745,7 @@ function mergeFieldPaths(
         existingPath.confidence = Math.max(0, existingPath.confidence - 0.05);
       }
       existingPath.lastUsedAt = now;
+      if (lastUrl) existingPath.lastUrl = lastUrl;
     } else if (result.path) {
       // Add new path
       pathSet.paths.push({
@@ -734,6 +756,7 @@ function mergeFieldPaths(
         misses: isSuccess ? 0 : 1,
         lastValue: result.value,
         lastUsedAt: now,
+        ...(lastUrl ? { lastUrl } : {}),
       });
     }
 
@@ -763,6 +786,7 @@ function buildFreshPaths(
   fieldResults: ExtractionOutcome['fieldResults'],
   discoveredFieldNames: string[],
   now: string,
+  lastUrl?: string,
 ): Record<string, FieldPathSet> {
   const paths: Record<string, FieldPathSet> = {};
 
@@ -781,6 +805,7 @@ function buildFreshPaths(
         misses: 0,
         lastValue: result.value,
         lastUsedAt: now,
+        ...(lastUrl ? { lastUrl } : {}),
       }],
       conflictCount: 0,
     };

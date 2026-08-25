@@ -36,6 +36,7 @@ describe('savePaginationConfig', () => {
     await saveDomainCache({
       domain: DOMAIN,
       pageType: PAGE_TYPE,
+      url: `https://${DOMAIN}/search`,
       interceptedRequests: [],
       fieldResults: {
         detail_url: { value: 'https://x.example/p/1', source: 'xpath', path: './/a/@href', confidence: 0.9 },
