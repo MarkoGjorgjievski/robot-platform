@@ -209,14 +209,14 @@ describe('planRun — a stale cached config', () => {
 });
 
 describe('planRun — a walk that mostly re-fetched page 1', () => {
-  it('warns when the walk gained only a trickle against page 1, and still caches', async () => {
+  it('refuses to cache when the walk gained only a trickle and the budget was not what stopped it', async () => {
     // The AbeBooks shape, live-proven 2026-08-21: `deriveTemplate` pinned the
     // real pager (`p=1`) and paged the `ds` filter instead, so pages 2 and 3
     // re-served page 1. Three stray items leaked past dedupe — enough to satisfy
-    // `gained > 0`, so a broken template was cached and, because the only warning
-    // fires on `gained === 0`, the run said nothing at all about it. The gate
-    // stays as it is (a working pager near the item cap legitimately gains 1-2);
-    // what must not stay is the silence.
+    // `gained > 0`, so a broken template reached the cross-customer cache and had
+    // to be purged by hand. The budget-aware signal makes this refusable without
+    // the false negative: a thin gain is only damning when the pager had room to
+    // deliver and didn't.
     const deps = fakeDeps({
       page1: Array.from({ length: 10 }, (_, i) => `https://listing.example/p/${i + 1}`),
       cachedConfig: null,
@@ -233,15 +233,18 @@ describe('planRun — a walk that mostly re-fetched page 1', () => {
     expect(thin).toContain('page 1 yielded 10');
     expect(thin).toContain('gained only 1');
     expect(thin).toContain('url-pattern');
-    // A warning, not a gate: the config is still cached.
-    expect(deps.saved).toHaveLength(1);
+    expect(thin).toContain('not cached');
+    // The refusal is about the CONFIG, not the walk's items: a URL that passed
+    // dedupe is real work regardless of how it was found.
+    expect(deps.saved).toEqual([]);
+    expect(outcome.items.some((i) => i.url === 'https://listing.example/p/99')).toBe(true);
   });
 
-  it('does NOT warn when the walk was cut short by the item budget', async () => {
-    // This is the shape the controller protected: `absorb` passes
+  it('still caches — and does not warn — when the walk was cut short by the item budget', async () => {
+    // This is the shape the refusal must never touch: `absorb` passes
     // `remaining: cap - detailCount()` down, so a WORKING pager on a nearly-full
-    // budget legitimately returns one item. Warning here would cry wolf on every
-    // correct run of this repo's own default budget.
+    // budget legitimately returns one item. Refusing here would mean the cache
+    // never warms on this repo's own default `{max_items: 8, max_pages: 2}`.
     const deps = fakeDeps({
       page1: Array.from({ length: 20 }, (_, i) => `https://listing.example/p/${i + 1}`),
       cachedConfig: null,
@@ -252,6 +255,25 @@ describe('planRun — a walk that mostly re-fetched page 1', () => {
 
     expect(outcome.warnings.filter((w) => w.includes('gained only'))).toEqual([]);
     expect(outcome.warnings).toContain('budget reached: 21 items');
+    expect(deps.saved).toHaveLength(1);
+  });
+
+  it('does not let a thin re-detected walk overwrite the stored config on the stale path', async () => {
+    // The stale path re-detects when a cached config gains nothing, and its save
+    // shares the same gate. A replacement config whose own walk was thin is not
+    // better evidence than the config it would overwrite — leave the stored one
+    // for the operator, who is already being warned twice here.
+    const deps = fakeDeps({
+      page1: Array.from({ length: 10 }, (_, i) => `https://listing.example/p/${i + 1}`),
+      cachedConfig: CACHED_CONFIG,
+      pages: [[], ['https://listing.example/p/99']],
+    });
+
+    const outcome = await planRun(fakeRequest({ maxPages: 3, maxItems: 50 }), deps);
+
+    expect(deps.crawlCalls).toHaveLength(2);
+    expect(deps.saved).toEqual([]);
+    expect(outcome.warnings.some((w) => w.includes('gained only'))).toBe(true);
   });
 });
 

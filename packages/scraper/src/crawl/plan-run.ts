@@ -108,20 +108,25 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
 };
 
 /**
- * Below this share of page 1's yield, a walk is REPORTED as suspicious.
+ * Below this share of page 1's yield, a non-budget-stopped walk is refused
+ * caching (and reported).
  *
- * Reported, not refused. `gained > 0` stays the caching gate deliberately:
- * `absorb` hands `remaining: cap - detailCount()` to `enumerateDetailUrls`, so a
- * perfectly working pager legitimately returns one or two items once the item
- * budget is nearly full — which is exactly this repo's default `{max_items: 8,
- * max_pages: 2}` shape. Turning this ratio into a gate would refuse correct
- * configs, the cache would never warm, and the feature would deliver nothing.
+ * The share alone must never be the gate: `absorb` hands
+ * `remaining: cap - detailCount()` to `enumerateDetailUrls`, so a perfectly
+ * working pager legitimately returns one or two items once the item budget is
+ * nearly full — which is exactly this repo's default `{max_items: 8,
+ * max_pages: 2}` shape. The refusal therefore requires `!budgetStopped` as well:
+ * thin is damning only when the pager had room to deliver and didn't. A refused
+ * walk keeps its planned items; it only loses the right to certify its config
+ * into the cross-customer cache.
  *
  * The number it exists for: AbeBooks, 2026-08-21. Page 1 yielded 30, pages 2+3
  * yielded 2 and 1, because `deriveTemplate` paged the `ds` filter while pinning
  * `p=1` — the real pager. 3/30 = 0.1. Three stray items past dedupe satisfied
- * `gained > 0`, so a broken template was cached in total silence: the only
- * warning in this block fires on `gained === 0`, and this pager leaks.
+ * the then-gate of `gained > 0`, so a broken template was cached in total
+ * silence and had to be purged by hand. This constant shipped first as a
+ * warning (2026-08-21) and became a refusal once the budget-aware signal made
+ * that safe (2026-08-25).
  */
 const THIN_WALK_SHARE = 0.25;
 
@@ -906,7 +911,18 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // that is no evidence the config works. Reading `gained` alone let exactly
         // that config reach the cross-customer cache whenever the refusal landed on
         // any page after the first walked one.
-        if (gained > 0 && !refused && winningSource !== 'cache') {
+        //
+        // A thin walk is the budget-aware refusal the AbeBooks live proof asked
+        // for (2026-08-21: 2+1 stray items past dedupe certified a template that
+        // paged the wrong query parameter). The share alone can never be the
+        // gate — `absorb` hands `remaining: cap - detailCount()` down, so a
+        // working pager on a nearly-full budget legitimately gains 1-2 items —
+        // which is why `!budgetStopped` is part of the signal, not a refinement
+        // of it: a thin gain is damning only when the pager had room to deliver
+        // and didn't. The walk's items stay planned either way; what a thin walk
+        // loses is only the right to certify its config cross-customer.
+        const thin = !budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE;
+        if (gained > 0 && !refused && !thin && winningSource !== 'cache') {
           // Spec §4 accepts one-config-per-domain collisions on the explicit
           // premise that "the thrash is visible". It was not: the retry above
           // reassigns `gained`, so the `gained === 0` warning below is skipped
@@ -937,22 +953,20 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           warnings.push(
             `pagination (${winningSource}: ${winning.strategy}) produced no new items on ${start.url}`,
           );
-        } else if (!refused && !budgetStopped && page1Gain > 0 && gained < page1Gain * THIN_WALK_SHARE) {
+        } else if (!refused && thin) {
           // `!refused` guards the CLAIM, not the diagnosis. A walk refused on a
           // later page still has `gained > 0` from the pages that passed, and
-          // can easily land under the thin-walk share — but this message ends
-          // "the config was cached anyway", and a refused walk is precisely the
-          // case where it was not. The refusal warning above already says what
-          // happened; adding a second, false sentence beside it is worse than
-          // saying nothing.
-          // Not a refusal — the config above is already cached. This is the
-          // evidence a future fix to `deriveTemplate` will be built from, so it
-          // names everything needed to reproduce: which page, how much page 1
-          // gave, how little the walk added, and which strategy did it.
+          // can easily land under the thin-walk share — but a refused walk
+          // already has its own warning naming what happened; adding a second
+          // sentence beside it is worse than saying nothing.
+          // This is also the evidence a future fix to `deriveTemplate` will be
+          // built from, so it names everything needed to reproduce: which page,
+          // how much page 1 gave, how little the walk added, and which strategy
+          // did it.
           warnings.push(
             `pagination (${winningSource}: ${winning.strategy}) gained only ${gained} new item(s) on ${start.url} `
             + `where page 1 yielded ${page1Gain}, and the item budget was not what stopped it `
-            + `— pages 2+ are likely re-serving page 1; the config was cached anyway, review it`,
+            + `— pages 2+ are likely re-serving page 1; the config was not cached, the walk's items are planned`,
           );
         }
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
