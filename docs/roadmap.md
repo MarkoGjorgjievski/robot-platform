@@ -11,7 +11,9 @@ The roadmap runs as **two parallel tracks**:
 
 Tracks are decoupled but v1.5 (Track B) is the bottleneck for *seeing* any Track A work in the UI. After v1.5 lands, v2 pipeline features have a real home.
 
-Exploratory backlog items (not yet release-staged) live in `docs/ideas.md`.
+Exploratory backlog items (not yet release-staged) live in `docs/ideas.md`. Long-horizon direction
+and the post-MVP ordering of everything below live in `docs/vision.md` — when this backlog is
+ambiguous about priority, the pillar ordering there is the tiebreak.
 
 ---
 
