@@ -347,11 +347,21 @@ stopped the run from being self-diagnosing.
 0b. ~~Per-round `listing` rows collapse under the unique index.~~ **Fixed** in `c029cc6`: rounds are
    not pages, so the trail lives on page 1's row as `listing_values.scroll_rounds`, one entry per
    yielded round carrying `rows` and `planned`. Every diagnosis since came off that trail.
-0c. **Page-1 extraction is racy** — the same URL yielded 144, 144, 72 and 108 rows across runs, because
-   capture scrolls while tiling screenshots. **No longer a correctness problem for scroll listings**
-   (the walk compensates exactly), but it is untouched everywhere else, and any non-scroll listing
-   still silently plans whatever happened to have loaded. Worth its own look.
-0d. **The load-more button trigger has never run live.** Uniqlo scrolls, so `findLoadMore` returned
+0c. ~~Page-1 extraction is racy.~~ **Fixed** in `914dd90`. It was not the screenshot tiling — `page.content()`
+   is taken before the tiles. It was `expandHiddenContent`'s Phase 1 clicking its structural selectors
+   (`[aria-expanded="false"]`, `details summary`) through a Playwright **locator**, which scrolls the
+   element into view to click it; on a lazy listing that loads batches. Phase 1 now clicks in the page,
+   as Phase 2 already did. Deliberately NOT fixed by skipping out-of-viewport elements — collapsed spec
+   panels on a detail page are almost always below the fold, and that would have silently stopped
+   expanding them. **Verified against a fixture only**: Uniqlo started returning Akamai "Access Denied"
+   before it could be re-checked live, so the JS-click-vs-real-click change has no live confirmation yet.
+   If detail-page extraction quality dips, this is the first place to look.
+0d. **`uniqlo-scroll-live` is rate-limited.** Akamai "Access Denied" after roughly ten runs on
+   2026-08-25 — plan runs, the free scroll probe and the generator harness combined. Not a code defect;
+   the spec's risk table predicted repeated scrolling would be a visible bot signal, though cumulative
+   request volume is the likelier cause. **Back off before using this source again**, and expect the
+   first re-run to be a block rather than a regression.
+0e. **The load-more button trigger has never run live.** Uniqlo scrolls, so `findLoadMore` returned
    nothing and the cached config carries no `loadMoreSelector`. That half of the strategy is still
    fixture-only.
 
