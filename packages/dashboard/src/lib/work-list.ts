@@ -1,3 +1,5 @@
+import { formatValue } from './format';
+
 /**
  * Counts as `crawl.items` reports them.
  *
@@ -49,5 +51,5 @@ export function listingValuesLabel(values: unknown): string {
   const entries = Object.entries(values as Record<string, unknown>)
     .filter(([, v]) => v !== null && v !== undefined && v !== '');
   if (entries.length === 0) return '—';
-  return entries.map(([k, v]) => `${k}: ${String(v)}`).join(' · ');
+  return entries.map(([k, v]) => `${k}: ${formatValue(v)}`).join(' · ');
 }

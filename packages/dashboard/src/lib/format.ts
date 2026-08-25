@@ -1,3 +1,15 @@
+export function formatValue(value: unknown): string {
+  if (value == null) return '—';
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
 export function formatDate(date: Date): string {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
