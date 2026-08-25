@@ -125,6 +125,30 @@ describe('planRun — the scroll fallback', () => {
     expect(outcome.warnings).toContain('budget reached: 10 items');
   });
 
+  // ── max_pages does not bound a scroll walk ──────────────────────────────
+  //
+  // Spec §5 calls this load-bearing: a Source configured `max_pages: 2` for
+  // HTML pagination must not silently cap a scroll listing at two rounds.
+  // Pages are not what a scroll listing has; `max_items` is the only budget
+  // this walk consults. Every other fixture here uses a SINGLE round, so
+  // nothing else in this file can tell a walk that respects `maxPages` from
+  // one that ignores it — this is the only test that runs the generator far
+  // enough for the difference to show.
+  it('keeps scrolling past max_pages — a page budget must not cap a scroll listing', async () => {
+    const rounds = [
+      ['https://listing.example/p/200001'],
+      ['https://listing.example/p/200002'],
+      ['https://listing.example/p/200003'],
+      ['https://listing.example/p/200004'],
+    ];
+    const deps = scrollDeps({ rounds });
+
+    const outcome = await planRun(scrollRequest({ maxPages: 2, maxItems: 50 }), deps);
+
+    // All four rounds, not the two a page budget would have allowed.
+    expect(detailUrls(outcome)).toEqual([...PAGE1, ...rounds.flat()]);
+  });
+
   // ── A scroll walk that throws ───────────────────────────────────────────
   //
   // `scrollPages` is a live Playwright walk: `context.newPage()`,
