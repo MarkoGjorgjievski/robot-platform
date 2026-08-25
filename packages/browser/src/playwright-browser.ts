@@ -193,9 +193,22 @@ export class PlaywrightBrowser implements IBrowser {
     }
 
     try {
+      const stage = async (name: string) => {
+        if (!process.env.CAPTURE_DEBUG) return;
+        const m = await page.evaluate(`(() => ({
+          y: Math.round(window.scrollY), h: document.body.scrollHeight,
+          links: document.querySelectorAll('a[href]').length,
+          nodes: document.getElementsByTagName('*').length,
+        }))()`).catch(() => null) as Record<string, number> | null;
+        if (m) console.log(`[capture] ${name.padEnd(20)} scrollY=${m.y} height=${m.h} links=${m.links} nodes=${m.nodes}`);
+      };
+
       await this.navigateWithFallback(page, url, options);
+      await stage('after navigate');
       await this.dismissPopups(page);
+      await stage('after dismissPopups');
       await this.expandHiddenContent(page);
+      await stage('after expandHidden');
       await this.returnIfNavigatedAway(page, url, options);
 
       const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
@@ -477,21 +490,43 @@ export class PlaywrightBrowser implements IBrowser {
     for (let round = 0; round < 2; round++) {
       let expanded = false;
 
-      // Phase 1: Click elements matching structural selectors (details, aria-expanded)
-      for (const selector of EXPAND_SELECTORS.slice(0, 6)) {
-        try {
-          const elements = page.locator(selector);
-          const count = await elements.count();
-          for (let i = 0; i < Math.min(count, 10); i++) {
-            const el = elements.nth(i);
-            if (await el.isVisible({ timeout: 200 })) {
-              await el.click({ timeout: 1000, force: true });
-              expanded = true;
+      // Phase 1: Click elements matching structural selectors (details, aria-expanded).
+      //
+      // Done IN THE PAGE, not through a Playwright locator, because a locator
+      // click scrolls its element into view first — and on a listing that loads
+      // lazily, scrolling is not a neutral act. It appends products. Measured
+      // against a fixture whose grid grows near the bottom: with an
+      // `aria-expanded` control below the fold, capture's own scrollY went
+      // 0 -> ~2655 inside this method and the captured HTML held 2 cards on one
+      // run and 3 on the next, from an identical page. The same mechanism made
+      // one real listing capture 144, 144, 72 and 108 rows across four runs —
+      // whatever happened to have loaded became "page 1", and a downstream walk
+      // then had to guess what it already had.
+      //
+      // Expanding a collapsed panel reveals DOM that already exists, which is
+      // what this method is for and is idempotent. Loading more of an unbounded
+      // list is a different thing entirely, and it is not capture's job — that
+      // is what pagination and the scroll walk are for. `element.click()` fires
+      // a real bubbling event without moving the viewport, which is exactly the
+      // trade Phase 2 below already makes.
+      try {
+        const clicked = await page.evaluate((selectors) => {
+          let found = 0;
+          for (const selector of selectors) {
+            const els = Array.prototype.slice.call(document.querySelectorAll(selector), 0, 10);
+            for (const el of els) {
+              // offsetParent is null for display:none — the cheap "is it really
+              // there" check. Being outside the VIEWPORT is fine and expected:
+              // that is the case a locator click would have scrolled to.
+              if ((el as HTMLElement).offsetParent === null) continue;
+              try { (el as HTMLElement).click(); found++; } catch { /* not clickable */ }
             }
           }
-        } catch {
-          // Not found or not clickable
-        }
+          return found;
+        }, EXPAND_SELECTORS.slice(0, 6));
+        if (clicked > 0) expanded = true;
+      } catch {
+        // JS execution failed — non-fatal
       }
 
       // Phase 2: Click buttons/links with "show more" text patterns
