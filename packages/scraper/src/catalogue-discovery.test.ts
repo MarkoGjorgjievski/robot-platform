@@ -50,6 +50,37 @@ describe('parseCatalogueResponse', () => {
   });
 });
 
+describe('parseCatalogueResponse — envelope shape', () => {
+  // The 2026-08-26 dogfood proved the permissive record shape is unstable:
+  // the model wrapped output in its own key and everything sanitized to {}
+  // silently. The tool now asks for an explicit envelope the schema can
+  // actually describe: { concepts: [{ concept, candidates: [...] }] }.
+  it('accepts the concepts-envelope shape the tool schema prescribes', () => {
+    const out = parseCatalogueResponse({
+      concepts: [
+        {
+          concept: 'price',
+          candidates: [{ label: 'list', source: 'api', path: 'MainItem.OriginalUnitPrice', sampleValue: 679.99 }],
+        },
+      ],
+    }, evidence);
+    expect(out.price).toHaveLength(1);
+    expect(out.price![0]!.label).toBe('list');
+  });
+
+  it('still accepts a bare record (defensive fallback for the old shape)', () => {
+    const out = parseCatalogueResponse({
+      price: [{ label: 'list', source: 'api', path: 'MainItem.OriginalUnitPrice', sampleValue: 679.99 }],
+    }, evidence);
+    expect(out.price).toHaveLength(1);
+  });
+
+  it('a malformed envelope (concepts not an array, entries without names) yields {}', () => {
+    expect(parseCatalogueResponse({ concepts: 'nope' }, evidence)).toEqual({});
+    expect(parseCatalogueResponse({ concepts: [{ candidates: [] }] }, evidence)).toEqual({});
+  });
+});
+
 describe('buildCataloguePrompt', () => {
   it('carries the evidence and the labelling rules', () => {
     const prompt = buildCataloguePrompt(evidence);
