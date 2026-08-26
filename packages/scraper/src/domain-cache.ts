@@ -387,8 +387,11 @@ function comparePaths(a: FieldPath, b: FieldPath): number {
 }
 
 /** The concept a schema field maps to: explicit selection first, else the
- *  field's name matched against concept names (exact, then naive plural). */
-function findConcept(
+ *  field's name matched against concept names (exact, then naive plural).
+ *  Exported: the orchestrator's selection/displayed-default serving tier
+ *  (task 7 fix round) needs the exact same field→concept resolution this
+ *  file's own `resolveFromCache` uses, so both look up the same candidate. */
+export function findConcept(
   catalogue: CandidateCatalogue,
   fieldName: string,
   selection?: { concept: string },
@@ -477,6 +480,24 @@ export function resolveFromCache(
  * resolve field values by following stored dot-notation paths.
  * This avoids AI calls on subsequent runs for the same domain.
  */
+/**
+ * All API JSON bodies worth searching for a field's value, excluding known
+ * third-party noise (consent, analytics, A/B-test asset blobs) — their
+ * product-shaped keys can poison cached paths (e.g. OneTrust's otFlat.json
+ * publishes {"name":"otFlat",...}).
+ *
+ * Exported so every caller that resolves dot-paths against intercepted
+ * requests — this file's own `resolveApiPathsFromCache` and the
+ * orchestrator's selection/displayed-default serving tier (task 7 fix
+ * round) — filters the same way instead of re-deriving it.
+ */
+export function collectApiJsonBodies(interceptedRequests: InterceptedRequest[]): Record<string, unknown>[] {
+  return interceptedRequests
+    .filter(r => r.parsedJson && typeof r.parsedJson === 'object')
+    .filter(r => !isThirdPartyNoise(r.url))
+    .map(r => r.parsedJson as Record<string, unknown>);
+}
+
 export function resolveApiPathsFromCache(
   fieldPaths: Record<string, FieldPathSet>,
   interceptedRequests: InterceptedRequest[],
@@ -484,13 +505,7 @@ export function resolveApiPathsFromCache(
 ): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
   const resolved: Record<string, ResolvedField> = {};
 
-  // Collect all API JSON bodies, excluding known third-party noise (consent,
-  // analytics, A/B-test asset blobs). Their product-shaped keys can poison
-  // cached paths (e.g. OneTrust's otFlat.json publishes {"name":"otFlat",...}).
-  const apiJsonBodies = interceptedRequests
-    .filter(r => r.parsedJson && typeof r.parsedJson === 'object')
-    .filter(r => !isThirdPartyNoise(r.url))
-    .map(r => r.parsedJson as Record<string, unknown>);
+  const apiJsonBodies = collectApiJsonBodies(interceptedRequests);
 
   if (apiJsonBodies.length === 0) return { resolved, overallConfidence: 0 };
 
