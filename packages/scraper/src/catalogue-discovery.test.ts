@@ -50,6 +50,26 @@ describe('parseCatalogueResponse', () => {
   });
 });
 
+describe('parseCatalogueResponse — label hygiene', () => {
+  it('renames a label that merely repeats the source name', () => {
+    const out = parseCatalogueResponse({
+      'product_name': [
+        { label: 'json-ld', source: 'json-ld', path: 'name', sampleValue: 'SSD' },
+      ],
+    }, { ...evidence, fieldResults: [{ name: 'product_name', value: 'SSD', source: 'json-ld', path: 'name' }] });
+    expect(out.product_name).toHaveLength(1);
+    expect(out.product_name![0]!.label).not.toBe('json-ld');
+    expect(out.product_name![0]!.label).toBe('main');
+  });
+
+  it('leaves meaningful labels alone', () => {
+    const out = parseCatalogueResponse({
+      price: [{ label: 'list', source: 'api', path: 'MainItem.OriginalUnitPrice', sampleValue: 679.99 }],
+    }, evidence);
+    expect(out.price![0]!.label).toBe('list');
+  });
+});
+
 describe('parseCatalogueResponse — envelope shape', () => {
   // The 2026-08-26 dogfood proved the permissive record shape is unstable:
   // the model wrapped output in its own key and everything sanitized to {}
@@ -92,6 +112,10 @@ describe('buildCataloguePrompt', () => {
     // Conflict suppression only engages when every disagreeing path is
     // labelled — so the extraction's own paths must all be catalogued.
     expect(prompt).toContain('every path listed under Extraction results');
+    // Labels say WHICH value, never WHERE it came from — the 2026-08-26
+    // catalogues carried labels like "json-ld", which duplicate the source
+    // column and tell the customer nothing.
+    expect(prompt).toContain('never a source or format name');
   });
 
   // The 2026-08-26 Newegg diagnosis: one 30KB slice over ALL bodies cut the
