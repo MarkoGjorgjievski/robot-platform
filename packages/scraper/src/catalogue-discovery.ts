@@ -34,8 +34,30 @@ export function buildCataloguePrompt(evidence: CatalogueEvidence): string {
  * established. A path is real if it resolves against a provided API body,
  * or is verbatim one the extraction itself used.
  */
+/**
+ * The tool asks for an ENVELOPE — { concepts: [{ concept, candidates }] } —
+ * because a record with dynamic keys cannot be described by a JSON schema's
+ * `properties`, and the 2026-08-26 dogfood proved the schemaless shape is
+ * unstable: the model invented its own wrappers and every response sanitized
+ * to {} in silence. The envelope is converted to the record shape here; a
+ * bare record is still accepted as a defensive fallback.
+ */
+function unwrapEnvelope(toolInput: unknown): unknown {
+  if (toolInput === null || typeof toolInput !== 'object' || Array.isArray(toolInput)) return toolInput;
+  const concepts = (toolInput as Record<string, unknown>).concepts;
+  if (!Array.isArray(concepts)) return toolInput;
+  const record: Record<string, unknown> = {};
+  for (const entry of concepts) {
+    if (entry === null || typeof entry !== 'object') continue;
+    const { concept, candidates } = entry as Record<string, unknown>;
+    if (typeof concept !== 'string' || concept.length === 0 || !Array.isArray(candidates)) continue;
+    record[concept] = candidates;
+  }
+  return record;
+}
+
 export function parseCatalogueResponse(toolInput: unknown, evidence: CatalogueEvidence): CandidateCatalogue {
-  const clean = sanitizeCatalogue(toolInput);
+  const clean = sanitizeCatalogue(unwrapEnvelope(toolInput));
   const knownPaths = new Set(evidence.fieldResults.map((f) => f.path));
   const out: CandidateCatalogue = {};
   for (const [concept, candidates] of Object.entries(clean)) {
@@ -60,32 +82,47 @@ export function parseCatalogueResponse(toolInput: unknown, evidence: CatalogueEv
 }
 
 /**
- * Input schema kept permissive — {@link parseCatalogueResponse} (via
- * sanitizeCatalogue and fabricated-path rejection) is the real gate, not this
- * schema.
+ * An explicit envelope, not a record with dynamic keys: JSON schema cannot
+ * name dynamic properties, and a `properties: {}` schema left the model free
+ * to invent shapes (2026-08-26 dogfood: three runs, three silent empties).
+ * `parseCatalogueResponse` (sanitize + fabricated-path rejection) remains the
+ * real gate; this schema's job is only to make the SHAPE deterministic.
  */
 const recordCatalogueTool = {
   name: 'record_catalogue',
   description:
-    'Record the candidate catalogue for this product page: for each concept (e.g. price, rating, ' +
-    'review_count, image), list the candidate paths that yield a value for it, each labelled by meaning.',
+    'Record the candidate catalogue for this product page: one entry per concept (e.g. price, rating, ' +
+    'review_count, image), each listing the candidate paths that yield a value for it, labelled by meaning.',
   input_schema: {
     type: 'object' as const,
-    properties: {},
-    additionalProperties: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          label: { type: 'string', description: 'Short distinctive label within the concept, e.g. "list", "displayed", "yotpo".' },
-          source: { type: 'string', description: 'Same vocabulary as field extraction sources: api, json-ld, meta, xpath.' },
-          path: { type: 'string', description: 'Dot-path (for api/json-ld/meta) or XPath (for xpath) — must appear in the evidence provided.' },
-          sampleValue: { description: 'The value observed at this path when the catalogue was built.' },
-          scope: { type: 'object', description: 'Optional scope facts that make the value interpretable, e.g. {"seller": "MobileMonster"}.' },
+    properties: {
+      concepts: {
+        type: 'array',
+        description: 'One entry per concept found on the page.',
+        items: {
+          type: 'object',
+          properties: {
+            concept: { type: 'string', description: 'Concept name, snake_case singular: "price", "rating", "review_count", "image".' },
+            candidates: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  label: { type: 'string', description: 'Short distinctive label within the concept, e.g. "list", "displayed", "yotpo".' },
+                  source: { type: 'string', description: 'Same vocabulary as field extraction sources: api, json-ld, meta, xpath.' },
+                  path: { type: 'string', description: 'Dot-path (for api/json-ld/meta) or XPath (for xpath) — must appear in the evidence provided.' },
+                  sampleValue: { description: 'The value observed at this path when the catalogue was built.' },
+                  scope: { type: 'object', description: 'Optional scope facts that make the value interpretable, e.g. {"seller": "MobileMonster"}.' },
+                },
+                required: ['label', 'source', 'path', 'sampleValue'],
+              },
+            },
+          },
+          required: ['concept', 'candidates'],
         },
-        required: ['label', 'source', 'path', 'sampleValue'],
       },
     },
+    required: ['concepts'],
   },
 };
 

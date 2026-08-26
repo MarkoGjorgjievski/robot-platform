@@ -737,6 +737,14 @@ export async function runExtraction(
         });
         if (Object.keys(catalogue).length > 0) {
           await (deps.saveCatalogue ?? saveCandidateCatalogue)(domain, resolvedPageType, catalogue);
+        } else {
+          // Say so, loudly. Three dogfood runs on 2026-08-26 burned an AI call
+          // each and wrote nothing, and the only symptom was an absence — the
+          // exact silent-empty failure the project's "no silent caps" rule
+          // exists to prevent.
+          console.warn(
+            `[extract] catalogue discovery for ${domain}/${resolvedPageType} returned no valid candidates — nothing saved`,
+          );
         }
       } catch (err) {
         console.error('[extract] catalogue discovery failed (non-fatal):', err);
