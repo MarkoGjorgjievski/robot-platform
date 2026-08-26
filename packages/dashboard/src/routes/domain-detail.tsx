@@ -260,23 +260,39 @@ function CandidateCatalogueSection({
       ) : (
         <div className="card mt-2 divide-y divide-gray-100">
           {concepts.map(([concept, candidates]) => (
-            <div key={concept} className="flex flex-wrap items-center gap-2 px-3 py-2">
-              <span className="micro-label shrink-0">{concept}</span>
-              {candidates.map((c) => (
-                <span
-                  key={c.label}
-                  title={c.scope ? JSON.stringify(c.scope) : undefined}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] ${
-                    c.displayed
-                      ? 'bg-accent-100 text-accent-700'
-                      : 'bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  {c.label}
-                  <span className="font-mono">{formatValue(c.sampleValue)}</span>
-                  {c.displayed && <span className="font-medium">· displayed</span>}
-                </span>
-              ))}
+            <div key={concept} className="px-3 py-2.5">
+              <div className="micro-label">{concept}</div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {candidates.map((c) => (
+                  <div
+                    key={c.label}
+                    className={`min-w-0 rounded-md border px-2.5 py-1.5 ${
+                      c.displayed ? 'border-accent-500 bg-accent-50/40' : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xs font-medium text-gray-800">{c.label}</span>
+                      <span className="font-mono text-[10px] text-gray-400">{c.source}</span>
+                      {c.displayed && (
+                        <span className="rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium uppercase tracking-wide text-accent-700">
+                          displayed
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="mt-0.5 max-w-[240px] truncate font-mono text-[11px] text-gray-500"
+                      title={formatValue(c.sampleValue)}
+                    >
+                      {formatValue(c.sampleValue)}
+                    </div>
+                    {c.scope && (
+                      <div className="mt-0.5 truncate text-[10px] text-gray-400">
+                        {Object.entries(c.scope).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
