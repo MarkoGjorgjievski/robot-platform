@@ -88,6 +88,9 @@ export const sources = pgTable('sources', {
   variant: varchar('variant', { length: 50 }).notNull().default('default'),
   parameters: jsonb('parameters').notNull().default({}),
   isActive: boolean('is_active').default(true).notNull(),
+  // Set when a human confirmed this source's probe run looked right (spec §3).
+  // Null = unconfirmed: the first Extract probes the first input and gates.
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   // AI scraper fields
   sourceType: varchar('source_type', { length: 20 }).default('legacy'),
   urlPattern: text('url_pattern'),
