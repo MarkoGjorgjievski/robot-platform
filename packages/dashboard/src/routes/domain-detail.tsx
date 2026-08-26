@@ -47,7 +47,7 @@ export default function DomainDetail() {
             <Stat label="Last verified" value={new Date(pt.lastVerifiedAt).toLocaleDateString()} />
           </dl>
           <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} domain={domain} pageType={pt.pageType} />
-          <CandidateCatalogueSection catalogue={pt.catalogue as CandidateCatalogue} domain={domain} pageType={pt.pageType} />
+          <CandidateCatalogueSection catalogue={(pt.catalogue ?? {}) as CandidateCatalogue} domain={domain} pageType={pt.pageType} />
         </div>
       ))}
 

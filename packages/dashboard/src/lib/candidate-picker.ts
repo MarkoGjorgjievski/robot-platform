@@ -1,3 +1,5 @@
+import { formatValue } from './format';
+
 /**
  * The candidate catalogue shape, duplicated from `@robot/scraper`'s
  * `candidate-catalogue.ts` — the dashboard package cannot import `@robot/scraper`
@@ -12,6 +14,13 @@ export type Candidate = {
   scope?: Record<string, string>;
   displayed?: boolean;
   verifiedAt?: string;
+  /**
+   * Which hostname contributed this candidate. Not part of the scraper's
+   * catalogue shape — set only by a caller that merges catalogues across more
+   * than one source hostname (dataset-detail's cross-source picker); a
+   * single-hostname catalogue never sets this.
+   */
+  hostname?: string;
 };
 
 export type CandidateCatalogue = Record<string, Candidate[]>;
@@ -23,6 +32,7 @@ export type PickerOption = {
   displayed: boolean;
   scope?: Record<string, string>;
   selected: boolean;
+  hostname?: string;
 };
 
 /**
@@ -73,5 +83,22 @@ export function pickerOptions(
     displayed: c.displayed === true,
     scope: c.scope,
     selected: current?.concept === resolved.concept && current?.label === c.label,
+    hostname: c.hostname,
   }));
+}
+
+/**
+ * The display text for one picker option: `label — sample`, with `(displayed)`
+ * when it's the vision-verified candidate, and a trailing `· hostname` only
+ * when the caller says the underlying catalogue spans more than one source
+ * hostname (controller ruling R6) — a single-hostname dataset keeps the plain
+ * label, and an option with no recorded hostname never gets the suffix even
+ * if the caller says `multiHostname`.
+ */
+export function pickerOptionLabel(
+  option: PickerOption,
+  opts: { multiHostname: boolean },
+): string {
+  const base = `${option.label} — ${formatValue(option.sampleValue)}${option.displayed ? ' (displayed)' : ''}`;
+  return opts.multiHostname && option.hostname ? `${base} · ${option.hostname}` : base;
 }

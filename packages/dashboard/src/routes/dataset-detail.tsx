@@ -6,8 +6,7 @@ import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-s
 import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { FIELD_ORIGINS, originLabel, type FieldOrigin } from '../lib/field-origin';
-import { pickerOptions, type CandidateCatalogue } from '../lib/candidate-picker';
-import { formatValue } from '../lib/format';
+import { pickerOptions, pickerOptionLabel, type CandidateCatalogue } from '../lib/candidate-picker';
 
 type SchemaField = {
   name: string;
@@ -116,37 +115,50 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
     hostnames.map((hostname) => t.domains.intelligenceDetail({ domain: hostname })),
   );
 
+  // Candidates carry their contributing hostname (controller ruling R6) so a
+  // dataset that spans more than one source hostname can show provenance
+  // instead of silently letting the first hostname's label win a collision.
+  // `catalogueQueries[i]` corresponds to `hostnames[i]` — `trpc.useQueries`
+  // preserves the input array's order.
   const catalogue = useMemo<CandidateCatalogue>(() => {
     const merged: CandidateCatalogue = {};
-    for (const q of catalogueQueries) {
+    catalogueQueries.forEach((q, i) => {
+      const hostname = hostnames[i];
       for (const pt of q.data?.pageTypes ?? []) {
-        for (const [concept, candidates] of Object.entries(pt.catalogue as CandidateCatalogue)) {
+        for (const [concept, candidates] of Object.entries((pt.catalogue ?? {}) as CandidateCatalogue)) {
           const existing = merged[concept] ?? [];
           const seenLabels = new Set(existing.map((c) => c.label));
-          merged[concept] = [...existing, ...candidates.filter((c) => !seenLabels.has(c.label))];
+          const withHostname = candidates
+            .filter((c) => !seenLabels.has(c.label))
+            .map((c) => ({ ...c, hostname }));
+          merged[concept] = [...existing, ...withHostname];
         }
       }
-    }
+    });
     return merged;
-  }, [catalogueQueries]);
+  }, [catalogueQueries, hostnames]);
+  const multiHostname = hostnames.length > 1;
 
   function setOrigin(index: number, origin: FieldOrigin) {
     setFields((prev) => prev.map((f, i) => (i === index ? { ...f, origin } : f)));
   }
 
+  // Not a functional updater: this reads the `fields` closed over from render
+  // and calls `updateSchema.mutate` as a plain side effect afterward, rather
+  // than inside a `setFields` updater callback — React (StrictMode in
+  // particular) may invoke an updater function twice, which would fire the
+  // mutation twice per selection if the mutate call lived inside it.
   function setCandidate(index: number, candidate?: { concept: string; label: string }) {
-    setFields((prev) => {
-      const next = prev.map((f, i) => {
-        if (i !== index) return f;
-        if (!candidate) {
-          const { candidate: _drop, ...rest } = f;
-          return rest;
-        }
-        return { ...f, candidate };
-      });
-      updateSchema.mutate({ datasetId, schema: next });
-      return next;
+    const next = fields.map((f, i) => {
+      if (i !== index) return f;
+      if (!candidate) {
+        const { candidate: _drop, ...rest } = f;
+        return rest;
+      }
+      return { ...f, candidate };
     });
+    setFields(next);
+    updateSchema.mutate({ datasetId, schema: next });
   }
 
   if (fields.length === 0) {
@@ -210,7 +222,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
                         <option value="default">default</option>
                         {options.map((o) => (
                           <option key={o.label} value={o.label}>
-                            {`${o.label} — ${formatValue(o.sampleValue)}${o.displayed ? ' (displayed)' : ''}`}
+                            {pickerOptionLabel(o, { multiHostname })}
                           </option>
                         ))}
                       </select>
