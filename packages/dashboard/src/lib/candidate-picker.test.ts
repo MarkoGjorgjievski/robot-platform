@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickerOptions } from './candidate-picker';
+import { pickerOptions, pickerOptionLabel } from './candidate-picker';
 
 const catalogue = {
   price: [
@@ -26,5 +26,38 @@ describe('pickerOptions', () => {
   it('matches naive plurals (images -> image)', () => {
     const c = { image: [{ label: 'a', source: 'meta', path: 'x', sampleValue: 1 }, { label: 'b', source: 'json-ld', path: 'y', sampleValue: 2 }] };
     expect(pickerOptions(c, 'images')).toHaveLength(2);
+  });
+  it('carries a candidate-level hostname through when the catalogue entry has one', () => {
+    const c = {
+      price: [
+        { label: 'list', source: 'api', path: 'a', sampleValue: 1, hostname: 'a.com' },
+        { label: 'msrp', source: 'api', path: 'b', sampleValue: 2, hostname: 'b.com' },
+      ],
+    };
+    const opts = pickerOptions(c, 'price');
+    expect(opts!.map((o) => o.hostname)).toEqual(['a.com', 'b.com']);
+  });
+});
+
+describe('pickerOptionLabel', () => {
+  const base = { concept: 'price', label: 'list', sampleValue: 679.99, displayed: false, selected: false };
+
+  it('formats label — sample with no hostname annotation for a single-hostname dataset', () => {
+    expect(pickerOptionLabel({ ...base, hostname: 'a.com' }, { multiHostname: false }))
+      .toBe('list — 679.99');
+  });
+
+  it('flags the displayed candidate', () => {
+    expect(pickerOptionLabel({ ...base, displayed: true }, { multiHostname: false }))
+      .toBe('list — 679.99 (displayed)');
+  });
+
+  it('appends the source hostname only when the dataset spans more than one hostname', () => {
+    expect(pickerOptionLabel({ ...base, hostname: 'www.newegg.com' }, { multiHostname: true }))
+      .toBe('list — 679.99 · www.newegg.com');
+  });
+
+  it('omits the hostname suffix when the option carries no hostname, even if multiHostname', () => {
+    expect(pickerOptionLabel(base, { multiHostname: true })).toBe('list — 679.99');
   });
 });
