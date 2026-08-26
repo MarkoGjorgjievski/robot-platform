@@ -285,22 +285,24 @@ function CandidateCatalogueSection({
                         src={c.sampleValue as string}
                         alt=""
                         loading="lazy"
-                        className="h-10 w-10 shrink-0 rounded border border-gray-200 object-cover"
+                        className="h-12 w-12 shrink-0 rounded border border-gray-200 object-cover"
                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-xs font-medium text-gray-800">{c.label}</span>
-                        <span className="font-mono text-[10px] text-gray-400">{c.source}</span>
+                      {/* Hierarchy: the VALUE is the data and reads largest; the
+                          label names it; the source is provenance trivia. */}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-xs font-semibold text-gray-800">{c.label}</span>
                         {c.displayed && (
-                          <span className="rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium uppercase tracking-wide text-accent-700">
+                          <span className="shrink-0 rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium uppercase tracking-wide text-accent-700">
                             displayed
                           </span>
                         )}
                       </div>
+                      <div className="font-mono text-[10px] text-gray-400">{c.source}</div>
                       <div
-                        className="mt-0.5 truncate font-mono text-[11px] text-gray-500"
+                        className="mt-1 truncate font-mono text-sm text-gray-900"
                         title={formatValue(c.sampleValue)}
                       >
                         {formatValue(c.sampleValue)}
