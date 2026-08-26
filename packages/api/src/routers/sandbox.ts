@@ -7,7 +7,7 @@ import { scraperRouter } from './scraper';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const SANDBOX_SLUG = 'sandbox';
+const SANDBOX_SLUG = 'scratch';
 
 function slugifyDomain(domain: string): string {
   return domain
@@ -466,7 +466,7 @@ export const sandboxRouter = router({
               message: `Project not found: ${input.project.existingSlug}`,
             });
           }
-          if (existing.slug === 'sandbox') {
+          if (existing.slug === SANDBOX_SLUG) {
             throw new TRPCError({
               code: 'BAD_REQUEST',
               message: 'Cannot graduate into the Sandbox project',
@@ -476,10 +476,10 @@ export const sandboxRouter = router({
           projectSlug = existing.slug;
         } else {
           // Reject reserved slug
-          if (input.project.newSlug === 'sandbox') {
+          if (input.project.newSlug === SANDBOX_SLUG) {
             throw new TRPCError({
               code: 'BAD_REQUEST',
-              message: 'Cannot use "sandbox" as a project slug',
+              message: 'Cannot use "scratch" as a project slug',
             });
           }
           // Check slug collision

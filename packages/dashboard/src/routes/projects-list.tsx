@@ -11,7 +11,7 @@ export default function ProjectsList() {
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
 
   // Filter out Sandbox project — it has its own UI at /sandbox
-  const projects = (listQuery.data ?? []).filter((p) => p.slug !== 'sandbox');
+  const projects = (listQuery.data ?? []).filter((p) => p.slug !== 'scratch');
 
   return (
     <div>
