@@ -72,9 +72,12 @@ describe('runAnalysis — known domain', () => {
     expect(names).toContain('title');
   });
 
-  it('still answers when the live capture fails', async () => {
+  it('still answers when the live capture fails — but SAYS the examples are not live', async () => {
     // A cache hit is worth returning without fresh examples. Refusing to answer
-    // because a screenshot timed out would be worse than answering with stale ones.
+    // because a screenshot timed out would be worse than answering with stale
+    // ones — but presenting stale examples as if they came from this page is
+    // worse still (2026-08-26: a Newegg category page showed a Samsung SSD's
+    // values with no hint anything was wrong).
     const browser = stubBrowser({ async capture() { throw new Error('page.screenshot: Timeout'); } });
     const out = await runAnalysis(
       { url: CAPTURE.url },
@@ -82,7 +85,16 @@ describe('runAnalysis — known domain', () => {
     );
     expect(out.cached).toBe(true);
     expect(out.schema.fields.length).toBeGreaterThan(0);
+    expect(out.liveExamples).toBe(false);
     expect(browser.closed).toBe(false);
+  });
+
+  it('reports liveExamples: true when the capture worked', async () => {
+    const out = await runAnalysis(
+      { url: CAPTURE.url },
+      { browser: stubBrowser(), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
+    );
+    expect(out.liveExamples).toBe(true);
   });
 
   it('persists a screenshot through the injected hook, not the filesystem', async () => {
@@ -98,6 +110,66 @@ describe('runAnalysis — known domain', () => {
     expect(seen).toHaveLength(1);
     expect(out.captureId).toBe('abc');
     expect(out.screenshotUrl).toBe('/captures/abc.png');
+  });
+});
+
+describe('runAnalysis — a domain cached under BOTH page types', () => {
+  // 2026-08-26: a Newegg LISTING url analyzed as "detail" because the detail
+  // cache had more fields — page type was chosen by cache size, and the wizard
+  // then showed 18 detail fields (with another product's stale examples) for a
+  // category page. The page itself must have the deciding vote: whichever
+  // cache's paths actually RESOLVE on the live capture is what this page is.
+  const detailPaths: Record<string, FieldPathSet> = Object.fromEntries(
+    ['sku', 'brand', 'model', 'price_field'].map((name) => [name, {
+      conflictCount: 0,
+      paths: [{
+        path: `Product.${name}`, source: 'api', confidence: 0.9,
+        hits: 5, misses: 0, lastValue: `stale-${name}`, lastUsedAt: '2026-05-01T00:00:00.000Z',
+      }],
+    }]),
+  );
+  const listingPaths: Record<string, FieldPathSet> = {
+    category_name: {
+      conflictCount: 0,
+      paths: [{
+        path: 'Listing.category', source: 'api', confidence: 0.9,
+        hits: 5, misses: 0, lastValue: 'Old Category', lastUsedAt: '2026-05-01T00:00:00.000Z',
+      }],
+    },
+  };
+  const detailCache = { ...cache, pageType: 'detail', fieldPaths: detailPaths } as DomainCache;
+  const listingCache = { ...cache, pageType: 'listing', fieldPaths: listingPaths } as DomainCache;
+  const both = async (_d: string, pt: string) => (pt === 'detail' ? detailCache : listingCache);
+
+  // The captured page carries ONLY the listing api shape — no detail paths resolve.
+  const listingCapture: PageCapture = {
+    ...CAPTURE,
+    interceptedRequests: [{
+      url: 'https://shop.example.com/api/listing', method: 'GET', resourceType: 'xhr',
+      responseBody: '{"Listing":{"category":"GPUs"}}', parsedJson: { Listing: { category: 'GPUs' } },
+    } as PageCapture['interceptedRequests'][0]],
+  };
+
+  it('picks the page type whose cached paths resolve on the LIVE page, not the bigger cache', async () => {
+    const out = await runAnalysis(
+      { url: 'https://shop.example.com/Category/ID-38' },
+      { browser: stubBrowser({ async capture() { return listingCapture; } }), agent: null, lookupCache: both },
+    );
+    expect(out.schema.page_type).toBe('listing');
+    expect(out.schema.fields.map((f) => f.name)).toContain('category_name');
+    expect(out.liveExamples).toBe(true);
+  });
+
+  it('falls back to the bigger cache when the capture fails — flagged as not live', async () => {
+    const out = await runAnalysis(
+      { url: 'https://shop.example.com/Category/ID-38' },
+      {
+        browser: stubBrowser({ async capture() { throw new Error('Timeout'); } }),
+        agent: null, lookupCache: both,
+      },
+    );
+    expect(out.schema.page_type).toBe('detail'); // old size rule, honestly labelled
+    expect(out.liveExamples).toBe(false);
   });
 });
 

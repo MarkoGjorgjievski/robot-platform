@@ -61,6 +61,13 @@ export type AnalysisOutcome = {
   title: string;
   schema: { page_type: string; description: string; fields: Array<CachedFieldSummary | SchemaField> };
   cached: boolean;
+  /**
+   * False when the live capture failed and everything shown (examples, and on
+   * a dual-cache domain even the page TYPE) comes from earlier runs rather
+   * than this URL. The UI must say so — on 2026-08-26 a Newegg category page
+   * silently showed a Samsung SSD's cached values as its "examples".
+   */
+  liveExamples: boolean;
 };
 
 export async function runAnalysis(
@@ -73,17 +80,17 @@ export async function runAnalysis(
   const domain = new URL(url).hostname.replace(/^www\./, '');
   const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
 
-  // Try both page types — return whichever has more cached fields.
+  // Both page types are candidates; which one THIS url is gets decided by the
+  // live page, not by which cache happens to be richer (see analyzeFromCache).
   const [detailCache, listingCache] = await Promise.all([
     lookupCache(domain, 'detail').catch(() => null),
     lookupCache(domain, 'listing').catch(() => null),
   ]);
-  const cache: DomainCache | null = detailCache && listingCache
-    ? (Object.keys(detailCache.fieldPaths).length >= Object.keys(listingCache.fieldPaths).length ? detailCache : listingCache)
-    : detailCache ?? listingCache;
+  const caches = [detailCache, listingCache]
+    .filter((c): c is DomainCache => c !== null && Object.keys(c.fieldPaths).length > 0);
 
-  if (cache && Object.keys(cache.fieldPaths).length > 0) {
-    return analyzeFromCache({ url, cache, userFields, browser, persistScreenshot });
+  if (caches.length > 0) {
+    return analyzeFromCache({ url, caches, userFields, browser, persistScreenshot });
   }
 
   // Cache miss — capture and ask the model.
@@ -115,56 +122,95 @@ export async function runAnalysis(
     title: capture.title,
     schema,
     cached: false,
+    liveExamples: true,
   };
+}
+
+/** Replay one cache's paths against a capture; how many resolve is the
+ *  evidence for whether THIS page is that cache's page type. */
+async function resolveLiveValues(
+  cache: DomainCache, capture: PageCapture, browser: IBrowser, url: string,
+): Promise<Record<string, unknown>> {
+  const fieldNames = Object.keys(cache.fieldPaths);
+  const liveValues: Record<string, unknown> = {};
+
+  const apiRes = resolveApiPathsFromCache(cache.fieldPaths, capture.interceptedRequests, fieldNames);
+  for (const [n, r] of Object.entries(apiRes.resolved)) liveValues[n] = r.value;
+
+  const stillMissing = fieldNames.filter((n) => liveValues[n] === undefined);
+  const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
+  if (cachedXPath) {
+    try {
+      const xr = await browser.evaluate<{ data: Record<string, unknown>[] }>(
+        url, cachedXPath.script, { waitUntil: 'domcontentloaded' },
+      );
+      if (xr.data.length > 0) {
+        for (const [n, v] of Object.entries(xr.data[0]!)) {
+          if (v !== null && v !== undefined && v !== '') liveValues[n] = v;
+        }
+      }
+    } catch (err) {
+      console.error('[analyze] cached XPath eval failed (non-fatal):', err);
+    }
+  }
+
+  const cr = resolveFromCache(cache.fieldPaths, liveValues, fieldNames);
+  for (const [n, r] of Object.entries(cr.resolved)) liveValues[n] = r.value;
+
+  return liveValues;
 }
 
 /**
  * Known domain: replay the cached paths against a fresh capture so the wizard
  * shows values from the page in front of the user.
  *
+ * When the domain is cached under BOTH page types, the live page casts the
+ * deciding vote: each cache's paths are replayed against the same capture and
+ * the page type whose paths actually resolve wins. Picking by cache SIZE
+ * (the old rule, now only the capture-failure fallback) called a Newegg
+ * category page "detail" because the detail cache was richer, and the wizard
+ * showed 18 detail fields with another product's stale examples (2026-08-26).
+ *
  * Every failure here is non-fatal by design — a cache hit is still worth
  * returning without live examples, and refusing to answer because a screenshot
- * timed out would be worse than answering with stale examples.
+ * timed out would be worse than answering with stale examples. But degraded
+ * answers say so: `liveExamples: false`.
  */
 async function analyzeFromCache(args: {
   url: string;
-  cache: DomainCache;
+  caches: DomainCache[];
   userFields: SchemaField[];
   browser: IBrowser;
   persistScreenshot?: AnalysisDeps['persistScreenshot'];
 }): Promise<AnalysisOutcome> {
-  const { url, cache, userFields, browser, persistScreenshot } = args;
-  const fieldNames = Object.keys(cache.fieldPaths);
+  const { url, caches, userFields, browser, persistScreenshot } = args;
   const domain = new URL(url).hostname.replace(/^www\./, '');
 
-  const liveValues: Record<string, unknown> = {};
+  const bySize = [...caches].sort(
+    (a, b) => Object.keys(b.fieldPaths).length - Object.keys(a.fieldPaths).length,
+  );
+  let cache: DomainCache = bySize[0]!;
+  let liveValues: Record<string, unknown> = {};
   let persisted: { id: string; url: string } | null = null;
+  let liveExamples = false;
 
   try {
     const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
 
-    const apiRes = resolveApiPathsFromCache(cache.fieldPaths, capture.interceptedRequests, fieldNames);
-    for (const [n, r] of Object.entries(apiRes.resolved)) liveValues[n] = r.value;
-
-    const stillMissing = fieldNames.filter((n) => liveValues[n] === undefined);
-    const cachedXPath = buildCachedXPathScript(cache.fieldPaths, stillMissing);
-    if (cachedXPath) {
-      try {
-        const xr = await browser.evaluate<{ data: Record<string, unknown>[] }>(
-          url, cachedXPath.script, { waitUntil: 'domcontentloaded' },
-        );
-        if (xr.data.length > 0) {
-          for (const [n, v] of Object.entries(xr.data[0]!)) {
-            if (v !== null && v !== undefined && v !== '') liveValues[n] = v;
-          }
-        }
-      } catch (err) {
-        console.error('[analyze] cached XPath eval failed (non-fatal):', err);
+    let bestShare = -1;
+    for (const candidate of bySize) {
+      const values = await resolveLiveValues(candidate, capture, browser, url);
+      const fieldCount = Object.keys(candidate.fieldPaths).length;
+      const share = fieldCount > 0 ? Object.keys(values).length / fieldCount : 0;
+      // Strictly-greater keeps the size order as the tiebreak: on a page where
+      // nothing resolves for either cache, the bigger cache still answers.
+      if (share > bestShare) {
+        bestShare = share;
+        cache = candidate;
+        liveValues = values;
       }
     }
-
-    const cr = resolveFromCache(cache.fieldPaths, liveValues, fieldNames);
-    for (const [n, r] of Object.entries(cr.resolved)) liveValues[n] = r.value;
+    liveExamples = true;
 
     if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
   } catch (err) {
@@ -204,5 +250,6 @@ async function analyzeFromCache(args: {
       fields: cachedFields,
     },
     cached: true,
+    liveExamples,
   };
 }
