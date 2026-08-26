@@ -41,13 +41,35 @@ falls back to whichever `xpath-cached` path STEP 1.5 ranks first, wrong value AN
 cache-hygiene gate, `pnpm typecheck`, and `pnpm --filter @robot/dashboard exec tsc --noEmit` are
 all green as of this commit.
 
-**Step 4 (live dogfood — `newegg`/`target`/`barnesandnoble`, cold-catalogue trigger, ~$0.15 +
-API spend) was explicitly NOT run.** It requires Marko's go per the task brief. Nothing in this
-session set `ANTHROPIC_API_KEY`, touched a corpus URL over the network, or wrote a catalogue to
-the database. When it does run: one extraction each against the three corpus URLs with the
-cold-catalogue trigger firing, then hand-review each resulting catalogue in the domain UI (labels
-sensible? sample values real? displayed plausible?) before enabling anything customer-facing —
-clear a bad catalogue via the refresh button rather than shipping it.
+**Step 4 (live dogfood) RAN on 2026-08-26 with Marko's go — twice, because the first run
+found a real bug.** The branch was merged to main (`703c769`) first; then:
+
+- **Run 1: all three extractions succeeded (94/92/95% confidence) and discovery wrote NOTHING,
+  silently.** Root cause (`e6bc39d`): the `record_catalogue` tool schema declared
+  `properties: {}` because a record with dynamic concept keys cannot be named in JSON schema —
+  so the model invented its own output shapes and every response sanitized to `{}` with no log
+  line. Diagnosed with a gate-instrumentation run plus a standalone discovery probe (which got
+  a third shape — a flat `candidates` wrapper). Fixed by prescribing an explicit envelope
+  (`{ concepts: [{ concept, candidates }] }`) the parser unwraps, keeping the bare record as a
+  fallback, and warning loudly when discovery returns nothing valid — the silent-empty was the
+  exact failure class the "no silent caps" rule exists for.
+- **Run 2 (post-fix): Target 14 concepts, B&N 17 concepts, catalogued and saved.** The
+  catalogues are good: Target's `price` concept holds five labelled candidates
+  (`current_price` $269, `reg_price` $299, numeric twins, and `protection_plan_price` $50 —
+  the wrong-entity class, now visible and labelled instead of silently pickable). **Newegg
+  returned "no valid candidates" both runs** — the new warning surfaces it; likely the 30KB
+  prompt slice truncating Newegg's huge API blobs so the model's paths fail the
+  fabricated-path check. Needs its own look (entity-scoping the bodies per spec §4 is the
+  probable fix); do NOT weaken the fabricated-path gate to make it pass.
+- **Displayed-verification (`verify-displayed.ts` CLI) ran on Target and B&N and hand-review
+  caught a real judge weakness:** it marked Target's `price` as
+  `displayed: protection_plan_price` — the $50 warranty add-on IS visible on the page, and the
+  judge prompt asks "what does the page show for price" without scoping to *the product's own
+  price*. **The flag was cleared by hand (`markDisplayed(..., null)`) the same hour — nothing
+  serves it.** B&N's verdicts were honest (description matched; NONE elsewhere). Before
+  displayed-verification is trusted unattended, the prompt needs product-scoping (and a
+  multi-visible-prices calibration case: the current calibration fixture never tests this).
+  Until then, treat `displayed` flags as operator-confirmed only.
 
 **Open items from the final-review fix wave (2026-08-26):** the results-table tooltip names the
 selected candidate but not the actually-serving one (the displayed-default, when it wins, is
