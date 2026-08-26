@@ -13,6 +13,25 @@ Exploratory items that aren't release-staged yet. When an idea is concrete enoug
 
 How we identify which extracted values map to which schema fields. Today's chain: exact name → alias list → suffix match in flattened API JSON → AI fallback. Real customer schemas have names that don't match the source data, so this chain misses easy wins.
 
+### 🔬 Entry-point resolution: a hub page is not the listing (Marko, 2026-08-26)
+
+Pasting `newegg.com/GPU-Video-Graphics-Device/Category/ID-38` revealed the gap: that URL is a
+**featured/hub page** — curated tiles, no real pagination — while the actual listing sits behind
+its "SHOP ALL PRODUCTS" link. Marko's framing, which is the right product shape: *the platform
+should not fight the hub page; it should find and offer the real listing entry point.*
+
+What it would look like: when a listing-mode analysis lands on a page that doesn't behave like a
+listing (few/no repeating product rows, no pagination detected, no product-bearing API), look for
+hub-to-listing links ("shop all", "view all", "see all N products", the category link carrying a
+page parameter) and propose the target URL to the user — "this looks like a hub; the full listing
+appears to be at X, use it instead?" Confirmation stays with the human; the finder can be
+heuristic first, AI fallback, same ladder as pagination detection. Fits vision Pillar 4
+(agent finds the data layer once) and reuses `scroll-probe`-style cheap verification: the
+candidate link is a real listing iff it grows/paginates.
+
+Until built, the failure mode it prevents is recorded by the 2026-08-26 incident: a hub URL run
+in detail mode produced 28% confidence and a wall of dashes.
+
 ### 🔬 Label every candidate instead of picking one ("one page, many prices")
 
 > **PREMISE CONFIRMED 2026-08-19 — but the mechanism I proposed was WRONG. See "What the fixed-path check actually found".** The idea stands and is stronger than when it was filed; the seller-rotation story behind it does not.

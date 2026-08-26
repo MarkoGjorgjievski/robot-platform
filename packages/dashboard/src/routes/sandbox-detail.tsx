@@ -74,6 +74,7 @@ export default function SandboxDetail() {
     pageType?: string;
     screenshotUrl?: string;
     cached?: boolean;
+    liveExamples?: boolean;
   } | null;
   const hasSchema = schema && Array.isArray(schema.fields) && schema.fields.length > 0;
 
@@ -82,6 +83,27 @@ export default function SandboxDetail() {
       <Header source={source} schema={schema} />
 
       {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
+
+      {hasSchema && schema.cached && schema.liveExamples === false && (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="micro-label text-amber-700">Page not captured</p>
+          <p className="mt-0.5 text-sm text-amber-900">
+            This page couldn't be loaded, so the schema, page type, and example values come from
+            earlier runs on this domain — not from this URL. They may describe a different page
+            entirely.{' '}
+            <button
+              className="font-medium text-accent-700 underline-offset-2 hover:underline"
+              onClick={() => {
+                analyzeStartedRef.current = true;
+                setError(null);
+                analyzeMutation.mutate({ slug });
+              }}
+            >
+              Re-run analyze
+            </button>
+          </p>
+        </div>
+      )}
 
       {!hasSchema && analyzeMutation.isPending && (
         <Spinner label="Capturing page and discovering schema (~30-60s)..." />

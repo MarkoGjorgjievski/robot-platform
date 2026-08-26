@@ -223,6 +223,10 @@ export const sandboxRouter = router({
         fields: result.schema.fields,
         pageType: result.schema.page_type,
         cached: result.cached,
+        // False = the capture failed: examples (and, on dual-cache domains,
+        // even the page type) come from earlier runs, not this URL. The wizard
+        // must warn rather than present them as current (2026-08-26 incident).
+        liveExamples: result.liveExamples,
         captureId: result.captureId,
         screenshotUrl: result.screenshotUrl,
       };
