@@ -10,6 +10,7 @@ type SchemaField = {
   tier?: 'requested' | 'discovered';
   example_value?: string;
   enabled?: boolean;
+  candidate?: { concept: string; label: string };
 };
 
 export function ResultsTable({
@@ -23,7 +24,9 @@ export function ResultsTable({
   fields: SchemaField[];
   headerVariant?: 'neutral' | 'celebrate';
 }) {
-  const fieldNames = fields.filter((f) => f.enabled !== false).map((f) => f.name);
+  const visibleFields = fields.filter((f) => f.enabled !== false);
+  const fieldNames = visibleFields.map((f) => f.name);
+  const candidateByName = new Map(visibleFields.map((f) => [f.name, f.candidate]));
   return (
     <div className="mt-8">
       <div className="mb-3 flex items-baseline gap-3">
@@ -51,11 +54,15 @@ export function ResultsTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50/60">
-                {fieldNames.map((name) => (
-                  <th key={name} className="px-3 py-2 text-left font-mono text-[11px] font-medium text-gray-500">
-                    {name}
-                  </th>
-                ))}
+                {fieldNames.map((name) => {
+                  const candidate = candidateByName.get(name);
+                  const title = candidate ? `${name} · ${candidate.label}` : name;
+                  return (
+                    <th key={name} title={title} className="px-3 py-2 text-left font-mono text-[11px] font-medium text-gray-500">
+                      {name}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
