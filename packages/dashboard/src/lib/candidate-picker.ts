@@ -36,6 +36,28 @@ export type PickerOption = {
 };
 
 /**
+ * Distinct hostnames touched by a dataset's sources, verbatim — including any
+ * `www.` prefix. `domain_intelligence` rows are stored keyed by the exact
+ * hostname the page was captured at (www included when the site serves from
+ * one), so stripping `www.` before querying `domains.intelligenceDetail`
+ * made a www-hosted domain's catalogue invisible to the picker (final-review
+ * fix). Any display-only normalization is a separate concern from this list.
+ * Malformed `urlTemplate`s are skipped rather than crashing the picker.
+ */
+export function sourceHostnames(sources: Array<{ urlTemplate?: string | null }>): string[] {
+  const set = new Set<string>();
+  for (const s of sources) {
+    if (!s.urlTemplate) continue;
+    try {
+      set.add(new URL(s.urlTemplate).hostname);
+    } catch {
+      // Malformed urlTemplate — skip rather than let a bad source crash the picker.
+    }
+  }
+  return [...set];
+}
+
+/**
  * The concept a schema field maps to: explicit ref first, else the field's
  * name matched against concept names (exact, then naive singular by
  * stripping a trailing "s"). Mirrors the scraper's `findConcept` in

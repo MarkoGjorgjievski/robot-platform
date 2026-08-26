@@ -49,6 +49,11 @@ cold-catalogue trigger firing, then hand-review each resulting catalogue in the 
 sensible? sample values real? displayed plausible?) before enabling anything customer-facing —
 clear a bad catalogue via the refresh button rather than shipping it.
 
+**Open items from the final-review fix wave (2026-08-26):** the results-table tooltip names the
+selected candidate but not the actually-serving one (the displayed-default, when it wins, is
+unannotated). Per-hostname selection scoping is a recorded follow-up from ruling R6 (today a
+selection applies dataset-wide, not per contributing source hostname).
+
 ## Quality/cost baseline
 
 Unrelated to the v2 crawler, but it's the number that justifies "don't start another fix-and-dogfood cycle" above: **73% of *verifiable* fields correct across the three measured domains (22 of 30). 44% of all requested fields**, the difference being values a screenshot cannot check. **Cost ~$0.47 per cold URL, ~$0.20 warm**, pipeline only. The Tier 2 judge adds ~$0.14 per URL and is not a product cost.

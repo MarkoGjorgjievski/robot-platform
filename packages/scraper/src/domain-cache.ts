@@ -499,7 +499,13 @@ export function resolveFromCache(
     if (selection && !selectedPath) {
       console.warn(`[cache] selection "${selection.concept}/${selection.label}" for field "${fieldName}" matches no catalogue candidate — serving default`);
     }
-    const displayedPath = concept?.find((c) => c.displayed === true)?.path ?? null;
+    // A pin (or a human-sourced path) must keep winning absent an explicit
+    // selection (spec §6.1/§12): `comparePaths` above already sorted it to
+    // the front, so the displayed-default hoist — which unconditionally
+    // moves its match to index 0 — must not run at all when a protected path
+    // exists, or it would bump the pin right back out of first place.
+    const hasProtectedPath = pathSet.paths.some((p) => p.pinned || p.source === 'human');
+    const displayedPath = hasProtectedPath ? null : (concept?.find((c) => c.displayed === true)?.path ?? null);
     if (displayedPath) hoist((p) => p.path === displayedPath);
     if (selectedPath) hoist((p) => p.path === selectedPath);
 
@@ -752,6 +758,15 @@ export type ExtractionOutcome = {
 };
 
 /**
+ * An extraction counts as "successful" at 30% field coverage — flexible
+ * enough for partial extractions to still enrich the cache. Named and
+ * exported so every caller that needs the cache's own definition of success
+ * (the discovery trigger in `extraction-orchestrator.ts` among them) reads
+ * this constant rather than re-deriving or hardcoding the threshold.
+ */
+export const EXTRACTION_SUCCESS_THRESHOLD = 0.3;
+
+/**
  * Save extraction results to domain intelligence.
  * Merges new paths into existing cache — never overwrites, only enriches.
  */
@@ -764,7 +779,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
   });
 
   // Success threshold: at least 30% of fields found (flexible for partial extractions)
-  const isSuccess = outcome.overallConfidence >= 0.3;
+  const isSuccess = outcome.overallConfidence >= EXTRACTION_SUCCESS_THRESHOLD;
   const now = new Date().toISOString();
 
   // Build API endpoint list

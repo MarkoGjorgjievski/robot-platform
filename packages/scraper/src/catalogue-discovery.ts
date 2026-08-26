@@ -39,13 +39,21 @@ export function parseCatalogueResponse(toolInput: unknown, evidence: CatalogueEv
   const knownPaths = new Set(evidence.fieldResults.map((f) => f.path));
   const out: CandidateCatalogue = {};
   for (const [concept, candidates] of Object.entries(clean)) {
-    const kept = candidates.filter((c) => {
-      if (knownPaths.has(c.path)) return true;
-      return evidence.apiBodies.some((body) => {
-        const v = getByDotPath(body, c.path);
-        return v !== undefined && v !== null;
-      });
-    });
+    const kept = candidates
+      .filter((c) => {
+        if (knownPaths.has(c.path)) return true;
+        return evidence.apiBodies.some((body) => {
+          const v = getByDotPath(body, c.path);
+          return v !== undefined && v !== null;
+        });
+      })
+      // `displayed`/`verifiedAt` are set only by displayed-verification
+      // (`markDisplayed`), never by discovery — a tool response that names
+      // them (a hallucinated or replayed field) must not mint them here, even
+      // though `sanitizeCatalogue` itself stays permissive about carrying
+      // them through for its OTHER caller (DB reads via `markDisplayed`'s
+      // legitimate flags flowing through `lookupDomainCache`).
+      .map(({ displayed: _displayed, verifiedAt: _verifiedAt, ...rest }) => rest);
     if (kept.length > 0) out[concept] = kept;
   }
   return out;
