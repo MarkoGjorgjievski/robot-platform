@@ -276,6 +276,71 @@ export async function pinFieldPath(input: {
 }
 
 /**
+ * Record the displayed-verification judge's verdict for one concept.
+ *
+ * Mirrors `pinFieldPath`'s read-modify-write: exactly one candidate of the
+ * concept may carry `displayed: true` (naming a new one clears it from every
+ * other candidate), and every candidate of the concept — displayed or not —
+ * is stamped with `verifiedAt` (now), since the judge looked at all of them
+ * to reach its verdict. `label: null` records that the judge ran and found
+ * no displayed candidate: only `verifiedAt` is stamped, `displayed` is
+ * cleared on every candidate.
+ *
+ * A no-op (logged, not thrown) if the domain/page type or the concept is
+ * unknown — catalogue data crosses a DB boundary and a stale caller must not
+ * take the run down. Routes the modified catalogue through
+ * `sanitizeCatalogue` before writing, same as `saveCandidateCatalogue`.
+ */
+export async function markDisplayed(
+  domain: string, pageType: string, concept: string, label: string | null,
+): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(domainIntelligence)
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ))
+    .limit(1);
+  if (!row) {
+    console.warn(`[cache] markDisplayed: no cache for ${domain}/${pageType}`);
+    return;
+  }
+
+  const catalogue = sanitizeCatalogue(row.candidateCatalogue);
+  const candidates = catalogue[concept];
+  if (!candidates || candidates.length === 0) {
+    console.warn(`[cache] markDisplayed: no concept "${concept}" for ${domain}/${pageType}`);
+    return;
+  }
+  if (label !== null && !candidates.some((c) => c.label === label)) {
+    console.warn(`[cache] markDisplayed: label "${label}" matches no candidate of "${concept}" for ${domain}/${pageType}`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  for (const c of candidates) {
+    c.displayed = label !== null && c.label === label;
+    c.verifiedAt = now;
+  }
+
+  const clean = sanitizeCatalogue(catalogue);
+  await db
+    .update(domainIntelligence)
+    .set({ candidateCatalogue: clean, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ));
+
+  console.log(
+    label === null
+      ? `[cache] displayed-verification for ${domain}/${pageType} concept "${concept}": none displayed`
+      : `[cache] displayed-verification for ${domain}/${pageType} concept "${concept}": ${label}`,
+  );
+}
+
+/**
  * The page-type partition a pagination config belongs to. Pagination is a
  * property of listing pages; a detail page has none.
  */
