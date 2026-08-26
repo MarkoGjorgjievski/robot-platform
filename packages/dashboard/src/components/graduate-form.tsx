@@ -62,7 +62,7 @@ export function GraduateForm({ sandboxSlug, defaultSourceName, onCancel }: Props
   // Project dropdown options — query existing non-sandbox projects
   const projectsQuery = trpc.projects.list.useQuery();
   const availableProjects = useMemo(
-    () => (projectsQuery.data ?? []).filter((p) => p.slug !== 'sandbox'),
+    () => (projectsQuery.data ?? []).filter((p) => p.slug !== 'scratch'),
     [projectsQuery.data],
   );
 

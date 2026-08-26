@@ -88,9 +88,6 @@ export const sources = pgTable('sources', {
   variant: varchar('variant', { length: 50 }).notNull().default('default'),
   parameters: jsonb('parameters').notNull().default({}),
   isActive: boolean('is_active').default(true).notNull(),
-  // Set when a human confirmed this source's probe run looked right (spec §3).
-  // Null = unconfirmed: the first Extract probes the first input and gates.
-  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   // AI scraper fields
   sourceType: varchar('source_type', { length: 20 }).default('legacy'),
   urlPattern: text('url_pattern'),
@@ -103,6 +100,9 @@ export const sources = pgTable('sources', {
   listingMode: varchar('listing_mode', { length: 20 }),
   budget: jsonb('budget').notNull().default({}),
   isSandbox: boolean('is_sandbox').notNull().default(false),
+  // Set when a human confirmed this source's probe run looked right (spec §3).
+  // Null = unconfirmed: the first Extract probes the first input and gates.
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   inputSetId: uuid('input_set_id').references(() => inputSets.id, { onDelete: 'set null' }),
   aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
