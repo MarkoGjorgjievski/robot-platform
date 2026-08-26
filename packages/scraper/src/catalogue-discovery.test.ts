@@ -88,5 +88,35 @@ describe('buildCataloguePrompt', () => {
     expect(prompt).toContain('price-current');
     expect(prompt).toContain('snake_case');   // concept naming rule
     expect(prompt).toContain('meaning');      // "label the meaning, never the path"
+    expect(prompt).toContain('sampleValue short'); // output-budget rule (Newegg truncation, 2026-08-26)
+  });
+
+  // The 2026-08-26 Newegg diagnosis: one 30KB slice over ALL bodies cut the
+  // FIRST body mid-JSON (it alone was 37KB), so the model saw broken evidence.
+  // Bodies are now serialized individually under per-body and total budgets,
+  // with bodies that the extraction's own api paths resolve against first.
+  it('serializes bodies separately, product-bearing bodies first', () => {
+    const junk = { widget: 'w'.repeat(50) };
+    const product = { MainItem: { OriginalUnitPrice: 679.99, BodyOnlyMarker: 'zqx1' } };
+    const prompt = buildCataloguePrompt({
+      ...evidence,
+      apiBodies: [junk, product],
+      fieldResults: [{ name: 'price', value: 679.99, source: 'api', path: 'MainItem.OriginalUnitPrice' }],
+    });
+    const productAt = prompt.indexOf('zqx1');
+    const junkAt = prompt.indexOf('wwww');
+    expect(productAt).toBeGreaterThan(-1);
+    expect(junkAt).toBeGreaterThan(-1);
+    expect(productAt).toBeLessThan(junkAt);
+  });
+
+  it('a single oversized body cannot break the others out of the prompt', () => {
+    const huge = { blob: 'h'.repeat(60_000) };
+    const product = { MainItem: { OriginalUnitPrice: 679.99 } };
+    const prompt = buildCataloguePrompt({ ...evidence, apiBodies: [huge, product] });
+    // The small product body survives intact even though the huge one exceeds
+    // any single-slice budget on its own.
+    expect(prompt).toContain('OriginalUnitPrice');
+    expect(prompt.length).toBeLessThan(60_000);
   });
 });

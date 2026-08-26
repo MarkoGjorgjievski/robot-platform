@@ -9,18 +9,54 @@ export type CatalogueEvidence = {
   fieldResults: Array<{ name: string; value: unknown; source: string; path: string }>;
 };
 
+/** Per-body and whole-section budgets for the API evidence (chars). One slice
+ *  over ALL bodies cut Newegg's first 37KB body mid-JSON (2026-08-26) — the
+ *  model was labelling broken evidence. Bodies are serialized individually,
+ *  product-bearing ones first, and a body that cannot fit whole is dropped
+ *  with a note rather than truncated into invalid JSON. */
+const PER_BODY_CHAR_BUDGET = 12_000;
+const API_SECTION_CHAR_BUDGET = 30_000;
+
 export function buildCataloguePrompt(evidence: CatalogueEvidence): string {
+  // Product-bearing bodies (ones the extraction's own api paths resolve
+  // against) go first — they are the evidence the catalogue is FOR; widget
+  // and telemetry bodies ride along only if budget remains.
+  const apiPaths = evidence.fieldResults.filter((f) => f.source === 'api' || f.source === 'api-ai').map((f) => f.path);
+  const ranked = [...evidence.apiBodies].sort((a, b) => {
+    const hits = (body: unknown) => apiPaths.filter((p) => {
+      const v = getByDotPath(body, p);
+      return v !== undefined && v !== null;
+    }).length;
+    return hits(b) - hits(a);
+  });
+
+  const bodySections: string[] = [];
+  let spent = 0;
+  let dropped = 0;
+  for (const body of ranked) {
+    const serialized = JSON.stringify(body);
+    if (serialized === undefined) continue;
+    if (serialized.length > PER_BODY_CHAR_BUDGET || spent + serialized.length > API_SECTION_CHAR_BUDGET) {
+      dropped++;
+      continue;
+    }
+    bodySections.push(serialized);
+    spent += serialized.length;
+  }
+  if (dropped > 0) bodySections.push(`(${dropped} additional response body/bodies omitted for size)`);
+
   return [
     'You are cataloguing what this product page CAN yield, per concept.',
     'Group value-bearing paths into concepts (snake_case singular: price, rating, review_count, image).',
     'Label each candidate by its meaning, never its path: "list", "range_min", "promo", "yotpo".',
     'Only use paths that appear in the evidence below. Never invent a path.',
     'A candidate may carry scope facts (e.g. {"seller": "MobileMonster"}, {"system": "yotpo"}).',
+    'Keep every sampleValue short: truncate long text to at most ~100 characters.',
     '',
     '## Extraction results (paths the pipeline already used)',
     JSON.stringify(evidence.fieldResults, null, 2),
-    '## API bodies (dot-paths resolve against these)',
-    JSON.stringify(evidence.apiBodies).slice(0, 30_000),
+    '## API bodies (dot-paths resolve against these; each line is one complete body)',
+    ...bodySections,
     '## JSON-LD',
     JSON.stringify(evidence.jsonLdBlocks).slice(0, 10_000),
     '## Meta tags',
@@ -141,6 +177,10 @@ export async function discoverCandidateCatalogue(
       system: 'You catalogue what a product page can yield, per concept, from the evidence you are given.',
       tool: recordCatalogueTool,
       userText: buildCataloguePrompt(evidence),
+      // A rich page's catalogue (Newegg: 18 fields) overran the 4096 default
+      // and the truncated tool_use parsed as {} — silently, before the
+      // provider learned to throw on max_tokens (2026-08-26).
+      maxTokens: 8192,
     });
     return parseCatalogueResponse(toolInput, evidence);
   } catch (err) {

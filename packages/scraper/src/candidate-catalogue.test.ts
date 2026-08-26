@@ -33,6 +33,27 @@ describe('sanitizeCatalogue', () => {
     expect(out.price![0]!.path).toBe('MainItem.list');
   });
 
+  it('caps an oversized string sampleValue', () => {
+    const out = sanitizeCatalogue({ price: [cand('list', { sampleValue: 'x'.repeat(500) })] });
+    const v = out.price![0]!.sampleValue as string;
+    expect(v.length).toBeLessThanOrEqual(161);
+    expect(v.endsWith('…')).toBe(true);
+  });
+
+  it('caps an oversized object sampleValue by stringifying and truncating', () => {
+    const big = { spec: 'y'.repeat(500), more: 'z'.repeat(500) };
+    const out = sanitizeCatalogue({ price: [cand('list', { sampleValue: big })] });
+    const v = out.price![0]!.sampleValue as string;
+    expect(typeof v).toBe('string');
+    expect(v.length).toBeLessThanOrEqual(161);
+  });
+
+  it('leaves small sampleValues untouched, whatever their type', () => {
+    const out = sanitizeCatalogue({ price: [cand('a', { sampleValue: 679.99 }), cand('b', { sampleValue: { seller: 'X' } })] });
+    expect(out.price![0]!.sampleValue).toBe(679.99);
+    expect(out.price![1]!.sampleValue).toEqual({ seller: 'X' });
+  });
+
   it('keeps displayed on at most one candidate per concept (first wins)', () => {
     const out = sanitizeCatalogue({
       price: [cand('a', { displayed: true }), cand('b', { displayed: true })],

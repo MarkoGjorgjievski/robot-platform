@@ -35,6 +35,27 @@ export type CandidateCatalogue = Record<ConceptName, Candidate[]>;
 export const MAX_CANDIDATES_PER_CONCEPT = 8;
 
 /**
+ * sampleValue is display-only, never served — but unbounded it is dangerous
+ * twice over: it bloats jsonb rows and tRPC payloads, and when the DISCOVERY
+ * model echoes a huge value back (Newegg's `specifications`, 2026-08-26) the
+ * tool response blows the output-token budget, truncates, and parses as {}.
+ */
+export const MAX_SAMPLE_VALUE_CHARS = 160;
+
+function capSampleValue(value: unknown): unknown {
+  if (typeof value === 'string') {
+    return value.length > MAX_SAMPLE_VALUE_CHARS ? `${value.slice(0, MAX_SAMPLE_VALUE_CHARS)}…` : value;
+  }
+  if (value !== null && typeof value === 'object') {
+    const serialized = JSON.stringify(value);
+    if (serialized !== undefined && serialized.length > MAX_SAMPLE_VALUE_CHARS) {
+      return `${serialized.slice(0, MAX_SAMPLE_VALUE_CHARS)}…`;
+    }
+  }
+  return value;
+}
+
+/**
  * Never throws: catalogue data crosses an AI boundary and a DB boundary, and a
  * malformed entry must cost the entry, not the extraction.
  */
@@ -55,7 +76,7 @@ export function sanitizeCatalogue(raw: unknown): CandidateCatalogue {
       if (seen.has(c.label)) continue;
       seen.add(c.label);
       const candidate: Candidate = {
-        label: c.label, source: c.source, path: c.path, sampleValue: c.sampleValue,
+        label: c.label, source: c.source, path: c.path, sampleValue: capSampleValue(c.sampleValue),
       };
       if (c.scope && typeof c.scope === 'object' && !Array.isArray(c.scope)) {
         candidate.scope = c.scope as Record<string, string>;

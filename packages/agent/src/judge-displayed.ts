@@ -10,15 +10,30 @@ import { recordUsage } from './usage.js';
  */
 export type DisplayedCandidate = { label: string; value: unknown };
 
-const SYSTEM = `You judge which candidate value, if any, a webpage screenshot visibly displays to a shopper. You are shown a screenshot of the page, the concept, and a list of labelled candidate values. Reply with EXACTLY \`DISPLAYED: <label>\` naming the one candidate whose value the page visibly shows, or \`DISPLAYED: NONE\` if none of the candidates is what the page shows. No explanation.`;
+const SYSTEM = `You judge which candidate value, if any, a webpage screenshot visibly displays to a shopper for the MAIN PRODUCT on the page. You are shown a screenshot of the page, the concept, and a list of labelled candidate values. Reply with EXACTLY \`DISPLAYED: <label>\` naming the one candidate whose value the page visibly shows for the main product itself, or \`DISPLAYED: NONE\` if none of the candidates is what the page shows for it. No explanation.`;
 
 /**
  * The prompt offering every candidate and demanding the DISPLAYED: sentinel.
  * Pure — no network, no client.
+ *
+ * The main-product scoping is load-bearing: on 2026-08-26 the unscoped
+ * question marked Target's displayed price as the $50 protection-plan add-on,
+ * which IS visible on the page — a wrong-entity value the vision check exists
+ * to rule out, not to certify.
  */
 export function buildDisplayedPrompt(concept: string, candidates: DisplayedCandidate[]): string {
   const lines = candidates.map((c) => `- ${c.label}: ${JSON.stringify(c.value)}`).join('\n');
-  return `Which of these candidate values, if any, is what this page visibly shows a shopper for ${concept}?\n\n${lines}\n\nAnswer exactly \`DISPLAYED: <label>\` or \`DISPLAYED: NONE\`.`;
+  return [
+    `Which of these candidate values, if any, is what this page visibly shows a shopper for the main product's ${concept}?`,
+    '',
+    lines,
+    '',
+    'Only the main product counts. A value belonging to a protection plan, warranty, accessory,',
+    'bundle, add-on, shipping offer, or another product on the page is NOT the answer, even when visible.',
+    'If only such values match, answer NONE.',
+    '',
+    'Answer exactly `DISPLAYED: <label>` or `DISPLAYED: NONE`.',
+  ].join('\n');
 }
 
 /**
