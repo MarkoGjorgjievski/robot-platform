@@ -16,7 +16,7 @@ import type { CandidateCatalogue } from './candidate-catalogue.js';
 function makeCapture(overrides: Partial<PageCapture> = {}): PageCapture {
   return {
     url: 'https://example.com/p/1',
-    html: '<html><body></body></html>',
+    html: '<html><body><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></body></html>',
     markdown: '',
     screenshot: Buffer.alloc(0),
     screenshotTiles: [],
@@ -194,7 +194,7 @@ describe('v2.5 selection/displayed serving through the real pipeline (task 7 fix
     // proves the override actually replaces mechanical's value, not just
     // that it resolves alongside it.
     const capture = makeCapture({
-      html: '<html><body><span id="marquee-price">19.99</span></body></html>',
+      html: '<html><body><span id="marquee-price">19.99</span><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></body></html>',
       structuredData: { ldJson: [{ offers: { price: 24.99 } }], nextData: null, initialState: null, meta: {} },
       interceptedRequests: [],
     });

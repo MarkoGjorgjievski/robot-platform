@@ -16,7 +16,7 @@ import { runExtraction } from './extraction-orchestrator.js';
 function captureWith(ldJson: Record<string, unknown>): PageCapture {
   return {
     url: 'https://example.com/p/1',
-    html: '<html><body><main><h1>Widget</h1><p>Max Sequential Read: Up to 14700 MBps</p></main></body></html>',
+    html: '<html><body><main><h1>Widget</h1><p>Max Sequential Read: Up to 14700 MBps</p><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></main></body></html>',
     markdown: '',
     screenshot: Buffer.alloc(0),
     screenshotTiles: [],

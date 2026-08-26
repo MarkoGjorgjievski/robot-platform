@@ -227,6 +227,9 @@ export const sandboxRouter = router({
         // even the page type) come from earlier runs, not this URL. The wizard
         // must warn rather than present them as current (2026-08-26 incident).
         liveExamples: result.liveExamples,
+        // Set when the site served a bot-check/error interstitial instead of
+        // the page — the wizard names it (second 2026-08-26 incident).
+        blockedReason: result.blockedReason ?? null,
         captureId: result.captureId,
         screenshotUrl: result.screenshotUrl,
       };

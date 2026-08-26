@@ -11,7 +11,7 @@ import type { DomainCache, FieldPathSet } from './domain-cache.js';
 
 const CAPTURE: PageCapture = {
   url: 'https://shop.example.com/p/1',
-  html: '<html><body><main><h1>Widget</h1></main></body></html>',
+  html: '<html><body><main><h1>Widget</h1><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></main></body></html>',
   markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [],
   title: 'Widget', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
@@ -170,6 +170,37 @@ describe('runAnalysis — a domain cached under BOTH page types', () => {
     );
     expect(out.schema.page_type).toBe('detail'); // old size rule, honestly labelled
     expect(out.liveExamples).toBe(false);
+  });
+});
+
+describe('runAnalysis — blocked page', () => {
+  // 2026-08-26, second incident: Newegg served a Cloudflare "verify you are
+  // human" interstitial. The capture SUCCEEDED mechanically, so the page voted
+  // on its own page type (nothing resolved, size-fallback picked detail) and
+  // stale examples shipped with liveExamples: true. A block page is not
+  // evidence about the page — it is a reason, and the reason must surface.
+  const BLOCKED: PageCapture = {
+    ...CAPTURE,
+    title: 'Just a moment',
+    html: '<html><body>Our system have detected unusual traffic. Verify you are human. Ray ID a312c62f. cloudflare</body></html>',
+  };
+
+  it('a cached domain reports the block, keeps stale examples flagged, and does not let the block page vote', async () => {
+    const out = await runAnalysis(
+      { url: CAPTURE.url },
+      { browser: stubBrowser({ async capture() { return BLOCKED; } }), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
+    );
+    expect(out.cached).toBe(true);
+    expect(out.liveExamples).toBe(false);
+    expect(out.blockedReason).toMatch(/human|cloudflare|block/i);
+  });
+
+  it('an unknown domain fails loudly instead of asking the model to describe a block page', async () => {
+    const agent = { async discoverSchema() { throw new Error('must not be called'); } };
+    await expect(runAnalysis(
+      { url: 'https://unknown.example.com/p/1' },
+      { browser: stubBrowser({ async capture() { return BLOCKED; } }), agent: agent as never, lookupCache: async () => null },
+    )).rejects.toThrow(/human|cloudflare|block/i);
   });
 });
 
