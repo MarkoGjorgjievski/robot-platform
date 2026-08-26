@@ -14,6 +14,8 @@ export type OriginField = {
   /** Which InputSet column supplies this field, when origin is 'input'. */
   input_column?: string;
   enabled?: boolean;
+  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
+  candidate?: { concept: string; label: string };
 };
 
 export type PartitionedSchema = {

@@ -17,6 +17,8 @@ const fieldInputSchema = z.object({
   source: z.string().optional(),
   api_path: z.string().optional(),
   example_value: z.string().optional(),
+  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
+  candidate: z.object({ concept: z.string().min(1), label: z.string().min(1) }).optional(),
 });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
