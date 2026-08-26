@@ -89,6 +89,9 @@ describe('buildCataloguePrompt', () => {
     expect(prompt).toContain('snake_case');   // concept naming rule
     expect(prompt).toContain('meaning');      // "label the meaning, never the path"
     expect(prompt).toContain('sampleValue short'); // output-budget rule (Newegg truncation, 2026-08-26)
+    // Conflict suppression only engages when every disagreeing path is
+    // labelled — so the extraction's own paths must all be catalogued.
+    expect(prompt).toContain('every path listed under Extraction results');
   });
 
   // The 2026-08-26 Newegg diagnosis: one 30KB slice over ALL bodies cut the

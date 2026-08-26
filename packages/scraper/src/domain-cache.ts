@@ -184,6 +184,13 @@ export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>, ca
     );
     if (withValues.length < 2) continue;
 
+    // A pin (or a human-sourced path) IS the operator's ruling on this exact
+    // disagreement: the protected path serves, the losers are kept for the
+    // record. Reporting it as a live conflict after the ruling tells the
+    // operator their pin did nothing (2026-08-26: Newegg image_url stayed red
+    // after being pinned). Unpinning re-arms the report.
+    if (withValues.some(isProtectedPath)) continue;
+
     // Same-page observations only: two paths last exercised on different URLs
     // are telling you about staleness, not disagreement (triage class 4,
     // 2026-08-25 — AbeBooks' api path and xpath path held titles of two
