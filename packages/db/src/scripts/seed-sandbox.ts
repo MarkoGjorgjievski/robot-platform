@@ -1,8 +1,8 @@
 import { db, orgs, projects } from '../index.js';
 import { eq, and } from 'drizzle-orm';
 
-const SANDBOX_SLUG = 'sandbox';
-const SANDBOX_NAME = 'Sandbox';
+const SANDBOX_SLUG = 'scratch';
+const SANDBOX_NAME = 'Scratch';
 const DEFAULT_ORG_SLUG = 'default';
 const DEFAULT_ORG_NAME = 'Default';
 
