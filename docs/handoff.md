@@ -76,6 +76,34 @@ selected candidate but not the actually-serving one (the displayed-default, when
 unannotated). Per-hostname selection scoping is a recorded follow-up from ruling R6 (today a
 selection applies dataset-wide, not per contributing source hostname).
 
+**Follow-up session, same day: Newegg discovery fixed, judge scoped, conflicts triaged (2026-08-26).**
+- **Newegg discovery empty — root-caused and fixed (`1cccc60`), live-proven (5 concepts saved).**
+  It was output-side truncation: the catalogue tool call ran at the 4096 default max_tokens, a
+  rich page overran it, and a truncated tool_use parses as `{}`. `callWithTool` now throws on
+  `stop_reason: max_tokens` (an absent answer must never impersonate an empty one — check this
+  on every new tool), the catalogue call gets 8192, `sampleValue` is capped at 160 chars in the
+  sanitizer, and API evidence is serialized per body (product-bearing first) instead of one
+  30KB slice that used to cut Newegg's first 37KB body mid-JSON.
+- **Displayed judge scoped to the main product (`1cccc60`).** The prompt now names the
+  wrong-entity values that don't count even when visible (protection plans, accessories,
+  bundles…); the calibration fixture carries a visible $9.99 protection-plan distractor and the
+  gated case fails if the scoping regresses. `pnpm test:judge` in hand. Target/B&N `displayed`
+  flags can be re-verified with `verify-displayed.ts` when screenshots are next in hand.
+- **Conflict panels ("large red areas") triaged, 18 → 15 (`e6c3a79`).** Two mechanical rules
+  landed: a conflict whose paths include a pinned/human path no longer reports (the pin IS the
+  operator's ruling; unpinning re-arms it), and discovery is told to label every
+  extraction-used path. Newegg listing `detail_url`'s junk XPaths were resolved by pinning
+  `.//a[@class="item-title"]/@href`. **The remaining 15 are honest**: 1 stale cross-page
+  artifact (AbeBooks `product_name`, self-heals on its next crawl once `lastUrl` stamps), and
+  ~14 genuine same-page multi-valid disagreements (rating systems, granularities, phrasings)
+  that stay red until their paths are labelled. **The structural gap, recorded as the next
+  increment (do not drive-by):** discovery's evidence carries only each field's WINNING path,
+  so the cache's other disagreeing paths cannot be labelled; and `parseCatalogueResponse`
+  validates candidate paths only against api bodies + used paths, not against json-ld/meta
+  evidence. Extending the evidence with the cached per-field paths (+ their lastValues) and
+  teaching the validator to resolve json-ld/meta paths would let the labelled-different
+  suppression clear most of the remaining panels.
+
 ## Quality/cost baseline
 
 Unrelated to the v2 crawler, but it's the number that justifies "don't start another fix-and-dogfood cycle" above: **73% of *verifiable* fields correct across the three measured domains (22 of 30). 44% of all requested fields**, the difference being values a screenshot cannot check. **Cost ~$0.47 per cold URL, ~$0.20 warm**, pipeline only. The Tier 2 judge adds ~$0.14 per URL and is not a product cost.
