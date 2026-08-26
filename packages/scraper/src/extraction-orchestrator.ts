@@ -18,7 +18,7 @@
 // Deliberately transport-agnostic: it throws plain Errors and knows nothing about
 // tRPC. Mapping failures onto TRPCError stays in the router.
 
-import type { PageCapture, IBrowser } from '@robot/browser';
+import { checkPageHealth, type PageCapture, type IBrowser } from '@robot/browser';
 import type { SchemaField, ExtractionPlan } from '@robot/agent';
 import { buildExtractionScript } from './executor.js';
 import { extractFromStructuredData } from './structured-extractor.js';
@@ -172,6 +172,16 @@ export async function runExtraction(
       capture = deps.capture;
     } else {
       capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
+    }
+
+    // Extracting a bot-check interstitial produces a confident wall of
+    // nothing (2026-08-26: Newegg's Cloudflare page, 1 row, 28% confidence,
+    // all dashes). checkPageHealth existed since v1.0 but was wired only into
+    // the legacy pipeline — a blocked page now fails the run WITH its reason,
+    // which is what run status and the sandbox error banner display.
+    const health = checkPageHealth(capture.html, capture.title, capture.url ?? url);
+    if (!health.healthy) {
+      throw new Error(`Page blocked or unusable: ${health.reason}`);
     }
 
     const schemaFields: SchemaField[] = fields.map((f) => ({

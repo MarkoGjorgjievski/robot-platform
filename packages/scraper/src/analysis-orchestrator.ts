@@ -16,7 +16,7 @@
 // Screenshot persistence is injected: where captures live is an api-server concern
 // (CAPTURES_DIR), not something the scraper should decide.
 
-import type { IBrowser, PageCapture } from '@robot/browser';
+import { checkPageHealth, type IBrowser, type PageCapture } from '@robot/browser';
 import type { DiscoveredSchema, SchemaField } from '@robot/agent';
 import {
   lookupDomainCache, resolveApiPathsFromCache, resolveFromCache,
@@ -68,6 +68,12 @@ export type AnalysisOutcome = {
    * silently showed a Samsung SSD's cached values as its "examples".
    */
   liveExamples: boolean;
+  /**
+   * Set when the capture came back but was a bot-check / error interstitial
+   * (checkPageHealth). A block page is a reason, never evidence: it must not
+   * vote on the page type and its "values" must not be shown as this page's.
+   */
+  blockedReason?: string;
 };
 
 export async function runAnalysis(
@@ -99,6 +105,13 @@ export async function runAnalysis(
   const capture: PageCapture = await browser.capture(
     url, { waitUntil: 'networkidle', interceptNetworkRequests: true },
   );
+
+  // A model asked to describe a bot-check interstitial will confidently
+  // describe a bot-check interstitial. Refuse with the reason instead.
+  const health = checkPageHealth(capture.html, capture.title, url);
+  if (!health.healthy) {
+    throw new Error(`Cannot analyze ${url}: ${health.reason}`);
+  }
 
   const persisted = persistScreenshot ? await persistScreenshot(capture.screenshot) : null;
   const schema = await agent.discoverSchema(capture, userFields.length > 0 ? userFields : undefined);
@@ -193,26 +206,38 @@ async function analyzeFromCache(args: {
   let liveValues: Record<string, unknown> = {};
   let persisted: { id: string; url: string } | null = null;
   let liveExamples = false;
+  let blockedReason: string | undefined;
 
   try {
     const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
 
-    let bestShare = -1;
-    for (const candidate of bySize) {
-      const values = await resolveLiveValues(candidate, capture, browser, url);
-      const fieldCount = Object.keys(candidate.fieldPaths).length;
-      const share = fieldCount > 0 ? Object.keys(values).length / fieldCount : 0;
-      // Strictly-greater keeps the size order as the tiebreak: on a page where
-      // nothing resolves for either cache, the bigger cache still answers.
-      if (share > bestShare) {
-        bestShare = share;
-        cache = candidate;
-        liveValues = values;
+    // A bot-check interstitial captures "successfully" and then poisons
+    // everything downstream: nothing resolves, the size fallback picks a page
+    // type, and stale examples ship looking live (2026-08-26, Newegg /p/pl).
+    // The screenshot IS still persisted — seeing the block page is how the
+    // operator understands what happened.
+    const health = checkPageHealth(capture.html, capture.title, url);
+    if (!health.healthy) {
+      blockedReason = health.reason;
+      if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
+    } else {
+      let bestShare = -1;
+      for (const candidate of bySize) {
+        const values = await resolveLiveValues(candidate, capture, browser, url);
+        const fieldCount = Object.keys(candidate.fieldPaths).length;
+        const share = fieldCount > 0 ? Object.keys(values).length / fieldCount : 0;
+        // Strictly-greater keeps the size order as the tiebreak: on a page where
+        // nothing resolves for either cache, the bigger cache still answers.
+        if (share > bestShare) {
+          bestShare = share;
+          cache = candidate;
+          liveValues = values;
+        }
       }
-    }
-    liveExamples = true;
+      liveExamples = true;
 
-    if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
+      if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
+    }
   } catch (err) {
     console.error('[analyze] capture failed (non-fatal, showing cache without live values):', err);
   }
@@ -251,5 +276,6 @@ async function analyzeFromCache(args: {
     },
     cached: true,
     liveExamples,
+    blockedReason,
   };
 }

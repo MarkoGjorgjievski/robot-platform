@@ -20,7 +20,7 @@ import { runExtraction } from './extraction-orchestrator.js';
 function makeCapture(url: string): PageCapture {
   return {
     url,
-    html: '<html><body><h1>Widget</h1></body></html>',
+    html: '<html><body><h1>Widget</h1><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></body></html>',
     markdown: '',
     screenshot: Buffer.alloc(0),
     screenshotTiles: [],

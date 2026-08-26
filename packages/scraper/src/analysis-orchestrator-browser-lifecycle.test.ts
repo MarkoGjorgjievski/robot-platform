@@ -18,7 +18,7 @@ import type { DomainCache, FieldPathSet } from './domain-cache.js';
 
 const CAPTURE: PageCapture = {
   url: 'https://shop.example.com/p/1',
-  html: '<html><body><main><h1>Widget</h1></main></body></html>',
+  html: '<html><body><main><h1>Widget</h1><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></main></body></html>',
   markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [],
   title: 'Widget', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },

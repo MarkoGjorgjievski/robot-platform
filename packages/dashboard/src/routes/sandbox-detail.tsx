@@ -75,6 +75,7 @@ export default function SandboxDetail() {
     screenshotUrl?: string;
     cached?: boolean;
     liveExamples?: boolean;
+    blockedReason?: string | null;
   } | null;
   const hasSchema = schema && Array.isArray(schema.fields) && schema.fields.length > 0;
 
@@ -86,11 +87,23 @@ export default function SandboxDetail() {
 
       {hasSchema && schema.cached && schema.liveExamples === false && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
-          <p className="micro-label text-amber-700">Page not captured</p>
+          <p className="micro-label text-amber-700">
+            {schema.blockedReason ? 'Site blocked this request' : 'Page not captured'}
+          </p>
           <p className="mt-0.5 text-sm text-amber-900">
-            This page couldn't be loaded, so the schema, page type, and example values come from
-            earlier runs on this domain — not from this URL. They may describe a different page
-            entirely.{' '}
+            {schema.blockedReason ? (
+              <>
+                {schema.blockedReason} The site is refusing automated requests from this machine
+                right now (its screenshot shows the block page). The schema and examples below come
+                from earlier runs on this domain — not this URL. Wait ~10 minutes and{' '}
+              </>
+            ) : (
+              <>
+                This page couldn't be loaded, so the schema, page type, and example values come from
+                earlier runs on this domain — not from this URL. They may describe a different page
+                entirely.{' '}
+              </>
+            )}
             <button
               className="font-medium text-accent-700 underline-offset-2 hover:underline"
               onClick={() => {
@@ -99,8 +112,9 @@ export default function SandboxDetail() {
                 analyzeMutation.mutate({ slug });
               }}
             >
-              Re-run analyze
+              re-run analyze
             </button>
+            .
           </p>
         </div>
       )}
