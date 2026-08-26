@@ -96,16 +96,19 @@ describe.skipIf(!ENABLED)('Displayed-candidate judge calibration (live, paid)', 
     expect(apiKey, 'ANTHROPIC_API_KEY required for judge calibration').not.toBe('');
     const png = screenshot();
 
-    // Known answer against __fixtures__/judge-calibration/page.html: it shows
-    // exactly one price, $79.99. "was" is a plausible strike-through list price
-    // this page does not have — the judge must not pick it just because it is
-    // a bigger, more "typical" number.
+    // Known answer against __fixtures__/judge-calibration/page.html: the
+    // product's price is $79.99. "was" is a plausible strike-through list
+    // price this page does not have; "protection_plan" is $9.99 and IS
+    // visible on the page — as an add-on, not the product's price. The 2026-08-26
+    // Target dogfood proved an unscoped judge picks exactly that kind of
+    // wrong-entity value; this case fails if the scoping ever regresses.
     const label = await judgeDisplayedCandidate({
       screenshot: png,
       concept: 'price',
       candidates: [
         { label: 'current', value: 79.99 },
         { label: 'was', value: 129.99 },
+        { label: 'protection_plan', value: 9.99 },
       ],
       apiKey,
     });

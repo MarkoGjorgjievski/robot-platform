@@ -52,6 +52,18 @@ export class AnthropicProvider {
         const response = await this.client.messages.create(params);
         recordUsage(this.model, response.usage);
 
+        // A response cut off at max_tokens can still carry a tool_use block
+        // whose input parses as {} — which reads as "the model answered
+        // nothing" when the truth is "the answer did not fit". Newegg's
+        // catalogue discovery failed exactly this way, three runs in a row,
+        // with no symptom but an absence (2026-08-26). Truncation is an
+        // error, never an empty answer.
+        if (response.stop_reason === 'max_tokens') {
+          throw new Error(
+            `${options.tool.name} failed: response truncated at max_tokens=${params.max_tokens} — raise maxTokens or shrink the requested output`,
+          );
+        }
+
         const toolBlock = response.content.find(b => b.type === 'tool_use');
         if (!toolBlock || toolBlock.type !== 'tool_use') {
           throw new Error(`${options.tool.name} failed: no tool_use in response`);
