@@ -47,7 +47,7 @@ export async function extractItem(
     {
       url: item.url,
       pageType: 'detail',
-      fields: partitions.detail.map((f) => ({ name: f.name, type: f.type })),
+      fields: partitions.detail.map((f) => ({ name: f.name, type: f.type, candidate: f.candidate })),
     },
     { browser: deps.browser, agent: deps.agent, discoverCatalogue },
   );

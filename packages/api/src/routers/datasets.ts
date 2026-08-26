@@ -11,6 +11,8 @@ export const datasetSchemaFieldSchema = z.object({
   description: z.string().optional(),
   origin: z.enum(['detail', 'listing', 'input', 'system']).optional(),
   input_column: z.string().optional(),
+  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
+  candidate: z.object({ concept: z.string().min(1), label: z.string().min(1) }).optional(),
 });
 
 export const datasetsRouter = router({

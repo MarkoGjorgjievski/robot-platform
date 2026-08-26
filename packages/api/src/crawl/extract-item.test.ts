@@ -44,6 +44,27 @@ describe('extractItem', () => {
     expect(requestedFields).toEqual(['title']);
   });
 
+  it('carries a detail field\'s candidate ref through to the extraction request', async () => {
+    const schemaWithCandidate = [
+      { name: 'title', type: 'string', origin: 'detail' as const },
+      {
+        name: 'price', type: 'number', origin: 'detail' as const,
+        candidate: { concept: 'price', label: 'list' },
+      },
+    ];
+    let requestedFields: Array<{ name: string; candidate?: { concept: string; label: string } }> = [];
+    await extractItem(fakeDb, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: schemaWithCandidate,
+      extract: async (request) => {
+        requestedFields = request.fields;
+        return { data: [{ title: 'Kallax', price: 49 }], plan: null, confidence: 0.9, sources: {},
+          fieldCount: { found: 2, total: 2 }, fieldsByTier: { requested: [], discovered: [] }, cacheHit: false };
+      },
+    });
+    const priceField = requestedFields.find((f) => f.name === 'price');
+    expect(priceField?.candidate).toEqual({ concept: 'price', label: 'list' });
+  });
+
   it('merges the detail row with what the listing and the input already knew', async () => {
     const result = await extractItem(fakeDb, ITEM, {
       browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: SCHEMA,

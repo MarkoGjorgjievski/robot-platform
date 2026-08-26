@@ -23,4 +23,22 @@ describe('datasetSchemaFieldSchema', () => {
     });
     expect(parsed.input_column).toBe('customer_name');
   });
+
+  it('accepts a field with a candidate ref', () => {
+    const parsed = datasetSchemaFieldSchema.parse({
+      name: 'price', type: 'number', candidate: { concept: 'price', label: 'list' },
+    });
+    expect(parsed.candidate).toEqual({ concept: 'price', label: 'list' });
+  });
+
+  it('rejects a candidate with an empty concept', () => {
+    expect(() => datasetSchemaFieldSchema.parse({
+      name: 'price', type: 'number', candidate: { concept: '', label: 'list' },
+    })).toThrow();
+  });
+
+  it('accepts a field with no candidate (existing schemas keep working)', () => {
+    const parsed = datasetSchemaFieldSchema.parse({ name: 'title', type: 'string' });
+    expect(parsed.candidate).toBeUndefined();
+  });
 });
