@@ -3,7 +3,7 @@ import { useParams, Link } from '@tanstack/react-router';
 import { Globe, Layers, ArrowRight, RefreshCw } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
-import { formatValue } from '../lib/format';
+import { formatValue, previewValue } from '../lib/format';
 import type { CandidateCatalogue } from '../lib/candidate-picker';
 
 export default function DomainDetail() {
@@ -152,7 +152,7 @@ function SelectorsTable({
                           <span className="text-red-600"> (served)</span>
                         )}
                         <span className="text-red-500"> · </span>
-                        {formatValue(cand.value).slice(0, 60)}
+                        {previewValue(cand.value).slice(0, 60)}
                       </span>
                     </li>
                   ))}
@@ -203,7 +203,7 @@ function SelectorsTable({
                     )}
                   </td>
                   <td className="max-w-xs truncate px-3 py-2 text-gray-600">
-                    {s.lastValue == null ? '—' : formatValue(s.lastValue).slice(0, 80)}
+                    {s.lastValue == null ? '—' : previewValue(s.lastValue).slice(0, 80)}
                   </td>
                 </tr>
               );
@@ -221,6 +221,16 @@ function SelectorsTable({
  * discovery has run for this domain/pageType, which is the common case, so
  * this must render a clean empty state rather than nothing or a crash.
  */
+/**
+ * Worth a thumbnail? Plain cross-origin <img> tags are not subject to CORS —
+ * only fetch/canvas reads are — so product CDNs render fine; a host that
+ * blocks hotlinking just fires onError and the img hides itself.
+ */
+function looksLikeImageUrl(concept: string, value: unknown): boolean {
+  if (typeof value !== 'string' || !/^https?:\/\//.test(value)) return false;
+  return concept.includes('image') || /\.(jpe?g|png|webp|gif|avif)([?#]|$)/i.test(value);
+}
+
 function CandidateCatalogueSection({
   catalogue, domain, pageType,
 }: {
@@ -262,34 +272,45 @@ function CandidateCatalogueSection({
           {concepts.map(([concept, candidates]) => (
             <div key={concept} className="px-3 py-2.5">
               <div className="micro-label">{concept}</div>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <div className="mt-1.5 max-w-xl space-y-1.5">
                 {candidates.map((c) => (
                   <div
                     key={c.label}
-                    className={`min-w-0 rounded-md border px-2.5 py-1.5 ${
+                    className={`flex items-center gap-3 rounded-md border px-2.5 py-1.5 ${
                       c.displayed ? 'border-accent-500 bg-accent-50/40' : 'border-gray-200 bg-white'
                     }`}
                   >
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-medium text-gray-800">{c.label}</span>
-                      <span className="font-mono text-[10px] text-gray-400">{c.source}</span>
-                      {c.displayed && (
-                        <span className="rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium uppercase tracking-wide text-accent-700">
-                          displayed
-                        </span>
+                    {looksLikeImageUrl(concept, c.sampleValue) && (
+                      <img
+                        src={c.sampleValue as string}
+                        alt=""
+                        loading="lazy"
+                        className="h-10 w-10 shrink-0 rounded border border-gray-200 object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xs font-medium text-gray-800">{c.label}</span>
+                        <span className="font-mono text-[10px] text-gray-400">{c.source}</span>
+                        {c.displayed && (
+                          <span className="rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium uppercase tracking-wide text-accent-700">
+                            displayed
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className="mt-0.5 truncate font-mono text-[11px] text-gray-500"
+                        title={formatValue(c.sampleValue)}
+                      >
+                        {formatValue(c.sampleValue)}
+                      </div>
+                      {c.scope && (
+                        <div className="mt-0.5 truncate text-[10px] text-gray-400">
+                          {Object.entries(c.scope).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                        </div>
                       )}
                     </div>
-                    <div
-                      className="mt-0.5 max-w-[240px] truncate font-mono text-[11px] text-gray-500"
-                      title={formatValue(c.sampleValue)}
-                    >
-                      {formatValue(c.sampleValue)}
-                    </div>
-                    {c.scope && (
-                      <div className="mt-0.5 truncate text-[10px] text-gray-400">
-                        {Object.entries(c.scope).map(([k, v]) => `${k}: ${v}`).join(' · ')}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

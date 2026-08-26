@@ -48,7 +48,8 @@ export function buildCataloguePrompt(evidence: CatalogueEvidence): string {
   return [
     'You are cataloguing what this product page CAN yield, per concept.',
     'Group value-bearing paths into concepts (snake_case singular: price, rating, review_count, image).',
-    'Label each candidate by its meaning, never its path: "list", "range_min", "promo", "yotpo".',
+    'Label each candidate by its meaning — never a source or format name (json-ld, meta, api, og),',
+    'and never its path: good labels are "list", "range_min", "promo", "yotpo", "main".',
     'Only use paths that appear in the evidence below. Never invent a path.',
     'A candidate may carry scope facts (e.g. {"seller": "MobileMonster"}, {"system": "yotpo"}).',
     'Keep every sampleValue short: truncate long text to at most ~100 characters.',
@@ -66,6 +67,8 @@ export function buildCataloguePrompt(evidence: CatalogueEvidence): string {
     JSON.stringify(evidence.meta),
   ].join('\n');
 }
+
+const SOURCE_SHAPED_LABELS = new Set(['json-ld', 'json_ld', 'jsonld', 'meta', 'api', 'api-ai', 'xpath', 'og', 'og-image', 'html']);
 
 /**
  * Fabricated paths are rejected MECHANICALLY, before anything is written —
@@ -114,7 +117,13 @@ export function parseCatalogueResponse(toolInput: unknown, evidence: CatalogueEv
       // though `sanitizeCatalogue` itself stays permissive about carrying
       // them through for its OTHER caller (DB reads via `markDisplayed`'s
       // legitimate flags flowing through `lookupDomainCache`).
-      .map(({ displayed: _displayed, verifiedAt: _verifiedAt, ...rest }) => rest);
+      .map(({ displayed: _displayed, verifiedAt: _verifiedAt, ...rest }) => rest)
+      // A label that merely repeats a source/format name duplicates the source
+      // column and tells the customer nothing ("json-ld: json-ld", 2026-08-26).
+      // Renamed mechanically rather than dropped — the candidate is real, only
+      // its name is lazy. "main" collides with an existing label at most once
+      // per concept, and sanitizeCatalogue's duplicate-label rule breaks ties.
+      .map((c) => (SOURCE_SHAPED_LABELS.has(c.label.toLowerCase()) ? { ...c, label: 'main' } : c));
     if (kept.length > 0) out[concept] = kept;
   }
   return out;
