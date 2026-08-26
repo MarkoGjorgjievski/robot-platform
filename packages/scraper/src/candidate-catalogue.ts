@@ -1,8 +1,13 @@
 /**
  * The candidate catalogue: what one domain CAN yield for one concept.
  * Discovered once per domain (spec §4), cached on domain_intelligence,
- * refreshed only on operator request. The catalogue never serves values —
- * serving stays in field_paths; this is the map from meaning to path.
+ * refreshed only on operator request. Serving still re-extracts values live
+ * from the page's own evidence (never a stored `sampleValue`) — but per the
+ * R5 serving seams (`extraction-orchestrator.ts` STEP 0.4/1.5b,
+ * `resolveFromCache`), it consults this catalogue to ROUTE that live
+ * extraction: which candidate's path a customer selection or the
+ * vision-verified displayed default should resolve. This is the map from
+ * meaning to path, and serving reads it for exactly that routing.
  */
 
 /** Semantic family, snake_case singular: "price", "rating", "review_count". */

@@ -6,7 +6,7 @@ import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-s
 import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { FIELD_ORIGINS, originLabel, type FieldOrigin } from '../lib/field-origin';
-import { pickerOptions, pickerOptionLabel, type CandidateCatalogue } from '../lib/candidate-picker';
+import { pickerOptions, pickerOptionLabel, sourceHostnames, type CandidateCatalogue } from '../lib/candidate-picker';
 
 type SchemaField = {
   name: string;
@@ -97,19 +97,10 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
   // Candidates come from domain intelligence, keyed by hostname — not from the
   // dataset itself — so every distinct hostname touched by this dataset's
   // sources needs its own catalogue fetched and merged before a field row can
-  // offer a picker.
-  const hostnames = useMemo(() => {
-    const set = new Set<string>();
-    for (const s of sources) {
-      if (!s.urlTemplate) continue;
-      try {
-        set.add(new URL(s.urlTemplate).hostname.replace(/^www\./, ''));
-      } catch {
-        // Malformed urlTemplate — skip rather than let a bad source crash the picker.
-      }
-    }
-    return [...set];
-  }, [sources]);
+  // offer a picker. Verbatim hostnames (www included) — `domain_intelligence`
+  // rows are stored keyed by the exact hostname the page was captured at
+  // (final-review fix; see `sourceHostnames`'s doc comment).
+  const hostnames = useMemo(() => sourceHostnames(sources), [sources]);
 
   const catalogueQueries = trpc.useQueries((t) =>
     hostnames.map((hostname) => t.domains.intelligenceDetail({ domain: hostname })),

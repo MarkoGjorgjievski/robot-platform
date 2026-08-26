@@ -232,3 +232,83 @@ describe('v2.5 selection/displayed serving through the real pipeline (task 7 fix
     expect(browser.setContentCalls.length).toBe(1);
   });
 });
+
+describe('a pin outranks the displayed default through the real pipeline (final-review fix)', () => {
+  // Neither candidate's dot-path (`Item.ValueA` / `Item.ValueB`) matches any
+  // FIELD_ALIASES entry for "price", so mechanical extraction cannot resolve
+  // the field on its own — the only routes to a value are STEP 0.4's
+  // selection/displayed pass and STEP 1.5's cached-path tier, which is
+  // exactly the seam under test.
+  const INTERCEPTED_AB: InterceptedRequest[] = [
+    {
+      url: 'https://example.com/api/product/1',
+      method: 'GET',
+      resourceType: 'xhr',
+      responseStatus: 200,
+      responseHeaders: {},
+      responseBody: JSON.stringify({ Item: { ValueA: 111, ValueB: 222 } }),
+      contentType: 'application/json',
+      bodySize: 40,
+      isJson: true,
+      parsedJson: { Item: { ValueA: 111, ValueB: 222 } },
+      timestamp: 0,
+    },
+  ];
+  const catalogue: CandidateCatalogue = {
+    price: [
+      { label: 'pinned', source: 'api', path: 'Item.ValueA', sampleValue: 111 },
+      { label: 'displayed', source: 'api', path: 'Item.ValueB', sampleValue: 222, displayed: true },
+    ],
+  };
+  const pinnedFieldPaths: DomainCache['fieldPaths'] = {
+    price: {
+      paths: [{
+        path: 'Item.ValueA', source: 'api', confidence: 0.9, hits: 5, misses: 0,
+        lastValue: 111, lastUsedAt: new Date().toISOString(), pinned: true,
+      }],
+      conflictCount: 0,
+    },
+  };
+  const capture = makeCapture({
+    structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
+    interceptedRequests: INTERCEPTED_AB,
+  });
+
+  it('without a selection, the operator pin serves — not the displayed default', async () => {
+    const browser = new StaticBrowser(capture);
+    const outcome = await runExtraction(
+      { url: 'https://example.com/p/1', fields: [{ name: 'price', type: 'number' }], pageType: 'detail' },
+      {
+        browser,
+        agent: null,
+        capture,
+        lookupCache: async () => makeCache(catalogue, pinnedFieldPaths),
+        saveCache: async () => {},
+        acquireLock: async () => () => {},
+      },
+    );
+
+    expect(outcome.data[0]?.price).toBe(111);
+  });
+
+  it('an explicit selection still overrides the pin', async () => {
+    const browser = new StaticBrowser(capture);
+    const outcome = await runExtraction(
+      {
+        url: 'https://example.com/p/1',
+        fields: [{ name: 'price', type: 'number', candidate: { concept: 'price', label: 'displayed' } }],
+        pageType: 'detail',
+      },
+      {
+        browser,
+        agent: null,
+        capture,
+        lookupCache: async () => makeCache(catalogue, pinnedFieldPaths),
+        saveCache: async () => {},
+        acquireLock: async () => () => {},
+      },
+    );
+
+    expect(outcome.data[0]?.price).toBe(222);
+  });
+});

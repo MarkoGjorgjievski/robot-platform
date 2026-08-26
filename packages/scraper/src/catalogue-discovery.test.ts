@@ -33,6 +33,21 @@ describe('parseCatalogueResponse', () => {
   it('routes through sanitizeCatalogue (caps, duplicate labels, garbage)', () => {
     expect(parseCatalogueResponse('garbage', evidence)).toEqual({});
   });
+
+  it('strips displayed and verifiedAt from a kept candidate — discovery must not mint them', () => {
+    const out = parseCatalogueResponse({
+      price: [{
+        label: 'displayed', source: 'xpath', path: '//span[@class="price-current"]', sampleValue: 389.99,
+        displayed: true, verifiedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }, evidence);
+    expect(out.price).toHaveLength(1);
+    expect(out.price![0]).not.toHaveProperty('displayed');
+    expect(out.price![0]).not.toHaveProperty('verifiedAt');
+    expect(out.price![0]).toEqual({
+      label: 'displayed', source: 'xpath', path: '//span[@class="price-current"]', sampleValue: 389.99,
+    });
+  });
 });
 
 describe('buildCataloguePrompt', () => {

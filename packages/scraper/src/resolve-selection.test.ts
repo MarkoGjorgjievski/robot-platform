@@ -58,3 +58,31 @@ describe('resolveFromCache — selection and displayed-default (v2.5)', () => {
     expect(resolved.price!.value).toBe(389.99); // displayed-default still applies
   });
 });
+
+describe('resolveFromCache — a pin outranks the displayed default (final-review fix)', () => {
+  // The pinned path is the API path; the catalogue's displayed candidate is
+  // the DIFFERENT, statistically-worse xpath path — `comparePaths` already
+  // sorts the pin to the front, so a bug that unconditionally hoists the
+  // displayed candidate ahead of it would defeat the pin.
+  const pinnedFieldPaths: Record<string, FieldPathSet> = {
+    price: {
+      paths: [
+        path('MainItem.FinalPrice', 'api', 10, { pinned: true }),
+        path('//span[@class="pc"]', 'xpath', 1, { misses: 3 }),
+      ],
+      conflictCount: 0,
+    },
+  };
+
+  it('without a selection, the pin keeps winning over the displayed default', () => {
+    const { resolved } = resolveFromCache(pinnedFieldPaths, data, ['price'], { catalogue });
+    expect(resolved.price!.value).toBe(399.99); // the pinned api path, not the 389.99 displayed default
+  });
+
+  it('an explicit selection still outranks the pin', () => {
+    const { resolved } = resolveFromCache(pinnedFieldPaths, data, ['price'], {
+      catalogue, selections: { price: { concept: 'price', label: 'displayed' } },
+    });
+    expect(resolved.price!.value).toBe(389.99); // the customer's own selection wins over an operator pin
+  });
+});

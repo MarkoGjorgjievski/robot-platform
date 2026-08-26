@@ -28,6 +28,7 @@ import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
   saveCandidateCatalogue, findConcept, collectApiJsonBodies,
+  EXTRACTION_SUCCESS_THRESHOLD,
   type PathSource, type DomainCache, type FieldPathSet,
 } from './domain-cache.js';
 import type { CandidateCatalogue, Candidate } from './candidate-catalogue.js';
@@ -306,9 +307,16 @@ export async function runExtraction(
       }
 
       // 2. Displayed-default — only for fields with no explicit selection, and
-      // never for a field the selection pass above already served.
+      // never for a field the selection pass above already served. Also never
+      // for a field an operator pin (or a human-sourced path) already claims:
+      // spec §6.1/§12 — pins keep winning absent an explicit selection, and
+      // this pass runs BEFORE mechanical/cache, so if it minted the displayed
+      // value here, tryAssign's first-wins guard would lock it in and the
+      // pin's own value (served later, in ranked order, by STEP 1.5) would
+      // never get a chance.
       for (const field of pageLevel(fields)) {
         if (field.candidate || servedBySelection.has(field.name)) continue;
+        if (cache.fieldPaths[field.name]?.paths.some((p) => p.pinned || p.source === 'human')) continue;
         const concept = findConcept(catalogue, field.name);
         const chosen = concept?.find((c) => c.displayed === true);
         if (!chosen || !NON_XPATH_SOURCES.has(chosen.source)) continue;
@@ -440,7 +448,13 @@ export async function runExtraction(
           if (field.candidate) {
             const concept = findConcept(cache.candidateCatalogue, field.name, field.candidate);
             chosen = concept?.find((c) => c.label === field.candidate!.label);
-          } else if (!servedBySelection.has(field.name)) {
+          } else if (
+            !servedBySelection.has(field.name) &&
+            // Same pin/human guard as STEP 0.4's displayed pass above (spec
+            // §6.1/§12): absent an explicit selection, a pin keeps winning —
+            // the displayed default must not be minted ahead of it here either.
+            !cache.fieldPaths[field.name]?.paths.some((p) => p.pinned || p.source === 'human')
+          ) {
             const concept = findConcept(cache.candidateCatalogue, field.name);
             chosen = concept?.find((c) => c.displayed === true);
           }
@@ -700,10 +714,21 @@ export async function runExtraction(
     // row (Task 2). `saveCache` just upserted that row (whether `cache` was
     // null or not), so by the time we get here the row this write needs is
     // guaranteed to exist — that ordering is load-bearing.
-    if (deps.discoverCatalogue && (!cache || Object.keys(cache.candidateCatalogue ?? {}).length === 0)) {
+    //
+    // "Only after a successful extraction" is enforced by `confidence >=
+    // EXTRACTION_SUCCESS_THRESHOLD` — the same bar `saveDomainCache` uses to
+    // decide `isSuccess`. Without it a failed run (few or no fields resolved)
+    // would still spend an AI call cataloguing whatever thin evidence it did
+    // capture, and could poison a cold catalogue with candidates drawn from a
+    // page that never really loaded.
+    if (
+      deps.discoverCatalogue &&
+      (!cache || Object.keys(cache.candidateCatalogue ?? {}).length === 0) &&
+      confidence >= EXTRACTION_SUCCESS_THRESHOLD
+    ) {
       try {
         const catalogue = await deps.discoverCatalogue({
-          apiBodies: interceptedRequests.filter((r) => r.parsedJson).map((r) => r.parsedJson),
+          apiBodies: collectApiJsonBodies(interceptedRequests),
           jsonLdBlocks: capture.structuredData.ldJson,
           meta: capture.structuredData.meta,
           fieldResults: Object.entries(fieldResults).map(([name, r]) => ({

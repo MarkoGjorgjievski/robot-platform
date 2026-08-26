@@ -1,5 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { pickerOptions, pickerOptionLabel } from './candidate-picker';
+import { pickerOptions, pickerOptionLabel, sourceHostnames } from './candidate-picker';
+
+describe('sourceHostnames', () => {
+  it('keeps the hostname verbatim, www included — domain_intelligence rows are stored keyed by it', () => {
+    expect(sourceHostnames([{ urlTemplate: 'https://www.newegg.com/p/{id}' }])).toEqual(['www.newegg.com']);
+  });
+
+  it('dedupes and skips malformed or missing urlTemplates', () => {
+    expect(sourceHostnames([
+      { urlTemplate: 'https://a.com/x' },
+      { urlTemplate: 'https://a.com/y' },
+      { urlTemplate: 'not a url' },
+      { urlTemplate: null },
+      {},
+    ])).toEqual(['a.com']);
+  });
+});
 
 const catalogue = {
   price: [
