@@ -58,6 +58,7 @@ const CACHE: DomainCache = {
   successRate: 100,
   paginationConfig: null,
   rowSelector: null,
+  candidateCatalogue: {},
 };
 
 class RecordingBrowser implements IBrowser {

@@ -164,8 +164,9 @@ Priority for a schema field:
    path, which is tried first. Selection outranks pins: a pin is the operator's
    per-domain statement, a selection is this customer's own. (Pins keep winning for
    fields without a selection.)
-2. **Displayed default** — no selection: if the field's concept has a
-   `displayed: true` candidate, its path is tried first.
+2. **Displayed default** — no selection: the concept's displayed candidate outranks
+   today's *unpinned* ranking; pinned and human paths keep winning absent an
+   explicit selection.
 3. **Today's ranking** — `comparePaths` order, unchanged.
 
 A selected path that misses on the live page falls through to the rest of the chain

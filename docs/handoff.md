@@ -18,6 +18,42 @@ type: project
 
 The v2 crawler (listing → detail, two phases) is built and **merged into `main`** (merge commit `3908780`, 2026-08-21). It has been run against a live site end to end twice: once exposed a real shared-browser lifecycle bug in `runExtraction` (7/8 items failed), once after the fix ran clean (8/8 items done, CSV export shows all 8 rows). A follow-up review round found and fixed the identical bug pattern one file over (`runAnalysis` in `analysis-orchestrator.ts`) and made the "whoever launches the browser closes it" rule structural instead of a convention — see `task-9-fix2-report.md`. The full narrative — both live runs' logs, verification queries, and the root-cause walkthrough — lives in `.superpowers/sdd/2026-08-20-v2-crawler-phase2/task-9-report.md` and `task-9-fix-report.md`; this file keeps only what's still true and useful to a fresh session.
 
+## v2.5 candidate labelling — Task 11 (2026-08-26): Tier 1 fixture gate landed, live dogfood NOT run
+
+Tasks 1-10 of `.superpowers/sdd/2026-08-25-candidate-labelling/` are built and merged into
+`feat/candidate-labelling` (catalogue types/plumbing, `lastUrl` + narrowed conflicts, AI-native
+catalogue discovery, the cold-catalogue trigger, selection/displayed serving through the real
+extraction pipeline per ruling R5, the displayed-verification judge + `markDisplayed`, the API
+surface, and the dashboard candidate picker). Task 11 Steps 1-3 (this entry) added the Tier 1
+proof that selection and the displayed default actually survive the whole chain on a REAL captured
+page, not just a hand-built `PageCapture`: `packages/scraper/src/__fixtures__/catalogue-serving.test.ts`
+seeds a `DomainCache` whose `fieldPaths` **and** `candidateCatalogue` both carry two genuine XPath
+price candidates from the `newegg-gpu-listing` fixture (`//div[@id="item_cell_..."]//li[@class="price-current"]/strong`,
+resolving to two different real on-page prices, 1029 and 649) and calls `runExtraction` directly
+(not `runFixtureReplay`, which builds its cache with `as DomainCache` and silently drops
+`candidateCatalogue` — see the file's header comment) to prove: (a) no selection + a `displayed`
+candidate → the displayed value is served; (b) an explicit selection of the other label → that
+value overrides the displayed default. Both assertions were confirmed to bite for the right
+reason — verified by temporarily stripping the selection from case (b) (fails: 649 received where
+1029 was expected) and by temporarily zeroing `candidateCatalogue` entirely on both cases (fails:
+falls back to whichever `xpath-cached` path STEP 1.5 ranks first, wrong value AND wrong source
+`xpath-cached` instead of `xpath`), then reverting both. `pnpm -r test` (all 7 packages), the
+cache-hygiene gate, `pnpm typecheck`, and `pnpm --filter @robot/dashboard exec tsc --noEmit` are
+all green as of this commit.
+
+**Step 4 (live dogfood — `newegg`/`target`/`barnesandnoble`, cold-catalogue trigger, ~$0.15 +
+API spend) was explicitly NOT run.** It requires Marko's go per the task brief. Nothing in this
+session set `ANTHROPIC_API_KEY`, touched a corpus URL over the network, or wrote a catalogue to
+the database. When it does run: one extraction each against the three corpus URLs with the
+cold-catalogue trigger firing, then hand-review each resulting catalogue in the domain UI (labels
+sensible? sample values real? displayed plausible?) before enabling anything customer-facing —
+clear a bad catalogue via the refresh button rather than shipping it.
+
+**Open items from the final-review fix wave (2026-08-26):** the results-table tooltip names the
+selected candidate but not the actually-serving one (the displayed-default, when it wins, is
+unannotated). Per-hostname selection scoping is a recorded follow-up from ruling R6 (today a
+selection applies dataset-wide, not per contributing source hostname).
+
 ## Quality/cost baseline
 
 Unrelated to the v2 crawler, but it's the number that justifies "don't start another fix-and-dogfood cycle" above: **73% of *verifiable* fields correct across the three measured domains (22 of 30). 44% of all requested fields**, the difference being values a screenshot cannot check. **Cost ~$0.47 per cold URL, ~$0.20 warm**, pipeline only. The Tier 2 judge adds ~$0.14 per URL and is not a product cost.
@@ -439,6 +475,7 @@ small extraction-layer fixes worth folding into that same cycle.
 - **Don't rebuild or "simplify" the three measured details in `scrollPages`** — the up-then-down scroll trigger, `rowCountScript` counting all rows, and the forced LISTING page-type. Each was established by watching real Chromium behave, each carries a comment saying why, and each looks like dead weight to a reader who wasn't there. See "DOM-scroll pagination (2026-08-25)" above.
 - **The `deriveTemplate` wrong-page-parameter bug is FIXED (2026-08-25) — don't re-derive it.** The root cause was sharper than "wrong choice among plausible params": it templated the FIRST changed numeric param in URL order, which on AbeBooks was `ds` — the page-size constant — so the 2026-08-21 walk fetched pages sized 2 and 3 items (that is what the 2/1 stray yields were). The fix reads the page's own pager-link series: stride-1 param beats offset beats constant; known-name prior as tiebreak/fallback; old behaviour when no evidence exists. Gated against the real captured AbeBooks page (`p={N}` now). Remaining, recorded in the roadmap: `{N}` is the literal page number while AbeBooks' `p` is 0-indexed, so walks run one page offset until stride/base-aware template semantics exist.
 - **Don't re-run the `api-param` live proof against `newegg-gpus-live` to get a better-looking result.** Run `c889faea-3417-4d36-97cd-1907e55653af` (2026-08-24) is the record; that budget is spent and the source's budget is restored to `{max_items: 5, max_pages: 1}`. It fell through to `mechanical` — see "`api-param` pagination — live proof (2026-08-24)" above. If a corpus site is added that is known to load its listing from a same-origin JSON endpoint, a fresh live run against *that* site is legitimate new work, not a re-run of this one.
+- **Don't run the v2.5 candidate-labelling live dogfood (Task 11 Step 4) without Marko's explicit go.** It spends ~$0.15 + API budget and sets `ANTHROPIC_API_KEY`. Steps 1-3 (the Tier 1 fixture gate) landed 2026-08-26 — see "v2.5 candidate labelling — Task 11" above.
 
 ## Open decisions (need Marko, not code)
 

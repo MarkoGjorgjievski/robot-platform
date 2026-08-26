@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { detectPathConflicts, pinFieldPath } from '@robot/scraper';
+import { detectPathConflicts, pinFieldPath, sanitizeCatalogue, clearCandidateCatalogue } from '@robot/scraper';
 import { eq, sql, and } from 'drizzle-orm';
 import { domains, sources, datasets, projects, orgs, domainIntelligence } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -167,6 +167,22 @@ export const domainsRouter = router({
       return { ok: true as const };
     }),
 
+  /**
+   * Manual catalogue refresh, made cheap and safe: clears the stored catalogue
+   * for a domain/pageType — no live fetch, no AI spend. The catalogue rebuilds
+   * itself on the next successful extraction for that domain/pageType (the
+   * cold-catalogue discovery trigger from v2.5 task 6).
+   */
+  refreshCatalogue: publicProcedure
+    .input(z.object({
+      domain: z.string().min(1),
+      pageType: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      await clearCandidateCatalogue(input.domain, input.pageType);
+      return { ok: true as const };
+    }),
+
   // ─── Global DomainIntelligence views (read-only) ───────────────────────────
   intelligenceDetail: publicProcedure
     .input(z.object({ domain: z.string().min(1) }))
@@ -211,12 +227,17 @@ export const domainsRouter = router({
           hasNextData: r.hasNextData,
           apiEndpoints: (r.apiEndpoints ?? []) as unknown[],
           selectors,
+          // What this domain/pageType CAN yield per concept — labelled candidates,
+          // discovered once and refreshed only on operator request (refreshCatalogue
+          // below). Sanitized so a malformed stored entry costs itself, not the page.
+          catalogue: sanitizeCatalogue(r.candidateCatalogue),
           // Fields whose stored paths currently disagree about the value. This is
           // how a poisoned cache path announces itself — the cache has always
           // detected it and never surfaced it. Reported only; per CLAUDE.md,
           // degradation is flagged for human review and never auto-reset.
           conflicts: detectPathConflicts(
             (r.fieldPaths ?? {}) as Parameters<typeof detectPathConflicts>[0],
+            sanitizeCatalogue(r.candidateCatalogue),
           ),
         };
       });

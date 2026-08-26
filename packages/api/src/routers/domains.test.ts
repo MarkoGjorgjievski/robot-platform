@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
-import { db } from '@robot/db';
+import { and, eq } from 'drizzle-orm';
+import { db, domainIntelligence } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 
@@ -84,6 +85,80 @@ describe('domainsRouter', () => {
       expect(result.domain).toBe('no-such-domain.example');
       expect(result.pageTypes).toEqual([]);
       expect(result.sources).toEqual([]);
+    });
+
+    describe('catalogue', () => {
+      const DOMAIN = 'test-catalogue-detail.example';
+      const PAGE_TYPE = 'detail';
+
+      afterEach(async () => {
+        await db.delete(domainIntelligence).where(
+          and(eq(domainIntelligence.domain, DOMAIN), eq(domainIntelligence.pageType, PAGE_TYPE)),
+        );
+      });
+
+      it('carries the sanitized candidate catalogue on each page type', async () => {
+        await db.insert(domainIntelligence).values({
+          domain: DOMAIN,
+          pageType: PAGE_TYPE,
+          candidateCatalogue: {
+            price: [{ label: 'list', source: 'json-ld', path: '$.price', sampleValue: 19.99 }],
+          },
+        });
+
+        const result = await caller.domains.intelligenceDetail({ domain: DOMAIN });
+        const pageType = result.pageTypes.find((p) => p.pageType === PAGE_TYPE);
+        expect(pageType?.catalogue).toEqual({
+          price: [{ label: 'list', source: 'json-ld', path: '$.price', sampleValue: 19.99 }],
+        });
+      });
+    });
+  });
+
+  describe('refreshCatalogue', () => {
+    const DOMAIN = 'test-catalogue-refresh.example';
+    const PAGE_TYPE = 'detail';
+
+    afterEach(async () => {
+      await db.delete(domainIntelligence).where(
+        and(eq(domainIntelligence.domain, DOMAIN), eq(domainIntelligence.pageType, PAGE_TYPE)),
+      );
+    });
+
+    it('clears the candidate catalogue for a domain/pageType, ready for the next extraction to rebuild it', async () => {
+      await db.insert(domainIntelligence).values({
+        domain: DOMAIN,
+        pageType: PAGE_TYPE,
+        candidateCatalogue: {
+          price: [{ label: 'list', source: 'json-ld', path: '$.price', sampleValue: 19.99 }],
+        },
+      });
+
+      const result = await caller.domains.refreshCatalogue({ domain: DOMAIN, pageType: PAGE_TYPE });
+      expect(result).toEqual({ ok: true });
+
+      const row = await db.query.domainIntelligence.findFirst({
+        where: and(eq(domainIntelligence.domain, DOMAIN), eq(domainIntelligence.pageType, PAGE_TYPE)),
+      });
+      expect(row!.candidateCatalogue).toEqual({});
+    });
+
+    it('rejects an empty domain', async () => {
+      try {
+        await caller.domains.refreshCatalogue({ domain: '', pageType: PAGE_TYPE });
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    });
+
+    it('rejects an empty pageType', async () => {
+      try {
+        await caller.domains.refreshCatalogue({ domain: DOMAIN, pageType: '' });
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
     });
   });
 });
