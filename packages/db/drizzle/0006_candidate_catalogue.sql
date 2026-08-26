@@ -1,0 +1,1 @@
+ALTER TABLE "domain_intelligence" ADD COLUMN "candidate_catalogue" jsonb DEFAULT '{}'::jsonb NOT NULL;

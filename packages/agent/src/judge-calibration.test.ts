@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { loadEnvFile } from 'node:process';
 import { judgeFieldExtraction, type JudgeVerdict } from './judge.js';
+import { judgeDisplayedCandidate } from './judge-displayed.js';
 
 // vitest does not load .env, and this package has no @robot/db import to do it
 // for us — pull the repo-root .env in directly.
@@ -87,5 +88,28 @@ describe.skipIf(!ENABLED)('Tier 2 judge calibration (live, paid)', () => {
     const score = results.filter((r) => r.got === r.expected).length;
 
     expect(score, `judge scored ${score}/${CASES.length}\n${report}`).toBeGreaterThanOrEqual(MIN_SCORE);
+  }, 120_000);
+});
+
+describe.skipIf(!ENABLED)('Displayed-candidate judge calibration (live, paid)', () => {
+  it('picks the price candidate the fixture page actually shows ($79.99)', async () => {
+    expect(apiKey, 'ANTHROPIC_API_KEY required for judge calibration').not.toBe('');
+    const png = screenshot();
+
+    // Known answer against __fixtures__/judge-calibration/page.html: it shows
+    // exactly one price, $79.99. "was" is a plausible strike-through list price
+    // this page does not have — the judge must not pick it just because it is
+    // a bigger, more "typical" number.
+    const label = await judgeDisplayedCandidate({
+      screenshot: png,
+      concept: 'price',
+      candidates: [
+        { label: 'current', value: 79.99 },
+        { label: 'was', value: 129.99 },
+      ],
+      apiKey,
+    });
+
+    expect(label).toBe('current');
   }, 120_000);
 });

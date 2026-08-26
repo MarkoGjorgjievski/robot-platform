@@ -16,14 +16,14 @@ afterEach(cleanup);
 describe('cache is consulted regardless of consecutiveFailures', () => {
   it('still resolves a cached field after many consecutive failures', async () => {
     await saveDomainCache({
-      domain: DOMAIN, pageType: PAGE_TYPE, interceptedRequests: [],
+      domain: DOMAIN, pageType: PAGE_TYPE, url: `https://${DOMAIN}/p/1`, interceptedRequests: [],
       fieldResults: { title: { value: 'Seed', source: 'json-ld', path: '$.name', confidence: 0.9 } },
       discoveredFieldNames: ['title'],
       overallConfidence: 0.9, hasJsonLd: true, hasNextData: false,
     });
     for (let i = 0; i < 6; i++) {
       await saveDomainCache({
-        domain: DOMAIN, pageType: PAGE_TYPE, interceptedRequests: [],
+        domain: DOMAIN, pageType: PAGE_TYPE, url: `https://${DOMAIN}/p/1`, interceptedRequests: [],
         fieldResults: {}, discoveredFieldNames: ['title'],
         overallConfidence: 0, hasJsonLd: true, hasNextData: false,
       });

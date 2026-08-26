@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
 import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
@@ -6,6 +6,7 @@ import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-s
 import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { FIELD_ORIGINS, originLabel, type FieldOrigin } from '../lib/field-origin';
+import { pickerOptions, pickerOptionLabel, sourceHostnames, type CandidateCatalogue } from '../lib/candidate-picker';
 
 type SchemaField = {
   name: string;
@@ -14,7 +15,11 @@ type SchemaField = {
   required?: boolean;
   origin?: FieldOrigin;
   input_column?: string;
+  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
+  candidate?: { concept: string; label: string };
 };
+
+type Source = { id: string; slug: string; name: string; urlTemplate?: string };
 
 export default function DatasetDetail() {
   const { project: projectSlug, dataset: datasetSlug } = useParams({
@@ -33,7 +38,7 @@ export default function DatasetDetail() {
 
   const dataset = detailQuery.data;
   const schema = (Array.isArray(dataset.schema) ? dataset.schema : []) as SchemaField[];
-  const sources = (dataset as { sources?: Array<{ id: string; slug: string; name: string }> }).sources ?? [];
+  const sources = (dataset as { sources?: Source[] }).sources ?? [];
 
   return (
     <div>
@@ -42,7 +47,7 @@ export default function DatasetDetail() {
         <PageHeader title={dataset.name} description={dataset.description} />
       </div>
 
-      <SchemaFieldOrigins datasetId={dataset.id} schema={schema} />
+      <SchemaFieldOrigins datasetId={dataset.id} schema={schema} sources={sources} />
 
       <h2 className="mt-8 text-sm font-medium text-gray-900">
         Sources ({sources.length})
@@ -75,7 +80,7 @@ export default function DatasetDetail() {
   );
 }
 
-function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: SchemaField[] }) {
+function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string; schema: SchemaField[]; sources: Source[] }) {
   const [fields, setFields] = useState<SchemaField[]>(schema);
   // Re-sync local state when the server's schema changes (e.g. another session
   // saved a different origin, or this save's own invalidate() refetches it).
@@ -89,8 +94,62 @@ function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: 
     onSuccess: () => utils.datasets.invalidate(),
   });
 
+  // Candidates come from domain intelligence, keyed by hostname — not from the
+  // dataset itself — so every distinct hostname touched by this dataset's
+  // sources needs its own catalogue fetched and merged before a field row can
+  // offer a picker. Verbatim hostnames (www included) — `domain_intelligence`
+  // rows are stored keyed by the exact hostname the page was captured at
+  // (final-review fix; see `sourceHostnames`'s doc comment).
+  const hostnames = useMemo(() => sourceHostnames(sources), [sources]);
+
+  const catalogueQueries = trpc.useQueries((t) =>
+    hostnames.map((hostname) => t.domains.intelligenceDetail({ domain: hostname })),
+  );
+
+  // Candidates carry their contributing hostname (controller ruling R6) so a
+  // dataset that spans more than one source hostname can show provenance
+  // instead of silently letting the first hostname's label win a collision.
+  // `catalogueQueries[i]` corresponds to `hostnames[i]` — `trpc.useQueries`
+  // preserves the input array's order.
+  const catalogue = useMemo<CandidateCatalogue>(() => {
+    const merged: CandidateCatalogue = {};
+    catalogueQueries.forEach((q, i) => {
+      const hostname = hostnames[i];
+      for (const pt of q.data?.pageTypes ?? []) {
+        for (const [concept, candidates] of Object.entries((pt.catalogue ?? {}) as CandidateCatalogue)) {
+          const existing = merged[concept] ?? [];
+          const seenLabels = new Set(existing.map((c) => c.label));
+          const withHostname = candidates
+            .filter((c) => !seenLabels.has(c.label))
+            .map((c) => ({ ...c, hostname }));
+          merged[concept] = [...existing, ...withHostname];
+        }
+      }
+    });
+    return merged;
+  }, [catalogueQueries, hostnames]);
+  const multiHostname = hostnames.length > 1;
+
   function setOrigin(index: number, origin: FieldOrigin) {
     setFields((prev) => prev.map((f, i) => (i === index ? { ...f, origin } : f)));
+  }
+
+  // Not a functional updater: this reads the `fields` closed over from render
+  // and calls `updateSchema.mutate` as a plain side effect afterward, rather
+  // than inside a `setFields` updater callback — React (StrictMode in
+  // particular) may invoke an updater function twice, which would fire the
+  // mutation twice per selection if the mutate call lived inside it.
+  function setCandidate(index: number, candidate?: { concept: string; label: string }) {
+    const next = fields.map((f, i) => {
+      if (i !== index) return f;
+      if (!candidate) {
+        const { candidate: _drop, ...rest } = f;
+        return rest;
+      }
+      return { ...f, candidate };
+    });
+    setFields(next);
+    updateSchema.mutate({ datasetId, schema: next });
   }
 
   if (fields.length === 0) {
@@ -113,28 +172,58 @@ function SchemaFieldOrigins({ datasetId, schema }: { datasetId: string; schema: 
               <th className="micro-label px-3 py-2 text-left">Required</th>
               <th className="micro-label px-3 py-2 text-left">Description</th>
               <th className="micro-label px-3 py-2 text-left">Comes from</th>
+              <th className="micro-label px-3 py-2 text-left">Candidate</th>
             </tr>
           </thead>
           <tbody>
-            {fields.map((field, i) => (
-              <tr key={field.name} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
-                <td className="px-3 py-2 font-mono text-xs">{field.name}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500">{field.type}</td>
-                <td className="px-3 py-2 text-xs text-gray-500">{field.required ? 'yes' : 'no'}</td>
-                <td className="px-3 py-2 text-xs text-gray-500">{field.description ?? '—'}</td>
-                <td className="px-3 py-2">
-                  <select
-                    value={field.origin ?? 'detail'}
-                    onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
-                    className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
-                  >
-                    {FIELD_ORIGINS.map((origin) => (
-                      <option key={origin} value={origin}>{originLabel(origin)}</option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-            ))}
+            {fields.map((field, i) => {
+              const options = pickerOptions(catalogue, field.name, field.candidate);
+              return (
+                <tr key={field.name} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
+                  <td className="px-3 py-2 font-mono text-xs">{field.name}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{field.type}</td>
+                  <td className="px-3 py-2 text-xs text-gray-500">{field.required ? 'yes' : 'no'}</td>
+                  <td className="px-3 py-2 text-xs text-gray-500">{field.description ?? '—'}</td>
+                  <td className="px-3 py-2">
+                    <select
+                      value={field.origin ?? 'detail'}
+                      onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
+                      className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
+                    >
+                      {FIELD_ORIGINS.map((origin) => (
+                        <option key={origin} value={origin}>{originLabel(origin)}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    {options ? (
+                      <select
+                        value={field.candidate?.label ?? 'default'}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === 'default') {
+                            setCandidate(i, undefined);
+                            return;
+                          }
+                          const chosen = options.find((o) => o.label === value);
+                          if (chosen) setCandidate(i, { concept: chosen.concept, label: chosen.label });
+                        }}
+                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
+                      >
+                        <option value="default">default</option>
+                        {options.map((o) => (
+                          <option key={o.label} value={o.label}>
+                            {pickerOptionLabel(o, { multiHostname })}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

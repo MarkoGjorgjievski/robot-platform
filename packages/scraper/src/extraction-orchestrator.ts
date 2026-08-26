@@ -27,8 +27,12 @@ import { corroborateValue, visibleTextFromHtml } from './corroborate-value.js';
 import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
-  type PathSource, type DomainCache,
+  saveCandidateCatalogue, findConcept, collectApiJsonBodies,
+  EXTRACTION_SUCCESS_THRESHOLD,
+  type PathSource, type DomainCache, type FieldPathSet,
 } from './domain-cache.js';
+import type { CandidateCatalogue, Candidate } from './candidate-catalogue.js';
+import type { CatalogueEvidence } from './catalogue-discovery.js';
 import { acquireDomainLock } from './domain-lock.js';
 import { detectSchemaChanges, formatSchemaChanges, type SchemaChange } from './schema-evolution.js';
 import { validateExtractedData } from './data-quality.js';
@@ -61,6 +65,8 @@ export type ExtractionFieldInput = {
    * "resolved" and stopped the chain before row selectors were ever generated.
    */
   rowScopedOnly?: boolean;
+  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
+  candidate?: { concept: string; label: string };
 };
 
 /**
@@ -102,6 +108,14 @@ export type ExtractionDeps = {
   acquireLock?: typeof acquireDomainLock;
   /** Skip the live capture and use this instead (fixture replay). */
   capture?: PageCapture;
+  /**
+   * The AI-native discovery pass (Task 5's `discoverCandidateCatalogue`),
+   * injected rather than imported — importing it directly would give
+   * @robot/scraper an agent dependency it doesn't otherwise have, purely for
+   * tests. Undefined skips discovery entirely (e.g. no ANTHROPIC_API_KEY).
+   */
+  discoverCatalogue?: (evidence: CatalogueEvidence) => Promise<CandidateCatalogue>;
+  saveCatalogue?: (domain: string, pageType: string, catalogue: CandidateCatalogue) => Promise<void>;
 };
 
 export type ExtractionRequest = {
@@ -191,8 +205,13 @@ export async function runExtraction(
     // or the model omitted it despite the tool schema. Such a field never yields a
     // `value` here, so the guard below returns first and no path-less entry is
     // ever recorded.
-    function tryAssign(name: string, value: unknown, source: PathSource, path: string | undefined, confidence: number): boolean {
-      if (finalData[name] !== undefined) return false;
+    // `override` exists ONLY for the v2.5 selection/displayed xpath-candidate
+    // step below (task 7 fix round): an explicit customer selection, or the
+    // vision-verified displayed default, replacing whatever an earlier tier
+    // already assigned. Every other caller leaves it false — first-wins is
+    // still the rule everywhere else in the chain.
+    function tryAssign(name: string, value: unknown, source: PathSource, path: string | undefined, confidence: number, override = false): boolean {
+      if (finalData[name] !== undefined && !override) return false;
       // Absent values are "not found", not "rejected" — skip silently. (Guards
       // against JSON.stringify(undefined) returning undefined → .slice crash.)
       if (value === undefined || value === null) return false;
@@ -222,6 +241,91 @@ export async function runExtraction(
       finalData[name] = v.normalized;
       fieldResults[name] = { value: v.normalized, source, path: path ?? '', confidence };
       return true;
+    }
+
+    // STEP 0.4: v2.5 selection / displayed-default serving (task 7 fix round).
+    //
+    // The v2.5 spec promises two rungs above the statistical ranking: the
+    // customer's own candidate selection, and (absent one) the vision-verified
+    // "displayed" candidate. The first pass (commit 7dba85d) implemented this
+    // ONLY inside `resolveFromCache`, whose lookup is entirely field-name-keyed
+    // (`allExtractedData[fieldName]`) — every writer here goes through
+    // `tryAssign`, which writes `finalData[name]` once and never again, so by
+    // the time `resolveFromCache` ran every candidate for a field resolved to
+    // the SAME already-decided value. The hoist reordered a list nobody read.
+    //
+    // The fix: serve at the seams that actually hold PER-CANDIDATE evidence.
+    // Running here, before every other tier (including mechanical), means
+    // `tryAssign`'s first-wins guard now protects whatever this resolves —
+    // no override needed for api/json-ld/meta candidates. An xpath-sourced
+    // candidate has no evidence yet (nothing has rendered/executed against the
+    // page), so it is deferred to STEP 1.5b below, which runs against the
+    // captured HTML and uses an explicit override instead.
+    //
+    // `servedBySelection` is threaded through to STEP 1.5b so the xpath step
+    // never re-touches a field this step already resolved.
+    const servedBySelection = new Set<string>();
+    if (cache && Object.keys(cache.candidateCatalogue ?? {}).length > 0) {
+      const catalogue = cache.candidateCatalogue;
+      const apiBodies = collectApiJsonBodies(interceptedRequests);
+      const NON_XPATH_SOURCES = new Set(['api', 'api-ai', 'json-ld', 'meta']);
+      const resolveCandidateValue = (candidate: Candidate): unknown => {
+        switch (candidate.source) {
+          case 'api':
+          case 'api-ai': {
+            for (const body of apiBodies) {
+              const value = getByDotPath(body, candidate.path);
+              if (value !== undefined && value !== null && value !== '') return value;
+            }
+            return undefined;
+          }
+          case 'json-ld': {
+            for (const block of capture.structuredData.ldJson) {
+              const value = getByDotPath(block, candidate.path);
+              if (value !== undefined && value !== null && value !== '') return value;
+            }
+            return undefined;
+          }
+          case 'meta':
+            return capture.structuredData.meta[candidate.path];
+          default:
+            return undefined;
+        }
+      };
+
+      // 1. Explicit selections — first, so first-wins locks them in.
+      for (const field of pageLevel(fields)) {
+        if (!field.candidate) continue;
+        const concept = findConcept(catalogue, field.name, field.candidate);
+        const chosen = concept?.find((c) => c.label === field.candidate!.label);
+        if (!chosen || !NON_XPATH_SOURCES.has(chosen.source)) continue;
+        const value = resolveCandidateValue(chosen);
+        if (value === undefined) continue;
+        if (tryAssign(field.name, value, chosen.source as PathSource, chosen.path, 0.95)) {
+          servedBySelection.add(field.name);
+        }
+      }
+
+      // 2. Displayed-default — only for fields with no explicit selection, and
+      // never for a field the selection pass above already served. Also never
+      // for a field an operator pin (or a human-sourced path) already claims:
+      // spec §6.1/§12 — pins keep winning absent an explicit selection, and
+      // this pass runs BEFORE mechanical/cache, so if it minted the displayed
+      // value here, tryAssign's first-wins guard would lock it in and the
+      // pin's own value (served later, in ranked order, by STEP 1.5) would
+      // never get a chance.
+      for (const field of pageLevel(fields)) {
+        if (field.candidate || servedBySelection.has(field.name)) continue;
+        if (cache.fieldPaths[field.name]?.paths.some((p) => p.pinned || p.source === 'human')) continue;
+        const concept = findConcept(catalogue, field.name);
+        const chosen = concept?.find((c) => c.displayed === true);
+        if (!chosen || !NON_XPATH_SOURCES.has(chosen.source)) continue;
+        const value = resolveCandidateValue(chosen);
+        if (value === undefined) continue;
+        if (tryAssign(field.name, value, chosen.source as PathSource, chosen.path, 0.95)) {
+          servedBySelection.add(field.name);
+        }
+      }
     }
 
     // STEP 0.5: AI-discovered API paths
@@ -320,7 +424,77 @@ export async function runExtraction(
         }
       }
 
-      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames);
+      // STEP 1.5b: v2.5 selection / displayed-default candidates whose SOURCE
+      // is xpath (task 7 fix round). STEP 0.4 above only resolves api/api-ai/
+      // json-ld/meta candidates because it runs before any page evaluation —
+      // an xpath candidate has nothing to execute against yet at that point.
+      // This runs it against the HTML already captured, reusing
+      // `buildCachedXPathScript`'s script builder via a synthetic one-path
+      // field-path map rather than duplicating its DOM-query logic.
+      //
+      // Precedence: an explicit selection's override always wins, even over a
+      // value an earlier tier already assigned. A displayed-default override
+      // is weaker — it must never touch a field STEP 0.4 already served
+      // (`servedBySelection`), whether that was via an explicit selection or
+      // via its own api/json-ld/meta displayed-default resolution.
+      // `candidateCatalogue` is typed as required on `DomainCache`, but the
+      // Tier 1 fixture-replay harness (`__fixtures__/replay.ts`) builds a
+      // partial cache via `as DomainCache` that omits it — so it is
+      // `undefined` at runtime there. Guard the same way STEP 0.4 does.
+      if (cache.candidateCatalogue && Object.keys(cache.candidateCatalogue).length > 0) {
+        const xpathOverrideTargets: Record<string, FieldPathSet> = {};
+        for (const field of pageLevel(fields)) {
+          let chosen: Candidate | undefined;
+          if (field.candidate) {
+            const concept = findConcept(cache.candidateCatalogue, field.name, field.candidate);
+            chosen = concept?.find((c) => c.label === field.candidate!.label);
+          } else if (
+            !servedBySelection.has(field.name) &&
+            // Same pin/human guard as STEP 0.4's displayed pass above (spec
+            // §6.1/§12): absent an explicit selection, a pin keeps winning —
+            // the displayed default must not be minted ahead of it here either.
+            !cache.fieldPaths[field.name]?.paths.some((p) => p.pinned || p.source === 'human')
+          ) {
+            const concept = findConcept(cache.candidateCatalogue, field.name);
+            chosen = concept?.find((c) => c.displayed === true);
+          }
+          if (chosen && chosen.source === 'xpath') {
+            xpathOverrideTargets[field.name] = {
+              paths: [{
+                path: chosen.path, source: 'xpath', confidence: 0.95,
+                hits: 0, misses: 0, lastValue: null, lastUsedAt: new Date().toISOString(),
+              }],
+              conflictCount: 0,
+            };
+          }
+        }
+        const xpathOverrideNames = Object.keys(xpathOverrideTargets);
+        if (xpathOverrideNames.length > 0) {
+          const overrideScript = buildCachedXPathScript(xpathOverrideTargets, xpathOverrideNames);
+          if (overrideScript) {
+            try {
+              const overrideResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[]; fieldCount: number }>(
+                capture.html ?? '', overrideScript.script,
+              );
+              if (overrideResult.data.length > 0) {
+                for (const [name, value] of Object.entries(overrideResult.data[0]!)) {
+                  if (tryAssign(name, value, 'xpath', xpathOverrideTargets[name]!.paths[0]!.path, 0.95, true)) {
+                    servedBySelection.add(name);
+                  }
+                }
+                console.log(`[extract] Selection/displayed xpath override resolved: ${overrideResult.fieldCount} field(s)`);
+              }
+            } catch (err) {
+              console.error('[extract] Selection/displayed xpath override failed (non-fatal):', err);
+            }
+          }
+        }
+      }
+
+      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames, {
+        catalogue: cache.candidateCatalogue,
+        selections: Object.fromEntries(fields.filter((f) => f.candidate).map((f) => [f.name, f.candidate!])),
+      });
       if (cacheResult.overallConfidence > 0) {
         for (const [name, resolved] of Object.entries(cacheResult.resolved)) {
           tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
@@ -513,6 +687,7 @@ export async function runExtraction(
       await saveCache({
         domain,
         pageType: resolvedPageType,
+        url: capture.url ?? url,
         interceptedRequests: interceptedRequests,
         fieldResults,
         discoveredFieldNames: schemaFields.map((f) => f.name),
@@ -523,6 +698,49 @@ export async function runExtraction(
       console.log(`[extract] Saved domain intelligence for ${domain}`);
     } catch (err) {
       console.error('[extract] Cache save failed (non-fatal):', err);
+    }
+
+    // v2.5 catalogue discovery: one labelled pass per domain, only when the
+    // catalogue is cold, only after a successful extraction, and NEVER able to
+    // fail the run — the catalogue is an enrichment, not a dependency.
+    //
+    // `cache` is null when this is the domain+pageType's first-ever extraction
+    // — no domain_intelligence row existed when `lookupCache` ran above. That
+    // is the emptiest possible catalogue state (spec §4), not a reason to skip:
+    // treat "no row" the same as "row with an empty catalogue".
+    //
+    // Runs after `saveCache` above, not before: `saveCandidateCatalogue` is
+    // update-only and silently no-ops without an existing domain_intelligence
+    // row (Task 2). `saveCache` just upserted that row (whether `cache` was
+    // null or not), so by the time we get here the row this write needs is
+    // guaranteed to exist — that ordering is load-bearing.
+    //
+    // "Only after a successful extraction" is enforced by `confidence >=
+    // EXTRACTION_SUCCESS_THRESHOLD` — the same bar `saveDomainCache` uses to
+    // decide `isSuccess`. Without it a failed run (few or no fields resolved)
+    // would still spend an AI call cataloguing whatever thin evidence it did
+    // capture, and could poison a cold catalogue with candidates drawn from a
+    // page that never really loaded.
+    if (
+      deps.discoverCatalogue &&
+      (!cache || Object.keys(cache.candidateCatalogue ?? {}).length === 0) &&
+      confidence >= EXTRACTION_SUCCESS_THRESHOLD
+    ) {
+      try {
+        const catalogue = await deps.discoverCatalogue({
+          apiBodies: collectApiJsonBodies(interceptedRequests),
+          jsonLdBlocks: capture.structuredData.ldJson,
+          meta: capture.structuredData.meta,
+          fieldResults: Object.entries(fieldResults).map(([name, r]) => ({
+            name, value: r.value, source: r.source, path: r.path,
+          })),
+        });
+        if (Object.keys(catalogue).length > 0) {
+          await (deps.saveCatalogue ?? saveCandidateCatalogue)(domain, resolvedPageType, catalogue);
+        }
+      } catch (err) {
+        console.error('[extract] catalogue discovery failed (non-fatal):', err);
+      }
     }
 
     // STEP 5: Quality validation

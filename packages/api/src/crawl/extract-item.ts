@@ -8,7 +8,7 @@
 
 import type { IBrowser } from '@robot/browser';
 import {
-  runExtraction, mergeRow, partitionSchemaByOrigin,
+  runExtraction, mergeRow, partitionSchemaByOrigin, discoverCandidateCatalogue,
   type ExtractionAgent, type OriginField,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
@@ -33,15 +33,23 @@ export async function extractItem(
   const partitions = partitionSchemaByOrigin(deps.schema);
   const extract = deps.extract ?? runExtraction;
 
+  // Catalogue discovery is an enrichment, injected only when we have a key to
+  // pay for it — undefined skips discovery entirely (see ExtractionDeps).
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const discoverCatalogue = apiKey
+    ? (evidence: Parameters<typeof discoverCandidateCatalogue>[0]) =>
+        discoverCandidateCatalogue(evidence, { apiKey })
+    : undefined;
+
   // runExtraction takes the per-domain lock itself, and this loop is sequential,
   // so nothing here holds a lock around it.
   const outcome = await extract(
     {
       url: item.url,
       pageType: 'detail',
-      fields: partitions.detail.map((f) => ({ name: f.name, type: f.type })),
+      fields: partitions.detail.map((f) => ({ name: f.name, type: f.type, candidate: f.candidate })),
     },
-    { browser: deps.browser, agent: deps.agent },
+    { browser: deps.browser, agent: deps.agent, discoverCatalogue },
   );
 
   const row = mergeRow({

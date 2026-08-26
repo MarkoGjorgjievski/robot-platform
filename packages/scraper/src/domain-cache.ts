@@ -2,6 +2,7 @@ import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
 import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
+import { sanitizeCatalogue, type CandidateCatalogue, type Candidate } from './candidate-catalogue.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ export type FieldPath = {
   lastUsedAt: string;
   /** Operator-chosen path. Outranks every automatic signal and is never pruned. */
   pinned?: boolean;
+  /** URL of the page this path last resolved on; conflict detection compares only same-page observations. */
+  lastUrl?: string;
 };
 
 /** All paths for a single field, ranked by reliability */
@@ -42,6 +45,7 @@ export type DomainCache = {
   successRate: number;
   paginationConfig: PaginationConfig | null;
   rowSelector: { xpath: string; source: 'human'; setAt: string } | null;
+  candidateCatalogue: CandidateCatalogue;
 };
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
@@ -94,6 +98,7 @@ export async function lookupDomainCache(domain: string, pageType: string): Promi
     successRate: totalRuns > 0 ? Math.round((successfulRuns / totalRuns) * 100) : 0,
     paginationConfig: (result.paginationConfig as PaginationConfig) ?? null,
     rowSelector: (result.rowSelector as DomainCache['rowSelector']) ?? null,
+    candidateCatalogue: sanitizeCatalogue(result.candidateCatalogue),
   };
 }
 
@@ -170,7 +175,7 @@ export type PathConflict = {
  * auto-reset. A poisoned path and a legitimately changed price look identical
  * from here.
  */
-export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>): PathConflict[] {
+export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>, catalogue?: CandidateCatalogue): PathConflict[] {
   const conflicts: PathConflict[] = [];
 
   for (const [field, pathSet] of Object.entries(fieldPaths ?? {})) {
@@ -178,6 +183,29 @@ export function detectPathConflicts(fieldPaths: Record<string, FieldPathSet>): P
       (p) => p.lastValue !== null && p.lastValue !== undefined && p.lastValue !== '',
     );
     if (withValues.length < 2) continue;
+
+    // Same-page observations only: two paths last exercised on different URLs
+    // are telling you about staleness, not disagreement (triage class 4,
+    // 2026-08-25 — AbeBooks' api path and xpath path held titles of two
+    // different books). Rows predating lastUrl keep the old behaviour.
+    const urls = new Set(withValues.map((p) => p.lastUrl).filter((u): u is string => !!u));
+    if (urls.size > 1) continue;
+
+    // Paths that map to DIFFERENT labelled candidates of a concept are the
+    // catalogue working, not a conflict. Same-label disagreement still fires —
+    // that is the poison signal this detector exists for.
+    if (catalogue) {
+      const labelOf = (p: FieldPath): string | null => {
+        for (const candidates of Object.values(catalogue)) {
+          const hit = candidates.find((c) => c.path === p.path);
+          if (hit) return hit.label;
+        }
+        return null;
+      };
+      const labels = withValues.map(labelOf);
+      const distinctKnown = new Set(labels.filter((l): l is string => l !== null));
+      if (distinctKnown.size > 1 && labels.every((l) => l !== null)) continue;
+    }
 
     const first = withValues[0]!.lastValue;
     if (withValues.every((p) => valuesMatch(p.lastValue, first))) continue;
@@ -248,6 +276,71 @@ export async function pinFieldPath(input: {
 }
 
 /**
+ * Record the displayed-verification judge's verdict for one concept.
+ *
+ * Mirrors `pinFieldPath`'s read-modify-write: exactly one candidate of the
+ * concept may carry `displayed: true` (naming a new one clears it from every
+ * other candidate), and every candidate of the concept — displayed or not —
+ * is stamped with `verifiedAt` (now), since the judge looked at all of them
+ * to reach its verdict. `label: null` records that the judge ran and found
+ * no displayed candidate: only `verifiedAt` is stamped, `displayed` is
+ * cleared on every candidate.
+ *
+ * A no-op (logged, not thrown) if the domain/page type or the concept is
+ * unknown — catalogue data crosses a DB boundary and a stale caller must not
+ * take the run down. Routes the modified catalogue through
+ * `sanitizeCatalogue` before writing, same as `saveCandidateCatalogue`.
+ */
+export async function markDisplayed(
+  domain: string, pageType: string, concept: string, label: string | null,
+): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(domainIntelligence)
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ))
+    .limit(1);
+  if (!row) {
+    console.warn(`[cache] markDisplayed: no cache for ${domain}/${pageType}`);
+    return;
+  }
+
+  const catalogue = sanitizeCatalogue(row.candidateCatalogue);
+  const candidates = catalogue[concept];
+  if (!candidates || candidates.length === 0) {
+    console.warn(`[cache] markDisplayed: no concept "${concept}" for ${domain}/${pageType}`);
+    return;
+  }
+  if (label !== null && !candidates.some((c) => c.label === label)) {
+    console.warn(`[cache] markDisplayed: label "${label}" matches no candidate of "${concept}" for ${domain}/${pageType}`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  for (const c of candidates) {
+    c.displayed = label !== null && c.label === label;
+    c.verifiedAt = now;
+  }
+
+  const clean = sanitizeCatalogue(catalogue);
+  await db
+    .update(domainIntelligence)
+    .set({ candidateCatalogue: clean, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ));
+
+  console.log(
+    label === null
+      ? `[cache] displayed-verification for ${domain}/${pageType} concept "${concept}": none displayed`
+      : `[cache] displayed-verification for ${domain}/${pageType} concept "${concept}": ${label}`,
+  );
+}
+
+/**
  * The page-type partition a pagination config belongs to. Pagination is a
  * property of listing pages; a detail page has none.
  */
@@ -279,6 +372,34 @@ export async function savePaginationConfig(domain: string, config: PaginationCon
       set: { paginationConfig: config, updatedAt: new Date() },
     });
   console.log(`[cache] pagination for ${domain}: ${config.strategy}`);
+}
+
+/** Write a freshly discovered catalogue. Sanitized on the way in; an empty
+ *  sanitize result is still written (an explicit "nothing labelled" is data). */
+export async function saveCandidateCatalogue(
+  domain: string, pageType: string, catalogue: CandidateCatalogue,
+): Promise<void> {
+  const clean = sanitizeCatalogue(catalogue);
+  await db
+    .update(domainIntelligence)
+    .set({ candidateCatalogue: clean, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ));
+  console.log(`[cache] candidate catalogue for ${domain}/${pageType}: ${Object.keys(clean).length} concept(s)`);
+}
+
+/** The refresh primitive: clear now, rebuild on the next successful extraction. */
+export async function clearCandidateCatalogue(domain: string, pageType: string): Promise<void> {
+  await db
+    .update(domainIntelligence)
+    .set({ candidateCatalogue: {}, updatedAt: new Date() })
+    .where(and(
+      eq(domainIntelligence.domain, domain),
+      eq(domainIntelligence.pageType, pageType),
+    ));
+  console.log(`[cache] candidate catalogue cleared for ${domain}/${pageType}`);
 }
 
 /** Max automatic paths kept per field. Protected paths are additional to this. */
@@ -330,10 +451,27 @@ function comparePaths(a: FieldPath, b: FieldPath): number {
   return sourceAuthority(b.source) - sourceAuthority(a.source);
 }
 
+/** The concept a schema field maps to: explicit selection first, else the
+ *  field's name matched against concept names (exact, then naive plural).
+ *  Exported: the orchestrator's selection/displayed-default serving tier
+ *  (task 7 fix round) needs the exact same field→concept resolution this
+ *  file's own `resolveFromCache` uses, so both look up the same candidate. */
+export function findConcept(
+  catalogue: CandidateCatalogue,
+  fieldName: string,
+  selection?: { concept: string },
+): Candidate[] | null {
+  if (selection) return catalogue[selection.concept] ?? null;
+  if (catalogue[fieldName]) return catalogue[fieldName]!;
+  const singular = fieldName.replace(/s$/, '');
+  return catalogue[singular] ?? null;
+}
+
 export function resolveFromCache(
   fieldPaths: Record<string, FieldPathSet>,
   allExtractedData: Record<string, unknown>,
   requestedFields: string[],
+  opts?: { catalogue?: CandidateCatalogue; selections?: Record<string, { concept: string; label: string }> },
 ): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
   const resolved: Record<string, ResolvedField> = {};
 
@@ -344,6 +482,32 @@ export function resolveFromCache(
     // Sort paths: human first, then by recency-weighted hit rate, then — only when
     // those tie — by how authoritative the source is about this page's entity.
     const ranked = [...pathSet.paths].sort(comparePaths);
+
+    // v2.5 serving order (spec §6.1): the customer's own selection first, then
+    // the vision-verified displayed candidate, then the statistical ranking.
+    // A selection that maps to no catalogue entry (label renamed, catalogue
+    // refreshed) degrades to the next rung and is logged — never a failure.
+    const concept = opts?.catalogue ? findConcept(opts.catalogue, fieldName, opts?.selections?.[fieldName]) : null;
+    const hoist = (predicate: (p: FieldPath) => boolean) => {
+      const i = ranked.findIndex(predicate);
+      if (i > 0) ranked.unshift(ranked.splice(i, 1)[0]!);
+    };
+    const selection = opts?.selections?.[fieldName];
+    const selectedPath = selection && concept
+      ? concept.find((c) => c.label === selection.label)?.path ?? null
+      : null;
+    if (selection && !selectedPath) {
+      console.warn(`[cache] selection "${selection.concept}/${selection.label}" for field "${fieldName}" matches no catalogue candidate — serving default`);
+    }
+    // A pin (or a human-sourced path) must keep winning absent an explicit
+    // selection (spec §6.1/§12): `comparePaths` above already sorted it to
+    // the front, so the displayed-default hoist — which unconditionally
+    // moves its match to index 0 — must not run at all when a protected path
+    // exists, or it would bump the pin right back out of first place.
+    const hasProtectedPath = pathSet.paths.some((p) => p.pinned || p.source === 'human');
+    const displayedPath = hasProtectedPath ? null : (concept?.find((c) => c.displayed === true)?.path ?? null);
+    if (displayedPath) hoist((p) => p.path === displayedPath);
+    if (selectedPath) hoist((p) => p.path === selectedPath);
 
     // Try each path — collect all values that resolve
     const candidates: Array<{ value: unknown; path: FieldPath }> = [];
@@ -387,6 +551,24 @@ export function resolveFromCache(
  * resolve field values by following stored dot-notation paths.
  * This avoids AI calls on subsequent runs for the same domain.
  */
+/**
+ * All API JSON bodies worth searching for a field's value, excluding known
+ * third-party noise (consent, analytics, A/B-test asset blobs) — their
+ * product-shaped keys can poison cached paths (e.g. OneTrust's otFlat.json
+ * publishes {"name":"otFlat",...}).
+ *
+ * Exported so every caller that resolves dot-paths against intercepted
+ * requests — this file's own `resolveApiPathsFromCache` and the
+ * orchestrator's selection/displayed-default serving tier (task 7 fix
+ * round) — filters the same way instead of re-deriving it.
+ */
+export function collectApiJsonBodies(interceptedRequests: InterceptedRequest[]): Record<string, unknown>[] {
+  return interceptedRequests
+    .filter(r => r.parsedJson && typeof r.parsedJson === 'object')
+    .filter(r => !isThirdPartyNoise(r.url))
+    .map(r => r.parsedJson as Record<string, unknown>);
+}
+
 export function resolveApiPathsFromCache(
   fieldPaths: Record<string, FieldPathSet>,
   interceptedRequests: InterceptedRequest[],
@@ -394,13 +576,7 @@ export function resolveApiPathsFromCache(
 ): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
   const resolved: Record<string, ResolvedField> = {};
 
-  // Collect all API JSON bodies, excluding known third-party noise (consent,
-  // analytics, A/B-test asset blobs). Their product-shaped keys can poison
-  // cached paths (e.g. OneTrust's otFlat.json publishes {"name":"otFlat",...}).
-  const apiJsonBodies = interceptedRequests
-    .filter(r => r.parsedJson && typeof r.parsedJson === 'object')
-    .filter(r => !isThirdPartyNoise(r.url))
-    .map(r => r.parsedJson as Record<string, unknown>);
+  const apiJsonBodies = collectApiJsonBodies(interceptedRequests);
 
   if (apiJsonBodies.length === 0) return { resolved, overallConfidence: 0 };
 
@@ -564,6 +740,8 @@ export function getByDotPath(obj: unknown, path: string): unknown {
 export type ExtractionOutcome = {
   domain: string;
   pageType: string;
+  /** URL of the page this outcome was extracted from; stamped onto each resolved path as `lastUrl`. */
+  url: string;
   interceptedRequests: InterceptedRequest[];
   /** field name → { value, source, path, confidence } */
   fieldResults: Record<string, {
@@ -580,6 +758,15 @@ export type ExtractionOutcome = {
 };
 
 /**
+ * An extraction counts as "successful" at 30% field coverage — flexible
+ * enough for partial extractions to still enrich the cache. Named and
+ * exported so every caller that needs the cache's own definition of success
+ * (the discovery trigger in `extraction-orchestrator.ts` among them) reads
+ * this constant rather than re-deriving or hardcoding the threshold.
+ */
+export const EXTRACTION_SUCCESS_THRESHOLD = 0.3;
+
+/**
  * Save extraction results to domain intelligence.
  * Merges new paths into existing cache — never overwrites, only enriches.
  */
@@ -592,7 +779,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
   });
 
   // Success threshold: at least 30% of fields found (flexible for partial extractions)
-  const isSuccess = outcome.overallConfidence >= 0.3;
+  const isSuccess = outcome.overallConfidence >= EXTRACTION_SUCCESS_THRESHOLD;
   const now = new Date().toISOString();
 
   // Build API endpoint list
@@ -605,7 +792,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
   if (existing) {
     // Merge new paths into existing cache
     const existingPaths = (existing.fieldPaths ?? {}) as Record<string, FieldPathSet>;
-    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, outcome.discoveredFieldNames, isSuccess, now);
+    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, outcome.discoveredFieldNames, isSuccess, now, outcome.url);
 
     const newTotalRuns = (existing.totalRuns ?? 0) + 1;
     const newSuccessfulRuns = (existing.successfulRuns ?? 0) + (isSuccess ? 1 : 0);
@@ -619,7 +806,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
     // Same rule for disagreement: report, never resolve it automatically. Two
     // paths returning different values is how a poisoned path announces itself,
     // and until now the cache detected it (conflictCount) and told nobody.
-    for (const conflict of detectPathConflicts(mergedPaths)) {
+    for (const conflict of detectPathConflicts(mergedPaths, sanitizeCatalogue(existing.candidateCatalogue))) {
       const shown = conflict.candidates
         .map((c) => `${c.source}=${String(JSON.stringify(c.value)).slice(0, 40)}`)
         .join(' vs ');
@@ -647,7 +834,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
       domain: outcome.domain,
       pageType: outcome.pageType,
       apiEndpoints,
-      fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now),
+      fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now, outcome.url),
       hasJsonLd: outcome.hasJsonLd,
       hasNextData: outcome.hasNextData,
       totalRuns: 1,
@@ -659,12 +846,13 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function mergeFieldPaths(
+export function mergeFieldPaths(
   existing: Record<string, FieldPathSet>,
   newResults: ExtractionOutcome['fieldResults'],
   discoveredFieldNames: string[],
   isSuccess: boolean,
   now: string,
+  lastUrl?: string,
 ): Record<string, FieldPathSet> {
   const merged = { ...existing };
 
@@ -676,6 +864,22 @@ function mergeFieldPaths(
     }
 
     const pathSet = merged[fieldName];
+
+    // AI-description sources use prose as their "path", so every re-discovery
+    // words it differently and the cache accretes near-duplicates (five for
+    // Newegg variants by 2026-08-25). Identity for them is the SOURCE: a new
+    // description replaces the old one in place, stats carried forward.
+    if (result.source === 'ai-discovered-variants') {
+      const prior = pathSet.paths.find(p => p.source === 'ai-discovered-variants');
+      if (prior) {
+        prior.path = result.path;
+        prior.lastValue = result.value;
+        prior.lastUsedAt = now;
+        if (lastUrl) prior.lastUrl = lastUrl;
+        prior.hits += 1;
+        continue;
+      }
+    }
 
     // Find existing path with same source + path
     const existingPath = pathSet.paths.find(
@@ -693,6 +897,7 @@ function mergeFieldPaths(
         existingPath.confidence = Math.max(0, existingPath.confidence - 0.05);
       }
       existingPath.lastUsedAt = now;
+      if (lastUrl) existingPath.lastUrl = lastUrl;
     } else if (result.path) {
       // Add new path
       pathSet.paths.push({
@@ -703,6 +908,7 @@ function mergeFieldPaths(
         misses: isSuccess ? 0 : 1,
         lastValue: result.value,
         lastUsedAt: now,
+        ...(lastUrl ? { lastUrl } : {}),
       });
     }
 
@@ -732,6 +938,7 @@ function buildFreshPaths(
   fieldResults: ExtractionOutcome['fieldResults'],
   discoveredFieldNames: string[],
   now: string,
+  lastUrl?: string,
 ): Record<string, FieldPathSet> {
   const paths: Record<string, FieldPathSet> = {};
 
@@ -750,6 +957,7 @@ function buildFreshPaths(
         misses: 0,
         lastValue: result.value,
         lastUsedAt: now,
+        ...(lastUrl ? { lastUrl } : {}),
       }],
       conflictCount: 0,
     };
