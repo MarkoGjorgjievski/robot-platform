@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
-import { Globe, Layers, ArrowRight } from 'lucide-react';
+import { Globe, Layers, ArrowRight, RefreshCw } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
 import { formatValue } from '../lib/format';
+import type { CandidateCatalogue } from '../lib/candidate-picker';
 
 export default function DomainDetail() {
   const { domain } = useParams({ from: '/domains/$domain' });
@@ -46,6 +47,7 @@ export default function DomainDetail() {
             <Stat label="Last verified" value={new Date(pt.lastVerifiedAt).toLocaleDateString()} />
           </dl>
           <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} domain={domain} pageType={pt.pageType} />
+          <CandidateCatalogueSection catalogue={pt.catalogue as CandidateCatalogue} domain={domain} pageType={pt.pageType} />
         </div>
       ))}
 
@@ -210,6 +212,76 @@ function SelectorsTable({
         </table>
       </div>
     </>
+  );
+}
+
+/**
+ * What this domain/pageType CAN yield per concept — labelled candidates
+ * discovered once and refreshed only on operator request. Empty until a
+ * discovery has run for this domain/pageType, which is the common case, so
+ * this must render a clean empty state rather than nothing or a crash.
+ */
+function CandidateCatalogueSection({
+  catalogue, domain, pageType,
+}: {
+  catalogue: CandidateCatalogue; domain: string; pageType: string;
+}) {
+  const utils = trpc.useUtils();
+  const refresh = trpc.domains.refreshCatalogue.useMutation({
+    onSuccess: () => utils.domains.intelligenceDetail.invalidate({ domain }),
+  });
+  const concepts = Object.entries(catalogue);
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between">
+        <h3 className="micro-label">Candidate catalogue</h3>
+        <button
+          type="button"
+          disabled={refresh.isPending}
+          onClick={() => refresh.mutate({ domain, pageType })}
+          className="btn-quiet"
+          title="Cleared now — rebuilt by the next successful run."
+        >
+          <RefreshCw className="h-3 w-3" />
+          {refresh.isPending ? 'Refreshing...' : 'Refresh catalogue'}
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-gray-500">
+        Cleared now — rebuilt by the next successful run, not immediately.
+      </p>
+      {refresh.isError && (
+        <p className="mt-2 text-xs text-red-600">{refresh.error.message}</p>
+      )}
+      {concepts.length === 0 ? (
+        <div className="mt-2 rounded border border-dashed border-gray-300 bg-white/50 px-4 py-6 text-center text-xs text-gray-400">
+          No candidates discovered yet for this page type.
+        </div>
+      ) : (
+        <div className="card mt-2 divide-y divide-gray-100">
+          {concepts.map(([concept, candidates]) => (
+            <div key={concept} className="flex flex-wrap items-center gap-2 px-3 py-2">
+              <span className="micro-label shrink-0">{concept}</span>
+              {candidates.map((c) => (
+                <span
+                  key={c.label}
+                  title={c.scope ? JSON.stringify(c.scope) : undefined}
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] ${
+                    c.displayed
+                      ? 'bg-accent-100 text-accent-700'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {c.label}
+                  <span className="font-mono">{formatValue(c.sampleValue)}</span>
+                  {c.displayed && <span className="font-medium">· displayed</span>}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
