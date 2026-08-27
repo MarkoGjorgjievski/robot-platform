@@ -18,6 +18,7 @@ import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { isRunCancelled } from '../crawl/is-cancelled.js';
 import { executeRun } from '../crawl/execute-run.js';
 import { extractItem } from '../crawl/extract-item.js';
+import { PROBE_BUDGET } from '../crawl/probe.js';
 
 /**
  * The statuses `crawl.cancel` will act on: a run phase 2 is working, or one
@@ -116,7 +117,11 @@ async function startExecution(
 
 export const crawlRouter = router({
   plan: publicProcedure
-    .input(z.object({ sourceId: z.string().uuid() }))
+    .input(z.object({
+      sourceId: z.string().uuid(),
+      /** A quick, single-row planning pass to sanity-check a Source before committing it to a full crawl. */
+      probe: z.boolean().optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
@@ -133,12 +138,18 @@ export const crawlRouter = router({
       // into a callback, but a const does.
       const inputSet = source.inputSet;
 
+      const probe = input.probe === true;
+
       // Nothing has been written yet, so a failure above leaves no trace to clean up.
       const [run] = await ctx.db.insert(runs).values({
         sourceId: source.id,
         status: 'planning',
         startedAt: new Date(),
-        inputLabel: (source.urlTemplate ?? source.name).slice(0, 200),
+        // A probe run's label overrides the usual "what was this run
+        // pointed at" text: `crawl.status` readers need to tell a probe
+        // apart from a real crawl at a glance, and 'probe' is unambiguous
+        // where a URL template or source name is not.
+        inputLabel: probe ? 'probe' : (source.urlTemplate ?? source.name).slice(0, 200),
       }).returning({ id: runs.id });
 
       // From here on, the run row exists: every exit path (including a launch
@@ -153,18 +164,26 @@ export const crawlRouter = router({
       // the walk itself also means no chromium is held open across the DB
       // writes below.
       try {
+        const rows = (inputSet.rows ?? []) as Array<Record<string, unknown>>;
+        // A probe only ever needs to know whether the FIRST input row works —
+        // slicing here (rather than trusting `PROBE_BUDGET` alone to keep the
+        // run small) means a probe never plans work for rows 2+ even if the
+        // budget were misconfigured.
+        const planRows = probe ? rows.slice(0, 1) : rows;
+        const planBudget = probe ? PROBE_BUDGET : source.budget;
+
         const outcome = await withBrowserSession((browser) => planRun(
           {
             source: {
               listingMode: source.listingMode,
               inputStrategy: (source.inputStrategy ?? 'direct') as 'direct' | 'template' | 'category' | 'search',
               urlTemplate: source.urlTemplate,
-              budget: source.budget,
+              budget: planBudget,
             },
             schema: ((source.dataset?.schema ?? []) as Array<{ name: string; type: string }>),
             inputSet: {
               columns: (inputSet.columns ?? []) as Array<{ name: string; primary?: boolean; propagate?: boolean }>,
-              rows: (inputSet.rows ?? []) as Array<Record<string, unknown>>,
+              rows: planRows,
             },
           },
           { browser, agent: new SchemaAgent() },
