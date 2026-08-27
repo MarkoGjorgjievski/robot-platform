@@ -17,9 +17,6 @@ export function Layout() {
             <Link to="/projects" className={navLink} activeProps={{ className: `${navLink} ${navLinkActive}` }}>
               Projects
             </Link>
-            <Link to="/sandbox" className={navLink} activeProps={{ className: `${navLink} ${navLinkActive}` }}>
-              Sandbox
-            </Link>
             <Link to="/domains" className={navLink} activeProps={{ className: `${navLink} ${navLinkActive}` }}>
               Domains
             </Link>

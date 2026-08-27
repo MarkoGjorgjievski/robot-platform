@@ -92,7 +92,7 @@ export const runsRouter = router({
           limit: VIEW_ROW_CAP,
         }),
         // The true row total, independent of the cap above. One extraction can
-        // hold several rows (sandbox: one extraction, N rows) or many
+        // hold several rows (a single-page run: one extraction, N rows) or many
         // extractions can hold one row each (phase 2: N extractions, one row
         // each) — jsonb_array_length summed in SQL is exact in both shapes and
         // never requires reading the row data itself into memory.

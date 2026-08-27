@@ -280,7 +280,7 @@ describe('sources.quickCreate', () => {
 });
 
 describe('sources.analyze', () => {
-  it('derives pageType "detail" from a non-listing source, persists the sandbox-shaped payload plus listing/hints, and returns it', async () => {
+  it('derives pageType "detail" from a non-listing source, persists the schema-discovery payload plus listing/hints, and returns it', async () => {
     const created = await caller.sources.quickCreate({
       mode: 'detail',
       urls: ['https://test-qc-analyze-detail.example.com/p/1'],

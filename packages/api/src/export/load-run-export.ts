@@ -34,8 +34,8 @@ export async function loadRunExport(db: typeof Database, runId: string): Promise
   ]);
 
   // Phase 2 writes one extraction per URL, so a run's rows are the concatenation
-  // of them in the order they were extracted. A single-extraction run (the
-  // sandbox flow) flattens to exactly what it was before.
+  // of them in the order they were extracted. A single-extraction run (a
+  // single-page run) flattens to exactly what it was before.
   const rows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
 
   return buildRunExport({

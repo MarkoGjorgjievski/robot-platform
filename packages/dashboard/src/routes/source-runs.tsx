@@ -43,7 +43,7 @@ export default function SourceRuns() {
       {runs.length === 0 ? (
         <EmptyState
           title="No runs yet"
-          description="Each extraction creates a Run row. Click 'Extract' on a graduated source to create the first one."
+          description="Each extraction creates a Run row. Confirm this source's schema to kick off the first one."
         />
       ) : (
         <ul className="card mt-4 divide-y divide-gray-100">

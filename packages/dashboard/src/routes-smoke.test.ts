@@ -23,20 +23,19 @@ const API = process.env.API_URL ?? 'http://localhost:4000';
 
 /**
  * Routes with their parameters filled from data the seed guarantees:
- * `pnpm db:seed` creates the Sandbox project, and any extraction creates a
+ * `pnpm db:seed` creates the Scratch project, and any extraction creates a
  * domain row. Param routes are included deliberately — they are where a broken
  * loader or a null field actually shows up.
  */
 const ROUTES = [
   '/',
   '/projects',
-  '/sandbox',
   '/domains',
-  '/p/sandbox',
-  '/p/sandbox/datasets',
-  '/p/sandbox/inputs',
-  '/p/sandbox/domains',
-  '/p/sandbox/sources',
+  '/p/scratch',
+  '/p/scratch/datasets',
+  '/p/scratch/inputs',
+  '/p/scratch/domains',
+  '/p/scratch/sources',
   // Requires at least one extraction to have run. Worth including: it is the
   // busiest read-only view and the only one rendering cache internals.
   '/domains/www.newegg.com',

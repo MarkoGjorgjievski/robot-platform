@@ -18,6 +18,31 @@ type: project
 
 The v2 crawler (listing → detail, two phases) is built and **merged into `main`** (merge commit `3908780`, 2026-08-21). It has been run against a live site end to end twice: once exposed a real shared-browser lifecycle bug in `runExtraction` (7/8 items failed), once after the fix ran clean (8/8 items done, CSV export shows all 8 rows). A follow-up review round found and fixed the identical bug pattern one file over (`runAnalysis` in `analysis-orchestrator.ts`) and made the "whoever launches the browser closes it" rule structural instead of a convention — see `task-9-fix2-report.md`. The full narrative — both live runs' logs, verification queries, and the root-cause walkthrough — lives in `.superpowers/sdd/2026-08-20-v2-crawler-phase2/task-9-report.md` and `task-9-fix-report.md`; this file keeps only what's still true and useful to a fresh session.
 
+## MVP simplification — Task 11 (2026-08-27): the sandbox/graduate world is deleted
+
+`.superpowers/sdd/2026-08-26-mvp-simplification/`. Tasks 9-10 shipped the replacement world:
+declared-mode home flow (paste URLs, pick a mode, land on a real Source under the Scratch
+project — no more throwaway `/sandbox/{slug}` draft), the Source workspace
+(`packages/dashboard/src/routes/source-setup.tsx`) with the ported schema-discovery wizard
+(field table, provenance badges, mode-aware Extract), `sources.quickCreate` / `sources.analyze`
+/ `sources.confirm`, and the probe-confirm gate (a listing Source runs a small probe, a human
+confirms the schema looks right, only then does `confirm` kick off the full crawl). Task 11
+(this entry) deleted the world that flow replaced: `packages/dashboard/src/routes/sandbox-index.tsx`,
+`sandbox-detail.tsx`, `packages/dashboard/src/components/graduate-form.tsx`, their route
+registrations and the header nav link; `packages/api/src/routers/sandbox.ts` + its test and
+router-index registration; the `is_sandbox` filters that hid Scratch's sources from ordinary
+project/domain views (`projects-list.tsx`'s `p.slug !== 'scratch'` filter, `domains.ts`'s
+`isSandbox` where-clauses, `sources.ts`'s `sources.list` filter) — **Scratch is now a visible,
+ordinary project**, and its sources appear in every list like any other project's. The
+`is_sandbox` column, its migrations, and the CHECK constraint that uses it are untouched — kept
+for the schema shape and for tests that still use `isSandbox: true` to satisfy
+`sources_non_sandbox_requires_dataset` without a full dataset chain. `packages/db/src/scripts/seed-sandbox.ts`
+(which seeds the always-present Scratch project) was renamed to `seed-scratch.ts`
+(package.json script `seed:sandbox` → `seed:scratch`, root `db:seed` updated to match) since
+the rename was trivial and the old name no longer matched what it does. `pnpm -r test` (all 7 packages),
+`pnpm typecheck`, `pnpm --filter @robot/dashboard exec tsc --noEmit`, and the cache-hygiene gate
+are all green as of this commit.
+
 ## v2.5 candidate labelling — Task 11 (2026-08-26): Tier 1 fixture gate landed, live dogfood NOT run
 
 Tasks 1-10 of `.superpowers/sdd/2026-08-25-candidate-labelling/` are built and merged into

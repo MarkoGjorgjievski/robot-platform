@@ -10,8 +10,7 @@ export default function ProjectsList() {
   if (listQuery.isLoading) return <Spinner label="Loading projects..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
 
-  // Filter out Sandbox project — it has its own UI at /sandbox
-  const projects = (listQuery.data ?? []).filter((p) => p.slug !== 'scratch');
+  const projects = listQuery.data ?? [];
 
   return (
     <div>
@@ -23,10 +22,10 @@ export default function ProjectsList() {
       {projects.length === 0 ? (
         <EmptyState
           title="No projects yet"
-          description="Graduate a Sandbox source to create your first project (coming in Phase 4)."
+          description="Add a source from the home page to get started."
           action={
-            <Link to="/sandbox" className="text-sm font-medium text-accent-700 underline-offset-2 hover:underline">
-              Go to Sandbox
+            <Link to="/" className="text-sm font-medium text-accent-700 underline-offset-2 hover:underline">
+              Go to home
             </Link>
           }
         />

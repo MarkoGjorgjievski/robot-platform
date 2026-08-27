@@ -9,8 +9,6 @@ import { Placeholder } from './components/placeholder';
 
 import LandingPage from './routes/landing';
 import ProjectsList from './routes/projects-list';
-import SandboxIndex from './routes/sandbox-index';
-import SandboxDetail from './routes/sandbox-detail';
 import ProjectHome from './routes/project-home';
 import DatasetsList from './routes/datasets-list';
 import DatasetDetail from './routes/dataset-detail';
@@ -41,18 +39,6 @@ const projectsListRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/projects',
   component: ProjectsList,
-});
-
-const sandboxIndexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/sandbox',
-  component: SandboxIndex,
-});
-
-const sandboxDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/sandbox/$shortid',
-  component: SandboxDetail,
 });
 
 const projectHomeRoute = createRoute({
@@ -164,8 +150,6 @@ const domainDetailRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   projectsListRoute,
-  sandboxIndexRoute,
-  sandboxDetailRoute,
   projectHomeRoute,
   datasetsListRoute,
   datasetDetailRoute,
