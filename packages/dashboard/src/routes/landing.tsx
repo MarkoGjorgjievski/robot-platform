@@ -54,6 +54,10 @@ export default function LandingPage() {
       setError('Enter at least one URL');
       return;
     }
+    if (urls.length > 50) {
+      setError(`Too many URLs — the limit is 50 per source (you pasted ${urls.length}). Split them into two sources.`);
+      return;
+    }
 
     createMutation.mutate({ mode, urls });
   }
