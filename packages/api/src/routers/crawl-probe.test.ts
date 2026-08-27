@@ -205,7 +205,11 @@ describe('crawl.probeAndSample', () => {
       'starts a fresh probe once the previous one reached a terminal status (%s)',
       async (status) => {
         const sourceId = await makeSource();
-        await db.insert(runs).values({ sourceId, status, inputLabel: 'probe' });
+        // completedAt set alongside the terminal status: that's the only
+        // combination `finaliseRun`/`planSource` ever actually write — a
+        // terminal `status` with `completedAt` still null isn't a reachable
+        // production state, so the fixture shouldn't simulate one either.
+        await db.insert(runs).values({ sourceId, status, inputLabel: 'probe', completedAt: new Date() });
         planSourceMock.mockResolvedValue({
           ...OUTCOME_BASE,
           runId: 'run-fresh',
@@ -221,6 +225,48 @@ describe('crawl.probeAndSample', () => {
         expect(planSourceMock).toHaveBeenCalledTimes(1);
       },
     );
+
+    // Live bug (post-merge): `planSource` writes `status: 'planned'` for BOTH
+    // a probe genuinely mid-flight (about to be flipped to 'extracting' a few
+    // lines later) AND a 0-item listing walk that never reaches that flip at
+    // all — as terminal as 'completed', just spelled differently. A status
+    // list can't tell those apart; `completed_at` can, because it is set if
+    // and only if nothing further will touch the run (finaliseRun's own
+    // rule, which `planSource` follows identically). Live proof: run
+    // f5b72f3a sat at 'planned' with completed_at set forever, and the old
+    // status-list guard treated it as in-flight, making the Source
+    // permanently unprobeable from the UI.
+    it('does NOT reuse a probe run at planned when completed_at is set — that walk already finished with 0 items', async () => {
+      const sourceId = await makeSource();
+      await db.insert(runs).values({
+        sourceId, status: 'planned', inputLabel: 'probe', completedAt: new Date(),
+      });
+      planSourceMock.mockResolvedValue({
+        ...OUTCOME_BASE,
+        runId: 'run-fresh-after-zero-item-planned',
+        status: 'planned',
+        itemCount: 2,
+      } satisfies PlanSourceResult);
+      markRunExtractingMock.mockResolvedValue(true);
+      startExecutionMock.mockResolvedValue(undefined);
+
+      const result = await caller.crawl.probeAndSample({ sourceId });
+
+      expect(result.runId).toBe('run-fresh-after-zero-item-planned');
+      expect(planSourceMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('DOES reuse a probe run at planned when completed_at is still null — genuinely mid-flight', async () => {
+      const sourceId = await makeSource();
+      const [existingRun] = await db.insert(runs)
+        .values({ sourceId, status: 'planned', inputLabel: 'probe', completedAt: null })
+        .returning({ id: runs.id });
+
+      const result = await caller.crawl.probeAndSample({ sourceId });
+
+      expect(result.runId).toBe(existingRun!.id);
+      expect(planSourceMock).not.toHaveBeenCalled();
+    });
 
     it('does not mistake a real crawl (a non-probe run) for an in-flight probe', async () => {
       const sourceId = await makeSource();
