@@ -1,0 +1,133 @@
+// packages/api/src/routers/crawl-probe.test.ts
+// crawl.probeAndSample — the probe-confirm flow's fire-and-forget entry point
+// (mvp-simplification task 8). Follows crawl.test.ts's stubbing pattern: the
+// heavy dependencies (`planSource`, `startExecution`) are mocked at the
+// module boundary so this exercises ONLY the router's own logic — what it
+// passes down, and whether it starts execution at all — without a real
+// planner, browser, or extraction loop.
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { db, sources, orgs, projects, datasets } from '@robot/db';
+import { createCallerFactory } from '../trpc.js';
+import { appRouter } from './index.js';
+import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
+import type { PlanSourceResult } from '../crawl/plan-source.js';
+
+const { planSourceMock, startExecutionMock } = vi.hoisted(() => ({
+  planSourceMock: vi.fn(),
+  startExecutionMock: vi.fn(),
+}));
+
+vi.mock('../crawl/plan-source.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../crawl/plan-source.js')>();
+  return { ...actual, planSource: planSourceMock };
+});
+
+vi.mock('../crawl/start-execution.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
+  return { ...actual, startExecution: startExecutionMock };
+});
+
+const caller = createCallerFactory(appRouter)({ db });
+const SLUG = 'test-crawl-probe';
+let orgId: string | null = null;
+
+/** org → project → dataset → Source, no InputSet needed: planSource is mocked. */
+async function makeSource() {
+  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  orgId = org!.id;
+  const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+  const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+  const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+  return source!.id;
+}
+
+const OUTCOME_BASE: PlanSourceResult = {
+  runId: 'run-placeholder',
+  status: 'planned',
+  itemCount: 0,
+  listingPages: 0,
+  warnings: [],
+  errors: [],
+  inputs: [],
+  cacheWarm: false,
+};
+
+afterEach(async () => {
+  planSourceMock.mockReset();
+  startExecutionMock.mockReset();
+  if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+  orgId = null;
+});
+
+describe('crawl.probeAndSample', () => {
+  it('plans with probe: true and starts execution at PROBE_SAMPLE_LIMIT when planning found work', async () => {
+    const sourceId = await makeSource();
+    planSourceMock.mockResolvedValue({
+      ...OUTCOME_BASE,
+      runId: 'run-1',
+      status: 'planned',
+      itemCount: 3,
+      warnings: ['some warning'],
+      errors: [],
+    } satisfies PlanSourceResult);
+    startExecutionMock.mockResolvedValue(undefined);
+
+    const result = await caller.crawl.probeAndSample({ sourceId });
+
+    expect(planSourceMock).toHaveBeenCalledTimes(1);
+    expect(planSourceMock).toHaveBeenCalledWith(expect.anything(), sourceId, { probe: true });
+
+    // Fire-and-forget, but the call itself is synchronous — the mock has
+    // already recorded it by the time the mutation's promise resolves.
+    expect(startExecutionMock).toHaveBeenCalledTimes(1);
+    expect(startExecutionMock).toHaveBeenCalledWith('run-1', sourceId, expect.any(Array), PROBE_SAMPLE_LIMIT);
+
+    expect(result).toEqual({
+      runId: 'run-1', status: 'planned', itemCount: 3, warnings: ['some warning'], errors: [],
+    });
+  });
+
+  it('does not start execution when planning failed outright (all inputs failed)', async () => {
+    const sourceId = await makeSource();
+    planSourceMock.mockResolvedValue({
+      ...OUTCOME_BASE,
+      runId: 'run-2',
+      status: 'failed',
+      itemCount: 0,
+      errors: [{ inputIndex: 0, message: 'listing capture failed: blocked' }],
+    } satisfies PlanSourceResult);
+
+    const result = await caller.crawl.probeAndSample({ sourceId });
+
+    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      runId: 'run-2',
+      status: 'failed',
+      itemCount: 0,
+      warnings: [],
+      errors: [{ inputIndex: 0, message: 'listing capture failed: blocked' }],
+    });
+  });
+
+  it('does not start execution when planning "succeeded" but planned zero items', async () => {
+    const sourceId = await makeSource();
+    planSourceMock.mockResolvedValue({
+      ...OUTCOME_BASE,
+      runId: 'run-3',
+      status: 'planned',
+      itemCount: 0,
+    } satisfies PlanSourceResult);
+
+    const result = await caller.crawl.probeAndSample({ sourceId });
+
+    expect(startExecutionMock).not.toHaveBeenCalled();
+    expect(result.itemCount).toBe(0);
+    expect(result.status).toBe('planned');
+  });
+
+  it('rejects a non-uuid sourceId', async () => {
+    await expect(caller.crawl.probeAndSample({ sourceId: 'not-a-uuid' } as never)).rejects.toThrow();
+    expect(planSourceMock).not.toHaveBeenCalled();
+  });
+});

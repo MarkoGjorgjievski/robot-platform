@@ -5,21 +5,15 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
-import { SchemaAgent } from '@robot/agent';
 import { type OriginField } from '@robot/scraper';
-import { db, runs, runItems } from '@robot/db';
+import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
-import { withBrowserSession } from '../browser-session.js';
-import { claimNextItem } from '../crawl/claim-item.js';
-import { markItemDone, markItemFailed } from '../crawl/record-outcome.js';
-import { finaliseRun } from '../crawl/roll-up-run.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
-import { isRunCancelled } from '../crawl/is-cancelled.js';
-import { executeRun } from '../crawl/execute-run.js';
-import { extractItem } from '../crawl/extract-item.js';
 import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
 import { effectiveSchema } from '../crawl/effective-schema.js';
+import { startExecution } from '../crawl/start-execution.js';
+import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -37,68 +31,6 @@ export { safeErrorMessage, formatPlanLog };
  */
 const CANCELLABLE_STATUSES = ['extracting', 'cancelling'];
 
-/**
- * Runs the loop outside the request. Deliberately not awaited: 200 items at
- * ~30s each is ~100 minutes, which no HTTP mutation can hold open. The honest
- * limit of having no job queue is that an api-server restart pauses the run —
- * `run_items` survives, so calling execute again resumes it.
- *
- * This function must never reject in a way that escapes to its caller as an
- * unhandled promise rejection — the caller deliberately does not await it, and
- * under default Node behaviour an unhandled rejection kills the process,
- * taking the whole api-server (and the dashboard it serves) down with it. So
- * every step of the failure path — reading the error, and recording it — is
- * itself guarded; the `.catch()` at the call site is belt-and-braces for
- * anything this function's own guards still missed.
- */
-async function startExecution(
-  runId: string,
-  sourceId: string,
-  schema: OriginField[],
-  limit?: number,
-): Promise<void> {
-  try {
-    // `withBrowserSession` owns launch-and-always-close, including the case
-    // where `launch()` itself throws part-way. The hand-rolled
-    // try/finally this replaces closed on every path too, but only because
-    // this procedure remembered to write it — and its `finally { await
-    // browser.close(); }` would have let a throwing close() replace the real
-    // execution error on its way out.
-    await withBrowserSession(async (browser) => {
-      const agent = new SchemaAgent();
-      await executeRun(runId, {
-        claim: (id) => claimNextItem(db, id),
-        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
-        onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
-        onFailed: (itemId, message) => markItemFailed(db, itemId, message),
-        // Both `cancelling` (the stop request) and `cancelled` (a stop another
-        // loop already carried out) end this loop — see is-cancelled.ts.
-        isCancelled: () => isRunCancelled(db, runId),
-        // No rowCount passed: finaliseRun derives it from the DB itself, so a
-        // stale local counter from this loop can never overwrite a truer total.
-        // `cancelled` IS threaded through — it's executeRun's own record of
-        // whether the loop broke on a cancel check, and finaliseRun needs it to
-        // roll a still-pending run up to 'cancelled' instead of 'extracting'.
-        finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
-      }, { limit });
-    });
-  } catch (err) {
-    console.error(`[crawl] execution of run ${runId} failed:`, err);
-    try {
-      await db.update(runs)
-        .set({ status: 'failed', errorMessage: safeErrorMessage(err).slice(0, 1000), completedAt: new Date() })
-        .where(eq(runs.id, runId));
-    } catch (recoveryErr) {
-      // If the DB is what broke, recording the failure will break the same
-      // way — that must not become a second, uncaught throw. There's nothing
-      // more we can do here beyond logging; crawl.status will show the run
-      // stuck at 'extracting', which is the honest state, and a restart or a
-      // fixed DB lets a re-issued execute resume it.
-      console.error(`[crawl] failed to record failure status for run ${runId}:`, recoveryErr);
-    }
-  }
-}
-
 export const crawlRouter = router({
   // The planning body itself lives in `planSource` (../crawl/plan-source.js,
   // mvp-simplification task 7) — `sources.confirm` calls the exact same
@@ -112,6 +44,67 @@ export const crawlRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       return planSource(ctx.db, input.sourceId, { probe: input.probe === true });
+    }),
+  /**
+   * Probe-and-sample: a probe plan (`planSource(..., { probe: true })`) followed
+   * immediately by a small, fire-and-forget execution of what it found — spec
+   * §3's "one run, small and bounded" step 1. `crawl.execute`'s own guard
+   * comments (above `startExecution`, `start-execution.ts`) apply verbatim
+   * here: the loop is deliberately not awaited, so this mutation returns as
+   * soon as planning is done and the dashboard polls `crawl.status`/`crawl.items`
+   * for the sample rows as they land.
+   *
+   * If planning itself failed — every input errored, or nothing was planned —
+   * there is no work list for execution to pick up, and starting the loop
+   * anyway would just claim nothing and finalise immediately. Returning the
+   * plan outcome's warnings/errors as-is is what lets the dashboard's
+   * diagnosis panel (`diagnose-run.ts`) explain the failure instead of
+   * silently reporting an empty sample.
+   */
+  probeAndSample: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const outcome = await planSource(ctx.db, input.sourceId, { probe: true });
+
+      // `status === 'failed'` covers "every input errored"; `itemCount === 0`
+      // additionally covers the case planSource itself doesn't mark failed —
+      // an empty InputSet, or a probe row that planned nothing without any
+      // input erroring — where a work list of zero items is still nothing for
+      // execution to claim.
+      if (outcome.status === 'planned' && outcome.itemCount > 0) {
+        const source = await ctx.db.query.sources.findFirst({
+          where: eq(sources.id, input.sourceId),
+          // selectorsJson: a Scratch source's schema falls back here when its
+          // dataset schema is empty — see effective-schema.ts. Mirrors
+          // `execute`'s own lookup exactly, so a probe source and a confirmed
+          // source resolve their schema the same way.
+          columns: { id: true, selectorsJson: true },
+          with: { dataset: { columns: { schema: true } } },
+        });
+        // planSource already confirmed sourceId exists (it would have thrown
+        // NOT_FOUND otherwise) — this can only be null if the Source was
+        // deleted in the gap between the two queries, which is not this
+        // mutation's job to recover from; skipping execution is the safe
+        // response to a Source that is no longer there.
+        if (source) {
+          // Deliberately not awaited — see start-execution.ts's own doc
+          // comment for why this must never become an unhandled rejection,
+          // and `execute`'s identical `.catch()` below for the pattern this
+          // copies.
+          void startExecution(outcome.runId, source.id, effectiveSchema(source) as OriginField[], PROBE_SAMPLE_LIMIT)
+            .catch((err) => {
+              console.error(`[crawl] startExecution rejected outside its own guards for run ${outcome.runId}:`, err);
+            });
+        }
+      }
+
+      return {
+        runId: outcome.runId,
+        status: outcome.status,
+        itemCount: outcome.itemCount,
+        warnings: outcome.warnings,
+        errors: outcome.errors,
+      };
     }),
   /**
    * The work list a plan produced — what phase 2 will fetch, before it fetches it.
