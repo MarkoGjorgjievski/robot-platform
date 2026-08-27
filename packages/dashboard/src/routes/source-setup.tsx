@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
@@ -69,19 +69,6 @@ export default function SourceSetup() {
     onSuccess: () => utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug }),
     onError: (err) => setError(err.message),
   });
-
-  // Auto-fire analyze if no schema yet — mirrors the old sandbox wizard's
-  // guard against StrictMode double-fire exactly.
-  const analyzeStartedRef = useRef(false);
-  useEffect(() => {
-    if (!source) return;
-    const schema = source.selectorsJson as Schema | null;
-    const hasFields = schema && Array.isArray(schema.fields) && schema.fields.length > 0;
-    if (!hasFields && !analyzeStartedRef.current && !analyzeMutation.isPending) {
-      analyzeStartedRef.current = true;
-      analyzeMutation.mutate({ sourceId: source.id });
-    }
-  }, [source, analyzeMutation]);
 
   const planMutation = trpc.crawl.plan.useMutation();
   const executeMutation = trpc.crawl.execute.useMutation();
@@ -168,8 +155,8 @@ export default function SourceSetup() {
             )}
             <button
               className="font-medium text-accent-700 underline-offset-2 hover:underline"
+              disabled={analyzeMutation.isPending}
               onClick={() => {
-                analyzeStartedRef.current = true;
                 setError(null);
                 analyzeMutation.mutate({ sourceId: source.id });
               }}
@@ -189,18 +176,20 @@ export default function SourceSetup() {
       )}
 
       {!hasSchema && !analyzeMutation.isPending && (
-        <div className="mt-6 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-          No schema yet.{' '}
+        <div className="mt-6 rounded-md border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm text-gray-600">No schema yet.</p>
           <button
-            className="font-medium text-accent-700 underline-offset-2 hover:underline"
+            className="btn-primary mt-3 h-9"
             onClick={() => {
-              analyzeStartedRef.current = true;
               setError(null);
               analyzeMutation.mutate({ sourceId: source.id });
             }}
           >
-            Re-run analyze
+            Analyze
           </button>
+          <p className="mt-2 text-xs text-gray-500">
+            Fetches the page and maps its fields — may use AI for a new domain.
+          </p>
         </div>
       )}
 
