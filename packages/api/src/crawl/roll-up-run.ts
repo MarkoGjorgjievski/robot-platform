@@ -14,10 +14,23 @@ export type RunRollup = 'completed' | 'partial' | 'failed' | 'extracting' | 'can
  * saying so is honest. If nothing is pending, the work genuinely all finished
  * before the cancel took effect — rolling that up as `'cancelled'` would be a
  * lie, so it falls through to the normal completed/partial/failed logic.
+ *
+ * `limitReached` is Finding 1's fix (final-review-findings.md): a probe
+ * stopped by its own sample limit (executeRun's `opts.limit`) also leaves
+ * `pending > 0`, with `cancelled` still `false` — that combination used to
+ * fall through to `'extracting'`, a status the dashboard reads as "a loop is
+ * still working this run" forever, since nothing will ever claim the rest.
+ * A limit break is a deliberate, honest stop, not a cancel and not a lie:
+ * `'partial'` says exactly what happened — some items were extracted, the
+ * rest were never attempted by design — and it is terminal, so `finaliseRun`
+ * writes a real `completedAt`. `cancelled` takes priority when both are true
+ * (unreachable today — the limit check runs before the cancel check — but a
+ * future caller has no reason to guess which wins).
  */
 export function rollUpStatus(
   counts: { pending: number; running: number; done: number; failed: number },
   cancelled = false,
+  limitReached = false,
 ): RunRollup {
   // `running` is unfinished work exactly as `pending` is — an item claimed by
   // `claimNextItem` and never resolved (an api-server restart mid-item is the
@@ -26,7 +39,11 @@ export function rollUpStatus(
   // `completed` with resultCount=7 and no complaint anywhere. `running` is a
   // required field, not optional-with-a-default, so a future caller has to
   // decide about it rather than silently reintroduce this.
-  if (counts.pending > 0 || counts.running > 0) return cancelled ? 'cancelled' : 'extracting';
+  if (counts.pending > 0 || counts.running > 0) {
+    if (cancelled) return 'cancelled';
+    if (limitReached) return 'partial';
+    return 'extracting';
+  }
   if (counts.failed === 0) return 'completed';
   // `partial` exists because at scale "480 of 500 succeeded" is the normal
   // outcome, and a binary completed/failed cannot express it.
@@ -53,6 +70,7 @@ export async function finaliseRun(
   db: typeof Database,
   runId: string,
   cancelled = false,
+  limitReached = false,
 ): Promise<RunRollup> {
   const [counts] = await db
     .select({
@@ -70,7 +88,7 @@ export async function finaliseRun(
     running: Number(counts?.running ?? 0),
     done,
     failed: Number(counts?.failed ?? 0),
-  }, cancelled);
+  }, cancelled, limitReached);
 
   await db.update(runs)
     .set({

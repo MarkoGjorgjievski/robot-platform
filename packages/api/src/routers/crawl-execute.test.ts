@@ -7,6 +7,9 @@ import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { safeErrorMessage } from './crawl.js';
 import { executeRun } from '../crawl/execute-run.js';
+import { claimNextItem } from '../crawl/claim-item.js';
+import { markItemDone } from '../crawl/record-outcome.js';
+import { finaliseRun } from '../crawl/roll-up-run.js';
 
 const caller = createCallerFactory(appRouter)({ db });
 const SLUG = 'test-crawl-execute';
@@ -201,6 +204,60 @@ describe('crawl.execute', () => {
     } as never, { limit: 2 });
     expect(claimed).toEqual(['a', 'b']);
     expect(outcome.extracted).toBe(2);
+  });
+});
+
+// Finding 1 (critical, final-review-findings.md): a probe stopped by its own
+// sample limit (PROBE_SAMPLE_LIMIT=3 of up to 30 planned items) must still
+// reach a TERMINAL status with completedAt set — not roll up to 'extracting'
+// forever with 27 items left `pending`. The unit-level executeRun tests all
+// stub `finalise`/`rollUpStatus`'s inputs, which is exactly how this bug hid:
+// this test exercises the REAL roll-up path — real claimNextItem, real
+// markItemDone, real finaliseRun against the database — with nothing stubbed
+// except extractItem (no browser) and the limit itself.
+describe('executeRun — a limit-stopped run rolls up through the real finalise path', () => {
+  async function seedRunWithPendingDetailItems(count: number) {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+    const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'extracting', inputLabel: 'probe' }).returning();
+    await db.insert(runItems).values(
+      Array.from({ length: count }, (_, i) => ({
+        runId: run!.id, kind: 'detail' as const, url: `https://example.com/p/${i}`, inputIndex: 0, status: 'pending' as const,
+      })),
+    );
+    return run!.id;
+  }
+
+  it('finalises to a terminal status with completedAt set once the sample limit is reached, not stuck at extracting', async () => {
+    const runId = await seedRunWithPendingDetailItems(30);
+
+    const outcome = await executeRun(runId, {
+      claim: (id) => claimNextItem(db, id),
+      extractItem: async () => ({ row: { title: 'x' }, extractionId: null }),
+      onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
+      onFailed: async () => {},
+      isCancelled: async () => false,
+      finalise: (_rowCount, cancelled, limitReached) => finaliseRun(db, runId, cancelled, limitReached),
+    }, { limit: 3 });
+
+    expect(outcome.extracted).toBe(3);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    // Not 'extracting': that status means "a loop is still working this run",
+    // which isRunActive reads as license to poll crawl.status every 3s
+    // forever, and runControls reads as license to offer Stop into a
+    // 'cancelling' write nothing will ever observe.
+    expect(row!.status).not.toBe('extracting');
+    // A non-terminal status leaves completedAt null by finaliseRun's own
+    // rule (`completedAt: status === 'extracting' ? null : new Date()`), so
+    // asserting it is set is the same check from the other side.
+    expect(row!.completedAt).not.toBeNull();
+
+    const items = await db.select().from(runItems).where(eq(runItems.runId, runId));
+    expect(items.filter((i) => i.status === 'pending')).toHaveLength(27);
   });
 });
 
