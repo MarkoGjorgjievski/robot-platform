@@ -1,7 +1,71 @@
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { eq, and } from 'drizzle-orm';
-import { sources, datasets, projects, orgs, domains } from '@robot/db';
+import { sources, datasets, projects, orgs, domains, inputSets } from '@robot/db';
+import type { Database } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+import { scraperRouter } from './scraper';
+import { planSource } from '../crawl/plan-source.js';
+
+// ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
+//
+// `quickCreate` needs the Scratch project's OWN dataset — resolved by slug
+// 'scratch', not just "any dataset in the Scratch project". The Scratch
+// project can already carry unrelated datasets (e.g. seeded corpus fixtures),
+// and attaching a Scratch source to one of those would give it a real,
+// non-empty schema — defeating `effectiveSchema`'s selectorsJson fallback,
+// which only kicks in when the dataset schema is empty.
+
+const SCRATCH_SLUG = 'scratch';
+
+function slugifyDomain(domain: string): string {
+  return domain
+    .toLowerCase()
+    .replace(/^www\./, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function shortRandomSuffix(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
+
+const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } as const;
+
+async function getScratchProjectId(db: Database): Promise<string> {
+  const allOrgs = await db.select().from(orgs).orderBy(orgs.createdAt).limit(1);
+  if (allOrgs.length === 0) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: 'No orgs found. Run `pnpm --filter @robot/db seed:sandbox` first.',
+    });
+  }
+  const scratch = await db.query.projects.findFirst({
+    where: and(eq(projects.orgId, allOrgs[0]!.id), eq(projects.slug, SCRATCH_SLUG)),
+  });
+  if (!scratch) {
+    throw new TRPCError({
+      code: 'PRECONDITION_FAILED',
+      message: `No Scratch project for org ${allOrgs[0]!.slug}. Run seed:sandbox first.`,
+    });
+  }
+  return scratch.id;
+}
+
+async function getOrCreateScratchDataset(db: Database, scratchProjectId: string): Promise<string> {
+  const existing = await db.query.datasets.findFirst({
+    where: and(eq(datasets.projectId, scratchProjectId), eq(datasets.slug, SCRATCH_SLUG)),
+  });
+  if (existing) return existing.id;
+
+  const [created] = await db.insert(datasets).values({
+    projectId: scratchProjectId,
+    name: 'Scratch',
+    slug: SCRATCH_SLUG,
+    schema: [],
+  }).returning({ id: datasets.id });
+  return created!.id;
+}
 
 export const sourcesRouter = router({
   listByDataset: publicProcedure
@@ -218,5 +282,140 @@ export const sourcesRouter = router({
       }
 
       return source;
+    }),
+
+  // ─── Scratch quick-start (mvp-simplification task 7) ─────────────────────
+
+  /**
+   * Create a Scratch Source + one-row-per-url InputSet from a bare list of
+   * URLs, with zero manual configuration — the fast path into the wizard.
+   * Attaches to the Scratch project's own dataset (created empty on first
+   * use), so the Source starts with no dataset schema and `sources.analyze`
+   * is what gives it one (via `selectorsJson`, read back through
+   * `effectiveSchema`).
+   */
+  quickCreate: publicProcedure
+    .input(
+      z.object({
+        mode: z.enum(['listing', 'detail']),
+        urls: z.array(z.string().url()).min(1).max(50),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { mode, urls } = input;
+      const firstUrl = new URL(urls[0]!);
+      const hostname = firstUrl.hostname;
+      const name = `${hostname} ${firstUrl.pathname}`.slice(0, 255);
+
+      const scratchProjectId = await getScratchProjectId(ctx.db);
+      const scratchDatasetId = await getOrCreateScratchDataset(ctx.db, scratchProjectId);
+
+      const [inputSet] = await ctx.db
+        .insert(inputSets)
+        .values({
+          projectId: scratchProjectId,
+          type: 'direct',
+          name,
+          columns: [{ name: 'url', primary: true }],
+          rows: urls.map((url) => ({ url })),
+        })
+        .returning({ id: inputSets.id });
+
+      const listingMode = mode === 'listing' ? 'listing_to_detail' : 'detail';
+      const sourceSlug = `${slugifyDomain(hostname)}-${shortRandomSuffix()}`;
+
+      const [source] = await ctx.db
+        .insert(sources)
+        .values({
+          datasetId: scratchDatasetId,
+          name,
+          slug: sourceSlug,
+          country: 'us',
+          inputStrategy: 'direct',
+          urlTemplate: urls[0],
+          listingMode,
+          inputSetId: inputSet!.id,
+          // Detail sources keep whatever the schema default (`{}`) is —
+          // only listing sources get a starter budget.
+          ...(mode === 'listing' ? { budget: LISTING_DEFAULT_BUDGET } : {}),
+        })
+        .returning({ id: sources.id });
+
+      return { sourceId: source!.id, projectSlug: SCRATCH_SLUG, sourceSlug };
+    }),
+
+  /**
+   * Run schema discovery on a Source's URL and persist the result to
+   * `selectorsJson` — the same payload shape `sandbox.ts`'s analyze used to
+   * write (this is that logic's new home; sandbox.ts itself is retired in
+   * task 11), plus `listing` and `hints` pass-through.
+   */
+  analyze: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId) });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      if (!source.urlTemplate) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Source has no URL' });
+      }
+
+      const pageType = source.listingMode === 'listing_to_detail' ? 'listing' : 'detail';
+
+      const scraperCaller = scraperRouter.createCaller(ctx);
+      const result = await scraperCaller.analyze({ url: source.urlTemplate, pageType });
+
+      const schemaPayload = {
+        fields: result.schema.fields,
+        pageType: result.schema.page_type,
+        cached: result.cached,
+        // False = the capture failed: examples (and, on dual-cache domains,
+        // even the page type) come from earlier runs, not this URL.
+        liveExamples: result.liveExamples,
+        // Set when the site served a bot-check/error interstitial instead of
+        // the page.
+        blockedReason: result.blockedReason ?? null,
+        captureId: result.captureId,
+        screenshotUrl: result.screenshotUrl,
+        // Listing report (rowsFound/paginationStrategy/sampleDetailUrls) and
+        // soft page-type hints, pass-through from runAnalysis — sandbox.ts's
+        // analyze predates both and never carried them.
+        listing: result.listing ?? null,
+        hints: result.hints,
+      };
+
+      await ctx.db
+        .update(sources)
+        .set({ selectorsJson: schemaPayload, updatedAt: new Date() })
+        .where(eq(sources.id, source.id));
+
+      return schemaPayload;
+    }),
+
+  /**
+   * Confirm a Source's schema looks right and kick off a full crawl
+   * (`probe: false`) — the "graduate from preview to real run" step. Reuses
+   * `planSource`, the exact same planning logic `crawl.plan` calls, so a
+   * confirm and a manual full plan can never drift apart.
+   */
+  confirm: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+
+      await ctx.db
+        .update(sources)
+        .set({ confirmedAt: new Date(), updatedAt: new Date() })
+        .where(eq(sources.id, source.id));
+
+      const result = await planSource(ctx.db, source.id, { probe: false });
+      return { runId: result.runId };
     }),
 });
