@@ -424,10 +424,88 @@ describe('sources.confirm', () => {
   });
 });
 
+describe('sources.listByProject', () => {
+  it('includes confirmedAt (null until confirm) and urlCount (InputSet row count)', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'listing',
+      urls: [
+        'https://test-qc-list-a.example.com/c/1',
+        'https://test-qc-list-b.example.com/c/2',
+      ],
+    });
+    try {
+      const sourceRow = await db.query.sources.findFirst({
+        where: eq(sources.id, created.sourceId),
+        with: { dataset: { with: { project: { with: { org: true } } } } },
+      });
+      const orgSlug = sourceRow!.dataset!.project!.org!.slug;
+      const projectSlug = sourceRow!.dataset!.project!.slug;
+
+      const before = await caller.sources.listByProject({ orgSlug, projectSlug });
+      const beforeRow = before.find((s) => s.id === created.sourceId);
+      expect(beforeRow).toBeDefined();
+      expect(beforeRow!.confirmedAt).toBeNull();
+      expect(beforeRow!.urlCount).toBe(2);
+      expect(beforeRow!.listingMode).toBe('listing_to_detail');
+      expect(beforeRow!.selectorsJson).toBeNull();
+
+      planSourceMock.mockResolvedValue({
+        runId: '22222222-2222-2222-2222-222222222222',
+        status: 'planned', itemCount: 2, listingPages: 0,
+        warnings: [], errors: [], inputs: [], cacheWarm: false,
+      });
+      await caller.sources.confirm({ sourceId: created.sourceId });
+
+      const after = await caller.sources.listByProject({ orgSlug, projectSlug });
+      const afterRow = after.find((s) => s.id === created.sourceId);
+      expect(afterRow!.confirmedAt).toBeInstanceOf(Date);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+});
+
+describe('sources.delete', () => {
+  it('deletes the Source and its own InputSet', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-qc-delete.example.com/p/1'],
+    });
+    const inputSetId = (await db.query.sources.findFirst({
+      where: eq(sources.id, created.sourceId),
+      columns: { inputSetId: true },
+    }))!.inputSetId!;
+
+    const result = await caller.sources.delete({ sourceId: created.sourceId });
+    expect(result).toEqual({ deleted: true });
+
+    const source = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
+    expect(source).toBeUndefined();
+    const inputSet = await db.query.inputSets.findFirst({ where: eq(inputSets.id, inputSetId) });
+    expect(inputSet).toBeUndefined();
+  });
+
+  it('throws NOT_FOUND for an unknown sourceId', async () => {
+    await expect(
+      caller.sources.delete({ sourceId: '00000000-0000-0000-0000-000000000000' }),
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it('rejects a non-uuid sourceId', async () => {
+    try {
+      await caller.sources.delete({ sourceId: 'not-a-uuid' });
+      throw new Error('should have thrown');
+    } catch (err) {
+      expectZodValidationError(err);
+    }
+  });
+});
+
 describe('appRouter shape', () => {
-  it('exposes quickCreate/analyze/confirm on sources', () => {
+  it('exposes quickCreate/analyze/confirm/delete on sources', () => {
     expect(typeof caller.sources.quickCreate).toBe('function');
     expect(typeof caller.sources.analyze).toBe('function');
     expect(typeof caller.sources.confirm).toBe('function');
+    expect(typeof caller.sources.delete).toBe('function');
   });
 });

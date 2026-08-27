@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets } from '@robot/db';
 import type { Database } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -228,6 +228,20 @@ export const sourcesRouter = router({
           urlTemplate: sources.urlTemplate,
           inputStrategy: sources.inputStrategy,
           listingMode: sources.listingMode,
+          // Set once a human confirmed a listing Source's probe run looked
+          // right (spec §3) — the Set-up workspace and the run-detail confirm
+          // gate both key off it. Null = unconfirmed.
+          confirmedAt: sources.confirmedAt,
+          // The schema-discovery payload `sources.analyze` persists (fields,
+          // pageType, listing report, hints, blocked reason...) — the Set-up
+          // workspace's own read model.
+          selectorsJson: sources.selectorsJson,
+          // How many rows this Source's InputSet holds — the "URL count" the
+          // Set-up workspace's header shows, and the `crawl.execute` limit for
+          // a detail Source's one-shot Extract. `coalesce` + `left join`: a
+          // Source with no InputSet (none in practice today, but the column is
+          // nullable) reads as 0 rather than a null propagating into NaN.
+          urlCount: sql<number>`coalesce(jsonb_array_length(${inputSets.rows}), 0)::int`,
           isActive: sources.isActive,
           isSandbox: sources.isSandbox,
           createdAt: sources.createdAt,
@@ -238,6 +252,7 @@ export const sourcesRouter = router({
         .innerJoin(projects, eq(datasets.projectId, projects.id))
         .innerJoin(orgs, eq(projects.orgId, orgs.id))
         .leftJoin(domains, eq(sources.domainId, domains.id))
+        .leftJoin(inputSets, eq(sources.inputSetId, inputSets.id))
         .where(and(
           eq(orgs.slug, input.orgSlug),
           eq(projects.slug, input.projectSlug),
@@ -457,5 +472,32 @@ export const sourcesRouter = router({
 
       const result = await planSource(ctx.db, source.id, { probe: false });
       return { runId: result.runId };
+    }),
+
+  /**
+   * Delete a Source and its own InputSet — the confirm gate's "something's
+   * wrong" honest action (spec §3: "edit the URL(s), switch the Source to
+   * detail mode, or delete"). Runs, captures and extractions cascade via
+   * their FKs; the InputSet is deleted alongside it because `quickCreate`
+   * creates one InputSet per Source (never shared), the exact assumption this
+   * file's own test helper (`cleanupSource`) already relies on.
+   */
+  delete: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, inputSetId: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+
+      await ctx.db.delete(sources).where(eq(sources.id, source.id));
+      if (source.inputSetId) {
+        await ctx.db.delete(inputSets).where(eq(inputSets.id, source.inputSetId));
+      }
+
+      return { deleted: true };
     }),
 });

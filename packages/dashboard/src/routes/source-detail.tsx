@@ -24,6 +24,8 @@ export default function SourceDetailLayout() {
   let activeTo = '/p/$project/sources/$source/';
   if (pathname === sourceBasePath || pathname === `${sourceBasePath}/`) {
     activeTo = '/p/$project/sources/$source/';
+  } else if (pathname.startsWith(`${sourceBasePath}/setup`)) {
+    activeTo = '/p/$project/sources/$source/setup';
   } else if (pathname.startsWith(`${sourceBasePath}/config`)) {
     activeTo = '/p/$project/sources/$source/config';
   } else if (pathname.startsWith(`${sourceBasePath}/inputs`)) {
@@ -77,6 +79,7 @@ export default function SourceDetailLayout() {
         activeTo={activeTo}
         tabs={[
           { label: 'Overview', to: '/p/$project/sources/$source/', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Set up', to: '/p/$project/sources/$source/setup', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Config', to: '/p/$project/sources/$source/config', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Inputs', to: '/p/$project/sources/$source/inputs', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Runs', to: '/p/$project/sources/$source/runs', params: { project: projectSlug, source: sourceSlug } },

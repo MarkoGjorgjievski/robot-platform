@@ -35,6 +35,15 @@ async function seedSource() {
   return source!.id;
 }
 
+/** For the confirm-gate coverage below: a probe run carrying `logs`, on an unconfirmed Source. */
+async function seedProbeRun(logs: string | null) {
+  const sourceId = await seedSource();
+  const [run] = await db.insert(runs).values({
+    sourceId, status: 'planned', inputLabel: 'probe', logs,
+  }).returning();
+  return run!.id;
+}
+
 /** Phase 2 shape: one extraction per URL, one row of data each. */
 async function seedRunWithExtractions(rows: Array<Record<string, unknown>>) {
   const sourceId = await seedSource();
@@ -152,6 +161,31 @@ describe('runsRouter', () => {
       const result = await caller.runs.getWithDetails({ id: runId });
       expect(result?.extraction?.data).toEqual([{ title: 'Only' }]);
       expect(result?.extraction?.rowCount).toBe(1);
+    });
+  });
+
+  // mvp-simplification task 10: the probe confirm gate reads `run.logs` (via
+  // `parseRunLog`) and `source.confirmedAt` from THIS query — neither was
+  // selected before, and a gate that can't see them can't decide whether to
+  // show itself or summarise anything.
+  describe('getWithDetails — probe confirm gate fields', () => {
+    it('exposes run.logs and run.inputLabel and source.confirmedAt (null, unconfirmed)', async () => {
+      const runId = await seedProbeRun('warning: budget reached: 40 items\nerror: input 0: dead link');
+
+      const result = await caller.runs.getWithDetails({ id: runId });
+      expect(result?.run.inputLabel).toBe('probe');
+      expect(result?.run.logs).toBe('warning: budget reached: 40 items\nerror: input 0: dead link');
+      expect(result?.source?.confirmedAt).toBeNull();
+    });
+
+    it('exposes source.confirmedAt once the Source is confirmed', async () => {
+      const runId = await seedProbeRun(null);
+      const run = await db.query.runs.findFirst({ where: eq(runs.id, runId), columns: { sourceId: true } });
+      await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, run!.sourceId!));
+
+      const result = await caller.runs.getWithDetails({ id: runId });
+      expect(result?.run.logs).toBeNull();
+      expect(result?.source?.confirmedAt).toBeInstanceOf(Date);
     });
   });
 
