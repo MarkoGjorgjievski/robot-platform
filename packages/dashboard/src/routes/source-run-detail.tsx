@@ -491,7 +491,19 @@ function ProbeConfirmGate({
   );
 }
 
-/** The three honest actions on "no" (spec §3): edit URLs, switch mode, delete. */
+/**
+ * The honest actions on "no" (spec §3): switch mode, delete — and, in place
+ * of an "Edit URLs" link, an honest note.
+ *
+ * Ruling R7 (final-review-findings.md, Finding 5): "Edit URLs" used to link
+ * to `source-inputs.tsx`, an EmptyState stub with no editing behind it —
+ * a dead end dressed as a button. InputSet editing is Phase 3b work, not
+ * this wave's; the honest fix is telling the operator what to do today
+ * (delete and recreate from the home page) instead of promising a working
+ * editor that isn't there. "Switch mode" DOES work now — it points at
+ * Source Config's new mode toggle (`source-config.tsx`), the other half of
+ * this ruling.
+ */
 function DiagnosisPanel({
   diagnosis, projectSlug, sourceSlug, sourceId,
 }: {
@@ -527,14 +539,15 @@ function DiagnosisPanel({
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Link
-          to="/p/$project/sources/$source/inputs"
-          params={{ project: projectSlug, source: sourceSlug }}
-          className="btn-quiet"
-        >
-          Edit URLs
+      <p className="mt-3 text-xs text-gray-500">
+        To change the input URLs, delete this source and paste new ones from{' '}
+        <Link to="/" className="font-medium text-accent-700 underline-offset-2 hover:underline">
+          the home page
         </Link>
+        {' '}— InputSet editing isn't built yet.
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link
           to="/p/$project/sources/$source/config"
           params={{ project: projectSlug, source: sourceSlug }}
