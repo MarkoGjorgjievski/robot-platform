@@ -341,6 +341,89 @@ describe('sources.update — listingMode', () => {
       await cleanupSource(result.sourceId);
     }
   });
+
+  // Re-review residual #1 (fix-wave-report.md): `...rest` applied
+  // listingMode unconditionally, so a confirmed Source's mode could be
+  // flipped silently, misrouting source-setup.tsx's Extract branch.
+  it('refuses to change listingMode on a confirmed Source', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'listing',
+      urls: ['https://test-update-mode-locked.example.com/c/a'],
+    });
+    try {
+      planSourceMock.mockResolvedValue({
+        runId: '22222222-2222-2222-2222-222222222222',
+        status: 'planned',
+        itemCount: 1,
+        listingPages: 0,
+        warnings: [],
+        errors: [],
+        inputs: [],
+        cacheWarm: false,
+      });
+      await caller.sources.confirm({ sourceId: result.sourceId });
+
+      await expect(
+        caller.sources.update({ id: result.sourceId, listingMode: 'detail' }),
+      ).rejects.toThrow(/confirmed.*locked/i);
+
+      const after = await db.query.sources.findFirst({ where: eq(sources.id, result.sourceId) });
+      expect(after!.listingMode).toBe('listing_to_detail');
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
+
+  it('still allows updating a confirmed Source when the update does not touch listingMode', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'listing',
+      urls: ['https://test-update-mode-locked.example.com/c/b'],
+    });
+    try {
+      planSourceMock.mockResolvedValue({
+        runId: '33333333-3333-3333-3333-333333333333',
+        status: 'planned',
+        itemCount: 1,
+        listingPages: 0,
+        warnings: [],
+        errors: [],
+        inputs: [],
+        cacheWarm: false,
+      });
+      await caller.sources.confirm({ sourceId: result.sourceId });
+
+      const updated = await caller.sources.update({ id: result.sourceId, isActive: false });
+      expect(updated.isActive).toBe(false);
+      expect(updated.listingMode).toBe('listing_to_detail');
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
+
+  it('allows "changing" listingMode on a confirmed Source when the value is actually unchanged', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'listing',
+      urls: ['https://test-update-mode-locked.example.com/c/c'],
+    });
+    try {
+      planSourceMock.mockResolvedValue({
+        runId: '44444444-4444-4444-4444-444444444444',
+        status: 'planned',
+        itemCount: 1,
+        listingPages: 0,
+        warnings: [],
+        errors: [],
+        inputs: [],
+        cacheWarm: false,
+      });
+      await caller.sources.confirm({ sourceId: result.sourceId });
+
+      const updated = await caller.sources.update({ id: result.sourceId, listingMode: 'listing_to_detail' });
+      expect(updated.listingMode).toBe('listing_to_detail');
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
 });
 
 describe('sources.analyze', () => {
