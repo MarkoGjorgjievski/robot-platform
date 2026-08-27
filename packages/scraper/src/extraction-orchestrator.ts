@@ -28,8 +28,9 @@ import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
   saveCandidateCatalogue, findConcept, collectApiJsonBodies,
+  saveVerifiedRowPlan, recordRowPlanMiss,
   EXTRACTION_SUCCESS_THRESHOLD,
-  type PathSource, type DomainCache, type FieldPathSet,
+  type PathSource, type DomainCache, type FieldPathSet, type RowFieldPath,
 } from './domain-cache.js';
 import type { CandidateCatalogue, Candidate } from './candidate-catalogue.js';
 import type { CatalogueEvidence } from './catalogue-discovery.js';
@@ -105,6 +106,10 @@ export type ExtractionDeps = {
   agent: ExtractionAgent | null;
   lookupCache?: typeof lookupDomainCache;
   saveCache?: typeof saveDomainCache;
+  /** Persists a listing walk's proven row plan (D1 fix, zero-items-rca.md). */
+  saveVerifiedRowPlan?: typeof saveVerifiedRowPlan;
+  /** Charges a miss against the persisted row plan when a replay finds nothing. */
+  recordRowPlanMiss?: typeof recordRowPlanMiss;
   acquireLock?: typeof acquireDomainLock;
   /** Skip the live capture and use this instead (fixture replay). */
   capture?: PageCapture;
@@ -141,6 +146,14 @@ export type ExtractionOutcome = {
   rows?: Record<string, unknown>[];
   schemaChanges?: SchemaChange[];
   qualityIssues?: ReturnType<typeof validateExtractedData>['issues'];
+  /**
+   * Non-fatal problems worth a human's attention, e.g. a swallowed
+   * `agent.generateSelectors` failure (D1 fix, zero-items-rca.md) — those used
+   * to reach only `console.error`, so a 0-item listing plan built on top of one
+   * had nothing in `runs.logs` to explain why. `planRun` folds these into its
+   * own `warnings`, which `plan-source.ts` already writes to `runs.logs`.
+   */
+  warnings?: string[];
 };
 
 export async function runExtraction(
@@ -152,8 +165,11 @@ export async function runExtraction(
     browser, agent,
     lookupCache = lookupDomainCache,
     saveCache = saveDomainCache,
+    saveVerifiedRowPlan: saveRowPlan = saveVerifiedRowPlan,
+    recordRowPlanMiss: recordRowMiss = recordRowPlanMiss,
     acquireLock = acquireDomainLock,
   } = deps;
+  const warnings: string[] = [];
 
   const domain = new URL(url).hostname;
   const resolvedPageType = pageType ?? 'detail';
@@ -563,20 +579,96 @@ export async function runExtraction(
       console.log(`[extract] After AI API: ${Object.keys(finalData).length}/${fields.length} fields`);
     }
 
+    let plan: ExtractionPlan | null = null;
+    // The full row set, kept for listing consumers. `finalData` only ever holds
+    // row 0 — right for a detail page, useless for a crawler enumerating links.
+    let extractedRows: Record<string, unknown>[] | undefined;
+
+    // STEP 2.5: cached row-plan replay (D1 fix, zero-items-rca.md).
+    //
+    // Every row-scoped field (`detail_url` foremost) used to be resolvable
+    // ONLY by a fresh, nondeterministic `agent.generateSelectors` call below,
+    // on every single listing plan, warm domain or not — STEP 1.5's two
+    // cached tiers deliberately exclude row-scoped fields (`missingForCache`/
+    // `stillMissing` above both filter `!rowScoped.has(n)`) because they
+    // execute PAGE-LEVEL: `buildCachedXPathScript`'s generated script takes
+    // FIRST_ORDERED_NODE_TYPE, i.e. one match from the whole document. Caching
+    // a row-scoped field's xpath into `fieldPaths` and letting that tier serve
+    // it would resolve exactly one row's value as if it were the page's own —
+    // which is how the first live crawl queued a category page as if it were
+    // a product (see the comment on `rowScoped` above).
+    //
+    // A `cache.rowSelector` with `source: 'verified'` sidesteps that: it was
+    // persisted (below, after STEP 3 succeeds) as a `{ row_xpath, fields }`
+    // pair proven to work, and is replayed here the SAME way STEP 3 replays
+    // an AI-generated plan — `buildExtractionScript` matches every row via
+    // `row_xpath` and evaluates each field's xpath relative to its own row —
+    // so the page-level exclusion's reason does not apply to it. A hit here
+    // means STEP 3's `agent.generateSelectors` call is skipped entirely
+    // (`missingAfterApi` below no longer lists these fields); a miss falls
+    // through to it unchanged.
+    const missingRowScoped = fields.filter((f) => f.rowScopedOnly && finalData[f.name] === undefined);
+    if (cache?.rowSelector?.fields && missingRowScoped.length > 0) {
+      const replayFields = cache.rowSelector.fields.filter(
+        (rf) => missingRowScoped.some((f) => f.name === rf.name),
+      );
+      if (replayFields.length > 0) {
+        const replayPlan = {
+          row_xpath: cache.rowSelector.xpath,
+          page_type: resolvedPageType,
+          fields: replayFields.map((rf) => ({
+            name: rf.name, xpath: rf.xpath, attribute: rf.attribute, transform: rf.transform,
+          })),
+        } as ExtractionPlan;
+        try {
+          const replayScript = buildExtractionScript(replayPlan, fieldTypes, capture.url ?? url);
+          const replayResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[] }>(
+            capture.html ?? '', replayScript,
+          );
+          if (replayResult.data.length > 0) {
+            extractedRows = replayResult.data;
+            plan = replayPlan;
+            const replayRow = replayResult.data[0]!;
+            for (const rf of replayFields) {
+              tryAssign(rf.name, replayRow[rf.name], 'xpath', rf.xpath, 0.85);
+            }
+            console.log(`[extract] Row-plan replay resolved ${replayResult.data.length} row(s) for ${replayFields.map((f) => f.name).join(', ')} — AI selector generation skipped`);
+          } else {
+            console.log('[extract] Row-plan replay matched no rows — falling through to AI selector generation');
+            try {
+              await recordRowMiss(domain, resolvedPageType);
+            } catch (err) {
+              console.error('[extract] recordRowPlanMiss failed (non-fatal):', err);
+            }
+          }
+        } catch (err) {
+          console.error('[extract] Row-plan replay failed (non-fatal):', err);
+          try {
+            await recordRowMiss(domain, resolvedPageType);
+          } catch (missErr) {
+            console.error('[extract] recordRowPlanMiss failed (non-fatal):', missErr);
+          }
+        }
+      }
+    }
+
     // STEP 3: XPath fallback. Variant arrays don't come from DOM XPath (they're
     // handled by the JSON-LD walker + AI variants fallback above); excluding them
     // here avoids the XPath agent returning stringified JSON that the shape
     // validator then rightly rejects.
     const missingAfterApi = schemaFields.filter((f) => finalData[f.name] === undefined && f.type !== 'variant_array');
-    let plan: ExtractionPlan | null = null;
-    // The full row set, kept for listing consumers. `finalData` only ever holds
-    // row 0 — right for a detail page, useless for a crawler enumerating links.
-    let extractedRows: Record<string, unknown>[] | undefined;
     if (agent && missingAfterApi.length > 0) {
       console.log(`[extract] ${missingAfterApi.length} fields still missing, XPath fallback`);
       try {
         plan = await agent.generateSelectors(capture, missingAfterApi, resolvedPageType);
-        if (cache?.rowSelector) {
+        // An operator's click-to-select pin anchors the AI plan's row
+        // container — but only a HUMAN pin. A 'verified' entry is STEP 2.5's
+        // own row_xpath, and reaching here at all means that xpath either
+        // matched nothing (replay miss) or was never asked to run (this
+        // field wasn't in `missingRowScoped`) — forcing the fresh AI plan
+        // back onto it would reassert the very selector that just failed, or
+        // one irrelevant to what the AI was asked for.
+        if (cache?.rowSelector?.source === 'human') {
           plan.row_xpath = cache.rowSelector.xpath;
         }
         const script = buildExtractionScript(plan, fieldTypes, capture.url ?? url);
@@ -635,7 +727,38 @@ export async function runExtraction(
           }
         }
       } catch (err) {
+        // D1 fix (zero-items-rca.md): this used to be console-only. `detail_url`
+        // has exactly one producer — this call — so a swallowed failure here
+        // silently zeroed a listing plan (probe f5b72f3a: 30 items one run, 0
+        // the next, `runs.logs` empty). Surfaced into `outcome.warnings` so
+        // `planRun` (which folds a listing extraction's warnings into its own)
+        // and `plan-source.ts` (which writes those into `runs.logs`) can both
+        // say why, instead of a clean `'planned'` with nothing to explain it.
+        const message = err instanceof Error ? err.message : String(err);
+        warnings.push(`XPath fallback (generateSelectors) failed: ${message}`);
         console.error('[extract] XPath fallback failed (non-fatal):', err);
+      }
+
+      // Persist the row plan this walk just proved works (D1 fix,
+      // zero-items-rca.md) — row_xpath plus the row-relative xpath for every
+      // row-scoped field it actually resolved, so the NEXT walk on this
+      // domain replays it (STEP 2.5 above) instead of paying for another
+      // agent.generateSelectors call. Reads the FINAL `plan`/`extractedRows`
+      // (post-retry, if the low-coverage retry above ran and won), and is a
+      // no-op when nothing row-scoped resolved — e.g. a detail-page plan, or
+      // a listing plan whose row selectors never touched detail_url.
+      if (plan?.row_xpath && extractedRows && extractedRows.length > 0) {
+        const rowScopedResolved: RowFieldPath[] = plan.fields
+          .filter((f): f is typeof f & { xpath: string } =>
+            rowScoped.has(f.name) && typeof f.xpath === 'string' && f.xpath.length > 0)
+          .map((f) => ({ name: f.name, xpath: f.xpath, attribute: f.attribute, transform: f.transform }));
+        if (rowScopedResolved.length > 0) {
+          try {
+            await saveRowPlan(domain, resolvedPageType, { rowXpath: plan.row_xpath, fields: rowScopedResolved });
+          } catch (err) {
+            console.error('[extract] saveVerifiedRowPlan failed (non-fatal):', err);
+          }
+        }
       }
     }
 
@@ -649,7 +772,8 @@ export async function runExtraction(
         if (stillMissing.length === 0) break;
         try {
           const tilePlan = await agent.generateSelectors(capture, stillMissing, resolvedPageType, tiles[t]);
-          if (cache?.rowSelector) {
+          // Same human-only guard as STEP 3's call above.
+          if (cache?.rowSelector?.source === 'human') {
             tilePlan.row_xpath = cache.rowSelector.xpath;
           }
           const tileScript = buildExtractionScript(tilePlan, fieldTypes, capture.url ?? url);
@@ -788,6 +912,7 @@ export async function runExtraction(
       rows: extractedRows,
       schemaChanges: schemaChanges.length > 0 ? schemaChanges : undefined,
       qualityIssues: qualityIssues.length > 0 ? qualityIssues : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   } finally {
     releaseLock();

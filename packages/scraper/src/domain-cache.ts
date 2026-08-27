@@ -29,6 +29,47 @@ export type FieldPathSet = {
   conflictCount: number;
 };
 
+/**
+ * One row-scoped field's extraction, relative to the row a `rowSelector`
+ * matches. Structurally compatible with `@robot/agent`'s `SelectorField`
+ * (this file deliberately carries no dependency on `@robot/agent`), so a
+ * caller building an `ExtractionPlan` from it just needs a cast.
+ */
+export type RowFieldPath = {
+  name: string;
+  xpath: string;
+  attribute: string;
+  transform: string;
+};
+
+/**
+ * The container xpath a listing's repeating result rows share, plus —
+ * for a `'verified'` entry — the row-relative xpath each row-scoped field
+ * (`detail_url` foremost) resolves against it.
+ *
+ * `'human'` entries come only from the click-to-select UI (`setRowSelector`
+ * in `packages/api/src/routers/scraper.ts`) and never carry `fields` — they
+ * exist only to bias an AI-generated plan's `row_xpath` (see
+ * `extraction-orchestrator.ts`'s two `if (cache?.rowSelector)` sites).
+ *
+ * `'verified'` entries are this fix (zero-items-rca.md): the row plan a
+ * listing walk just proved works, persisted so the NEXT walk can replay it
+ * instead of paying for another `agent.generateSelectors` call. `hits`/
+ * `misses`/`lastUsedAt` mirror `FieldPath`'s stats in spirit but are simpler
+ * on purpose — there is one row plan per domain+pageType, not a ranked list,
+ * so there is nothing to rank and nothing to prune. See `saveVerifiedRowPlan`
+ * and `recordRowPlanMiss`.
+ */
+export type RowSelector = {
+  xpath: string;
+  source: 'human' | 'verified';
+  setAt: string;
+  fields?: RowFieldPath[];
+  hits?: number;
+  misses?: number;
+  lastUsedAt?: string;
+};
+
 /** The full cache entry for a domain + page type */
 export type DomainCache = {
   id: string;
@@ -44,7 +85,7 @@ export type DomainCache = {
   consecutiveFailures: number;
   successRate: number;
   paginationConfig: PaginationConfig | null;
-  rowSelector: { xpath: string; source: 'human'; setAt: string } | null;
+  rowSelector: RowSelector | null;
   candidateCatalogue: CandidateCatalogue;
 };
 
@@ -379,6 +420,83 @@ export async function savePaginationConfig(domain: string, config: PaginationCon
       set: { paginationConfig: config, updatedAt: new Date() },
     });
   console.log(`[cache] pagination for ${domain}: ${config.strategy}`);
+}
+
+/**
+ * Persist the row plan a listing walk just PROVED works: the row container
+ * xpath plus the row-relative xpath for every row-scoped field it resolved
+ * (`detail_url` foremost — see zero-items-rca.md).
+ *
+ * Verify-then-replace, same rule as `savePaginationConfig`: only ever called
+ * with a plan whose walk verifiably produced rows, and a fresher verified
+ * plan always overwrites the previous one outright — a stale plan a walk
+ * just disproved is worse than none, and (unlike `fieldPaths`) there is only
+ * one row plan per domain+pageType, so there is nothing to merge into.
+ *
+ * A human pin (`source: 'human'`, set via the click-to-select UI) is never
+ * touched — same "an operator's decision is removed by an operator, not by
+ * statistics" rule `isProtectedPath` enforces for fieldPaths.
+ */
+export async function saveVerifiedRowPlan(
+  domain: string,
+  pageType: string,
+  plan: { rowXpath: string; fields: RowFieldPath[] },
+): Promise<void> {
+  const existing = await db.query.domainIntelligence.findFirst({
+    where: and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)),
+  });
+  const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
+  if (existingSelector?.source === 'human') {
+    console.log(`[cache] not persisting verified row plan for ${domain}/${pageType}: human pin already set`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const rowSelector: RowSelector = {
+    xpath: plan.rowXpath,
+    source: 'verified',
+    setAt: now,
+    fields: plan.fields,
+    hits: 1,
+    misses: 0,
+    lastUsedAt: now,
+  };
+  await db
+    .insert(domainIntelligence)
+    .values({ domain, pageType, rowSelector })
+    .onConflictDoUpdate({
+      target: [domainIntelligence.domain, domainIntelligence.pageType],
+      set: { rowSelector, updatedAt: new Date() },
+    });
+  console.log(`[cache] verified row plan for ${domain}/${pageType}: ${plan.fields.length} field(s)`);
+}
+
+/**
+ * Record that the persisted verified row plan was replayed and produced
+ * nothing — a selector that broke, or a one-off render hiccup that looks
+ * identical to one from here. NOT a reason to delete it (same "flag, never
+ * auto-reset" rule the rest of this cache follows) — only a trail for a
+ * human to notice a pattern. A no-op when there is no verified plan to
+ * charge the miss against (a human pin has no hit/miss discipline; nothing
+ * is misconfigured, replay just never runs for it).
+ */
+export async function recordRowPlanMiss(domain: string, pageType: string): Promise<void> {
+  const existing = await db.query.domainIntelligence.findFirst({
+    where: and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)),
+  });
+  const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
+  if (!existingSelector || existingSelector.source !== 'verified') return;
+
+  const rowSelector: RowSelector = {
+    ...existingSelector,
+    misses: (existingSelector.misses ?? 0) + 1,
+    lastUsedAt: new Date().toISOString(),
+  };
+  await db
+    .update(domainIntelligence)
+    .set({ rowSelector, updatedAt: new Date() })
+    .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)));
+  console.warn(`[cache] verified row plan for ${domain}/${pageType} missed (${rowSelector.misses} total)`);
 }
 
 /** Write a freshly discovered catalogue. Sanitized on the way in; an empty
