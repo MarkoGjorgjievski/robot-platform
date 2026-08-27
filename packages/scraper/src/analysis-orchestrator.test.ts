@@ -166,7 +166,12 @@ describe('runAnalysis — a domain cached under BOTH page types', () => {
   it('pageType: "listing" returns the listing cache', async () => {
     const out = await runAnalysis(
       { url: 'https://shop.example.com/Category/ID-38', pageType: 'listing' },
-      { browser: stubBrowser({ async capture() { return listingCapture; } }), agent: null, lookupCache: both },
+      {
+        browser: stubBrowser({ async capture() { return listingCapture; } }), agent: null, lookupCache: both,
+        // Listing now runs the real extraction chain (task 5), which warms the
+        // cache by default — stub it so this stays an offline unit test.
+        saveCache: async () => {},
+      },
     );
     expect(out.schema.page_type).toBe('listing');
     expect(out.schema.fields.map((f) => f.name)).toContain('category_name');
