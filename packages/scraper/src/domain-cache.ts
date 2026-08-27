@@ -472,6 +472,32 @@ export async function saveVerifiedRowPlan(
 }
 
 /**
+ * Record that the persisted verified row plan was replayed and PRODUCED
+ * rows — the counterpart to `recordRowPlanMiss`, kept simple for the same
+ * reason `saveVerifiedRowPlan`'s docstring gives: one row plan per
+ * domain+pageType, nothing to rank, nothing to prune. A no-op for a human pin
+ * (no hit/miss discipline applies to it) or when there is no verified entry
+ * to charge the hit to.
+ */
+export async function recordRowPlanHit(domain: string, pageType: string): Promise<void> {
+  const existing = await db.query.domainIntelligence.findFirst({
+    where: and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)),
+  });
+  const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
+  if (!existingSelector || existingSelector.source !== 'verified') return;
+
+  const rowSelector: RowSelector = {
+    ...existingSelector,
+    hits: (existingSelector.hits ?? 0) + 1,
+    lastUsedAt: new Date().toISOString(),
+  };
+  await db
+    .update(domainIntelligence)
+    .set({ rowSelector, updatedAt: new Date() })
+    .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)));
+}
+
+/**
  * Record that the persisted verified row plan was replayed and produced
  * nothing — a selector that broke, or a one-off render hiccup that looks
  * identical to one from here. NOT a reason to delete it (same "flag, never
