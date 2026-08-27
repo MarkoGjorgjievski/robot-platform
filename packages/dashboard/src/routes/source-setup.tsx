@@ -141,17 +141,32 @@ export default function SourceSetup() {
 
       {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
 
-      {hasSchema && schema!.cached && schema!.liveExamples === false && (
+      {/*
+        Finding 2 (final-review-findings.md): a blocked analyze must render
+        this banner whenever the persisted payload carries `blockedReason`,
+        independent of `cached`/`hasSchema`. A COLD domain's blocked listing
+        analyze has no cache to fall back to — `runListingAnalysis` persists
+        `fields: []` with `blockedReason` set, so `hasSchema` is false and the
+        old `hasSchema && cached && ...` condition never rendered anything:
+        the operator saw "No schema yet" + Analyze, retried, and got the same
+        silent outcome. A WARM domain's blocked analyze already had cached
+        fields to show (`cached && liveExamples === false`) and rendered
+        correctly before this fix — that branch is unchanged below.
+      */}
+      {(schema?.blockedReason || (hasSchema && schema!.cached && schema!.liveExamples === false)) && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
           <p className="micro-label text-amber-700">
-            {schema!.blockedReason ? 'Site blocked this request' : 'Page not captured'}
+            {schema?.blockedReason ? 'Site blocked this request' : 'Page not captured'}
           </p>
           <p className="mt-0.5 text-sm text-amber-900">
-            {schema!.blockedReason ? (
+            {schema?.blockedReason ? (
               <>
-                {schema!.blockedReason} The site is refusing automated requests from this machine
-                right now (its screenshot shows the block page). The schema and examples below come
-                from earlier runs on this domain — not this URL. Wait ~10 minutes and{' '}
+                {schema.blockedReason} The site is refusing automated requests from this machine
+                right now (its screenshot shows the block page).{' '}
+                {hasSchema
+                  ? 'The schema and examples below come from earlier runs on this domain — not this URL.'
+                  : 'No cached schema exists yet for this domain, so there is nothing to show below.'}
+                {' '}Wait ~10 minutes and{' '}
               </>
             ) : (
               <>
