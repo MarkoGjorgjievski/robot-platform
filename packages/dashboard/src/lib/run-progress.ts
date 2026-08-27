@@ -44,8 +44,22 @@ export type RunControls = {
  * skips whatever the first is holding rather than double-fetching it. An
  * earlier task deliberately declined to add a re-entry guard for exactly this
  * reason.
+ *
+ * `probeUnconfirmed` is the one exception (Finding 1, final-review-findings.md):
+ * a probe run's own page (`inputLabel === 'probe'`, Source not yet confirmed)
+ * must not offer "Extract N pending" — a full, unconfirmed extraction of every
+ * URL the probe enumerated, defeating "cost-bearing crawl only after the
+ * confirm gate" — or a Stop whose only intended counterpart is the confirm
+ * gate's own Yes/No. The confirm gate is the only actionable control there.
  */
-export function runControls(status: string, counts: RunCounts): RunControls {
+export function runControls(
+  status: string,
+  counts: RunCounts,
+  opts?: { probeUnconfirmed?: boolean },
+): RunControls {
+  if (opts?.probeUnconfirmed) {
+    return { showExtract: false, showRetry: false, showStop: false };
+  }
   return {
     // `running` counts as work a re-entered loop could pick up, not just
     // `pending`. If the LAST item of a run is the one abandoned at `running`

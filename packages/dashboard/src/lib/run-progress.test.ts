@@ -115,6 +115,26 @@ describe('runControls', () => {
     const controls = runControls('planned', counts({ pending: 8 }));
     expect(controls).toEqual({ showExtract: true, showRetry: false, showStop: false });
   });
+
+  // Finding 1 (final-review-findings.md): a probe run's own page must not
+  // offer "Extract N pending" — a full, unconfirmed extraction of everything
+  // the probe enumerated — or a Stop meant for the confirm gate, not this
+  // panel. The confirm gate (Yes/No) is the only actionable control there.
+  describe('probeUnconfirmed', () => {
+    it('hides every control, no matter the status or counts', () => {
+      expect(runControls('extracting', counts({ pending: 27, done: 3 }), { probeUnconfirmed: true }))
+        .toEqual({ showExtract: false, showRetry: false, showStop: false });
+      expect(runControls('partial', counts({ pending: 27, done: 3 }), { probeUnconfirmed: true }))
+        .toEqual({ showExtract: false, showRetry: false, showStop: false });
+      expect(runControls('cancelling', counts({ pending: 27, failed: 3 }), { probeUnconfirmed: true }))
+        .toEqual({ showExtract: false, showRetry: false, showStop: false });
+    });
+
+    it('leaves a normal run unaffected when the flag is false or omitted', () => {
+      expect(runControls('extracting', counts({ pending: 3, done: 5 }), { probeUnconfirmed: false }).showExtract).toBe(true);
+      expect(runControls('extracting', counts({ pending: 3, done: 5 })).showExtract).toBe(true);
+    });
+  });
 });
 
 describe('extractButtonLabel', () => {
