@@ -472,6 +472,57 @@ describe('sources.confirm', () => {
     }
   });
 
+  // M3 (final-review-findings.md): `confirmedAt` used to be written BEFORE
+  // `planSource`, so a throw there left a confirmed Source with no run, and a
+  // repeat confirm on an already-confirmed Source silently planned another
+  // full-budget run every time.
+  it('refuses a repeat confirm on an already-confirmed Source, without planning again', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-qc-confirm-repeat.example.com/p/1'],
+    });
+    try {
+      planSourceMock.mockResolvedValue({
+        runId: '11111111-1111-1111-1111-111111111111',
+        status: 'planned',
+        itemCount: 1,
+        listingPages: 0,
+        warnings: [],
+        errors: [],
+        inputs: [],
+        cacheWarm: false,
+      });
+
+      await caller.sources.confirm({ sourceId: created.sourceId });
+      expect(planSourceMock).toHaveBeenCalledTimes(1);
+
+      await expect(caller.sources.confirm({ sourceId: created.sourceId }))
+        .rejects.toThrow(/already confirmed/i);
+      // The second call must not have planned a second full-budget run.
+      expect(planSourceMock).toHaveBeenCalledTimes(1);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('does not set confirmedAt when planSource throws', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-qc-confirm-throws.example.com/p/1'],
+    });
+    try {
+      planSourceMock.mockRejectedValue(new Error('planning blew up'));
+
+      await expect(caller.sources.confirm({ sourceId: created.sourceId }))
+        .rejects.toThrow('planning blew up');
+
+      const after = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
+      expect(after!.confirmedAt).toBeNull();
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
   it('throws NOT_FOUND for an unknown sourceId', async () => {
     await expect(
       caller.sources.confirm({ sourceId: '00000000-0000-0000-0000-000000000000' }),

@@ -456,24 +456,39 @@ export const sourcesRouter = router({
    * (`probe: false`) — the "graduate from preview to real run" step. Reuses
    * `planSource`, the exact same planning logic `crawl.plan` calls, so a
    * confirm and a manual full plan can never drift apart.
+   *
+   * M3 (final-review-findings.md): `confirmedAt` is written AFTER
+   * `planSource` succeeds, not before — writing it first left a confirmed
+   * Source with no run whenever planning threw, and made confirm callable
+   * over and over on an already-confirmed Source, each time planning another
+   * full-budget run. Refusing a repeat confirm outright (PRECONDITION_FAILED,
+   * the same guard `sources.delete` already uses for "confirmed") is what
+   * makes this idempotent.
    */
   confirm: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
-        columns: { id: true },
+        columns: { id: true, confirmedAt: true },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       }
+      if (source.confirmedAt) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Source ${input.sourceId} is already confirmed`,
+        });
+      }
+
+      const result = await planSource(ctx.db, source.id, { probe: false });
 
       await ctx.db
         .update(sources)
         .set({ confirmedAt: new Date(), updatedAt: new Date() })
         .where(eq(sources.id, source.id));
 
-      const result = await planSource(ctx.db, source.id, { probe: false });
       return { runId: result.runId };
     }),
 
