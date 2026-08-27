@@ -344,6 +344,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       }
       cacheWarm ||= page1.cacheHit;
 
+      // D1 fix (zero-items-rca.md): a swallowed `agent.generateSelectors`
+      // failure used to reach only `console.error` inside `runExtraction` —
+      // invisible from here, and therefore invisible in `runs.logs`. It now
+      // reaches `outcome.warnings`; fold it into this run's own warnings,
+      // named to the input's URL so it reads the same as every other
+      // per-input warning below.
+      if (page1.warnings && page1.warnings.length > 0) {
+        for (const w of page1.warnings) warnings.push(`${start.url}: ${w}`);
+      }
+
       // `data` is always a single row — right for a detail page, useless here.
       // `rows` carries every row the row-scoped extraction produced, which is
       // what a listing page's links actually live in.
@@ -433,7 +443,20 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         return result.stop;
       };
 
-      if (absorb(listingRows, start.url, 1) !== null) {
+      const page1Stop = absorb(listingRows, start.url, 1);
+      if (page1Stop !== null) {
+        // D1 fix (zero-items-rca.md): this branch is EXACTLY probe f5b72f3a's
+        // signature — page 1 absorbed 0 detail items and `planRun` used to
+        // `continue` here with no warning, so a 30-item listing's AI selector
+        // call failing on one run produced a clean `'planned'` status and an
+        // empty `runs.logs`. 'budget' already gets its own warning inside
+        // `absorb`; 'empty-page' and 'all-duplicates' both mean this input's
+        // page 1 planned nothing, and neither said so before this fix.
+        if (page1Stop !== 'budget') {
+          warnings.push(
+            `page 1 of ${start.url} produced no detail items (${page1Stop}) — nothing planned for this input`,
+          );
+        }
         report(start.inputIndex, 'planned', detailCount() - detailsBefore);
         continue;
       }
