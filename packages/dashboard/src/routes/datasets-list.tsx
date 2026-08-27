@@ -39,7 +39,7 @@ export default function DatasetsList() {
       {datasets.length === 0 ? (
         <EmptyState
           title="No datasets yet"
-          description="Datasets group sources by their data shape. They're created during Sandbox source graduation (coming in Phase 4)."
+          description="Datasets group sources by their data shape."
         />
       ) : (
         <ul className="card mt-6 divide-y divide-gray-100">

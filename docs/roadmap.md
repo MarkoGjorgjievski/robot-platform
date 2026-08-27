@@ -130,7 +130,7 @@ Two-phase crawler: `crawl.plan` walks listing pages and enumerates detail URLs i
 - [ ] **Payload termination signals for `api-param`** (`total`, `totalPages`, `totalCount`, `hasMore`, `has_next`). Spec §4 asks for them; the 2026-08-22 plan deliberately deferred them, on the grounds that pages 2..N are fetched in ONE batch — one navigation instead of one per page — and a `hasMore` flag can only be acted on *between* fetches. **This is the revisit condition the plan says is "recorded in the roadmap by Task 8"; until 2026-08-24 it was recorded nowhere.** Revisit when a walk legitimately needs more pages than `API_WALK_MAX_BATCH` (10, `plan-run.ts`) — i.e. when the batch cap starts biting in practice. At that point the extra navigations buy more than they cost, and the signals become the right way to stop early. Related and worth fixing at the same time: `resolveBudget` puts no ceiling on `max_pages` at all (`max_items` has `HARD_ITEM_CEILING`; `max_pages` has nothing), so `API_WALK_MAX_BATCH` is currently the only thing standing between a `max_pages: 100` budget and 99 sequential in-page fetches at one endpoint — a burst the domain lock's politeness delay does NOT space, because it spaces inputs, not the fetches inside one batch.
 - [x] **Fix `deriveTemplate`'s page-parameter selection** (DONE — 2026-08-25). It templated the first changed numeric param in URL order; on AbeBooks that was `ds` — the page-size constant — so the live walk fetched pages sized 2 and 3 items (which is what the 2026-08-21 run's 2/1 stray yields actually were). It now collects every changed numeric candidate and lets the page's own pager-link series discriminate: a stride-1 series param (`p`: 1, 2) beats an offset (`spo`: 30, 60), and a constant-across-series param is disqualified outright; with no series evidence a known pager name breaks the tie, and with neither the old behaviour stands. Gated against the real captured AbeBooks page, which now yields `p={N}`. Known limitation (recorded, not fixed): `{N}` substitutes the literal page number while AbeBooks' `p` is 0-indexed, so walks are offset by one page — exact templates need stride/base-aware `PaginationConfig` semantics, an interface change left as future work.
 - [ ] **Back off `uniqlo-scroll-live`.** Akamai "Access Denied" after roughly ten runs on 2026-08-25. Not a code defect; expect the first re-run to be a block rather than a regression.
-- [ ] Progressive confidence (1 → 5 → 20 → 1000 URLs)
+- [x] **Progressive confidence (1 → 5 → 20 → 1000 URLs) — delivered in its MVP shape as probe-confirm** (2026-08-27, `.superpowers/sdd/2026-08-26-mvp-simplification/` Tasks 9-10). Not the full 1 → 5 → 20 → 1000 ladder — a two-step version: a listing Source runs a small probe, a human reviews the schema/sample rows, and confirming (`sources.confirm`) kicks off the full crawl. The wider ladder remains open future work if the two-step shape proves insufficient.
 - [ ] Real job queue — an api-server restart still pauses a run (`run_items` survives, so calling `execute` again resumes it, but nothing resumes it automatically)
   - [ ] **Prerequisite:** `domain-lock.ts`'s waiter handling does not serialize more than two waiters. N callers awaiting the same in-flight promise all wake together, all serve the politeness delay concurrently, and each then installs its own map entry with the last write overwriting the rest — so the lock stops being a lock at 3+ waiters. Pre-existing and harmless today, because nothing creates three concurrent runs against the same domain. A job queue is exactly the thing that will, so it has to be fixed as part of that work rather than after it.
 
@@ -165,7 +165,7 @@ Two-phase crawler: `crawl.plan` walks listing pages and enumerates detail URLs i
 
 Full spec: `docs/superpowers/specs/2026-05-13-dashboard-architecture-redesign-design.md`
 
-Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by a new `packages/api-server` (Hono mounting the existing tRPC routers over HTTP). Introduces Sandbox + Graduate model, renames `collections` → `datasets`, makes `input_sets` first-class, and lays the data-model foundation for v2 pipeline features.
+Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by a new `packages/api-server` (Hono mounting the existing tRPC routers over HTTP). Introduces Sandbox + Graduate model, renames `collections` → `datasets`, makes `input_sets` first-class, and lays the data-model foundation for v2 pipeline features. **The Sandbox + Graduate model itself was superseded and deleted in `.superpowers/sdd/2026-08-26-mvp-simplification/` (2026-08-27, Task 11) — see the Phase 2 / Phase 4 notes below; the schema/data-model groundwork this phase laid (`datasets`, `input_sets`, `is_sandbox` column) stands.**
 
 - [x] **Phase 0 — Schema migration** (DONE — 2026-05-14, 18 commits)
   - [x] Rename `collections` → `datasets`
@@ -182,7 +182,12 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
   - [x] Replace Next.js dashboard with TanStack Router + Query SPA (Vite)
   - [x] Reimplement `/api/scraper/analyze` + `/api/scraper/extract` as tRPC procedures
   - [x] Routing skeleton (all routes from spec Section 5)
-- [x] **Phase 2 — Sandbox flow** (DONE — 2026-05-15)
+- [x] **Phase 2 — Sandbox flow** (DONE — 2026-05-15). **Superseded (2026-08-27) — see
+  `.superpowers/sdd/2026-08-26-mvp-simplification/`.** The throwaway `/sandbox/{shortid}` draft
+  world (its routes, `sandbox.ts` router, and the `is_sandbox` visibility filters) was deleted in
+  that spec's Task 11; declared-mode `quickCreate` + the Source workspace (spec Tasks 9-10) now
+  do what this phase did, landing directly on a real Source under the always-visible Scratch
+  project instead of a fenced-off draft.
   - [x] Paste-and-go creates draft Source on first action
   - [x] Wizard mutations persist per step (new save flow — replaces the v1.0 save-extraction route)
   - [x] `/sandbox/{shortid}` rehydration on reload
@@ -193,7 +198,11 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
   - [x] Per-source browser config (viewport, user agent, cookie injection) — folded in from old v1.1
   - [x] Run results view (replaces `/extractions`)
   - [x] Source bulk-create from Dataset page (multi-strategy in one action)
-- [x] **Phase 4 — Graduate** (DONE — 2026-05-18)
+- [x] **Phase 4 — Graduate** (DONE — 2026-05-18). **Superseded (2026-08-27) — see
+  `.superpowers/sdd/2026-08-26-mvp-simplification/`.** The Sandbox → Project "Graduate" move
+  (`graduate-form.tsx`, `sandbox.graduate`) was deleted in that spec's Task 11; there is no longer
+  a separate throwaway project to graduate out of — sources are created directly against a real
+  project (Scratch by default) and stay there.
   - [x] Move-from-Sandbox-to-Project flow
   - [x] Inline InputSet promotion to named InputSet
 - [x] **Phase 5 — DomainIntelligence views** (DONE — 2026-05-20)

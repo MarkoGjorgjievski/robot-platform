@@ -84,7 +84,6 @@ export const domainsRouter = router({
         .where(and(
           eq(orgs.slug, input.orgSlug),
           eq(projects.slug, input.projectSlug),
-          eq(sources.isSandbox, false),
         ));
 
       return results
@@ -121,7 +120,6 @@ export const domainsRouter = router({
         .where(and(
           eq(orgs.slug, input.orgSlug),
           eq(projects.slug, input.projectSlug),
-          eq(sources.isSandbox, false),
           sql`split_part(${sources.urlTemplate}, '/', 3) IN (${input.domain}, ${'www.' + input.domain})`,
         ));
 
@@ -255,10 +253,9 @@ export const domainsRouter = router({
         .from(sources)
         .innerJoin(datasets, eq(sources.datasetId, datasets.id))
         .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .where(and(
-          eq(sources.isSandbox, false),
+        .where(
           sql`split_part(${sources.urlTemplate}, '/', 3) IN (${input.domain}, ${'www.' + input.domain})`,
-        ));
+        );
 
       return { domain: input.domain, pageTypes, sources: sourcesAcross };
     }),

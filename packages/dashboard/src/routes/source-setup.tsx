@@ -9,11 +9,12 @@ import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 
 // The Source workspace — the paste-and-go wizard reborn (spec §1/§6): schema
 // discovery, the field table with provenance badges, and a mode-aware Extract
-// button, ported from sandbox-detail.tsx (which stays untouched; it dies in
-// Task 11) onto a real Source instead of a throwaway sandbox one. Unlike the
-// sandbox version, the field list here is read-only — there is no endpoint to
-// persist a per-field enable/disable toggle onto a Source yet (Phase 3b, same
-// as Config/Inputs), so this only shows what `sources.analyze` found.
+// button, ported from the old sandbox-detail.tsx wizard (deleted in Task 11,
+// the sandbox/graduate world's removal) onto a real Source instead of a
+// throwaway sandbox one. Unlike that predecessor, the field list here is
+// read-only — there is no endpoint to persist a per-field enable/disable
+// toggle onto a Source yet (Phase 3b, same as Config/Inputs), so this only
+// shows what `sources.analyze` found.
 
 type SchemaField = {
   name: string;
@@ -69,8 +70,8 @@ export default function SourceSetup() {
     onError: (err) => setError(err.message),
   });
 
-  // Auto-fire analyze if no schema yet — mirrors sandbox-detail.tsx's guard
-  // against StrictMode double-fire exactly.
+  // Auto-fire analyze if no schema yet — mirrors the old sandbox wizard's
+  // guard against StrictMode double-fire exactly.
   const analyzeStartedRef = useRef(false);
   useEffect(() => {
     if (!source) return;

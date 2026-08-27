@@ -55,7 +55,7 @@ export default function DomainDetail() {
         Sources across customers touching {domain} ({sources.length})
       </h2>
       {sources.length === 0 ? (
-        <EmptyState title="No graduated sources touch this domain yet" description="Sandbox-only activity isn't listed here." />
+        <EmptyState title="No sources touch this domain yet" description="Nothing has been configured against this domain across projects." />
       ) : (
         <ul className="card mt-2 divide-y divide-gray-100">
           {sources.map((s) => (

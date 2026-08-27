@@ -39,7 +39,7 @@ export default function SourcesList() {
       {sources.length === 0 ? (
         <EmptyState
           title="No sources yet"
-          description="Sources appear here when they're graduated from Sandbox or created in a Dataset (coming in Phase 3b/4)."
+          description="Sources appear here once they're created in this project."
         />
       ) : (
         <ul className="card mt-6 divide-y divide-gray-100">

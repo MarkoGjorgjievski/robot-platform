@@ -74,7 +74,7 @@ async function seedRunWithManySingleRowExtractions(count: number) {
   return run!.id;
 }
 
-/** Sandbox shape: one extraction whose `data` array holds every row. */
+/** Single-page shape: one extraction whose `data` array holds every row. */
 async function seedRunWithSingleExtraction(rows: Array<Record<string, unknown>>) {
   const sourceId = await seedSource();
   const [run] = await db.insert(runs).values({ sourceId, status: 'completed' }).returning();
@@ -138,7 +138,7 @@ describe('runsRouter', () => {
       expect(result?.extraction?.rowCount).toBe(3);
     });
 
-    it('caps the returned data at VIEW_ROW_CAP but reports the true row total (sandbox shape)', async () => {
+    it('caps the returned data at VIEW_ROW_CAP but reports the true row total (single-page shape)', async () => {
       const rows = Array.from({ length: 600 }, (_, i) => ({ title: `Row ${i}` }));
       const runId = await seedRunWithSingleExtraction(rows);
 

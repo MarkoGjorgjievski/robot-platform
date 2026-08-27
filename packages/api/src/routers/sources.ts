@@ -37,7 +37,7 @@ async function getScratchProjectId(db: Database): Promise<string> {
   if (allOrgs.length === 0) {
     throw new TRPCError({
       code: 'PRECONDITION_FAILED',
-      message: 'No orgs found. Run `pnpm --filter @robot/db seed:sandbox` first.',
+      message: 'No orgs found. Run `pnpm --filter @robot/db seed:scratch` first.',
     });
   }
   const scratch = await db.query.projects.findFirst({
@@ -46,7 +46,7 @@ async function getScratchProjectId(db: Database): Promise<string> {
   if (!scratch) {
     throw new TRPCError({
       code: 'PRECONDITION_FAILED',
-      message: `No Scratch project for org ${allOrgs[0]!.slug}. Run seed:sandbox first.`,
+      message: `No Scratch project for org ${allOrgs[0]!.slug}. Run seed:scratch first.`,
     });
   }
   return scratch.id;
@@ -243,7 +243,6 @@ export const sourcesRouter = router({
           // nullable) reads as 0 rather than a null propagating into NaN.
           urlCount: sql<number>`coalesce(jsonb_array_length(${inputSets.rows}), 0)::int`,
           isActive: sources.isActive,
-          isSandbox: sources.isSandbox,
           createdAt: sources.createdAt,
           updatedAt: sources.updatedAt,
         })
@@ -256,7 +255,6 @@ export const sourcesRouter = router({
         .where(and(
           eq(orgs.slug, input.orgSlug),
           eq(projects.slug, input.projectSlug),
-          eq(sources.isSandbox, false),
         ))
         .orderBy(sources.name);
 

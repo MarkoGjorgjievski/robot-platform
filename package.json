@@ -12,7 +12,7 @@
     "dev:all": "turbo dev",
     "test:scraper": "pnpm --filter @robot/scraper exec tsx src/test-run.ts",
     "db:migrate": "pnpm --filter @robot/db exec drizzle-kit migrate",
-    "db:seed": "pnpm --filter @robot/db run seed:sandbox",
+    "db:seed": "pnpm --filter @robot/db run seed:scratch",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
