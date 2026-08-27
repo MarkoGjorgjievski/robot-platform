@@ -7,7 +7,7 @@
 // planner, browser, or extraction loop.
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, sources, orgs, projects, datasets } from '@robot/db';
+import { db, sources, orgs, projects, datasets, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
@@ -158,5 +158,86 @@ describe('crawl.probeAndSample', () => {
   it('rejects a non-uuid sourceId', async () => {
     await expect(caller.crawl.probeAndSample({ sourceId: 'not-a-uuid' } as never)).rejects.toThrow();
     expect(planSourceMock).not.toHaveBeenCalled();
+  });
+
+  // Finding 3 (final-review-findings.md): neither guard used to exist, so the
+  // "Probe & sample" button reappearing on every mount fired a fresh PAID
+  // probe every click.
+  describe('duplicate-probe and confirmed-source guards', () => {
+    it('refuses to probe a Source that is already confirmed, without spending a plan', async () => {
+      const sourceId = await makeSource();
+      await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, sourceId));
+
+      await expect(caller.crawl.probeAndSample({ sourceId })).rejects.toThrow(/already confirmed/i);
+      expect(planSourceMock).not.toHaveBeenCalled();
+    });
+
+    it('hands back the existing run instead of starting a second probe when one is already in flight', async () => {
+      const sourceId = await makeSource();
+      const [existingRun] = await db.insert(runs)
+        .values({ sourceId, status: 'extracting', inputLabel: 'probe' })
+        .returning({ id: runs.id });
+
+      const result = await caller.crawl.probeAndSample({ sourceId });
+
+      expect(result.runId).toBe(existingRun!.id);
+      expect(planSourceMock).not.toHaveBeenCalled();
+      expect(markRunExtractingMock).not.toHaveBeenCalled();
+      expect(startExecutionMock).not.toHaveBeenCalled();
+    });
+
+    it.each(['planning', 'planned', 'extracting', 'cancelling'])(
+      'treats a probe run at %s as still in flight',
+      async (status) => {
+        const sourceId = await makeSource();
+        const [existingRun] = await db.insert(runs)
+          .values({ sourceId, status, inputLabel: 'probe' })
+          .returning({ id: runs.id });
+
+        const result = await caller.crawl.probeAndSample({ sourceId });
+
+        expect(result.runId).toBe(existingRun!.id);
+        expect(planSourceMock).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['completed', 'partial', 'failed', 'cancelled'])(
+      'starts a fresh probe once the previous one reached a terminal status (%s)',
+      async (status) => {
+        const sourceId = await makeSource();
+        await db.insert(runs).values({ sourceId, status, inputLabel: 'probe' });
+        planSourceMock.mockResolvedValue({
+          ...OUTCOME_BASE,
+          runId: 'run-fresh',
+          status: 'planned',
+          itemCount: 2,
+        } satisfies PlanSourceResult);
+        markRunExtractingMock.mockResolvedValue(true);
+        startExecutionMock.mockResolvedValue(undefined);
+
+        const result = await caller.crawl.probeAndSample({ sourceId });
+
+        expect(result.runId).toBe('run-fresh');
+        expect(planSourceMock).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it('does not mistake a real crawl (a non-probe run) for an in-flight probe', async () => {
+      const sourceId = await makeSource();
+      await db.insert(runs).values({ sourceId, status: 'extracting', inputLabel: 'a-real-crawl' });
+      planSourceMock.mockResolvedValue({
+        ...OUTCOME_BASE,
+        runId: 'run-real-probe',
+        status: 'planned',
+        itemCount: 1,
+      } satisfies PlanSourceResult);
+      markRunExtractingMock.mockResolvedValue(true);
+      startExecutionMock.mockResolvedValue(undefined);
+
+      const result = await caller.crawl.probeAndSample({ sourceId });
+
+      expect(result.runId).toBe('run-real-probe');
+      expect(planSourceMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

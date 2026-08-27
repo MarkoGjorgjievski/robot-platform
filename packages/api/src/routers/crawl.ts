@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, notInArray } from 'drizzle-orm';
 import { type OriginField } from '@robot/scraper';
 import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -14,6 +14,16 @@ import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-sourc
 import { effectiveSchema } from '../crawl/effective-schema.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
+
+/**
+ * Terminal run statuses — once a run reaches one of these, no loop will ever
+ * touch it again. Everything else (`planning`, `planned`, `extracting`,
+ * `cancelling`, and the unused default `pending`) is a run something is
+ * still doing, or is about to do, work on. Used by `probeAndSample`'s
+ * duplicate guard (Finding 3, final-review-findings.md) to tell "a probe that
+ * already finished" from "a probe already in flight".
+ */
+const TERMINAL_RUN_STATUSES = ['completed', 'partial', 'failed', 'cancelled'];
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -64,6 +74,50 @@ export const crawlRouter = router({
   probeAndSample: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      // Finding 3 (final-review-findings.md): neither guard below existed —
+      // the "Probe & sample" button reappears on every mount while
+      // unconfirmed, so a double-click, two tabs, or a re-mount fired a
+      // fresh PAID probe every time.
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, confirmedAt: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      // A confirmed Source is either already crawling for real or already
+      // crawled — probing it again makes no sense, and there is no
+      // "existing run" to sensibly hand back the way the duplicate-probe
+      // guard below does.
+      if (source.confirmedAt) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Source ${input.sourceId} is already confirmed; probeAndSample only applies before confirmation`,
+        });
+      }
+      // An unfinished probe already exists for this Source: refuse to start a
+      // SECOND one (planSource never runs, so nothing is spent) and hand back
+      // the one already in flight instead — the caller (source-setup.tsx)
+      // navigates on `runId` alone, so this reads to the operator as "took me
+      // to the probe already running" rather than an error.
+      const existingProbe = await ctx.db.query.runs.findFirst({
+        where: and(
+          eq(runs.sourceId, input.sourceId),
+          eq(runs.inputLabel, 'probe'),
+          notInArray(runs.status, TERMINAL_RUN_STATUSES),
+        ),
+        columns: { id: true },
+      });
+      if (existingProbe) {
+        return {
+          runId: existingProbe.id,
+          status: 'in-progress' as const,
+          itemCount: 0,
+          warnings: [],
+          errors: [],
+        };
+      }
+
       const outcome = await planSource(ctx.db, input.sourceId, { probe: true });
 
       // `status === 'failed'` covers "every input errored"; `itemCount === 0`
@@ -72,7 +126,7 @@ export const crawlRouter = router({
       // input erroring — where a work list of zero items is still nothing for
       // execution to claim.
       if (outcome.status === 'planned' && outcome.itemCount > 0) {
-        const source = await ctx.db.query.sources.findFirst({
+        const execSource = await ctx.db.query.sources.findFirst({
           where: eq(sources.id, input.sourceId),
           // selectorsJson: a Scratch source's schema falls back here when its
           // dataset schema is empty — see effective-schema.ts. Mirrors
@@ -86,7 +140,7 @@ export const crawlRouter = router({
         // deleted in the gap between the two queries, which is not this
         // mutation's job to recover from; skipping execution is the safe
         // response to a Source that is no longer there.
-        if (source) {
+        if (execSource) {
           // `planSource` leaves the run at `planned` — `execute` is the ONLY
           // procedure that otherwise ever flips a run to `extracting`, and
           // both `crawl.cancel` (CANCELLABLE_STATUSES) and the dashboard's
@@ -103,7 +157,7 @@ export const crawlRouter = router({
           // comment for why this must never become an unhandled rejection,
           // and `execute`'s identical `.catch()` below for the pattern this
           // copies.
-          void startExecution(outcome.runId, source.id, effectiveSchema(source) as OriginField[], PROBE_SAMPLE_LIMIT)
+          void startExecution(outcome.runId, execSource.id, effectiveSchema(execSource) as OriginField[], PROBE_SAMPLE_LIMIT)
             .catch((err) => {
               console.error(`[crawl] startExecution rejected outside its own guards for run ${outcome.runId}:`, err);
             });
