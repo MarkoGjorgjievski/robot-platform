@@ -20,7 +20,8 @@ import ProjectDomainsList from './routes/project-domains-list';
 import ProjectDomainDetail from './routes/project-domain-detail';
 import SourcesList from './routes/sources-list';
 import SourceDetail from './routes/source-detail';
-import SourceOverview from './routes/source-overview';
+import SourceIndex from './routes/source-index';
+import SourceSetup from './routes/source-setup';
 import SourceConfig from './routes/source-config';
 import SourceInputs from './routes/source-inputs';
 import SourceRuns from './routes/source-runs';
@@ -108,10 +109,19 @@ const sourceDetailLayoutRoute = createRoute({
   component: SourceDetail,
 });
 
+// The bare source URL: the Set-up workspace until the Source has a completed
+// run, then Overview — see source-index.tsx. The 'setup' route below is the
+// explicit tab, always reachable regardless of that default.
 const sourceOverviewRoute = createRoute({
   getParentRoute: () => sourceDetailLayoutRoute,
   path: '/',
-  component: SourceOverview,
+  component: SourceIndex,
+});
+
+const sourceSetupRoute = createRoute({
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: 'setup',
+  component: SourceSetup,
 });
 
 const sourceConfigRoute = createRoute({
@@ -166,6 +176,7 @@ const routeTree = rootRoute.addChildren([
   sourcesListRoute,
   sourceDetailLayoutRoute.addChildren([
     sourceOverviewRoute,
+    sourceSetupRoute,
     sourceConfigRoute,
     sourceInputsRoute,
     sourceRunsRoute,

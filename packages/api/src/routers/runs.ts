@@ -50,7 +50,14 @@ export const runsRouter = router({
         where: eq(runs.id, input.id),
         with: {
           source: {
-            columns: { id: true, slug: true, name: true, urlTemplate: true, datasetId: true, selectorsJson: true },
+            // confirmedAt: the confirm gate (mvp-simplification task 10) shows
+            // its Yes/No gate only for a probe run on a still-unconfirmed
+            // Source; without it every probe run would gate forever, even
+            // after the operator already said yes on an earlier one.
+            columns: {
+              id: true, slug: true, name: true, urlTemplate: true, datasetId: true,
+              selectorsJson: true, confirmedAt: true,
+            },
             with: {
               dataset: {
                 columns: { id: true, slug: true, name: true, projectId: true },
@@ -107,6 +114,12 @@ export const runsRouter = router({
           errorMessage: run.errorMessage,
           inputLabel: run.inputLabel,
           createdAt: run.createdAt,
+          // `formatPlanLog`'s free-text "warning: .../error: input N: ..."
+          // lines — the only place a PERSISTED run's plan warnings/errors
+          // survive (the mutation response is gone once the page reloads).
+          // `parseRunLog` (dashboard) recovers the original strings for the
+          // probe confirm gate's evidence summary and diagnosis panel.
+          logs: run.logs,
         },
         source: run.source,
         capture: latestCapture ? {

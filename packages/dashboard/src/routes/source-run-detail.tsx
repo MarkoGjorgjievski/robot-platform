@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { useParams, Link } from '@tanstack/react-router';
-import { Activity, Download, ExternalLink, ListChecks } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, Link, useNavigate } from '@tanstack/react-router';
+import {
+  Activity, Download, ExternalLink, ListChecks, HelpCircle, CheckCircle2, Loader2,
+} from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
@@ -8,6 +10,9 @@ import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
 import {
   progressLabel, isRunActive, runControls, extractButtonLabel, extractButtonTitle, requeueNotice,
 } from '../lib/run-progress';
+import { probeEvidence } from '../lib/probe-evidence';
+import { parseRunLog } from '../lib/parse-run-log';
+import { diagnoseRun, type Diagnosis } from '../lib/diagnose-run';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -98,6 +103,18 @@ export default function SourceRunDetail() {
       )}
 
       <ExecuteControls runId={runId} />
+
+      <ProbeConfirmGate
+        runId={runId}
+        projectSlug={projectSlug}
+        sourceSlug={sourceSlug}
+        sourceId={source?.id ?? null}
+        sourceConfirmed={!!source?.confirmedAt}
+        runStatus={run.status}
+        runErrorMessage={run.errorMessage}
+        logs={run.logs}
+        isProbeRun={run.inputLabel === 'probe'}
+      />
 
       <WorkList runId={runId} />
 
@@ -314,6 +331,185 @@ function WorkList({ runId }: { runId: string }) {
       {data.items.length > 200 && (
         <p className="mt-2 text-xs text-gray-500">Showing 200 of {data.items.length} items.</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * The probe-confirm gate (spec §3 step 2): shown above the work list for a
+ * probe run on a still-unconfirmed Source. Evidence summary, then "Is this
+ * the desirable path?" — Yes plans+navigates to the full crawl; "Something's
+ * wrong" reveals the diagnosis panel, which also renders on its own the
+ * moment the probe run itself failed (no click needed for that case).
+ *
+ * Renders nothing once the Source is confirmed — an OLD probe run's page
+ * must not re-offer a gate whose "Yes" would fire a second full plan on a
+ * Source already crawling for real.
+ */
+function ProbeConfirmGate({
+  runId, projectSlug, sourceSlug, sourceId, sourceConfirmed, runStatus, runErrorMessage, logs, isProbeRun,
+}: {
+  runId: string;
+  projectSlug: string;
+  sourceSlug: string;
+  sourceId: string | null;
+  sourceConfirmed: boolean;
+  runStatus: string;
+  runErrorMessage: string | null;
+  logs: string | null;
+  isProbeRun: boolean;
+}) {
+  const navigate = useNavigate();
+  const [showDiagnosis, setShowDiagnosis] = useState(false);
+
+  // Always called (rules-of-hooks) — gated below by isProbeRun/sourceConfirmed instead.
+  const itemsQuery = trpc.crawl.items.useQuery({ runId }, { enabled: isProbeRun && !sourceConfirmed });
+  const confirmMutation = trpc.sources.confirm.useMutation({
+    onSuccess: (result) => {
+      navigate({
+        to: '/p/$project/sources/$source/runs/$run',
+        params: { project: projectSlug, source: sourceSlug, run: result.runId },
+      });
+    },
+  });
+
+  if (!isProbeRun || sourceConfirmed) return null;
+  if (!itemsQuery.data) return null;
+
+  const { warnings, errors } = parseRunLog(logs);
+  const counts = itemsQuery.data.counts;
+  const evidence = probeEvidence({ counts, warnings });
+
+  const itemFailures = itemsQuery.data.items
+    .filter((item) => item.kind === 'detail' && item.status === 'failed')
+    .map((item) => ({ url: item.url, error: item.error }));
+
+  const runFailed = runStatus === 'failed';
+  const diagnosis: Diagnosis[] = diagnoseRun({
+    warnings,
+    errors: [
+      ...errors.map((message) => ({ message })),
+      ...(runErrorMessage ? [{ message: runErrorMessage }] : []),
+    ],
+    // No separate blockedReason channel at the run level — a block is caught
+    // by diagnoseRun's own regex match over warnings/errors/itemFailures.
+    blockedReason: null,
+    rowsFound: counts.detail,
+    itemFailures,
+  });
+
+  const showDiagnosisPanel = showDiagnosis || runFailed;
+
+  return (
+    <div className="card mt-6 p-4">
+      <div className="flex items-baseline gap-3">
+        <HelpCircle className="h-4 w-4 self-center text-gray-400" />
+        <h2 className="text-sm font-medium text-gray-900">Probe results</h2>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+        <Stat label="Pages walked" value={String(evidence.pagesWalked)} />
+        <Stat label="Items found" value={String(evidence.itemsFound)} />
+        <Stat label="Pagination" value={evidence.paginationNote} />
+        <Stat label="Warnings" value={String(evidence.warningsCount)} />
+      </dl>
+
+      {!runFailed && (
+        <div className="mt-4">
+          <p className="text-sm font-medium text-gray-900">Is this the desirable path?</p>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={() => sourceId && confirmMutation.mutate({ sourceId })}
+              disabled={confirmMutation.isPending || !sourceId}
+              className="btn-primary h-9"
+            >
+              {confirmMutation.isPending
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <CheckCircle2 className="h-4 w-4" />}
+              Yes, crawl everything
+            </button>
+            <button onClick={() => setShowDiagnosis((v) => !v)} className="btn-quiet">
+              Something's wrong
+            </button>
+          </div>
+          {confirmMutation.isError && (
+            <p className="mt-2 text-xs text-red-600">{confirmMutation.error.message}</p>
+          )}
+        </div>
+      )}
+
+      {showDiagnosisPanel && (
+        <DiagnosisPanel diagnosis={diagnosis} projectSlug={projectSlug} sourceSlug={sourceSlug} sourceId={sourceId} />
+      )}
+    </div>
+  );
+}
+
+/** The three honest actions on "no" (spec §3): edit URLs, switch mode, delete. */
+function DiagnosisPanel({
+  diagnosis, projectSlug, sourceSlug, sourceId,
+}: {
+  diagnosis: Diagnosis[];
+  projectSlug: string;
+  sourceSlug: string;
+  sourceId: string | null;
+}) {
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  const deleteMutation = trpc.sources.delete.useMutation({
+    onSuccess: () => {
+      utils.sources.listByProject.invalidate();
+      navigate({ to: '/p/$project/sources', params: { project: projectSlug } });
+    },
+  });
+
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-4">
+      {diagnosis.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          No specific problem found in the probe's own evidence — use your judgment, or pick one of
+          the actions below.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {diagnosis.map((d, i) => (
+            <div key={i} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm">
+              <p className="micro-label text-red-600">{d.title}</p>
+              <p className="mt-0.5 text-red-800">{d.detail}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Link
+          to="/p/$project/sources/$source/inputs"
+          params={{ project: projectSlug, source: sourceSlug }}
+          className="btn-quiet"
+        >
+          Edit URLs
+        </Link>
+        <Link
+          to="/p/$project/sources/$source/config"
+          params={{ project: projectSlug, source: sourceSlug }}
+          className="btn-quiet"
+        >
+          Switch mode
+        </Link>
+        <button
+          onClick={() => {
+            if (!sourceId) return;
+            if (window.confirm('Delete this source? This cannot be undone.')) {
+              deleteMutation.mutate({ sourceId });
+            }
+          }}
+          disabled={deleteMutation.isPending || !sourceId}
+          className="btn-quiet hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+        >
+          Delete source
+        </button>
+      </div>
+      {deleteMutation.isError && <p className="mt-2 text-xs text-red-600">{deleteMutation.error.message}</p>}
     </div>
   );
 }
