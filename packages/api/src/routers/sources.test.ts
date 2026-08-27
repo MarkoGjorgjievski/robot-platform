@@ -1,10 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db, sources, inputSets, datasets, projects } from '@robot/db';
+import { eq, and } from 'drizzle-orm';
+import { db, sources, inputSets, datasets, projects, orgs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { getOrCreateScratchDataset, insertScratchDatasetIfAbsent } from './sources.js';
 
 // `sources.analyze` routes through `scraperRouter.analyze`, which dynamically
 // imports `@robot/scraper`'s `runAnalysis` and launches a real browser via
@@ -59,9 +60,103 @@ async function cleanupSource(sourceId: string): Promise<void> {
   }
 }
 
+/** Isolated org + project, torn down by the returned cleanup — used to
+ *  exercise Scratch-dataset resolution without touching the real seeded
+ *  Scratch project/dataset (`getOrCreateScratchDataset` only needs a
+ *  projectId; it doesn't care whether that project is actually "scratch"). */
+async function makeThrowawayProject() {
+  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const [org] = await db.insert(orgs)
+    .values({ name: `sources test ${stamp}`, slug: `sources-test-${stamp}` })
+    .returning({ id: orgs.id });
+  const [project] = await db.insert(projects)
+    .values({ orgId: org!.id, name: 'sources test', slug: `sources-test-${stamp}` })
+    .returning({ id: projects.id });
+  return {
+    projectId: project!.id,
+    // Deleting the project cascades any datasets created under it.
+    cleanup: async () => {
+      await db.delete(projects).where(eq(projects.id, project!.id));
+      await db.delete(orgs).where(eq(orgs.id, org!.id));
+    },
+  };
+}
+
 afterEach(() => {
   runAnalysisMock.mockReset();
   planSourceMock.mockReset();
+});
+
+describe('getOrCreateScratchDataset conflict-safety', () => {
+  it('reuses a dataset that already exists at (project, "scratch") rather than erroring', async () => {
+    const { projectId, cleanup } = await makeThrowawayProject();
+    try {
+      const [preExisting] = await db.insert(datasets).values({
+        projectId,
+        name: 'Scratch',
+        slug: 'scratch',
+        schema: [],
+      }).returning({ id: datasets.id });
+
+      const result = await getOrCreateScratchDataset(db, projectId);
+      expect(result).toBe(preExisting!.id);
+
+      const rows = await db.select().from(datasets)
+        .where(and(eq(datasets.projectId, projectId), eq(datasets.slug, 'scratch')));
+      expect(rows).toHaveLength(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('two concurrent calls racing before the dataset exists both resolve to the same row, never throw', async () => {
+    const { projectId, cleanup } = await makeThrowawayProject();
+    try {
+      // Both calls are issued back-to-back with no await between them, so
+      // both fire their `findFirst` lookup before either has inserted
+      // anything — this is the race `onConflictDoNothing` + fallback
+      // `findFirst` exists to survive. (The driver may still serialize the
+      // two inserts rather than genuinely interleaving them, so this alone
+      // isn't guaranteed to hit the conflict branch every run — the
+      // deterministic case below exercises that branch directly.)
+      const [a, b] = await Promise.all([
+        getOrCreateScratchDataset(db, projectId),
+        getOrCreateScratchDataset(db, projectId),
+      ]);
+      expect(a).toBe(b);
+
+      const rows = await db.select().from(datasets)
+        .where(and(eq(datasets.projectId, projectId), eq(datasets.slug, 'scratch')));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.id).toBe(a);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('insertScratchDatasetIfAbsent: deterministically exercises the conflict branch — insert loses to a pre-existing row and falls back to findFirst instead of throwing', async () => {
+    const { projectId, cleanup } = await makeThrowawayProject();
+    try {
+      // Insert the conflicting row directly (bypassing getOrCreateScratchDataset's
+      // own findFirst guard entirely), so the call below has no way to see it
+      // except via the ON CONFLICT DO NOTHING path itself.
+      const [preExisting] = await db.insert(datasets).values({
+        projectId,
+        name: 'Scratch',
+        slug: 'scratch',
+        schema: [],
+      }).returning({ id: datasets.id });
+
+      const result = await insertScratchDatasetIfAbsent(db, projectId);
+      expect(result).toBe(preExisting!.id);
+
+      const rows = await db.select().from(datasets)
+        .where(and(eq(datasets.projectId, projectId), eq(datasets.slug, 'scratch')));
+      expect(rows).toHaveLength(1);
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('sources.quickCreate', () => {
