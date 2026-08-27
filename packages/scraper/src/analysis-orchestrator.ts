@@ -26,6 +26,7 @@ import { normalizeUserFields } from './field-normalizer.js';
 import { cachedFieldsFromCache, type CachedFieldSummary } from './cached-fields-from-cache.js';
 import { runExtraction, type ExtractionAgent, type ExtractionFieldInput } from './extraction-orchestrator.js';
 import { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
+import { listingHints, detailHints } from './page-hints.js';
 
 /** The AI collaborator, declared structurally so a test can pass a stub. */
 export type AnalysisAgent = {
@@ -93,6 +94,17 @@ export type AnalysisOutcome = {
     paginationStrategy: string | null;
     sampleDetailUrls: string[];
   };
+  /**
+   * Soft page-type hints (mvp-simplification task 6) — advisory strings for a
+   * human to read, never a gate: `runAnalysis` still honors the caller's
+   * declared page type unconditionally (task 4 deleted arbitration outright).
+   * ALWAYS present; `[]` when there is nothing to say. Listing analyzes get
+   * `listingHints` (hub/featured-page warning); detail analyzes get
+   * `detailHints` off the live capture's own JSON-LD, and only when a capture
+   * actually succeeded — a blocked or failed capture is no evidence, so it
+   * produces no hints rather than a guess.
+   */
+  hints: string[];
 };
 
 export async function runAnalysis(
@@ -159,6 +171,7 @@ export async function runAnalysis(
     schema,
     cached: false,
     liveExamples: true,
+    hints: detailHints(capture.structuredData.ldJson),
   };
 }
 
@@ -223,6 +236,9 @@ async function analyzeFromCache(args: {
   let persisted: { id: string; url: string } | null = null;
   let liveExamples = false;
   let blockedReason: string | undefined;
+  // No evidence, no hints: a blocked or failed capture leaves this empty —
+  // see AnalysisOutcome.hints.
+  let hints: string[] = [];
 
   try {
     const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
@@ -239,6 +255,7 @@ async function analyzeFromCache(args: {
     } else {
       liveValues = await resolveLiveValues(cache, capture, browser, url);
       liveExamples = true;
+      hints = detailHints(capture.structuredData.ldJson);
 
       if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
     }
@@ -282,6 +299,7 @@ async function analyzeFromCache(args: {
     cached: true,
     liveExamples,
     blockedReason,
+    hints,
   };
 }
 
@@ -355,7 +373,10 @@ async function runListingAnalysis(args: {
       cached: usedCache,
       liveExamples: false,
       blockedReason: health.reason,
-      // No listing report — a block page has no rows worth counting.
+      // No listing report — a block page has no rows worth counting. No
+      // hints either: a block page is no evidence of anything about the
+      // page's real shape.
+      hints: [],
     };
   }
 
@@ -430,5 +451,6 @@ async function runListingAnalysis(args: {
     cached: usedCache,
     liveExamples: true,
     listing: { rowsFound, paginationStrategy, sampleDetailUrls },
+    hints: listingHints(rowsFound, paginationStrategy),
   };
 }

@@ -179,6 +179,47 @@ describe('runAnalysis — listing, cache hit', () => {
   });
 });
 
+describe('runAnalysis — listing hints (mvp-simplification task 6)', () => {
+  // listingHints itself is unit-tested in page-hints.test.ts; these prove the
+  // ATTACHMENT — the hub warning uses the SAME rowsFound/paginationStrategy
+  // the caller sees in `out.listing`.
+
+  it('is empty on the happy-path fixture (3 rows, url-pattern pagination)', async () => {
+    const out = await runAnalysis(
+      { url: LISTING_CAPTURE.url, pageType: 'listing' },
+      { browser: stubBrowser(), agent: makeAgent(), lookupCache: async () => null, saveCache: async () => {} },
+    );
+    expect(out.listing!.rowsFound).toBe(3);
+    expect(out.listing!.paginationStrategy).toBe('url-pattern');
+    expect(out.hints).toEqual([]);
+  });
+
+  it('fires the hub warning when almost nothing came back and no pagination was detected', async () => {
+    const THIN_ROWS = [ROWS[0]!];
+    // Strip the <link rel="next"> so detectPaginationFromHtml finds nothing.
+    const NO_PAGINATION_CAPTURE: PageCapture = {
+      ...LISTING_CAPTURE,
+      html: LISTING_CAPTURE.html.replace('<link rel="next" href="https://shop.example.com/listing?page=2">', ''),
+    };
+    const out = await runAnalysis(
+      { url: LISTING_CAPTURE.url, pageType: 'listing' },
+      {
+        browser: stubBrowser({
+          async capture() { return NO_PAGINATION_CAPTURE; },
+          async evaluate<T>() { return { data: THIN_ROWS } as T; },
+          async setContentEvaluate<T>() { return { data: THIN_ROWS } as T; },
+        }),
+        agent: makeAgent(), lookupCache: async () => null, saveCache: async () => {},
+      },
+    );
+    expect(out.listing!.rowsFound).toBe(1);
+    expect(out.listing!.paginationStrategy).toBeNull();
+    expect(out.hints).toEqual([
+      "This doesn't look like a listing — it may be a hub/featured page; the real listing is often behind a 'shop all' link.",
+    ]);
+  });
+});
+
 describe('runAnalysis — listing, blocked page', () => {
   const BLOCKED: PageCapture = {
     ...LISTING_CAPTURE,
@@ -202,5 +243,6 @@ describe('runAnalysis — listing, blocked page', () => {
     expect(out.blockedReason).toMatch(/human|cloudflare|block/i);
     expect(out.liveExamples).toBe(false);
     expect(out.listing).toBeUndefined();
+    expect(out.hints).toEqual([]);
   });
 });

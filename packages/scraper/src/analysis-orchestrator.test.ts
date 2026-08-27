@@ -209,6 +209,68 @@ describe('runAnalysis — blocked page', () => {
   });
 });
 
+describe('runAnalysis — detail hints (mvp-simplification task 6)', () => {
+  // detailHints itself is unit-tested in page-hints.test.ts; these prove the
+  // ATTACHMENT — the right evidence reaches it on both detail paths, and a
+  // blocked/failed capture produces no hints rather than a guess.
+  const LISTING_LD_JSON = [{ '@type': 'ItemList', name: 'Category' }];
+
+  it('cache hit: fires when the live capture\'s own JSON-LD says ItemList', async () => {
+    const captureWithLd: PageCapture = { ...CAPTURE, structuredData: { ...CAPTURE.structuredData, ldJson: LISTING_LD_JSON } };
+    const out = await runAnalysis(
+      { url: CAPTURE.url, pageType: 'detail' },
+      { browser: stubBrowser({ async capture() { return captureWithLd; } }), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
+    );
+    expect(out.hints).toEqual(['This looks like a listing page.']);
+  });
+
+  it('cache hit: empty when the JSON-LD carries no listing type', async () => {
+    const out = await runAnalysis(
+      { url: CAPTURE.url, pageType: 'detail' },
+      { browser: stubBrowser(), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
+    );
+    expect(out.hints).toEqual([]);
+  });
+
+  it('cache hit: empty when the capture is blocked — a block page is no evidence', async () => {
+    const blocked: PageCapture = {
+      ...CAPTURE, title: 'Just a moment',
+      html: '<html><body>Our system have detected unusual traffic. Verify you are human. Ray ID a312c62f. cloudflare</body></html>',
+      structuredData: { ...CAPTURE.structuredData, ldJson: LISTING_LD_JSON },
+    };
+    const out = await runAnalysis(
+      { url: CAPTURE.url, pageType: 'detail' },
+      { browser: stubBrowser({ async capture() { return blocked; } }), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
+    );
+    expect(out.hints).toEqual([]);
+  });
+
+  it('cache hit: empty when the capture throws — nothing to check', async () => {
+    const out = await runAnalysis(
+      { url: CAPTURE.url, pageType: 'detail' },
+      { browser: stubBrowser({ async capture() { throw new Error('page.screenshot: Timeout'); } }), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
+    );
+    expect(out.hints).toEqual([]);
+  });
+
+  it('cache miss (AI discovery): fires off the same successful capture\'s JSON-LD', async () => {
+    const captureWithLd: PageCapture = { ...CAPTURE, structuredData: { ...CAPTURE.structuredData, ldJson: LISTING_LD_JSON } };
+    const agent = {
+      async discoverSchema() {
+        return {
+          page_type: 'detail', description: 'x',
+          fields: [{ name: 'title', type: 'string', description: '', required: true, tier: 'discovered' as const }],
+        } as never;
+      },
+    };
+    const out = await runAnalysis(
+      { url: CAPTURE.url, pageType: 'detail' },
+      { browser: stubBrowser({ async capture() { return captureWithLd; } }), agent, lookupCache: async () => null },
+    );
+    expect(out.hints).toEqual(['This looks like a listing page.']);
+  });
+});
+
 describe('runAnalysis — unknown domain', () => {
   it('fails loudly rather than returning an empty schema when no agent is available', async () => {
     await expect(runAnalysis(
