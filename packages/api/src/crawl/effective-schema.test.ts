@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { DETAIL_URL_FIELD } from '@robot/scraper';
 import { effectiveSchema } from './effective-schema.js';
 
 describe('effectiveSchema', () => {
@@ -64,5 +65,36 @@ describe('effectiveSchema', () => {
   it('returns an empty array when there is neither a dataset schema nor selectorsJson fields', () => {
     expect(effectiveSchema({ dataset: null, selectorsJson: null })).toEqual([]);
     expect(effectiveSchema({ dataset: { schema: [] }, selectorsJson: {} })).toEqual([]);
+  });
+
+  // Finding 4 (final-review-findings.md): DETAIL_URL_FIELD is planning
+  // machinery re-added by plan-run.ts itself — left in here, it round-trips
+  // into extract-item.ts's detail fields (no origin to place it by) and
+  // pollutes the never-overwritten (domain, 'detail') cache with a junk
+  // `detail_url` fieldPath.
+  it('filters DETAIL_URL_FIELD out of the dataset-schema branch', () => {
+    const result = effectiveSchema({
+      dataset: {
+        schema: [
+          { name: DETAIL_URL_FIELD, type: 'url' },
+          { name: 'title', type: 'string' },
+        ],
+      },
+      selectorsJson: null,
+    });
+    expect(result).toEqual([{ name: 'title', type: 'string' }]);
+  });
+
+  it('filters DETAIL_URL_FIELD out of the selectorsJson fallback branch', () => {
+    const result = effectiveSchema({
+      dataset: { schema: [] },
+      selectorsJson: {
+        fields: [
+          { name: DETAIL_URL_FIELD, type: 'url' },
+          { name: 'price', type: 'number' },
+        ],
+      },
+    });
+    expect(result).toEqual([{ name: 'price', type: 'number' }]);
   });
 });
