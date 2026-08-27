@@ -16,6 +16,11 @@ import { diagnoseRun, type Diagnosis } from '../lib/diagnose-run';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
+// Mirrors `DETAIL_URL_FIELD` in packages/api/src/crawl/effective-schema.ts
+// (re-exported from @robot/scraper). Not imported directly — the dashboard
+// only depends on @robot/api, which doesn't re-export it.
+const DETAIL_URL_FIELD = 'detail_url';
+
 export default function SourceRunDetail() {
   const { project: projectSlug, source: sourceSlug, run: runId } = useParams({
     from: '/p/$project/sources/$source/runs/$run',
@@ -29,9 +34,15 @@ export default function SourceRunDetail() {
 
   const { run, source, capture, extraction } = detailQuery.data;
   const data = (Array.isArray(extraction?.data) ? extraction.data : []) as Record<string, unknown>[];
-  // Pull field shape from the source's stored selectors if available — best-effort
+  // Pull field shape from the source's stored selectors if available — best-effort.
+  // `DETAIL_URL_FIELD` (packages/api/src/crawl/effective-schema.ts) is the
+  // synthetic row-scoped "which detail page" field `sources.analyze` persists
+  // into `selectorsJson.fields` verbatim for the discovery report — it is
+  // filtered out of the server's effective schema but round-trips into this
+  // raw read, so it must be excluded here too or it renders as a dead
+  // always-"—" column.
   const fields = ((source as { selectorsJson?: { fields?: unknown[] } } | null)?.selectorsJson?.fields ?? []) as Array<{ name: string; type: string; enabled?: boolean }>;
-  const resultsTable = <ResultsTable data={data} confidence={extraction?.confidence ?? null} fields={fields} />;
+  const resultsTable = <ResultsTable data={data} confidence={extraction?.confidence ?? null} fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)} />;
 
   // The confirm gate owns the sample rows while it's showing (brief: evidence
   // summary, THEN the sample extracted rows, THEN the gate — all above the
