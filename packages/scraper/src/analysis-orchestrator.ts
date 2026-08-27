@@ -16,14 +16,16 @@
 // Screenshot persistence is injected: where captures live is an api-server concern
 // (CAPTURES_DIR), not something the scraper should decide.
 
-import { checkPageHealth, type IBrowser, type PageCapture } from '@robot/browser';
+import { checkPageHealth, detectPaginationFromHtml, type IBrowser, type PageCapture } from '@robot/browser';
 import type { DiscoveredSchema, SchemaField } from '@robot/agent';
 import {
-  lookupDomainCache, resolveApiPathsFromCache, resolveFromCache,
-  buildCachedXPathScript, type DomainCache,
+  lookupDomainCache, saveDomainCache, resolveApiPathsFromCache, resolveFromCache,
+  buildCachedXPathScript, type DomainCache, type FieldPathSet,
 } from './domain-cache.js';
 import { normalizeUserFields } from './field-normalizer.js';
 import { cachedFieldsFromCache, type CachedFieldSummary } from './cached-fields-from-cache.js';
+import { runExtraction, type ExtractionAgent, type ExtractionFieldInput } from './extraction-orchestrator.js';
+import { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
 
 /** The AI collaborator, declared structurally so a test can pass a stub. */
 export type AnalysisAgent = {
@@ -47,6 +49,13 @@ export type AnalysisDeps = {
   browser: IBrowser;
   agent: AnalysisAgent | null;
   lookupCache?: typeof lookupDomainCache;
+  /**
+   * The listing flow runs the real extraction chain (`runExtraction`), which
+   * defaults this to the production `saveDomainCache` — a successful listing
+   * analyze legitimately warms the listing cache. Injectable so a test can
+   * stub it and never touch the database.
+   */
+  saveCache?: typeof saveDomainCache;
   /**
    * Persist the screenshot and return how to address it, or null to skip.
    * Keeps filesystem layout out of the scraper package.
@@ -74,6 +83,16 @@ export type AnalysisOutcome = {
    * vote on the page type and its "values" must not be shown as this page's.
    */
   blockedReason?: string;
+  /**
+   * Present only for `pageType: 'listing'` analyzes that reached extraction
+   * (i.e. not blocked). `rowsFound` and `sampleDetailUrls` come from the SAME
+   * capture the schema examples were drawn from — see `runListingAnalysis`.
+   */
+  listing?: {
+    rowsFound: number;
+    paginationStrategy: string | null;
+    sampleDetailUrls: string[];
+  };
 };
 
 export async function runAnalysis(
@@ -81,7 +100,7 @@ export async function runAnalysis(
   deps: AnalysisDeps,
 ): Promise<AnalysisOutcome> {
   const { url, pageType, requestedFields } = request;
-  const { browser, agent, lookupCache = lookupDomainCache, persistScreenshot } = deps;
+  const { browser, agent, lookupCache = lookupDomainCache, saveCache, persistScreenshot } = deps;
 
   const domain = new URL(url).hostname.replace(/^www\./, '');
   const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
@@ -90,6 +109,14 @@ export async function runAnalysis(
   // vote between page types. See docs/handoff.md (mvp-simplification task 4)
   // for why the old dual-lookup-and-arbitrate logic was deleted.
   const cache = await lookupCache(domain, pageType).catch(() => null);
+
+  // Listing gets its own flow (mvp-simplification task 5): one capture, then
+  // the REAL extraction chain (row selectors, cross-page cache, everything
+  // `runExtraction` already does) rather than the detail-shaped cached-path
+  // replay below — a listing needs its ROWS, not one page-level record.
+  if (pageType === 'listing') {
+    return runListingAnalysis({ url, cache, userFields, browser, agent, saveCache, persistScreenshot });
+  }
 
   if (cache && Object.keys(cache.fieldPaths).length > 0) {
     return analyzeFromCache({ url, cache, userFields, browser, persistScreenshot });
@@ -255,5 +282,153 @@ async function analyzeFromCache(args: {
     cached: true,
     liveExamples,
     blockedReason,
+  };
+}
+
+// ─── Listing analyze (mvp-simplification task 5) ──────────────────────────
+//
+// A listing page's schema is not "one record" — it's a ROW SHAPE plus how
+// many rows the page actually delivered and where its next page lives. This
+// reuses the real extraction chain (`runExtraction`) rather than replaying
+// cached page-level paths the way `analyzeFromCache` does for a detail page:
+// a listing's fields need row-scoped selectors, which only `runExtraction`'s
+// STEP 3 XPath fallback generates.
+
+/**
+ * Copied from `plan-run.ts`'s listing-fields block (the crawler's own
+ * "ask the listing page for the detail link" field) rather than re-derived,
+ * so the two callers steer the model with the exact same description. See
+ * that block for why `rowScopedOnly` matters: without it, a page-level tier
+ * can answer with the listing page's own canonical URL, the field counts as
+ * "resolved", and row selectors are never generated.
+ */
+const DETAIL_URL_FIELD_DEF: ExtractionFieldInput = {
+  name: DETAIL_URL_FIELD,
+  type: 'url',
+  description:
+    'The hyperlink (href) on THIS result row that opens the item\'s own product/detail page. '
+    + 'The row container must be the repeating result tile in the main results grid — one per item. '
+    + 'Never a navigation, footer, breadcrumb, category, help, policy, advert or "compare" link, '
+    + 'and never the current page\'s own URL.',
+  rowScopedOnly: true,
+};
+
+/** A field description shape common to both a cache hit (`CachedFieldSummary`,
+ *  via `cachedFieldsFromCache`) and a cache miss (`SchemaField`, via
+ *  `agent.discoverSchema`) — just enough to build an extraction request. */
+type ListingBaseField = { name: string; type: string; description: string; tier?: 'requested' | 'discovered' };
+
+async function runListingAnalysis(args: {
+  url: string;
+  cache: DomainCache | null;
+  userFields: SchemaField[];
+  browser: IBrowser;
+  agent: AnalysisAgent | null;
+  saveCache?: typeof saveDomainCache;
+  persistScreenshot?: AnalysisDeps['persistScreenshot'];
+}): Promise<AnalysisOutcome> {
+  const { url, cache, userFields, browser, agent, saveCache, persistScreenshot } = args;
+  const domain = new URL(url).hostname.replace(/^www\./, '');
+  const usedCache = cache !== null && Object.keys(cache.fieldPaths).length > 0;
+
+  // ONE capture — health-checked exactly like the detail path, BEFORE any
+  // field discovery. A model (or the cache-replay below) asked to describe a
+  // bot-check interstitial is worse than useless; refuse with the reason
+  // instead, and never let a block page vote on the schema.
+  const capture: PageCapture = await browser.capture(
+    url, { waitUntil: 'networkidle', interceptNetworkRequests: true },
+  );
+
+  const health = checkPageHealth(capture.html, capture.title, url);
+  if (!health.healthy) {
+    const persisted = persistScreenshot ? await persistScreenshot(capture.screenshot) : null;
+    return {
+      captureId: persisted?.id ?? null,
+      screenshotUrl: persisted?.url ?? null,
+      url: capture.url,
+      title: capture.title,
+      schema: {
+        page_type: 'listing',
+        description: `Cannot analyze: ${health.reason}`,
+        fields: usedCache ? cachedFieldsFromCache(cache!.fieldPaths) : [],
+      },
+      cached: usedCache,
+      liveExamples: false,
+      blockedReason: health.reason,
+      // No listing report — a block page has no rows worth counting.
+    };
+  }
+
+  let baseFields: ListingBaseField[];
+  if (usedCache) {
+    baseFields = cachedFieldsFromCache(cache!.fieldPaths)
+      .map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier as 'requested' | 'discovered' | undefined }));
+  } else {
+    if (!agent) throw new Error(`No cached schema for ${domain} and no agent available to discover one`);
+    const discovered = await agent.discoverSchema(capture, userFields.length > 0 ? userFields : undefined);
+    baseFields = discovered.fields.map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier }));
+  }
+
+  // ALWAYS ensure the row-scoped detail link — see DETAIL_URL_FIELD_DEF.
+  const extractionFields: ExtractionFieldInput[] = [
+    DETAIL_URL_FIELD_DEF,
+    ...baseFields
+      .filter((f) => f.name !== DETAIL_URL_FIELD)
+      .map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier })),
+  ];
+
+  const persisted = persistScreenshot ? await persistScreenshot(capture.screenshot) : null;
+
+  // The SAME capture goes into `runExtraction` — no second navigation. The
+  // agent object also satisfies `ExtractionAgent`: in production it's the one
+  // `SchemaAgent` instance implementing both interfaces; `AnalysisAgent`'s
+  // narrower declared type is only what THIS file's cache-hit/miss branches
+  // need, so the extraction-side methods are asserted through rather than
+  // re-declared here.
+  const outcome = await runExtraction(
+    { url, fields: extractionFields, pageType: 'listing' },
+    {
+      browser,
+      agent: agent as unknown as ExtractionAgent | null,
+      capture,
+      lookupCache: async () => cache,
+      saveCache,
+    },
+  );
+
+  const rows = outcome.rows ?? [];
+  const rowsFound = rows.length;
+  const sampleDetailUrls = rows.slice(0, 5)
+    .map((r) => r[DETAIL_URL_FIELD])
+    .filter((v): v is string => typeof v === 'string');
+  const paginationStrategy = detectPaginationFromHtml(capture.html, url)?.strategy ?? null;
+
+  // The schema shown to the user: the listing fields with examples from the
+  // FIRST row's values as the live values, so `example_source` badges read
+  // 'live' rather than 'cached' — reusing `cachedFieldsFromCache` for both
+  // cache-hit and cache-miss fields keeps this consistent with the detail
+  // flow's own example plumbing instead of inventing a second one.
+  const row0 = rows[0] ?? {};
+  const displayFieldPaths: Record<string, FieldPathSet> = {};
+  for (const f of extractionFields) {
+    displayFieldPaths[f.name] = cache?.fieldPaths[f.name] ?? { paths: [], conflictCount: 0 };
+  }
+  const displayFields = cachedFieldsFromCache(displayFieldPaths, row0);
+
+  return {
+    captureId: persisted?.id ?? null,
+    screenshotUrl: persisted?.url ?? null,
+    url: capture.url,
+    title: capture.title,
+    schema: {
+      page_type: 'listing',
+      description: usedCache
+        ? `Known domain — ${displayFields.length} fields available from ${cache!.totalRuns} previous runs`
+        : `Discovered ${displayFields.length} fields from the live page`,
+      fields: displayFields,
+    },
+    cached: usedCache,
+    liveExamples: true,
+    listing: { rowsFound, paginationStrategy, sampleDetailUrls },
   };
 }
