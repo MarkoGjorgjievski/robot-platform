@@ -51,6 +51,22 @@ describe('diagnoseRun — blocked', () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.severity).toBe('blocked');
   });
+
+  // Ruling R4 regression: unwrapping the "Page blocked or unusable" prefix to
+  // check for a 404 must not misclassify a genuine (non-404) block as
+  // something else — a wrapped CAPTCHA reason stays `blocked`.
+  it('stays blocked for a wrapped CAPTCHA reason (not a 404) — R4 regression', () => {
+    const result = diagnoseRun(base({
+      itemFailures: [
+        { url: 'https://example.com/p/1', error: 'Page blocked or unusable: CAPTCHA detected — site requires human verification' },
+      ],
+    }));
+    expect(result).toEqual([{
+      severity: 'blocked',
+      title: 'Site blocked our requests',
+      detail: 'Page blocked or unusable: CAPTCHA detected — site requires human verification — wait and retry; long-term this needs the proxy line item.',
+    }]);
+  });
 });
 
 describe('diagnoseRun — wrong-page (0 rows)', () => {
@@ -131,6 +147,20 @@ describe('diagnoseRun — dead-link', () => {
     }));
     expect(result).toHaveLength(1);
     expect(result[0]!.severity).toBe('dead-link');
+  });
+
+  // Ruling R4: extraction-orchestrator.ts wraps EVERY checkPageHealth failure
+  // — including a 404 — in "Page blocked or unusable: ...". Without unwrapping
+  // that prefix first, this would misclassify as `blocked`.
+  it('unwraps a "Page blocked or unusable" 404 to dead-link, not blocked', () => {
+    const result = diagnoseRun(base({
+      itemFailures: [
+        { url: 'https://example.com/p/9', error: 'Page blocked or unusable: HTTP 404 Not Found — page does not exist' },
+      ],
+    }));
+    expect(result).toHaveLength(1);
+    expect(result[0]!.severity).toBe('dead-link');
+    expect(result[0]!.detail).toContain('Page blocked or unusable: HTTP 404 Not Found — page does not exist');
   });
 });
 

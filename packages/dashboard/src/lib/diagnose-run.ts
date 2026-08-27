@@ -29,11 +29,13 @@ export type DiagnoseRunInput = {
 // Source: packages/scraper/src/extraction-orchestrator.ts —
 // `throw new Error(\`Page blocked or unusable: ${health.reason}\`)`, thrown
 // whenever `checkPageHealth` (packages/browser/src/page-health.ts) marks a
-// captured page unhealthy for ANY reason (bot check, HTTP error page, empty
-// page, soft 404). Matched here before the narrower 404/CAPTCHA fragments
-// below are even considered — see the severity-order comment on
-// `diagnoseRun` for why that's deliberate.
-const BLOCKED_PAGE_ERROR = /page blocked or unusable/i;
+// captured page unhealthy for ANY reason — bot check, HTTP error page, empty
+// page, OR soft/hard 404. The wrapper alone therefore does not say WHICH
+// failure this is; a 404 goes through this exact prefix too. Captures the
+// remainder after the prefix (group 1) so the caller can re-inspect it
+// against `DEAD_LINK_REASON` and reclassify — controller ruling R4: a wrapped
+// 404 is a dead link, not a genuine block, even though it shares this prefix.
+const BLOCKED_PAGE_ERROR = /page blocked or unusable:\s*(.*)/i;
 
 // Source: packages/browser/src/page-health.ts checkPageHealth — the bot-check
 // reason fragments the task brief calls out by name: `'CAPTCHA detected —
@@ -97,9 +99,17 @@ export function diagnoseRun(input: DiagnoseRunInput): Diagnosis[] {
       detail: `${blockedReason} — wait and retry; long-term this needs the proxy line item.`,
     }];
   }
-  const blockedMatch = allMessages.find(
-    (m) => BLOCKED_PAGE_ERROR.test(m) || BLOCKED_HEALTH_REASON.test(m),
-  );
+  // Ruling R4: a "Page blocked or unusable" wrapper is only genuinely
+  // `blocked` once its own remainder is checked — extraction-orchestrator.ts
+  // wraps a 404 in this exact prefix too, and that remainder should read as
+  // `dead-link` (category 4, below), not `blocked`. So a wrapped message is
+  // excluded here whenever its remainder itself matches `DEAD_LINK_REASON`,
+  // letting it fall through to the dead-link check unchanged.
+  const blockedMatch = allMessages.find((m) => {
+    const wrapped = m.match(BLOCKED_PAGE_ERROR);
+    if (wrapped) return !DEAD_LINK_REASON.test(wrapped[1]!);
+    return BLOCKED_HEALTH_REASON.test(m);
+  });
   if (blockedMatch) {
     return [{
       severity: 'blocked',
