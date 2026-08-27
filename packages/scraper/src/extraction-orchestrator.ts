@@ -28,7 +28,7 @@ import {
   lookupDomainCache, saveDomainCache, resolveFromCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
   saveCandidateCatalogue, findConcept, collectApiJsonBodies,
-  saveVerifiedRowPlan, recordRowPlanMiss,
+  saveVerifiedRowPlan, recordRowPlanMiss, recordRowPlanHit,
   EXTRACTION_SUCCESS_THRESHOLD,
   type PathSource, type DomainCache, type FieldPathSet, type RowFieldPath,
 } from './domain-cache.js';
@@ -110,6 +110,8 @@ export type ExtractionDeps = {
   saveVerifiedRowPlan?: typeof saveVerifiedRowPlan;
   /** Charges a miss against the persisted row plan when a replay finds nothing. */
   recordRowPlanMiss?: typeof recordRowPlanMiss;
+  /** Charges a hit against the persisted row plan when a replay succeeds. */
+  recordRowPlanHit?: typeof recordRowPlanHit;
   acquireLock?: typeof acquireDomainLock;
   /** Skip the live capture and use this instead (fixture replay). */
   capture?: PageCapture;
@@ -167,6 +169,7 @@ export async function runExtraction(
     saveCache = saveDomainCache,
     saveVerifiedRowPlan: saveRowPlan = saveVerifiedRowPlan,
     recordRowPlanMiss: recordRowMiss = recordRowPlanMiss,
+    recordRowPlanHit: recordRowHit = recordRowPlanHit,
     acquireLock = acquireDomainLock,
   } = deps;
   const warnings: string[] = [];
@@ -583,6 +586,18 @@ export async function runExtraction(
     // The full row set, kept for listing consumers. `finalData` only ever holds
     // row 0 — right for a detail page, useless for a crawler enumerating links.
     let extractedRows: Record<string, unknown>[] | undefined;
+    // A snapshot of STEP 2.5's own result, kept separately from `plan`/
+    // `extractedRows` above. `runListingAnalysis` always requests detail_url
+    // alongside every base field (analysis-orchestrator.ts:394-399), so a STEP
+    // 2.5 hit for detail_url plus a STILL-missing OTHER field is the common
+    // case, not an edge case — and STEP 3/3.5 below both overwrite `plan`/
+    // `extractedRows` wholesale with THEIR OWN row extraction (scoped to
+    // whatever THEY were asked for). Without this snapshot that silently drops
+    // the replay-resolved field from every row, reintroducing the zero-items
+    // failure this fix exists to close via a different call site. See the
+    // merge right before STEP 4.
+    let resolvedByReplayPlan: ExtractionPlan | null = null;
+    let resolvedByReplayRows: Record<string, unknown>[] | undefined;
 
     // STEP 2.5: cached row-plan replay (D1 fix, zero-items-rca.md).
     //
@@ -626,13 +641,18 @@ export async function runExtraction(
             capture.html ?? '', replayScript,
           );
           if (replayResult.data.length > 0) {
-            extractedRows = replayResult.data;
-            plan = replayPlan;
+            extractedRows = resolvedByReplayRows = replayResult.data;
+            plan = resolvedByReplayPlan = replayPlan;
             const replayRow = replayResult.data[0]!;
             for (const rf of replayFields) {
               tryAssign(rf.name, replayRow[rf.name], 'xpath', rf.xpath, 0.85);
             }
             console.log(`[extract] Row-plan replay resolved ${replayResult.data.length} row(s) for ${replayFields.map((f) => f.name).join(', ')} — AI selector generation skipped`);
+            try {
+              await recordRowHit(domain, resolvedPageType);
+            } catch (err) {
+              console.error('[extract] recordRowPlanHit failed (non-fatal):', err);
+            }
           } else {
             console.log('[extract] Row-plan replay matched no rows — falling through to AI selector generation');
             try {
@@ -796,6 +816,46 @@ export async function runExtraction(
         } catch (err) {
           console.error(`[extract] Tile ${t} escalation failed (non-fatal):`, err);
         }
+      }
+    }
+
+    // Merge STEP 2.5's replay-resolved row-scoped fields back into whatever
+    // STEP 3/3.5 ended up producing (D1 fix follow-up). Both of those steps
+    // overwrite `extractedRows` wholesale with THEIR OWN row extraction —
+    // right when they are the only tier that ran, wrong the moment STEP 2.5
+    // already resolved a row-scoped field for a DIFFERENT still-missing
+    // field's sake. `runListingAnalysis` always requests detail_url alongside
+    // every base field, so that combination is the common case, not an edge
+    // one.
+    //
+    // Reference equality on `extractedRows` (not a length/emptiness check)
+    // detects an overwrite regardless of which later step did it, and
+    // regardless of whether the later extraction found 0 rows. Merged
+    // row-wise BY INDEX: both extractions ran against the same captured page,
+    // so document order lines up even when the two row selectors' match
+    // counts differ slightly. STEP 3/3.5's own keys are never at risk of
+    // being clobbered here — the two field sets are disjoint by construction,
+    // since STEP 2.5 only ever replays fields that were already resolved
+    // (and therefore excluded from what STEP 3/3.5 were asked for).
+    if (resolvedByReplayRows && resolvedByReplayRows.length > 0 && extractedRows !== resolvedByReplayRows) {
+      const laterRows = extractedRows ?? [];
+      const merged: Record<string, unknown>[] = [];
+      for (let i = 0; i < Math.max(resolvedByReplayRows.length, laterRows.length); i++) {
+        merged.push({ ...(resolvedByReplayRows[i] ?? {}), ...(laterRows[i] ?? {}) });
+      }
+      extractedRows = merged;
+      // `plan` matters too: planRun replays `page1.plan` to walk pages 2+
+      // (`buildExtractionScript(page1.plan, ...)`) — a plan missing the
+      // row-scoped field's def would silently starve every later page as
+      // well. Only merge if a later step actually produced its own plan
+      // object (an exception before `plan = await agent.generateSelectors`
+      // completed leaves `plan` as `resolvedByReplayPlan` already).
+      if (resolvedByReplayPlan && plan && plan !== resolvedByReplayPlan) {
+        const newFieldNames = new Set(plan.fields.map((f) => f.name));
+        plan = {
+          ...plan,
+          fields: [...plan.fields, ...resolvedByReplayPlan.fields.filter((f) => !newFieldNames.has(f.name))],
+        };
       }
     }
 

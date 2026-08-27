@@ -154,6 +154,87 @@ describe('cached row-plan replay tier', () => {
   });
 });
 
+describe('row-plan replay survives a later STEP 3 call for a different field', () => {
+  it('keeps the replay-resolved field in outcome.rows when STEP 3 resolves another field', async () => {
+    // runListingAnalysis always requests detail_url alongside every base field
+    // (analysis-orchestrator.ts:394-399) — the two prior tests above only ever
+    // request detail_url alone, which is the gap that let this through: STEP 3
+    // overwrites `extractedRows` wholesale with ITS OWN row extraction (scoped
+    // to whatever IT was asked for), silently dropping detail_url from every
+    // row even though STEP 2.5 just resolved it.
+    const browser = new ScriptedBrowser([
+      { data: [{ detail_url: 'https://example.com/p/1' }, { detail_url: 'https://example.com/p/2' }] }, // STEP 2.5 replay
+      { data: [{ title: 'A' }, { title: 'B' }] }, // STEP 3, asked only for `title`
+    ]);
+    let generateSelectorsCalls = 0;
+    const agent: ExtractionAgent = {
+      extractVariants: async () => { throw new Error('not used'); },
+      extractFromApi: async () => { throw new Error('not used'); },
+      generateSelectors: async (_capture, fields) => {
+        generateSelectorsCalls++;
+        expect(fields.map((f) => f.name)).toEqual(['title']);
+        return {
+          row_xpath: '//div[@class="card"]',
+          fields: [{ name: 'title', xpath: './/h2', attribute: 'textContent', transform: 'trim' }],
+        };
+      },
+      retrySelectorGeneration: async () => { throw new Error('not used'); },
+    };
+
+    const outcome = await runExtraction(
+      {
+        url: 'https://example.com/c/shelves',
+        fields: [...DETAIL_URL_FIELDS, { name: 'title', type: 'string' }],
+        pageType: 'listing',
+      },
+      {
+        browser, agent, capture: CAPTURE,
+        lookupCache: async () => VERIFIED_CACHE,
+        saveCache: async () => {},
+        acquireLock: async () => () => {},
+      },
+    );
+
+    expect(generateSelectorsCalls).toBe(1);
+    expect(outcome.rows).toEqual([
+      { detail_url: 'https://example.com/p/1', title: 'A' },
+      { detail_url: 'https://example.com/p/2', title: 'B' },
+    ]);
+    // The returned plan matters too: planRun replays `page1.plan` to walk pages
+    // 2+ (`buildExtractionScript(page1.plan, ...)`) — a plan missing the
+    // detail_url field def would silently starve every later page as well.
+    expect(outcome.plan?.fields.map((f) => f.name).sort()).toEqual(['detail_url', 'title']);
+  });
+});
+
+describe('a successful replay records a hit on the persisted row plan', () => {
+  it('calls recordRowPlanHit with the domain and page type', async () => {
+    const browser = new ScriptedBrowser([
+      { data: [{ detail_url: 'https://example.com/p/1' }] },
+    ]);
+    const agent: ExtractionAgent = {
+      extractVariants: async () => { throw new Error('not used'); },
+      extractFromApi: async () => { throw new Error('not used'); },
+      generateSelectors: async () => { throw new Error('the AI rung must not run when the replay tier succeeds'); },
+      retrySelectorGeneration: async () => { throw new Error('not used'); },
+    };
+    const hitsRecorded: Array<{ domain: string; pageType: string }> = [];
+
+    await runExtraction(
+      { url: 'https://example.com/c/shelves', fields: DETAIL_URL_FIELDS, pageType: 'listing' },
+      {
+        browser, agent, capture: CAPTURE,
+        lookupCache: async () => VERIFIED_CACHE,
+        saveCache: async () => {},
+        acquireLock: async () => () => {},
+        recordRowPlanHit: async (domain, pageType) => { hitsRecorded.push({ domain, pageType }); },
+      },
+    );
+
+    expect(hitsRecorded).toEqual([{ domain: 'example.com', pageType: 'listing' }]);
+  });
+});
+
 describe('honesty on a swallowed generateSelectors failure', () => {
   it('surfaces the failure into outcome.warnings instead of console-only', async () => {
     const browser = new ScriptedBrowser([]);
