@@ -6,6 +6,7 @@ import { db, sources, orgs, projects, inputSets, runs, runItems } from '@robot/d
 import type { PlanRunOutcome } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { PROBE_BUDGET } from '../crawl/probe.js';
 
 // planRun needs a real browser and (for anything interesting) an API key, so the
 // router's OWN behaviour — run status, what it persists, what it returns — can
@@ -94,7 +95,7 @@ const OUTCOME_BASE: PlanRunOutcome = {
 };
 
 /** org → project → InputSet → sandbox Source, torn down by the returned cleanup. */
-async function makePlannableSource() {
+async function makePlannableSource(rows: Array<Record<string, unknown>> = [{ slug: 'a' }, { slug: 'b' }]) {
   const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const [org] = await db.insert(orgs).values({ name: `crawl test ${stamp}`, slug: `crawl-test-${stamp}` }).returning({ id: orgs.id });
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: 'crawl test', slug: `crawl-test-${stamp}` }).returning({ id: projects.id });
@@ -103,7 +104,7 @@ async function makePlannableSource() {
     type: 'category',
     name: 'crawl test inputs',
     columns: [{ name: 'slug', primary: true }],
-    rows: [{ slug: 'a' }, { slug: 'b' }],
+    rows,
   }).returning({ id: inputSets.id });
   const [source] = await db.insert(sources).values({
     name: 'crawl test source',
@@ -249,6 +250,60 @@ describe('crawlRouter.plan persistence', () => {
       }
       expect(detail[0]?.status).toBe('pending');
       expect(detail[0]?.completedAt).toBeNull();
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('probe: true slices to the first input row, substitutes PROBE_BUDGET, and labels the run `probe`', async () => {
+    const fixture = await makePlannableSource([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]);
+    try {
+      planRunMock.mockResolvedValue({
+        ...OUTCOME_BASE,
+        items: [
+          { kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, inputValues: { slug: 'a' }, listingValues: {}, pageNumber: 1 },
+        ],
+        inputs: [{ inputIndex: 0, itemCount: 1, status: 'planned' }],
+      } satisfies PlanRunOutcome);
+
+      const result = await caller.crawl.plan({ sourceId: fixture.sourceId, probe: true });
+      expect(result.status).toBe('planned');
+
+      expect(planRunMock).toHaveBeenCalledTimes(1);
+      const call = planRunMock.mock.calls[0]![0] as { source: { budget: unknown }; inputSet: { rows: unknown[] } };
+      expect(call.inputSet.rows).toEqual([{ slug: 'a' }]);
+      expect(call.source.budget).toEqual(PROBE_BUDGET);
+
+      const run = await db.query.runs.findFirst({ where: eq(runs.id, result.runId) });
+      expect(run?.inputLabel).toBe('probe');
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it('probe absent: plans every row against the source\'s own budget (regression lock)', async () => {
+    const fixture = await makePlannableSource([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]);
+    try {
+      planRunMock.mockResolvedValue({
+        ...OUTCOME_BASE,
+        items: [
+          { kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, inputValues: { slug: 'a' }, listingValues: {}, pageNumber: 1 },
+        ],
+        inputs: [{ inputIndex: 0, itemCount: 1, status: 'planned' }],
+      } satisfies PlanRunOutcome);
+
+      const result = await caller.crawl.plan({ sourceId: fixture.sourceId });
+      expect(result.status).toBe('planned');
+
+      expect(planRunMock).toHaveBeenCalledTimes(1);
+      const call = planRunMock.mock.calls[0]![0] as { source: { budget: unknown }; inputSet: { rows: unknown[] } };
+      expect(call.inputSet.rows).toEqual([{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }]);
+      // The default `sources.budget` is `{}` — not PROBE_BUDGET — confirming
+      // the source's own budget passed through untouched.
+      expect(call.source.budget).toEqual({});
+
+      const run = await db.query.runs.findFirst({ where: eq(runs.id, result.runId) });
+      expect(run?.inputLabel).not.toBe('probe');
     } finally {
       await fixture.cleanup();
     }
