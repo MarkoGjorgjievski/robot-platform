@@ -28,6 +28,11 @@ export default function SourceConfig() {
   if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
 
   const isListing = source.listingMode === 'listing_to_detail';
+  // Re-review residual #1 (fix-wave-report.md): the toggle had no
+  // confirmed-state guard, so a confirmed Source's mode could be flipped
+  // silently — misrouting source-setup.tsx's Extract branch. Mirrors the
+  // server-side lock in `sources.update`.
+  const isLocked = !!source.confirmedAt;
 
   return (
     <div className="mt-6">
@@ -41,16 +46,20 @@ export default function SourceConfig() {
           <dt className="micro-label">Listing mode</dt>
           <dd className="flex items-center gap-3">
             <span className="text-sm">{source.listingMode ?? '—'}</span>
-            <button
-              className="btn-quiet text-xs"
-              disabled={updateMode.isPending}
-              onClick={() => updateMode.mutate({
-                id: source.id,
-                listingMode: isListing ? 'detail' : 'listing_to_detail',
-              })}
-            >
-              Switch to {isListing ? 'detail' : 'listing'}
-            </button>
+            {isLocked ? (
+              <span className="text-xs text-gray-400">Mode is locked after confirmation</span>
+            ) : (
+              <button
+                className="btn-quiet text-xs"
+                disabled={updateMode.isPending}
+                onClick={() => updateMode.mutate({
+                  id: source.id,
+                  listingMode: isListing ? 'detail' : 'listing_to_detail',
+                })}
+              >
+                Switch to {isListing ? 'detail' : 'listing'}
+              </button>
+            )}
           </dd>
         </div>
         <Row label="Dataset" value={source.datasetName ?? '—'} />

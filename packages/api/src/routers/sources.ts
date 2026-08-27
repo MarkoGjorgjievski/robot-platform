@@ -317,6 +317,29 @@ export const sourcesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, parameters, ...rest } = input;
 
+      // Re-review residual #1 (fix-wave-report.md): `...rest` applied
+      // `listingMode` unconditionally, so a confirmed Source's mode could be
+      // flipped silently — misrouting source-setup.tsx's Extract branch
+      // (detail vs. probe-then-confirm) for a Source already crawling for
+      // real. Locked the same way `sources.delete`/`sources.confirm` lock
+      // other actions on a confirmed Source: PRECONDITION_FAILED, and only
+      // when the value would actually CHANGE — an update that merely
+      // repeats the current mode (or omits `listingMode` altogether) must
+      // keep working on a confirmed Source, since nothing about it is
+      // actually being switched.
+      if (input.listingMode !== undefined) {
+        const existing = await ctx.db.query.sources.findFirst({
+          where: eq(sources.id, id),
+          columns: { listingMode: true, confirmedAt: true },
+        });
+        if (existing?.confirmedAt && existing.listingMode !== input.listingMode) {
+          throw new TRPCError({
+            code: 'PRECONDITION_FAILED',
+            message: `Source ${id} is confirmed; listingMode is locked after confirmation`,
+          });
+        }
+      }
+
       // If parameters is provided, merge with existing (don't replace)
       // This prevents one tab's save from clobbering another tab's data
       let mergedParams = parameters;

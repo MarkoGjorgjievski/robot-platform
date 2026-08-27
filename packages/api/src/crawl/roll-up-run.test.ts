@@ -74,6 +74,27 @@ describe('rollUpStatus', () => {
   it('settles a running item to cancelled when a stop was requested, exactly as pending does', () => {
     expect(rollUpStatus({ pending: 0, running: 1, done: 7, failed: 0 }, true)).toBe('cancelled');
   });
+
+  // Finding 1: a probe stopped by its own sample limit must also settle to a
+  // terminal status (not 'extracting') even though items are left pending —
+  // see execute-run.test.ts / crawl-execute.test.ts for the real-path version.
+  it('settles to partial when the sample limit was reached and work is still pending', () => {
+    expect(rollUpStatus({ pending: 27, running: 0, done: 3, failed: 0 }, false, true)).toBe('partial');
+  });
+
+  it('limitReached: false (or omitted) leaves today\'s behaviour unchanged', () => {
+    expect(rollUpStatus({ pending: 3, running: 0, done: 5, failed: 1 }, false, false)).toBe('extracting');
+    expect(rollUpStatus({ pending: 3, running: 0, done: 5, failed: 1 })).toBe('extracting');
+  });
+
+  // Re-review residual #2 (fix-wave-report.md): the tie-break was implemented
+  // (rollUpStatus checks `cancelled` before `limitReached`) but never
+  // directly asserted — cancel semantics must win when a run was BOTH told
+  // to stop AND happened to hit its own sample limit, since 'cancelled' is
+  // the stronger, deliberately-requested stop.
+  it('cancelled takes priority over limitReached when both are true', () => {
+    expect(rollUpStatus({ pending: 27, running: 0, done: 3, failed: 0 }, true, true)).toBe('cancelled');
+  });
 });
 
 describe('finaliseRun', () => {
