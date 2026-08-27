@@ -57,10 +57,11 @@ export async function startExecution(
         isCancelled: () => isRunCancelled(db, runId),
         // No rowCount passed: finaliseRun derives it from the DB itself, so a
         // stale local counter from this loop can never overwrite a truer total.
-        // `cancelled` IS threaded through — it's executeRun's own record of
-        // whether the loop broke on a cancel check, and finaliseRun needs it to
-        // roll a still-pending run up to 'cancelled' instead of 'extracting'.
-        finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
+        // `cancelled` and `limitReached` ARE threaded through — executeRun's
+        // own record of why the loop stopped with items still pending, and
+        // finaliseRun needs both to roll a still-pending run up to
+        // 'cancelled'/'partial' instead of leaving it stuck at 'extracting'.
+        finalise: (_rowCount, cancelled, limitReached) => finaliseRun(db, runId, cancelled, limitReached),
       }, { limit });
     });
   } catch (err) {

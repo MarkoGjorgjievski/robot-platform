@@ -24,8 +24,15 @@ export type ExecuteDeps = {
    * finalise. Without threading it through, a cancel-with-pending-work run
    * rolls up as `'extracting'` (rollUpStatus sees `pending > 0` with no way
    * to know a stop was requested) and the dashboard polls forever.
+   *
+   * `limitReached` is the same kind of outcome for `opts.limit`: a probe
+   * stopped by its own sample limit also leaves items `pending`, but with
+   * `cancelled` still `false` — cancel and a limit break are NOT the same
+   * event at roll-up, and conflating them is Finding 1 (final-review-findings.md):
+   * a limit-stopped probe rolled up to `'extracting'` and stayed there
+   * forever, because rollUpStatus saw `pending > 0` and no cancel.
    */
-  finalise: (rowCount: number, cancelled: boolean) => Promise<string>;
+  finalise: (rowCount: number, cancelled: boolean, limitReached: boolean) => Promise<string>;
 };
 
 export type ExecuteOutcome = {
@@ -33,6 +40,7 @@ export type ExecuteOutcome = {
   failed: number;
   recordingFailures: number;
   cancelled: boolean;
+  limitReached: boolean;
   status: string;
 };
 
@@ -45,6 +53,7 @@ export async function executeRun(
   let failed = 0;
   let recordingFailures = 0;
   let cancelled = false;
+  let limitReached = false;
   let status = '';
 
   // `finalise` runs in `finally` so it fires on every exit path — normal
@@ -56,9 +65,12 @@ export async function executeRun(
       // A limited run (Task 3's sample probe) stops claiming once it has
       // enough outcomes — extracted + failed, not just extracted, so a run of
       // all-blocked pages can't spin claiming forever past its limit. The
-      // items left `pending` roll up exactly like a cancel-between-items does
-      // — no separate finalise path needed.
-      if (opts?.limit !== undefined && extracted + failed >= opts.limit) break;
+      // items left `pending` need finalise to know a limit (not a cancel)
+      // is why they're still pending — see `limitReached` on ExecuteDeps.
+      if (opts?.limit !== undefined && extracted + failed >= opts.limit) {
+        limitReached = true;
+        break;
+      }
 
       // Between items, never mid-item: a cancelled run leaves clean state, and an
       // item already claimed is finished rather than abandoned as `running`.
@@ -114,8 +126,8 @@ export async function executeRun(
       }
     }
   } finally {
-    status = await deps.finalise(extracted, cancelled);
+    status = await deps.finalise(extracted, cancelled, limitReached);
   }
 
-  return { extracted, failed, recordingFailures, cancelled, status };
+  return { extracted, failed, recordingFailures, cancelled, limitReached, status };
 }
