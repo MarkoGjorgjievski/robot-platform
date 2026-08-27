@@ -87,6 +87,18 @@ export const crawlRouter = router({
         // mutation's job to recover from; skipping execution is the safe
         // response to a Source that is no longer there.
         if (source) {
+          // `planSource` leaves the run at `planned` — `execute` is the ONLY
+          // procedure that otherwise ever flips a run to `extracting`, and
+          // both `crawl.cancel` (CANCELLABLE_STATUSES) and the dashboard's
+          // `isRunActive` key off that status. Without this, a probe's
+          // execution window was invisible to both: Stop refused with
+          // "not active" and the polling UI read the run as idle while a
+          // browser was, in fact, working it. Called before the
+          // fire-and-forget `startExecution` below, exactly as `execute`
+          // orders it — the flip is the visible, synchronous half of
+          // starting a loop, and it must be persisted before the background
+          // work (which the caller does not await) begins.
+          await markRunExtracting(ctx.db, outcome.runId);
           // Deliberately not awaited — see start-execution.ts's own doc
           // comment for why this must never become an unhandled rejection,
           // and `execute`'s identical `.catch()` below for the pattern this

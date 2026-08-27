@@ -13,9 +13,10 @@ import { appRouter } from './index.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import type { PlanSourceResult } from '../crawl/plan-source.js';
 
-const { planSourceMock, startExecutionMock } = vi.hoisted(() => ({
+const { planSourceMock, startExecutionMock, markRunExtractingMock } = vi.hoisted(() => ({
   planSourceMock: vi.fn(),
   startExecutionMock: vi.fn(),
+  markRunExtractingMock: vi.fn(),
 }));
 
 vi.mock('../crawl/plan-source.js', async (importOriginal) => {
@@ -26,6 +27,17 @@ vi.mock('../crawl/plan-source.js', async (importOriginal) => {
 vi.mock('../crawl/start-execution.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
   return { ...actual, startExecution: startExecutionMock };
+});
+
+// `planSource` is mocked and never actually inserts a `runs` row, so a real
+// `markRunExtracting` — which UPDATEs `runs` by id — has nothing to act on
+// for the fake run ids these tests use. Stubbed at the same module boundary
+// as the other two, so what's under test is purely "did probeAndSample call
+// it, with what argument, in which branch" — not the real UPDATE's behaviour,
+// which `mark-extracting.test.ts` already covers.
+vi.mock('../crawl/mark-extracting.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../crawl/mark-extracting.js')>();
+  return { ...actual, markRunExtracting: markRunExtractingMock };
 });
 
 const caller = createCallerFactory(appRouter)({ db });
@@ -56,12 +68,13 @@ const OUTCOME_BASE: PlanSourceResult = {
 afterEach(async () => {
   planSourceMock.mockReset();
   startExecutionMock.mockReset();
+  markRunExtractingMock.mockReset();
   if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
   orgId = null;
 });
 
 describe('crawl.probeAndSample', () => {
-  it('plans with probe: true and starts execution at PROBE_SAMPLE_LIMIT when planning found work', async () => {
+  it('plans with probe: true, marks the run extracting, and starts execution at PROBE_SAMPLE_LIMIT when planning found work', async () => {
     const sourceId = await makeSource();
     planSourceMock.mockResolvedValue({
       ...OUTCOME_BASE,
@@ -71,6 +84,7 @@ describe('crawl.probeAndSample', () => {
       warnings: ['some warning'],
       errors: [],
     } satisfies PlanSourceResult);
+    markRunExtractingMock.mockResolvedValue(true);
     startExecutionMock.mockResolvedValue(undefined);
 
     const result = await caller.crawl.probeAndSample({ sourceId });
@@ -78,17 +92,30 @@ describe('crawl.probeAndSample', () => {
     expect(planSourceMock).toHaveBeenCalledTimes(1);
     expect(planSourceMock).toHaveBeenCalledWith(expect.anything(), sourceId, { probe: true });
 
+    // The run must be live-visible — `crawl.cancel` and the dashboard's
+    // `isRunActive` both key off status, so a probe's execution window has to
+    // flip the run to `extracting` exactly as `execute` does, not leave it at
+    // `planned` for the whole sample.
+    expect(markRunExtractingMock).toHaveBeenCalledTimes(1);
+    expect(markRunExtractingMock).toHaveBeenCalledWith(expect.anything(), 'run-1');
+
     // Fire-and-forget, but the call itself is synchronous — the mock has
     // already recorded it by the time the mutation's promise resolves.
     expect(startExecutionMock).toHaveBeenCalledTimes(1);
     expect(startExecutionMock).toHaveBeenCalledWith('run-1', sourceId, expect.any(Array), PROBE_SAMPLE_LIMIT);
+
+    // Order matters: the status flip is the synchronous, persisted half of
+    // "starting a loop" and must land before the unawaited background call.
+    const markOrder = markRunExtractingMock.mock.invocationCallOrder[0]!;
+    const startOrder = startExecutionMock.mock.invocationCallOrder[0]!;
+    expect(markOrder).toBeLessThan(startOrder);
 
     expect(result).toEqual({
       runId: 'run-1', status: 'planned', itemCount: 3, warnings: ['some warning'], errors: [],
     });
   });
 
-  it('does not start execution when planning failed outright (all inputs failed)', async () => {
+  it('does not mark the run extracting or start execution when planning failed outright (all inputs failed)', async () => {
     const sourceId = await makeSource();
     planSourceMock.mockResolvedValue({
       ...OUTCOME_BASE,
@@ -100,6 +127,7 @@ describe('crawl.probeAndSample', () => {
 
     const result = await caller.crawl.probeAndSample({ sourceId });
 
+    expect(markRunExtractingMock).not.toHaveBeenCalled();
     expect(startExecutionMock).not.toHaveBeenCalled();
     expect(result).toEqual({
       runId: 'run-2',
@@ -110,7 +138,7 @@ describe('crawl.probeAndSample', () => {
     });
   });
 
-  it('does not start execution when planning "succeeded" but planned zero items', async () => {
+  it('does not mark the run extracting or start execution when planning "succeeded" but planned zero items', async () => {
     const sourceId = await makeSource();
     planSourceMock.mockResolvedValue({
       ...OUTCOME_BASE,
@@ -121,6 +149,7 @@ describe('crawl.probeAndSample', () => {
 
     const result = await caller.crawl.probeAndSample({ sourceId });
 
+    expect(markRunExtractingMock).not.toHaveBeenCalled();
     expect(startExecutionMock).not.toHaveBeenCalled();
     expect(result.itemCount).toBe(0);
     expect(result.status).toBe('planned');
