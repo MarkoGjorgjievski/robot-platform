@@ -6,6 +6,8 @@ export type CachedFieldSummary = {
   description: string;
   required: true;
   example_value: string | undefined;
+  /** Where example_value came from: THIS capture, or an earlier cached run. */
+  example_source: 'live' | 'cached';
   tier: string | undefined;
   needsRediscovery: boolean;
 };
@@ -48,6 +50,7 @@ export function cachedFieldsFromCache(
         : `Cached field (${bestPath?.source ?? 'unknown'} source, ${hitRate}% hit rate)`,
       required: true,
       example_value: example,
+      example_source: liveValue !== undefined ? 'live' : 'cached',
       tier: undefined,
       needsRediscovery: pathSet.paths.length === 0,
     };

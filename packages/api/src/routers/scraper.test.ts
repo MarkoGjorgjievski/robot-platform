@@ -28,14 +28,20 @@ describe('scraperRouter', () => {
 
     it('rejects non-URL string', async () => {
       await expectZodValidationError(
-        caller.scraper.analyze({ url: 'not-a-url' as never })
+        caller.scraper.analyze({ url: 'not-a-url', pageType: 'detail' } as never)
+      );
+    });
+
+    it('rejects a missing pageType', async () => {
+      await expectZodValidationError(
+        caller.scraper.analyze({ url: 'https://example.com' } as never)
       );
     });
 
     it('accepts valid URL', () => {
       // Just verify the input type is accepted by Zod; don't actually run the procedure
       // (the procedure body would do real scraping which is too slow for unit tests).
-      const validInput = { url: 'https://example.com', requestedFields: 'price\ntitle' };
+      const validInput = { url: 'https://example.com', pageType: 'detail' as const, requestedFields: 'price\ntitle' };
       // We exercise the parse path by hitting the procedure's zod schema indirectly.
       // For a smoke test, just confirm appRouter exposes the procedure.
       expect(typeof caller.scraper.analyze).toBe('function');

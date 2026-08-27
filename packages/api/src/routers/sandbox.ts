@@ -217,7 +217,8 @@ export const sandboxRouter = router({
       const requestedFields = existing && typeof existing === 'object' ? existing.requestedFields : undefined;
 
       const scraperCaller = scraperRouter.createCaller(ctx);
-      const result = await scraperCaller.analyze({ url: source.urlTemplate, requestedFields });
+      const pageType = source.listingMode === 'listing_to_detail' ? 'listing' : 'detail';
+      const result = await scraperCaller.analyze({ url: source.urlTemplate, pageType, requestedFields });
 
       const schemaPayload = {
         fields: result.schema.fields,

@@ -55,4 +55,25 @@ describe('cachedFieldsFromCache', () => {
     );
     expect(out[0].example_value).toBe('$62.17');
   });
+
+  it('marks a field with a live value as example_source: "live"', () => {
+    const out = cachedFieldsFromCache(
+      { price: pathSetWithPath('$10.00') },
+      { price: '$62.17' },
+    );
+    expect(out[0].example_source).toBe('live');
+  });
+
+  it('marks a field that falls back to the cached lastValue as example_source: "cached"', () => {
+    const out = cachedFieldsFromCache(
+      { title: pathSetWithPath('Hello') },
+      {},
+    );
+    expect(out[0].example_source).toBe('cached');
+  });
+
+  it('marks a field as example_source: "cached" when no liveValues are supplied at all', () => {
+    const out = cachedFieldsFromCache({ title: pathSetWithPath('Hello') });
+    expect(out[0].example_source).toBe('cached');
+  });
 });
