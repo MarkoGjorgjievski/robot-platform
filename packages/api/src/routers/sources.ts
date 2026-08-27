@@ -52,19 +52,59 @@ async function getScratchProjectId(db: Database): Promise<string> {
   return scratch.id;
 }
 
-async function getOrCreateScratchDataset(db: Database, scratchProjectId: string): Promise<string> {
-  const existing = await db.query.datasets.findFirst({
-    where: and(eq(datasets.projectId, scratchProjectId), eq(datasets.slug, SCRATCH_SLUG)),
-  });
-  if (existing) return existing.id;
-
+/**
+ * The insert half of find-or-create, isolated so it can be tested directly
+ * against an already-conflicting row without needing genuine concurrency to
+ * provoke it (two real racing callers are a flaky thing to assert against in
+ * a test — this makes the exact conflict outcome deterministic).
+ *
+ * `INSERT ... ON CONFLICT (project_id, slug) DO NOTHING RETURNING` is atomic:
+ * either this call's row wins and comes back from `returning()`, or it lost
+ * to a row that already exists (inserted by this call a moment ago via
+ * `getOrCreateScratchDataset`'s racing sibling, or literally any pre-existing
+ * row at this `(projectId, 'scratch')` slug) and `returning()` comes back
+ * empty — in which case the winner's row is fetched instead. Without
+ * `onConflictDoNothing()`, the loser's insert throws a raw
+ * `datasets_project_slug_idx` unique-constraint error instead of resolving.
+ */
+export async function insertScratchDatasetIfAbsent(db: Database, scratchProjectId: string): Promise<string> {
   const [created] = await db.insert(datasets).values({
     projectId: scratchProjectId,
     name: 'Scratch',
     slug: SCRATCH_SLUG,
     schema: [],
-  }).returning({ id: datasets.id });
-  return created!.id;
+  }).onConflictDoNothing().returning({ id: datasets.id });
+  if (created) return created.id;
+
+  // Lost the race (or the row simply already existed): fetch it instead.
+  const winner = await db.query.datasets.findFirst({
+    where: and(eq(datasets.projectId, scratchProjectId), eq(datasets.slug, SCRATCH_SLUG)),
+  });
+  if (!winner) {
+    // Only reachable if the winning row vanished between its insert
+    // committing and this lookup (e.g. a concurrent delete) — genuinely
+    // exceptional, not a normal race outcome.
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: `Scratch dataset insert conflicted for project ${scratchProjectId} but no row was found on lookup`,
+    });
+  }
+  return winner.id;
+}
+
+/**
+ * Find-or-create is a check-then-act: two concurrent `quickCreate` calls can
+ * both pass the `findFirst` below before either dataset exists. The insert
+ * that follows is conflict-safe (see `insertScratchDatasetIfAbsent`), so both
+ * callers converge on the same dataset id rather than one of them failing.
+ */
+export async function getOrCreateScratchDataset(db: Database, scratchProjectId: string): Promise<string> {
+  const existing = await db.query.datasets.findFirst({
+    where: and(eq(datasets.projectId, scratchProjectId), eq(datasets.slug, SCRATCH_SLUG)),
+  });
+  if (existing) return existing.id;
+
+  return insertScratchDatasetIfAbsent(db, scratchProjectId);
 }
 
 export const sourcesRouter = router({
