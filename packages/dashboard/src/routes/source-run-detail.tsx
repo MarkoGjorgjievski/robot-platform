@@ -354,6 +354,12 @@ function WorkList({ runId }: { runId: string }) {
  * share one condition (`probeGateShowing`) so the rows never vanish from
  * both places or double up in both.
  *
+ * The container (and `sampleRows` within it) always renders once the gate is
+ * showing at all — only the evidence summary and the Yes/No buttons wait on
+ * `crawl.items`, degrading to a loading line / an inline error note while
+ * that query is in flight or fails, rather than the whole gate (and the
+ * sample rows riding along with it) disappearing for that window.
+ *
  * Renders nothing once the Source is confirmed — an OLD probe run's page
  * must not re-offer a gate whose "Yes" would fire a second full plan on a
  * Source already crawling for real.
@@ -388,17 +394,30 @@ function ProbeConfirmGate({
   });
 
   if (!isProbeRun || sourceConfirmed) return null;
-  if (!itemsQuery.data) return null;
 
+  // `itemsQuery.data` degrades gracefully rather than gating the whole gate:
+  // returning null here (as this used to) meant `sampleRows` — the caller's
+  // ONE ResultsTable instance, already withheld from its old bottom-of-page
+  // spot because this gate is showing — never rendered anywhere for the
+  // entire loading window, and PERMANENTLY if the query errored. The
+  // container, header, and sample rows below now always render; only the
+  // evidence summary and the Yes/No buttons (which need real counts to mean
+  // anything) wait on the query.
   const { warnings, errors } = parseRunLog(logs);
-  const counts = itemsQuery.data.counts;
-  const evidence = probeEvidence({ counts, warnings });
+  const counts = itemsQuery.data?.counts ?? null;
+  const evidence = counts ? probeEvidence({ counts, warnings }) : null;
 
-  const itemFailures = itemsQuery.data.items
-    .filter((item) => item.kind === 'detail' && item.status === 'failed')
-    .map((item) => ({ url: item.url, error: item.error }));
+  const itemFailures = itemsQuery.data
+    ? itemsQuery.data.items
+      .filter((item) => item.kind === 'detail' && item.status === 'failed')
+      .map((item) => ({ url: item.url, error: item.error }))
+    : [];
 
   const runFailed = runStatus === 'failed';
+  // Computed regardless of itemsQuery's state: a failed probe run's own
+  // errorMessage/logs are enough to diagnose blocked/pagination/dead-link
+  // even before (or without) the item-level detail loading — the diagnosis
+  // panel re-renders with full item-failure detail once itemsQuery settles.
   const diagnosis: Diagnosis[] = diagnoseRun({
     warnings,
     errors: [
@@ -408,7 +427,7 @@ function ProbeConfirmGate({
     // No separate blockedReason channel at the run level — a block is caught
     // by diagnoseRun's own regex match over warnings/errors/itemFailures.
     blockedReason: null,
-    rowsFound: counts.detail,
+    rowsFound: counts ? counts.detail : null,
     itemFailures,
   });
 
@@ -421,16 +440,24 @@ function ProbeConfirmGate({
         <h2 className="text-sm font-medium text-gray-900">Probe results</h2>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-        <Stat label="Pages walked" value={String(evidence.pagesWalked)} />
-        <Stat label="Items found" value={String(evidence.itemsFound)} />
-        <Stat label="Pagination" value={evidence.paginationNote} />
-        <Stat label="Warnings" value={String(evidence.warningsCount)} />
-      </dl>
+      {evidence ? (
+        <dl className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+          <Stat label="Pages walked" value={String(evidence.pagesWalked)} />
+          <Stat label="Items found" value={String(evidence.itemsFound)} />
+          <Stat label="Pagination" value={evidence.paginationNote} />
+          <Stat label="Warnings" value={String(evidence.warningsCount)} />
+        </dl>
+      ) : itemsQuery.isError ? (
+        <p className="mt-3 text-sm text-red-600">
+          Couldn't load the probe's evidence: {itemsQuery.error.message}
+        </p>
+      ) : (
+        <p className="mt-3 text-sm text-gray-500">Loading probe evidence…</p>
+      )}
 
       {sampleRows}
 
-      {!runFailed && (
+      {evidence && !runFailed && (
         <div className="mt-4">
           <p className="text-sm font-medium text-gray-900">Is this the desirable path?</p>
           <div className="mt-2 flex items-center gap-2">
