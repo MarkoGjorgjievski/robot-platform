@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import {
   Activity, Download, ExternalLink, ListChecks, HelpCircle, CheckCircle2, Loader2,
@@ -31,6 +31,14 @@ export default function SourceRunDetail() {
   const data = (Array.isArray(extraction?.data) ? extraction.data : []) as Record<string, unknown>[];
   // Pull field shape from the source's stored selectors if available — best-effort
   const fields = ((source as { selectorsJson?: { fields?: unknown[] } } | null)?.selectorsJson?.fields ?? []) as Array<{ name: string; type: string; enabled?: boolean }>;
+  const resultsTable = <ResultsTable data={data} confidence={extraction?.confidence ?? null} fields={fields} />;
+
+  // The confirm gate owns the sample rows while it's showing (brief: evidence
+  // summary, THEN the sample extracted rows, THEN the gate — all above the
+  // work list). A single ResultsTable instance, relocated, not duplicated —
+  // this must exactly match ProbeConfirmGate's own render condition below, or
+  // the rows vanish from both places or appear in both.
+  const probeGateShowing = run.inputLabel === 'probe' && !source?.confirmedAt;
 
   return (
     <div>
@@ -114,15 +122,12 @@ export default function SourceRunDetail() {
         runErrorMessage={run.errorMessage}
         logs={run.logs}
         isProbeRun={run.inputLabel === 'probe'}
+        sampleRows={resultsTable}
       />
 
       <WorkList runId={runId} />
 
-      <ResultsTable
-        data={data}
-        confidence={extraction?.confidence ?? null}
-        fields={fields}
-      />
+      {!probeGateShowing && resultsTable}
     </div>
   );
 }
@@ -337,10 +342,17 @@ function WorkList({ runId }: { runId: string }) {
 
 /**
  * The probe-confirm gate (spec §3 step 2): shown above the work list for a
- * probe run on a still-unconfirmed Source. Evidence summary, then "Is this
- * the desirable path?" — Yes plans+navigates to the full crawl; "Something's
- * wrong" reveals the diagnosis panel, which also renders on its own the
- * moment the probe run itself failed (no click needed for that case).
+ * probe run on a still-unconfirmed Source. Evidence summary, THEN the sample
+ * extracted rows, THEN "Is this the desirable path?" — Yes plans+navigates to
+ * the full crawl; "Something's wrong" reveals the diagnosis panel, which also
+ * renders on its own the moment the probe run itself failed (no click needed
+ * for that case).
+ *
+ * `sampleRows` is the caller's one `<ResultsTable>` instance, not a second
+ * one — the caller (SourceRunDetail) renders it here instead of at the
+ * bottom of the page exactly when this gate is showing; the two render sites
+ * share one condition (`probeGateShowing`) so the rows never vanish from
+ * both places or double up in both.
  *
  * Renders nothing once the Source is confirmed — an OLD probe run's page
  * must not re-offer a gate whose "Yes" would fire a second full plan on a
@@ -348,6 +360,7 @@ function WorkList({ runId }: { runId: string }) {
  */
 function ProbeConfirmGate({
   runId, projectSlug, sourceSlug, sourceId, sourceConfirmed, runStatus, runErrorMessage, logs, isProbeRun,
+  sampleRows,
 }: {
   runId: string;
   projectSlug: string;
@@ -358,6 +371,7 @@ function ProbeConfirmGate({
   runErrorMessage: string | null;
   logs: string | null;
   isProbeRun: boolean;
+  sampleRows: ReactNode;
 }) {
   const navigate = useNavigate();
   const [showDiagnosis, setShowDiagnosis] = useState(false);
@@ -413,6 +427,8 @@ function ProbeConfirmGate({
         <Stat label="Pagination" value={evidence.paginationNote} />
         <Stat label="Warnings" value={String(evidence.warningsCount)} />
       </dl>
+
+      {sampleRows}
 
       {!runFailed && (
         <div className="mt-4">

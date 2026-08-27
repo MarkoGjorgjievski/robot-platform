@@ -466,7 +466,7 @@ describe('sources.listByProject', () => {
 });
 
 describe('sources.delete', () => {
-  it('deletes the Source and its own InputSet', async () => {
+  it('deletes an UNCONFIRMED Source and its own InputSet', async () => {
     const created = await caller.sources.quickCreate({
       mode: 'detail',
       urls: ['https://test-qc-delete.example.com/p/1'],
@@ -483,6 +483,31 @@ describe('sources.delete', () => {
     expect(source).toBeUndefined();
     const inputSet = await db.query.inputSets.findFirst({ where: eq(inputSets.id, inputSetId) });
     expect(inputSet).toBeUndefined();
+  });
+
+  it('refuses to delete a CONFIRMED Source (ruling R5) — throws PRECONDITION_FAILED and leaves it in place', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-qc-delete-confirmed.example.com/p/1'],
+    });
+    try {
+      planSourceMock.mockResolvedValue({
+        runId: '33333333-3333-3333-3333-333333333333',
+        status: 'planned', itemCount: 1, listingPages: 0,
+        warnings: [], errors: [], inputs: [], cacheWarm: false,
+      });
+      await caller.sources.confirm({ sourceId: created.sourceId });
+
+      await expect(
+        caller.sources.delete({ sourceId: created.sourceId }),
+      ).rejects.toThrow(/confirmed sources cannot be deleted/i);
+
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
+      expect(source).toBeDefined();
+      expect(source!.confirmedAt).toBeInstanceOf(Date);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
   });
 
   it('throws NOT_FOUND for an unknown sourceId', async () => {

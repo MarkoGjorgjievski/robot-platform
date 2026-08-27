@@ -481,16 +481,29 @@ export const sourcesRouter = router({
    * their FKs; the InputSet is deleted alongside it because `quickCreate`
    * creates one InputSet per Source (never shared), the exact assumption this
    * file's own test helper (`cleanupSource`) already relies on.
+   *
+   * Controller ruling R5: scoped to UNCONFIRMED sources only. The only caller
+   * today is the probe confirm gate's "something's wrong" panel, which only
+   * ever renders for an unconfirmed Source — a confirmed one (already
+   * crawling, or already crawled, for real) refusing here is a deliberate
+   * guard against a client bug or a future caller reaching this endpoint on
+   * data that matters, not a UI-enforced-only rule.
    */
   delete: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
-        columns: { id: true, inputSetId: true },
+        columns: { id: true, inputSetId: true, confirmedAt: true },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      if (source.confirmedAt) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'Confirmed sources cannot be deleted from the probe flow. Unconfirm/delete is a future operation.',
+        });
       }
 
       await ctx.db.delete(sources).where(eq(sources.id, source.id));
