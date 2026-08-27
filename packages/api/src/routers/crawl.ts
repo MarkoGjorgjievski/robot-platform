@@ -66,7 +66,12 @@ export function safeErrorMessage(err: unknown): string {
  * itself guarded; the `.catch()` at the call site is belt-and-braces for
  * anything this function's own guards still missed.
  */
-async function startExecution(runId: string, sourceId: string, schema: OriginField[]): Promise<void> {
+async function startExecution(
+  runId: string,
+  sourceId: string,
+  schema: OriginField[],
+  limit?: number,
+): Promise<void> {
   try {
     // `withBrowserSession` owns launch-and-always-close, including the case
     // where `launch()` itself throws part-way. The hand-rolled
@@ -90,7 +95,7 @@ async function startExecution(runId: string, sourceId: string, schema: OriginFie
         // whether the loop broke on a cancel check, and finaliseRun needs it to
         // roll a still-pending run up to 'cancelled' instead of 'extracting'.
         finalise: (_rowCount, cancelled) => finaliseRun(db, runId, cancelled),
-      });
+      }, { limit });
     });
   } catch (err) {
     console.error(`[crawl] execution of run ${runId} failed:`, err);
@@ -346,6 +351,8 @@ export const crawlRouter = router({
       retryFailed: z.boolean().optional(),
       /** Prepare the queue and return without running — used by tests. */
       dryRun: z.boolean().optional(),
+      /** Stop claiming once extracted + failed reach this many items; the rest stay pending. */
+      limit: z.number().int().positive().max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const run = await ctx.db.query.runs.findFirst({
@@ -398,7 +405,7 @@ export const crawlRouter = router({
       // but this `.catch()` is a second line of defense: nothing thrown by a
       // background crawl may become an unhandled rejection that kills the
       // api-server process serving the dashboard.
-      void startExecution(input.runId, run.source.id, (run.source.dataset?.schema ?? []) as OriginField[])
+      void startExecution(input.runId, run.source.id, (run.source.dataset?.schema ?? []) as OriginField[], input.limit)
         .catch((err) => {
           console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
         });

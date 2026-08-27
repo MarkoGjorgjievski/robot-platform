@@ -6,6 +6,7 @@ import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { safeErrorMessage } from './crawl.js';
+import { executeRun } from '../crawl/execute-run.js';
 
 const caller = createCallerFactory(appRouter)({ db });
 const SLUG = 'test-crawl-execute';
@@ -183,6 +184,23 @@ describe('crawl.execute', () => {
     const [row] = await db.select().from(runs).where(eq(runs.id, runId));
     expect(row!.status).toBe('planned');
     expect(row!.startedAt).toBeNull();
+  });
+
+  it('stops after opts.limit items and leaves the rest pending', async () => {
+    // Fake claim serves 5 items; limit 2 → exactly 2 extractItem calls, then finalise.
+    const claimed: string[] = [];
+    const items = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id }) as never);
+    let i = 0;
+    const outcome = await executeRun('run-1', {
+      claim: async () => { const it = items[i] ?? null; if (it) { i++; claimed.push((it as { id: string }).id); } return it; },
+      extractItem: async () => ({ row: {}, extractionId: 'x' }),
+      onDone: async () => {},
+      onFailed: async () => {},
+      isCancelled: async () => false,
+      finalise: async () => 'partial',
+    } as never, { limit: 2 });
+    expect(claimed).toEqual(['a', 'b']);
+    expect(outcome.extracted).toBe(2);
   });
 });
 

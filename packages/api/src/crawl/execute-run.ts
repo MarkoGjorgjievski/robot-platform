@@ -36,7 +36,11 @@ export type ExecuteOutcome = {
   status: string;
 };
 
-export async function executeRun(runId: string, deps: ExecuteDeps): Promise<ExecuteOutcome> {
+export async function executeRun(
+  runId: string,
+  deps: ExecuteDeps,
+  opts?: { limit?: number },
+): Promise<ExecuteOutcome> {
   let extracted = 0;
   let failed = 0;
   let recordingFailures = 0;
@@ -49,6 +53,13 @@ export async function executeRun(runId: string, deps: ExecuteDeps): Promise<Exec
   // dashboard and the export all read the run row.
   try {
     for (;;) {
+      // A limited run (Task 3's sample probe) stops claiming once it has
+      // enough outcomes — extracted + failed, not just extracted, so a run of
+      // all-blocked pages can't spin claiming forever past its limit. The
+      // items left `pending` roll up exactly like a cancel-between-items does
+      // — no separate finalise path needed.
+      if (opts?.limit !== undefined && extracted + failed >= opts.limit) break;
+
       // Between items, never mid-item: a cancelled run leaves clean state, and an
       // item already claimed is finished rather than abandoned as `running`.
       let isRunCancelled: boolean;
