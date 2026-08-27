@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { type OriginField } from '@robot/scraper';
 import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
@@ -14,16 +14,6 @@ import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-sourc
 import { effectiveSchema } from '../crawl/effective-schema.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
-
-/**
- * Terminal run statuses — once a run reaches one of these, no loop will ever
- * touch it again. Everything else (`planning`, `planned`, `extracting`,
- * `cancelling`, and the unused default `pending`) is a run something is
- * still doing, or is about to do, work on. Used by `probeAndSample`'s
- * duplicate guard (Finding 3, final-review-findings.md) to tell "a probe that
- * already finished" from "a probe already in flight".
- */
-const TERMINAL_RUN_STATUSES = ['completed', 'partial', 'failed', 'cancelled'];
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -100,11 +90,26 @@ export const crawlRouter = router({
       // the one already in flight instead — the caller (source-setup.tsx)
       // navigates on `runId` alone, so this reads to the operator as "took me
       // to the probe already running" rather than an error.
+      //
+      // Live-bug fix (found post-merge): this used to key "in flight" off a
+      // status allowlist, which treated `'planned'` as always non-terminal.
+      // `'planned'` is NOT unambiguous — `planSource` (plan-source.ts) writes
+      // it for two different situations: a probe genuinely mid-flight, about
+      // to be flipped to `'extracting'` a few lines later in THIS mutation,
+      // and a 0-item listing walk that will never reach that flip at all
+      // (the `outcome.itemCount > 0` guard below skips straight past it) —
+      // which is exactly as terminal as `'completed'`, just spelled
+      // differently. A status list can't tell those two `'planned'`s apart;
+      // `completed_at` can, because `finaliseRun`'s own rule (and
+      // `planSource`'s identical one) is that `completed_at` is set if and
+      // only if nothing further will touch the run. Keying on `IS NULL` here
+      // is the same terminal marker every other reader in this codebase
+      // already trusts, not a second, competing definition of "done".
       const existingProbe = await ctx.db.query.runs.findFirst({
         where: and(
           eq(runs.sourceId, input.sourceId),
           eq(runs.inputLabel, 'probe'),
-          notInArray(runs.status, TERMINAL_RUN_STATUSES),
+          isNull(runs.completedAt),
         ),
         columns: { id: true },
       });
