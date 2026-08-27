@@ -307,6 +307,11 @@ export const sourcesRouter = router({
         robotTemplate: z.string().max(255).optional(),
         parameters: z.record(z.unknown()).optional(),
         schemaValues: z.record(z.string()).optional(),
+        // Finding 5 / ruling R7 (final-review-findings.md): the minimal REAL
+        // "switch mode" — the two values `quickCreate` itself already writes
+        // (see `listingMode` below in this file). Source Config's mode
+        // toggle is the only caller today.
+        listingMode: z.enum(['listing_to_detail', 'detail']).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

@@ -279,6 +279,70 @@ describe('sources.quickCreate', () => {
   });
 });
 
+// Finding 5 / ruling R7 (final-review-findings.md): the minimal REAL
+// switch-mode. Source Config's toggle is the only caller today.
+describe('sources.update — listingMode', () => {
+  it('switches a listing Source to detail mode', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'listing',
+      urls: ['https://test-update-mode.example.com/c/a'],
+    });
+    try {
+      const before = await db.query.sources.findFirst({ where: eq(sources.id, result.sourceId) });
+      expect(before!.listingMode).toBe('listing_to_detail');
+
+      const updated = await caller.sources.update({ id: result.sourceId, listingMode: 'detail' });
+      expect(updated.listingMode).toBe('detail');
+
+      const after = await db.query.sources.findFirst({ where: eq(sources.id, result.sourceId) });
+      expect(after!.listingMode).toBe('detail');
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
+
+  it('switches a detail Source to listing mode', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-update-mode.example.com/p/1'],
+    });
+    try {
+      const updated = await caller.sources.update({ id: result.sourceId, listingMode: 'listing_to_detail' });
+      expect(updated.listingMode).toBe('listing_to_detail');
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
+
+  it('rejects a value outside the two known modes', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-update-mode.example.com/p/2'],
+    });
+    try {
+      await expect(
+        caller.sources.update({ id: result.sourceId, listingMode: 'not-a-mode' as never }),
+      ).rejects.toThrow();
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
+
+  it('leaves listingMode untouched when the update omits it', async () => {
+    const result = await caller.sources.quickCreate({
+      mode: 'listing',
+      urls: ['https://test-update-mode.example.com/c/b'],
+    });
+    try {
+      await caller.sources.update({ id: result.sourceId, isActive: false });
+      const after = await db.query.sources.findFirst({ where: eq(sources.id, result.sourceId) });
+      expect(after!.listingMode).toBe('listing_to_detail');
+    } finally {
+      await cleanupSource(result.sourceId);
+    }
+  });
+});
+
 describe('sources.analyze', () => {
   it('derives pageType "detail" from a non-listing source, persists the schema-discovery payload plus listing/hints, and returns it', async () => {
     const created = await caller.sources.quickCreate({
