@@ -84,11 +84,18 @@ export default function SourceSetup() {
         // Detail Source: plan (enumerates one detail item per input row),
         // then execute every one of them — there is no probe gate for a
         // Source the operator already pointed straight at product pages.
+        //
+        // M2 (final-review-findings.md): no `limit` here. It used to pass
+        // `source.urlCount`, but `crawl.execute`'s Zod schema caps `limit` at
+        // 100, so a detail Source with more than 100 input rows 400'd on
+        // every Extract click. The limit was never doing anything a detail
+        // run's own queue doesn't already do on its own: this run plans
+        // exactly one item per input row, so `executeRun`'s loop stops the
+        // same way regardless — `claim` returns null once every row is
+        // claimed. Omitting `limit` extracts every row, at any count, with no
+        // cap to raise and no silent truncation above 100.
         const plan = await planMutation.mutateAsync({ sourceId: source.id, probe: false });
-        await executeMutation.mutateAsync({
-          runId: plan.runId,
-          limit: source.urlCount > 0 ? source.urlCount : undefined,
-        });
+        await executeMutation.mutateAsync({ runId: plan.runId });
         navigate({ to: '/p/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
         return;
       }
