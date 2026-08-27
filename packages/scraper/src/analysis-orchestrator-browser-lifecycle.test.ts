@@ -57,7 +57,7 @@ describe('runAnalysis — browser lifecycle', () => {
   it('does not close the browser on the cache-hit path', async () => {
     const browser = stubBrowser();
     await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     expect(browser.closeCalls).toBe(0);
@@ -66,7 +66,7 @@ describe('runAnalysis — browser lifecycle', () => {
   it('does not close the browser when the cache-hit capture fails (non-fatal path)', async () => {
     const browser = stubBrowser({ async capture() { throw new Error('page.screenshot: Timeout'); } });
     await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     expect(browser.closeCalls).toBe(0);
@@ -83,7 +83,7 @@ describe('runAnalysis — browser lifecycle', () => {
       },
     };
     await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent, lookupCache: async () => null },
     );
     expect(browser.closeCalls).toBe(0);
@@ -92,11 +92,11 @@ describe('runAnalysis — browser lifecycle', () => {
   it('the actual regression: two sequential calls on the same browser both succeed', async () => {
     const browser = stubBrowser();
     const first = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     const second = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     expect(first.cached).toBe(true);

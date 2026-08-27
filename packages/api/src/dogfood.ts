@@ -72,7 +72,7 @@ for (const site of corpus) {
   lines.push(`## ${site.label} — ${site.url}`, '');
 
   try {
-    const analysis = await caller.analyze({ url: site.url });
+    const analysis = await caller.analyze({ url: site.url, pageType: site.pageType });
     const fields = (analysis.schema.fields as Array<{ name: string; type: string; description?: string; tier?: 'requested' | 'discovered'; example_value?: string }>)
       .map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier, example_value: f.example_value }));
 

@@ -51,7 +51,7 @@ describe('runAnalysis — known domain', () => {
   it('returns the cached schema without calling the model', async () => {
     const browser = stubBrowser();
     const out = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
 
@@ -64,7 +64,7 @@ describe('runAnalysis — known domain', () => {
 
   it('adds a user-requested field the cache has never seen', async () => {
     const out = await runAnalysis(
-      { url: CAPTURE.url, requestedFields: 'shipping_weight' },
+      { url: CAPTURE.url, pageType: 'detail', requestedFields: 'shipping_weight' },
       { browser: stubBrowser(), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     const names = out.schema.fields.map((f) => f.name);
@@ -80,7 +80,7 @@ describe('runAnalysis — known domain', () => {
     // values with no hint anything was wrong).
     const browser = stubBrowser({ async capture() { throw new Error('page.screenshot: Timeout'); } });
     const out = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser, agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     expect(out.cached).toBe(true);
@@ -91,7 +91,7 @@ describe('runAnalysis — known domain', () => {
 
   it('reports liveExamples: true when the capture worked', async () => {
     const out = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser: stubBrowser(), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     expect(out.liveExamples).toBe(true);
@@ -100,7 +100,7 @@ describe('runAnalysis — known domain', () => {
   it('persists a screenshot through the injected hook, not the filesystem', async () => {
     const seen: Buffer[] = [];
     const out = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       {
         browser: stubBrowser(), agent: null,
         lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null),
@@ -115,10 +115,12 @@ describe('runAnalysis — known domain', () => {
 
 describe('runAnalysis — a domain cached under BOTH page types', () => {
   // 2026-08-26: a Newegg LISTING url analyzed as "detail" because the detail
-  // cache had more fields — page type was chosen by cache size, and the wizard
-  // then showed 18 detail fields (with another product's stale examples) for a
-  // category page. The page itself must have the deciding vote: whichever
-  // cache's paths actually RESOLVE on the live capture is what this page is.
+  // cache had more fields — page type was chosen by cache size (and later, by
+  // a live-resolution voting loop). Both are gone: the CALLER declares the
+  // page type up front (request.pageType is required), and the lookup lands
+  // on exactly that cache. Declaration wins even when the OTHER cache's paths
+  // would have resolved better against the live capture — the exact inversion
+  // of the deleted arbitration.
   const detailPaths: Record<string, FieldPathSet> = Object.fromEntries(
     ['sku', 'brand', 'model', 'price_field'].map((name) => [name, {
       conflictCount: 0,
@@ -141,7 +143,9 @@ describe('runAnalysis — a domain cached under BOTH page types', () => {
   const listingCache = { ...cache, pageType: 'listing', fieldPaths: listingPaths } as DomainCache;
   const both = async (_d: string, pt: string) => (pt === 'detail' ? detailCache : listingCache);
 
-  // The captured page carries ONLY the listing api shape — no detail paths resolve.
+  // The captured page carries ONLY the listing api shape — irrelevant to
+  // declaration-wins, but kept to prove the DETAIL cache is still returned
+  // even though only the LISTING cache's paths would resolve against it.
   const listingCapture: PageCapture = {
     ...CAPTURE,
     interceptedRequests: [{
@@ -150,26 +154,22 @@ describe('runAnalysis — a domain cached under BOTH page types', () => {
     } as PageCapture['interceptedRequests'][0]],
   };
 
-  it('picks the page type whose cached paths resolve on the LIVE page, not the bigger cache', async () => {
+  it('pageType: "detail" returns the DETAIL cache even when the listing paths would have resolved better', async () => {
     const out = await runAnalysis(
-      { url: 'https://shop.example.com/Category/ID-38' },
+      { url: 'https://shop.example.com/Category/ID-38', pageType: 'detail' },
+      { browser: stubBrowser({ async capture() { return listingCapture; } }), agent: null, lookupCache: both },
+    );
+    expect(out.schema.page_type).toBe('detail');
+    expect(out.schema.fields.map((f) => f.name)).toContain('sku');
+  });
+
+  it('pageType: "listing" returns the listing cache', async () => {
+    const out = await runAnalysis(
+      { url: 'https://shop.example.com/Category/ID-38', pageType: 'listing' },
       { browser: stubBrowser({ async capture() { return listingCapture; } }), agent: null, lookupCache: both },
     );
     expect(out.schema.page_type).toBe('listing');
     expect(out.schema.fields.map((f) => f.name)).toContain('category_name');
-    expect(out.liveExamples).toBe(true);
-  });
-
-  it('falls back to the bigger cache when the capture fails — flagged as not live', async () => {
-    const out = await runAnalysis(
-      { url: 'https://shop.example.com/Category/ID-38' },
-      {
-        browser: stubBrowser({ async capture() { throw new Error('Timeout'); } }),
-        agent: null, lookupCache: both,
-      },
-    );
-    expect(out.schema.page_type).toBe('detail'); // old size rule, honestly labelled
-    expect(out.liveExamples).toBe(false);
   });
 });
 
@@ -187,7 +187,7 @@ describe('runAnalysis — blocked page', () => {
 
   it('a cached domain reports the block, keeps stale examples flagged, and does not let the block page vote', async () => {
     const out = await runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser: stubBrowser({ async capture() { return BLOCKED; } }), agent: null, lookupCache: async (_d, pt) => (pt === 'detail' ? cache : null) },
     );
     expect(out.cached).toBe(true);
@@ -198,7 +198,7 @@ describe('runAnalysis — blocked page', () => {
   it('an unknown domain fails loudly instead of asking the model to describe a block page', async () => {
     const agent = { async discoverSchema() { throw new Error('must not be called'); } };
     await expect(runAnalysis(
-      { url: 'https://unknown.example.com/p/1' },
+      { url: 'https://unknown.example.com/p/1', pageType: 'detail' },
       { browser: stubBrowser({ async capture() { return BLOCKED; } }), agent: agent as never, lookupCache: async () => null },
     )).rejects.toThrow(/human|cloudflare|block/i);
   });
@@ -207,7 +207,7 @@ describe('runAnalysis — blocked page', () => {
 describe('runAnalysis — unknown domain', () => {
   it('fails loudly rather than returning an empty schema when no agent is available', async () => {
     await expect(runAnalysis(
-      { url: CAPTURE.url },
+      { url: CAPTURE.url, pageType: 'detail' },
       { browser: stubBrowser(), agent: null, lookupCache: async () => null },
     )).rejects.toThrow(/no agent available/i);
   });
@@ -222,7 +222,7 @@ describe('runAnalysis — unknown domain', () => {
       },
     };
     const out = await runAnalysis(
-      { url: CAPTURE.url, requestedFields: 'price\ntitle' },
+      { url: CAPTURE.url, pageType: 'detail', requestedFields: 'price\ntitle' },
       { browser: stubBrowser(), agent, lookupCache: async () => null },
     );
     expect(out.cached).toBe(false);

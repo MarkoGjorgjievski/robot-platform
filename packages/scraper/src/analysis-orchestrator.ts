@@ -62,10 +62,10 @@ export type AnalysisOutcome = {
   schema: { page_type: string; description: string; fields: Array<CachedFieldSummary | SchemaField> };
   cached: boolean;
   /**
-   * False when the live capture failed and everything shown (examples, and on
-   * a dual-cache domain even the page TYPE) comes from earlier runs rather
-   * than this URL. The UI must say so — on 2026-08-26 a Newegg category page
-   * silently showed a Samsung SSD's cached values as its "examples".
+   * False when the live capture failed and everything shown (the field
+   * examples) comes from earlier runs rather than this URL. The UI must say
+   * so — on 2026-08-26 a Newegg category page silently showed a Samsung
+   * SSD's cached values as its "examples".
    */
   liveExamples: boolean;
   /**
@@ -77,26 +77,22 @@ export type AnalysisOutcome = {
 };
 
 export async function runAnalysis(
-  request: { url: string; requestedFields?: string },
+  request: { url: string; pageType: 'detail' | 'listing'; requestedFields?: string },
   deps: AnalysisDeps,
 ): Promise<AnalysisOutcome> {
-  const { url, requestedFields } = request;
+  const { url, pageType, requestedFields } = request;
   const { browser, agent, lookupCache = lookupDomainCache, persistScreenshot } = deps;
 
   const domain = new URL(url).hostname.replace(/^www\./, '');
   const userFields = requestedFields ? normalizeUserFields(requestedFields) : [];
 
-  // Both page types are candidates; which one THIS url is gets decided by the
-  // live page, not by which cache happens to be richer (see analyzeFromCache).
-  const [detailCache, listingCache] = await Promise.all([
-    lookupCache(domain, 'detail').catch(() => null),
-    lookupCache(domain, 'listing').catch(() => null),
-  ]);
-  const caches = [detailCache, listingCache]
-    .filter((c): c is DomainCache => c !== null && Object.keys(c.fieldPaths).length > 0);
+  // The caller declares what THIS url is — no arbitration, no live-resolution
+  // vote between page types. See docs/handoff.md (mvp-simplification task 4)
+  // for why the old dual-lookup-and-arbitrate logic was deleted.
+  const cache = await lookupCache(domain, pageType).catch(() => null);
 
-  if (caches.length > 0) {
-    return analyzeFromCache({ url, caches, userFields, browser, persistScreenshot });
+  if (cache && Object.keys(cache.fieldPaths).length > 0) {
+    return analyzeFromCache({ url, cache, userFields, browser, persistScreenshot });
   }
 
   // Cache miss — capture and ask the model.
@@ -139,8 +135,8 @@ export async function runAnalysis(
   };
 }
 
-/** Replay one cache's paths against a capture; how many resolve is the
- *  evidence for whether THIS page is that cache's page type. */
+/** Replay the declared page type's cached paths against a fresh capture,
+ *  so the wizard's examples come from THIS page rather than the cache. */
 async function resolveLiveValues(
   cache: DomainCache, capture: PageCapture, browser: IBrowser, url: string,
 ): Promise<Record<string, unknown>> {
@@ -177,12 +173,9 @@ async function resolveLiveValues(
  * Known domain: replay the cached paths against a fresh capture so the wizard
  * shows values from the page in front of the user.
  *
- * When the domain is cached under BOTH page types, the live page casts the
- * deciding vote: each cache's paths are replayed against the same capture and
- * the page type whose paths actually resolve wins. Picking by cache SIZE
- * (the old rule, now only the capture-failure fallback) called a Newegg
- * category page "detail" because the detail cache was richer, and the wizard
- * showed 18 detail fields with another product's stale examples (2026-08-26).
+ * The page type is not decided here — the caller declared it (`request.pageType`
+ * in `runAnalysis`), and `cache` is already the one cache for that declared
+ * type. This function's only job is to replay it against a live capture.
  *
  * Every failure here is non-fatal by design — a cache hit is still worth
  * returning without live examples, and refusing to answer because a screenshot
@@ -191,18 +184,14 @@ async function resolveLiveValues(
  */
 async function analyzeFromCache(args: {
   url: string;
-  caches: DomainCache[];
+  cache: DomainCache;
   userFields: SchemaField[];
   browser: IBrowser;
   persistScreenshot?: AnalysisDeps['persistScreenshot'];
 }): Promise<AnalysisOutcome> {
-  const { url, caches, userFields, browser, persistScreenshot } = args;
+  const { url, cache, userFields, browser, persistScreenshot } = args;
   const domain = new URL(url).hostname.replace(/^www\./, '');
 
-  const bySize = [...caches].sort(
-    (a, b) => Object.keys(b.fieldPaths).length - Object.keys(a.fieldPaths).length,
-  );
-  let cache: DomainCache = bySize[0]!;
   let liveValues: Record<string, unknown> = {};
   let persisted: { id: string; url: string } | null = null;
   let liveExamples = false;
@@ -212,28 +201,16 @@ async function analyzeFromCache(args: {
     const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
 
     // A bot-check interstitial captures "successfully" and then poisons
-    // everything downstream: nothing resolves, the size fallback picks a page
-    // type, and stale examples ship looking live (2026-08-26, Newegg /p/pl).
-    // The screenshot IS still persisted — seeing the block page is how the
-    // operator understands what happened.
+    // everything downstream: nothing resolves, and stale examples ship
+    // looking live (2026-08-26, Newegg /p/pl). The screenshot IS still
+    // persisted — seeing the block page is how the operator understands
+    // what happened.
     const health = checkPageHealth(capture.html, capture.title, url);
     if (!health.healthy) {
       blockedReason = health.reason;
       if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
     } else {
-      let bestShare = -1;
-      for (const candidate of bySize) {
-        const values = await resolveLiveValues(candidate, capture, browser, url);
-        const fieldCount = Object.keys(candidate.fieldPaths).length;
-        const share = fieldCount > 0 ? Object.keys(values).length / fieldCount : 0;
-        // Strictly-greater keeps the size order as the tiebreak: on a page where
-        // nothing resolves for either cache, the bigger cache still answers.
-        if (share > bestShare) {
-          bestShare = share;
-          cache = candidate;
-          liveValues = values;
-        }
-      }
+      liveValues = await resolveLiveValues(cache, capture, browser, url);
       liveExamples = true;
 
       if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
@@ -257,6 +234,7 @@ async function analyzeFromCache(args: {
           description: uf.description || 'User requested (not yet cached)',
           required: true,
           example_value: undefined,
+          example_source: 'cached',
           tier: 'requested' as string | undefined,
           needsRediscovery: false,
         });

@@ -35,6 +35,7 @@ export const scraperRouter = router({
     .input(
       z.object({
         url: z.string().url(),
+        pageType: z.enum(['detail', 'listing']),
         requestedFields: z.string().optional(),
       })
     )
