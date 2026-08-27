@@ -110,7 +110,7 @@ export default function SourceRunDetail() {
         </div>
       )}
 
-      <ExecuteControls runId={runId} />
+      <ExecuteControls runId={runId} probeUnconfirmed={probeGateShowing} />
 
       <ProbeConfirmGate
         runId={runId}
@@ -174,7 +174,7 @@ function RunStatusBadge({ status }: { status: string }) {
   );
 }
 
-function ExecuteControls({ runId }: { runId: string }) {
+function ExecuteControls({ runId, probeUnconfirmed }: { runId: string; probeUnconfirmed: boolean }) {
   const utils = trpc.useUtils();
   const statusQuery = trpc.crawl.status.useQuery(
     { runId },
@@ -208,8 +208,11 @@ function ExecuteControls({ runId }: { runId: string }) {
   // Extract and Retry are offered on their counts alone, never gated on
   // `active` — see runControls. A run stalled at `extracting`/`cancelling`
   // with no loop behind it must stay actionable from this page, which is the
-  // only place most operators will ever see it.
-  const controls = runControls(data.status, data.counts);
+  // only place most operators will ever see it. The one exception is a
+  // probe run its Source hasn't confirmed yet: `probeUnconfirmed` suppresses
+  // every control there, since the confirm gate above is the only actionable
+  // control on that page — see runControls's own doc comment.
+  const controls = runControls(data.status, data.counts, { probeUnconfirmed });
 
   // What the last execute actually reclaimed. `crawl.execute` returns the
   // count because "Resume N stalled" appears as soon as an item is `running`,
