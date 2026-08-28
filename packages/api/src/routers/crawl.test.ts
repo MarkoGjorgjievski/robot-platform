@@ -322,4 +322,32 @@ describe('crawlRouter.items', () => {
     // hold, or its numbers stop summing to the total it prints beside them.
     expect(result).toEqual({ items: [], counts: { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 } });
   });
+
+  // Task 10 (repair-engine): the run page wires ResultsTable's absent-cell
+  // rendering ("not on page") off this field — without it there is no way
+  // to tell a confirmed-absent field apart from one that simply hasn't been
+  // extracted yet.
+  it('returns each item\'s absentFields', async () => {
+    const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const [org] = await db.insert(orgs).values({ name: `crawl-items-${stamp}`, slug: `crawl-items-${stamp}` }).returning({ id: orgs.id });
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: 'x', slug: `crawl-items-${stamp}` }).returning({ id: projects.id });
+    const [source] = await db.insert(sources).values({
+      name: 'crawl items test source', slug: `crawl-items-src-${stamp}`, country: 'us', isSandbox: true,
+    }).returning({ id: sources.id });
+    const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'completed' }).returning({ id: runs.id });
+    await db.insert(runItems).values({
+      runId: run!.id, kind: 'detail', url: 'https://example.com/p/1', status: 'done',
+      absentFields: ['isbn'],
+    });
+
+    try {
+      const result = await caller.crawl.items({ runId: run!.id });
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.absentFields).toEqual(['isbn']);
+    } finally {
+      await db.delete(sources).where(eq(sources.id, source!.id));
+      await db.delete(projects).where(eq(projects.id, project!.id));
+      await db.delete(orgs).where(eq(orgs.id, org!.id));
+    }
+  });
 });

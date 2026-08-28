@@ -195,6 +195,11 @@ export const crawlRouter = router({
         columns: {
           id: true, kind: true, url: true, status: true, pageNumber: true,
           inputIndex: true, listingValues: true, error: true, completedAt: true,
+          // Task 10 (repair-engine): the run page's ResultsTable renders a
+          // confirmed-absent cell as "not on page" instead of a plain blank
+          // — it needs to know which fields were confirmed absent per item,
+          // and this is the only reader of the work list that can supply it.
+          absentFields: true,
         },
       });
 
