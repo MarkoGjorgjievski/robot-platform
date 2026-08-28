@@ -46,6 +46,12 @@ export async function mergeBackfillResult(
     // originally. There is nothing to merge cell-by-cell into, so the
     // backfill row becomes the item's first real data, whole (not just the
     // target fields — the item had zero data before this).
+    //
+    // R3 (ruled): a healed item still needs rule-3 absent-marking — any
+    // targetField still empty in the fresh row is a field the focused
+    // re-check positively came back without, not merely "never asked". Left
+    // as `missing`, the confirmed_absent gate never engages and every future
+    // backfill re-fetches it forever.
     const [parentRun] = await db.select({ sourceId: runs.sourceId }).from(runs).where(eq(runs.id, parentItem.runId));
     if (!parentRun?.sourceId) return;
 
@@ -60,8 +66,12 @@ export async function mergeBackfillResult(
       rowCount: 1,
     }).returning({ id: extractions.id });
 
+    const stillMissing = targetFields.filter((field) => isEmpty(row[field]));
+    const absentSet = new Set((parentItem.absentFields as string[] | null) ?? []);
+    for (const field of stillMissing) absentSet.add(field);
+
     await db.update(runItems)
-      .set({ extractionId: extraction!.id, status: 'done' })
+      .set({ extractionId: extraction!.id, status: 'done', absentFields: Array.from(absentSet) })
       .where(eq(runItems.id, parentItem.id));
     return;
   }

@@ -154,6 +154,27 @@ describe('mergeBackfillResult', () => {
     expect(extraction!.runId).toBe(parentRunId);
   });
 
+  // R3: a healed item's targetFields that came back empty must still be
+  // absent-marked, or a future backfill re-fetches them forever — the
+  // confirmed_absent gate never engages for a row that only ever healed
+  // through this path.
+  it('absent-marks a healed item\'s target fields that are still empty in the fresh row', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const [parentItem] = await db.insert(runItems).values({
+      runId: parentRunId, kind: 'detail', url: 'https://example.com/p/4', inputIndex: 0, status: 'failed', error: 'blocked',
+    }).returning();
+    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+
+    await mergeBackfillResult(db, backfillItemId, { title: 'Healed' }, ['title', 'isbn']);
+
+    const healed = await loadParentItem(parentItem!.id);
+    expect(healed.status).toBe('done');
+    expect(healed.absentFields).toEqual(['isbn']);
+
+    const [extraction] = await db.select().from(extractions).where(eq(extractions.id, healed.extractionId!));
+    expect(extraction!.data).toEqual([{ title: 'Healed' }]);
+  });
+
   it('is a no-op when the item passed in has no parentId — not a backfill item', async () => {
     const { parentRunId } = await seedOrgSourceRuns();
     // A plain (non-backfill) item: no parentId at all.
