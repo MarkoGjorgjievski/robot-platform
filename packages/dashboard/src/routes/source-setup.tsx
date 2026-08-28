@@ -6,15 +6,15 @@ import { screenshotUrl } from '../lib/screenshot-url';
 import { formatValue } from '../lib/format';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
+import { AddFieldsControl } from '../components/add-fields-control';
 
 // The Source workspace — the paste-and-go wizard reborn (spec §1/§6): schema
 // discovery, the field table with provenance badges, and a mode-aware Extract
 // button, ported from the old sandbox-detail.tsx wizard (deleted in Task 11,
 // the sandbox/graduate world's removal) onto a real Source instead of a
-// throwaway sandbox one. Unlike that predecessor, the field list here is
-// read-only — there is no endpoint to persist a per-field enable/disable
-// toggle onto a Source yet (Phase 3b, same as Config/Inputs), so this only
-// shows what `sources.analyze` found.
+// throwaway sandbox one. The field table now has a working Enabled toggle
+// (`sources.setFieldEnabled`, Task 8/11) and an add-fields control beneath it
+// (`AddFieldsControl`, shared with the confirm gate's "Request more fields").
 
 type SchemaField = {
   name: string;
@@ -26,6 +26,7 @@ type SchemaField = {
   example_value?: string;
   example_source?: 'live' | 'cached';
   candidate?: { concept: string; label: string };
+  enabled?: boolean;
 };
 
 type ListingReport = {
@@ -253,8 +254,15 @@ export default function SourceSetup() {
       )}
 
       {hasSchema && (
-        <FieldsTable fields={schema!.fields!} screenshotPath={schema!.screenshotUrl ?? null} />
+        <FieldsTable
+          fields={schema!.fields!}
+          screenshotPath={schema!.screenshotUrl ?? null}
+          sourceId={source.id}
+          projectSlug={projectSlug}
+        />
       )}
+
+      {hasSchema && <AddFieldsControl sourceId={source.id} />}
 
       {hasSchema && (
         <div className="mt-6 flex items-center justify-end">
@@ -284,47 +292,30 @@ function ModeChip({ isListing }: { isListing: boolean }) {
   );
 }
 
-function FieldsTable({ fields, screenshotPath }: { fields: SchemaField[]; screenshotPath: string | null }) {
+function FieldsTable({
+  fields, screenshotPath, sourceId, projectSlug,
+}: {
+  fields: SchemaField[];
+  screenshotPath: string | null;
+  sourceId: string;
+  projectSlug: string;
+}) {
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-[1fr_280px]">
       <div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50/60">
+              <th className="micro-label py-2 text-left">Enabled</th>
               <th className="micro-label py-2 text-left">Field</th>
               <th className="micro-label py-2 text-left">Type</th>
               <th className="micro-label py-2 text-left">Example</th>
             </tr>
           </thead>
           <tbody>
-            {fields.map((field) => {
-              const isCached = field.example_source === 'cached';
-              return (
-                <tr key={field.name} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
-                  <td className="py-2 font-mono text-xs">{field.name}</td>
-                  <td className="py-2 text-xs text-gray-600">{field.type}</td>
-                  <td className="py-2 font-mono text-xs">
-                    {field.example_value ? (
-                      <span className="inline-flex max-w-[260px] items-center gap-1.5">
-                        <span
-                          className={`truncate ${isCached ? 'text-gray-400' : 'text-gray-500'}`}
-                          title={formatValue(field.example_value)}
-                        >
-                          {formatValue(field.example_value)}
-                        </span>
-                        {isCached && (
-                          <span className="micro-label shrink-0 rounded bg-gray-100 px-1 py-0.5 text-[9px]">
-                            earlier run
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+            {fields.map((field) => (
+              <FieldRow key={field.name} field={field} sourceId={sourceId} projectSlug={projectSlug} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -334,5 +325,66 @@ function FieldsTable({ fields, screenshotPath }: { fields: SchemaField[]; screen
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One FieldsTable row, with its own `sources.setFieldEnabled` mutation
+ * instance — simplest correct isolation so flipping one field's checkbox
+ * never disables another row's. Optimistic UI is skipped on purpose (Task 11
+ * brief): the checkbox just disables while its own mutation is pending, and
+ * `sources.listByProject` is invalidated on settle (success or error alike,
+ * matching this page's existing `analyzeMutation` invalidation at the top of
+ * the file) so a failed flip snaps back to the server's real value instead of
+ * silently sticking.
+ */
+function FieldRow({
+  field, sourceId, projectSlug,
+}: {
+  field: SchemaField;
+  sourceId: string;
+  projectSlug: string;
+}) {
+  const utils = trpc.useUtils();
+  const setFieldEnabledMutation = trpc.sources.setFieldEnabled.useMutation({
+    onSettled: () => utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug }),
+  });
+
+  const enabled = field.enabled !== false;
+  const isCached = field.example_source === 'cached';
+
+  return (
+    <tr className={`border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60 ${enabled ? '' : 'opacity-50'}`}>
+      <td className="py-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={setFieldEnabledMutation.isPending}
+          onChange={(e) => setFieldEnabledMutation.mutate({ sourceId, field: field.name, enabled: e.target.checked })}
+          aria-label={`Enable ${field.name}`}
+        />
+      </td>
+      <td className="py-2 font-mono text-xs">{field.name}</td>
+      <td className="py-2 text-xs text-gray-600">{field.type}</td>
+      <td className="py-2 font-mono text-xs">
+        {field.example_value ? (
+          <span className="inline-flex max-w-[260px] items-center gap-1.5">
+            <span
+              className={`truncate ${isCached ? 'text-gray-400' : 'text-gray-500'}`}
+              title={formatValue(field.example_value)}
+            >
+              {formatValue(field.example_value)}
+            </span>
+            {isCached && (
+              <span className="micro-label shrink-0 rounded bg-gray-100 px-1 py-0.5 text-[9px]">
+                earlier run
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-gray-300">—</span>
+        )}
+      </td>
+    </tr>
   );
 }
