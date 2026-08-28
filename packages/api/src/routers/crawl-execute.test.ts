@@ -1,5 +1,5 @@
 // packages/api/src/routers/crawl-execute.test.ts
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
@@ -10,6 +10,19 @@ import { executeRun } from '../crawl/execute-run.js';
 import { claimNextItem } from '../crawl/claim-item.js';
 import { markItemDone } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
+
+// Finding 1 (final-review-findings.md): `crawl.execute` is the resume/retry
+// path for EVERY non-initial execution of a backfill run (Retry-N-failed,
+// Extract-N-pending, crash-resume) — it must pass `mergeToParent: true` to
+// `startExecution` whenever the run being executed is itself a backfill
+// (has a parentRunId), same as `crawl.backfill`'s own fire-and-forget call
+// already does. Mocked exactly the way crawl-backfill.test.ts mocks it, so
+// the args reaching `startExecution` are inspectable without a browser.
+const { startExecutionMock } = vi.hoisted(() => ({ startExecutionMock: vi.fn() }));
+vi.mock('../crawl/start-execution.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
+  return { ...actual, startExecution: startExecutionMock };
+});
 
 const caller = createCallerFactory(appRouter)({ db });
 const SLUG = 'test-crawl-execute';
@@ -53,6 +66,7 @@ async function seedRunWithDoneListingAndMixedDetails() {
 }
 
 afterEach(async () => {
+  startExecutionMock.mockReset();
   if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
   orgId = null;
 });
@@ -340,5 +354,55 @@ describe('crawl.execute — stale running items', () => {
     const runId = await seedRunWithStaleRunningItem(1);
     const result = await caller.crawl.execute({ runId, dryRun: true });
     expect(result.requeued).toBe(0);
+  });
+});
+
+// Finding 1 (critical, final-review-findings.md): every non-initial
+// execution path of a backfill run goes through `crawl.execute` — Retry-N-
+// failed, Extract-N-pending, crash-resume — and it used to call
+// `startExecution` with no `mergeToParent` at all, so a healed item's row
+// landed only in the backfill run's own extraction and never merged into the
+// parent, silently breaking R4's "'done' MEANS merged" the moment an
+// operator retried instead of using the original backfill click.
+describe('crawl.execute — mergeToParent for backfill runs (Finding 1)', () => {
+  async function seedBackfillRunWithFailedItem() {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+    const [parentRun] = await db.insert(runs).values({ sourceId: source!.id, status: 'completed', completedAt: new Date() }).returning();
+    const [backfillRun] = await db.insert(runs).values({
+      sourceId: source!.id, status: 'partial', parentRunId: parentRun!.id, inputLabel: 'backfill',
+    }).returning();
+    await db.insert(runItems).values({
+      runId: backfillRun!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0,
+      status: 'failed', error: 'blocked',
+    });
+    return backfillRun!.id;
+  }
+
+  it('passes mergeToParent: true when the run being executed has a parentRunId', async () => {
+    startExecutionMock.mockResolvedValue(undefined);
+    const runId = await seedBackfillRunWithFailedItem();
+
+    await caller.crawl.execute({ runId, retryFailed: true });
+
+    expect(startExecutionMock).toHaveBeenCalledTimes(1);
+    const call = startExecutionMock.mock.calls[0]!;
+    expect(call[0]).toBe(runId);
+    expect(call[4]).toEqual({ mergeToParent: true });
+  });
+
+  it('does not set mergeToParent for a plain (non-backfill) run', async () => {
+    startExecutionMock.mockResolvedValue(undefined);
+    const runId = await seedPlannedRun(); // no parentRunId
+
+    await caller.crawl.execute({ runId, retryFailed: true });
+
+    expect(startExecutionMock).toHaveBeenCalledTimes(1);
+    const call = startExecutionMock.mock.calls[0]!;
+    expect(call[0]).toBe(runId);
+    expect(call[4]).toBeUndefined();
   });
 });

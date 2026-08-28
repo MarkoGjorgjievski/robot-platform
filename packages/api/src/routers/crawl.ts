@@ -348,7 +348,23 @@ export const crawlRouter = router({
       // but this `.catch()` is a second line of defense: nothing thrown by a
       // background crawl may become an unhandled rejection that kills the
       // api-server process serving the dashboard.
-      void startExecution(input.runId, run.source.id, effectiveSchema(run.source) as OriginField[], input.limit)
+      //
+      // Finding 1 (final-review-findings.md): `execute` is the ONLY entry
+      // point for every non-initial execution of a backfill run — Retry-N-
+      // failed, Extract-N-pending, crash-resume — none of which go through
+      // `crawl.backfill`'s own `mergeToParent: true` call. `run` was already
+      // loaded above with no column restriction, so `run.parentRunId` is
+      // free to read here: a set parentRunId means this run IS a backfill
+      // run, and every one of its executions must merge into the parent or
+      // a healed row lands only on the backfill run's own extraction,
+      // breaking R4's "'done' MEANS merged".
+      void startExecution(
+        input.runId,
+        run.source.id,
+        effectiveSchema(run.source) as OriginField[],
+        input.limit,
+        run.parentRunId ? { mergeToParent: true } : undefined,
+      )
         .catch((err) => {
           console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
         });
