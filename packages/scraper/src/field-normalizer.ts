@@ -3,7 +3,10 @@ import type { SchemaField, FieldType } from '@robot/agent';
 /**
  * Normalize freeform user field input into structured SchemaField[].
  * Accepts comma-separated or newline-separated field names.
- * Supports "field_name - description" and "field_name: hint" formats.
+ * Supports "field_name - description" and "field_name: hint" formats —
+ * whichever delimiter (' - ' or ':') occurs FIRST in the entry wins; a line
+ * with only one of the two splits on that one, and a bare entry with neither
+ * is unchanged.
  */
 export function normalizeUserFields(input: string): SchemaField[] {
   if (!input.trim()) return [];
@@ -18,17 +21,22 @@ export function normalizeUserFields(input: string): SchemaField[] {
   for (const entry of raw) {
     // Support "field_name: hint" (repair-engine requested-field format, split
     // on the FIRST colon only — a hint may itself contain colons) and
-    // "field_name - description" formats. Colon takes priority; a bare entry
-    // with neither is unchanged.
+    // "field_name - description" formats. Whichever delimiter occurs FIRST in
+    // the entry wins — a dash before any colon (e.g. "price - in USD: ...")
+    // must split on the dash, not the colon, or the name swallows everything
+    // up to the colon and half the description is lost. A bare entry with
+    // neither delimiter is unchanged.
     const colonIdx = entry.indexOf(':');
     const dashIdx = entry.indexOf(' - ');
+    const useColon = colonIdx >= 0 && (dashIdx === -1 || colonIdx < dashIdx);
+    const useDash = dashIdx >= 0 && (colonIdx === -1 || dashIdx < colonIdx);
 
     let namePart: string;
     let description: string;
-    if (colonIdx >= 0) {
+    if (useColon) {
       namePart = entry.slice(0, colonIdx).trim();
       description = entry.slice(colonIdx + 1).trim();
-    } else if (dashIdx >= 0) {
+    } else if (useDash) {
       namePart = entry.slice(0, dashIdx).trim();
       description = entry.slice(dashIdx + 3).trim();
     } else {

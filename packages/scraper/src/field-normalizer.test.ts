@@ -78,4 +78,43 @@ describe('normalizeUserFields', () => {
       { name: 'brand', type: 'string', description: '', required: true, tier: 'requested' },
     ]);
   });
+
+  // Fix round 1 (review finding, Medium): the colon check used to run
+  // unconditionally, so a dash-before-colon line like this one had its name
+  // swallow " - in USD" and lost half the description. The split must take
+  // whichever delimiter occurs FIRST in the string.
+  it('takes the dash when it occurs before a colon in the same line', () => {
+    const result = normalizeUserFields('price - in USD: rounded to nearest cent');
+    expect(result[0].name).toBe('price');
+    expect(result[0].description).toBe('in USD: rounded to nearest cent');
+  });
+
+  it('still takes the colon when it occurs before a dash in the same line', () => {
+    const result = normalizeUserFields('isbn: check page - near the imprint');
+    expect(result[0].name).toBe('isbn');
+    expect(result[0].description).toBe('check page - near the imprint');
+  });
+
+  it('bare name with neither delimiter is byte-identical to pre-Task-8 behavior', () => {
+    const result = normalizeUserFields('isbn');
+    expect(result[0].name).toBe('isbn');
+    expect(result[0].description).toBe('');
+  });
+
+  it('dash-only entry (no colon) is byte-identical to pre-Task-8 behavior', () => {
+    const result = normalizeUserFields('price - the current selling price');
+    expect(result[0].name).toBe('price');
+    expect(result[0].description).toBe('the current selling price');
+  });
+
+  // Pinned, not endorsed: a bare URL has no dash, and its first colon (after
+  // the scheme) is still the earliest — and only — delimiter present, so it
+  // splits there. This is inherent to parsing free text for "name: hint";
+  // documented here so the behavior is a known, tested choice rather than an
+  // accident.
+  it('a bare URL splits at its scheme colon (documented, not a bug)', () => {
+    const result = normalizeUserFields('https://foo');
+    expect(result[0].name).toBe('https');
+    expect(result[0].description).toBe('//foo');
+  });
 });
