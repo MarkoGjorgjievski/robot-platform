@@ -14,6 +14,7 @@ import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-sourc
 import { effectiveSchema } from '../crawl/effective-schema.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
+import { computeCoverage } from '../crawl/coverage.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -345,5 +346,41 @@ export const crawlRouter = router({
           console.error(`[crawl] startExecution rejected outside its own guards for run ${input.runId}:`, err);
         });
       return { runId: input.runId, started: true, requeued };
+    }),
+
+  /**
+   * Per-run coverage report: how many detail items filled each field, and
+   * which items still have gaps. Read-only, AI-free — pure computation over
+   * what's already in the DB (`coverage.ts`), consumed verbatim by the
+   * repair-run tasks that follow this one.
+   */
+  coverage: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId),
+        with: {
+          source: {
+            columns: { id: true, selectorsJson: true, datasetId: true },
+            with: { dataset: { columns: { schema: true } } },
+          },
+        },
+      });
+      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      const items = await ctx.db.query.runItems.findMany({
+        where: and(eq(runItems.runId, input.runId), eq(runItems.kind, 'detail')),
+        columns: { id: true, url: true, absentFields: true },
+        with: { extraction: { columns: { data: true } } },
+      });
+
+      const fields = effectiveSchema(run.source);
+      return computeCoverage(fields, items.map((i) => ({
+        id: i.id,
+        url: i.url,
+        row: Array.isArray(i.extraction?.data) ? (i.extraction!.data[0] as Record<string, unknown> ?? null) : null,
+        absentFields: (i.absentFields as string[] | null) ?? [],
+      })));
     }),
 });
