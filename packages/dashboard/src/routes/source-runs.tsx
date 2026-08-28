@@ -60,6 +60,17 @@ export default function SourceRuns() {
                   <div className="truncate text-sm font-medium">
                     {r.status}
                     {r.resultCount != null && ` · ${r.resultCount} rows`}
+                    {/* Finding 8a (final-review-findings.md): a backfill run
+                        used to render indistinguishably from an ordinary
+                        crawl — a quiet chip so "Rows" and status here are
+                        read in context (a backfill's rows are deliberately
+                        partial), without competing with the row's own
+                        status text. */}
+                    {r.inputLabel === 'backfill' && (
+                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 align-middle font-mono text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                        backfill
+                      </span>
+                    )}
                   </div>
                   <div className="truncate font-mono text-[11px] text-gray-500">
                     {r.id}
