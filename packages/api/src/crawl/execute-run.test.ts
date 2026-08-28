@@ -15,7 +15,7 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
   let finalRowCount = -1;
   const deps: ExecuteDeps = {
     claim: async () => queue.shift() ?? null,
-    extractItem: async (i) => ({ row: { title: `row ${i.id}` }, extractionId: `x-${i.id}` }),
+    extractItem: async (i) => ({ row: { title: `row ${i.id}` }, extractionId: `x-${i.id}`, targetFields: null }),
     onDone: async (id) => { done.push(id); },
     onFailed: async (id, message) => { failed.push({ id, message }); },
     isCancelled: async () => false,
@@ -55,7 +55,7 @@ describe('executeRun', () => {
     const h = harness({
       extractItem: async (i) => {
         if (i.id === '2') throw new Error('blocked: captcha');
-        return { row: { title: i.id }, extractionId: null };
+        return { row: { title: i.id }, extractionId: null, targetFields: null };
       },
     }, [item('1'), item('2'), item('3')]);
 
@@ -70,7 +70,7 @@ describe('executeRun', () => {
     let seen = 0;
     const h = harness({
       isCancelled: async () => seen >= 2,
-      extractItem: async () => { seen++; return { row: {}, extractionId: null }; },
+      extractItem: async () => { seen++; return { row: {}, extractionId: null, targetFields: null }; },
     }, [item('1'), item('2'), item('3'), item('4')]);
 
     const outcome = await executeRun('run-1', h.deps);
@@ -128,7 +128,7 @@ describe('executeRun', () => {
     const h = harness({
       extractItem: async (i) => {
         if (i.id === '2') throw new Error('blocked: captcha');
-        return { row: { title: i.id }, extractionId: null };
+        return { row: { title: i.id }, extractionId: null, targetFields: null };
       },
       onFailed: async (id) => {
         attempted.push(id);
@@ -198,7 +198,7 @@ describe('executeRun', () => {
     let finaliseArgs: [number, boolean] | null = null;
     const h = harness({
       isCancelled: async () => seen >= 1,
-      extractItem: async () => { seen++; return { row: {}, extractionId: null }; },
+      extractItem: async () => { seen++; return { row: {}, extractionId: null, targetFields: null }; },
       finalise: async (rowCount, cancelled) => {
         finaliseArgs = [rowCount, cancelled];
         return cancelled ? 'cancelled' : 'completed';

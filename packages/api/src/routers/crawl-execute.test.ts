@@ -236,7 +236,7 @@ describe('executeRun — a limit-stopped run rolls up through the real finalise 
 
     const outcome = await executeRun(runId, {
       claim: (id) => claimNextItem(db, id),
-      extractItem: async () => ({ row: { title: 'x' }, extractionId: null }),
+      extractItem: async () => ({ row: { title: 'x' }, extractionId: null, targetFields: null }),
       onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
       onFailed: async () => {},
       isCancelled: async () => false,

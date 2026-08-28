@@ -9,14 +9,39 @@ import { eq } from 'drizzle-orm';
 import { SchemaAgent } from '@robot/agent';
 import { type OriginField } from '@robot/scraper';
 import { db, runs } from '@robot/db';
+import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { claimNextItem } from './claim-item.js';
 import { markItemDone, markItemFailed } from './record-outcome.js';
+import { mergeBackfillResult } from './merge-backfill.js';
 import { finaliseRun } from './roll-up-run.js';
 import { isRunCancelled } from './is-cancelled.js';
-import { executeRun } from './execute-run.js';
+import { executeRun, type ExecuteDeps } from './execute-run.js';
 import { extractItem } from './extract-item.js';
 import { safeErrorMessage } from './plan-source.js';
+
+/**
+ * The one decision `startExecution` wires into `executeRun`'s `onDone`:
+ * a plain run only needs the item marked done, but a backfill run
+ * (`opts.mergeToParent`) also has to fold its row into the parent item.
+ * Pulled out and exported so it is testable against stubbed
+ * `markItemDone`/`mergeBackfillResult` without a browser, an API key, or a
+ * database — `startExecution` itself is not otherwise unit-testable, since it
+ * hard-wires the real browser session and every other collaborator inline.
+ */
+export function buildOnDone(
+  db: typeof Database,
+  mergeToParent: boolean | undefined,
+  deps: { markItemDone: typeof markItemDone; mergeBackfillResult: typeof mergeBackfillResult } = { markItemDone, mergeBackfillResult },
+): ExecuteDeps['onDone'] {
+  if (!mergeToParent) {
+    return (itemId, extractionId) => deps.markItemDone(db, itemId, extractionId);
+  }
+  return async (itemId, extractionId, row, targetFields) => {
+    await deps.markItemDone(db, itemId, extractionId);
+    await deps.mergeBackfillResult(db, itemId, row, targetFields ?? []);
+  };
+}
 
 /**
  * Runs the loop outside the request. Deliberately not awaited: 200 items at
@@ -37,6 +62,7 @@ export async function startExecution(
   sourceId: string,
   schema: OriginField[],
   limit?: number,
+  opts?: { mergeToParent?: boolean },
 ): Promise<void> {
   try {
     // `withBrowserSession` owns launch-and-always-close, including the case
@@ -50,7 +76,7 @@ export async function startExecution(
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),
         extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
-        onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
+        onDone: buildOnDone(db, opts?.mergeToParent),
         onFailed: (itemId, message) => markItemFailed(db, itemId, message),
         // Both `cancelling` (the stop request) and `cancelled` (a stop another
         // loop already carried out) end this loop — see is-cancelled.ts.
