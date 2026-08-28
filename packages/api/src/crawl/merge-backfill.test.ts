@@ -41,9 +41,10 @@ async function seedParentItemWithExtraction(
 
 /**
  * A backfill item pointed at `parentItemId`, with its own extraction already
- * recorded — this is the state a merge-aware `onDone` sees, since it calls
- * `markItemDone` (which sets the backfill item's own `extractionId`) before
- * `mergeBackfillResult`.
+ * recorded. Returns both ids: the backfill item's own `extractionId` is what
+ * a merge-aware `onDone` now passes into `mergeBackfillResult` directly (R4,
+ * fix round 2) — the item row's `extractionId` column is deliberately NOT set
+ * yet at merge time, since `mergeBackfillResult` runs before `markItemDone`.
  */
 async function seedBackfillItem(sourceId: string, backfillRunId: string, parentItemId: string) {
   const [capture] = await db.insert(captures).values({ sourceId, runId: backfillRunId, url: 'https://example.com/p/1', metadata: {} }).returning();
@@ -52,9 +53,9 @@ async function seedBackfillItem(sourceId: string, backfillRunId: string, parentI
   }).returning();
   const [backfillItem] = await db.insert(runItems).values({
     runId: backfillRunId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0,
-    status: 'done', parentId: parentItemId, extractionId: extraction!.id,
+    status: 'running', parentId: parentItemId,
   }).returning();
-  return backfillItem!.id;
+  return { backfillItemId: backfillItem!.id, extractionId: extraction!.id };
 }
 
 async function loadParentData(parentItemId: string): Promise<Record<string, unknown>> {
@@ -74,9 +75,9 @@ describe('mergeBackfillResult', () => {
   it('never overwrites a filled parent cell', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real' });
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
 
-    await mergeBackfillResult(db, backfillItemId, { title: 'Other' }, ['title']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Other' }, ['title']);
 
     expect((await loadParentData(parentItemId)).title).toBe('Real');
   });
@@ -84,9 +85,9 @@ describe('mergeBackfillResult', () => {
   it('treats 0 as filled (mirrors coverage.ts exactly) — a backfill must not overwrite it', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { stock: 0 });
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
 
-    await mergeBackfillResult(db, backfillItemId, { stock: 5 }, ['stock']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { stock: 5 }, ['stock']);
 
     expect((await loadParentData(parentItemId)).stock).toBe(0);
   });
@@ -94,9 +95,9 @@ describe('mergeBackfillResult', () => {
   it('treats false as filled — same coverage semantics, the other falsy edge', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { inStock: false });
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
 
-    await mergeBackfillResult(db, backfillItemId, { inStock: true }, ['inStock']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { inStock: true }, ['inStock']);
 
     expect((await loadParentData(parentItemId)).inStock).toBe(false);
   });
@@ -104,9 +105,9 @@ describe('mergeBackfillResult', () => {
   it('fills an empty parent cell from the backfill row, leaving other cells untouched', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real', isbn: null });
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
 
-    await mergeBackfillResult(db, backfillItemId, { isbn: '978-1' }, ['isbn']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { isbn: '978-1' }, ['isbn']);
 
     const data0 = await loadParentData(parentItemId);
     expect(data0.isbn).toBe('978-1');
@@ -116,9 +117,9 @@ describe('mergeBackfillResult', () => {
   it('marks a target field still empty after the merge as absent', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real', publisher: null });
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
 
-    await mergeBackfillResult(db, backfillItemId, { publisher: null }, ['publisher']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { publisher: null }, ['publisher']);
 
     expect((await loadParentItem(parentItemId)).absentFields).toEqual(['publisher']);
   });
@@ -126,9 +127,9 @@ describe('mergeBackfillResult', () => {
   it('clears a previously-absent field once the backfill fills it', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { publisher: null }, ['publisher']);
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
 
-    await mergeBackfillResult(db, backfillItemId, { publisher: 'Acme' }, ['publisher']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { publisher: 'Acme' }, ['publisher']);
 
     expect((await loadParentItem(parentItemId)).absentFields).toEqual([]);
     expect((await loadParentData(parentItemId)).publisher).toBe('Acme');
@@ -139,9 +140,9 @@ describe('mergeBackfillResult', () => {
     const [parentItem] = await db.insert(runItems).values({
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
     }).returning();
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
 
-    await mergeBackfillResult(db, backfillItemId, { title: 'Healed', isbn: '999' }, ['title', 'isbn']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed', isbn: '999' }, ['title', 'isbn']);
 
     const healed = await loadParentItem(parentItem!.id);
     expect(healed.status).toBe('done');
@@ -152,6 +153,12 @@ describe('mergeBackfillResult', () => {
     expect(extraction!.rowCount).toBe(1);
     expect(extraction!.sourceId).toBe(sourceId);
     expect(extraction!.runId).toBe(parentRunId);
+
+    // R4: captureId came from the explicitly-passed extractionId, not from
+    // reading the backfill item's own (not-yet-set) row column — proves the
+    // new threading actually resolved a real capture, not a coincidental one.
+    const [backfillExtraction] = await db.select().from(extractions).where(eq(extractions.id, extractionId!));
+    expect(extraction!.captureId).toBe(backfillExtraction!.captureId);
   });
 
   // R3: a healed item's targetFields that came back empty must still be
@@ -163,9 +170,9 @@ describe('mergeBackfillResult', () => {
     const [parentItem] = await db.insert(runItems).values({
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/4', inputIndex: 0, status: 'failed', error: 'blocked',
     }).returning();
-    const backfillItemId = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
 
-    await mergeBackfillResult(db, backfillItemId, { title: 'Healed' }, ['title', 'isbn']);
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed' }, ['title', 'isbn']);
 
     const healed = await loadParentItem(parentItem!.id);
     expect(healed.status).toBe('done');
@@ -182,6 +189,6 @@ describe('mergeBackfillResult', () => {
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0, status: 'done',
     }).returning();
 
-    await expect(mergeBackfillResult(db, plainItem!.id, { title: 'x' }, ['title'])).resolves.toBeUndefined();
+    await expect(mergeBackfillResult(db, plainItem!.id, null, { title: 'x' }, ['title'])).resolves.toBeUndefined();
   });
 });

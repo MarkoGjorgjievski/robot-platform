@@ -21,13 +21,13 @@ function isEmpty(value: unknown): boolean {
 export async function mergeBackfillResult(
   db: typeof Database,
   backfillItemId: string,
+  extractionId: string | null,
   row: Record<string, unknown>,
   targetFields: string[],
 ): Promise<void> {
   const backfillItem = await db.query.runItems.findFirst({
     where: eq(runItems.id, backfillItemId),
     columns: { id: true, parentId: true },
-    with: { extraction: { columns: { captureId: true } } },
   });
   // Not a backfill item (no parentId) — nothing to merge into. Defensive:
   // every item reaching a merge-enabled `onDone` should carry a parentId
@@ -55,7 +55,7 @@ export async function mergeBackfillResult(
     const [parentRun] = await db.select({ sourceId: runs.sourceId }).from(runs).where(eq(runs.id, parentItem.runId));
     if (!parentRun?.sourceId) return;
 
-    const captureId = await resolveCaptureId(db, backfillItem.extraction?.captureId ?? null, parentItem.runId);
+    const captureId = await resolveCaptureId(db, extractionId, parentItem.runId);
     if (!captureId) return;
 
     const [extraction] = await db.insert(extractions).values({
@@ -107,19 +107,26 @@ export async function mergeBackfillResult(
 
 /**
  * `extractions.captureId` is NOT NULL, so healing a failed parent item (Rule
- * 5) needs a capture id from somewhere. Preferred: the backfill item's own
- * extraction's capture — the row literally came from that page load, and by
- * the time a merge-aware `onDone` runs, `markItemDone` has already recorded
- * it. Fallback: the parent run's most recent capture, for the case (only
- * reachable if `mergeBackfillResult` is called before the backfill item's own
- * extraction was recorded) where the backfill item has none of its own.
+ * 5) needs a capture id from somewhere. Preferred: the capture behind the
+ * backfill item's own extraction — the row literally came from that page
+ * load. `extractionId` arrives as a parameter straight from the caller
+ * (executeRun's `extractItem` result, via `onDone`) rather than being read
+ * off the backfill item's own row, because R4 (fix round 2) reordered
+ * `buildOnDone` to merge BEFORE `markItemDone` — the item row's own
+ * `extractionId` column is not yet set at merge time, on purpose, so a merge
+ * failure never leaves the item durably `done`. Fallback: the parent run's
+ * most recent capture, for a caller that passes `extractionId: null`.
  */
 async function resolveCaptureId(
   db: typeof Database,
-  backfillCaptureId: string | null,
+  backfillExtractionId: string | null,
   parentRunId: string,
 ): Promise<string | null> {
-  if (backfillCaptureId) return backfillCaptureId;
+  if (backfillExtractionId) {
+    const [ext] = await db.select({ captureId: extractions.captureId }).from(extractions)
+      .where(eq(extractions.id, backfillExtractionId));
+    if (ext?.captureId) return ext.captureId;
+  }
   const [latest] = await db.select({ id: captures.id }).from(captures)
     .where(eq(captures.runId, parentRunId))
     .orderBy(desc(captures.createdAt))
