@@ -30,7 +30,14 @@ export async function extractItem(
   item: ClaimedItem,
   deps: ExtractItemDeps,
 ): Promise<{ row: Record<string, unknown>; extractionId: string | null }> {
-  const partitions = partitionSchemaByOrigin(deps.schema);
+  // A repair item's focus narrows what we ask the detail page for. `origin:
+  // 'input'` fields always survive the filter — they cost nothing to keep and
+  // mergeRow needs them to fill in the row's input columns.
+  const focus = item.targetFields;
+  const schema = focus
+    ? deps.schema.filter((f) => focus.includes(f.name) || f.origin === 'input')
+    : deps.schema;
+  const partitions = partitionSchemaByOrigin(schema);
   const extract = deps.extract ?? runExtraction;
 
   // Catalogue discovery is an enrichment, injected only when we have a key to

@@ -12,6 +12,7 @@ const ITEM: ClaimedItem = {
   listingValues: { category_name: 'Shelves' },
   pageNumber: 2,
   attempts: 1,
+  targetFields: null,
 };
 
 const SCHEMA = [
@@ -95,5 +96,47 @@ describe('extractItem', () => {
       browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: SCHEMA,
       extract: async () => { throw new Error('navigation timeout'); },
     })).rejects.toThrow('navigation timeout');
+  });
+
+  it('narrows the request to a repair item\'s target fields, plus the free input fields', async () => {
+    const focusedSchema = [
+      { name: 'title', type: 'string', origin: 'detail' as const },
+      { name: 'isbn', type: 'string', origin: 'detail' as const },
+      { name: 'author', type: 'string', origin: 'detail' as const },
+      { name: 'requested_category', type: 'string', origin: 'input' as const, input_column: 'category_slug' },
+    ];
+    const seen: string[][] = [];
+    const fakeExtract = async (req: { fields: Array<{ name: string }> }) => {
+      seen.push(req.fields.map((f) => f.name));
+      return { data: [{ isbn: '978-1' }], plan: null, confidence: 0.9, sources: {},
+        fieldCount: { found: 1, total: 1 }, fieldsByTier: { requested: [], discovered: [] }, cacheHit: false };
+    };
+
+    await extractItem(fakeDb, { ...ITEM, targetFields: ['isbn'] }, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: focusedSchema,
+      extract: fakeExtract,
+    });
+    expect(seen).toEqual([['isbn']]);
+  });
+
+  it('asks for every detail field when the item carries no focus', async () => {
+    const focusedSchema = [
+      { name: 'title', type: 'string', origin: 'detail' as const },
+      { name: 'isbn', type: 'string', origin: 'detail' as const },
+      { name: 'author', type: 'string', origin: 'detail' as const },
+      { name: 'requested_category', type: 'string', origin: 'input' as const, input_column: 'category_slug' },
+    ];
+    const seen: string[][] = [];
+    const fakeExtract = async (req: { fields: Array<{ name: string }> }) => {
+      seen.push(req.fields.map((f) => f.name));
+      return { data: [{ title: 'Kallax', isbn: '978-1', author: 'IKEA' }], plan: null, confidence: 0.9, sources: {},
+        fieldCount: { found: 3, total: 3 }, fieldsByTier: { requested: [], discovered: [] }, cacheHit: false };
+    };
+
+    await extractItem(fakeDb, { ...ITEM, targetFields: null }, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: focusedSchema,
+      extract: fakeExtract,
+    });
+    expect(seen).toEqual([['title', 'isbn', 'author']]);
   });
 });

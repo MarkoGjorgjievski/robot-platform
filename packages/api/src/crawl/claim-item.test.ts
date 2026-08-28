@@ -6,7 +6,7 @@ import { claimNextItem } from './claim-item.js';
 
 const SLUG = 'test-claim-item';
 
-async function seedRun(items: Array<{ kind: 'listing' | 'detail'; url: string; status?: string }>) {
+async function seedRun(items: Array<{ kind: 'listing' | 'detail'; url: string; status?: string; targetFields?: string[] | null }>) {
   const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -17,6 +17,7 @@ async function seedRun(items: Array<{ kind: 'listing' | 'detail'; url: string; s
   await db.insert(runItems).values(items.map((i, index) => ({
     runId: run!.id, kind: i.kind, url: i.url, inputIndex: index,
     status: i.status ?? 'pending',
+    targetFields: i.targetFields ?? null,
   })));
   return { runId: run!.id, orgId: org!.id };
 }
@@ -82,5 +83,19 @@ describe('claimNextItem', () => {
     expect(claimed?.inputValues).toEqual({ slug: 'shelves' });
     expect(claimed?.listingValues).toEqual({ category_name: 'Shelves' });
     expect(claimed?.pageNumber).toBe(2);
+  });
+
+  it('carries a repair item\'s field focus, and null when it has none', async () => {
+    const seeded = await seedRun([
+      { kind: 'detail', url: 'https://example.com/p/1', targetFields: ['title'] },
+      { kind: 'detail', url: 'https://example.com/p/2' },
+    ]);
+    orgId = seeded.orgId;
+
+    const first = await claimNextItem(db, seeded.runId);
+    expect(first?.targetFields).toEqual(['title']);
+
+    const second = await claimNextItem(db, seeded.runId);
+    expect(second?.targetFields).toBeNull();
   });
 });
