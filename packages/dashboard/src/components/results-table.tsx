@@ -1,5 +1,6 @@
 import { CheckCircle2 } from 'lucide-react';
 import { formatValue } from '../lib/format';
+import { fillBadge, cellState, type FieldCoverage } from '../lib/coverage-view';
 
 type SchemaField = {
   name: string;
@@ -13,20 +14,39 @@ type SchemaField = {
   candidate?: { concept: string; label: string };
 };
 
+const EMPTY_ABSENT_SET = new Set<string>();
+
 export function ResultsTable({
   data,
   confidence,
   fields,
   headerVariant = 'neutral',
+  coverage,
+  absentByUrl,
+  selectable = false,
+  selectedUrls,
+  onToggleRow,
+  onFilterField,
 }: {
   data: Record<string, unknown>[];
   confidence: number | null;
   fields: SchemaField[];
   headerVariant?: 'neutral' | 'celebrate';
+  /** Per-field fill counts (Task 2's `crawl.coverage`) — drives the header's fill badges. */
+  coverage?: FieldCoverage[];
+  /** Per-row confirmed-absent field names, keyed by `_url`. Optional — see cellState's fallback below. */
+  absentByUrl?: Map<string, Set<string>>;
+  /** Renders a leading checkbox column. */
+  selectable?: boolean;
+  selectedUrls?: Set<string>;
+  onToggleRow?: (url: string) => void;
+  /** Fired when a fill badge is clicked — the Excel-style "filter to gaps" handle. */
+  onFilterField?: (name: string) => void;
 }) {
   const visibleFields = fields.filter((f) => f.enabled !== false);
   const fieldNames = visibleFields.map((f) => f.name);
   const candidateByName = new Map(visibleFields.map((f) => [f.name, f.candidate]));
+  const coverageByName = new Map((coverage ?? []).map((c) => [c.name, c]));
   return (
     <div className="mt-8">
       <div className="mb-3 flex items-baseline gap-3">
@@ -54,33 +74,68 @@ export function ResultsTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50/60">
+                {selectable && <th className="w-8 px-3 py-2" />}
                 {fieldNames.map((name) => {
                   const candidate = candidateByName.get(name);
                   const title = candidate ? `${name} · ${candidate.label}` : name;
+                  const badge = fillBadge(coverageByName.get(name));
                   return (
                     <th key={name} title={title} className="px-3 py-2 text-left font-mono text-[11px] font-medium text-gray-500">
-                      {name}
+                      <div className="flex items-center gap-1.5">
+                        <span>{name}</span>
+                        {badge && (
+                          <button
+                            type="button"
+                            onClick={() => onFilterField?.(name)}
+                            disabled={!onFilterField}
+                            title={`${badge} filled — click to show only rows missing ${name}`}
+                            className="micro-label rounded border border-gray-200 px-1 py-0.5 normal-case tracking-normal text-gray-500 transition-colors hover:border-accent-300 hover:text-accent-700 disabled:cursor-default disabled:hover:border-gray-200 disabled:hover:text-gray-500"
+                          >
+                            {badge}
+                          </button>
+                        )}
+                      </div>
                     </th>
                   );
                 })}
               </tr>
             </thead>
             <tbody>
-              {data.slice(0, 100).map((row, i) => (
-                <tr key={i} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
-                  {fieldNames.map((name) => (
-                    <td key={name} className="px-3 py-2 align-top font-mono text-xs text-gray-800">
-                      {row[name] != null ? (
-                        <span className="block max-w-[300px] truncate" title={formatValue(row[name])}>
-                          {formatValue(row[name])}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {data.slice(0, 100).map((row, i) => {
+                const url = typeof row._url === 'string' ? row._url : undefined;
+                const absentFields = (url && absentByUrl?.get(url)) || EMPTY_ABSENT_SET;
+                return (
+                  <tr key={i} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
+                    {selectable && (
+                      <td className="px-3 py-2 align-top">
+                        <input
+                          type="checkbox"
+                          checked={!!url && !!selectedUrls?.has(url)}
+                          onChange={() => url && onToggleRow?.(url)}
+                          disabled={!url}
+                          aria-label={url ? `Select row ${url}` : 'Select row'}
+                        />
+                      </td>
+                    )}
+                    {fieldNames.map((name) => {
+                      const state = cellState(row[name], name, absentFields);
+                      return (
+                        <td key={name} className="px-3 py-2 align-top font-mono text-xs text-gray-800">
+                          {state === 'filled' ? (
+                            <span className="block max-w-[300px] truncate" title={formatValue(row[name])}>
+                              {formatValue(row[name])}
+                            </span>
+                          ) : state === 'absent' ? (
+                            <span className="italic text-gray-400">not on page</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

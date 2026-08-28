@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import {
   Activity, Download, ExternalLink, ListChecks, HelpCircle, CheckCircle2, Loader2,
@@ -13,6 +13,9 @@ import {
 import { probeEvidence } from '../lib/probe-evidence';
 import { parseRunLog } from '../lib/parse-run-log';
 import { diagnoseRun, type Diagnosis } from '../lib/diagnose-run';
+import {
+  rowsMissingField, selectionToItemIds, reExtractLabel, type ItemGap,
+} from '../lib/coverage-view';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -28,12 +31,78 @@ export default function SourceRunDetail() {
 
   const detailQuery = trpc.runs.getWithDetails.useQuery({ id: runId });
 
+  // Pre-return derivations. `detailQuery.data` is read directly (never
+  // aliased to a separate const) so each narrowing check below applies where
+  // it's used — an aliased const wouldn't be narrowed by the early-return
+  // checks further down, since those check `detailQuery.data`, a different
+  // binding from the same runtime value.
+  const rawExtractionData = detailQuery.data?.extraction?.data;
+  const data = Array.isArray(rawExtractionData) ? (rawExtractionData as Record<string, unknown>[]) : [];
+  const runIsTerminal = detailQuery.data ? !isRunActive(detailQuery.data.run.status) : false;
+  // The confirm gate owns the sample rows while it's showing (brief: evidence
+  // summary, THEN the sample extracted rows, THEN the gate — all above the
+  // work list). A single ResultsTable instance, relocated, not duplicated —
+  // this must exactly match ProbeConfirmGate's own render condition below, or
+  // the rows vanish from both places or appear in both. Computed here
+  // (pre-return) because the coverage query's `enabled` needs it too.
+  const probeGateShowing = detailQuery.data
+    ? detailQuery.data.run.inputLabel === 'probe' && !detailQuery.data.source?.confirmedAt
+    : false;
+
+  // Coverage is read-only and AI-free, but only means anything once the run
+  // has stopped moving (a still-executing run's gaps are still closing under
+  // it) and once the probe gate isn't the only actionable control on the
+  // page (see ProbeConfirmGate's doc comment) — no fill badges or re-extract
+  // button belong there. `data.length > 0` skips the query on a plan with
+  // nothing extracted yet, where a coverage report is pure zero-noise.
+  const coverageQuery = trpc.crawl.coverage.useQuery(
+    { runId },
+    { enabled: runIsTerminal && !probeGateShowing && data.length > 0 },
+  );
+
+  // Filter (which field to show gaps for) and selection (which rows to
+  // re-extract) — route-owned state, reset whenever the run identity changes
+  // so a stale filter/selection can't survive a navigation to a different
+  // run's page (including the navigation a successful backfill itself does).
+  const [filterField, setFilterField] = useState<string | null>(null);
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setFilterField(null);
+    setSelectedUrls(new Set());
+  }, [runId]);
+
+  const gapByUrl = useMemo(
+    () => new Map((coverageQuery.data?.gapItems ?? []).map((g) => [g.url, g] as const)),
+    [coverageQuery.data],
+  );
+  const missingRows = filterField ? rowsMissingField(data, filterField, gapByUrl) : [];
+  const filteredData = filterField ? missingRows : data;
+
+  const toggleRow = (url: string) => {
+    setSelectedUrls((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url); else next.add(url);
+      return next;
+    });
+  };
+  const toggleFilterField = (name: string) => {
+    setFilterField((prev) => (prev === name ? null : name));
+  };
+  const selectAllMissing = () => {
+    // Matches ResultsTable's own `slice(0, 100)` — selection interacts with
+    // rows ON SCREEN only; the filter is what narrows the total first.
+    setSelectedUrls(new Set(
+      missingRows.slice(0, 100)
+        .map((r) => r._url)
+        .filter((u): u is string => typeof u === 'string'),
+    ));
+  };
+
   if (detailQuery.isLoading) return <Spinner label="Loading run..." />;
   if (detailQuery.isError) return <ErrorBanner message={detailQuery.error.message} />;
   if (!detailQuery.data) return <NotFound what={`Run "${runId}"`} />;
 
   const { run, source, capture, extraction } = detailQuery.data;
-  const data = (Array.isArray(extraction?.data) ? extraction.data : []) as Record<string, unknown>[];
   // Pull field shape from the source's stored selectors if available — best-effort.
   // `DETAIL_URL_FIELD` (packages/api/src/crawl/effective-schema.ts) is the
   // synthetic row-scoped "which detail page" field `sources.analyze` persists
@@ -42,14 +111,24 @@ export default function SourceRunDetail() {
   // raw read, so it must be excluded here too or it renders as a dead
   // always-"—" column.
   const fields = ((source as { selectorsJson?: { fields?: unknown[] } } | null)?.selectorsJson?.fields ?? []) as Array<{ name: string; type: string; enabled?: boolean }>;
-  const resultsTable = <ResultsTable data={data} confidence={extraction?.confidence ?? null} fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)} />;
-
-  // The confirm gate owns the sample rows while it's showing (brief: evidence
-  // summary, THEN the sample extracted rows, THEN the gate — all above the
-  // work list). A single ResultsTable instance, relocated, not duplicated —
-  // this must exactly match ProbeConfirmGate's own render condition below, or
-  // the rows vanish from both places or appear in both.
-  const probeGateShowing = run.inputLabel === 'probe' && !source?.confirmedAt;
+  const resultsTable = (
+    <ResultsTable
+      data={filteredData}
+      confidence={extraction?.confidence ?? null}
+      fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)}
+      coverage={coverageQuery.data?.fields}
+      // `absentByUrl` intentionally left unset — `crawl.items` doesn't return
+      // `absentFields` yet, so there is no per-item absent data to wire in
+      // without widening that router (out of this task's scope). `cellState`
+      // falls back to "missing" for every non-filled cell, which is the
+      // correct degrade. TODO(Task 10): wire this once `crawl.items` carries
+      // `absentFields`.
+      selectable={!!coverageQuery.data}
+      selectedUrls={selectedUrls}
+      onToggleRow={toggleRow}
+      onFilterField={toggleFilterField}
+    />
+  );
 
   return (
     <div>
@@ -122,6 +201,18 @@ export default function SourceRunDetail() {
       )}
 
       <ExecuteControls runId={runId} probeUnconfirmed={probeGateShowing} />
+
+      <CoverageActionBar
+        runId={runId}
+        projectSlug={projectSlug}
+        sourceSlug={sourceSlug}
+        filterField={filterField}
+        missingCount={missingRows.length}
+        onClearFilter={() => setFilterField(null)}
+        selectedUrls={selectedUrls}
+        onSelectAll={selectAllMissing}
+        gapByUrl={gapByUrl}
+      />
 
       <ProbeConfirmGate
         runId={runId}
@@ -271,6 +362,79 @@ function ExecuteControls({ runId, probeUnconfirmed }: { runId: string; probeUnco
       {notice && <span className="basis-full text-[11px] text-gray-600">{notice}</span>}
       {execute.isError && <span className="text-[11px] text-red-600">{execute.error.message}</span>}
       {cancel.isError && <span className="text-[11px] text-red-600">{cancel.error.message}</span>}
+    </div>
+  );
+}
+
+/**
+ * The manual backfill handle (spec: coverage report → re-extract selected).
+ * Renders nothing until there's something to act on — a field filter is
+ * active, or at least one row is selected — so it never competes for
+ * attention with ExecuteControls on a run with clean coverage.
+ *
+ * The Re-extract button is the ONLY spender this bar offers: it fires
+ * `crawl.backfill` only on this explicit click, its label (`reExtractLabel`)
+ * names the page count and the cost shape honestly before the click, and a
+ * `PRECONDITION_FAILED` from the API (e.g. a dead field with no
+ * `deadFieldStrategy`) surfaces as the inline error note below rather than
+ * throwing — this bar never picks a strategy on the operator's behalf.
+ */
+function CoverageActionBar({
+  runId, projectSlug, sourceSlug, filterField, missingCount, onClearFilter, selectedUrls, onSelectAll, gapByUrl,
+}: {
+  runId: string;
+  projectSlug: string;
+  sourceSlug: string;
+  filterField: string | null;
+  missingCount: number;
+  onClearFilter: () => void;
+  selectedUrls: Set<string>;
+  onSelectAll: () => void;
+  gapByUrl: Map<string, ItemGap>;
+}) {
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  const backfill = trpc.crawl.backfill.useMutation({
+    onSuccess: (result) => {
+      utils.runs.getWithDetails.invalidate();
+      utils.crawl.coverage.invalidate();
+      navigate({
+        to: '/p/$project/sources/$source/runs/$run',
+        params: { project: projectSlug, source: sourceSlug, run: result.backfillRunId },
+      });
+    },
+  });
+
+  if (!filterField && selectedUrls.size === 0) return null;
+
+  const itemIds = selectionToItemIds([...selectedUrls], gapByUrl);
+
+  return (
+    <div className="card mt-6 flex flex-wrap items-center gap-3 px-4 py-3">
+      {filterField && (
+        <span className="text-sm text-gray-700">
+          {missingCount} {missingCount === 1 ? 'row' : 'rows'} missing{' '}
+          <code className="font-mono text-xs text-gray-900">{filterField}</code>
+        </span>
+      )}
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        {filterField && (
+          <>
+            <button onClick={onSelectAll} className="btn-quiet">Select all</button>
+            <button onClick={onClearFilter} className="btn-quiet">Clear filter</button>
+          </>
+        )}
+        <button
+          onClick={() => backfill.mutate({ runId, itemIds, targetFields: filterField ? [filterField] : undefined })}
+          disabled={backfill.isPending || itemIds.length === 0}
+          className="btn-primary px-3 py-1.5 text-xs"
+        >
+          {reExtractLabel(itemIds.length)}
+        </button>
+      </div>
+      {backfill.isError && (
+        <span className="basis-full text-[11px] text-red-600">{backfill.error.message}</span>
+      )}
     </div>
   );
 }
