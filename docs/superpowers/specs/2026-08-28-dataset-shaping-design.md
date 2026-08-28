@@ -49,7 +49,11 @@ One `shaping jsonb` column on `datasets`:
     { "deliver": "condition", "prefer": "condition_labels", "fallback": "product_type" }
   ],
   "rowExclusions": [
-    { "itemId": "…", "reason": "magazine in books listing", "at": "2026-08-28T…" }
+    // keyed by the row's `_url` (every extracted row carries it; unique per run item)
+    // — correction 2026-08-28: rows have no persisted item id in the view/export path,
+    // and URL-keying is the better dataset-level semantic anyway (excluding a page's
+    // row excludes it in every run that fetched that page).
+    { "url": "https://…/BookDetails?…", "reason": "magazine in books listing", "at": "2026-08-28T…" }
   ]
 }
 ```
@@ -61,7 +65,7 @@ One `shaping jsonb` column on `datasets`:
 
 ## 4. Transform vocabulary
 
-MVP set, all pure functions in `@robot/scraper`'s existing transform module (word-to-number, brand cleanup, whitespace collapse already live there — same registry, same testing pattern):
+MVP set, all pure functions in a **new name-keyed registry** (correction 2026-08-28: an earlier draft claimed an existing transform registry in `@robot/scraper`; reconnaissance found none — word-to-number and whitespace collapse are private code inside `data-quality.ts`'s type-keyed validators, and that path is not total, so the shaping vocabulary is built fresh, in `@robot/api` next to the shaper):
 
 - `strip_prefix` / `strip_suffix` (literal)
 - `regex_extract` (first match; invalid pattern rejected on save)
@@ -72,7 +76,7 @@ Every transform is total: on non-matching input it passes the value through unch
 
 ## 5. The candidates bridge (the `url` vs `_url` class)
 
-Wrong-source values are *not* fixed by transforms — the right value already exists as a different candidate with different provenance (v2.5 candidate catalogue). The bridge is one click: every column header menu gets **"View candidates…"**, opening the existing candidate picker for that field, where the existing **pin** fixes the pick (pin `_url`'s source for `url`). Nothing new is built beyond the menu entry and routing; this spec just makes the existing machinery reachable from the place where the symptom is noticed. (The junk-echo *minting* problem itself — API params cached as data — is the cache-quality initiative, out of scope here.)
+Wrong-source values are *not* fixed by transforms — the right value already exists as a different candidate with different provenance (v2.5 candidate catalogue). The bridge is one click: every column header menu gets **"View candidates…"**, deep-linking to the dataset page's existing per-field candidate selector (`SchemaFieldOrigins` on `/p/$project/datasets/$dataset`, which persists the choice through `datasets.updateSchema`) anchored to that field via a `?field=<name>` search param. Precision note (2026-08-28): the run payload does not carry the dataset slug today, so the deep link requires adding it to `runs.getWithDetails`' source projection; and `pickerOptions` returns `null` below two candidates, so the menu entry degrades to a disabled "only one candidate" state. Nothing else is built — this spec makes existing machinery reachable from the place where the symptom is noticed. (The junk-echo *minting* problem itself — API params cached as data — is the cache-quality initiative, out of scope here.)
 
 ## 6. Where the shaper runs
 
