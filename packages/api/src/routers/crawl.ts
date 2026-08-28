@@ -490,8 +490,8 @@ export const crawlRouter = router({
       // honest and terminal, until a human re-runs backfillPreview and
       // re-issues backfill — that IS the recovery path, not a bug to guard
       // against with more state.
-      if (input.deadFieldStrategy === 'repair_sweep') {
-        const deadFields = fieldClasses.filter((f) => f.classification === 'dead').map((f) => f.name);
+      const deadFields = fieldClasses.filter((f) => f.classification === 'dead').map((f) => f.name);
+      if (input.deadFieldStrategy === 'repair_sweep' && deadFields.length > 0) {
         void runRepairSweep(ctx.db, backfillRunId, deadFields, execute).catch((err) => {
           console.error(`[crawl] runRepairSweep rejected outside its own guards for run ${backfillRunId}:`, err);
         });

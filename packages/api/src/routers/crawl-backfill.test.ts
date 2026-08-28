@@ -13,10 +13,17 @@ import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { effectiveSchema } from '../crawl/effective-schema.js';
 
-const { startExecutionMock } = vi.hoisted(() => ({ startExecutionMock: vi.fn() }));
+const { startExecutionMock, runRepairSweepMock } = vi.hoisted(() => ({
+  startExecutionMock: vi.fn(),
+  runRepairSweepMock: vi.fn(),
+}));
 vi.mock('../crawl/start-execution.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../crawl/start-execution.js')>();
   return { ...actual, startExecution: startExecutionMock };
+});
+vi.mock('../crawl/repair-sweep.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../crawl/repair-sweep.js')>();
+  return { ...actual, runRepairSweep: runRepairSweepMock };
 });
 
 const caller = createCallerFactory(appRouter)({ db });
@@ -104,6 +111,7 @@ async function seedCompletedRunWithHealthyGap() {
 
 afterEach(async () => {
   startExecutionMock.mockReset();
+  runRepairSweepMock.mockReset();
   if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
   orgId = null;
 });
@@ -194,6 +202,25 @@ describe('crawl.backfill', () => {
       with: { dataset: { columns: { schema: true } } },
     });
     expect(call[2]).toEqual(effectiveSchema(source!));
+    expect(call[3]).toBeUndefined(); // no limit
+    expect(call[4]).toEqual({ mergeToParent: true });
+  });
+
+  // Fix round 1 (review finding): `deadFieldStrategy: 'repair_sweep'` sent
+  // when NO dead field is actually in scope must take the plain path, not
+  // hand `runRepairSweep` an empty deadFields list — that would always
+  // evaluate zero eligible samples, always return 'repair_failed', and
+  // strand the rest of the backfill run pending on a terminal run.
+  it('takes the plain path when repair_sweep is requested but no target field is dead', async () => {
+    startExecutionMock.mockResolvedValue(undefined);
+    const { runId } = await seedCompletedRunWithHealthyGap();
+
+    const result = await caller.crawl.backfill({ runId, deadFieldStrategy: 'repair_sweep' });
+
+    expect(result.items).toBe(1);
+    expect(runRepairSweepMock).not.toHaveBeenCalled();
+    expect(startExecutionMock).toHaveBeenCalledTimes(1);
+    const call = startExecutionMock.mock.calls[0]!;
     expect(call[3]).toBeUndefined(); // no limit
     expect(call[4]).toEqual({ mergeToParent: true });
   });
