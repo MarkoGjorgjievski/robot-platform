@@ -18,7 +18,7 @@ import {
   type ItemGap, type FieldCoverage,
 } from '../lib/coverage-view';
 import {
-  previewSummary, strategyCopy, initialChecked, checkedHasDeadField, backfillMutationInput,
+  previewSummary, strategyCopy, initialChecked, checkedHasDeadField, backfillMutationInput, derivedPreview,
   type FieldClassification,
 } from '../lib/backfill-preview';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
@@ -301,6 +301,7 @@ export default function SourceRunDetail() {
           projectSlug={projectSlug}
           sourceSlug={sourceSlug}
           gappyFieldNames={(coverageQuery.data?.fields ?? []).filter((f) => f.missing > 0).map((f) => f.name)}
+          gapItems={coverageQuery.data?.gapItems ?? []}
         />
       )}
 
@@ -552,17 +553,24 @@ function CoverageActionBar({
  * `open` — a closed panel must not query. It always asks for the FULL gappy
  * field set (`gappyFieldNames`, computed by the caller from the coverage
  * query that's already loaded), not the narrowed checked subset — one query
- * per open, and `previewSummary`'s cost line is an honest upper bound:
- * unchecking a field can only ever shrink the real backfill below what was
- * previewed, never exceed it.
+ * per open, used only to drive the checklist's fill bars/classification
+ * chips and the strategy choice.
+ *
+ * The summary line does NOT read that query's items/pages/cost directly
+ * (D-UX1 fix) — those stayed pinned to the full gappy set no matter which
+ * checkboxes were unchecked. It's `derivedPreview(gapItems, checked)`
+ * instead: recomputed client-side, no re-query, from `gapItems` (also
+ * already loaded by the caller's coverage query) intersected with the
+ * checked field set.
  */
 function BackfillGapsPanel({
-  runId, projectSlug, sourceSlug, gappyFieldNames,
+  runId, projectSlug, sourceSlug, gappyFieldNames, gapItems,
 }: {
   runId: string;
   projectSlug: string;
   sourceSlug: string;
   gappyFieldNames: string[];
+  gapItems: ItemGap[];
 }) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
@@ -686,7 +694,7 @@ function BackfillGapsPanel({
           )}
 
           <p className="mt-3 text-sm text-gray-700">
-            {previewSummary({ items: previewQuery.data.items, pages: previewQuery.data.pages, estCostUsd: previewQuery.data.estCostUsd })}
+            {previewSummary(derivedPreview(gapItems, activeChecked))}
           </p>
 
           <button
