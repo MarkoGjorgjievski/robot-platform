@@ -216,6 +216,62 @@ describe('planRun', () => {
     expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(1);
   });
 
+  it('applies the item budget separately to each listing input, walking every input', async () => {
+    // Two listing inputs (e.g. two search queries on one domain). Each
+    // page 1 offers 3 rows against a budget of 2: one duplicate (already
+    // planned by the first input) plus enough new rows to fill the second
+    // input's OWN budget. A shared running total would exhaust the budget
+    // on the first input alone and never even capture the second.
+    const rowsByCall = [
+      [{ detail_url: '/p/1' }, { detail_url: '/p/2' }, { detail_url: '/p/3' }],
+      [{ detail_url: '/p/2' }, { detail_url: '/p/4' }, { detail_url: '/p/5' }],
+    ];
+    let call = 0;
+    const browser = new FakeBrowser();
+    const outcome = await planRun(
+      {
+        source: { ...LISTING_SOURCE, budget: { max_pages: 3, max_items: 2, mode: 'first_n' } },
+        // No listing-origin field here (unlike SCHEMA): resolving one would
+        // trigger a second, page-level `extract` call per input, which
+        // would consume from `rowsByCall` out of step with the row-mode
+        // calls this test is tracking.
+        schema: [{ name: 'title', type: 'string' }],
+        inputSet: { columns: [{ name: 'slug', primary: true }], rows: [{ slug: 'a' }, { slug: 'b' }] },
+      },
+      {
+        browser,
+        agent: null, acquireLock: noopLock, lookupCache: async () => null, savePagination: async () => {},
+        extract: async () => {
+          const rows = rowsByCall[call]!;
+          call++;
+          return {
+            data: rows,
+            plan: { row_xpath: '//li', fields: [] },
+            confidence: 0.9,
+            sources: {},
+            fieldCount: { found: 1, total: 1 },
+            fieldsByTier: { requested: [], discovered: [] },
+            cacheHit: false,
+          };
+        },
+      },
+    );
+    // Both listing inputs were captured — the second was never skipped
+    // because the first had already used up a shared budget.
+    expect(browser.captures).toBe(2);
+    const details = outcome.items.filter((i) => i.kind === 'detail');
+    // 2 from input A (/p/1, /p/2 — /p/3 dropped by A's own cap), 2 from
+    // input B (/p/4, /p/5 — /p/2 skipped as a dup, not counted against B's
+    // budget, so B still reaches its own cap of 2).
+    expect(details.map((i) => i.url).sort()).toEqual([
+      'https://example.com/p/1',
+      'https://example.com/p/2',
+      'https://example.com/p/4',
+      'https://example.com/p/5',
+    ]);
+    expect(details).toHaveLength(4);
+  });
+
   it('dedupes a URL that two different inputs both surface', async () => {
     const outcome = await planRun(
       {
