@@ -15,7 +15,9 @@ import { effectiveSchema } from '../crawl/effective-schema.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import { loadRunCoverage } from '../crawl/load-run-coverage.js';
-import { classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD } from '../crawl/backfill.js';
+import {
+  classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD, type BackfillItemPlan,
+} from '../crawl/backfill.js';
 import { runRepairSweep } from '../crawl/repair-sweep.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
@@ -501,11 +503,36 @@ export const crawlRouter = router({
         });
       }
 
+      // `deadFieldStrategy` is never written to the DB (controller Ruling
+      // R5, task 7) — it only ever matters for the lifetime of THIS request,
+      // to pick which fire-and-forget path runs below. There is no durable
+      // "mid repair-sweep" marker anywhere: if the process dies between the
+      // sample execute and the sweep execute, the run simply finalises
+      // 'partial' (runRepairSweep step 1's own F1 semantics) and sits there,
+      // honest and terminal, until a human re-runs backfillPreview and
+      // re-issues backfill — that IS the recovery path, not a bug to guard
+      // against with more state.
+      const deadFields = fieldClasses.filter((f) => f.classification === 'dead').map((f) => f.name);
+      const isRepairSweep = input.deadFieldStrategy === 'repair_sweep' && deadFields.length > 0;
+
+      // Finding 6 (final-review-findings.md): a repair-sweep's sample stage
+      // (repair-sweep.ts step 1) claims the first REPAIR_SAMPLE_COUNT items
+      // off THIS run — without ordering, a mixed-target backfill whose first
+      // claims happen to be healthy-only gaps spuriously reports
+      // repair_failed. Passing the dead-field intersection as `orderFirst`
+      // (planBackfillRun, backfill.ts) makes the sample actually land on
+      // dead-target items. `undefined` (not repair-sweep, or no dead field
+      // in scope) keeps the plain path's inputIndex copy unchanged.
+      const deadSet = new Set(deadFields);
+      const orderFirst = isRepairSweep
+        ? (item: BackfillItemPlan) => item.targetFields.some((f) => deadSet.has(f))
+        : undefined;
+
       // Guard 6: plan the run, flip it to extracting, and fire its execution
       // the same way `execute` above does — not awaited (see startExecution's
       // own doc comment for why this must never become an unhandled
       // rejection), merged back into the parent's items via `mergeToParent`.
-      const backfillRunId = await planBackfillRun(ctx.db, input.runId, parent.source.id, items, targetNames);
+      const backfillRunId = await planBackfillRun(ctx.db, input.runId, parent.source.id, items, targetNames, orderFirst);
       await markRunExtracting(ctx.db, backfillRunId);
 
       // Bound to a const rather than read as `parent.source.id` inside the
@@ -517,17 +544,7 @@ export const crawlRouter = router({
       const execute = (opts?: { limit?: number }) =>
         startExecution(backfillRunId, sourceId, schema, opts?.limit, { mergeToParent: true });
 
-      // `deadFieldStrategy` is never written to the DB (controller Ruling
-      // R5, task 7) — it only ever matters for the lifetime of THIS request,
-      // to pick which fire-and-forget path runs below. There is no durable
-      // "mid repair-sweep" marker anywhere: if the process dies between the
-      // sample execute and the sweep execute, the run simply finalises
-      // 'partial' (runRepairSweep step 1's own F1 semantics) and sits there,
-      // honest and terminal, until a human re-runs backfillPreview and
-      // re-issues backfill — that IS the recovery path, not a bug to guard
-      // against with more state.
-      const deadFields = fieldClasses.filter((f) => f.classification === 'dead').map((f) => f.name);
-      if (input.deadFieldStrategy === 'repair_sweep' && deadFields.length > 0) {
+      if (isRepairSweep) {
         void runRepairSweep(ctx.db, backfillRunId, deadFields, execute).catch((err) => {
           console.error(`[crawl] runRepairSweep rejected outside its own guards for run ${backfillRunId}:`, err);
         });

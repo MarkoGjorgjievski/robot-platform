@@ -94,12 +94,37 @@ export function deriveBackfillItems(
  * re-capture downstream with nothing for it to repair. Asserted below,
  * before any row is written, rather than trusted.
  */
+/**
+ * Finding 6 (final-review-findings.md): when given, items matching
+ * `orderFirst` are inserted (and, critically, `input_index`-numbered) first
+ * — `crawl.backfill` passes the dead-field intersection when
+ * `deadFieldStrategy: 'repair_sweep'` is in play, so the sample stage
+ * (repair-sweep.ts step 1: `execute({limit: REPAIR_SAMPLE_COUNT})`) actually
+ * draws dead-target items instead of whichever items happen to claim first.
+ *
+ * This reassigns `input_index` (0..n-1, dead-first) rather than relying on
+ * insertion order / `created_at`: `claimNextItem`'s own `ORDER BY`
+ * (claim-item.ts) is `input_index, page_number NULLS FIRST, created_at` —
+ * `input_index` is the PRIMARY key, copied verbatim from each item's own
+ * (diverse) parent item, so ordering by insertion alone would never actually
+ * change claim priority, and even where `input_index`/`page_number` tie,
+ * every row in this single `INSERT` shares the exact same `created_at`
+ * (Postgres `now()` is transaction-time, not per-row) — ties are the norm
+ * here, not an edge case a real deployment might dodge. Verified against the
+ * live claim-item.ts query before shipping this; the branch's own
+ * instructions anticipated exactly this and named the fallback: reassign
+ * `input_index` for backfill items ONLY. Safe because a backfill run's own
+ * `input_index` only ever drives `claimNextItem`'s ordering WITHIN that run
+ * — nothing reads it as "the original parent position" for a backfill item,
+ * and the parent run's own items (and their `input_index`) are untouched.
+ */
 export async function planBackfillRun(
   db: typeof Database,
   parentRunId: string,
   sourceId: string,
   items: BackfillItemPlan[],
   targetNames: string[],
+  orderFirst?: (item: BackfillItemPlan) => boolean,
 ): Promise<string> {
   for (const item of items) {
     if (!Array.isArray(item.targetFields) || item.targetFields.length === 0) {
@@ -131,7 +156,15 @@ export async function planBackfillRun(
   });
   const parentById = new Map(parents.map((p) => [p.id, p]));
 
-  await db.insert(runItems).values(items.map((item) => {
+  // `Array.prototype.sort` is stable (guaranteed since ES2019 / every
+  // supported Node), so within each group (matching / not) items keep their
+  // original relative order — this only moves the dead-first group ahead,
+  // it never shuffles within it.
+  const ordered = orderFirst
+    ? [...items].sort((a, b) => Number(orderFirst(b)) - Number(orderFirst(a)))
+    : items;
+
+  await db.insert(runItems).values(ordered.map((item, i) => {
     const parent = parentById.get(item.parentItemId);
     return {
       runId,
@@ -141,7 +174,10 @@ export async function planBackfillRun(
       parentId: item.parentItemId,
       inputValues: parent?.inputValues ?? {},
       listingValues: parent?.listingValues ?? {},
-      inputIndex: parent?.inputIndex ?? 0,
+      // See the doc comment above `orderFirst`: reassigned to insertion
+      // order (dead-first) only when orderFirst is given — the plain path
+      // keeps copying the parent's own inputIndex verbatim, unchanged.
+      inputIndex: orderFirst ? i : (parent?.inputIndex ?? 0),
       pageNumber: parent?.pageNumber ?? null,
       status: 'pending' as const,
     };

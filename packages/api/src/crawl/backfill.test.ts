@@ -1,6 +1,12 @@
 // packages/api/src/crawl/backfill.test.ts
-import { describe, it, expect } from 'vitest';
-import { classifyFields, deriveBackfillItems, DEAD_FIELD_FILL_THRESHOLD } from './backfill.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
+import {
+  classifyFields, deriveBackfillItems, planBackfillRun, DEAD_FIELD_FILL_THRESHOLD, REPAIR_SAMPLE_COUNT,
+  type BackfillItemPlan,
+} from './backfill.js';
+import { claimNextItem } from './claim-item.js';
 import type { FieldCoverage, ItemGap } from './coverage.js';
 
 describe('classifyFields', () => {
@@ -94,5 +100,116 @@ describe('deriveBackfillItems', () => {
     ];
     const result = deriveBackfillItems(gapItemsWithAbsentOnly, ['isbn']);
     expect(result).toEqual([]);
+  });
+});
+
+// Finding 6 (minor, final-review-findings.md): the sample stage
+// (repair-sweep.ts) counts ANY first REPAIR_SAMPLE_COUNT claimed items, not
+// dead-target ones — a mixed-target backfill whose first 3 claims happen to
+// be healthy-only gaps spuriously reports repair_failed. Fix: planBackfillRun
+// gains an optional `orderFirst` predicate that inserts matching (dead-
+// target) items first.
+//
+// claimNextItem's own ORDER BY (claim-item.ts) is `input_index, page_number
+// NULLS FIRST, created_at` — input_index is the PRIMARY key, and it is
+// copied verbatim from each item's own (diverse) parent inputIndex, so an
+// ordering trick riding on INSERTION order/created_at alone would never
+// actually change claim priority: input_index differs per item regardless
+// of insert order, and even where it ties, every row in a single INSERT
+// shares the exact same created_at (Postgres `now()` is transaction-time,
+// not per-row) — ties are the norm here, not an edge case. Verified against
+// the live claim-item.ts query before choosing this shape (per the branch's
+// own constraint: fall back to inputIndex-offset ONLY for backfill items
+// when created_at ties defeat pure insertion ordering). Shipped: `orderFirst`
+// reassigns `input_index` to 0..n-1 in dead-first order for backfill items
+// ONLY — their own run's claim ordering, never touching the parent run's
+// inputIndex semantics or claim-item.ts's SQL.
+describe('planBackfillRun — orderFirst (Finding 6)', () => {
+  const SLUG = 'test-backfill-plan-order';
+  let orgId: string | null = null;
+
+  afterEach(async () => {
+    if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+    orgId = null;
+  });
+
+  async function seedParentWithItems(items: Array<{ inputIndex: number; url: string }>) {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+    const [parentRun] = await db.insert(runs).values({ sourceId: source!.id, status: 'completed', completedAt: new Date() }).returning();
+    const parentItems = await db.insert(runItems).values(
+      items.map((it) => ({
+        runId: parentRun!.id, kind: 'detail' as const, url: it.url, inputIndex: it.inputIndex, status: 'done' as const,
+      })),
+    ).returning();
+    return { sourceId: source!.id, parentRunId: parentRun!.id, parentItems };
+  }
+
+  it('reassigns input_index to insertion order when orderFirst is given, so matching items sort first regardless of their original (diverse) parent inputIndex', async () => {
+    const { sourceId, parentRunId, parentItems } = await seedParentWithItems([
+      { inputIndex: 10, url: 'https://example.com/p/h10' }, // healthy
+      { inputIndex: 20, url: 'https://example.com/p/d20' }, // dead
+      { inputIndex: 5, url: 'https://example.com/p/h5' },  // healthy
+      { inputIndex: 30, url: 'https://example.com/p/d30' }, // dead
+    ]);
+    const plans: BackfillItemPlan[] = parentItems.map((p) => ({ parentItemId: p.id, url: p.url, targetFields: ['isbn'] }));
+    const deadUrls = new Set(['https://example.com/p/d20', 'https://example.com/p/d30']);
+
+    const backfillRunId = await planBackfillRun(
+      db, parentRunId, sourceId, plans, ['isbn'], (item) => deadUrls.has(item.url),
+    );
+
+    const backfillItems = await db.select().from(runItems).where(eq(runItems.runId, backfillRunId));
+    const byUrl = new Map(backfillItems.map((it) => [it.url, it]));
+    const deadIdx = [byUrl.get('https://example.com/p/d20')!.inputIndex, byUrl.get('https://example.com/p/d30')!.inputIndex];
+    const healthyIdx = [byUrl.get('https://example.com/p/h10')!.inputIndex, byUrl.get('https://example.com/p/h5')!.inputIndex];
+    // Original parent inputIndex order would have put d20/d30 LAST (20, 30 >
+    // 10, 5) — asserting they now sort first proves reassignment happened,
+    // not a coincidence of the seeded values.
+    expect(Math.max(...deadIdx)).toBeLessThan(Math.min(...healthyIdx));
+  });
+
+  it('without orderFirst, keeps copying input_index verbatim from the parent item — unchanged behaviour for the plain backfill path', async () => {
+    const { sourceId, parentRunId, parentItems } = await seedParentWithItems([
+      { inputIndex: 7, url: 'https://example.com/p/plain' },
+    ]);
+    const plans: BackfillItemPlan[] = parentItems.map((p) => ({ parentItemId: p.id, url: p.url, targetFields: ['isbn'] }));
+
+    const backfillRunId = await planBackfillRun(db, parentRunId, sourceId, plans, ['isbn']);
+
+    const [item] = await db.select().from(runItems).where(eq(runItems.runId, backfillRunId));
+    expect(item!.inputIndex).toBe(7);
+  });
+
+  // The repair-sweep sampling proof: claimNextItem (the REAL SQL, not a
+  // stub) must draw the dead-target items within the first REPAIR_SAMPLE_COUNT
+  // claims once planBackfillRun ordered them dead-first — even though their
+  // ORIGINAL parent inputIndex (100, 200) is the HIGHEST in the set and would
+  // have claimed dead-last under claim-item.ts's own ORDER BY without the fix.
+  it('claimNextItem draws dead-target items within the first REPAIR_SAMPLE_COUNT claims — proves repair-sweep sampling actually reaches them', async () => {
+    const { sourceId, parentRunId, parentItems } = await seedParentWithItems([
+      { inputIndex: 1, url: 'https://example.com/p/h1' },
+      { inputIndex: 2, url: 'https://example.com/p/h2' },
+      { inputIndex: 3, url: 'https://example.com/p/h3' },
+      { inputIndex: 100, url: 'https://example.com/p/d1' },
+      { inputIndex: 200, url: 'https://example.com/p/d2' },
+    ]);
+    const plans: BackfillItemPlan[] = parentItems.map((p) => ({ parentItemId: p.id, url: p.url, targetFields: ['isbn'] }));
+    const deadUrls = new Set(['https://example.com/p/d1', 'https://example.com/p/d2']);
+
+    const backfillRunId = await planBackfillRun(
+      db, parentRunId, sourceId, plans, ['isbn'], (item) => deadUrls.has(item.url),
+    );
+
+    const claimed: string[] = [];
+    for (let i = 0; i < REPAIR_SAMPLE_COUNT; i++) {
+      const item = await claimNextItem(db, backfillRunId);
+      if (item) claimed.push(item.url);
+    }
+
+    expect(claimed).toEqual(expect.arrayContaining(['https://example.com/p/d1', 'https://example.com/p/d2']));
   });
 });
