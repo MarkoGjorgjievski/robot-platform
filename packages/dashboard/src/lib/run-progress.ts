@@ -51,14 +51,29 @@ export type RunControls = {
  * URL the probe enumerated, defeating "cost-bearing crawl only after the
  * confirm gate" — or a Stop whose only intended counterpart is the confirm
  * gate's own Yes/No. The confirm gate is the only actionable control there.
+ *
+ * `backfill` is the second exception (repair-engine task 10). A backfill
+ * run's staged repair-sweep (`runRepairSweep`, repair-sweep.ts) can finalise
+ * the run terminal (`'partial'`) with items still `pending` — its own
+ * honest stop, once a 3-sample check shows the repair doesn't take. That
+ * leftover pending work is the failed repair's remainder, not "not yet
+ * extracted": re-clicking Extract would just walk the same broken cached
+ * path again. The honest next step is back through the PARENT run's
+ * `backfillPreview` (a different target field set or dead-field strategy),
+ * so once such a run has gone terminal, Extract must not appear — only
+ * while the run is still active does the ordinary rescue logic apply.
  */
 export function runControls(
   status: string,
   counts: RunCounts,
-  opts?: { probeUnconfirmed?: boolean },
+  opts?: { probeUnconfirmed?: boolean; backfill?: boolean },
 ): RunControls {
   if (opts?.probeUnconfirmed) {
     return { showExtract: false, showRetry: false, showStop: false };
+  }
+  const active = isRunActive(status);
+  if (opts?.backfill && !active && counts.pending > 0) {
+    return { showExtract: false, showRetry: counts.failed > 0, showStop: false };
   }
   return {
     // `running` counts as work a re-entered loop could pick up, not just

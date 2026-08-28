@@ -14,8 +14,13 @@ import { probeEvidence } from '../lib/probe-evidence';
 import { parseRunLog } from '../lib/parse-run-log';
 import { diagnoseRun, type Diagnosis } from '../lib/diagnose-run';
 import {
-  rowsMissingField, selectionToItemIds, reExtractLabel, nextSelectionOnFilterChange, type ItemGap,
+  rowsMissingField, selectionToItemIds, reExtractLabel, nextSelectionOnFilterChange, emptyFilterNote,
+  type ItemGap, type FieldCoverage,
 } from '../lib/coverage-view';
+import {
+  previewSummary, strategyCopy, initialChecked, checkedHasDeadField, backfillMutationInput,
+  type FieldClassification,
+} from '../lib/backfill-preview';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 
@@ -75,6 +80,20 @@ export default function SourceRunDetail() {
     () => new Map((coverageQuery.data?.gapItems ?? []).map((g) => [g.url, g] as const)),
     [coverageQuery.data],
   );
+
+  // The work list's own query — WorkList (below) fetches the identical
+  // input, so this is a cache hit there, not a second network round-trip.
+  // Built here so ResultsTable can render confirmed-absent cells as "not on
+  // page" instead of a plain blank (cellState, coverage-view.ts).
+  const itemsQuery = trpc.crawl.items.useQuery({ runId });
+  const absentByUrl = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const item of itemsQuery.data?.items ?? []) {
+      const absent = Array.isArray(item.absentFields) ? (item.absentFields as string[]) : [];
+      if (absent.length > 0) map.set(item.url, new Set(absent));
+    }
+    return map;
+  }, [itemsQuery.data]);
   const missingRows = filterField ? rowsMissingField(data, filterField, gapByUrl) : [];
   const filteredData = filterField ? missingRows : data;
 
@@ -113,7 +132,9 @@ export default function SourceRunDetail() {
   if (detailQuery.isError) return <ErrorBanner message={detailQuery.error.message} />;
   if (!detailQuery.data) return <NotFound what={`Run "${runId}"`} />;
 
-  const { run, source, capture, extraction } = detailQuery.data;
+  const { run, source, capture, extraction, backfillRuns } = detailQuery.data;
+  const isBackfillRun = run.inputLabel === 'backfill';
+  const targetFields = Array.isArray(run.targetFields) ? (run.targetFields as string[]) : [];
   // Pull field shape from the source's stored selectors if available — best-effort.
   // `DETAIL_URL_FIELD` (packages/api/src/crawl/effective-schema.ts) is the
   // synthetic row-scoped "which detail page" field `sources.analyze` persists
@@ -128,12 +149,7 @@ export default function SourceRunDetail() {
       confidence={extraction?.confidence ?? null}
       fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)}
       coverage={coverageQuery.data?.fields}
-      // `absentByUrl` intentionally left unset — `crawl.items` doesn't return
-      // `absentFields` yet, so there is no per-item absent data to wire in
-      // without widening that router (out of this task's scope). `cellState`
-      // falls back to "missing" for every non-filled cell, which is the
-      // correct degrade. TODO(Task 10): wire this once `crawl.items` carries
-      // `absentFields`.
+      absentByUrl={absentByUrl}
       selectable={!!coverageQuery.data}
       selectedUrls={selectedUrls}
       onToggleRow={toggleRow}
@@ -170,6 +186,39 @@ export default function SourceRunDetail() {
           <ExportLink runId={runId} format="json" />
         </div>
       </div>
+
+      {run.parentRunId && (
+        <p className="mt-1 text-xs text-gray-500">
+          Backfill of run{' '}
+          <Link
+            to="/p/$project/sources/$source/runs/$run"
+            params={{ project: projectSlug, source: sourceSlug, run: run.parentRunId }}
+            className="font-mono text-accent-700 hover:underline"
+          >
+            {run.parentRunId.slice(0, 8)}
+          </Link>
+          {targetFields.length > 0 && <> · fields: {targetFields.join(', ')}</>}
+        </p>
+      )}
+
+      {backfillRuns.length > 0 && (
+        <p className="mt-1 text-xs text-gray-500">
+          Backfilled by{' '}
+          {backfillRuns.map((b, i) => (
+            <span key={b.id}>
+              {i > 0 && ', '}
+              <Link
+                to="/p/$project/sources/$source/runs/$run"
+                params={{ project: projectSlug, source: sourceSlug, run: b.id }}
+                className="font-mono text-accent-700 hover:underline"
+              >
+                run {b.id.slice(0, 8)}
+              </Link>
+              {' '}({b.status})
+            </span>
+          ))}
+        </p>
+      )}
 
       <dl className="card mt-6 grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-4">
         <Stat label="Status" value={run.status} />
@@ -211,7 +260,7 @@ export default function SourceRunDetail() {
         </div>
       )}
 
-      <ExecuteControls runId={runId} probeUnconfirmed={probeGateShowing} />
+      <ExecuteControls runId={runId} probeUnconfirmed={probeGateShowing} backfill={isBackfillRun} />
 
       <CoverageActionBar
         runId={runId}
@@ -223,7 +272,18 @@ export default function SourceRunDetail() {
         selectedUrls={selectedUrls}
         onSelectAll={selectAllMissing}
         gapByUrl={gapByUrl}
+        coverage={coverageQuery.data?.fields}
       />
+
+      {runIsTerminal && !probeGateShowing && !isBackfillRun && (
+        <BackfillGapsPanel
+          key={runId}
+          runId={runId}
+          projectSlug={projectSlug}
+          sourceSlug={sourceSlug}
+          gappyFieldNames={(coverageQuery.data?.fields ?? []).filter((f) => f.missing > 0).map((f) => f.name)}
+        />
+      )}
 
       <ProbeConfirmGate
         runId={runId}
@@ -287,7 +347,7 @@ function RunStatusBadge({ status }: { status: string }) {
   );
 }
 
-function ExecuteControls({ runId, probeUnconfirmed }: { runId: string; probeUnconfirmed: boolean }) {
+function ExecuteControls({ runId, probeUnconfirmed, backfill }: { runId: string; probeUnconfirmed: boolean; backfill: boolean }) {
   const utils = trpc.useUtils();
   const statusQuery = trpc.crawl.status.useQuery(
     { runId },
@@ -325,7 +385,7 @@ function ExecuteControls({ runId, probeUnconfirmed }: { runId: string; probeUnco
   // probe run its Source hasn't confirmed yet: `probeUnconfirmed` suppresses
   // every control there, since the confirm gate above is the only actionable
   // control on that page — see runControls's own doc comment.
-  const controls = runControls(data.status, data.counts, { probeUnconfirmed });
+  const controls = runControls(data.status, data.counts, { probeUnconfirmed, backfill });
 
   // What the last execute actually reclaimed. `crawl.execute` returns the
   // count because "Resume N stalled" appears as soon as an item is `running`,
@@ -392,6 +452,7 @@ function ExecuteControls({ runId, probeUnconfirmed }: { runId: string; probeUnco
  */
 function CoverageActionBar({
   runId, projectSlug, sourceSlug, filterField, missingCount, onClearFilter, selectedUrls, onSelectAll, gapByUrl,
+  coverage,
 }: {
   runId: string;
   projectSlug: string;
@@ -402,6 +463,8 @@ function CoverageActionBar({
   selectedUrls: Set<string>;
   onSelectAll: () => void;
   gapByUrl: Map<string, ItemGap>;
+  /** Per-field coverage — used only to explain a filter that renders zero rows (`emptyFilterNote`). */
+  coverage?: FieldCoverage[];
 }) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
@@ -419,6 +482,11 @@ function CoverageActionBar({
   if (!filterField && selectedUrls.size === 0) return null;
 
   const itemIds = selectionToItemIds([...selectedUrls], gapByUrl);
+  // A field whose gaps are ALL confirmed-absent filters to zero rows — the
+  // filter itself is correct (there is nothing left to repair), but a bare
+  // disabled button with no rows on screen reads as broken. This note
+  // replaces that button with the actual explanation (Task 9 parked finding).
+  const note = filterField ? emptyFilterNote(coverage?.find((c) => c.name === filterField)) : null;
 
   return (
     <div className="card mt-6 flex flex-wrap items-center gap-3 px-4 py-3">
@@ -435,16 +503,182 @@ function CoverageActionBar({
             <button onClick={onClearFilter} className="btn-quiet">Clear filter</button>
           </>
         )}
-        <button
-          onClick={() => backfill.mutate({ runId, itemIds, targetFields: filterField ? [filterField] : undefined })}
-          disabled={backfill.isPending || itemIds.length === 0}
-          className="btn-primary px-3 py-1.5 text-xs"
-        >
-          {reExtractLabel(itemIds.length)}
-        </button>
+        {!note && (
+          <button
+            onClick={() => backfill.mutate({ runId, itemIds, targetFields: filterField ? [filterField] : undefined })}
+            disabled={backfill.isPending || itemIds.length === 0}
+            className="btn-primary px-3 py-1.5 text-xs"
+          >
+            {reExtractLabel(itemIds.length)}
+          </button>
+        )}
       </div>
+      {note && <span className="basis-full text-[11px] text-gray-600">{note}</span>}
       {backfill.isError && (
         <span className="basis-full text-[11px] text-red-600">{backfill.error.message}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The bulk backfill handle (spec §2.4-2.5): "Backfill gaps" opens a preview
+ * of what a backfill run against THIS run would do — every gappy field,
+ * prechecked, with a fill bar and dead/healthy classification, a
+ * per-dead-field strategy choice, and the honest "up to $X" cost line —
+ * before the one spending click. Renders nothing when there are no gappy
+ * fields at all.
+ *
+ * The preview query (`crawl.backfillPreview`, free/AI-free) fires only while
+ * `open` — a closed panel must not query. It always asks for the FULL gappy
+ * field set (`gappyFieldNames`, computed by the caller from the coverage
+ * query that's already loaded), not the narrowed checked subset — one query
+ * per open, and `previewSummary`'s cost line is an honest upper bound:
+ * unchecking a field can only ever shrink the real backfill below what was
+ * previewed, never exceed it.
+ */
+function BackfillGapsPanel({
+  runId, projectSlug, sourceSlug, gappyFieldNames,
+}: {
+  runId: string;
+  projectSlug: string;
+  sourceSlug: string;
+  gappyFieldNames: string[];
+}) {
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const [checked, setChecked] = useState<Set<string> | null>(null);
+  const [strategy, setStrategy] = useState<'repair_sweep' | 'full_focus'>('repair_sweep');
+
+  const previewQuery = trpc.crawl.backfillPreview.useQuery(
+    { runId, targetFields: gappyFieldNames },
+    { enabled: open },
+  );
+
+  useEffect(() => {
+    if (previewQuery.data && checked === null) {
+      setChecked(initialChecked(previewQuery.data.fields as FieldClassification[]));
+    }
+  }, [previewQuery.data, checked]);
+
+  const backfill = trpc.crawl.backfill.useMutation({
+    onSuccess: (result) => {
+      // This run (the backfill's PARENT) gets its "Backfilled by" breadcrumb
+      // and its coverage numbers stale otherwise — the operator lands on the
+      // new backfill run, but coming back here should already show it.
+      utils.runs.getWithDetails.invalidate();
+      utils.crawl.coverage.invalidate();
+      navigate({
+        to: '/p/$project/sources/$source/runs/$run',
+        params: { project: projectSlug, source: sourceSlug, run: result.backfillRunId },
+      });
+    },
+  });
+
+  if (gappyFieldNames.length === 0) return null;
+
+  if (!open) {
+    return (
+      <div className="mt-6">
+        <button onClick={() => setOpen(true)} className="btn-quiet">Backfill gaps</button>
+      </div>
+    );
+  }
+
+  const fields = (previewQuery.data?.fields ?? []) as FieldClassification[];
+  const activeChecked = checked ?? new Set(gappyFieldNames);
+  const showStrategy = checkedHasDeadField(fields, activeChecked);
+  const deadCheckedFields = fields.filter((f) => activeChecked.has(f.name) && f.classification === 'dead');
+
+  const toggleField = (name: string) => {
+    setChecked((prev) => {
+      const base = prev ?? new Set(gappyFieldNames);
+      const next = new Set(base);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  const mutationInput = previewQuery.data ? backfillMutationInput(fields, activeChecked, strategy) : null;
+
+  return (
+    <div className="card mt-6 p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-gray-900">Backfill gaps</h2>
+        <button onClick={() => setOpen(false)} className="btn-quiet">Close</button>
+      </div>
+
+      {!previewQuery.data ? (
+        <p className="mt-3 text-sm text-gray-500">Loading preview…</p>
+      ) : (
+        <>
+          <ul className="mt-3 space-y-1.5">
+            {fields.map((f) => (
+              <li key={f.name} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={activeChecked.has(f.name)}
+                  onChange={() => toggleField(f.name)}
+                  aria-label={`Include ${f.name}`}
+                />
+                <span className="font-mono text-xs text-gray-800">{f.name}</span>
+                <span className="micro-label text-gray-500">{Math.round(f.fill * 100)}% filled</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                  f.classification === 'dead' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                }`}
+                >
+                  {f.classification}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {showStrategy && (
+            <div className="mt-4 space-y-2">
+              {deadCheckedFields.map((f) => {
+                const copy = strategyCopy(f);
+                if (!copy) return null;
+                return (
+                  <div key={f.name} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
+                    <p className="micro-label text-amber-700">{copy.title}</p>
+                    <label className="mt-1.5 flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name={`backfill-strategy-${f.name}`}
+                        checked={strategy === 'repair_sweep'}
+                        onChange={() => setStrategy('repair_sweep')}
+                      />
+                      {copy.recommended}
+                    </label>
+                    <label className="mt-1 flex items-center gap-1.5">
+                      <input
+                        type="radio"
+                        name={`backfill-strategy-${f.name}`}
+                        checked={strategy === 'full_focus'}
+                        onChange={() => setStrategy('full_focus')}
+                      />
+                      {copy.alternative}
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <p className="mt-3 text-sm text-gray-700">
+            {previewSummary({ items: previewQuery.data.items, pages: previewQuery.data.pages, estCostUsd: previewQuery.data.estCostUsd })}
+          </p>
+
+          <button
+            onClick={() => mutationInput && backfill.mutate({ runId, ...mutationInput })}
+            disabled={backfill.isPending || !mutationInput || mutationInput.targetFields.length === 0}
+            className="btn-primary mt-3 px-3 py-1.5 text-xs"
+          >
+            Run backfill
+          </button>
+          {backfill.isError && <p className="mt-2 text-xs text-red-600">{backfill.error.message}</p>}
+        </>
       )}
     </div>
   );
