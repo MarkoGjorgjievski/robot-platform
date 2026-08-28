@@ -445,6 +445,21 @@ export const crawlRouter = router({
       if (!parent) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
       if (!parent.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
 
+      // Guard 1b (Finding 3, final-review-findings.md): a backfill run's own
+      // rows are deliberately partial — every non-target field reads dead by
+      // design, not because the page lacks it. Backfilling a backfill run is
+      // reachable (this guard was missing) and strands data/money: the
+      // grandchild's merges fold into the BACKFILL run's own items, never
+      // into the real parent, whose coverage stays gappy and whose pages
+      // stay re-purchasable indefinitely. Refuse, naming the real parent so
+      // the caller can retarget the request instead of guessing.
+      if (parent.inputLabel === 'backfill') {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Run ${input.runId} is itself a backfill run — backfill its parent run ${parent.parentRunId} instead`,
+        });
+      }
+
       // Guard 2: a still-executing parent has no settled coverage to
       // backfill from — its gaps are still moving under it.
       if (!parent.completedAt) {

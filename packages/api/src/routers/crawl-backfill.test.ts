@@ -47,6 +47,26 @@ async function seedStillExecutingRun() {
 }
 
 /**
+ * A completed BACKFILL run (inputLabel: 'backfill', its own parentRunId set)
+ * with a gap of its own — the shape Finding 3 (final-review-findings.md)
+ * says `crawl.backfill` must refuse: backfilling a backfill run strands the
+ * merge on the backfill run's own (deliberately partial) items instead of
+ * the real grandparent, whose coverage never improves and whose pages stay
+ * re-purchasable indefinitely.
+ */
+async function seedCompletedBackfillRunWithGap() {
+  const sourceId = await seedSource([{ name: 'title', type: 'string' }]);
+  const [realParent] = await db.insert(runs).values({ sourceId, status: 'completed', completedAt: new Date() }).returning();
+  const [backfillRun] = await db.insert(runs).values({
+    sourceId, status: 'partial', completedAt: new Date(), inputLabel: 'backfill', parentRunId: realParent!.id, targetFields: ['title'],
+  }).returning();
+  await db.insert(runItems).values([
+    { runId: backfillRun!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'failed', error: 'blocked' },
+  ]);
+  return { backfillRunId: backfillRun!.id, realParentRunId: realParent!.id };
+}
+
+/**
  * A completed parent with two detail items — one filled (`title`), one
  * failed with nothing extracted (both fields missing). `title` fills 1/2 =
  * 0.5 (healthy, the binding boundary); `isbn` fills 0/2 (dead). Mirrors
@@ -117,6 +137,18 @@ afterEach(async () => {
 });
 
 describe('crawl.backfill', () => {
+  // Finding 3 (important, final-review-findings.md): backfilling a backfill
+  // run is reachable and strands data/money — the grandchild's merges fold
+  // into the BACKFILL run's own items, never the real parent, whose gaps
+  // stay open and whose pages stay re-purchasable indefinitely.
+  it('refuses to backfill a run that is itself a backfill run, naming the real parent', async () => {
+    const { backfillRunId, realParentRunId } = await seedCompletedBackfillRunWithGap();
+
+    await expect(caller.crawl.backfill({ runId: backfillRunId }))
+      .rejects.toThrow(new RegExp(`backfill.*parent.*${realParentRunId}`, 'i'));
+    expect(startExecutionMock).not.toHaveBeenCalled();
+  });
+
   // Guard 2: a still-executing parent has no settled coverage to backfill from.
   it('refuses a parent run that is still executing', async () => {
     const runId = await seedStillExecutingRun();

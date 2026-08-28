@@ -54,16 +54,25 @@ export default function SourceRunDetail() {
   const probeGateShowing = detailQuery.data
     ? detailQuery.data.run.inputLabel === 'probe' && !detailQuery.data.source?.confirmedAt
     : false;
+  // Finding 3 (final-review-findings.md): a backfill run's own audit rows
+  // are deliberately partial — only the target fields were ever asked for,
+  // so every other field reads "dead" in a coverage report that means
+  // nothing here. Computed pre-return (same reasoning as probeGateShowing
+  // above) because the coverage query's `enabled` needs it too, and reused
+  // below instead of re-deriving from `run.inputLabel` a second time.
+  const isBackfillRun = detailQuery.data ? detailQuery.data.run.inputLabel === 'backfill' : false;
 
   // Coverage is read-only and AI-free, but only means anything once the run
   // has stopped moving (a still-executing run's gaps are still closing under
-  // it) and once the probe gate isn't the only actionable control on the
-  // page (see ProbeConfirmGate's doc comment) — no fill badges or re-extract
-  // button belong there. `data.length > 0` skips the query on a plan with
-  // nothing extracted yet, where a coverage report is pure zero-noise.
+  // it), once the probe gate isn't the only actionable control on the page
+  // (see ProbeConfirmGate's doc comment), and never for a backfill run's own
+  // deliberately-partial rows (Finding 3) — no fill badges or re-extract
+  // button belong on any of those. `data.length > 0` skips the query on a
+  // plan with nothing extracted yet, where a coverage report is pure
+  // zero-noise.
   const coverageQuery = trpc.crawl.coverage.useQuery(
     { runId },
-    { enabled: runIsTerminal && !probeGateShowing && data.length > 0 },
+    { enabled: runIsTerminal && !probeGateShowing && !isBackfillRun && data.length > 0 },
   );
 
   // Filter (which field to show gaps for) and selection (which rows to
@@ -134,7 +143,6 @@ export default function SourceRunDetail() {
   if (!detailQuery.data) return <NotFound what={`Run "${runId}"`} />;
 
   const { run, source, capture, extraction, backfillRuns } = detailQuery.data;
-  const isBackfillRun = run.inputLabel === 'backfill';
   const targetFields = Array.isArray(run.targetFields) ? (run.targetFields as string[]) : [];
   // Pull field shape from the source's stored selectors if available — best-effort.
   // `DETAIL_URL_FIELD` (packages/api/src/crawl/effective-schema.ts) is the
@@ -151,7 +159,12 @@ export default function SourceRunDetail() {
       fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)}
       coverage={coverageQuery.data?.fields}
       absentByUrl={absentByUrl}
-      selectable={!!coverageQuery.data}
+      // Finding 3: a backfill run's own coverage is deliberately partial and
+      // must never drive selection/re-extract — coverageQuery is already
+      // disabled for one above, so `!!coverageQuery.data` alone would settle
+      // to false here too, but the explicit `!isBackfillRun` says so without
+      // relying on that indirection.
+      selectable={!!coverageQuery.data && !isBackfillRun}
       selectedUrls={selectedUrls}
       onToggleRow={toggleRow}
       onFilterField={toggleFilterField}
@@ -263,18 +276,23 @@ export default function SourceRunDetail() {
 
       <ExecuteControls runId={runId} probeUnconfirmed={probeGateShowing} backfill={isBackfillRun} />
 
-      <CoverageActionBar
-        runId={runId}
-        projectSlug={projectSlug}
-        sourceSlug={sourceSlug}
-        filterField={filterField}
-        missingCount={missingRows.length}
-        onClearFilter={clearFilter}
-        selectedUrls={selectedUrls}
-        onSelectAll={selectAllMissing}
-        gapByUrl={gapByUrl}
-        coverage={coverageQuery.data?.fields}
-      />
+      {/* Finding 3: gated on !isBackfillRun, same as BackfillGapsPanel below
+          — a backfill run's own coverage is deliberately partial and this
+          bar's selection/re-extract must never act on it. */}
+      {!isBackfillRun && (
+        <CoverageActionBar
+          runId={runId}
+          projectSlug={projectSlug}
+          sourceSlug={sourceSlug}
+          filterField={filterField}
+          missingCount={missingRows.length}
+          onClearFilter={clearFilter}
+          selectedUrls={selectedUrls}
+          onSelectAll={selectAllMissing}
+          gapByUrl={gapByUrl}
+          coverage={coverageQuery.data?.fields}
+        />
+      )}
 
       {runIsTerminal && !probeGateShowing && !isBackfillRun && (
         <BackfillGapsPanel
