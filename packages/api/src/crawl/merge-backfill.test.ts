@@ -212,6 +212,44 @@ describe('mergeBackfillResult', () => {
     expect(parentRun!.completedAt).not.toBeNull();
   });
 
+  // Residual on Finding 5 (re-review): the heal's rollup hardcoded
+  // `cancelled: false` — a CANCELLED parent run (completedAt set, so
+  // crawl.backfill's guard 2 allows a backfill against it; its
+  // never-attempted pending items surface as gaps via loadRunCoverage) that
+  // gets healed while OTHER items are still pending would have its
+  // 'cancelled' status silently overwritten: rollUpStatus sees
+  // `pending > 0 && !cancelled` and returns 'extracting', un-cancelling a
+  // run the operator explicitly stopped and clearing its completedAt — stuck
+  // "active" forever if the backfill doesn't heal every pending item.
+  it('a heal on a cancelled parent with other pending items preserves cancelled status (does not un-cancel it)', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    // The parent run was stopped mid-crawl: cancelled, with completedAt set
+    // (the state crawl.backfill's guard 2 requires to allow a backfill at all).
+    await db.update(runs).set({ status: 'cancelled', completedAt: new Date(), resultCount: 1 }).where(eq(runs.id, parentRunId));
+    // One item already done.
+    await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real' });
+    // One item that failed originally — the one this test heals.
+    const [failedItem] = await db.insert(runItems).values({
+      runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
+    }).returning();
+    // Another item still pending — never attempted, because the crawl was
+    // stopped before reaching it. This is what stays pending>0 after the heal.
+    await db.insert(runItems).values({
+      runId: parentRunId, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0, status: 'pending',
+    });
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, failedItem!.id);
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed' }, ['title']);
+
+    const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+    // Status stays 'cancelled' (not un-cancelled to 'extracting'), completedAt
+    // stays set (finaliseRun still writes one — just not null), and
+    // resultCount is still recomputed (2 done items; the pending one doesn't count).
+    expect(parentRun!.status).toBe('cancelled');
+    expect(parentRun!.completedAt).not.toBeNull();
+    expect(parentRun!.resultCount).toBe(2);
+  });
+
   it('does NOT roll up the parent run for a plain merge (parent item already had an extraction)', async () => {
     const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
     const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real', isbn: null });
