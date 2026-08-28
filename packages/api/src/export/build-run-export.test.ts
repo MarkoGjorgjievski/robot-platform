@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { DETAIL_URL_FIELD } from '@robot/scraper';
 import { deriveColumns, buildRunExport, exportFilename } from './build-run-export.js';
 
 const RUN = {
@@ -112,6 +113,33 @@ describe('buildRunExport', () => {
     const result = buildRunExport({ run: RUN, source: null, captureUrl: null, extractionData: [{ title: 'Kallax' }] });
     expect(result.source).toBeNull();
     expect(result.fields).toEqual(['title']);
+  });
+
+  // DETAIL_URL_FIELD is planning machinery, not exported data: it is the
+  // row-scoped "which detail page" field `runListingAnalysis` always adds
+  // and `sources.analyze` persists into `selectorsJson.fields` verbatim, and
+  // it never reaches the per-item extraction data (effectiveSchema already
+  // filters it out at extraction time — packages/api/src/crawl/effective-
+  // schema.ts). Left in here, the schema-driven half of `deriveColumns`
+  // still adds it, and since no row ever carries the key, it renders as a
+  // permanently empty phantom column.
+  it('filters the synthetic detail_url field out of export columns, keeping genuine fields', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: {
+        ...SOURCE,
+        selectorsJson: {
+          fields: [
+            { name: DETAIL_URL_FIELD, type: 'url' },
+            { name: 'listing_id', type: 'string' },
+            { name: 'title', type: 'string' },
+          ],
+        },
+      },
+      captureUrl: null,
+      extractionData: [{ title: 'Kallax', listing_id: '123' }],
+    });
+    expect(result.fields).toEqual(['listing_id', 'title']);
   });
 
   it('tolerates a source whose selectorsJson holds no field list', () => {

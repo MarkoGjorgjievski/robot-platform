@@ -3,6 +3,8 @@
 // Pure on purpose: everything that decides *what* an export contains lives here
 // and is testable without Postgres; `load-run-export.ts` only fetches the inputs.
 
+import { DETAIL_URL_FIELD } from '@robot/scraper';
+
 export type ExportSchemaField = { name: string; enabled?: boolean };
 
 export type RunExportInput = {
@@ -66,12 +68,26 @@ export function deriveColumns(
   return columns;
 }
 
+/**
+ * `DETAIL_URL_FIELD` is filtered here for the same reason
+ * `effective-schema.ts` filters it out of the schema handed to extraction:
+ * it is planning machinery (the row-scoped "which detail page does this row
+ * link to" field `runListingAnalysis` always adds, and `sources.analyze`
+ * persists into `selectorsJson.fields` verbatim for the discovery report),
+ * never a field extraction actually resolves per item. Left in, no row ever
+ * carries the key, and the schema-driven half of `deriveColumns` below adds
+ * it as a column anyway — a permanently empty phantom column in every
+ * export. `effectiveSchema` itself isn't reused here: it additionally
+ * prefers the dataset's own schema over `selectorsJson.fields`, which this
+ * function's caller has no dataset schema to offer.
+ */
 function schemaFields(selectorsJson: unknown): ExportSchemaField[] {
   const fields = (selectorsJson as { fields?: unknown } | null)?.fields;
   if (!Array.isArray(fields)) return [];
   return fields.filter(
     (f): f is ExportSchemaField =>
-      typeof f === 'object' && f !== null && typeof (f as ExportSchemaField).name === 'string',
+      typeof f === 'object' && f !== null && typeof (f as ExportSchemaField).name === 'string'
+      && (f as ExportSchemaField).name !== DETAIL_URL_FIELD,
   );
 }
 
