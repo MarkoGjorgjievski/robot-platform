@@ -112,7 +112,8 @@ const CACHE_ISOLATED: Pick<ExtractionDeps, 'lookupCache' | 'saveCache'> = {
  * caching (and reported).
  *
  * The share alone must never be the gate: `absorb` hands
- * `remaining: cap - detailCount()` to `enumerateDetailUrls`, so a perfectly
+ * `remaining: cap - (detailCount() - detailsBefore)` (this INPUT's own
+ * remaining budget) to `enumerateDetailUrls`, so a perfectly
  * working pager legitimately returns one or two items once the item budget is
  * nearly full — which is exactly this repo's default `{max_items: 8,
  * max_pages: 2}` shape. The refusal therefore requires `!budgetStopped` as well:
@@ -301,18 +302,22 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
 
   let cacheWarm = false;
 
+  // `cap` (and `budget.maxPages`, used further down inside each walk) applies
+  // PER LISTING INPUT, not to the run as a whole: this loop's `detailsBefore`
+  // is captured fresh on every iteration, and every `remaining` handed to
+  // `absorb` below is measured against THIS input's own gain
+  // (`detailCount() - detailsBefore`), never the running total across
+  // earlier inputs. A source declaring two listing inputs (e.g. two search
+  // queries on one domain) therefore walks BOTH, each up to the full budget
+  // — the alternative (a shared running total) let input 1 alone exhaust the
+  // budget and silently starved every input after it, which is exactly what
+  // a mis-set `skipped_budget` used to report for inputs that were never
+  // even captured. Cross-input dedupe is unaffected: `seen` is still one set
+  // for the whole run, so a URL input 1 already queued is never re-queued by
+  // input 2 — it merely does not count against input 2's own budget either
+  // (enumerateDetailUrls checks `seen` before `remaining`).
   for (let i = 0; i < urls.length; i++) {
     const start = urls[i]!;
-
-    if (detailCount() >= cap) {
-      // Silently dropping the tail is how a 12-category order quietly becomes a
-      // 1-category one. Name it, and mark every un-walked input in the breakdown.
-      const skipped = urls.slice(i);
-      for (const rest of skipped) report(rest.inputIndex, 'skipped_budget', 0);
-      warnings.push(`budget reached: ${cap} items; ${skipped.length} input(s) not planned`);
-      break;
-    }
-
     const detailsBefore = detailCount();
 
     // The domain lock (plus its 2s politeness spacing) is the ONLY concurrency
@@ -426,7 +431,13 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       let page1DetailUrls: string[] = [];
 
       const absorb = (rows: Array<Record<string, unknown>>, pageUrl: string, pageNumber: number): StopReason => {
-        const result = enumerateDetailUrls({ rows, pageUrl, pageNumber, seen, remaining: cap - detailCount() });
+        // Per-input remaining, not run-wide: `cap` is this input's own
+        // budget, so what is left of it is `cap` minus what THIS input has
+        // already planned (`detailCount() - detailsBefore`), never minus the
+        // total across earlier inputs.
+        const result = enumerateDetailUrls({
+          rows, pageUrl, pageNumber, seen, remaining: cap - (detailCount() - detailsBefore),
+        });
         // Page 1 is absorbed exactly once per input, and always before a walk
         // can start, so this is populated by the time `page1Shape` reads it.
         if (pageNumber === 1) page1DetailUrls = result.items.map((planned) => planned.url);
@@ -938,7 +949,8 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         // A thin walk is the budget-aware refusal the AbeBooks live proof asked
         // for (2026-08-21: 2+1 stray items past dedupe certified a template that
         // paged the wrong query parameter). The share alone can never be the
-        // gate — `absorb` hands `remaining: cap - detailCount()` down, so a
+        // gate — `absorb` hands `remaining: cap - (detailCount() - detailsBefore)`
+        // (this input's own remaining budget) down, so a
         // working pager on a nearly-full budget legitimately gains 1-2 items —
         // which is why `!budgetStopped` is part of the signal, not a refinement
         // of it: a thin gain is damning only when the pager had room to deliver

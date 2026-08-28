@@ -127,7 +127,11 @@ describe('detail-mode item cap', () => {
 // ─── I2: inputs the budget cut off, and the per-input breakdown ──────────────
 
 describe('per-input breakdown', () => {
-  it('warns about and reports the inputs it never planned when the first exhausts the budget', async () => {
+  it('gives every listing input its OWN budget, so exhausting it on the first still walks the second', async () => {
+    // Two listing inputs sharing a domain, each offering the same two rows
+    // on page 1. The item cap (1) is a PER-LISTING-INPUT budget (spec: mvp
+    // -simplification task 12) — it must not be spent once across the whole
+    // source, or input b would never even be fetched.
     let extractCalls = 0;
     const outcome = await planRun(
       {
@@ -145,13 +149,19 @@ describe('per-input breakdown', () => {
         },
       },
     );
-    // Input b is never fetched...
-    expect(extractCalls).toBe(1);
-    // ...and that is stated rather than left silent.
-    expect(outcome.warnings).toContain('budget reached: 1 items; 1 input(s) not planned');
+    // Input b IS fetched — its own budget, not input a's leftovers.
+    expect(extractCalls).toBe(2);
+    // Input a's page 1 fills its own cap at /p/1; input b's page 1 sees the
+    // same /p/1 first but it is already `seen` (cross-listing dedupe), so
+    // /p/2 is what fills input b's own cap.
+    expect(outcome.items.filter((i) => i.kind === 'detail').map((i) => i.url)).toEqual([
+      'https://example.com/p/1',
+      'https://example.com/p/2',
+    ]);
+    expect(outcome.warnings).toContain('budget reached: 1 items');
     expect(outcome.inputs).toEqual([
       { inputIndex: 0, itemCount: 1, status: 'planned' },
-      { inputIndex: 1, itemCount: 0, status: 'skipped_budget' },
+      { inputIndex: 1, itemCount: 1, status: 'planned' },
     ]);
   });
 
