@@ -13,6 +13,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { captures, extractions, runItems, runs } from '@robot/db';
 import type { db as Database } from '@robot/db';
+import { finaliseRun } from './roll-up-run.js';
 
 function isEmpty(value: unknown): boolean {
   return value == null || value === '';
@@ -73,6 +74,18 @@ export async function mergeBackfillResult(
     await db.update(runItems)
       .set({ extractionId: extraction!.id, status: 'done', absentFields: Array.from(absentSet) })
       .where(eq(runItems.id, parentItem.id));
+
+    // Finding 5 (minor, final-review-findings.md): only the heal path
+    // changes an item's done/failed status (failed -> done) — a plain
+    // cell-fill merge below never does, so it must not trigger a rollup.
+    // Without this, the PARENT RUN's own resultCount/status went stale the
+    // moment a heal landed: the run header's "Rows" stat undercounted, and a
+    // 'partial' run that just became fully done never flipped to
+    // 'completed'. Reuses finaliseRun verbatim (roll-up-run.ts) — same
+    // cancelled=false/limitReached=false a fresh non-cancelled rollup always
+    // uses — rather than a second, competing "what's this run's status"
+    // implementation.
+    await finaliseRun(db, parentItem.runId, false, false);
     return;
   }
 
