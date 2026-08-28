@@ -77,6 +77,25 @@ export function reExtractLabel(count: number): string {
 }
 
 /**
+ * The row selection after the field filter changes — always empty.
+ *
+ * A selection made while viewing "missing X" was chosen under that view: the
+ * operator was looking at rows missing X when they picked them. Letting it
+ * survive a switch to "missing Y" (or to no filter at all) means the
+ * Re-extract button can fire against urls the operator never selected under
+ * the filter they're currently looking at — either a stale-but-plausible
+ * count that turns into a `PRECONDITION_FAILED` ("nothing to backfill") once
+ * `targetFields` no longer matches what those items are missing, or worse, a
+ * backfill that quietly succeeds against the wrong rows. Every filter
+ * transition — picking a new field, toggling the same one off, or an
+ * explicit "Clear filter" — must clear the selection, not just a change of
+ * `runId`.
+ */
+export function nextSelectionOnFilterChange(): Set<string> {
+  return new Set();
+}
+
+/**
  * A single cell's render state. Mirrors `computeCoverage`'s own precedence
  * (packages/api/src/crawl/coverage.ts): filled wins over confirmed-absent —
  * a field the extraction chain filled is filled, even on an item where an
