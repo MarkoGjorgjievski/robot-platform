@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
 // ─── Organizations ───────────────────────────────────────────────────────────
@@ -105,6 +106,8 @@ export const sources = pgTable('sources', {
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   inputSetId: uuid('input_set_id').references(() => inputSets.id, { onDelete: 'set null' }),
   aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
+  // Fields a repair run asked this source to backfill: Array<{name, hint?, addedAt}>.
+  requestedFields: jsonb('requested_fields'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -353,11 +356,16 @@ export const runs = pgTable('runs', {
   logs: text('logs'),
   replayData: text('replay_data'),
   errorMessage: text('error_message'),
+  // The run this repair run was spawned to backfill fields for, if any.
+  parentRunId: uuid('parent_run_id').references((): AnyPgColumn => runs.id, { onDelete: 'set null' }),
+  // Fields a repair run targets for backfill: string[].
+  targetFields: jsonb('target_fields'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('runs_extractor_id_idx').on(table.extractorId),
   index('runs_source_id_idx').on(table.sourceId),
   index('runs_status_idx').on(table.status),
+  index('runs_parent_run_id_idx').on(table.parentRunId),
 ]);
 
 export const runsRelations = relations(runs, ({ one, many }) => ({
@@ -395,6 +403,10 @@ export const runItems = pgTable('run_items', {
   extractionId: uuid('extraction_id').references(() => extractions.id, { onDelete: 'set null' }),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
+  /** Fields this item is being repaired for, if it was queued by a repair run: string[]. */
+  targetFields: jsonb('target_fields'),
+  /** Fields that came back absent after extraction, for this item: string[]. */
+  absentFields: jsonb('absent_fields'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('run_items_run_url_idx').on(table.runId, table.url),
