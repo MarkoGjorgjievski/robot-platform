@@ -14,7 +14,8 @@ import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-sourc
 import { effectiveSchema } from '../crawl/effective-schema.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
-import { computeCoverage } from '../crawl/coverage.js';
+import { loadRunCoverage } from '../crawl/load-run-coverage.js';
+import { classifyFields, deriveBackfillItems, EST_AI_COST_PER_PAGE_USD } from '../crawl/backfill.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -357,30 +358,33 @@ export const crawlRouter = router({
   coverage: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const run = await ctx.db.query.runs.findFirst({
-        where: eq(runs.id, input.runId),
-        with: {
-          source: {
-            columns: { id: true, selectorsJson: true, datasetId: true },
-            with: { dataset: { columns: { schema: true } } },
-          },
-        },
-      });
-      if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
-      if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+      return loadRunCoverage(ctx.db, input.runId);
+    }),
 
-      const items = await ctx.db.query.runItems.findMany({
-        where: and(eq(runItems.runId, input.runId), eq(runItems.kind, 'detail')),
-        columns: { id: true, url: true, absentFields: true },
-        with: { extraction: { columns: { data: true } } },
-      });
-
-      const fields = effectiveSchema(run.source);
-      return computeCoverage(fields, items.map((i) => ({
-        id: i.id,
-        url: i.url,
-        row: Array.isArray(i.extraction?.data) ? (i.extraction!.data[0] as Record<string, unknown> ?? null) : null,
-        absentFields: (i.absentFields as string[] | null) ?? [],
-      })));
+  /**
+   * A read-only preview of what a backfill run against this run would do:
+   * how many gap items it would re-fetch, an "up to" cost estimate (a
+   * backfill item may resolve for free at a cheaper extraction tier — see
+   * EST_AI_COST_PER_PAGE_USD's doc comment), and the dead/healthy
+   * classification of the target fields. No mutation, no AI — pure
+   * derivation (backfill.ts) over the same coverage load `crawl.coverage`
+   * uses.
+   */
+  backfillPreview: publicProcedure
+    .input(z.object({
+      runId: z.string().uuid(),
+      targetFields: z.array(z.string().min(1)).optional(),
+      itemIds: z.array(z.string().uuid()).optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const cov = await loadRunCoverage(ctx.db, input.runId);
+      const targetNames = input.targetFields ?? cov.fields.filter((f) => f.missing > 0).map((f) => f.name);
+      const items = deriveBackfillItems(cov.gapItems, targetNames, input.itemIds);
+      return {
+        items: items.length,
+        pages: items.length, // one detail fetch per item — say so in the UI copy
+        estCostUsd: Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)),
+        fields: classifyFields(cov.fields, targetNames),
+      };
     }),
 });
