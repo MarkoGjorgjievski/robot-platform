@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   fillBadge, rowsMissingField, selectionToItemIds, reExtractLabel, cellState,
-  nextSelectionOnFilterChange,
+  nextSelectionOnFilterChange, emptyFilterNote,
   type FieldCoverage, type ItemGap, type Row,
 } from './coverage-view';
 
@@ -104,5 +104,35 @@ describe('cellState', () => {
 
   it('filled wins over absent — mirrors computeCoverage precedence', () => {
     expect(cellState('10%', 'discount', new Set(['discount']))).toBe('filled');
+  });
+});
+
+describe('emptyFilterNote', () => {
+  it('is null when there is no coverage data for this field at all', () => {
+    expect(emptyFilterNote(undefined)).toBeNull();
+  });
+
+  it('is null when the field still has genuine missing gaps — the filter is not empty', () => {
+    const cov: FieldCoverage = { name: 'isbn', filled: 30, missing: 5, confirmedAbsent: 5, total: 40 };
+    expect(emptyFilterNote(cov)).toBeNull();
+  });
+
+  it('is null when there is nothing confirmed absent either — a genuinely clean column', () => {
+    const cov: FieldCoverage = { name: 'sku', filled: 40, missing: 0, confirmedAbsent: 0, total: 40 };
+    expect(emptyFilterNote(cov)).toBeNull();
+  });
+
+  it('explains a zero-row filter caused entirely by confirmed-absent gaps', () => {
+    const cov: FieldCoverage = { name: 'discount', filled: 30, missing: 0, confirmedAbsent: 10, total: 40 };
+    expect(emptyFilterNote(cov)).toBe(
+      "All 10 remaining gaps are confirmed absent — these pages don't have this field.",
+    );
+  });
+
+  it('uses the singular where it should', () => {
+    const cov: FieldCoverage = { name: 'discount', filled: 39, missing: 0, confirmedAbsent: 1, total: 40 };
+    expect(emptyFilterNote(cov)).toBe(
+      "All 1 remaining gap is confirmed absent — these pages don't have this field.",
+    );
   });
 });

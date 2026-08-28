@@ -135,6 +135,50 @@ describe('runControls', () => {
       expect(runControls('extracting', counts({ pending: 3, done: 5 })).showExtract).toBe(true);
     });
   });
+
+  // repair-engine task 10: a backfill run's staged repair-sweep
+  // (repair-sweep.ts) can finalise the run terminal ('partial') with items
+  // still `pending` — `runRepairSweep`'s own honest stop when the sample
+  // shows the repair doesn't take. Those leftover pending items are the
+  // failed repair's remainder, not "not yet extracted" — re-clicking a raw
+  // Extract would just walk the same broken cached path again. The honest
+  // next step is back through the parent run's backfillPreview, so Extract
+  // must not appear at all once such a run has gone terminal.
+  describe('backfill', () => {
+    it('hides Extract on a terminal backfill run with pending items left over (the repair_failed shape)', () => {
+      const controls = runControls('partial', counts({ pending: 5, done: 3 }), { backfill: true });
+      expect(controls.showExtract).toBe(false);
+    });
+
+    it('still offers Retry on that same run, if anything actually failed', () => {
+      const controls = runControls('partial', counts({ pending: 5, done: 2, failed: 1 }), { backfill: true });
+      expect(controls.showExtract).toBe(false);
+      expect(controls.showRetry).toBe(true);
+    });
+
+    it('keeps Stop available on a backfill run while it is active', () => {
+      expect(runControls('extracting', counts({ pending: 5 }), { backfill: true }).showStop).toBe(true);
+      expect(runControls('cancelling', counts({ pending: 5 }), { backfill: true }).showStop).toBe(true);
+    });
+
+    it('still offers Extract on an ACTIVE backfill run — the terminal-only rule does not apply while a loop may still be running', () => {
+      expect(runControls('extracting', counts({ pending: 5, done: 3 }), { backfill: true }).showExtract).toBe(true);
+    });
+
+    it('still offers Extract to rescue a stalled item, even on a backfill run, while active', () => {
+      expect(runControls('extracting', counts({ pending: 0, running: 1, done: 7 }), { backfill: true }).showExtract).toBe(true);
+    });
+
+    it('behaves exactly like a normal run once a backfill run is terminal with nothing pending', () => {
+      const controls = runControls('completed', counts({ done: 8 }), { backfill: true });
+      expect(controls).toEqual({ showExtract: false, showRetry: false, showStop: false });
+    });
+
+    it('leaves a normal (non-backfill) run unaffected when the flag is false or omitted', () => {
+      expect(runControls('partial', counts({ pending: 5, done: 3 }), { backfill: false }).showExtract).toBe(true);
+      expect(runControls('partial', counts({ pending: 5, done: 3 })).showExtract).toBe(true);
+    });
+  });
 });
 
 describe('extractButtonLabel', () => {

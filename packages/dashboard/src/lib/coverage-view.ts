@@ -106,3 +106,25 @@ export function cellState(value: unknown, field: string, absent: Set<string>): '
   if (absent.has(field)) return 'absent';
   return 'missing';
 }
+
+/**
+ * The action bar's explanation when a field filter renders zero rows — not
+ * because there is nothing missing, but because every remaining gap for
+ * this field is confirmed absent (Task 9 finding, parked for this task's
+ * absent wiring). `rowsMissingField` correctly returns nothing here —
+ * `missingFields` excludes confirmed-absent by design (coverage.ts) — but a
+ * bare disabled button with no rows on screen reads as broken, not as
+ * "nothing to do here".
+ *
+ * `cov.missing === 0` is exactly the condition under which
+ * `rowsMissingField` returns an empty array for this field, so this never
+ * needs the actual filtered row count as an input.
+ */
+export function emptyFilterNote(cov: FieldCoverage | undefined): string | null {
+  if (!cov) return null;
+  if (cov.missing > 0 || cov.confirmedAbsent === 0) return null;
+  const n = cov.confirmedAbsent;
+  const noun = n === 1 ? 'gap' : 'gaps';
+  const verb = n === 1 ? 'is' : 'are';
+  return `All ${n} remaining ${noun} ${verb} confirmed absent — these pages don't have this field.`;
+}
