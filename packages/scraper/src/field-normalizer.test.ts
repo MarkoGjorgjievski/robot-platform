@@ -48,4 +48,34 @@ describe('normalizeUserFields', () => {
     expect(result[0].name).toBe('price');
     expect(result[0].description).toBe('the current selling price');
   });
+
+  it('splits "name: hint" into name + description (hint verbatim, trimmed)', () => {
+    const result = normalizeUserFields('isbn: near the publisher line');
+    expect(result[0].name).toBe('isbn');
+    expect(result[0].description).toBe('near the publisher line');
+  });
+
+  it('leaves a bare field name unchanged when there is no colon or dash', () => {
+    const result = normalizeUserFields('isbn');
+    expect(result[0].name).toBe('isbn');
+    expect(result[0].description).toBe('');
+  });
+
+  it('splits on the FIRST colon only, keeping the rest of the line in the hint', () => {
+    // Newline-delimited (so the comma inside the hint isn't mistaken for an
+    // entry separator — that split only happens when the whole input has no
+    // newlines at all).
+    const result = normalizeUserFields('release_date: format is 2024-01-01, check the footer: near copyright\nother_field');
+    expect(result[0].name).toBe('release_date');
+    expect(result[0].description).toBe('format is 2024-01-01, check the footer: near copyright');
+    expect(result[1].name).toBe('other_field');
+  });
+
+  it('supports multiple newline-delimited "name: hint" entries', () => {
+    const result = normalizeUserFields('isbn: near the imprint line\nbrand');
+    expect(result).toEqual([
+      { name: 'isbn', type: 'string', description: 'near the imprint line', required: true, tier: 'requested' },
+      { name: 'brand', type: 'string', description: '', required: true, tier: 'requested' },
+    ]);
+  });
 });
