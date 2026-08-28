@@ -14,8 +14,15 @@ import type { ClaimedItem } from './claim-item.js';
 
 export type ExecuteDeps = {
   claim: (runId: string) => Promise<ClaimedItem | null>;
-  extractItem: (item: ClaimedItem) => Promise<{ row: Record<string, unknown>; extractionId: string | null }>;
-  onDone: (itemId: string, extractionId: string | null) => Promise<void>;
+  // Widened (Task 5) to carry `row` and `targetFields` alongside `extractionId`
+  // — the explicit-contract choice for threading a backfill item's result into
+  // a merge-aware `onDone`, instead of `extractItem` capturing them in a
+  // closure variable a separate `onDone` call would read back out. Explicit
+  // costs one field on the return type; closure-capture would make the two
+  // deps calls implicitly coupled through loop-local state, which today is
+  // safe only because the loop is serial per run.
+  extractItem: (item: ClaimedItem) => Promise<{ row: Record<string, unknown>; extractionId: string | null; targetFields: string[] | null }>;
+  onDone: (itemId: string, extractionId: string | null, row: Record<string, unknown>, targetFields: string[] | null) => Promise<void>;
   onFailed: (itemId: string, message: string) => Promise<void>;
   isCancelled: () => Promise<boolean>;
   /**
@@ -99,9 +106,9 @@ export async function executeRun(
       if (!item) break;
 
       try {
-        const { extractionId } = await deps.extractItem(item);
+        const { row, extractionId, targetFields } = await deps.extractItem(item);
         try {
-          await deps.onDone(item.id, extractionId);
+          await deps.onDone(item.id, extractionId, row, targetFields);
           extracted++;
         } catch (recordErr) {
           // Genuinely extracted, but failed to be durably marked done. That is

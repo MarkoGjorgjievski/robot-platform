@@ -29,7 +29,7 @@ export async function extractItem(
   db: typeof Database,
   item: ClaimedItem,
   deps: ExtractItemDeps,
-): Promise<{ row: Record<string, unknown>; extractionId: string | null }> {
+): Promise<{ row: Record<string, unknown>; extractionId: string | null; targetFields: string[] | null }> {
   // A repair item's focus narrows what we ask the detail page for. `origin:
   // 'input'` fields always survive the filter — they cost nothing to keep and
   // mergeRow needs them to fill in the row's input columns.
@@ -84,5 +84,9 @@ export async function extractItem(
     confidence: Math.round((outcome.confidence ?? 0) * 100),
   }).returning({ id: extractions.id });
 
-  return { row, extractionId: extraction?.id ?? null };
+  // `item.targetFields` IS the merge target list for a backfill item — the
+  // same repair focus that narrowed the schema above is exactly what a
+  // merge-aware `onDone` needs to know which cells this row is allowed to
+  // fill on the parent item.
+  return { row, extractionId: extraction?.id ?? null, targetFields: item.targetFields };
 }
