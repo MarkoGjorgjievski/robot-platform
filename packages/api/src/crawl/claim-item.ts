@@ -18,6 +18,7 @@ export type ClaimedItem = {
   listingValues: Record<string, unknown>;
   pageNumber: number | null;
   attempts: number;
+  targetFields: string[] | null;
 };
 
 export async function claimNextItem(
@@ -38,7 +39,7 @@ export async function claimNextItem(
         FOR UPDATE SKIP LOCKED
         LIMIT 1
      )
-    RETURNING id, url, input_index, input_values, listing_values, page_number, attempts
+    RETURNING id, url, input_index, input_values, listing_values, page_number, attempts, target_fields
   `);
 
   // This driver (postgres-js via drizzle) returns the row list directly as an
@@ -55,5 +56,8 @@ export async function claimNextItem(
     listingValues: (row.listing_values ?? {}) as Record<string, unknown>,
     pageNumber: row.page_number === null || row.page_number === undefined ? null : Number(row.page_number),
     attempts: Number(row.attempts ?? 0),
+    // Same postgres-js quirk as the other jsonb columns above: the driver hands
+    // back the parsed array directly, not a string to re-parse.
+    targetFields: (row.target_fields ?? null) as string[] | null,
   };
 }

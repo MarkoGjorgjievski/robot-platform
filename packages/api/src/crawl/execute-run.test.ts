@@ -6,7 +6,7 @@ import type { ClaimedItem } from './claim-item.js';
 
 const item = (id: string): ClaimedItem => ({
   id, url: `https://example.com/p/${id}`, inputIndex: 0,
-  inputValues: {}, listingValues: {}, pageNumber: 1, attempts: 1,
+  inputValues: {}, listingValues: {}, pageNumber: 1, attempts: 1, targetFields: null,
 });
 
 function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []) {
