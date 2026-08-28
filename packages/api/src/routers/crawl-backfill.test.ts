@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { db, runs, runItems, extractions, captures, sources, orgs, projects, datasets } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { effectiveSchema } from '../crawl/effective-schema.js';
 
 const { startExecutionMock } = vi.hoisted(() => ({ startExecutionMock: vi.fn() }));
 vi.mock('../crawl/start-execution.js', async (importOriginal) => {
@@ -183,6 +184,16 @@ describe('crawl.backfill', () => {
     const call = startExecutionMock.mock.calls[0]!;
     expect(call[0]).toBe(backfillRunId);
     expect(call[1]).toBe(sourceId);
+    // The schema arg is `effectiveSchema(parent.source)`'s output
+    // (DETAIL_URL_FIELD-filtered) — computed the same way crawl.ts's guard 1
+    // loads `parent.source`, not hardcoded, so this stays true if the
+    // dataset schema shape ever changes.
+    const source = await db.query.sources.findFirst({
+      where: eq(sources.id, sourceId),
+      columns: { id: true, selectorsJson: true, datasetId: true },
+      with: { dataset: { columns: { schema: true } } },
+    });
+    expect(call[2]).toEqual(effectiveSchema(source!));
     expect(call[3]).toBeUndefined(); // no limit
     expect(call[4]).toEqual({ mergeToParent: true });
   });

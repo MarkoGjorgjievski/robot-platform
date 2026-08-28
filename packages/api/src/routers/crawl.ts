@@ -16,6 +16,7 @@ import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import { loadRunCoverage } from '../crawl/load-run-coverage.js';
 import { classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD } from '../crawl/backfill.js';
+import { runRepairSweep } from '../crawl/repair-sweep.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -394,10 +395,12 @@ export const crawlRouter = router({
    * `mergeToParent`, Task 5). Six guards precede the write, in order — see
    * task-6-brief.md for the exact contract this mirrors.
    *
-   * Ships the plain path only: guard 5 requires `deadFieldStrategy` whenever
-   * a dead field is in scope, but nothing here branches on ITS value yet —
-   * every accepted call takes the same full_focus/no-dead-fields execution
-   * path. Task 7 adds the staged `repair_sweep` branch.
+   * Guard 5 requires `deadFieldStrategy` whenever a dead field is in scope;
+   * guard 6 below is where that value finally matters — `repair_sweep` stages
+   * the run through `runRepairSweep` (sample, evaluate against the parent's
+   * merged rows, then sweep or stop honest), while `full_focus` (and the
+   * no-dead-fields case, where the value is irrelevant) takes the plain path
+   * straight through `startExecution`.
    */
   backfill: publicProcedure
     .input(z.object({
@@ -468,15 +471,35 @@ export const crawlRouter = router({
       // rejection), merged back into the parent's items via `mergeToParent`.
       const backfillRunId = await planBackfillRun(ctx.db, input.runId, parent.source.id, items, targetNames);
       await markRunExtracting(ctx.db, backfillRunId);
-      void startExecution(
-        backfillRunId,
-        parent.source.id,
-        effectiveSchema(parent.source) as OriginField[],
-        undefined,
-        { mergeToParent: true },
-      ).catch((err) => {
-        console.error(`[crawl] startExecution rejected outside its own guards for run ${backfillRunId}:`, err);
-      });
+
+      // Bound to a const rather than read as `parent.source.id` inside the
+      // closure below: a property narrowing (`parent.source` is not null,
+      // established by guard 1) does not survive into a callback, but a
+      // const does — same reasoning as effective-schema.ts's `inputSet`.
+      const sourceId = parent.source.id;
+      const schema = effectiveSchema(parent.source) as OriginField[];
+      const execute = (opts?: { limit?: number }) =>
+        startExecution(backfillRunId, sourceId, schema, opts?.limit, { mergeToParent: true });
+
+      // `deadFieldStrategy` is never written to the DB (controller Ruling
+      // R5, task 7) — it only ever matters for the lifetime of THIS request,
+      // to pick which fire-and-forget path runs below. There is no durable
+      // "mid repair-sweep" marker anywhere: if the process dies between the
+      // sample execute and the sweep execute, the run simply finalises
+      // 'partial' (runRepairSweep step 1's own F1 semantics) and sits there,
+      // honest and terminal, until a human re-runs backfillPreview and
+      // re-issues backfill — that IS the recovery path, not a bug to guard
+      // against with more state.
+      if (input.deadFieldStrategy === 'repair_sweep') {
+        const deadFields = fieldClasses.filter((f) => f.classification === 'dead').map((f) => f.name);
+        void runRepairSweep(ctx.db, backfillRunId, deadFields, execute).catch((err) => {
+          console.error(`[crawl] runRepairSweep rejected outside its own guards for run ${backfillRunId}:`, err);
+        });
+      } else {
+        void execute().catch((err) => {
+          console.error(`[crawl] startExecution rejected outside its own guards for run ${backfillRunId}:`, err);
+        });
+      }
 
       return { backfillRunId, items: items.length };
     }),
