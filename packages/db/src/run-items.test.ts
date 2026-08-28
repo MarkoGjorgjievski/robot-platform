@@ -11,9 +11,9 @@ describe('run_items table', () => {
   it('carries every column the crawler needs', () => {
     const columns = getTableConfig(runItems).columns.map((c) => c.name).sort();
     expect(columns).toEqual([
-      'attempts', 'completed_at', 'created_at', 'error', 'extraction_id', 'id',
+      'absent_fields', 'attempts', 'completed_at', 'created_at', 'error', 'extraction_id', 'id',
       'input_index', 'input_values', 'kind', 'listing_values', 'page_number',
-      'parent_id', 'run_id', 'started_at', 'status', 'url',
+      'parent_id', 'run_id', 'started_at', 'status', 'target_fields', 'url',
     ]);
   });
 

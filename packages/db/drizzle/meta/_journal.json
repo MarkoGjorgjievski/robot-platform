@@ -57,6 +57,13 @@
       "when": 1787759185465,
       "tag": "0007_source_confirmed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787910351371,
+      "tag": "0008_repair_engine_columns",
+      "breakpoints": true
     }
   ]
 }
