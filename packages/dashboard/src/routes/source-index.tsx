@@ -30,8 +30,15 @@ export default function SourceIndex() {
   // flow is that sampling a few items is not "this source has data" — the
   // operator still needs to see the Set-up workspace (or the confirm gate on
   // the probe run itself) until a REAL crawl has finished.
+  //
+  // Finding 8a (final-review-findings.md): a completed BACKFILL run doesn't
+  // count either — its rows are deliberately partial (only the target
+  // fields were ever asked for), the same reason a backfill run's own
+  // coverage UI is hidden (source-run-detail.tsx, Finding 3). Without this,
+  // a source whose only "completed" run was a backfill flipped straight to
+  // Overview, skipping Set-up even though no real crawl had ever finished.
   const hasCompletedRun = (runsQuery.data ?? []).some(
-    (r) => r.status === 'completed' && r.inputLabel !== 'probe',
+    (r) => r.status === 'completed' && r.inputLabel !== 'probe' && r.inputLabel !== 'backfill',
   );
   return hasCompletedRun ? <SourceOverview /> : <SourceSetup />;
 }
