@@ -14,6 +14,7 @@ import { desc, eq } from 'drizzle-orm';
 import { captures, extractions, runItems, runs } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { finaliseRun } from './roll-up-run.js';
+import { isCancelledStatus } from './is-cancelled.js';
 
 function isEmpty(value: unknown): boolean {
   return value == null || value === '';
@@ -53,7 +54,10 @@ export async function mergeBackfillResult(
     // re-check positively came back without, not merely "never asked". Left
     // as `missing`, the confirmed_absent gate never engages and every future
     // backfill re-fetches it forever.
-    const [parentRun] = await db.select({ sourceId: runs.sourceId }).from(runs).where(eq(runs.id, parentItem.runId));
+    // `status` is folded into this existing read (no added query) — the
+    // re-review residual on Finding 5: the rollup below must preserve a
+    // CANCELLED parent's cancellation class, not hardcode `cancelled: false`.
+    const [parentRun] = await db.select({ sourceId: runs.sourceId, status: runs.status }).from(runs).where(eq(runs.id, parentItem.runId));
     if (!parentRun?.sourceId) return;
 
     const captureId = await resolveCaptureId(db, extractionId, parentItem.runId);
@@ -81,11 +85,22 @@ export async function mergeBackfillResult(
     // Without this, the PARENT RUN's own resultCount/status went stale the
     // moment a heal landed: the run header's "Rows" stat undercounted, and a
     // 'partial' run that just became fully done never flipped to
-    // 'completed'. Reuses finaliseRun verbatim (roll-up-run.ts) — same
-    // cancelled=false/limitReached=false a fresh non-cancelled rollup always
-    // uses — rather than a second, competing "what's this run's status"
-    // implementation.
-    await finaliseRun(db, parentItem.runId, false, false);
+    // 'completed'. Reuses finaliseRun verbatim (roll-up-run.ts) rather than
+    // a second, competing "what's this run's status" implementation.
+    //
+    // Residual (re-review): `cancelled` must NOT be hardcoded `false`. A
+    // CANCELLED parent run (completedAt set, so crawl.backfill's guard 2
+    // allows a backfill against it — its never-attempted pending items
+    // surface as gaps via loadRunCoverage) that gets healed while OTHER
+    // items are still pending would otherwise have rollUpStatus see
+    // `pending > 0 && !cancelled` and flip it to 'extracting' — un-cancelling
+    // a run the operator explicitly stopped, clearing its completedAt, and
+    // leaving it stuck "active" forever if the backfill doesn't heal every
+    // pending item. Preserving the parent's own cancellation class (reusing
+    // `isCancelledStatus`, the same helper Finding 2's fix used) is the
+    // cheapest correct read: `status` was folded into the `parentRun` select
+    // just above rather than adding a second query.
+    await finaliseRun(db, parentItem.runId, isCancelledStatus(parentRun.status), false);
     return;
   }
 
