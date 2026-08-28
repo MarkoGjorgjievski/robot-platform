@@ -14,11 +14,12 @@
 // `backfillPreview`, and re-issues `backfill` — no column, no resume
 // machinery to keep consistent with the run's real state.
 
-import { and, asc, eq, inArray } from 'drizzle-orm';
-import { runItems } from '@robot/db';
+import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { runItems, runs } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { markRunExtracting } from './mark-extracting.js';
 import { appendRunLog } from './plan-source.js';
+import { isCancelledStatus } from './is-cancelled.js';
 import { REPAIR_SAMPLE_COUNT, REPAIR_SUCCESS_MIN } from './backfill.js';
 
 /** Mirrors coverage.ts / merge-backfill.ts: `0` and `false` count as filled. */
@@ -36,7 +37,7 @@ export async function runRepairSweep(
   // either way. Verified against the live file before wiring, per the task-7
   // controller ruling.
   execute: (opts?: { limit?: number }) => Promise<void>,
-): Promise<'swept' | 'repair_failed'> {
+): Promise<'swept' | 'repair_failed' | 'stopped'> {
   // Step 1: the first REPAIR_SAMPLE_COUNT items — executeRun's own claim
   // order. This execute run finalises the run 'partial' on its own (F1
   // semantics): a limited run always leaves items pending, and finaliseRun
@@ -80,6 +81,42 @@ export async function runRepairSweep(
   // cached paths the samples minted make this the free tier for the items
   // that follow.
   if (resolved >= REPAIR_SUCCESS_MIN) {
+    // Findings 2 + 4 (final-review-findings.md), one query, one code path:
+    // step 1's `execute({limit: REPAIR_SAMPLE_COUNT})` can itself finalise
+    // the run 'cancelled' (an explicit Stop landed mid-sampling) — and
+    // `markRunExtracting`'s own guard only spares 'cancelling', so a
+    // 'cancelled' run would otherwise flip right back to 'extracting' and
+    // the sweep would spend money after the operator's Stop. The same
+    // re-read also catches Finding 4's duplicate-backfill window: between
+    // stage-1's finaliseRun('partial') and this sweep's markRunExtracting,
+    // guard 3 (crawl.ts) sees no in-flight child, so a second backfill click
+    // in that window creates a concurrent sibling run against the SAME
+    // parent — swept alongside this one, it would duplicate the work.
+    const current = await db.query.runs.findFirst({
+      where: eq(runs.id, runId),
+      columns: { status: true, parentRunId: true, createdAt: true },
+    });
+
+    if (isCancelledStatus(current?.status)) {
+      await appendRunLog(db, runId, 'warning: sweep skipped — run was stopped during sampling');
+      return 'stopped';
+    }
+
+    if (current?.parentRunId) {
+      const newerSibling = await db.query.runs.findFirst({
+        where: and(
+          eq(runs.parentRunId, current.parentRunId),
+          gt(runs.createdAt, current.createdAt),
+          isNull(runs.completedAt),
+        ),
+        columns: { id: true },
+      });
+      if (newerSibling) {
+        await appendRunLog(db, runId, 'warning: sweep skipped — a newer backfill run exists for this parent');
+        return 'stopped';
+      }
+    }
+
     await markRunExtracting(db, runId);
     await execute({});
     return 'swept';

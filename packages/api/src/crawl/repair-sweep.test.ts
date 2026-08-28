@@ -126,4 +126,96 @@ describe('runRepairSweep', () => {
     expect(run.status).toBe('partial');
     expect(run.logs).toContain('warning: repair failed for isbn');
   });
+
+  // Finding 2 (important, final-review-findings.md): the sample execute
+  // (`execute({limit: 3})`) can itself finalise the run 'cancelled' — the
+  // operator clicked Stop mid-sampling. `runRepairSweep` used to never
+  // re-read status after that, so even a well-resolved sample would sweep
+  // the ENTIRE remainder of a run the operator had just told to stop.
+  it('skips the sweep and appends a warning when the run reads cancelled after sampling — even though the sample resolved', async () => {
+    const { backfillRunId } = await seedScenario([
+      { status: 'done', isbn: '111' },
+      { status: 'done', isbn: '222' },
+      { status: 'done', isbn: null },
+    ]);
+    // Simulate the Stop landing during step 1's real execute: by the time
+    // runRepairSweep re-reads, the run is already 'cancelled' (finaliseRun's
+    // own terminal marker), not the 'partial' seedScenario normally seeds.
+    await db.update(runs).set({ status: 'cancelled' }).where(eq(runs.id, backfillRunId));
+    const execute = stubExecute();
+
+    const outcome = await runRepairSweep(db, backfillRunId, ['isbn'], execute);
+
+    expect(outcome).toBe('stopped');
+    // Only the sample execute ran — no second, unbounded execute({}) call.
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenNthCalledWith(1, { limit: REPAIR_SAMPLE_COUNT });
+    const run = await readRun(backfillRunId);
+    expect(run.status).toBe('cancelled'); // untouched — markRunExtracting never ran
+    const lines = (run.logs ?? '').split('\n');
+    expect(lines).toContain('warning: sweep skipped — run was stopped during sampling');
+  });
+
+  it('also skips the sweep when the run reads cancelling (Stop requested but the loop has not settled it yet)', async () => {
+    const { backfillRunId } = await seedScenario([
+      { status: 'done', isbn: '111' },
+      { status: 'done', isbn: '222' },
+      { status: 'done', isbn: null },
+    ]);
+    await db.update(runs).set({ status: 'cancelling' }).where(eq(runs.id, backfillRunId));
+    const execute = stubExecute();
+
+    const outcome = await runRepairSweep(db, backfillRunId, ['isbn'], execute);
+
+    expect(outcome).toBe('stopped');
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  // Finding 4 (minor, folded into Finding 2's re-read): between stage-1
+  // finaliseRun('partial') and the sweep's markRunExtracting, guard 3 (crawl.ts)
+  // sees no in-flight child — a second backfill click in that window creates a
+  // concurrent duplicate sibling against the SAME parent. The pre-sweep
+  // re-read must also catch that and skip, not just the cancelled/cancelling
+  // case.
+  it('skips the sweep when a newer sibling backfill exists for the same parent (duplicate-backfill window)', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedScenario([
+      { status: 'done', isbn: '111' },
+      { status: 'done', isbn: '222' },
+      { status: 'done', isbn: null },
+    ]);
+    // A second backfill against the same parent, created AFTER this one and
+    // still in flight (no completedAt) — the concurrent-duplicate scenario.
+    await db.insert(runs).values({
+      sourceId, status: 'extracting', parentRunId, targetFields: ['isbn'],
+      createdAt: new Date(Date.now() + 5000),
+    });
+    const execute = stubExecute();
+
+    const outcome = await runRepairSweep(db, backfillRunId, ['isbn'], execute);
+
+    expect(outcome).toBe('stopped');
+    expect(execute).toHaveBeenCalledTimes(1);
+    const run = await readRun(backfillRunId);
+    expect(run.status).toBe('partial'); // untouched — markRunExtracting never ran
+    const lines = (run.logs ?? '').split('\n');
+    expect(lines.some((l) => l.includes('newer backfill run exists'))).toBe(true);
+  });
+
+  it('an OLDER sibling backfill (created before this one) does not block the sweep', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedScenario([
+      { status: 'done', isbn: '111' },
+      { status: 'done', isbn: '222' },
+      { status: 'done', isbn: null },
+    ]);
+    await db.insert(runs).values({
+      sourceId, status: 'extracting', parentRunId, targetFields: ['isbn'],
+      createdAt: new Date(Date.now() - 5000),
+    });
+    const execute = stubExecute();
+
+    const outcome = await runRepairSweep(db, backfillRunId, ['isbn'], execute);
+
+    expect(outcome).toBe('swept');
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
 });
