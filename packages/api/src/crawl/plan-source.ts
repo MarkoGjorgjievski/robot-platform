@@ -6,7 +6,7 @@
 // PROBE_BUDGET, the `inputLabel: 'probe'` run label) is preserved exactly.
 
 import { TRPCError } from '@trpc/server';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { SchemaAgent } from '@robot/agent';
 import { planRun, type PlannedItem, type PlanInputReport } from '@robot/scraper';
 import { runs, runItems, sources } from '@robot/db';
@@ -36,6 +36,25 @@ export function formatPlanLog(
  */
 export function safeErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Appends one free-text line to `runs.logs` (a text column), separated from
+ * whatever is already there by `\n` — the same line shape `formatPlanLog`
+ * produces, so `parseRunLog` (dashboard) picks up an appended `warning: ...`
+ * line exactly as it would one planSource wrote at run creation. Read-modify-
+ * write done in SQL (`coalesce(logs || '\n', '') || line`) rather than
+ * fetch-then-set from the caller, so a concurrent appender can never clobber
+ * this one's line.
+ */
+export async function appendRunLog(
+  db: typeof Database,
+  runId: string,
+  line: string,
+): Promise<void> {
+  await db.update(runs)
+    .set({ logs: sql`coalesce(${runs.logs} || ${'\n'}, '') || ${line}` })
+    .where(eq(runs.id, runId));
 }
 
 export type PlanSourceResult = {
