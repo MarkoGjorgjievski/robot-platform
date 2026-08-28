@@ -25,21 +25,44 @@ import { safeErrorMessage } from './plan-source.js';
  * a plain run only needs the item marked done, but a backfill run
  * (`opts.mergeToParent`) also has to fold its row into the parent item.
  * Pulled out and exported so it is testable against stubbed
- * `markItemDone`/`mergeBackfillResult` without a browser, an API key, or a
- * database — `startExecution` itself is not otherwise unit-testable, since it
- * hard-wires the real browser session and every other collaborator inline.
+ * `markItemDone`/`markItemFailed`/`mergeBackfillResult` without a browser, an
+ * API key, or a database — `startExecution` itself is not otherwise
+ * unit-testable, since it hard-wires the real browser session and every
+ * other collaborator inline.
+ *
+ * R4 (fix round 2): for a merge-to-parent run, 'done' means MERGED. The
+ * merge runs FIRST, before the item is marked done — the two are not atomic,
+ * and a backfill item durably marked `done` with its merge never having
+ * landed would report success having changed nothing on the parent it exists
+ * to repair. If the merge itself throws, the item is marked `failed` (not
+ * `done`) with the underlying error preserved, which makes it retryable
+ * through the existing `retryFailed` flow instead of silently vanishing as a
+ * false-green backfill.
  */
 export function buildOnDone(
   db: typeof Database,
   mergeToParent: boolean | undefined,
-  deps: { markItemDone: typeof markItemDone; mergeBackfillResult: typeof mergeBackfillResult } = { markItemDone, mergeBackfillResult },
+  deps: {
+    markItemDone?: typeof markItemDone;
+    markItemFailed?: typeof markItemFailed;
+    mergeBackfillResult?: typeof mergeBackfillResult;
+  } = {},
 ): ExecuteDeps['onDone'] {
+  const doMarkDone = deps.markItemDone ?? markItemDone;
+  const doMarkFailed = deps.markItemFailed ?? markItemFailed;
+  const doMerge = deps.mergeBackfillResult ?? mergeBackfillResult;
+
   if (!mergeToParent) {
-    return (itemId, extractionId) => deps.markItemDone(db, itemId, extractionId);
+    return (itemId, extractionId) => doMarkDone(db, itemId, extractionId);
   }
   return async (itemId, extractionId, row, targetFields) => {
-    await deps.markItemDone(db, itemId, extractionId);
-    await deps.mergeBackfillResult(db, itemId, row, targetFields ?? []);
+    try {
+      await doMerge(db, itemId, extractionId, row, targetFields ?? []);
+    } catch (err) {
+      await doMarkFailed(db, itemId, `merge failed: ${safeErrorMessage(err)}`);
+      return;
+    }
+    await doMarkDone(db, itemId, extractionId);
   };
 }
 
