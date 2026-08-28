@@ -444,8 +444,17 @@ export const sourcesRouter = router({
 
       const pageType = source.listingMode === 'listing_to_detail' ? 'listing' : 'detail';
 
+      // Requested fields (repair-engine backfill asks, or a human via
+      // `sources.requestFields`) ride along into schema discovery as a
+      // newline-delimited "name: hint" string — `normalizeUserFields`
+      // (`@robot/scraper`) splits each line back into {name, description}.
+      const requested = (source.requestedFields as Array<{ name: string; hint?: string }> | null) ?? [];
+      const requestedFields = requested.length
+        ? requested.map((f) => (f.hint ? `${f.name}: ${f.hint}` : f.name)).join('\n')
+        : undefined;
+
       const scraperCaller = scraperRouter.createCaller(ctx);
-      const result = await scraperCaller.analyze({ url: source.urlTemplate, pageType });
+      const result = await scraperCaller.analyze({ url: source.urlTemplate, pageType, requestedFields });
 
       const schemaPayload = {
         fields: result.schema.fields,
@@ -472,6 +481,103 @@ export const sourcesRouter = router({
         .where(eq(sources.id, source.id));
 
       return schemaPayload;
+    }),
+
+  /**
+   * Persist fields a human (or a repair run, in a future task) wants this
+   * Source to pick up — merged by name into `sources.requestedFields`
+   * (`Array<{name, hint?, addedAt}>`). `sources.analyze` joins these into the
+   * newline-delimited `requestedFields` string it forwards to
+   * `scraper.analyze` → `runAnalysis` → `normalizeUserFields`.
+   *
+   * Merge-by-name: a repeat name REPLACES the existing entry wholly (new
+   * hint, new addedAt) rather than preserving the original addedAt — simpler
+   * than tracking "first requested at" separately, and this endpoint has no
+   * caller that needs that distinction today. Dedupe is on the exact stored
+   * name (no case-folding/normalization here — `normalizeUserFields`
+   * downstream is what canonicalizes names for extraction).
+   */
+  requestFields: publicProcedure
+    .input(
+      z.object({
+        sourceId: z.string().uuid(),
+        fields: z.array(z.object({
+          name: z.string().min(1).max(100),
+          hint: z.string().max(500).optional(),
+        })).min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, requestedFields: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+
+      const existing = (source.requestedFields as Array<{ name: string; hint?: string; addedAt: string }> | null) ?? [];
+      const addedAt = new Date().toISOString();
+
+      const byName = new Map(existing.map((f) => [f.name, f]));
+      for (const field of input.fields) {
+        byName.set(field.name, { name: field.name, hint: field.hint, addedAt });
+      }
+      const requestedFields = Array.from(byName.values());
+
+      const [updated] = await ctx.db
+        .update(sources)
+        .set({ requestedFields, updatedAt: new Date() })
+        .where(eq(sources.id, source.id))
+        .returning();
+
+      return { requestedFields: updated!.requestedFields as Array<{ name: string; hint?: string; addedAt: string }> };
+    }),
+
+  /**
+   * Enable/disable a single field on a Source's own schema
+   * (`selectorsJson.fields[].enabled`) — the Scratch-source schema
+   * `effectiveSchema` falls back to when the Source's dataset has no schema
+   * of its own. `effectiveSchema` and the dashboard's ResultsTable already
+   * treat `enabled !== false` as "on", so this is the only write side needed.
+   * Read-modify-write, same style as `sources.update`'s `parameters` merge.
+   */
+  setFieldEnabled: publicProcedure
+    .input(
+      z.object({
+        sourceId: z.string().uuid(),
+        field: z.string().min(1),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, selectorsJson: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+
+      const selectors = (source.selectorsJson ?? {}) as { fields?: Array<{ name: string; enabled?: boolean; [k: string]: unknown }> };
+      const fields = selectors.fields ?? [];
+      const idx = fields.findIndex((f) => f.name === input.field);
+      if (idx === -1) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `Field "${input.field}" not found on source ${input.sourceId}`,
+        });
+      }
+
+      const updatedFields = fields.map((f, i) => (i === idx ? { ...f, enabled: input.enabled } : f));
+      const selectorsJson = { ...selectors, fields: updatedFields };
+
+      await ctx.db
+        .update(sources)
+        .set({ selectorsJson, updatedAt: new Date() })
+        .where(eq(sources.id, source.id));
+
+      return selectorsJson;
     }),
 
   /**

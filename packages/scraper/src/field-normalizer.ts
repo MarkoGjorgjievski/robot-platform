@@ -3,7 +3,7 @@ import type { SchemaField, FieldType } from '@robot/agent';
 /**
  * Normalize freeform user field input into structured SchemaField[].
  * Accepts comma-separated or newline-separated field names.
- * Supports "field_name - description" format.
+ * Supports "field_name - description" and "field_name: hint" formats.
  */
 export function normalizeUserFields(input: string): SchemaField[] {
   if (!input.trim()) return [];
@@ -16,10 +16,25 @@ export function normalizeUserFields(input: string): SchemaField[] {
   const fields: SchemaField[] = [];
 
   for (const entry of raw) {
-    // Support "field_name - description" format
+    // Support "field_name: hint" (repair-engine requested-field format, split
+    // on the FIRST colon only — a hint may itself contain colons) and
+    // "field_name - description" formats. Colon takes priority; a bare entry
+    // with neither is unchanged.
+    const colonIdx = entry.indexOf(':');
     const dashIdx = entry.indexOf(' - ');
-    const namePart = dashIdx >= 0 ? entry.slice(0, dashIdx).trim() : entry.trim();
-    const description = dashIdx >= 0 ? entry.slice(dashIdx + 3).trim() : '';
+
+    let namePart: string;
+    let description: string;
+    if (colonIdx >= 0) {
+      namePart = entry.slice(0, colonIdx).trim();
+      description = entry.slice(colonIdx + 1).trim();
+    } else if (dashIdx >= 0) {
+      namePart = entry.slice(0, dashIdx).trim();
+      description = entry.slice(dashIdx + 3).trim();
+    } else {
+      namePart = entry.trim();
+      description = '';
+    }
 
     const name = toSnakeCase(namePart);
     if (!name || seen.has(name)) continue;

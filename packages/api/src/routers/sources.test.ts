@@ -6,6 +6,7 @@ import { db, sources, inputSets, datasets, projects, orgs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { getOrCreateScratchDataset, insertScratchDatasetIfAbsent } from './sources.js';
+import { effectiveSchema } from '../crawl/effective-schema.js';
 
 // `sources.analyze` routes through `scraperRouter.analyze`, which dynamically
 // imports `@robot/scraper`'s `runAnalysis` and launches a real browser via
@@ -519,6 +520,250 @@ describe('sources.analyze', () => {
   });
 });
 
+describe('sources.requestFields', () => {
+  it('persists requested fields onto sources.requestedFields with addedAt', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-request-fields.example.com/p/1'],
+    });
+    try {
+      const result = await caller.sources.requestFields({
+        sourceId: created.sourceId,
+        fields: [
+          { name: 'isbn', hint: 'near the publisher line' },
+          { name: 'weight' },
+        ],
+      });
+
+      expect(result.requestedFields).toHaveLength(2);
+      const isbn = result.requestedFields.find((f) => f.name === 'isbn');
+      expect(isbn).toBeDefined();
+      expect(isbn!.hint).toBe('near the publisher line');
+      expect(typeof isbn!.addedAt).toBe('string');
+      const weight = result.requestedFields.find((f) => f.name === 'weight');
+      expect(weight).toBeDefined();
+      expect(weight!.hint).toBeUndefined();
+
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
+      expect(source!.requestedFields).toEqual(result.requestedFields);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('merges by name — a repeat name REPLACES the existing entry (new hint, new addedAt)', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-request-fields-merge.example.com/p/1'],
+    });
+    try {
+      const first = await caller.sources.requestFields({
+        sourceId: created.sourceId,
+        fields: [{ name: 'isbn', hint: 'near the publisher line' }],
+      });
+      const firstAddedAt = first.requestedFields.find((f) => f.name === 'isbn')!.addedAt;
+
+      // Ensure a distinguishable timestamp on the replace.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      const second = await caller.sources.requestFields({
+        sourceId: created.sourceId,
+        fields: [{ name: 'isbn', hint: 'on the back cover' }, { name: 'weight' }],
+      });
+
+      expect(second.requestedFields).toHaveLength(2);
+      const isbn = second.requestedFields.find((f) => f.name === 'isbn')!;
+      expect(isbn.hint).toBe('on the back cover');
+      expect(isbn.addedAt).not.toBe(firstAddedAt);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('throws NOT_FOUND for an unknown sourceId', async () => {
+    await expect(
+      caller.sources.requestFields({
+        sourceId: '00000000-0000-0000-0000-000000000000',
+        fields: [{ name: 'isbn' }],
+      }),
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it('rejects an empty fields array', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-request-fields-empty.example.com/p/1'],
+    });
+    try {
+      try {
+        await caller.sources.requestFields({ sourceId: created.sourceId, fields: [] });
+        throw new Error('should have thrown');
+      } catch (err) {
+        expectZodValidationError(err);
+      }
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+});
+
+describe('sources.analyze — requested fields pass-through', () => {
+  it('forwards persisted requestedFields as a joined "name: hint" string', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-analyze-requested.example.com/p/1'],
+    });
+    try {
+      await caller.sources.requestFields({
+        sourceId: created.sourceId,
+        fields: [
+          { name: 'isbn', hint: 'near the publisher line' },
+          { name: 'weight' },
+        ],
+      });
+
+      runAnalysisMock.mockResolvedValue({
+        captureId: null,
+        screenshotUrl: null,
+        url: 'https://test-analyze-requested.example.com/p/1',
+        title: 'Widget',
+        schema: { page_type: 'detail', description: 'x', fields: [] },
+        cached: false,
+        liveExamples: true,
+        hints: [],
+      });
+
+      await caller.sources.analyze({ sourceId: created.sourceId });
+
+      const call = runAnalysisMock.mock.calls[0]![0] as { requestedFields?: string };
+      expect(call.requestedFields).toBe('isbn: near the publisher line\nweight');
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('does not pass requestedFields when the source has none', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-analyze-no-requested.example.com/p/1'],
+    });
+    try {
+      runAnalysisMock.mockResolvedValue({
+        captureId: null,
+        screenshotUrl: null,
+        url: 'https://test-analyze-no-requested.example.com/p/1',
+        title: 'Widget',
+        schema: { page_type: 'detail', description: 'x', fields: [] },
+        cached: false,
+        liveExamples: true,
+        hints: [],
+      });
+
+      await caller.sources.analyze({ sourceId: created.sourceId });
+
+      const call = runAnalysisMock.mock.calls[0]![0] as { requestedFields?: string };
+      expect(call.requestedFields).toBeUndefined();
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+});
+
+describe('sources.setFieldEnabled', () => {
+  async function analyzeWithFields(sourceId: string, fields: Array<{ name: string; type: string; enabled?: boolean }>) {
+    runAnalysisMock.mockResolvedValue({
+      captureId: null,
+      screenshotUrl: null,
+      url: 'https://example.com/p/1',
+      title: 'Widget',
+      schema: { page_type: 'detail', description: 'x', fields },
+      cached: false,
+      liveExamples: true,
+      hints: [],
+    });
+    return caller.sources.analyze({ sourceId });
+  }
+
+  it('flips the enabled flag on the named field in selectorsJson', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-set-field-enabled.example.com/p/1'],
+    });
+    try {
+      await analyzeWithFields(created.sourceId, [
+        { name: 'title', type: 'string' },
+        { name: 'price', type: 'price' },
+      ]);
+
+      const result = await caller.sources.setFieldEnabled({
+        sourceId: created.sourceId,
+        field: 'price',
+        enabled: false,
+      });
+
+      const priceField = (result.fields as Array<{ name: string; enabled?: boolean }>).find((f) => f.name === 'price');
+      expect(priceField!.enabled).toBe(false);
+      const titleField = (result.fields as Array<{ name: string; enabled?: boolean }>).find((f) => f.name === 'title');
+      expect(titleField!.enabled).not.toBe(false);
+
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
+      expect((source!.selectorsJson as { fields: unknown }).fields).toEqual(result.fields);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('a disabled field disappears from effectiveSchema(source)', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-set-field-enabled-effective.example.com/p/1'],
+    });
+    try {
+      await analyzeWithFields(created.sourceId, [
+        { name: 'title', type: 'string' },
+        { name: 'price', type: 'price' },
+      ]);
+
+      await caller.sources.setFieldEnabled({ sourceId: created.sourceId, field: 'price', enabled: false });
+
+      const source = await db.query.sources.findFirst({
+        where: eq(sources.id, created.sourceId),
+        with: { dataset: true },
+      });
+      const fields = effectiveSchema(source!);
+      expect(fields.map((f) => f.name)).toEqual(['title']);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('unknown field name throws NOT_FOUND', async () => {
+    const created = await caller.sources.quickCreate({
+      mode: 'detail',
+      urls: ['https://test-set-field-enabled-unknown.example.com/p/1'],
+    });
+    try {
+      await analyzeWithFields(created.sourceId, [{ name: 'title', type: 'string' }]);
+
+      await expect(
+        caller.sources.setFieldEnabled({ sourceId: created.sourceId, field: 'nope', enabled: false }),
+      ).rejects.toThrow(/not found/i);
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('throws NOT_FOUND for an unknown sourceId', async () => {
+    await expect(
+      caller.sources.setFieldEnabled({
+        sourceId: '00000000-0000-0000-0000-000000000000',
+        field: 'title',
+        enabled: false,
+      }),
+    ).rejects.toThrow(/not found/i);
+  });
+});
+
 describe('sources.confirm', () => {
   it('sets confirmedAt and plans at full budget (probe: false), returning { runId }', async () => {
     const created = await caller.sources.quickCreate({
@@ -730,5 +975,7 @@ describe('appRouter shape', () => {
     expect(typeof caller.sources.analyze).toBe('function');
     expect(typeof caller.sources.confirm).toBe('function');
     expect(typeof caller.sources.delete).toBe('function');
+    expect(typeof caller.sources.requestFields).toBe('function');
+    expect(typeof caller.sources.setFieldEnabled).toBe('function');
   });
 });
