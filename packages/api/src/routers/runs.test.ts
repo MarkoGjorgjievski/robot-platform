@@ -196,6 +196,47 @@ describe('runsRouter', () => {
   // cap into `loadRunExport` — the largest export fixture was 3 rows. Same
   // seeded run, both readers, so the two properties are asserted against each
   // other rather than in isolation.
+  // Task 10 (repair-engine): the backfill run page needs `parentRunId` and
+  // `targetFields` to render its "Backfill of run <short-id> · fields: ..."
+  // breadcrumb, and the PARENT's page needs `backfillRuns` to render the
+  // reverse "Backfilled by run <short-id>" line — both derived from columns
+  // Task 1 already added to the `runs` table, just never surfaced here.
+  describe('getWithDetails — backfill linkage', () => {
+    it('exposes parentRunId and targetFields as null on an ordinary run', async () => {
+      const runId = await seedRunWithSingleExtraction([{ title: 'Only' }]);
+
+      const result = await caller.runs.getWithDetails({ id: runId });
+      expect(result?.run.parentRunId).toBeNull();
+      expect(result?.run.targetFields).toBeNull();
+      expect(result?.backfillRuns).toEqual([]);
+    });
+
+    it('exposes a backfill run\'s parentRunId and targetFields', async () => {
+      const parentRunId = await seedRunWithSingleExtraction([{ title: 'Parent' }]);
+      const parentRun = await db.query.runs.findFirst({ where: eq(runs.id, parentRunId), columns: { sourceId: true } });
+      const [backfillRun] = await db.insert(runs).values({
+        sourceId: parentRun!.sourceId, status: 'completed', inputLabel: 'backfill',
+        parentRunId, targetFields: ['title', 'isbn'],
+      }).returning();
+
+      const result = await caller.runs.getWithDetails({ id: backfillRun!.id });
+      expect(result?.run.parentRunId).toBe(parentRunId);
+      expect(result?.run.targetFields).toEqual(['title', 'isbn']);
+    });
+
+    it('exposes backfillRuns on the PARENT\'s own page — id and status only', async () => {
+      const parentRunId = await seedRunWithSingleExtraction([{ title: 'Parent' }]);
+      const parentRun = await db.query.runs.findFirst({ where: eq(runs.id, parentRunId), columns: { sourceId: true } });
+      const [backfillRun] = await db.insert(runs).values({
+        sourceId: parentRun!.sourceId, status: 'completed', inputLabel: 'backfill',
+        parentRunId, targetFields: ['title'],
+      }).returning();
+
+      const result = await caller.runs.getWithDetails({ id: parentRunId });
+      expect(result?.backfillRuns).toEqual([{ id: backfillRun!.id, status: 'completed' }]);
+    });
+  });
+
   describe('the view caps, the export does not', () => {
     it('exports all 505 rows of a run the view shows 500 of', async () => {
       const runId = await seedRunWithManySingleRowExtractions(505);

@@ -74,7 +74,7 @@ export const runsRouter = router({
       });
       if (!run) return null;
 
-      const [latestCapture, extractionRows, [rowTotal]] = await Promise.all([
+      const [latestCapture, extractionRows, [rowTotal], backfillRuns] = await Promise.all([
         ctx.db.query.captures.findFirst({
           where: eq(captures.runId, input.id),
           orderBy: [desc(captures.createdAt)],
@@ -100,6 +100,15 @@ export const runsRouter = router({
           .select({ total: sql<number>`coalesce(sum(jsonb_array_length(${extractions.data})), 0)::int` })
           .from(extractions)
           .where(eq(extractions.runId, input.id)),
+        // The reverse of `parentRunId` — which backfill runs (if any) were
+        // spawned to repair THIS run's gaps, so its page can render a
+        // "Backfilled by run <short-id>" line without a second round-trip
+        // once the operator navigates there. Kept tiny on purpose: id and
+        // status are all the breadcrumb line needs.
+        ctx.db.query.runs.findMany({
+          where: eq(runs.parentRunId, input.id),
+          columns: { id: true, status: true },
+        }),
       ]);
 
       const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
@@ -120,8 +129,17 @@ export const runsRouter = router({
           // `parseRunLog` (dashboard) recovers the original strings for the
           // probe confirm gate's evidence summary and diagnosis panel.
           logs: run.logs,
+          // Task 10 (repair-engine): the run this one was spawned to
+          // backfill, and the fields it was targeting — null/null on an
+          // ordinary run, both set on a backfill run (`planBackfillRun`,
+          // backfill.ts). Drives the "Backfill of run <short-id> · fields:
+          // ..." breadcrumb.
+          parentRunId: run.parentRunId,
+          targetFields: run.targetFields as string[] | null,
         },
         source: run.source,
+        // The reverse breadcrumb — see the Promise.all query above.
+        backfillRuns,
         capture: latestCapture ? {
           id: latestCapture.id,
           url: latestCapture.url,
