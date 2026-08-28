@@ -15,7 +15,7 @@ import { effectiveSchema } from '../crawl/effective-schema.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import { loadRunCoverage } from '../crawl/load-run-coverage.js';
-import { classifyFields, deriveBackfillItems, EST_AI_COST_PER_PAGE_USD } from '../crawl/backfill.js';
+import { classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD } from '../crawl/backfill.js';
 
 // `crawl-execute.test.ts` imports `safeErrorMessage` from this module's own
 // path — re-exported from its new home (`plan-source.ts`, mvp-simplification
@@ -386,5 +386,98 @@ export const crawlRouter = router({
         estCostUsd: Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)),
         fields: classifyFields(cov.fields, targetNames),
       };
+    }),
+
+  /**
+   * Creates a backfill run from `input.runId`'s gaps and fires its execution
+   * merged back into the parent run's items (`startExecution`'s
+   * `mergeToParent`, Task 5). Six guards precede the write, in order — see
+   * task-6-brief.md for the exact contract this mirrors.
+   *
+   * Ships the plain path only: guard 5 requires `deadFieldStrategy` whenever
+   * a dead field is in scope, but nothing here branches on ITS value yet —
+   * every accepted call takes the same full_focus/no-dead-fields execution
+   * path. Task 7 adds the staged `repair_sweep` branch.
+   */
+  backfill: publicProcedure
+    .input(z.object({
+      runId: z.string().uuid(),
+      targetFields: z.array(z.string().min(1)).optional(),
+      itemIds: z.array(z.string().uuid()).optional(),
+      deadFieldStrategy: z.enum(['repair_sweep', 'full_focus']).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Guard 1: mirrors `execute`'s own run+source guard (crawl.ts:297-298)
+      // — a backfill needs the same source `execute` would.
+      const parent = await ctx.db.query.runs.findFirst({
+        where: eq(runs.id, input.runId),
+        with: {
+          source: {
+            columns: { id: true, selectorsJson: true, datasetId: true },
+            with: { dataset: { columns: { schema: true } } },
+          },
+        },
+      });
+      if (!parent) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
+      if (!parent.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      // Guard 2: a still-executing parent has no settled coverage to
+      // backfill from — its gaps are still moving under it.
+      if (!parent.completedAt) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'parent run is still executing' });
+      }
+
+      // Guard 3: in-flight reuse — same `completed_at IS NULL` terminal
+      // marker `probeAndSample`'s duplicate-probe guard uses above, keyed on
+      // `parentRunId` instead of `(sourceId, inputLabel)`.
+      const existing = await ctx.db.query.runs.findFirst({
+        where: and(eq(runs.parentRunId, input.runId), isNull(runs.completedAt)),
+        columns: { id: true },
+      });
+      if (existing) {
+        return { backfillRunId: existing.id, status: 'in-progress' as const };
+      }
+
+      // Guard 4: derive the work list (Tasks 2-3 helpers) — the same
+      // coverage load and derivation `backfillPreview` uses above, so a
+      // preview and the run it describes never drift.
+      const cov = await loadRunCoverage(ctx.db, input.runId);
+      const targetNames = input.targetFields ?? cov.fields.filter((f) => f.missing > 0).map((f) => f.name);
+      const items = deriveBackfillItems(cov.gapItems, targetNames, input.itemIds);
+      if (items.length === 0) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'nothing to backfill — no items are missing the requested fields',
+        });
+      }
+
+      // Guard 5: a dead field (fill < DEAD_FIELD_FILL_THRESHOLD) among the
+      // targets means the cached path is broken, not merely unlucky — the
+      // caller must say how to handle that before any budget is spent.
+      const fieldClasses = classifyFields(cov.fields, targetNames);
+      if (fieldClasses.some((f) => f.classification === 'dead') && !input.deadFieldStrategy) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: 'deadFieldStrategy required: fields with a broken path are in scope',
+        });
+      }
+
+      // Guard 6: plan the run, flip it to extracting, and fire its execution
+      // the same way `execute` above does — not awaited (see startExecution's
+      // own doc comment for why this must never become an unhandled
+      // rejection), merged back into the parent's items via `mergeToParent`.
+      const backfillRunId = await planBackfillRun(ctx.db, input.runId, parent.source.id, items, targetNames);
+      await markRunExtracting(ctx.db, backfillRunId);
+      void startExecution(
+        backfillRunId,
+        parent.source.id,
+        effectiveSchema(parent.source) as OriginField[],
+        undefined,
+        { mergeToParent: true },
+      ).catch((err) => {
+        console.error(`[crawl] startExecution rejected outside its own guards for run ${backfillRunId}:`, err);
+      });
+
+      return { backfillRunId, items: items.length };
     }),
 });

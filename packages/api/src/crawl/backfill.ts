@@ -4,6 +4,9 @@
 // db, no extraction chain, consumed verbatim by `crawl.backfillPreview` below
 // and by the repair-run execution tasks that follow this one.
 
+import { inArray } from 'drizzle-orm';
+import { runs, runItems } from '@robot/db';
+import type { db as Database } from '@robot/db';
 import type { FieldCoverage, ItemGap } from './coverage.js';
 
 /**
@@ -73,4 +76,76 @@ export function deriveBackfillItems(
     plans.push({ parentItemId: item.itemId, url: item.url, targetFields });
   }
   return plans;
+}
+
+/**
+ * Creates a backfill run against `parentRunId`: one `runs` row
+ * (`inputLabel: 'backfill'`, `parentRunId`, `targetFields: targetNames`,
+ * `status: 'planned'`) and one `run_items` row per plan entry — `kind:
+ * 'detail'`, `parentId` pointing back at the parent item being repaired, and
+ * `inputValues`/`listingValues`/`inputIndex`/`pageNumber` copied verbatim
+ * from that parent item so the `mergeRow` context (Task 5) it was originally
+ * planned under survives into the backfill run unchanged.
+ *
+ * This is the SOLE writer of `run_items.target_fields`. `deriveBackfillItems`
+ * guarantees every plan entry's `targetFields` is a non-empty intersection —
+ * but that guarantee has no runtime enforcement of its own, and a
+ * non-array/empty `targetFields` written here would queue a full-page
+ * re-capture downstream with nothing for it to repair. Asserted below,
+ * before any row is written, rather than trusted.
+ */
+export async function planBackfillRun(
+  db: typeof Database,
+  parentRunId: string,
+  sourceId: string,
+  items: BackfillItemPlan[],
+  targetNames: string[],
+): Promise<string> {
+  for (const item of items) {
+    if (!Array.isArray(item.targetFields) || item.targetFields.length === 0) {
+      throw new Error(
+        `planBackfillRun: refusing to write run_items.target_fields for parent item ` +
+        `${item.parentItemId} — got ${JSON.stringify(item.targetFields)}, expected a non-empty array`,
+      );
+    }
+  }
+
+  const [run] = await db.insert(runs).values({
+    sourceId,
+    status: 'planned',
+    inputLabel: 'backfill',
+    parentRunId,
+    targetFields: targetNames,
+  }).returning({ id: runs.id });
+  const runId = run!.id;
+
+  if (items.length === 0) return runId;
+
+  // The plan carries only `parentItemId`/`url`/`targetFields` — the mergeRow
+  // context (inputValues/listingValues/inputIndex/pageNumber) lives on the
+  // parent run_items row and is fetched here, once, for every plan entry.
+  const parentIds = items.map((i) => i.parentItemId);
+  const parents = await db.query.runItems.findMany({
+    where: inArray(runItems.id, parentIds),
+    columns: { id: true, inputValues: true, listingValues: true, inputIndex: true, pageNumber: true },
+  });
+  const parentById = new Map(parents.map((p) => [p.id, p]));
+
+  await db.insert(runItems).values(items.map((item) => {
+    const parent = parentById.get(item.parentItemId);
+    return {
+      runId,
+      kind: 'detail' as const,
+      url: item.url,
+      targetFields: item.targetFields,
+      parentId: item.parentItemId,
+      inputValues: parent?.inputValues ?? {},
+      listingValues: parent?.listingValues ?? {},
+      inputIndex: parent?.inputIndex ?? 0,
+      pageNumber: parent?.pageNumber ?? null,
+      status: 'pending' as const,
+    };
+  }));
+
+  return runId;
 }
