@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   fillBadge, rowsMissingField, selectionToItemIds, reExtractLabel, cellState,
+  nextSelectionOnFilterChange,
   type FieldCoverage, type ItemGap, type Row,
 } from './coverage-view';
 
@@ -77,6 +78,12 @@ describe('reExtractLabel', () => {
   it('uses the singular where it should', () => {
     expect(reExtractLabel(1))
       .toBe("Re-extract selected (1 page — cached paths first, AI only where the cache can't answer)");
+  });
+});
+
+describe('nextSelectionOnFilterChange', () => {
+  it('always clears the selection — a filter change invalidates whatever was picked under the old filter', () => {
+    expect(nextSelectionOnFilterChange()).toEqual(new Set());
   });
 });
 

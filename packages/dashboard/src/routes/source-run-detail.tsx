@@ -14,7 +14,7 @@ import { probeEvidence } from '../lib/probe-evidence';
 import { parseRunLog } from '../lib/parse-run-log';
 import { diagnoseRun, type Diagnosis } from '../lib/diagnose-run';
 import {
-  rowsMissingField, selectionToItemIds, reExtractLabel, type ItemGap,
+  rowsMissingField, selectionToItemIds, reExtractLabel, nextSelectionOnFilterChange, type ItemGap,
 } from '../lib/coverage-view';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
@@ -85,8 +85,19 @@ export default function SourceRunDetail() {
       return next;
     });
   };
+  // Every filter transition — picking a field, toggling it off, or an
+  // explicit clear — invalidates whatever was selected under the OLD filter
+  // (see nextSelectionOnFilterChange's own doc comment): a selection made
+  // while viewing "missing X" must not silently carry into "missing Y" or
+  // into no filter at all, where the Re-extract button would fire against
+  // urls the operator never picked under the filter they're looking at now.
   const toggleFilterField = (name: string) => {
     setFilterField((prev) => (prev === name ? null : name));
+    setSelectedUrls(nextSelectionOnFilterChange());
+  };
+  const clearFilter = () => {
+    setFilterField(null);
+    setSelectedUrls(nextSelectionOnFilterChange());
   };
   const selectAllMissing = () => {
     // Matches ResultsTable's own `slice(0, 100)` — selection interacts with
@@ -208,7 +219,7 @@ export default function SourceRunDetail() {
         sourceSlug={sourceSlug}
         filterField={filterField}
         missingCount={missingRows.length}
-        onClearFilter={() => setFilterField(null)}
+        onClearFilter={clearFilter}
         selectedUrls={selectedUrls}
         onSelectAll={selectAllMissing}
         gapByUrl={gapByUrl}
