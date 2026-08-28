@@ -182,6 +182,52 @@ describe('mergeBackfillResult', () => {
     expect(extraction!.data).toEqual([{ title: 'Healed' }]);
   });
 
+  // Finding 5 (minor, final-review-findings.md): healing a parent item
+  // (rule 5 — it failed originally, never got an extraction) flips it to
+  // 'done', but the PARENT RUN's own resultCount/status were never
+  // recomputed — the run header's "Rows" stat and its status (e.g. 'partial'
+  // that is now actually complete) undercounted forever. Only the heal path
+  // changes counts; a plain cell-fill merge (parent item already 'done')
+  // does not touch done/failed counts and must not trigger a rollup.
+  it('re-rolls-up the parent run resultCount/status after healing a failed parent item', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    // One item already done (contributes to the stale count), one failed —
+    // the one this test heals.
+    await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real' });
+    const [parentItem] = await db.insert(runItems).values({
+      runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
+    }).returning();
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+    // Stale rollup, as if finaliseRun ran back when only the first item was done.
+    await db.update(runs).set({ status: 'partial', resultCount: 1, completedAt: new Date() }).where(eq(runs.id, parentRunId));
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed' }, ['title']);
+
+    const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+    // Both items are 'done' now (the healed one is no longer 'failed') — a
+    // real rollup recomputes 'completed' and resultCount 2, not the stale
+    // 'partial'/1 that predates the heal.
+    expect(parentRun!.status).toBe('completed');
+    expect(parentRun!.resultCount).toBe(2);
+    expect(parentRun!.completedAt).not.toBeNull();
+  });
+
+  it('does NOT roll up the parent run for a plain merge (parent item already had an extraction)', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real', isbn: null });
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+    await db.update(runs).set({ status: 'partial', resultCount: 1, completedAt: new Date() }).where(eq(runs.id, parentRunId));
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, { isbn: '978-1' }, ['isbn']);
+
+    const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+    // Untouched: a plain cell-fill merge never changes an item's done/failed
+    // status, so there is nothing for a rollup to recompute — asserting the
+    // stale values stayed put proves no rollup fired.
+    expect(parentRun!.status).toBe('partial');
+    expect(parentRun!.resultCount).toBe(1);
+  });
+
   it('is a no-op when the item passed in has no parentId — not a backfill item', async () => {
     const { parentRunId } = await seedOrgSourceRuns();
     // A plain (non-backfill) item: no parentId at all.
