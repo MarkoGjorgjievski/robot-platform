@@ -214,6 +214,7 @@ Replaces the current Next.js wizard with a TanStack Router + Query SPA backed by
 ### v2 — Dashboard hooks for pipeline work
 
 - [x] Run progress UI for batch extractions (DONE — 2026-08-20). Source Runs page triggers `crawl.plan`; Run detail page has Extract N pending / Retry N failed / Stop, wired to `crawl.execute` / `crawl.cancel`, polling-based progress. SSE/WebSocket still deferred.
+- [x] Repair engine (DONE — built 2026-08-28, paid live proof PASSED 2026-09-02): per-run coverage, backfill runs with cell-level merge (filled cells never overwritten), confirmed-absent tracking, dead-field repair-then-sweep, add-fields, per-field enable toggles. Spec: `docs/superpowers/specs/2026-08-28-repair-engine-design.md`; proof: `docs/testing/2026-09-02-repair-engine-paid-proof.md` (url/publisher → 40/40, listing_id 0/40 → 40/40, true ISBN absences confirmed-absent, re-preview $0.00).
 - [ ] Pagination preview / pre-run cost estimate
 - [ ] Per-input status grid beyond the work list already shipped (which inputs succeeded / failed in a run, at a glance)
 - [ ] InputSet CSV import + bulk paste
