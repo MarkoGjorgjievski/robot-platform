@@ -157,12 +157,13 @@ domain_intelligence {
 
 ### Cross-Validation
 
-When multiple paths return values for the same field:
-- **All agree** → highest confidence
-- **Majority agree** → use majority value, flag outlier
-- **Disagree** → use path with best historical hit rate, increment `conflictCount`
+There is no separate serving-time cross-validation pass. Validation lives inside the tiers themselves:
 
-Numeric values use 5% tolerance for matching (e.g. $42.49 ≈ $42.50).
+- **`resolveApiPathsFromCache()`** — when several stored API paths resolve values for the same field, agreement among them sets the confidence (majority share) and the top-ranked path's value serves.
+- **`tryAssign()`** (orchestrator) — every candidate value, from any tier, must pass shape validation and corroboration against the rendered page text before it is accepted. First accepted value wins.
+- **`saveDomainCache()`** — at save time, disagreeing `lastValue`s across a field's paths (same page only) increment `conflictCount` and are reported for human review, never auto-resolved.
+
+Numeric values use 5% tolerance for matching (e.g. $42.49 ≈ $42.50); structured values compare structurally (sorted-key JSON).
 
 ### Cache Resolution Functions
 
@@ -170,7 +171,7 @@ Numeric values use 5% tolerance for matching (e.g. $42.49 ≈ $42.50).
 |----------|-------------|--------------|
 | `resolveApiPathsFromCache()` | Traverses fresh API JSON using stored dot-notation paths (e.g. `data.product.price.current`) | Step 2.5a — after mechanical, before AI |
 | `buildCachedXPathScript()` | Generates a Playwright `page.evaluate()` script from stored XPaths, runs on live page | Step 2.5b — after API cache, before AI |
-| `resolveFromCache()` | Cross-validates all resolved values across sources, picks best by hit rate | Step 2.5c — final cache pass |
+| `resolveFromCache()` | Ranks a field's stored paths (pin > human > evidence) and picks the best value from already-gathered data | Analyze wizard only — live-example replay. The crawl orchestrator's former "final cache pass" call was removed: keyed by field name against already-assigned data, it could never assign anything new |
 | `saveDomainCache()` | Merges new paths into existing cache, updates hit/miss stats, prunes dead paths | Step 5 — after extraction complete |
 
 ### OR-Logic Path Resolution

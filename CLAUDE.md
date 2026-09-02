@@ -28,7 +28,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 1. **Mechanical** — flatten intercepted APIs + JSON-LD + meta tags (free, instant)
 2. **Cached API paths** — replay stored dot-notation paths against fresh API JSON (free)
 3. **Cached XPaths** — execute stored XPath selectors on live page (free)
-4. **Cross-validation** — compare values from all sources, majority wins (free)
+4. **Cross-validation** — agreement among a field's stored paths sets confidence; every value must corroborate against the rendered page (free)
 5. **AI API analysis** — Claude reads raw API JSON, finds field values + paths (~$0.03)
 6. **AI XPath generation** — Claude generates XPath selectors for DOM extraction (~$0.05)
 7. **Save to cache** — store all paths with hit/miss stats for future runs
