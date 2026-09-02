@@ -215,6 +215,16 @@ export async function runExtraction(
 
     const finalData: Record<string, unknown> = {};
     const fieldResults: Record<string, { value: unknown; source: PathSource; path: string; confidence: number }> = {};
+    // Stored paths the cached tiers tried against THIS page that produced
+    // nothing usable (unresolved, or rejected by tryAssign). Threaded into
+    // `saveCache` so each takes a miss — without it, a poisoned path's record
+    // stays spotless forever and the prune can never retire it (W2,
+    // abebooks-poisoned-titles-rca.md). Only the cached replay tiers charge
+    // here: they are the only tiers exercising paths the cache already owns.
+    const attemptedFailures: Record<string, Array<{ source: PathSource; path: string }>> = {};
+    const chargeCachedMiss = (name: string, source: PathSource, path: string) => {
+      (attemptedFailures[name] ??= []).push({ source, path });
+    };
 
     const fieldByName = new Map(schemaFields.map((f) => [f.name, f]));
     // Rendered page text, computed once, used to corroborate values that came
@@ -423,7 +433,16 @@ export async function runExtraction(
       if (missingForCache.length > 0 && interceptedRequests.length > 0) {
         const apiCacheResult = resolveApiPathsFromCache(cache.fieldPaths, interceptedRequests, missingForCache);
         for (const [name, resolved] of Object.entries(apiCacheResult.resolved)) {
-          tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
+          // The winning path travels with the value so the save can credit the
+          // hit to the exact stored path (W1); a rejection (shape or
+          // corroboration) charges it a miss instead — the serving firewall
+          // held, now the ledger learns it too (W2).
+          if (!tryAssign(name, resolved.value, resolved.source as PathSource, resolved.path, resolved.confidence)) {
+            chargeCachedMiss(name, resolved.source as PathSource, resolved.path);
+          }
+        }
+        for (const [name, failures] of Object.entries(apiCacheResult.failed)) {
+          for (const failure of failures) chargeCachedMiss(name, failure.source, failure.path);
         }
         if (Object.keys(apiCacheResult.resolved).length > 0) {
           console.log(`[extract] Cached API paths resolved: ${Object.keys(apiCacheResult.resolved).length} fields`);
@@ -441,13 +460,28 @@ export async function runExtraction(
             const xpathResult = await browser.setContentEvaluate<{ data: Record<string, unknown>[]; fieldCount: number }>(
               capture.html ?? '', cachedXPath.script,
             );
-            if (xpathResult.data.length > 0) {
-              for (const [name, value] of Object.entries(xpathResult.data[0]!)) {
-                tryAssign(name, value, 'xpath-cached', '', 0.85);
+            // Iterate the CHOSEN paths, not just the values that came back:
+            // a stored xpath that matched nothing is a per-path observation
+            // and takes a miss (W2). A hit carries the stored path (still
+            // under the 'xpath-cached' serving label — the save maps it back
+            // to the stored identity), so its stats finally move (W1).
+            const xpathRow = xpathResult.data[0] ?? {};
+            for (const [name, sel] of Object.entries(cachedXPath.chosen)) {
+              const value = xpathRow[name];
+              if (value === undefined || value === null || value === '') {
+                chargeCachedMiss(name, sel.source, sel.path);
+                continue;
               }
+              if (!tryAssign(name, value, 'xpath-cached', sel.path, 0.85)) {
+                chargeCachedMiss(name, sel.source, sel.path);
+              }
+            }
+            if (xpathResult.data.length > 0) {
               console.log(`[extract] Cached XPaths resolved: ${xpathResult.fieldCount} fields`);
             }
           } catch (err) {
+            // A script-execution failure is a browser hiccup, not evidence
+            // about any particular path — charge nothing.
             console.error('[extract] Cached XPath execution failed (non-fatal):', err);
           }
         }
@@ -526,7 +560,7 @@ export async function runExtraction(
       });
       if (cacheResult.overallConfidence > 0) {
         for (const [name, resolved] of Object.entries(cacheResult.resolved)) {
-          tryAssign(name, resolved.value, resolved.source as PathSource, '', resolved.confidence);
+          tryAssign(name, resolved.value, resolved.source as PathSource, resolved.path, resolved.confidence);
         }
       }
 
@@ -885,6 +919,7 @@ export async function runExtraction(
         interceptedRequests: interceptedRequests,
         fieldResults,
         discoveredFieldNames: schemaFields.map((f) => f.name),
+        attemptedFailures,
         overallConfidence: confidence,
         hasJsonLd: capture.structuredData.ldJson.length > 0,
         hasNextData: capture.structuredData.nextData !== null,

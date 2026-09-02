@@ -19,7 +19,7 @@ const result = (path: string, source: PathSource = 'ai-discovered-variants') => 
 
 describe('mergeFieldPaths — ai path identity', () => {
   it('REPLACES an existing ai-discovered-variants path instead of appending a near-duplicate', () => {
-    const merged = mergeFieldPaths(existingSet(), result('Style buttons below title (new wording)'), [], true, NOW);
+    const merged = mergeFieldPaths(existingSet(), result('Style buttons below title (new wording)'), [], NOW);
     expect(merged.variants!.paths).toHaveLength(1);
     expect(merged.variants!.paths[0]!.path).toBe('Style buttons below title (new wording)');
   });
@@ -28,7 +28,7 @@ describe('mergeFieldPaths — ai path identity', () => {
     const merged = mergeFieldPaths(
       { price: { paths: [{ path: '//a', source: 'xpath', confidence: 0.9, hits: 1, misses: 0, lastValue: '1', lastUsedAt: NOW }], conflictCount: 0 } },
       { price: { path: '//b', source: 'xpath', value: '2', confidence: 0.9 } },
-      [], true, NOW,
+      [], NOW,
     );
     expect(merged.price!.paths).toHaveLength(2);
   });
@@ -38,7 +38,7 @@ describe('mergeFieldPaths — lastUrl bookkeeping', () => {
   it('stamps lastUrl on a new path when the outcome carries a url', () => {
     const merged = mergeFieldPaths(
       {}, { price: { path: '//b', source: 'xpath', value: '2', confidence: 0.9 } },
-      [], true, NOW, 'https://shop.example.com/p/1',
+      [], NOW, 'https://shop.example.com/p/1',
     );
     expect(merged.price!.paths[0]!.lastUrl).toBe('https://shop.example.com/p/1');
   });
@@ -47,7 +47,7 @@ describe('mergeFieldPaths — lastUrl bookkeeping', () => {
     const merged = mergeFieldPaths(
       { price: { paths: [{ path: '//a', source: 'xpath', confidence: 0.9, hits: 1, misses: 0, lastValue: '1', lastUsedAt: NOW, lastUrl: 'https://shop.example.com/p/old' }], conflictCount: 0 } },
       { price: { path: '//a', source: 'xpath', value: '2', confidence: 0.9 } },
-      [], true, NOW, 'https://shop.example.com/p/new',
+      [], NOW, 'https://shop.example.com/p/new',
     );
     expect(merged.price!.paths[0]!.lastUrl).toBe('https://shop.example.com/p/new');
   });

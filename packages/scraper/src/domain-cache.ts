@@ -149,10 +149,19 @@ export type ResolvedField = {
   name: string;
   value: unknown;
   source: PathSource;
+  /** The stored path that produced the value — the identity `mergeFieldPaths`
+   *  needs to credit the hit. Recording '' here froze every replayed path's
+   *  stats at creation (cache-reputation fix W1). */
+  path: string;
   confidence: number;
   pathsAttempted: number;
   pathsSucceeded: number;
 };
+
+/** A stored path that was tried against a page and produced nothing usable —
+ *  it resolved no value, or its value was rejected downstream (shape,
+ *  corroboration). The identity a miss is charged to (cache-reputation fix W2). */
+export type AttemptedPath = { source: PathSource; path: string };
 
 /**
  * Given cached field paths and fresh extracted data from all sources,
@@ -286,34 +295,40 @@ export async function pinFieldPath(input: {
   /** The `path` string of the candidate to pin, or null to clear. */
   path: string | null;
 }): Promise<boolean> {
-  const [row] = await db
-    .select()
-    .from(domainIntelligence)
-    .where(and(
-      eq(domainIntelligence.domain, input.domain),
-      eq(domainIntelligence.pageType, input.pageType),
-    ))
-    .limit(1);
-  if (!row) return false;
+  // Transaction + row lock: a pin is the single most precious write in this
+  // cache, and an unlocked read-modify-write here could land between a crawl
+  // save's read and its whole-blob update — which would silently erase the
+  // operator's ruling (or, in this direction, erase the save's fresh stats).
+  const pinned = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(domainIntelligence)
+      .where(and(
+        eq(domainIntelligence.domain, input.domain),
+        eq(domainIntelligence.pageType, input.pageType),
+      ))
+      .limit(1)
+      .for('update');
+    if (!row) return false;
 
-  const fieldPaths = (row.fieldPaths ?? {}) as Record<string, FieldPathSet>;
-  const pathSet = fieldPaths[input.field];
-  if (!pathSet || pathSet.paths.length === 0) return false;
+    const fieldPaths = (row.fieldPaths ?? {}) as Record<string, FieldPathSet>;
+    const pathSet = fieldPaths[input.field];
+    if (!pathSet || pathSet.paths.length === 0) return false;
 
-  if (input.path !== null && !pathSet.paths.some((p) => p.path === input.path)) return false;
+    if (input.path !== null && !pathSet.paths.some((p) => p.path === input.path)) return false;
 
-  // Exactly one pin per field — pinning a new candidate releases the previous one.
-  for (const p of pathSet.paths) {
-    p.pinned = input.path !== null && p.path === input.path;
-  }
+    // Exactly one pin per field — pinning a new candidate releases the previous one.
+    for (const p of pathSet.paths) {
+      p.pinned = input.path !== null && p.path === input.path;
+    }
 
-  await db
-    .update(domainIntelligence)
-    .set({ fieldPaths, updatedAt: new Date() })
-    .where(and(
-      eq(domainIntelligence.domain, input.domain),
-      eq(domainIntelligence.pageType, input.pageType),
-    ));
+    await tx
+      .update(domainIntelligence)
+      .set({ fieldPaths, updatedAt: new Date() })
+      .where(eq(domainIntelligence.id, row.id));
+    return true;
+  });
+  if (!pinned) return false;
 
   console.log(
     input.path === null
@@ -342,44 +357,49 @@ export async function pinFieldPath(input: {
 export async function markDisplayed(
   domain: string, pageType: string, concept: string, label: string | null,
 ): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(domainIntelligence)
-    .where(and(
-      eq(domainIntelligence.domain, domain),
-      eq(domainIntelligence.pageType, pageType),
-    ))
-    .limit(1);
-  if (!row) {
-    console.warn(`[cache] markDisplayed: no cache for ${domain}/${pageType}`);
-    return;
-  }
+  // Same transaction + row lock as `pinFieldPath` — the judge's verdict is a
+  // read-modify-write on the catalogue blob and must not interleave with a
+  // concurrent catalogue write.
+  const marked = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(domainIntelligence)
+      .where(and(
+        eq(domainIntelligence.domain, domain),
+        eq(domainIntelligence.pageType, pageType),
+      ))
+      .limit(1)
+      .for('update');
+    if (!row) {
+      console.warn(`[cache] markDisplayed: no cache for ${domain}/${pageType}`);
+      return false;
+    }
 
-  const catalogue = sanitizeCatalogue(row.candidateCatalogue);
-  const candidates = catalogue[concept];
-  if (!candidates || candidates.length === 0) {
-    console.warn(`[cache] markDisplayed: no concept "${concept}" for ${domain}/${pageType}`);
-    return;
-  }
-  if (label !== null && !candidates.some((c) => c.label === label)) {
-    console.warn(`[cache] markDisplayed: label "${label}" matches no candidate of "${concept}" for ${domain}/${pageType}`);
-    return;
-  }
+    const catalogue = sanitizeCatalogue(row.candidateCatalogue);
+    const candidates = catalogue[concept];
+    if (!candidates || candidates.length === 0) {
+      console.warn(`[cache] markDisplayed: no concept "${concept}" for ${domain}/${pageType}`);
+      return false;
+    }
+    if (label !== null && !candidates.some((c) => c.label === label)) {
+      console.warn(`[cache] markDisplayed: label "${label}" matches no candidate of "${concept}" for ${domain}/${pageType}`);
+      return false;
+    }
 
-  const now = new Date().toISOString();
-  for (const c of candidates) {
-    c.displayed = label !== null && c.label === label;
-    c.verifiedAt = now;
-  }
+    const now = new Date().toISOString();
+    for (const c of candidates) {
+      c.displayed = label !== null && c.label === label;
+      c.verifiedAt = now;
+    }
 
-  const clean = sanitizeCatalogue(catalogue);
-  await db
-    .update(domainIntelligence)
-    .set({ candidateCatalogue: clean, updatedAt: new Date() })
-    .where(and(
-      eq(domainIntelligence.domain, domain),
-      eq(domainIntelligence.pageType, pageType),
-    ));
+    const clean = sanitizeCatalogue(catalogue);
+    await tx
+      .update(domainIntelligence)
+      .set({ candidateCatalogue: clean, updatedAt: new Date() })
+      .where(eq(domainIntelligence.id, row.id));
+    return true;
+  });
+  if (!marked) return;
 
   console.log(
     label === null
@@ -442,32 +462,42 @@ export async function saveVerifiedRowPlan(
   pageType: string,
   plan: { rowXpath: string; fields: RowFieldPath[] },
 ): Promise<void> {
-  const existing = await db.query.domainIntelligence.findFirst({
-    where: and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)),
-  });
-  const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
-  if (existingSelector?.source === 'human') {
-    console.log(`[cache] not persisting verified row plan for ${domain}/${pageType}: human pin already set`);
-    return;
-  }
+  // Transaction + row lock: the human-pin check and the upsert must see the
+  // same row state, or a pin landing in between would be overwritten by a
+  // decision made against the pre-pin snapshot.
+  const saved = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ rowSelector: domainIntelligence.rowSelector })
+      .from(domainIntelligence)
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)))
+      .limit(1)
+      .for('update');
+    const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
+    if (existingSelector?.source === 'human') {
+      console.log(`[cache] not persisting verified row plan for ${domain}/${pageType}: human pin already set`);
+      return false;
+    }
 
-  const now = new Date().toISOString();
-  const rowSelector: RowSelector = {
-    xpath: plan.rowXpath,
-    source: 'verified',
-    setAt: now,
-    fields: plan.fields,
-    hits: 1,
-    misses: 0,
-    lastUsedAt: now,
-  };
-  await db
-    .insert(domainIntelligence)
-    .values({ domain, pageType, rowSelector })
-    .onConflictDoUpdate({
-      target: [domainIntelligence.domain, domainIntelligence.pageType],
-      set: { rowSelector, updatedAt: new Date() },
-    });
+    const now = new Date().toISOString();
+    const rowSelector: RowSelector = {
+      xpath: plan.rowXpath,
+      source: 'verified',
+      setAt: now,
+      fields: plan.fields,
+      hits: 1,
+      misses: 0,
+      lastUsedAt: now,
+    };
+    await tx
+      .insert(domainIntelligence)
+      .values({ domain, pageType, rowSelector })
+      .onConflictDoUpdate({
+        target: [domainIntelligence.domain, domainIntelligence.pageType],
+        set: { rowSelector, updatedAt: new Date() },
+      });
+    return true;
+  });
+  if (!saved) return;
   console.log(`[cache] verified row plan for ${domain}/${pageType}: ${plan.fields.length} field(s)`);
 }
 
@@ -480,21 +510,27 @@ export async function saveVerifiedRowPlan(
  * to charge the hit to.
  */
 export async function recordRowPlanHit(domain: string, pageType: string): Promise<void> {
-  const existing = await db.query.domainIntelligence.findFirst({
-    where: and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)),
-  });
-  const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
-  if (!existingSelector || existingSelector.source !== 'verified') return;
+  // Same transaction + row lock as the other read-modify-writes on this row.
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ rowSelector: domainIntelligence.rowSelector })
+      .from(domainIntelligence)
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)))
+      .limit(1)
+      .for('update');
+    const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
+    if (!existingSelector || existingSelector.source !== 'verified') return;
 
-  const rowSelector: RowSelector = {
-    ...existingSelector,
-    hits: (existingSelector.hits ?? 0) + 1,
-    lastUsedAt: new Date().toISOString(),
-  };
-  await db
-    .update(domainIntelligence)
-    .set({ rowSelector, updatedAt: new Date() })
-    .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)));
+    const rowSelector: RowSelector = {
+      ...existingSelector,
+      hits: (existingSelector.hits ?? 0) + 1,
+      lastUsedAt: new Date().toISOString(),
+    };
+    await tx
+      .update(domainIntelligence)
+      .set({ rowSelector, updatedAt: new Date() })
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)));
+  });
 }
 
 /**
@@ -507,22 +543,30 @@ export async function recordRowPlanHit(domain: string, pageType: string): Promis
  * is misconfigured, replay just never runs for it).
  */
 export async function recordRowPlanMiss(domain: string, pageType: string): Promise<void> {
-  const existing = await db.query.domainIntelligence.findFirst({
-    where: and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)),
-  });
-  const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
-  if (!existingSelector || existingSelector.source !== 'verified') return;
+  // Same transaction + row lock as the other read-modify-writes on this row.
+  const total = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ rowSelector: domainIntelligence.rowSelector })
+      .from(domainIntelligence)
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)))
+      .limit(1)
+      .for('update');
+    const existingSelector = (existing?.rowSelector ?? null) as RowSelector | null;
+    if (!existingSelector || existingSelector.source !== 'verified') return null;
 
-  const rowSelector: RowSelector = {
-    ...existingSelector,
-    misses: (existingSelector.misses ?? 0) + 1,
-    lastUsedAt: new Date().toISOString(),
-  };
-  await db
-    .update(domainIntelligence)
-    .set({ rowSelector, updatedAt: new Date() })
-    .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)));
-  console.warn(`[cache] verified row plan for ${domain}/${pageType} missed (${rowSelector.misses} total)`);
+    const rowSelector: RowSelector = {
+      ...existingSelector,
+      misses: (existingSelector.misses ?? 0) + 1,
+      lastUsedAt: new Date().toISOString(),
+    };
+    await tx
+      .update(domainIntelligence)
+      .set({ rowSelector, updatedAt: new Date() })
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)));
+    return rowSelector.misses ?? 0;
+  });
+  if (total === null) return;
+  console.warn(`[cache] verified row plan for ${domain}/${pageType} missed (${total} total)`);
 }
 
 /** Write a freshly discovered catalogue. Sanitized on the way in; an empty
@@ -682,6 +726,7 @@ export function resolveFromCache(
       name: fieldName,
       value: primaryValue,
       source: candidates[0].path.source,
+      path: candidates[0].path.path,
       confidence,
       pathsAttempted: ranked.length,
       pathsSucceeded: candidates.length,
@@ -724,12 +769,16 @@ export function resolveApiPathsFromCache(
   fieldPaths: Record<string, FieldPathSet>,
   interceptedRequests: InterceptedRequest[],
   requestedFields: string[],
-): { resolved: Record<string, ResolvedField>; overallConfidence: number } {
+): { resolved: Record<string, ResolvedField>; overallConfidence: number; failed: Record<string, AttemptedPath[]> } {
   const resolved: Record<string, ResolvedField> = {};
+  // Paths tried against these bodies that resolved nothing anywhere — the
+  // caller charges each one a miss (W2). No bodies means nothing was tried,
+  // so nothing is charged.
+  const failed: Record<string, AttemptedPath[]> = {};
 
   const apiJsonBodies = collectApiJsonBodies(interceptedRequests);
 
-  if (apiJsonBodies.length === 0) return { resolved, overallConfidence: 0 };
+  if (apiJsonBodies.length === 0) return { resolved, overallConfidence: 0, failed };
 
   for (const fieldName of requestedFields) {
     const pathSet = fieldPaths[fieldName];
@@ -750,12 +799,17 @@ export function resolveApiPathsFromCache(
 
     for (const p of apiPaths) {
       // Try each API body with this dot-notation path
+      let found = false;
       for (const body of apiJsonBodies) {
         const value = getByDotPath(body, p.path);
         if (value !== undefined && value !== null && value !== '') {
           candidates.push({ value, path: p });
+          found = true;
           break; // Found in this body, no need to check others
         }
+      }
+      if (!found) {
+        (failed[fieldName] ??= []).push({ source: p.source, path: p.path });
       }
     }
 
@@ -771,6 +825,7 @@ export function resolveApiPathsFromCache(
       name: fieldName,
       value: primaryValue,
       source: candidates[0].path.source,
+      path: candidates[0].path.path,
       confidence,
       pathsAttempted: apiPaths.length,
       pathsSucceeded: candidates.length,
@@ -781,7 +836,7 @@ export function resolveApiPathsFromCache(
   const resolvedCount = Object.keys(resolved).length;
   const overallConfidence = fieldCount > 0 ? resolvedCount / fieldCount : 0;
 
-  return { resolved, overallConfidence };
+  return { resolved, overallConfidence, failed };
 }
 
 // ─── Build cached XPath extraction script ───────────────────────────────────
@@ -793,8 +848,11 @@ export function resolveApiPathsFromCache(
 export function buildCachedXPathScript(
   fieldPaths: Record<string, FieldPathSet>,
   requestedFields: string[],
-): { script: string; fieldNames: string[] } | null {
+): { script: string; fieldNames: string[]; chosen: Record<string, AttemptedPath> } | null {
   const xpathFields: Array<{ name: string; xpath: string; attribute: string; transform: string }> = [];
+  // The stored identity behind each field's entry in the script, so the caller
+  // can credit a hit or charge a miss to the exact path it replayed (W1/W2).
+  const chosen: Record<string, AttemptedPath> = {};
 
   for (const fieldName of requestedFields) {
     const pathSet = fieldPaths[fieldName];
@@ -823,6 +881,7 @@ export function buildCachedXPathScript(
         attribute: 'textContent',
         transform: 'trim',
       });
+      chosen[fieldName] = { source: xpathPath.source, path: xpathPath.path };
     }
   }
 
@@ -860,7 +919,7 @@ export function buildCachedXPathScript(
     })()
   `;
 
-  return { script, fieldNames: xpathFields.map(f => f.name) };
+  return { script, fieldNames: xpathFields.map(f => f.name), chosen };
 }
 
 /**
@@ -903,6 +962,11 @@ export type ExtractionOutcome = {
   }>;
   /** All toggled-on field names for this schema, including those that did not resolve — ensures the cache tracks existence even without a path. */
   discoveredFieldNames: string[];
+  /** field name → stored paths that were tried against this page and produced
+   *  nothing usable (unresolved, or rejected by shape/corroboration). Each is
+   *  charged a miss, which is what finally makes the conservative prune
+   *  reachable for poisoned paths (W2 — the open half of the AbeBooks RCA). */
+  attemptedFailures?: Record<string, AttemptedPath[]>;
   overallConfidence: number;
   hasJsonLd: boolean;
   hasNextData: boolean;
@@ -922,13 +986,6 @@ export const EXTRACTION_SUCCESS_THRESHOLD = 0.3;
  * Merges new paths into existing cache — never overwrites, only enriches.
  */
 export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void> {
-  const existing = await db.query.domainIntelligence.findFirst({
-    where: and(
-      eq(domainIntelligence.domain, outcome.domain),
-      eq(domainIntelligence.pageType, outcome.pageType),
-    ),
-  });
-
   // Success threshold: at least 30% of fields found (flexible for partial extractions)
   const isSuccess = outcome.overallConfidence >= EXTRACTION_SUCCESS_THRESHOLD;
   const now = new Date().toISOString();
@@ -940,59 +997,79 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
     method: req.method,
   }));
 
-  if (existing) {
-    // Merge new paths into existing cache
-    const existingPaths = (existing.fieldPaths ?? {}) as Record<string, FieldPathSet>;
-    const mergedPaths = mergeFieldPaths(existingPaths, outcome.fieldResults, outcome.discoveredFieldNames, isSuccess, now, outcome.url);
+  // The whole read-modify-write runs inside one transaction whose read takes
+  // the row lock — this blob write must not overwrite a pin (or any other
+  // write) that landed between an unlocked read and this update. A first-ever
+  // save has no row to lock; two concurrent first saves surface as a unique-
+  // constraint error rather than a silent lost update, which is acceptable.
+  await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select()
+      .from(domainIntelligence)
+      .where(and(
+        eq(domainIntelligence.domain, outcome.domain),
+        eq(domainIntelligence.pageType, outcome.pageType),
+      ))
+      .limit(1)
+      .for('update');
 
-    const newTotalRuns = (existing.totalRuns ?? 0) + 1;
-    const newSuccessfulRuns = (existing.successfulRuns ?? 0) + (isSuccess ? 1 : 0);
-    const newConsecutiveFailures = isSuccess ? 0 : (existing.consecutiveFailures ?? 0) + 1;
+    if (existing) {
+      // Merge new paths into existing cache
+      const existingPaths = (existing.fieldPaths ?? {}) as Record<string, FieldPathSet>;
+      const mergedPaths = mergeFieldPaths(
+        existingPaths, outcome.fieldResults, outcome.discoveredFieldNames,
+        now, outcome.url, outcome.attemptedFailures,
+      );
 
-    // Flag degradation but NEVER auto-reset — human review required
-    if (newConsecutiveFailures >= 5) {
-      console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} has ${newConsecutiveFailures} consecutive failures — flagged for human review`);
-    }
+      const newTotalRuns = (existing.totalRuns ?? 0) + 1;
+      const newSuccessfulRuns = (existing.successfulRuns ?? 0) + (isSuccess ? 1 : 0);
+      const newConsecutiveFailures = isSuccess ? 0 : (existing.consecutiveFailures ?? 0) + 1;
 
-    // Same rule for disagreement: report, never resolve it automatically. Two
-    // paths returning different values is how a poisoned path announces itself,
-    // and until now the cache detected it (conflictCount) and told nobody.
-    for (const conflict of detectPathConflicts(mergedPaths, sanitizeCatalogue(existing.candidateCatalogue))) {
-      const shown = conflict.candidates
-        .map((c) => `${c.source}=${String(JSON.stringify(c.value)).slice(0, 40)}`)
-        .join(' vs ');
-      console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} field "${conflict.field}" has disagreeing paths — serving ${conflict.candidates[0]!.source}: ${shown}`);
-    }
+      // Flag degradation but NEVER auto-reset — human review required
+      if (newConsecutiveFailures >= 5) {
+        console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} has ${newConsecutiveFailures} consecutive failures — flagged for human review`);
+      }
 
-    await db
-      .update(domainIntelligence)
-      .set({
-        apiEndpoints: existing.apiEndpoints ?? apiEndpoints,
-        fieldPaths: mergedPaths,
+      // Same rule for disagreement: report, never resolve it automatically. Two
+      // paths returning different values is how a poisoned path announces itself,
+      // and until now the cache detected it (conflictCount) and told nobody.
+      for (const conflict of detectPathConflicts(mergedPaths, sanitizeCatalogue(existing.candidateCatalogue))) {
+        const shown = conflict.candidates
+          .map((c) => `${c.source}=${String(JSON.stringify(c.value)).slice(0, 40)}`)
+          .join(' vs ');
+        console.warn(`[cache] ⚠ ${outcome.domain}/${outcome.pageType} field "${conflict.field}" has disagreeing paths — serving ${conflict.candidates[0]!.source}: ${shown}`);
+      }
+
+      await tx
+        .update(domainIntelligence)
+        .set({
+          apiEndpoints: existing.apiEndpoints ?? apiEndpoints,
+          fieldPaths: mergedPaths,
+          hasJsonLd: outcome.hasJsonLd,
+          hasNextData: outcome.hasNextData,
+          totalRuns: newTotalRuns,
+          successfulRuns: newSuccessfulRuns,
+          consecutiveFailures: newConsecutiveFailures,
+          lastUsedAt: new Date(),
+          lastVerifiedAt: isSuccess ? new Date() : existing.lastVerifiedAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(domainIntelligence.id, existing.id));
+    } else {
+      // First time — create fresh cache entry
+      await tx.insert(domainIntelligence).values({
+        domain: outcome.domain,
+        pageType: outcome.pageType,
+        apiEndpoints,
+        fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now, outcome.url),
         hasJsonLd: outcome.hasJsonLd,
         hasNextData: outcome.hasNextData,
-        totalRuns: newTotalRuns,
-        successfulRuns: newSuccessfulRuns,
-        consecutiveFailures: newConsecutiveFailures,
-        lastUsedAt: new Date(),
-        lastVerifiedAt: isSuccess ? new Date() : existing.lastVerifiedAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(domainIntelligence.id, existing.id));
-  } else {
-    // First time — create fresh cache entry
-    await db.insert(domainIntelligence).values({
-      domain: outcome.domain,
-      pageType: outcome.pageType,
-      apiEndpoints,
-      fieldPaths: buildFreshPaths(outcome.fieldResults, outcome.discoveredFieldNames, now, outcome.url),
-      hasJsonLd: outcome.hasJsonLd,
-      hasNextData: outcome.hasNextData,
-      totalRuns: 1,
-      successfulRuns: isSuccess ? 1 : 0,
-      consecutiveFailures: isSuccess ? 0 : 1,
-    });
-  }
+        totalRuns: 1,
+        successfulRuns: isSuccess ? 1 : 0,
+        consecutiveFailures: isSuccess ? 0 : 1,
+      });
+    }
+  });
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1001,12 +1078,16 @@ export function mergeFieldPaths(
   existing: Record<string, FieldPathSet>,
   newResults: ExtractionOutcome['fieldResults'],
   discoveredFieldNames: string[],
-  isSuccess: boolean,
   now: string,
   lastUrl?: string,
+  attemptedFailures?: Record<string, AttemptedPath[]>,
 ): Record<string, FieldPathSet> {
   const merged = { ...existing };
 
+  // A path's stats reflect ITS OWN outcomes, never the run's (W3): run-level
+  // success used to gate the hit branch here, charging a miss to a path that
+  // returned a perfectly good value because the page overall came up thin.
+  // Run-level success still drives the row counters in `saveDomainCache`.
   for (const [fieldName, result] of Object.entries(newResults)) {
     if (!result.path && !result.value) continue;
 
@@ -1032,14 +1113,18 @@ export function mergeFieldPaths(
       }
     }
 
-    // Find existing path with same source + path
-    const existingPath = pathSet.paths.find(
-      p => p.source === result.source && p.path === result.path
-    );
+    // Find the stored path this result exercised. 'xpath-cached' is the replay
+    // tier's serving label, not a stored identity — the path string it carries
+    // came FROM the store, so match on it alone within the field (the stored
+    // entry may be 'xpath' or a '//'-style 'human' path). Anything else
+    // matches on exact source + path.
+    const existingPath = result.source === 'xpath-cached'
+      ? pathSet.paths.find(p => p.path === result.path && result.path !== '')
+      : pathSet.paths.find(p => p.source === result.source && p.path === result.path);
 
     if (existingPath) {
       // Update existing path stats
-      if (isSuccess && result.value !== null && result.value !== undefined) {
+      if (result.value !== null && result.value !== undefined) {
         existingPath.hits++;
         existingPath.lastValue = result.value;
         existingPath.confidence = Math.min(1, existingPath.confidence + 0.02);
@@ -1050,13 +1135,14 @@ export function mergeFieldPaths(
       existingPath.lastUsedAt = now;
       if (lastUrl) existingPath.lastUrl = lastUrl;
     } else if (result.path) {
-      // Add new path
+      // Add new path. Its stored identity is canonical: a replayed xpath whose
+      // stored entry was pruned meanwhile re-enters as 'xpath'.
       pathSet.paths.push({
         path: result.path,
-        source: result.source,
+        source: result.source === 'xpath-cached' ? 'xpath' : result.source,
         confidence: result.confidence,
-        hits: isSuccess ? 1 : 0,
-        misses: isSuccess ? 0 : 1,
+        hits: result.value !== null && result.value !== undefined ? 1 : 0,
+        misses: result.value !== null && result.value !== undefined ? 0 : 1,
         lastValue: result.value,
         lastUsedAt: now,
         ...(lastUrl ? { lastUrl } : {}),
@@ -1072,6 +1158,26 @@ export function mergeFieldPaths(
       if (!allMatch) pathSet.conflictCount++;
     }
 
+    pathSet.paths = prunePaths(pathSet.paths);
+  }
+
+  // Charge a miss to every stored path that was tried against this page and
+  // produced nothing usable (W2). `lastValue`/`lastUrl` stay untouched — the
+  // path made no observation this run. This is what finally lets the
+  // conservative prune retire a poisoned path: rejection used to leave no
+  // trace, so its record stayed spotless forever (abebooks RCA).
+  for (const [fieldName, failures] of Object.entries(attemptedFailures ?? {})) {
+    const pathSet = merged[fieldName];
+    if (!pathSet) continue;
+    for (const failure of failures) {
+      const failedPath = pathSet.paths.find(
+        p => p.source === failure.source && p.path === failure.path,
+      );
+      if (!failedPath) continue;
+      failedPath.misses++;
+      failedPath.confidence = Math.max(0, failedPath.confidence - 0.05);
+      failedPath.lastUsedAt = now;
+    }
     pathSet.paths = prunePaths(pathSet.paths);
   }
 
