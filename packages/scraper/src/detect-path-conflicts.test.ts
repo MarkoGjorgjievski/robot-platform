@@ -71,3 +71,32 @@ describe('detectPathConflicts — narrowed (v2.5)', () => {
     expect(conflicts).toEqual([]);
   });
 });
+
+describe('detectPathConflicts — structured values (valuesMatch)', () => {
+  it('fires when two paths carry DIFFERENT structured lastValues', () => {
+    // Regression: String({a:1}) is "[object Object]", so every pair of
+    // structured values used to compare equal — variant-array disagreement
+    // was invisible to conflict detection.
+    const conflicts = detectPathConflicts(set(
+      path('a', 'api', [{ size: 'S', price: 10 }], U),
+      path('b', 'json-ld', [{ size: 'M', price: 12 }], U),
+    ));
+    expect(conflicts).toHaveLength(1);
+  });
+
+  it('does NOT fire for deep-equal objects that differ only in key order', () => {
+    const conflicts = detectPathConflicts(set(
+      path('a', 'api', { price: 10, size: 'S' }, U),
+      path('b', 'json-ld', { size: 'S', price: 10 }, U),
+    ));
+    expect(conflicts).toEqual([]);
+  });
+
+  it('fires when a structured value disagrees with a scalar', () => {
+    const conflicts = detectPathConflicts(set(
+      path('a', 'api', { price: 10 }, U),
+      path('b', 'json-ld', 'ten dollars', U),
+    ));
+    expect(conflicts).toHaveLength(1);
+  });
+});

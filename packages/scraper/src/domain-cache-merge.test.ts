@@ -34,6 +34,73 @@ describe('mergeFieldPaths — ai path identity', () => {
   });
 });
 
+describe('mergeFieldPaths — xpath identity canonicalization', () => {
+  const stored = (p: string, hits = 3): Record<string, FieldPathSet> => ({
+    price: {
+      paths: [{ path: p, source: 'xpath', confidence: 0.9, hits, misses: 0, lastValue: '1', lastUsedAt: NOW }],
+      conflictCount: 0,
+    },
+  });
+
+  it('a quote-style variant of a stored xpath updates it instead of appending', () => {
+    const merged = mergeFieldPaths(
+      stored('//div[@class="price"]/span'),
+      { price: { path: "//div[@class='price']/span", source: 'xpath', value: '2', confidence: 0.9 } },
+      [], NOW,
+    );
+    expect(merged.price!.paths).toHaveLength(1);
+    expect(merged.price!.paths[0]!.hits).toBe(4);
+  });
+
+  it('a whitespace variant of a stored xpath updates it instead of appending', () => {
+    const merged = mergeFieldPaths(
+      stored('//div[@class="price"]/span'),
+      { price: { path: '//div[@class="price"] / span', source: 'xpath', value: '2', confidence: 0.9 } },
+      [], NOW,
+    );
+    expect(merged.price!.paths).toHaveLength(1);
+    expect(merged.price!.paths[0]!.hits).toBe(4);
+  });
+
+  it('genuinely different xpaths stay separate identities', () => {
+    const merged = mergeFieldPaths(
+      stored('//div[@class="price"]/span'),
+      { price: { path: '//div[@class="cost"]/span', source: 'xpath', value: '2', confidence: 0.9 } },
+      [], NOW,
+    );
+    expect(merged.price!.paths).toHaveLength(2);
+  });
+
+  it('an xpath-cached replay hit matches the stored path across quote style', () => {
+    const merged = mergeFieldPaths(
+      stored('//div[@class="price"]/span'),
+      { price: { path: "//div[@class='price']/span", source: 'xpath-cached', value: '2', confidence: 0.85 } },
+      [], NOW,
+    );
+    expect(merged.price!.paths).toHaveLength(1);
+    expect(merged.price!.paths[0]!.hits).toBe(4);
+  });
+
+  it('an attempted-failure quote variant still charges the stored path a miss', () => {
+    const merged = mergeFieldPaths(
+      stored('//div[@class="price"]/span'),
+      {}, [], NOW, undefined,
+      { price: [{ source: 'xpath', path: "//div[@class='price']/span" }] },
+    );
+    expect(merged.price!.paths).toHaveLength(1);
+    expect(merged.price!.paths[0]!.misses).toBe(1);
+  });
+
+  it('dot-notation api paths keep strict identity', () => {
+    const merged = mergeFieldPaths(
+      { price: { paths: [{ path: 'product.price', source: 'api', confidence: 0.9, hits: 1, misses: 0, lastValue: '1', lastUsedAt: NOW }], conflictCount: 0 } },
+      { price: { path: 'product.pricing', source: 'api', value: '2', confidence: 0.9 } },
+      [], NOW,
+    );
+    expect(merged.price!.paths).toHaveLength(2);
+  });
+});
+
 describe('mergeFieldPaths — lastUrl bookkeeping', () => {
   it('stamps lastUrl on a new path when the outcome carries a url', () => {
     const merged = mergeFieldPaths(
