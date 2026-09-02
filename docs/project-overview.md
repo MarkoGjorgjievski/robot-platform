@@ -54,7 +54,7 @@ The extractor tries multiple data sources in priority order. Each step only runs
 
 Every successful extraction enriches a per-domain cache. Each field stores multiple ranked paths (API, XPath, meta) with hit/miss statistics. On subsequent runs, cached paths are tried first — **zero AI cost**.
 
-Cache invalidation uses a scoring system: one bad page doesn't wipe the cache. Only 5 consecutive failures trigger a rebuild. Dead paths are auto-pruned.
+One bad page doesn't wipe the cache — the cache is always consulted, and there is no failure-count reset (the consecutive-failures gate was removed in v1.1b). Individual paths are pruned conservatively (≥5 uses and ≤10% hit rate); domain-level degradation is flagged for human review, never auto-reset.
 
 ### Multi-Path Cross-Validation
 

@@ -52,7 +52,7 @@ When it lands:
 
 ## Web channel
 
-A dashboard smoke E2E is on the backlog (single test that drives `sandbox → analyze → extract → results render`). Deferred until a real UI behaviour actively regresses.
+A dashboard smoke E2E is on the backlog (single test that drives `create source → analyze → probe → results render`). Deferred until a real UI behaviour actively regresses.
 
 ## CI
 
