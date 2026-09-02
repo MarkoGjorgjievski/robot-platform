@@ -981,6 +981,25 @@ export type ExtractionOutcome = {
  */
 export const EXTRACTION_SUCCESS_THRESHOLD = 0.3;
 
+/** Upper bound on stored API endpoints per domain/pageType row. Endpoints are
+ *  discovery breadcrumbs, not reputation data — a bounded, recent window is
+ *  enough, and the jsonb row must not grow with every navigation pattern the
+ *  site ever exhibits. */
+export const API_ENDPOINTS_CAP = 20;
+
+type ApiEndpoint = { url: string; urlPattern: string; method: string };
+
+/** Enrich-never-overwrite for the endpoint list: keep what is known, append
+ *  what is new (identity: url + method), and when the union exceeds the cap
+ *  drop oldest-first — known entries only ever leave to make room. The list
+ *  used to freeze at whatever the FIRST run saw (`existing ?? fresh`), which
+ *  with the column's `[]` default meant it often froze empty. */
+export function mergeApiEndpoints(existing: ApiEndpoint[], fresh: ApiEndpoint[]): ApiEndpoint[] {
+  const seen = new Set(existing.map((e) => `${e.method} ${e.url}`));
+  const merged = [...existing, ...fresh.filter((e) => !seen.has(`${e.method} ${e.url}`))];
+  return merged.length > API_ENDPOINTS_CAP ? merged.slice(merged.length - API_ENDPOINTS_CAP) : merged;
+}
+
 /**
  * Save extraction results to domain intelligence.
  * Merges new paths into existing cache — never overwrites, only enriches.
@@ -1043,7 +1062,9 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
       await tx
         .update(domainIntelligence)
         .set({
-          apiEndpoints: existing.apiEndpoints ?? apiEndpoints,
+          apiEndpoints: mergeApiEndpoints(
+            (existing.apiEndpoints ?? []) as ApiEndpoint[], apiEndpoints,
+          ),
           fieldPaths: mergedPaths,
           hasJsonLd: outcome.hasJsonLd,
           hasNextData: outcome.hasNextData,
@@ -1073,6 +1094,29 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Cosmetic normalization for xpath identity comparison ONLY — stored strings
+ *  are never rewritten. AI re-derives the same target element with varying
+ *  whitespace and quote style, and each cosmetic variant used to become a new
+ *  identity crowding the 5-path cap (conflict-taxonomy class 5). Nothing
+ *  semantic happens here: no predicate rewriting, no axis changes. */
+function canonicalizeXPath(path: string): string {
+  return path
+    .replace(/'/g, '"')
+    .replace(/\s+/g, ' ')
+    .replace(/ ?([/[\]()=,|@]) ?/g, '$1')
+    .trim();
+}
+
+/** Sources whose paths are xpath expressions ('human' pins are xpaths too);
+ *  everything else (dot-paths, prose descriptions) keeps strict identity. */
+const XPATH_IDENTITY_SOURCES: ReadonlySet<string> = new Set(['xpath', 'xpath-cached', 'human']);
+
+function samePathIdentity(source: string, a: string, b: string): boolean {
+  return XPATH_IDENTITY_SOURCES.has(source)
+    ? canonicalizeXPath(a) === canonicalizeXPath(b)
+    : a === b;
+}
 
 export function mergeFieldPaths(
   existing: Record<string, FieldPathSet>,
@@ -1119,8 +1163,8 @@ export function mergeFieldPaths(
     // entry may be 'xpath' or a '//'-style 'human' path). Anything else
     // matches on exact source + path.
     const existingPath = result.source === 'xpath-cached'
-      ? pathSet.paths.find(p => p.path === result.path && result.path !== '')
-      : pathSet.paths.find(p => p.source === result.source && p.path === result.path);
+      ? pathSet.paths.find(p => result.path !== '' && samePathIdentity('xpath-cached', p.path, result.path))
+      : pathSet.paths.find(p => p.source === result.source && samePathIdentity(result.source, p.path, result.path));
 
     if (existingPath) {
       // Update existing path stats
@@ -1171,7 +1215,7 @@ export function mergeFieldPaths(
     if (!pathSet) continue;
     for (const failure of failures) {
       const failedPath = pathSet.paths.find(
-        p => p.source === failure.source && p.path === failure.path,
+        p => p.source === failure.source && samePathIdentity(failure.source, p.path, failure.path),
       );
       if (!failedPath) continue;
       failedPath.misses++;
@@ -1229,8 +1273,29 @@ function buildFreshPaths(
   return paths;
 }
 
+/** Deterministic JSON rendering: object keys recursively sorted, array order
+ *  kept (it is data — [S, M] and [M, S] are different variant lists). */
+function stableStringify(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
+  if (v !== null && typeof v === 'object') {
+    return `{${Object.keys(v as Record<string, unknown>).sort()
+      .map((k) => `${JSON.stringify(k)}:${stableStringify((v as Record<string, unknown>)[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v) ?? 'undefined';
+}
+
 function valuesMatch(a: unknown, b: unknown): boolean {
   if (a === b) return true;
+  // Structured values must be compared structurally: String({a:1}) is
+  // "[object Object]" for EVERY object, which made all structured pairs
+  // compare equal and blinded conflict detection to variant-array
+  // disagreement. A structured value never matches a scalar.
+  const aStructured = a !== null && typeof a === 'object';
+  const bStructured = b !== null && typeof b === 'object';
+  if (aStructured || bStructured) {
+    return aStructured && bStructured && stableStringify(a) === stableStringify(b);
+  }
   const strA = String(a).trim().toLowerCase();
   const strB = String(b).trim().toLowerCase();
   if (strA === strB) return true;
