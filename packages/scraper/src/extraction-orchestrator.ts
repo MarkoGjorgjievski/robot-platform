@@ -25,7 +25,7 @@ import { extractFromStructuredData } from './structured-extractor.js';
 import { validateFieldShape } from './shape-validator.js';
 import { corroborateValue, visibleTextFromHtml } from './corroborate-value.js';
 import {
-  lookupDomainCache, saveDomainCache, resolveFromCache,
+  lookupDomainCache, saveDomainCache,
   resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath,
   saveCandidateCatalogue, findConcept, collectApiJsonBodies,
   saveVerifiedRowPlan, recordRowPlanMiss, recordRowPlanHit,
@@ -554,15 +554,13 @@ export async function runExtraction(
         }
       }
 
-      const cacheResult = resolveFromCache(cache.fieldPaths, finalData, fieldNames, {
-        catalogue: cache.candidateCatalogue,
-        selections: Object.fromEntries(fields.filter((f) => f.candidate).map((f) => [f.name, f.candidate!])),
-      });
-      if (cacheResult.overallConfidence > 0) {
-        for (const [name, resolved] of Object.entries(cacheResult.resolved)) {
-          tryAssign(name, resolved.value, resolved.source as PathSource, resolved.path, resolved.confidence);
-        }
-      }
+      // No final `resolveFromCache` pass here: its lookup is field-name-keyed
+      // against `finalData`, which only ever contains fields `tryAssign`
+      // already accepted — so it could only re-offer values that first-wins
+      // then rejected. Serving from the cache happens at the seams that hold
+      // per-candidate evidence: STEP 0.4/1.5b (selection/displayed), the
+      // cached API-path tier, and the cached-XPath tier above. (The analyze
+      // wizard still uses `resolveFromCache` against its own liveValues.)
 
       const totalFromCache = fieldNames.filter((n) => finalData[n] !== undefined).length;
       console.log(`[extract] After cache: ${totalFromCache}/${fields.length} fields (${cache.totalRuns} previous runs, ${cache.successRate}% success)`);
