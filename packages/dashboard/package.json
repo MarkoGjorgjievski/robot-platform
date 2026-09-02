@@ -16,12 +16,10 @@
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
     "@trpc/server": "^11.0.0",
-    "clsx": "^2.1.0",
     "lucide-react": "^0.511.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "superjson": "^2.2.0",
-    "tailwind-merge": "^3.0.0"
+    "superjson": "^2.2.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
