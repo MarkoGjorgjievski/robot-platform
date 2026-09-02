@@ -6,10 +6,10 @@ dist/
 .DS_Store
 .env
 .env.local
-packages/dashboard/.next/
+.next/
 packages/api-server/public/captures/*.png
+packages/dashboard/public/captures/
 .superpowers/
 .worktrees
 .claude/
 .playwright-mcp/
-packages/scraper/fixed-path-probe.ts
