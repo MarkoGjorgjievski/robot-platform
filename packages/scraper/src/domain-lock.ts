@@ -26,14 +26,25 @@ const lastRequestTime = new Map<string, number>();
  * Returns a release function that MUST be called when done.
  */
 export async function acquireDomainLock(domain: string): Promise<() => void> {
-  // Wait for any existing lock on this domain
-  const existing = activeLocks.get(domain);
-  if (existing) {
+  // Wait for any existing lock on this domain. One release wakes EVERY waiter
+  // queued on that promise, so each must re-check on wake — a single `if`
+  // let all of them proceed into their critical sections at once.
+  for (;;) {
+    const existing = activeLocks.get(domain);
+    if (!existing) break;
     console.log(`[lock] Waiting for in-flight request to ${domain}...`);
     await existing.promise;
   }
 
-  // Politeness delay — don't hammer the same domain
+  // Claim synchronously with the emptiness check above: any await between
+  // "no lock" and this `set` reopens the race for the other woken waiters.
+  let resolve: () => void;
+  const promise = new Promise<void>(r => { resolve = r; });
+  const entry: LockEntry = { promise, resolve: resolve!, domain, startedAt: Date.now() };
+  activeLocks.set(domain, entry);
+
+  // Politeness delay — don't hammer the same domain. Under the lock, so the
+  // spacing also holds back whoever is queued behind this request.
   const lastTime = lastRequestTime.get(domain);
   if (lastTime) {
     const elapsed = Date.now() - lastTime;
@@ -43,12 +54,6 @@ export async function acquireDomainLock(domain: string): Promise<() => void> {
       await new Promise(r => setTimeout(r, wait));
     }
   }
-
-  // Create new lock
-  let resolve: () => void;
-  const promise = new Promise<void>(r => { resolve = r; });
-  const entry: LockEntry = { promise, resolve: resolve!, domain, startedAt: Date.now() };
-  activeLocks.set(domain, entry);
 
   // Return release function
   return () => {
