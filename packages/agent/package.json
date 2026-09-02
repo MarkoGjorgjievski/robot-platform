@@ -9,7 +9,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest --passWithNoTests",
-    "render:calibration": "tsx render-calibration.ts"
+    "render:calibration": "tsx render-calibration.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
