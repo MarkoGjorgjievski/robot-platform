@@ -6,43 +6,6 @@ import { router, publicProcedure } from '../trpc';
 const VIEW_ROW_CAP = 500;
 
 export const runsRouter = router({
-  list: publicProcedure
-    .input(
-      z.object({
-        extractorId: z.string().uuid().optional(),
-      }).optional(),
-    )
-    .query(async ({ ctx, input }) => {
-      const results = await ctx.db.query.runs.findMany({
-        where: input?.extractorId ? eq(runs.extractorId, input.extractorId) : undefined,
-        orderBy: [desc(runs.createdAt)],
-        limit: 50,
-      });
-      return results;
-    }),
-
-  getById: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const run = await ctx.db.query.runs.findFirst({
-        where: eq(runs.id, input.id),
-        with: {
-          extractor: {
-            with: {
-              org: { columns: { id: true, name: true } },
-              domain: { columns: { id: true, name: true } },
-            },
-          },
-        },
-      });
-
-      if (!run) {
-        throw new Error(`Run with id ${input.id} not found`);
-      }
-
-      return run;
-    }),
-
   getWithDetails: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
@@ -176,63 +139,5 @@ export const runsRouter = router({
         limit: 50,
       });
       return results;
-    }),
-
-  getHtml: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const run = await ctx.db.query.runs.findFirst({
-        where: eq(runs.id, input.id),
-        columns: { id: true, html: true },
-      });
-      if (!run) throw new Error(`Run ${input.id} not found`);
-      return { html: run.html };
-    }),
-
-  getDetails: publicProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const run = await ctx.db.query.runs.findFirst({
-        where: eq(runs.id, input.id),
-        columns: {
-          id: true,
-          html: true,
-          logs: true,
-          results: true,
-          replayData: true,
-          errorMessage: true,
-          status: true,
-        },
-      });
-      if (!run) throw new Error(`Run ${input.id} not found`);
-      return {
-        html: run.html,
-        logs: run.logs,
-        results: run.results,
-        replayData: run.replayData,
-        errorMessage: run.errorMessage,
-        status: run.status,
-      };
-    }),
-
-  create: publicProcedure
-    .input(
-      z.object({
-        extractorId: z.string().uuid().optional(),
-        sourceId: z.string().uuid().optional(),
-        inputLabel: z.string().optional(),
-      }).refine(
-        (data) => data.extractorId || data.sourceId,
-        { message: 'Either extractorId or sourceId must be provided' },
-      ),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [run] = await ctx.db.insert(runs).values({
-        extractorId: input.extractorId ?? null,
-        sourceId: input.sourceId ?? null,
-        inputLabel: input.inputLabel ?? null,
-        status: 'queued',
-      }).returning();
-      return run;
     }),
 });
