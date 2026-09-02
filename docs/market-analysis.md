@@ -29,7 +29,7 @@ Most competitors go straight to AI or straight to selectors — and when AI fail
 
 ### 2. Domain Intelligence Cache is a Moat
 
-Multi-path per field with hit/miss scoring, cross-validation (5% numeric tolerance), auto-pruning at <10% hit rate, and 5-consecutive-failure reset. This creates a **network effect**: every customer scraping Amazon benefits the next customer scraping Amazon.
+Multi-path per field with hit/miss scoring, cross-validation (5% numeric tolerance), and conservative per-path pruning at <10% hit rate (degradation is flagged for human review, never auto-reset). This creates a **network effect**: every customer scraping Amazon benefits the next customer scraping Amazon.
 
 The cache is genuinely hard to replicate and gets more valuable with scale. It's the single most defensible piece of the architecture.
 

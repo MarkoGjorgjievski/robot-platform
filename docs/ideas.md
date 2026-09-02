@@ -274,7 +274,7 @@ The chain, from the run log:
 - **Periodic re-validation against AI.** For domains with many cached runs, occasionally run the full AI chain anyway and compare its result to what the cache produced. Disagreements demote path confidence.
 - **Image-grounded validation as a check on cached values** (cross-references with the "Image-grounded field discovery" idea above). If the screenshot doesn't show `$24.99` but the cache says `price=$24.99`, the cache is wrong.
 
-**Adjacent.** Right now the cache's `example_value` (used by `sandbox.analyze` to populate the "Example" column in the schema editor) is the *last* extracted value, regardless of whether it was correct. So a stale-cache symptom often appears at analyze-time as "the example column shows values from a different page." Could clarify the UI ("Last seen example, may not match this URL") OR run a quick fresh extraction on analyze to populate example_value from the current page.
+**Adjacent.** Right now the cache's `example_value` (used by `sources.analyze` to populate the "Example" column in the schema editor) is the *last* extracted value, regardless of whether it was correct. So a stale-cache symptom often appears at analyze-time as "the example column shows values from a different page." Could clarify the UI ("Last seen example, may not match this URL") OR run a quick fresh extraction on analyze to populate example_value from the current page.
 
 **Action items if we revisit.**
 - Add a plausibility-check pass on cache hits, not just AI-discovered values.
