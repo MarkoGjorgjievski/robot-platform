@@ -191,18 +191,20 @@ export const domainsRouter = router({
 
       type PathLike = {
         path: string; source: string; hits: number; misses: number;
-        lastValue: unknown; lastUsedAt: string;
+        lastValue: unknown; lastUsedAt: string; pinned?: boolean;
       };
       const pageTypes = rows.map((r) => {
         const fieldPaths = (r.fieldPaths ?? {}) as Record<string, { paths?: PathLike[] }>;
         const selectors: Array<{
           field: string; source: string | null; hits: number; misses: number;
           hitRate: number; lastValue: unknown; lastUsedAt: string | null;
+          /** An operator's ruling — a pin must be visible even when the field has no active conflict. */
+          pinned: boolean;
         }> = [];
         for (const [field, set] of Object.entries(fieldPaths)) {
           const paths = set?.paths ?? [];
           if (paths.length === 0) {
-            selectors.push({ field, source: null, hits: 0, misses: 0, hitRate: 0, lastValue: null, lastUsedAt: null });
+            selectors.push({ field, source: null, hits: 0, misses: 0, hitRate: 0, lastValue: null, lastUsedAt: null, pinned: false });
             continue;
           }
           for (const p of paths) {
@@ -211,6 +213,7 @@ export const domainsRouter = router({
               field, source: p.source, hits: p.hits, misses: p.misses,
               hitRate: total > 0 ? Math.round((p.hits / total) * 100) : 0,
               lastValue: p.lastValue ?? null, lastUsedAt: p.lastUsedAt ?? null,
+              pinned: p.pinned === true,
             });
           }
         }

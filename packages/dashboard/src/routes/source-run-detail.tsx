@@ -4,7 +4,6 @@ import {
   Activity, Download, ExternalLink, ListChecks, HelpCircle, CheckCircle2, Loader2,
 } from 'lucide-react';
 import { trpc } from '../lib/trpc';
-import { screenshotUrl } from '../lib/screenshot-url';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
 import {
@@ -14,11 +13,11 @@ import { probeEvidence } from '../lib/probe-evidence';
 import { parseRunLog } from '../lib/parse-run-log';
 import { diagnoseRun, type Diagnosis } from '../lib/diagnose-run';
 import {
-  rowsMissingField, selectionToItemIds, reExtractLabel, nextSelectionOnFilterChange, emptyFilterNote,
+  rowsMissingField, selectionToItemIds, reExtractLabel, emptyFilterNote,
   type ItemGap, type FieldCoverage,
 } from '../lib/coverage-view';
 import {
-  previewSummary, strategyCopy, initialChecked, checkedHasDeadField, backfillMutationInput, derivedPreview,
+  previewSummary, strategyCopy, initialChecked, checkedHasDeadField, backfillMutationInput,
   type FieldClassification,
 } from '../lib/backfill-preview';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
@@ -115,18 +114,18 @@ export default function SourceRunDetail() {
     });
   };
   // Every filter transition — picking a field, toggling it off, or an
-  // explicit clear — invalidates whatever was selected under the OLD filter
-  // (see nextSelectionOnFilterChange's own doc comment): a selection made
-  // while viewing "missing X" must not silently carry into "missing Y" or
-  // into no filter at all, where the Re-extract button would fire against
-  // urls the operator never picked under the filter they're looking at now.
+  // explicit clear — invalidates whatever was selected under the OLD filter:
+  // a selection made while viewing "missing X" must not silently carry into
+  // "missing Y" or into no filter at all, where the Re-extract button would
+  // fire against urls the operator never picked under the filter they're
+  // looking at now.
   const toggleFilterField = (name: string) => {
     setFilterField((prev) => (prev === name ? null : name));
-    setSelectedUrls(nextSelectionOnFilterChange());
+    setSelectedUrls(new Set());
   };
   const clearFilter = () => {
     setFilterField(null);
-    setSelectedUrls(nextSelectionOnFilterChange());
+    setSelectedUrls(new Set());
   };
   const selectAllMissing = () => {
     // Matches ResultsTable's own `slice(0, 100)` — selection interacts with
@@ -248,17 +247,6 @@ export default function SourceRunDetail() {
         </div>
       )}
 
-      {capture?.screenshotPath && (
-        <div className="mt-8">
-          <h2 className="micro-label">Capture screenshot</h2>
-          <img
-            src={screenshotUrl(capture.screenshotPath) ?? ''}
-            alt="Captured page"
-            className="mt-2 w-full max-w-md rounded border"
-          />
-        </div>
-      )}
-
       {capture?.url && (
         <div className="mt-8">
           <h2 className="micro-label">URL</h2>
@@ -301,7 +289,6 @@ export default function SourceRunDetail() {
           projectSlug={projectSlug}
           sourceSlug={sourceSlug}
           gappyFieldNames={(coverageQuery.data?.fields ?? []).filter((f) => f.missing > 0).map((f) => f.name)}
-          gapItems={coverageQuery.data?.gapItems ?? []}
         />
       )}
 
@@ -458,6 +445,28 @@ function ExecuteControls({ runId, probeUnconfirmed, backfill }: { runId: string;
 }
 
 /**
+ * The one `crawl.backfill` mutation both spend paths share — the action bar's
+ * Re-extract and the gaps panel's Run backfill. On success both must land
+ * identically: this run (the backfill's PARENT) gets its "Backfilled by"
+ * breadcrumb and coverage refreshed, and the operator navigates to the new
+ * backfill run. One hook keeps the two paths identical by construction.
+ */
+function useBackfillMutation(projectSlug: string, sourceSlug: string) {
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
+  return trpc.crawl.backfill.useMutation({
+    onSuccess: (result) => {
+      utils.runs.getWithDetails.invalidate();
+      utils.crawl.coverage.invalidate();
+      navigate({
+        to: '/p/$project/sources/$source/runs/$run',
+        params: { project: projectSlug, source: sourceSlug, run: result.backfillRunId },
+      });
+    },
+  });
+}
+
+/**
  * The manual backfill handle (spec: coverage report → re-extract selected).
  * Renders nothing until there's something to act on — a field filter is
  * active, or at least one row is selected — so it never competes for
@@ -486,18 +495,7 @@ function CoverageActionBar({
   /** Per-field coverage — used only to explain a filter that renders zero rows (`emptyFilterNote`). */
   coverage?: FieldCoverage[];
 }) {
-  const navigate = useNavigate();
-  const utils = trpc.useUtils();
-  const backfill = trpc.crawl.backfill.useMutation({
-    onSuccess: (result) => {
-      utils.runs.getWithDetails.invalidate();
-      utils.crawl.coverage.invalidate();
-      navigate({
-        to: '/p/$project/sources/$source/runs/$run',
-        params: { project: projectSlug, source: sourceSlug, run: result.backfillRunId },
-      });
-    },
-  });
+  const backfill = useBackfillMutation(projectSlug, sourceSlug);
 
   if (!filterField && selectedUrls.size === 0) return null;
 
@@ -549,31 +547,29 @@ function CoverageActionBar({
  * before the one spending click. Renders nothing when there are no gappy
  * fields at all.
  *
- * The preview query (`crawl.backfillPreview`, free/AI-free) fires only while
- * `open` — a closed panel must not query. It always asks for the FULL gappy
- * field set (`gappyFieldNames`, computed by the caller from the coverage
- * query that's already loaded), not the narrowed checked subset — one query
- * per open, used only to drive the checklist's fill bars/classification
- * chips and the strategy choice.
- *
- * The summary line does NOT read that query's items/pages/cost directly
- * (D-UX1 fix) — those stayed pinned to the full gappy set no matter which
- * checkboxes were unchecked. It's `derivedPreview(gapItems, checked)`
- * instead: recomputed client-side, no re-query, from `gapItems` (also
- * already loaded by the caller's coverage query) intersected with the
- * checked field set.
+ * Two uses of the preview query (`crawl.backfillPreview`, free/AI-free),
+ * both gated on `open` — a closed panel must not query. The first asks for
+ * the FULL gappy field set (`gappyFieldNames`, computed by the caller from
+ * the coverage query that's already loaded) and drives the checklist's fill
+ * bars/classification chips and the strategy choice. The second asks for the
+ * CHECKED subset and drives the summary line (D-UX1: the summary must follow
+ * the checkboxes, not stay pinned to the full-set numbers from panel-open) —
+ * react-query refetches it on every toggle since the field set is in its
+ * query key, and the endpoint is read-only and free, so the extra query
+ * costs nothing. Both derive from the same server-side
+ * `loadRunCoverage`/`deriveBackfillItems`, so the summary and the run it
+ * describes can never drift — the drift hazard the previous client-side
+ * recomputation (a mirrored cost constant and re-implemented intersection
+ * semantics) carried.
  */
 function BackfillGapsPanel({
-  runId, projectSlug, sourceSlug, gappyFieldNames, gapItems,
+  runId, projectSlug, sourceSlug, gappyFieldNames,
 }: {
   runId: string;
   projectSlug: string;
   sourceSlug: string;
   gappyFieldNames: string[];
-  gapItems: ItemGap[];
 }) {
-  const navigate = useNavigate();
-  const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string> | null>(null);
   const [strategy, setStrategy] = useState<'repair_sweep' | 'full_focus'>('repair_sweep');
@@ -589,19 +585,17 @@ function BackfillGapsPanel({
     }
   }, [previewQuery.data, checked]);
 
-  const backfill = trpc.crawl.backfill.useMutation({
-    onSuccess: (result) => {
-      // This run (the backfill's PARENT) gets its "Backfilled by" breadcrumb
-      // and its coverage numbers stale otherwise — the operator lands on the
-      // new backfill run, but coming back here should already show it.
-      utils.runs.getWithDetails.invalidate();
-      utils.crawl.coverage.invalidate();
-      navigate({
-        to: '/p/$project/sources/$source/runs/$run',
-        params: { project: projectSlug, source: sourceSlug, run: result.backfillRunId },
-      });
-    },
-  });
+  // The summary line's query — the checked subset, sorted so the query key is
+  // stable under Set iteration order. `placeholderData` keeps the previous
+  // summary on screen during the refetch a toggle triggers, instead of the
+  // line blinking out on every checkbox click.
+  const activeChecked = checked ?? new Set(gappyFieldNames);
+  const checkedPreviewQuery = trpc.crawl.backfillPreview.useQuery(
+    { runId, targetFields: [...activeChecked].sort() },
+    { enabled: open, placeholderData: (prev) => prev },
+  );
+
+  const backfill = useBackfillMutation(projectSlug, sourceSlug);
 
   if (gappyFieldNames.length === 0) return null;
 
@@ -614,7 +608,6 @@ function BackfillGapsPanel({
   }
 
   const fields = (previewQuery.data?.fields ?? []) as FieldClassification[];
-  const activeChecked = checked ?? new Set(gappyFieldNames);
   const showStrategy = checkedHasDeadField(fields, activeChecked);
   const deadCheckedFields = fields.filter((f) => activeChecked.has(f.name) && f.classification === 'dead');
 
@@ -693,9 +686,11 @@ function BackfillGapsPanel({
             </div>
           )}
 
-          <p className="mt-3 text-sm text-gray-700">
-            {previewSummary(derivedPreview(gapItems, activeChecked))}
-          </p>
+          {checkedPreviewQuery.data && (
+            <p className="mt-3 text-sm text-gray-700">
+              {previewSummary(checkedPreviewQuery.data)}
+            </p>
+          )}
 
           <button
             onClick={() => mutationInput && backfill.mutate({ runId, ...mutationInput })}

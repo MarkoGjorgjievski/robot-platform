@@ -5,7 +5,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { and, eq, isNull } from 'drizzle-orm';
-import { type OriginField } from '@robot/scraper';
 import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
@@ -167,7 +166,7 @@ export const crawlRouter = router({
           // comment for why this must never become an unhandled rejection,
           // and `execute`'s identical `.catch()` below for the pattern this
           // copies.
-          void startExecution(outcome.runId, execSource.id, effectiveSchema(execSource) as OriginField[], PROBE_SAMPLE_LIMIT)
+          void startExecution(outcome.runId, execSource.id, effectiveSchema(execSource), PROBE_SAMPLE_LIMIT)
             .catch((err) => {
               console.error(`[crawl] startExecution rejected outside its own guards for run ${outcome.runId}:`, err);
             });
@@ -363,7 +362,7 @@ export const crawlRouter = router({
       void startExecution(
         input.runId,
         run.source.id,
-        effectiveSchema(run.source) as OriginField[],
+        effectiveSchema(run.source),
         input.limit,
         run.parentRunId ? { mergeToParent: true } : undefined,
       )
@@ -398,15 +397,15 @@ export const crawlRouter = router({
     .input(z.object({
       runId: z.string().uuid(),
       targetFields: z.array(z.string().min(1)).optional(),
-      itemIds: z.array(z.string().uuid()).optional(),
     }))
     .query(async ({ ctx, input }) => {
       const cov = await loadRunCoverage(ctx.db, input.runId);
       const targetNames = input.targetFields ?? cov.fields.filter((f) => f.missing > 0).map((f) => f.name);
-      const items = deriveBackfillItems(cov.gapItems, targetNames, input.itemIds);
+      const items = deriveBackfillItems(cov.gapItems, targetNames);
       return {
-        items: items.length,
-        pages: items.length, // one detail fetch per item — say so in the UI copy
+        // One detail fetch per gap item — a page count and an item count are
+        // the same number here, so only the page count is reported.
+        pages: items.length,
         estCostUsd: Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)),
         fields: classifyFields(cov.fields, targetNames),
       };
@@ -540,7 +539,7 @@ export const crawlRouter = router({
       // established by guard 1) does not survive into a callback, but a
       // const does — same reasoning as effective-schema.ts's `inputSet`.
       const sourceId = parent.source.id;
-      const schema = effectiveSchema(parent.source) as OriginField[];
+      const schema = effectiveSchema(parent.source);
       const execute = (opts?: { limit?: number }) =>
         startExecution(backfillRunId, sourceId, schema, opts?.limit, { mergeToParent: true });
 

@@ -51,7 +51,7 @@ export const runsRouter = router({
         ctx.db.query.extractions.findMany({
           where: eq(extractions.runId, input.id),
           orderBy: [asc(extractions.createdAt), asc(extractions.id)],
-          columns: { data: true, confidence: true, rowCount: true, validationResult: true },
+          columns: { data: true, confidence: true },
           limit: VIEW_ROW_CAP,
         }),
         // The true row total, independent of the cap above. One extraction can
@@ -103,10 +103,14 @@ export const runsRouter = router({
         source: run.source,
         // The reverse breadcrumb — see the Promise.all query above.
         backfillRuns,
+        // id + url only. `screenshotPath` used to ride along here, but no
+        // live path ever writes `captures.screenshot_path` — the crawl
+        // capture writer (extract-item.ts) records url/metadata only, and
+        // analyze screenshots live on `selectorsJson.screenshotUrl` — so the
+        // dashboard block rendering it could never appear.
         capture: latestCapture ? {
           id: latestCapture.id,
           url: latestCapture.url,
-          screenshotPath: latestCapture.screenshotPath,
         } : null,
         extraction: extractionRows.length > 0 ? {
           // Phase 2 writes one extraction per URL, so a run's rows are all of
@@ -120,7 +124,6 @@ export const runsRouter = router({
           // count exceeds VIEW_ROW_CAP (the phase 2 shape: one extraction per
           // row).
           rowCount: rowTotal?.total ?? 0,
-          validationResult: extractionRows[0]!.validationResult,
         } : null,
       };
     }),

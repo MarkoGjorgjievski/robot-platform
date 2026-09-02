@@ -521,7 +521,7 @@ describe('sources.analyze', () => {
 });
 
 describe('sources.requestFields', () => {
-  it('persists requested fields onto sources.requestedFields with addedAt', async () => {
+  it('persists requested fields onto sources.requestedFields', async () => {
     const created = await caller.sources.quickCreate({
       mode: 'detail',
       urls: ['https://test-request-fields.example.com/p/1'],
@@ -539,7 +539,6 @@ describe('sources.requestFields', () => {
       const isbn = result.requestedFields.find((f) => f.name === 'isbn');
       expect(isbn).toBeDefined();
       expect(isbn!.hint).toBe('near the publisher line');
-      expect(typeof isbn!.addedAt).toBe('string');
       const weight = result.requestedFields.find((f) => f.name === 'weight');
       expect(weight).toBeDefined();
       expect(weight!.hint).toBeUndefined();
@@ -551,20 +550,16 @@ describe('sources.requestFields', () => {
     }
   });
 
-  it('merges by name — a repeat name REPLACES the existing entry (new hint, new addedAt)', async () => {
+  it('merges by name — a repeat name REPLACES the existing entry (new hint)', async () => {
     const created = await caller.sources.quickCreate({
       mode: 'detail',
       urls: ['https://test-request-fields-merge.example.com/p/1'],
     });
     try {
-      const first = await caller.sources.requestFields({
+      await caller.sources.requestFields({
         sourceId: created.sourceId,
         fields: [{ name: 'isbn', hint: 'near the publisher line' }],
       });
-      const firstAddedAt = first.requestedFields.find((f) => f.name === 'isbn')!.addedAt;
-
-      // Ensure a distinguishable timestamp on the replace.
-      await new Promise((resolve) => setTimeout(resolve, 5));
 
       const second = await caller.sources.requestFields({
         sourceId: created.sourceId,
@@ -574,7 +569,6 @@ describe('sources.requestFields', () => {
       expect(second.requestedFields).toHaveLength(2);
       const isbn = second.requestedFields.find((f) => f.name === 'isbn')!;
       expect(isbn.hint).toBe('on the back cover');
-      expect(isbn.addedAt).not.toBe(firstAddedAt);
     } finally {
       await cleanupSource(created.sourceId);
     }

@@ -1,25 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
   previewSummary, strategyCopy, initialChecked, checkedHasDeadField, backfillMutationInput,
-  derivedPreview,
   type FieldClassification,
 } from './backfill-preview';
-import type { ItemGap } from './coverage-view';
 
 describe('previewSummary', () => {
-  it('names rows, pages and an "up to" cost — never an exact figure', () => {
-    expect(previewSummary({ items: 17, pages: 17, estCostUsd: 0.85 }))
-      .toBe('17 rows, 17 pages — up to ~$0.85 if no cache answers');
+  it('names pages and an "up to" cost — never an exact figure', () => {
+    expect(previewSummary({ pages: 17, estCostUsd: 0.85 }))
+      .toBe('17 pages — up to ~$0.85 if no cache answers');
   });
 
   it('uses the singular where it should', () => {
-    expect(previewSummary({ items: 1, pages: 1, estCostUsd: 0.05 }))
-      .toBe('1 row, 1 page — up to ~$0.05 if no cache answers');
+    expect(previewSummary({ pages: 1, estCostUsd: 0.05 }))
+      .toBe('1 page — up to ~$0.05 if no cache answers');
   });
 
   it('formats the cost to two decimal places even on a round number', () => {
-    expect(previewSummary({ items: 4, pages: 4, estCostUsd: 0.2 }))
-      .toBe('4 rows, 4 pages — up to ~$0.20 if no cache answers');
+    expect(previewSummary({ pages: 4, estCostUsd: 0.2 }))
+      .toBe('4 pages — up to ~$0.20 if no cache answers');
   });
 });
 
@@ -98,37 +96,5 @@ describe('backfillMutationInput', () => {
   it('omits deadFieldStrategy once the dead field is unchecked — never a stale strategy', () => {
     const result = backfillMutationInput(fields, new Set(['isbn']), 'repair_sweep');
     expect(result).not.toHaveProperty('deadFieldStrategy');
-  });
-});
-
-// D-UX1: the panel's summary line used to stay pinned at the FULL gappy-field
-// query result no matter which checkboxes were unchecked (never understating
-// — proven monotone — but a $2.00 quote for a one-field selection that
-// derives to a fraction is poor pricing UX). `derivedPreview` recomputes
-// items/pages/cost client-side from data already on the page, no re-query.
-describe('derivedPreview', () => {
-  const gapItems: ItemGap[] = [
-    { itemId: 'i1', url: 'https://example.com/p/1', missingFields: ['title', 'isbn'] },
-    { itemId: 'i2', url: 'https://example.com/p/2', missingFields: ['isbn'] },
-    { itemId: 'i3', url: 'https://example.com/p/3', missingFields: ['title'] },
-    { itemId: 'i4', url: 'https://example.com/p/4', missingFields: ['publisher'] },
-  ];
-
-  it('matches the full-set count when every gappy field is checked — same semantics as the server preview', () => {
-    // i1, i2, i3 each miss title and/or isbn; i4 misses neither.
-    expect(derivedPreview(gapItems, new Set(['title', 'isbn']))).toEqual({ items: 3, pages: 3, estCostUsd: 0.15 });
-  });
-
-  it('shrinks as fields are unchecked — an item counts only if a CHECKED field is among its gaps', () => {
-    // Checking only isbn drops i3 (misses title only).
-    expect(derivedPreview(gapItems, new Set(['isbn']))).toEqual({ items: 2, pages: 2, estCostUsd: 0.10 });
-  });
-
-  it('is zero with nothing checked', () => {
-    expect(derivedPreview(gapItems, new Set())).toEqual({ items: 0, pages: 0, estCostUsd: 0 });
-  });
-
-  it('drops an item whose gaps intersect none of the checked fields, even if the item has other gaps', () => {
-    expect(derivedPreview(gapItems, new Set(['publisher']))).toEqual({ items: 1, pages: 1, estCostUsd: 0.05 });
   });
 });

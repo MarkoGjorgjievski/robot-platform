@@ -5,8 +5,6 @@
 // Components stay thin wrappers around these, same precedent as
 // coverage-view.ts.
 
-import type { ItemGap } from './coverage-view';
-
 /**
  * Mirrors `@robot/api`'s `FieldClassification`
  * (packages/api/src/crawl/backfill.ts) rather than importing it — this
@@ -21,11 +19,11 @@ export type FieldClassification = { name: string; fill: number; classification: 
  * backfill" — "up to", never an exact figure, because a backfill item may
  * resolve for free at a cheaper cache tier than AI
  * (`EST_AI_COST_PER_PAGE_USD`'s own doc comment, packages/api/src/crawl/backfill.ts).
+ * One page per gap item, so one count is the whole story.
  */
-export function previewSummary(p: { items: number; pages: number; estCostUsd: number }): string {
-  const rows = p.items === 1 ? 'row' : 'rows';
+export function previewSummary(p: { pages: number; estCostUsd: number }): string {
   const pages = p.pages === 1 ? 'page' : 'pages';
-  return `${p.items} ${rows}, ${p.pages} ${pages} — up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
+  return `${p.pages} ${pages} — up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
 }
 
 /**
@@ -73,35 +71,4 @@ export function backfillMutationInput(
 ): { targetFields: string[]; deadFieldStrategy?: 'repair_sweep' | 'full_focus' } {
   const targetFields = fields.filter((f) => checked.has(f.name)).map((f) => f.name);
   return checkedHasDeadField(fields, checked) ? { targetFields, deadFieldStrategy: strategy } : { targetFields };
-}
-
-/**
- * Mirrors `EST_AI_COST_PER_PAGE_USD` (packages/api/src/crawl/backfill.ts) —
- * that constant lives in @robot/api's internal crawl types, which this
- * package deliberately doesn't import (see `FieldClassification`'s doc
- * comment above; same precedent as `DETAIL_URL_FIELD` in
- * source-run-detail.tsx). Keep the two values in step if either moves.
- */
-const EST_AI_COST_PER_PAGE_USD = 0.05;
-
-/**
- * The preview's items/pages/cost, recomputed client-side from data already
- * on the page (D-UX1) — the coverage query's `gapItems` intersected with the
- * CHECKED field set, so the summary line follows the checkboxes instead of
- * staying pinned to the full-gappy-set number `crawl.backfillPreview`
- * returned when the panel opened.
- *
- * Same semantics as the server's `deriveBackfillItems`
- * (packages/api/src/crawl/backfill.ts): an item counts iff its
- * `missingFields` intersects `checked`. Monotone in `checked` — the numbers
- * can only shrink as fields are unchecked, never exceed what the
- * server-side preview quoted for the full set, so this is a client-side
- * refinement, never an overstatement in the other direction.
- */
-export function derivedPreview(
-  gapItems: ItemGap[],
-  checked: Set<string>,
-): { items: number; pages: number; estCostUsd: number } {
-  const items = gapItems.filter((g) => g.missingFields.some((f) => checked.has(f))).length;
-  return { items, pages: items, estCostUsd: Number((items * EST_AI_COST_PER_PAGE_USD).toFixed(2)) };
 }

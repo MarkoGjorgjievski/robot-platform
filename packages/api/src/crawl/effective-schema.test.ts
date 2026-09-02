@@ -14,19 +14,40 @@ describe('effectiveSchema', () => {
     ]);
   });
 
-  it('falls back to selectorsJson.fields mapped to {name, type} when the dataset schema is empty', () => {
+  it('falls back to selectorsJson.fields — full objects, nothing stripped — when the dataset schema is empty', () => {
     const result = effectiveSchema({
       dataset: { schema: [] },
       selectorsJson: {
         fields: [
-          { name: 'price', type: 'number', description: 'ignored, not in output', example_value: 'ignored' },
+          { name: 'price', type: 'number', description: 'kept — extraction hints ride along', example_value: '$9.99' },
           { name: 'title', type: 'string' },
         ],
       },
     });
     expect(result).toEqual([
-      { name: 'price', type: 'number' },
+      { name: 'price', type: 'number', description: 'kept — extraction hints ride along', example_value: '$9.99' },
       { name: 'title', type: 'string' },
+    ]);
+  });
+
+  // A Scratch source's schema lives ONLY in selectorsJson — mapping the
+  // fallback down to {name, type} silently dropped the customer's explicit
+  // candidate choice (v2.5 serving order) and any origin/input_column
+  // placement before extraction ever saw them, hidden by `as OriginField[]`
+  // casts at the call sites.
+  it('preserves candidate/origin/input_column through the selectorsJson fallback', () => {
+    const result = effectiveSchema({
+      dataset: { schema: [] },
+      selectorsJson: {
+        fields: [
+          { name: 'price', type: 'number', candidate: { concept: 'price', label: 'Sale price' } },
+          { name: 'sku', type: 'string', origin: 'input', input_column: 'sku' },
+        ],
+      },
+    });
+    expect(result).toEqual([
+      { name: 'price', type: 'number', candidate: { concept: 'price', label: 'Sale price' } },
+      { name: 'sku', type: 'string', origin: 'input', input_column: 'sku' },
     ]);
   });
 
@@ -57,7 +78,7 @@ describe('effectiveSchema', () => {
       },
     });
     expect(result).toEqual([
-      { name: 'price', type: 'number' },
+      { name: 'price', type: 'number', enabled: true },
       { name: 'sku', type: 'string' },
     ]);
   });
