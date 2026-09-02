@@ -106,7 +106,7 @@ export const sources = pgTable('sources', {
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
   inputSetId: uuid('input_set_id').references(() => inputSets.id, { onDelete: 'set null' }),
   aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
-  // Fields a repair run asked this source to backfill: Array<{name, hint?, addedAt}>.
+  // Fields a repair run asked this source to backfill: Array<{name, hint?}>.
   requestedFields: jsonb('requested_fields'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

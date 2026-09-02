@@ -85,6 +85,8 @@ export default function DomainDetail() {
 type Selector = {
   field: string; source: string | null; hits: number; misses: number;
   hitRate: number; lastValue: unknown; lastUsedAt: string | null;
+  /** An operator pinned this path — visible here even when the field has no active conflict. */
+  pinned: boolean;
 };
 
 /** A field whose cached paths currently return different values. */
@@ -187,7 +189,17 @@ function SelectorsTable({
               return (
                 <tr key={`${s.field}-${i}`} className={`border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60 ${rowClass}`}>
                   <td className="px-3 py-2 font-mono">{s.field}</td>
-                  <td className="px-3 py-2 text-gray-600">{s.source ?? '—'}</td>
+                  <td className="px-3 py-2 text-gray-600">
+                    {s.source ?? '—'}
+                    {/* A pin is an operator ruling — it must show even for a
+                        field with no active conflict, which the conflict card
+                        above (the only other place pins render) never lists. */}
+                    {s.pinned && (
+                      <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wide text-green-700">
+                        pinned
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">{resolved ? `${s.hitRate}%` : '—'}</td>
                   <td className="px-3 py-2 text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
                   <td className="px-3 py-2">

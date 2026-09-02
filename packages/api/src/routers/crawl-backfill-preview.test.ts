@@ -85,20 +85,17 @@ describe('crawl.backfillPreview', () => {
       .rejects.toThrow(/not found/i);
   });
 
-  it('defaults targetFields to every field with a gap, and reports items/cost/classification', async () => {
-    const { runId, item1Id, item2Id } = await seedRunWithGapItems();
+  it('defaults targetFields to every field with a gap, and reports pages/cost/classification', async () => {
+    const { runId } = await seedRunWithGapItems();
 
     const result = await caller.crawl.backfillPreview({ runId });
 
-    expect(result.items).toBe(2);
     expect(result.pages).toBe(2);
     expect(result.estCostUsd).toBe(0.1);
     expect(result.fields).toEqual([
       { name: 'title', fill: 0.5, classification: 'healthy' },
       { name: 'isbn', fill: 0, classification: 'dead' },
     ]);
-    void item1Id;
-    void item2Id;
   });
 
   it('restricts to explicit targetFields', async () => {
@@ -108,25 +105,25 @@ describe('crawl.backfillPreview', () => {
 
     // Only item2 is missing isbn AND title, item1 is missing isbn only — both
     // qualify since both are missing 'isbn'.
-    expect(result.items).toBe(2);
+    expect(result.pages).toBe(2);
     expect(result.fields).toEqual([{ name: 'isbn', fill: 0, classification: 'dead' }]);
   });
 
-  it('restricts to explicit itemIds', async () => {
-    const { runId, item1Id } = await seedRunWithGapItems();
+  it('an empty targetFields array previews nothing — the checklist with every box unchecked', async () => {
+    const { runId } = await seedRunWithGapItems();
 
-    const result = await caller.crawl.backfillPreview({ runId, itemIds: [item1Id] });
+    const result = await caller.crawl.backfillPreview({ runId, targetFields: [] });
 
-    expect(result.items).toBe(1);
-    expect(result.estCostUsd).toBe(0.05);
+    expect(result.pages).toBe(0);
+    expect(result.estCostUsd).toBe(0);
+    expect(result.fields).toEqual([]);
   });
 
-  it('a run with zero gaps returns items: 0', async () => {
+  it('a run with zero gaps returns pages: 0', async () => {
     const { runId } = await seedRunWithNoGaps();
 
     const result = await caller.crawl.backfillPreview({ runId });
 
-    expect(result.items).toBe(0);
     expect(result.pages).toBe(0);
     expect(result.estCostUsd).toBe(0);
     expect(result.fields).toEqual([]);

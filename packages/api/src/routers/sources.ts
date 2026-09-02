@@ -289,33 +289,20 @@ export const sourcesRouter = router({
 
   update: publicProcedure
     .input(
+      // Only what a live caller actually sends: Source Config's mode toggle
+      // (`listingMode` — Finding 5 / ruling R7, the minimal REAL "switch
+      // mode") and `isActive`. The legacy column block (locale/currency/
+      // proxyType/...) rode along here from the pre-Source model with no
+      // caller ever sending it — dead surface, removed with it the
+      // `parameters` read-modify-write merge that only existed for it.
       z.object({
         id: z.string().uuid(),
         isActive: z.boolean().optional(),
-        domainId: z.string().uuid().nullish(),
-        name: z.string().min(1).max(255).optional(),
-        slug: z.string().min(1).max(255).optional(),
-        country: z.string().min(1).max(10).optional(),
-        locale: z.string().max(10).nullish(),
-        currency: z.string().max(10).nullish(),
-        dataCenter: z.string().max(10).nullish(),
-        proxyType: z.string().max(50).nullish(),
-        loginPool: z.string().max(100).nullish(),
-        maximumInputs: z.number().int().positive().nullish(),
-        runnerFramework: z.string().max(50).nullish(),
-        variant: z.string().max(50).optional(),
-        robotTemplate: z.string().max(255).optional(),
-        parameters: z.record(z.unknown()).optional(),
-        schemaValues: z.record(z.string()).optional(),
-        // Finding 5 / ruling R7 (final-review-findings.md): the minimal REAL
-        // "switch mode" — the two values `quickCreate` itself already writes
-        // (see `listingMode` below in this file). Source Config's mode
-        // toggle is the only caller today.
         listingMode: z.enum(['listing_to_detail', 'detail']).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, parameters, ...rest } = input;
+      const { id, ...rest } = input;
 
       // Re-review residual #1 (fix-wave-report.md): `...rest` applied
       // `listingMode` unconditionally, so a confirmed Source's mode could be
@@ -340,21 +327,9 @@ export const sourcesRouter = router({
         }
       }
 
-      // If parameters is provided, merge with existing (don't replace)
-      // This prevents one tab's save from clobbering another tab's data
-      let mergedParams = parameters;
-      if (parameters) {
-        const existing = await ctx.db.query.sources.findFirst({
-          where: eq(sources.id, id),
-          columns: { parameters: true },
-        });
-        const currentParams = (existing?.parameters ?? {}) as Record<string, unknown>;
-        mergedParams = { ...currentParams, ...parameters };
-      }
-
       const [source] = await ctx.db
         .update(sources)
-        .set({ ...rest, ...(mergedParams !== undefined ? { parameters: mergedParams } : {}), updatedAt: new Date() })
+        .set({ ...rest, updatedAt: new Date() })
         .where(eq(sources.id, id))
         .returning();
 
@@ -486,16 +461,14 @@ export const sourcesRouter = router({
   /**
    * Persist fields a human (or a repair run, in a future task) wants this
    * Source to pick up — merged by name into `sources.requestedFields`
-   * (`Array<{name, hint?, addedAt}>`). `sources.analyze` joins these into the
+   * (`Array<{name, hint?}>`). `sources.analyze` joins these into the
    * newline-delimited `requestedFields` string it forwards to
    * `scraper.analyze` → `runAnalysis` → `normalizeUserFields`.
    *
    * Merge-by-name: a repeat name REPLACES the existing entry wholly (new
-   * hint, new addedAt) rather than preserving the original addedAt — simpler
-   * than tracking "first requested at" separately, and this endpoint has no
-   * caller that needs that distinction today. Dedupe is on the exact stored
-   * name (no case-folding/normalization here — `normalizeUserFields`
-   * downstream is what canonicalizes names for extraction).
+   * hint). Dedupe is on the exact stored name (no case-folding/normalization
+   * here — `normalizeUserFields` downstream is what canonicalizes names for
+   * extraction).
    */
   requestFields: publicProcedure
     .input(
@@ -516,12 +489,11 @@ export const sourcesRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       }
 
-      const existing = (source.requestedFields as Array<{ name: string; hint?: string; addedAt: string }> | null) ?? [];
-      const addedAt = new Date().toISOString();
+      const existing = (source.requestedFields as Array<{ name: string; hint?: string }> | null) ?? [];
 
       const byName = new Map(existing.map((f) => [f.name, f]));
       for (const field of input.fields) {
-        byName.set(field.name, { name: field.name, hint: field.hint, addedAt });
+        byName.set(field.name, { name: field.name, hint: field.hint });
       }
       const requestedFields = Array.from(byName.values());
 
@@ -531,7 +503,7 @@ export const sourcesRouter = router({
         .where(eq(sources.id, source.id))
         .returning();
 
-      return { requestedFields: updated!.requestedFields as Array<{ name: string; hint?: string; addedAt: string }> };
+      return { requestedFields: updated!.requestedFields as Array<{ name: string; hint?: string }> };
     }),
 
   /**
@@ -540,7 +512,7 @@ export const sourcesRouter = router({
    * `effectiveSchema` falls back to when the Source's dataset has no schema
    * of its own. `effectiveSchema` and the dashboard's ResultsTable already
    * treat `enabled !== false` as "on", so this is the only write side needed.
-   * Read-modify-write, same style as `sources.update`'s `parameters` merge.
+   * Read-modify-write on the stored fields array.
    */
   setFieldEnabled: publicProcedure
     .input(

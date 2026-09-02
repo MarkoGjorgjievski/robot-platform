@@ -13,20 +13,26 @@
 // feeds `extract-item.ts` via `crawl.ts`'s execute) must fall back the same
 // way, or a Scratch source silently plans/extracts zero fields.
 
-import { DETAIL_URL_FIELD } from '@robot/scraper';
+import { DETAIL_URL_FIELD, type OriginField } from '@robot/scraper';
 
-export type EffectiveSchemaField = { name: string; type: string };
+export type EffectiveSchemaField = OriginField;
 
 type SelectorsJsonFieldsShape = {
-  fields?: Array<{ name: string; type: string; enabled?: boolean }>;
+  fields?: Array<OriginField & Record<string, unknown>>;
 };
 
 /**
  * Dataset schema wins whenever it is non-empty — that is the normal case for
  * every non-Scratch Source. Only when the dataset has no schema at all does
- * this fall back to the source's own `selectorsJson.fields`, mapped down to
- * `{name, type}` and excluding any field explicitly disabled
- * (`enabled === false`).
+ * this fall back to the source's own `selectorsJson.fields`, excluding any
+ * field explicitly disabled (`enabled === false`).
+ *
+ * BOTH branches preserve the full field objects. The fallback used to map
+ * down to `{name, type}`, which silently stripped `origin`/`input_column`/
+ * `candidate` from a Scratch source's schema — hidden by `as OriginField[]`
+ * casts at the call sites — so a customer's explicit candidate choice (the
+ * v2.5 serving order) never reached extraction, and every field defaulted to
+ * `'detail'` in `partitionSchemaByOrigin`.
  *
  * `DETAIL_URL_FIELD` is filtered out of both branches — Finding 4
  * (final-review-findings.md): it is planning machinery (the row-scoped
@@ -51,7 +57,5 @@ export function effectiveSchema(source: {
 
   const selectors = source.selectorsJson as SelectorsJsonFieldsShape | null | undefined;
   const fields = selectors?.fields ?? [];
-  return fields
-    .filter((f) => f.enabled !== false && f.name !== DETAIL_URL_FIELD)
-    .map((f) => ({ name: f.name, type: f.type }));
+  return fields.filter((f) => f.enabled !== false && f.name !== DETAIL_URL_FIELD);
 }

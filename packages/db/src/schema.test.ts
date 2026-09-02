@@ -52,7 +52,7 @@ describe('repair-engine columns', () => {
   });
 
   it('records the fields a source was asked to backfill', async () => {
-    const requestedFields = [{ name: 'isbn', addedAt: '2026-08-28T00:00:00Z' }];
+    const requestedFields = [{ name: 'isbn', hint: 'near the publisher line' }];
     const { orgId: seededOrgId, source } = await seedSource({ requestedFields });
 
     orgId = seededOrgId;

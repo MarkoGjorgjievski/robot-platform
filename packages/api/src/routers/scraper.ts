@@ -78,7 +78,6 @@ export const scraperRouter = router({
       z.object({
         url: z.string().url(),
         fields: z.array(fieldInputSchema).min(1),
-        captureId: z.string().nullable().optional(),
         pageType: z.enum(['detail', 'listing']).optional(),
         previousResults: z.record(z.unknown()).optional(),
       })
