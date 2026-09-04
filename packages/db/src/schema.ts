@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, jsonb, uuid, varchar, index, uniqueIndex, check, numeric } from 'drizzle-orm/pg-core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -108,6 +108,12 @@ export const sources = pgTable('sources', {
   aiStatus: varchar('ai_status', { length: 20 }).default('pending'),
   // Fields a repair run asked this source to backfill: Array<{name, hint?}>.
   requestedFields: jsonb('requested_fields'),
+  // Customer-defined schema (spec §3.1): Array<{ key, name, type, description, concept }>.
+  schemaDefinition: jsonb('schema_definition'),
+  // The three verification URLs + expected values as typed (spec §3.2).
+  verificationSet: jsonb('verification_set'),
+  // Field keys flagged by the last run's drift check (spec §5.3): string[].
+  driftedFields: jsonb('drifted_fields'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -126,6 +132,7 @@ export const sourcesRelations = relations(sources, ({ one, many }) => ({
   captures: many(captures),
   extractions: many(extractions),
   inputSet: one(inputSets, { fields: [sources.inputSetId], references: [inputSets.id] }),
+  verifications: many(sourceVerifications),
 }));
 
 // ─── Input Sets ──────────────────────────────────────────────────────────────
@@ -316,6 +323,35 @@ export const capturesRelations = relations(captures, ({ one, many }) => ({
   run: one(runs, { fields: [captures.runId], references: [runs.id] }),
 }));
 
+// ─── Source verifications (customer schema verification) ────────────────────
+// One row per Verify click. `completed_at` is the terminal marker.
+
+export const sourceVerifications = pgTable('source_verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  // sha256 of the schema_definition + verification_set this run verified; a
+  // certification is current only while the Source's hash still matches.
+  definitionHash: varchar('definition_hash', { length: 64 }).notNull(),
+  // Record<url, { captureId: string; capturedAt: string; screenshotUrl?: string; blockedReason?: string }>
+  captures: jsonb('captures').notNull().default({}),
+  // Record<fieldKey, FieldVerification> — see @robot/scraper verify/types.ts
+  results: jsonb('results').notNull().default({}),
+  allPassed: boolean('all_passed').notNull().default(false),
+  aiCalls: integer('ai_calls').notNull().default(0),
+  costUsd: numeric('cost_usd', { precision: 10, scale: 4 }).notNull().default('0'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index('source_verifications_source_id_idx').on(table.sourceId),
+  index('source_verifications_source_completed_idx').on(table.sourceId, table.completedAt),
+]);
+
+export const sourceVerificationsRelations = relations(sourceVerifications, ({ one }) => ({
+  source: one(sources, { fields: [sourceVerifications.sourceId], references: [sources.id] }),
+}));
+
 // ─── Extractions (AI Scraper) ───────────────────────────────────────────────
 
 export const extractions = pgTable('extractions', {
@@ -360,6 +396,8 @@ export const runs = pgTable('runs', {
   parentRunId: uuid('parent_run_id').references((): AnyPgColumn => runs.id, { onDelete: 'set null' }),
   // Fields a repair run targets for backfill: string[].
   targetFields: jsonb('target_fields'),
+  // Field keys whose miss rate crossed DRIFT_MISS_SHARE in this run: string[].
+  driftedFields: jsonb('drifted_fields'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('runs_extractor_id_idx').on(table.extractorId),
