@@ -13,7 +13,7 @@ function text(raw: unknown): string | null {
 }
 
 /** "1,299.50" | "1.299,50" | "1299" | 1299.5 → number. Currency symbols/codes stripped first. */
-function parseNumber(raw: unknown): number | null {
+function parseNumber(raw: unknown, mode: 'number' | 'money' = 'number'): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
   if (raw === null || raw === undefined) return null;
   let s = String(raw).normalize('NFKC').trim();
@@ -31,8 +31,14 @@ function parseNumber(raw: unknown): number | null {
     s = groups.length === 2 && groups[1]!.length !== 3 ? s.replace(',', '.') : s.replace(/,/g, '');
   } else if (lastDot > -1) {
     const groups = s.split('.');
-    // "1.299" alone is ambiguous; treat a single 3-digit group as thousands only if there are 2+ dots.
-    if (groups.length > 2) s = s.replace(/\./g, '');
+    // For money: a single 3-digit group is thousands (1.299 € = 1299). For number: it's decimal (1.299).
+    if (groups.length > 2) {
+      s = s.replace(/\./g, '');
+    } else if (mode === 'money' && groups.length === 2 && groups[1]!.length === 3 && groups[0]!.length <= 2) {
+      // Single dot with exactly 3 trailing digits for short prices (money) = thousands separator
+      s = s.replace(/\./g, '');
+    }
+    // For number type, leave single dots as-is (they represent decimals)
   }
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
@@ -53,7 +59,7 @@ function bool(raw: unknown): string | null {
  *  UTC+2 zone yields the previous day. */
 function day(raw: unknown): string | null {
   const local = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw.toISOString().slice(0, 10);
+  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : local(raw);
   const s = typeof raw === 'string' ? raw.trim() : raw === null || raw === undefined ? '' : String(raw);
   if (s === '') return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
@@ -87,8 +93,8 @@ function list(raw: unknown): string | null {
 export function normalize(type: CustomerFieldType, raw: unknown, ctx?: NormalizeContext): string | null {
   switch (type) {
     case 'text': return text(raw);
-    case 'number': { const n = parseNumber(raw); return n === null ? null : String(n); }
-    case 'money': { const n = parseNumber(raw); return n === null ? null : (Math.round(n * 100) / 100).toFixed(2); }
+    case 'number': { const n = parseNumber(raw, 'number'); return n === null ? null : String(n); }
+    case 'money': { const n = parseNumber(raw, 'money'); return n === null ? null : (Math.round(n * 100) / 100).toFixed(2); }
     case 'boolean': return bool(raw);
     case 'date': return day(raw);
     case 'url':

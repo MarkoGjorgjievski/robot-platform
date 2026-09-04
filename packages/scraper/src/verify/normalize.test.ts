@@ -19,6 +19,13 @@ describe('normalize', () => {
     expect(normalize('money', '129.994')).toBe('129.99');
     expect(normalize('money', 'call for price')).toBeNull();
   });
+  it('money vs number: single dot with exactly 3 trailing digits', () => {
+    expect(normalize('money', '1.299')).toBe('1299.00');
+    expect(normalize('money', '1.299 €')).toBe('1299.00');
+    expect(normalize('number', '1.299')).toBe('1.299');
+    expect(normalize('money', '1.299,00')).toBe('1299.00');
+    expect(normalize('money', '129.99')).toBe('129.99');
+  });
   it('boolean: synonym sets', () => {
     expect(normalize('boolean', 'In Stock')).toBe('true');
     expect(normalize('boolean', 'https://schema.org/InStock')).toBe('true');
@@ -30,6 +37,9 @@ describe('normalize', () => {
     expect(normalize('date', '2026-09-04T13:00:00Z')).toBe('2026-09-04');
     expect(normalize('date', 'September 4, 2026')).toBe('2026-09-04');
     expect(normalize('date', 'not a date')).toBeNull();
+  });
+  it('date: Date instance normalizes with local components', () => {
+    expect(normalize('date', new Date(2026, 8, 4))).toBe('2026-09-04');
   });
   it('url/image: resolves against the page and drops the fragment', () => {
     expect(normalize('url', '/p/1#top', { pageUrl: 'https://shop.example/x' })).toBe('https://shop.example/p/1');
