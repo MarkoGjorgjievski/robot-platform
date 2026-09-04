@@ -36,6 +36,24 @@ describe('searchStructured', () => {
   it('maps a schema.org availability to boolean', () => {
     expect(searchStructured(capture, 'boolean', 'in stock')).toContainEqual({ source: 'json-ld', path: 'offers.availability', transform: 'identity', raw: 'https://schema.org/InStock' });
   });
+  it('handles root-level arrays without emitting empty path', () => {
+    const rootArrayCapture = {
+      url: 'https://api.example/items',
+      structuredData: {
+        ldJson: [],
+        nextData: null, initialState: null,
+        meta: {},
+      },
+      interceptedRequests: [
+        { url: 'https://api.example/items', method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {}, contentType: 'application/json', bodySize: 1, timestamp: 0, isJson: true,
+          responseBody: '[]', parsedJson: [{ title: 'Widget A' }, { title: 'Widget Z' }] },
+      ],
+    };
+    const c = searchStructured(rootArrayCapture, 'text', 'Widget A');
+    expect(c).toContainEqual({ source: 'api', path: '[0].title', transform: 'identity', raw: 'Widget A' });
+    expect(c.find((x) => x.path === '')).toBeUndefined();
+    expect(resolveStructured(rootArrayCapture, 'api', '[0].title')).toBe('Widget A');
+  });
 });
 
 describe('resolveStructured', () => {

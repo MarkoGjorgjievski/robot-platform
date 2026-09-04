@@ -13,7 +13,7 @@ type Visit = (path: string, value: unknown) => void;
 function walk(value: unknown, path: string, depth: number, visit: Visit): void {
   if (depth > MAX_DEPTH) return;
   if (Array.isArray(value)) {
-    visit(path, value); // arrays are candidates themselves (first_of_list)
+    if (path !== '') visit(path, value); // arrays are candidates themselves (first_of_list)
     value.slice(0, MAX_ARRAY_ITEMS).forEach((v, i) => walk(v, `${path}[${i}]`, depth + 1, visit));
     return;
   }
