@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -59,5 +59,19 @@ describe('repair-engine columns', () => {
 
     const [row] = await db.select().from(sources).where(eq(sources.id, source.id));
     expect(row!.requestedFields).toEqual(requestedFields);
+  });
+});
+
+describe('schema verification columns', () => {
+  it('source_verifications exposes the verification columns', () => {
+    const cols = Object.keys(sourceVerifications);
+    for (const c of ['id', 'sourceId', 'startedAt', 'completedAt', 'definitionHash', 'captures', 'results', 'allPassed', 'aiCalls', 'costUsd']) {
+      expect(cols).toContain(c);
+    }
+  });
+
+  it('sources and runs carry the schema-verification columns', () => {
+    expect(Object.keys(sources)).toEqual(expect.arrayContaining(['schemaDefinition', 'verificationSet', 'driftedFields']));
+    expect(Object.keys(runs)).toContain('driftedFields');
   });
 });

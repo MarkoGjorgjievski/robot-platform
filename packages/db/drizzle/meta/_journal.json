@@ -64,6 +64,13 @@
       "when": 1787910351371,
       "tag": "0008_repair_engine_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788531538552,
+      "tag": "0009_schema_verification",
+      "breakpoints": true
     }
   ]
 }
