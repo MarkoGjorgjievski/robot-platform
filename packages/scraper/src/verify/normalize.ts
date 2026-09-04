@@ -34,8 +34,8 @@ function parseNumber(raw: unknown, mode: 'number' | 'money' = 'number'): number 
     // For money: a single 3-digit group is thousands (1.299 € = 1299). For number: it's decimal (1.299).
     if (groups.length > 2) {
       s = s.replace(/\./g, '');
-    } else if (mode === 'money' && groups.length === 2 && groups[1]!.length === 3 && groups[0]!.length <= 2) {
-      // Single dot with exactly 3 trailing digits for short prices (money) = thousands separator
+    } else if (mode === 'money' && groups.length === 2 && groups[1]!.length === 3) {
+      // Single dot with exactly 3 trailing digits (money) = thousands separator
       s = s.replace(/\./g, '');
     }
     // For number type, leave single dots as-is (they represent decimals)
