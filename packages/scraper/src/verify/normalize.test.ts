@@ -25,6 +25,8 @@ describe('normalize', () => {
     expect(normalize('number', '1.299')).toBe('1.299');
     expect(normalize('money', '1.299,00')).toBe('1299.00');
     expect(normalize('money', '129.99')).toBe('129.99');
+    expect(normalize('money', '129.999')).toBe('129999.00');
+    expect(normalize('money', '1299.999')).toBe('1299999.00');
   });
   it('boolean: synonym sets', () => {
     expect(normalize('boolean', 'In Stock')).toBe('true');
