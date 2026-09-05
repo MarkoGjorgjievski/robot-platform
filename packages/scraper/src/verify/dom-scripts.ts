@@ -8,13 +8,19 @@ export type XPathProbeResult = Record<string, string | null>;
 function browserNormalize(type: string, raw: string, pageUrl: string): string | null {
   const t = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
   if (t === '') return null;
-  const num = (s: string): number | null => {
+  const num = (s: string, mode: 'number' | 'money'): number | null => {
     let x = s.replace(/[A-Za-z$€£¥₹\s]/g, '').replace(/^[^\d\-+.,]+|[^\d.,]+$/g, '');
     if (!/^[-+]?[\d.,]+$/.test(x) || !/\d/.test(x)) return null;
     const lc = x.lastIndexOf(','), ld = x.lastIndexOf('.');
     if (lc > -1 && ld > -1) x = lc > ld ? x.replace(/\./g, '').replace(',', '.') : x.replace(/,/g, '');
     else if (lc > -1) { const g = x.split(','); x = g.length === 2 && g[1]!.length !== 3 ? x.replace(',', '.') : x.replace(/,/g, ''); }
-    else if (ld > -1) { const g = x.split('.'); if (g.length > 2) x = x.replace(/\./g, ''); }
+    else if (ld > -1) {
+      const g = x.split('.');
+      // For money: a single 3-digit group is thousands (1.299 € = 1299). For number: it's decimal (1.299).
+      if (g.length > 2) x = x.replace(/\./g, '');
+      else if (mode === 'money' && g.length === 2 && g[1]!.length === 3) x = x.replace(/\./g, '');
+      // For number type, leave single dots as-is (they represent decimals)
+    }
     const n = Number(x);
     return Number.isFinite(n) ? n : null;
   };
@@ -22,8 +28,8 @@ function browserNormalize(type: string, raw: string, pageUrl: string): string | 
   const FALSE = ['false', 'no', 'n', '0', 'out of stock', 'outofstock', 'unavailable', 'sold out', 'https://schema.org/outofstock'];
   switch (type) {
     case 'text': return t.toLowerCase();
-    case 'number': { const n = num(t); return n === null ? null : String(n); }
-    case 'money': { const n = num(t); return n === null ? null : (Math.round(n * 100) / 100).toFixed(2); }
+    case 'number': { const n = num(t, 'number'); return n === null ? null : String(n); }
+    case 'money': { const n = num(t, 'money'); return n === null ? null : (Math.round(n * 100) / 100).toFixed(2); }
     case 'boolean': { const l = t.toLowerCase(); return TRUE.includes(l) ? 'true' : FALSE.includes(l) ? 'false' : null; }
     case 'date': {
       if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
@@ -54,6 +60,8 @@ function browserXPath(el: Element): string {
   const parts: string[] = [];
   let cur: Element | null = el;
   while (cur && cur.tagName.toLowerCase() !== 'body') {
+    // An id on the matched element itself is a legitimate anchor (the strongest locator) —
+    // unlike data-*, which only anchors on an ANCESTOR (checked via `cur !== el` below).
     const id = cur.getAttribute('id');
     if (id) return `//*[@id="${id.replace(/"/g, '')}"]` + (parts.length ? '/' + parts.join('/') : '');
     const data = Array.from(cur.attributes).find((a) => a.name.startsWith('data-') && a.value !== '');
@@ -113,5 +121,10 @@ export function buildXPathProbeScript(xpaths: string[]): string {
 export function xpathContainsValue(xpath: string, expected: string): boolean {
   const fold = (s: string) => s.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
   const e = fold(expected);
-  return e.length > 0 && fold(xpath).includes(e);
+  if (e.length === 0) return false;
+  // Structural attribute-equality literals (@class="now", @data-x='red', @id="...") are locators,
+  // not literal-value predicates — blank them out before the substring check so a coincidental
+  // match on a class/id/data-* value (e.g. expected "now" vs @class="now") is not rejected.
+  const withoutAttrLiterals = xpath.replace(/@[\w:-]+=(?:"[^"]*"|'[^']*')/g, (m) => `${m.slice(0, m.indexOf('='))}=""`);
+  return fold(withoutAttrLiterals).includes(e);
 }
