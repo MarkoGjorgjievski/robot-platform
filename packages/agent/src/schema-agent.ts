@@ -3,7 +3,8 @@ import type { PageCapture } from '@robot/browser';
 import { AnthropicProvider } from './providers/anthropic.js';
 import { OllamaProvider } from './providers/ollama.js';
 import { cleanHtml, focusWindow } from './focus-html.js';
-import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool, extractVariantsTool, locateResultsTool } from './tools.js';
+import { discoverSchemaTool, generateSelectorsTool, extractFromApiTool, validateExtractionTool, detectPaginationTool, extractVariantsTool, locateResultsTool, proposePathsTool } from './tools.js';
+import { parsePathProposals, PROPOSE_PATHS_SYSTEM, type PathProposal } from './propose-paths.js';
 import {
   SCHEMA_DISCOVERY_SYSTEM,
   SELECTOR_GENERATION_SYSTEM,
@@ -292,6 +293,17 @@ export class SchemaAgent {
         confidence: Number(f.confidence ?? 0),
       })),
     };
+  }
+
+  async proposePaths(userText: string): Promise<PathProposal[]> {
+    if (!this.anthropic) return []; // tool calls only; Ollama has no callWithTool
+    const result = await this.anthropic.callWithTool({
+      system: PROPOSE_PATHS_SYSTEM,
+      tool: proposePathsTool,
+      userText,
+      maxTokens: 2048,
+    });
+    return parsePathProposals(result);
   }
 
   async validateExtraction(

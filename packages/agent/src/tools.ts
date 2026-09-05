@@ -247,3 +247,27 @@ export const locateResultsTool: Tool = {
     required: ['has_results'],
   },
 };
+
+export const proposePathsTool: Tool = {
+  name: 'propose_paths',
+  description: 'Propose extraction paths that yield the expected value for one field on every page shown. Paths must be structural: never put the expected value itself inside an XPath predicate.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      proposals: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            source: { type: 'string', enum: ['api', 'json-ld', 'meta', 'xpath'], description: 'api = dot-path into an intercepted JSON body; json-ld = dot-path into a JSON-LD block; meta = meta tag name; xpath = XPath anchored on id/data-*/class' },
+            path: { type: 'string' },
+            transform: { type: 'string', enum: ['identity', 'cents_to_units', 'first_of_list'] },
+            rationale: { type: 'string' },
+          },
+          required: ['source', 'path'],
+        },
+      },
+    },
+    required: ['proposals'],
+  },
+};

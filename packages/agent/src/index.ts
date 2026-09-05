@@ -22,3 +22,4 @@ export { EXTRACTION_MODEL, JUDGE_MODEL, OLLAMA_MODEL } from './models.js';
 export { JudgeUnavailableError, isJudgeUnavailable } from './judge.js';
 export { recordUsage, snapshotUsage, resetUsage, diffUsage, estimateCostUsd, formatUsage, type TokenUsage, type UsageByModel } from './usage.js';
 export { AnthropicProvider } from './providers/anthropic.js';
+export { parsePathProposals, PROPOSE_PATHS_SYSTEM, type PathProposal, type ProposePathsAgent } from './propose-paths.js';
