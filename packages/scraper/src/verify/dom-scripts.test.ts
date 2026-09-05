@@ -37,6 +37,30 @@ describe('buildDomSearchScript', () => {
     const hits = await browser.setContentEvaluate<DomHit[]>(HTML, buildDomSearchScript([{ key: 'rel', type: 'money', expected: '99' }], 'https://shop.example/'));
     expect(hits).toContainEqual({ key: 'rel', xpath: '//div[@data-section="related"]/span[@class="now"]', raw: '$99.00' });
   });
+  it('treats a single dot with a 3-digit group as thousands for money but as decimal for number', async () => {
+    // Note: currency symbols are stripped before the digit-group check (mirroring Node's
+    // parseNumber exactly), so a "money" needle and a "number" needle both reduce "€1.299" and
+    // "1.299" to the same digit string and would cross-match if probed together on one page
+    // (verified against real Chromium: both needles hit both spans in that arrangement). Each
+    // needle is therefore probed against its own page here, isolating the rule under test —
+    // money's thousands-separator branch vs number's keep-as-decimal branch — from that artifact.
+    const moneyHtml = `<html><body><div id="main"><span id="p" class="eur">€1.299</span></div></body></html>`;
+    const moneyHits = await browser.setContentEvaluate<DomHit[]>(moneyHtml, buildDomSearchScript([
+      { key: 'price', type: 'money', expected: '1299' },
+    ], 'https://shop.example/'));
+    expect(moneyHits).toEqual([{ key: 'price', xpath: '//*[@id="p"]', raw: '€1.299' }]);
+
+    const numberHtml = `<html><body><div id="main"><span class="rate">1.299</span></div></body></html>`;
+    const numberHits = await browser.setContentEvaluate<DomHit[]>(numberHtml, buildDomSearchScript([
+      { key: 'rate', type: 'number', expected: '1.299' },
+    ], 'https://shop.example/'));
+    expect(numberHits).toEqual([{ key: 'rate', xpath: '//*[@id="main"]/span[@class="rate"]', raw: '1.299' }]);
+  });
+  it('uses the matched element\'s own id as the anchor', async () => {
+    const html = `<html><body><div id="main"><span id="sku">A1</span></div></body></html>`;
+    const hits = await browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript([{ key: 'sku', type: 'text', expected: 'A1' }], 'https://shop.example/'));
+    expect(hits).toContainEqual({ key: 'sku', xpath: '//*[@id="sku"]', raw: 'A1' });
+  });
 });
 
 describe('buildXPathProbeScript', () => {
@@ -56,5 +80,11 @@ describe('xpathContainsValue', () => {
   it('rejects a literal-value predicate', () => {
     expect(xpathContainsValue(`//span[contains(text(), '129.99')]`, '129.99')).toBe(true);
     expect(xpathContainsValue(`//span[@class="now"]`, '129.99')).toBe(false);
+  });
+  it('blanks out attribute-equality literals before the substring check', () => {
+    expect(xpathContainsValue('//span[@class="now"]', 'now')).toBe(false);
+    expect(xpathContainsValue(`//li[@class="red"]`, 'Red')).toBe(false);
+    expect(xpathContainsValue(`//span[.='129.99']`, '129.99')).toBe(true);
+    expect(xpathContainsValue(`//*[normalize-space()='Widget A']`, 'Widget A')).toBe(true);
   });
 });
