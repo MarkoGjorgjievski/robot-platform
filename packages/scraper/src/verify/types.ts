@@ -31,6 +31,7 @@ export type FieldVerification = {
   certified: CertifiedPath[];          // ranked, primary first; empty when failed
   weakEvidence: boolean;               // all three expected values identical
   aiCalled: boolean;
+  incomplete: boolean;                 // true when any capture is null
 };
 
 export type VerificationOutcome = {
