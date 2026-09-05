@@ -28,6 +28,7 @@ describe('certify', () => {
     expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
     expect(r.cells['https://s.example/3']).toEqual({ status: 'pass', found: '149.00', path: r.certified[0] });
     expect(r.weakEvidence).toBe(false);
+    expect(r.incomplete).toBe(false);
   });
   it('reports different_value on the page where a 2-of-3 path disagrees, pass nowhere', async () => {
     const r = await certify({ field, expected, captures, candidates: [{ source: 'meta', path: 'product:price:amount', transform: 'identity' }] }, xpathDeps);
@@ -50,6 +51,21 @@ describe('certify', () => {
   it('rejects an xpath that embeds the expected value', async () => {
     const r = await certify({ field, expected, captures, candidates: [{ source: 'xpath', path: `//span[contains(text(),'129.99')]`, transform: 'identity' }] }, xpathDeps);
     expect(r.certified).toEqual([]);
+  });
+  it('never certifies from a single captured URL, but passes that cell and flags incomplete', async () => {
+    const r = await certify({
+      field,
+      expected,
+      captures: { ...captures, 'https://s.example/2': null, 'https://s.example/3': null },
+      candidates: [{ source: 'json-ld', path: 'offers.price', transform: 'identity' }],
+    }, xpathDeps);
+    expect(r.certified).toEqual([]);
+    expect(r.incomplete).toBe(true);
+    expect(r.cells['https://s.example/1']).toEqual({
+      status: 'pass', found: '129.99', path: { source: 'json-ld', path: 'offers.price', transform: 'identity' },
+    });
+    expect(r.cells['https://s.example/2']).toEqual({ status: 'not_captured' });
+    expect(r.cells['https://s.example/3']).toEqual({ status: 'not_captured' });
   });
 });
 

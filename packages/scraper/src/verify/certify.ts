@@ -75,9 +75,12 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
     }
   }
 
-  const correctEverywhere = candidates.filter((c) => capturedUrls.length > 0 && capturedUrls.every((u) => evals.get(pathId(c))?.[u]?.correct));
+  const complete = capturedUrls.length === urls.length;
+  const correctOnAllCaptured = candidates.filter((c) => capturedUrls.length > 0 && capturedUrls.every((u) => evals.get(pathId(c))?.[u]?.correct));
+  const correctEverywhere = complete ? correctOnAllCaptured : [];
   const certified = rankCertified(correctEverywhere).slice(0, MAX_CERTIFIED_PATHS);
   const primary = certified[0];
+  const rankedCorrectOnAllCaptured = rankCertified(correctOnAllCaptured);
 
   const cells: Record<string, CellResult> = {};
   for (const url of urls) {
@@ -87,6 +90,12 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
     if (primary) {
       const raw = evals.get(pathId(primary))![url]!.raw;
       cells[url] = { status: 'pass', found: String(raw), path: primary };
+      continue;
+    }
+    if (!complete && rankedCorrectOnAllCaptured.length > 0) {
+      const top = rankedCorrectOnAllCaptured[0]!;
+      const raw = evals.get(pathId(top))![url]!.raw;
+      cells[url] = { status: 'pass', found: String(raw), path: top };
       continue;
     }
     const others = capturedUrls.filter((u) => u !== url);
@@ -107,5 +116,5 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
   }
 
   const norms = new Set(Object.values(expected).map((e) => normalize(field.type, e)));
-  return { key: field.key, cells, certified, weakEvidence: norms.size === 1 && Object.keys(expected).length > 1, aiCalled: false };
+  return { key: field.key, cells, certified, weakEvidence: norms.size === 1 && Object.keys(expected).length > 1, aiCalled: false, incomplete: !complete };
 }
