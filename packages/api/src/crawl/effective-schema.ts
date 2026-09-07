@@ -3,11 +3,12 @@
 // actually lives.
 //
 // A normal Source's schema lives on its Dataset (`datasets.schema`), shared
-// across every Source in that dataset. A Scratch source (quickCreate/analyze,
+// across every Source in that dataset. A Scratch source (quickCreate,
 // mvp-simplification task 7) has no meaningful dataset schema to inherit — its
 // Scratch dataset is deliberately created with an EMPTY schema (see
-// `sources.quickCreate`) — so its schema lives directly on
-// `sources.selectorsJson.fields` instead, written by `sources.analyze`.
+// `sources.quickCreate`) — so its schema falls back to
+// `sources.selectorsJson.fields` instead, legacy data written by the deleted
+// `sources.analyze` procedure (removed 2026-09; no live writer).
 //
 // Both readers of "the schema" (`crawl.ts`'s plan path and the schema that
 // feeds `extract-item.ts` via `crawl.ts`'s execute) must fall back the same
@@ -44,7 +45,8 @@ export function isCustomerSchema(source: { schemaDefinition?: unknown }): boolea
  * `DETAIL_URL_FIELD` is filtered out of both branches — Finding 4
  * (final-review-findings.md): it is planning machinery (the row-scoped
  * "which detail page does this row link to" field `runListingAnalysis`
- * always adds, and `sources.analyze` persists into `selectorsJson.fields`
+ * always adds, and that the deleted `sources.analyze` procedure (removed
+ * 2026-09; no live writer) used to persist into `selectorsJson.fields`
  * verbatim, for the discovery report), re-added by `plan-run.ts` itself
  * wherever a listing crawl actually needs it. Left in here, it round-trips
  * into `extract-item.ts`'s detail-origin fields (`partitionSchemaByOrigin`

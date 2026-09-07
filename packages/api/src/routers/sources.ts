@@ -238,9 +238,11 @@ export const sourcesRouter = router({
           // right (spec §3) — the Set-up workspace and the run-detail confirm
           // gate both key off it. Null = unconfirmed.
           confirmedAt: sources.confirmedAt,
-          // The schema-discovery payload `sources.analyze` persists (fields,
-          // pageType, listing report, hints, blocked reason...) — the Set-up
-          // workspace's own read model.
+          // The schema-discovery payload (fields, pageType, listing report,
+          // hints, blocked reason...) written by the deleted `sources.analyze`
+          // procedure (removed 2026-09; no live writer) — legacy data on
+          // Sources created before the verification-first flow, still read
+          // by `effectiveSchema`'s legacy branch and the legacy export path.
           selectorsJson: sources.selectorsJson,
           // How many rows this Source's InputSet holds — the "URL count" the
           // Set-up workspace's header shows, and the `crawl.execute` limit for
@@ -357,9 +359,11 @@ export const sourcesRouter = router({
    * Create a Scratch Source + one-row-per-url InputSet from a bare list of
    * URLs, with zero manual configuration — the fast path into the wizard.
    * Attaches to the Scratch project's own dataset (created empty on first
-   * use), so the Source starts with no dataset schema and `sources.analyze`
-   * is what gives it one (via `selectorsJson`, read back through
-   * `effectiveSchema`).
+   * use), so the Source starts with no schema at all until a customer
+   * schema is saved via `createWithSchema`/`updateSchema`. It used to gain
+   * one from `sources.analyze` writing `selectorsJson` (read back through
+   * `effectiveSchema`); that procedure is deleted (2026-09) and
+   * `selectorsJson` is now legacy data only.
    */
   quickCreate: publicProcedure
     .input(

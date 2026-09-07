@@ -116,9 +116,10 @@ describe('buildRunExport', () => {
   });
 
   // DETAIL_URL_FIELD is planning machinery, not exported data: it is the
-  // row-scoped "which detail page" field `runListingAnalysis` always adds
-  // and `sources.analyze` persists into `selectorsJson.fields` verbatim, and
-  // it never reaches the per-item extraction data (effectiveSchema already
+  // row-scoped "which detail page" field `runListingAnalysis` always adds,
+  // and that the deleted `sources.analyze` procedure (removed 2026-09; no
+  // live writer) used to persist into `selectorsJson.fields` verbatim. It
+  // never reaches the per-item extraction data (effectiveSchema already
   // filters it out at extraction time — packages/api/src/crawl/effective-
   // schema.ts). Left in here, the schema-driven half of `deriveColumns`
   // still adds it, and since no row ever carries the key, it renders as a
