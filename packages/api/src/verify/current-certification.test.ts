@@ -91,6 +91,41 @@ describe('loadCurrentCertification', () => {
     }
   });
 
+  // Correction round, item 5: `verificationSet` is jsonb — nothing forces
+  // `urls[0]` to be a parseable URL — and M3 made `new URL(urls[0])` run on
+  // every certification load. An unparseable url must read as "uncertified"
+  // (recoverable: `requireCertification` says verify first), never blow up
+  // the whole procedure with a TypeError.
+  it('returns null when the verification set has an unparseable url', async () => {
+    const { sourceId, source } = await makeSchemaSource('badurl');
+    try {
+      const hash = sourceDefinitionHash(source)!;
+      await db.insert(sourceVerifications).values({
+        sourceId,
+        definitionHash: hash,
+        completedAt: new Date(),
+        allPassed: true,
+        results: { price: fieldVerification(certifiedPrice) },
+      });
+      // Sanity: it IS a current certification before the url is corrupted.
+      expect(await loadCurrentCertification(db, sourceId)).not.toBeNull();
+
+      // Corrupt urls[0] only — the definition hash still has to match, so the
+      // row stays "current" and the url guard is genuinely what refuses it.
+      const set = source.verificationSet as { urls: string[] };
+      const corrupted = { ...set, urls: ['not a url', ...set.urls.slice(1)] };
+      await db.update(sources).set({ verificationSet: corrupted }).where(eq(sources.id, sourceId));
+      const refreshed = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
+      await db.update(sourceVerifications)
+        .set({ definitionHash: sourceDefinitionHash(refreshed!)! })
+        .where(eq(sourceVerifications.sourceId, sourceId));
+
+      expect(await loadCurrentCertification(db, sourceId)).toBeNull();
+    } finally {
+      await cleanupSource(sourceId);
+    }
+  });
+
   it('returns null once the schema hash no longer matches (updateSchema edited it)', async () => {
     const { sourceId, source, urls } = await makeSchemaSource('hashchange');
     try {

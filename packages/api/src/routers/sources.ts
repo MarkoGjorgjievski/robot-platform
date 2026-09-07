@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
 import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField } from '@robot/scraper';
@@ -11,6 +11,7 @@ import { schemaInput, prepareSchema, httpUrl } from '../verify/schema-input.js';
 import { rankProductLinks } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
+import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
 
 // ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
@@ -499,10 +500,12 @@ export const sourcesRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${sourceId} not found` });
       }
 
-      const inFlight = await ctx.db.query.sourceVerifications.findFirst({
-        where: and(eq(sourceVerifications.sourceId, sourceId), isNull(sourceVerifications.completedAt)),
-        columns: { id: true },
-      });
+      // Same stall rule `verify` applies (correction round, item 2): a
+      // genuinely in-flight run still refuses the save — its results are
+      // about to land against the definition being edited — but a crash
+      // leftover is closed out and the save proceeds. Without this, one
+      // dead api-server locked a Source's schema out of editing for good.
+      const inFlight = await resolveInFlightVerification(ctx.db, sourceId);
       if (inFlight) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
@@ -688,20 +691,9 @@ export const sourcesRouter = router({
         });
       }
 
-      const inFlight = await ctx.db.query.sourceVerifications.findFirst({
-        where: and(eq(sourceVerifications.sourceId, input.sourceId), isNull(sourceVerifications.completedAt)),
-        orderBy: [desc(sourceVerifications.startedAt)],
-      });
-
+      const inFlight = await resolveInFlightVerification(ctx.db, input.sourceId);
       if (inFlight) {
-        const age = Date.now() - inFlight.startedAt.getTime();
-        if (age < VERIFY_STALL_MS) {
-          return { verificationId: inFlight.id, status: 'in-progress' as const };
-        }
-        await ctx.db
-          .update(sourceVerifications)
-          .set({ errorMessage: 'stalled', completedAt: new Date() })
-          .where(eq(sourceVerifications.id, inFlight.id));
+        return { verificationId: inFlight.id, status: 'in-progress' as const };
       }
 
       const [row] = await ctx.db

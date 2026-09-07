@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources, inputSets, datasets, sourceVerifications } from '@robot/db';
+import { VERIFY_STALL_MS } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { prepareSchema, schemaProblems, schemaInput } from '../verify/schema-input.js';
@@ -367,6 +368,50 @@ describe('sources.updateSchema', () => {
         expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
       });
       expect((updated!.schemaDefinition as Array<{ description: string }>)[0]!.description).toBe('still fine');
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
+
+  // Correction round, item 2: the C1 wave taught the Schema screen to show a
+  // stalled verification with an EDITABLE grid — but this guard still refused
+  // every save, so a crashed api-server locked the schema out of editing for
+  // good. `updateSchema` now applies the same stall rule `verify` does.
+  it('closes a stalled in-flight verification and saves anyway', async () => {
+    const urls = [
+      'https://test-schema-update-stalled.example.com/p/1',
+      'https://test-schema-update-stalled.example.com/p/2',
+      'https://test-schema-update-stalled.example.com/p/3',
+    ];
+    const created = await caller.sources.createWithSchema({
+      urls,
+      fields: [{ name: 'Price', type: 'money', description: 'x' }],
+      expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
+    });
+    try {
+      const [stalled] = await db.insert(sourceVerifications).values({
+        sourceId: created.sourceId,
+        definitionHash: 'deadbeef',
+        // 20 minutes old — past VERIFY_STALL_MS (15), so a crash leftover.
+        startedAt: new Date(Date.now() - VERIFY_STALL_MS - 5 * 60_000),
+        completedAt: null,
+      }).returning({ id: sourceVerifications.id });
+
+      const updated = await caller.sources.updateSchema({
+        sourceId: created.sourceId,
+        urls,
+        fields: [{ name: 'Price', type: 'money', description: 'edited past the stalled run' }],
+        expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
+      });
+      expect((updated!.schemaDefinition as Array<{ description: string }>)[0]!.description)
+        .toBe('edited past the stalled run');
+
+      // ...and the dead row is closed out, not left to wedge the Source again.
+      const row = await db.query.sourceVerifications.findFirst({
+        where: eq(sourceVerifications.id, stalled!.id),
+      });
+      expect(row!.errorMessage).toBe('stalled');
+      expect(row!.completedAt).not.toBeNull();
     } finally {
       await cleanupSource(created.sourceId);
     }
