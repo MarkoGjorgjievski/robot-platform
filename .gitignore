@@ -13,3 +13,4 @@ packages/dashboard/public/captures/
 .worktrees
 .claude/
 .playwright-mcp/
+packages/api-server/public/captures/*.capture.json
