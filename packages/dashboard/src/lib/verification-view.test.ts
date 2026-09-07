@@ -3,7 +3,6 @@ import {
   hintFor,
   cellStatusFor,
   summaryLine,
-  isVerificationActive,
   verificationState,
   isRowStale,
   reverifyKeys,
@@ -138,34 +137,6 @@ describe('cellStatusFor', () => {
   });
 });
 
-describe('isVerificationActive', () => {
-  test('no row at all', () => {
-    expect(isVerificationActive(null)).toBe(false);
-    expect(isVerificationActive(undefined)).toBe(false);
-  });
-
-  test('completedAt null is active', () => {
-    expect(isVerificationActive({ completedAt: null })).toBe(true);
-  });
-
-  test('completedAt set is not active', () => {
-    expect(isVerificationActive({ completedAt: new Date() })).toBe(false);
-    expect(isVerificationActive({ completedAt: '2026-09-04T00:00:00Z' })).toBe(false);
-  });
-
-  // C1: an in-flight row older than the server's stall window is a crash
-  // leftover, and must stop reading as active — that is what wedged the
-  // Schema screen (grid disabled, Verify greyed out, nothing to click).
-  test('an in-flight row older than stallMs is not active', () => {
-    const now = Date.parse('2026-09-04T01:00:00Z');
-    const row = { startedAt: '2026-09-04T00:00:00Z', completedAt: null };
-    expect(isVerificationActive(row, { now, stallMs: 15 * 60 * 1000 })).toBe(false);
-    expect(isVerificationActive(row, { now, stallMs: 2 * 60 * 60 * 1000 })).toBe(true);
-    // No stallMs supplied: the old behaviour, in flight until completed.
-    expect(isVerificationActive(row, { now })).toBe(true);
-  });
-});
-
 describe('verificationState', () => {
   const NOW = Date.parse('2026-09-04T01:00:00Z');
   const STALL = 15 * 60 * 1000;
@@ -269,6 +240,45 @@ describe('reverifyKeys', () => {
       desc: { key: 'desc', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
     };
     expect(reverifyKeys(results, current, saved)).toEqual(['qty', 'desc']);
+  });
+
+  // The critical C1 follow-up: a URL edit touches no ROW, so the per-row
+  // staleness check sees nothing and used to hand back `[]` — which the
+  // server reads as "copy every previous field result", storing cells keyed
+  // by the OLD urls under the NEW definitionHash and unlocking Extract
+  // against pages nobody verified.
+  test('a changed product URL forces a full re-verify (undefined), not []', () => {
+    const saved = grid([row('price')]);
+    const current: GridState = { ...grid([row('price')]), urls: ['u1', 'u2', 'u3-EDITED'] };
+    const results: VerificationResults = {
+      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    // Everything green and no row edited: without the URL check this is `[]`.
+    expect(reverifyKeys(results, grid([row('price')]), saved)).toEqual([]);
+    expect(reverifyKeys(results, current, saved)).toBeUndefined();
+  });
+
+  test('a changed listing URL, or swapped URL order, forces a full re-verify', () => {
+    const saved = grid([row('price')]);
+    const results: VerificationResults = {
+      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    const listingChanged: GridState = { ...grid([row('price')]), listingUrl: 'https://shop.example/c' };
+    expect(reverifyKeys(results, listingChanged, saved)).toBeUndefined();
+    const swapped: GridState = { ...grid([row('price')]), urls: ['u2', 'u1', 'u3'] };
+    expect(reverifyKeys(results, swapped, saved)).toBeUndefined();
+  });
+
+  test('URLs differing only by surrounding whitespace are not a change', () => {
+    const saved = grid([row('price')]);
+    const padded: GridState = { ...grid([row('price')]), urls: [' u1', 'u2 ', ' u3 '] };
+    const results: VerificationResults = {
+      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+      qty: { key: 'qty', cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    // Unchanged URLs: the per-row scoping still applies — here, the one stale row only.
+    const stale = { ...padded, rows: [row('price', { description: 'edited after verifying' })] };
+    expect(reverifyKeys(results, stale, saved)).toEqual(['price']);
   });
 
   test('all rows green and unchanged: empty array', () => {

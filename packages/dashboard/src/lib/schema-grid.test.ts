@@ -7,6 +7,7 @@ import {
   parseBlock,
   applyPaste,
   rowsFromTable,
+  mergeImportedRows,
   gridProblems,
   isComplete,
   shortUrl,
@@ -288,5 +289,43 @@ describe('importProblems', () => {
 
   test('formats a non-Error thrown value', () => {
     expect(importProblems('nope')).toEqual(['Could not read the file: nope']);
+  });
+});
+
+describe('mergeImportedRows', () => {
+  const saved = (key: string, name: string) => ({
+    ...emptyRow(), key, name, type: 'text' as const, description: `old ${name}`, expected: ['a', 'b', 'c'],
+  });
+  const fresh = (name: string) => ({
+    ...emptyRow(), name, type: 'money' as const, description: `new ${name}`, expected: ['1', '2', '3'],
+  });
+
+  test('a name match keeps the saved key and id, but takes the imported values', () => {
+    const current = [saved('price', 'Price')];
+    const [merged] = mergeImportedRows(current, [fresh('Price')]);
+    expect(merged!.key).toBe('price');
+    expect(merged!.id).toBe(current[0]!.id);
+    expect(merged!.type).toBe('money');
+    expect(merged!.description).toBe('new Price');
+    expect(merged!.expected).toEqual(['1', '2', '3']);
+  });
+
+  test('matching is case- and whitespace-insensitive', () => {
+    const merged = mergeImportedRows([saved('price', 'Price')], [fresh('  pRiCe ')]);
+    expect(merged[0]!.key).toBe('price');
+  });
+
+  test('an unmatched imported row is appended with no key; a current row absent from the import is dropped', () => {
+    const current = [saved('price', 'Price'), saved('sku', 'SKU')];
+    const merged = mergeImportedRows(current, [fresh('Price'), fresh('Brand')]);
+    expect(merged.map((r) => r.name)).toEqual(['Price', 'Brand']);
+    expect(merged[0]!.key).toBe('price');
+    expect(merged[1]!.key).toBeUndefined();
+  });
+
+  test('rows with no saved key (a never-saved grid) merge cleanly', () => {
+    const merged = mergeImportedRows([fresh('Price')], [fresh('Price')]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.key).toBeUndefined();
   });
 });

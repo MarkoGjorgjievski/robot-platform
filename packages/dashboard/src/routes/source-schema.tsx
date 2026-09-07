@@ -8,7 +8,7 @@ import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 import { SchemaUrls } from '../components/schema-urls';
-import { emptyState, fromSource, gridProblems, isComplete, toSchemaInput, URL_COUNT, type GridState } from '../lib/schema-grid';
+import { emptyState, fromSource, gridProblems, isComplete, mergeImportedRows, toSchemaInput, URL_COUNT, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, summaryLine, verificationState, type VerificationResults } from '../lib/verification-view';
 
 /**
@@ -283,7 +283,13 @@ export default function SourceSchema() {
       </div>
 
       <div className="mt-4">
-        <SchemaImport urlCount={URL_COUNT} onRows={(rows) => updateGrid((g) => ({ ...g, rows }))} />
+        {/*
+          Merged by field name, not replaced (unlike the wizard): these rows
+          carry the stable `key` every stored verification result and
+          certified path is addressed by, and a wholesale replace would drop
+          it — minting new keys and silently losing the field's history.
+        */}
+        <SchemaImport urlCount={URL_COUNT} onRows={(rows) => updateGrid((g) => ({ ...g, rows: mergeImportedRows(g.rows, rows) }))} />
       </div>
 
       <div className="card mt-4 p-4">
