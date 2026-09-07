@@ -49,6 +49,18 @@ const IGNORABLE = [/favicon/i, /Download the React DevTools/i];
 
 let browser: Browser;
 
+const client = createTRPCClient<AppRouter>({
+  links: [httpBatchLink({ url: `${API}/trpc`, transformer: superjson })],
+});
+
+/**
+ * Sources this run created, deleted in afterAll (M11). A smoke run that
+ * leaves Sources behind pollutes the Scratch project a little more every
+ * time it is run, and those Sources then show up in the very listings the
+ * next run asserts on.
+ */
+const created: string[] = [];
+
 beforeAll(async () => {
   if (!ENABLED) return;
   for (const [label, url] of [['dashboard', DASHBOARD], ['api-server', API + '/healthz']] as const) {
@@ -62,7 +74,15 @@ beforeAll(async () => {
   browser = await chromium.launch({ headless: true });
 }, 60_000);
 
-afterAll(async () => { await browser?.close(); });
+afterAll(async () => {
+  await browser?.close();
+  for (const sourceId of created.splice(0)) {
+    // Best-effort: a cleanup failure must not fail an otherwise green smoke run.
+    await client.sources.delete.mutate({ sourceId }).catch((err) => {
+      console.error(`[smoke] could not delete source ${sourceId}:`, err);
+    });
+  }
+});
 
 /** Shared "did it render" assertion — same checks the static ROUTES loop and the dynamic Scratch-source test both need. */
 async function checkRoute(route: string) {
@@ -109,16 +129,45 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
   // creates one via `sources.createWithSchema` — the same procedure the NewSource wizard
   // calls — then renders its `/setup` route.
   it("a Scratch source's /setup renders without throwing", async () => {
-    const client = createTRPCClient<AppRouter>({
-      links: [httpBatchLink({ url: `${API}/trpc`, transformer: superjson })],
-    });
     const host = `smoke-${Date.now()}.example`;
-    const { projectSlug, sourceSlug } = await client.sources.createWithSchema.mutate({
+    const { sourceId, projectSlug, sourceSlug } = await client.sources.createWithSchema.mutate({
       urls: [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`],
       fields: [{ name: 'price', type: 'money', description: 'the price near Add to cart' }],
       expected: { price: { [`https://${host}/p/1`]: '$10', [`https://${host}/p/2`]: '$20', [`https://${host}/p/3`]: '$30' } },
     });
+    created.push(sourceId);
 
     await checkRoute(`/p/${projectSlug}/sources/${sourceSlug}/setup`);
+  }, 60_000);
+
+  // C2: a Source created any other way — `quickCreate`, or anything
+  // predating customer schemas — has no `schemaDefinition` at all, so the
+  // Schema tab seeds an empty grid. It must still render the URL inputs and
+  // the grid (that is the only screen where those URLs can be filled in),
+  // not an error banner.
+  it("a quickCreate'd source's /setup renders the URL inputs and the grid", async () => {
+    const host = `smoke-quick-${Date.now()}.example`;
+    const { sourceId, projectSlug, sourceSlug } = await client.sources.quickCreate.mutate({
+      mode: 'detail',
+      urls: [`https://${host}/p/1`],
+    });
+    created.push(sourceId);
+
+    const route = `/p/${projectSlug}/sources/${sourceSlug}/setup`;
+    await checkRoute(route);
+
+    const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    try {
+      await page.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });
+      await page.waitForTimeout(1500);
+      // The three product URL inputs the Schema tab now owns...
+      for (let i = 1; i <= 3; i++) {
+        expect(await page.getByText(`Product URL ${i}`).count(), `Product URL ${i} label is missing`).toBeGreaterThan(0);
+      }
+      // ...and the (empty) grid underneath them.
+      expect(await page.getByPlaceholder('price').count(), 'the schema grid did not render').toBeGreaterThan(0);
+    } finally {
+      await page.close();
+    }
   }, 60_000);
 });
