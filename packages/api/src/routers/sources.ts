@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, sql } from 'drizzle-orm';
-import { sources, datasets, projects, orgs, domains, inputSets } from '@robot/db';
+import { eq, and, isNull, sql } from 'drizzle-orm';
+import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
+import { FIND_PRODUCT_PAGES_LIMIT, type SchemaDefinitionField } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { scraperRouter } from './scraper';
 import { planSource } from '../crawl/plan-source.js';
+import { withBrowserSession } from '../browser-session.js';
+import { schemaInput, prepareSchema } from '../verify/schema-input.js';
+import { rankProductLinks } from '../verify/find-product-pages.js';
 
 // ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
 //
@@ -243,6 +247,11 @@ export const sourcesRouter = router({
           // nullable) reads as 0 rather than a null propagating into NaN.
           urlCount: sql<number>`coalesce(jsonb_array_length(${inputSets.rows}), 0)::int`,
           isActive: sources.isActive,
+          // Customer-defined schema (Task 1) + its last drift check — the
+          // Set-up workspace's schema/verification surfaces read these.
+          schemaDefinition: sources.schemaDefinition,
+          verificationSet: sources.verificationSet,
+          driftedFields: sources.driftedFields,
           createdAt: sources.createdAt,
           updatedAt: sources.updatedAt,
         })
@@ -398,6 +407,135 @@ export const sourcesRouter = router({
         .returning({ id: sources.id });
 
       return { sourceId: source!.id, projectSlug: SCRATCH_SLUG, sourceSlug };
+    }),
+
+  // ─── Customer-defined schema (customer schema verification, task 11) ─────
+
+  /**
+   * Create a Scratch Source from a customer-authored schema (3 verification
+   * URLs + typed fields + expected values) rather than `quickCreate`'s bare
+   * URL list. `prepareSchema` (schema-input.ts) assigns stable keys/concepts
+   * and validates hostnames + expected values, throwing BAD_REQUEST with a
+   * per-cell problem list on failure.
+   *
+   * Mirrors `quickCreate`'s Scratch InputSet + Source shape exactly, except:
+   * when `listingUrl` is given, the InputSet plans from THAT single row (a
+   * listing crawl plans from the listing, not the verification samples) and
+   * the three product URLs live only in `verificationSet`.
+   */
+  createWithSchema: publicProcedure
+    .input(schemaInput)
+    .mutation(async ({ ctx, input }) => {
+      const { fields, verificationSet } = prepareSchema(input);
+
+      const firstUrl = new URL(input.urls[0]!);
+      const name = `${firstUrl.hostname} ${firstUrl.pathname}`.slice(0, 255);
+
+      const scratchProjectId = await getScratchProjectId(ctx.db);
+      const scratchDatasetId = await getOrCreateScratchDataset(ctx.db, scratchProjectId);
+
+      const rows = input.listingUrl ? [{ url: input.listingUrl }] : input.urls.map((url) => ({ url }));
+
+      const [inputSet] = await ctx.db
+        .insert(inputSets)
+        .values({
+          projectId: scratchProjectId,
+          type: 'direct',
+          name,
+          columns: [{ name: 'url', primary: true }],
+          rows,
+        })
+        .returning({ id: inputSets.id });
+
+      const listingMode = input.listingUrl ? 'listing_to_detail' : 'detail';
+      const sourceSlug = `${slugifyDomain(firstUrl.hostname)}-${shortRandomSuffix()}`;
+
+      const [source] = await ctx.db
+        .insert(sources)
+        .values({
+          datasetId: scratchDatasetId,
+          name,
+          slug: sourceSlug,
+          country: 'us',
+          inputStrategy: 'direct',
+          urlTemplate: input.urls[0],
+          listingMode,
+          inputSetId: inputSet!.id,
+          schemaDefinition: fields,
+          verificationSet,
+          // Same rule as quickCreate: only a listing Source gets a starter budget.
+          ...(input.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}),
+        })
+        .returning({ id: sources.id });
+
+      return { sourceId: source!.id, projectSlug: SCRATCH_SLUG, sourceSlug };
+    }),
+
+  /**
+   * Re-derive a Source's schema definition + verification set from an edited
+   * form. Refused while a verification is in flight (`completed_at IS NULL`)
+   * — editing the schema out from under a running Verify would leave that
+   * run's results describing a schema that no longer exists. `prepareSchema`
+   * is given the Source's existing fields so a field re-submitted with its
+   * prior `key` keeps that key (and its `concept`) rather than being treated
+   * as brand new.
+   */
+  updateSchema: publicProcedure
+    .input(schemaInput.extend({ sourceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { sourceId, ...schema } = input;
+
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, sourceId),
+        columns: { id: true, schemaDefinition: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${sourceId} not found` });
+      }
+
+      const inFlight = await ctx.db.query.sourceVerifications.findFirst({
+        where: and(eq(sourceVerifications.sourceId, sourceId), isNull(sourceVerifications.completedAt)),
+        columns: { id: true },
+      });
+      if (inFlight) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Source ${sourceId} has a verification in flight; wait for it to complete before editing the schema`,
+        });
+      }
+
+      const existing = (source.schemaDefinition as SchemaDefinitionField[] | null) ?? [];
+      const { fields, verificationSet } = prepareSchema(schema, existing);
+
+      const [updated] = await ctx.db
+        .update(sources)
+        .set({ schemaDefinition: fields, verificationSet, updatedAt: new Date() })
+        .where(eq(sources.id, sourceId))
+        .returning();
+
+      return updated;
+    }),
+
+  /**
+   * Guess which links on a listing page are product/detail pages — no AI, no
+   * schema. Captures the page with `withBrowserSession` and harvests every
+   * `<a href>` client-side (`setContentEvaluate`), then ranks them with the
+   * pure `rankProductLinks` (find-product-pages.ts): same host, not the
+   * listing itself, largest same-path-template group, in document order.
+   * Feeds the "pick your verification URLs" step of the schema wizard.
+   */
+  findProductPages: publicProcedure
+    .input(z.object({ listingUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const anchors = await withBrowserSession(async (browser) => {
+        const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
+        return browser.setContentEvaluate<Array<{ href: string; text: string }>>(
+          capture.html,
+          `(() => Array.from(document.querySelectorAll('a[href]')).map(a => ({ href: a.getAttribute('href') || '', text: (a.textContent || '').trim().slice(0, 80) })))()`,
+        );
+      });
+
+      return { urls: rankProductLinks(anchors, input.listingUrl, FIND_PRODUCT_PAGES_LIMIT) };
     }),
 
   /**
