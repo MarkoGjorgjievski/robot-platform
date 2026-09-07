@@ -15,6 +15,12 @@ export type VerificationDeps = {
   cachedPaths?: (concept: string) => Promise<CertifiedPath[]>;
   onlyKeys?: string[];
   previous?: VerificationOutcome;
+  /**
+   * The urls the `previous` outcome was actually proven against. When given
+   * and different from `verificationSet.urls`, the `onlyKeys` copy path is
+   * ignored and every field re-runs — see `previousIsStale` below.
+   */
+  previousUrls?: string[];
   captureOne?: (browser: IBrowser, url: string) => Promise<PageCapture>;
   onProgress?: (stage: string) => void;
 };
@@ -39,6 +45,24 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
     listing_url: set.listing_url ?? null,
   });
   return createHash('sha256').update(canon).digest('hex');
+}
+
+/**
+ * Do the urls the `previous` outcome was proven against still match the ones
+ * we are about to verify? A stored cell result is keyed by url, so once the
+ * url set moves, NONE of the previous field results describe these pages —
+ * copying them forward would store yesterday's evidence under today's
+ * definition hash and unlock Extract against pages nobody verified.
+ *
+ * Order-sensitive on purpose. A pure reordering is arguably harmless (cells
+ * are a map, not a list), but this is a defence-in-depth guard: erring
+ * toward re-verifying costs one free mechanical pass, while erring the other
+ * way costs correctness. Absent `previousUrls` (an older caller), the guard
+ * never fires and behaviour is unchanged.
+ */
+function previousIsStale(previousUrls: string[] | undefined, urls: string[]): boolean {
+  if (!previousUrls) return false;
+  return previousUrls.length !== urls.length || previousUrls.some((u, i) => u !== urls[i]);
 }
 
 export async function runVerification(req: VerificationRequest, deps: VerificationDeps): Promise<VerificationRun> {
@@ -83,8 +107,12 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
   const fields: Record<string, FieldVerification> = {};
   let aiCalls = 0;
   deps.onProgress?.('searching');
+  // The dashboard already forces a full re-verify when the urls move
+  // (`reverifyKeys`), but a scoped re-verify that reuses results proven
+  // against DIFFERENT pages is wrong however the request got here.
+  const reuseAllowed = !previousIsStale(deps.previousUrls, req.verificationSet.urls);
   for (const field of req.fields) {
-    if (deps.onlyKeys && !deps.onlyKeys.includes(field.key) && deps.previous?.fields[field.key]) {
+    if (reuseAllowed && deps.onlyKeys && !deps.onlyKeys.includes(field.key) && deps.previous?.fields[field.key]) {
       fields[field.key] = deps.previous.fields[field.key]!;
       continue;
     }

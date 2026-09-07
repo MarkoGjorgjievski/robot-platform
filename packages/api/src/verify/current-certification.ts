@@ -62,11 +62,28 @@ export async function loadCurrentCertification(db: Database, sourceId: string): 
   const results = row.results as Record<string, FieldVerification>;
   const fields = source!.schemaDefinition as SchemaDefinitionField[];
   const set = source!.verificationSet as VerificationSet;
+
+  // A certification with no usable hostname is not a certification: the
+  // hostname IS the domain_intelligence row the certified paths live in and
+  // the key every verified-path stat is booked under (M3). `verificationSet`
+  // is jsonb — nothing in the database forces `urls[0]` to be a parseable
+  // URL, and a Source hand-edited or written by an older/looser path could
+  // carry anything. Refusing here means `requireCertification` says "verify
+  // the schema before extracting" (recoverable, and true) instead of the
+  // whole procedure dying on a TypeError from `new URL`.
+  let hostname: string;
+  try {
+    hostname = new URL(set.urls[0]!).hostname;
+  } catch {
+    console.error(`[verify] source ${sourceId} has an unparseable verification url; treating it as uncertified`);
+    return null;
+  }
+
   return {
     verificationId: row.id,
     completedAt: row.completedAt!,
     paths: Object.fromEntries(fields.map((f) => [f.key, results[f.key]?.certified ?? []])),
     concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
-    hostname: new URL(set.urls[0]!).hostname,
+    hostname,
   };
 }

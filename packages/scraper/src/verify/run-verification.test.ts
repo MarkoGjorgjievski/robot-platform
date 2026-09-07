@@ -125,6 +125,32 @@ describe('runVerification (shop-example, offline)', () => {
     expect(second.outcome.allPassed).toBe(true);
   }, 60_000);
 
+  // Correction round, defence in depth for the C1 follow-up: a scoped
+  // re-verify must not copy forward results that were proven against
+  // DIFFERENT pages. The dashboard now forces a full re-verify when a URL
+  // changes, but the server must not depend on that.
+  it('ignores the previous outcome entirely when previousUrls differ from the set being verified', async () => {
+    const first = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
+
+    // Same set, same onlyKeys, but the previous run was proven against a
+    // DIFFERENT third url — every field must re-run, not be copied.
+    const movedUrls = [U[0]!, U[1]!, 'https://shop.example/p/somewhere-else'];
+    const guarded = await runVerification({ fields, verificationSet: set }, {
+      browser, agent: null, captures: loadShopExample(),
+      onlyKeys: ['price'], previous: first.outcome, previousUrls: movedUrls,
+    });
+    // `product_name` was not in onlyKeys: without the guard it would BE the
+    // previous object. It must be a freshly computed one instead.
+    expect(guarded.outcome.fields.product_name).not.toBe(first.outcome.fields.product_name);
+
+    // Control: the identical call with matching previousUrls does copy it.
+    const copied = await runVerification({ fields, verificationSet: set }, {
+      browser, agent: null, captures: loadShopExample(),
+      onlyKeys: ['price'], previous: first.outcome, previousUrls: [...U],
+    });
+    expect(copied.outcome.fields.product_name).toBe(first.outcome.fields.product_name);
+  }, 90_000);
+
   it('cached verified paths are tried first and skip the search', async () => {
     let searched = false;
     const run = await runVerification({ fields: [fields[1]!], verificationSet: set }, {
