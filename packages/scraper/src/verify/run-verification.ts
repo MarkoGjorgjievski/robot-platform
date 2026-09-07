@@ -82,15 +82,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     let candidates: CandidatePath[] = [];
     if (!result) {
       const gathered = await gatherCandidates(field, expected, caps, { runDomSearch });
-      // A structured-data "identity" match on a very short text value (a 2-3 char
-      // code, size, or grade) is cheap to fake by coincidence — some unrelated
-      // field in the same API body can easily carry that exact short string. Don't
-      // let the mechanical pass auto-certify on one; require either DOM
-      // corroboration (an xpath candidate, left untouched here) or an AI-reviewed
-      // proposal, which is still free to certify the very same path afterward.
-      const isShortText = field.type === 'text' && Object.values(expected).every((v) => v.trim().length > 0 && v.trim().length < 3);
-      const structured = isShortText ? gathered.candidates.filter((c) => c.source === 'xpath') : gathered.candidates;
-      candidates = [...cached, ...structured];
+      candidates = [...cached, ...gathered.candidates];
       result = await certify({ field, expected, captures: caps, candidates }, { evalXPaths });
     }
     if (result.certified.length === 0 && !result.incomplete && deps.agent) {
