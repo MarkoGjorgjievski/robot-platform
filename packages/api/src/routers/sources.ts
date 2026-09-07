@@ -1,15 +1,17 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
-import { FIND_PRODUCT_PAGES_LIMIT, type SchemaDefinitionField } from '@robot/scraper';
+import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { scraperRouter } from './scraper';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { schemaInput, prepareSchema, httpUrl } from '../verify/schema-input.js';
 import { rankProductLinks } from '../verify/find-product-pages.js';
+import { sourceDefinitionHash } from '../verify/current-certification.js';
+import { runSourceVerification } from '../verify/run-source-verification.js';
 
 // ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
 //
@@ -769,5 +771,136 @@ export const sourcesRouter = router({
       }
 
       return { deleted: true };
+    }),
+
+  // ─── Customer schema verification (task 12) ──────────────────────────────
+
+  /**
+   * A rough, pre-flight cost ceiling for a Verify run — every field asking
+   * AI (the most expensive path per field) — so the dashboard can warn
+   * before spending anything. `aiAvailable` tells it whether AI fallback can
+   * even run at all (no key = mechanical/XPath-only verification).
+   */
+  verifyEstimate: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { schemaDefinition: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      const fields = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]).length : 0;
+      return {
+        fields,
+        upperBoundUsd: fields * EST_AI_COST_PER_FIELD_USD,
+        aiAvailable: !!process.env.ANTHROPIC_API_KEY,
+      };
+    }),
+
+  /**
+   * Kick off a verification run — the fire-and-forget shape `startExecution`
+   * established (crawl/start-execution.ts): insert the row, `void` the
+   * actual work, and return immediately so the dashboard can poll
+   * `verificationStatus`.
+   *
+   * Stall rule (the D2 lesson): a `completed_at IS NULL` row younger than
+   * `VERIFY_STALL_MS` is genuinely in flight and is handed back as-is — a
+   * double-click or a re-mount must not start a second run. One OLDER than
+   * that is a crash leftover (an api-server restart mid-verify); it is
+   * closed out with `errorMessage: 'stalled'` so it can never wedge this
+   * Source, and a fresh verification starts in its place.
+   */
+  verify: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, schemaDefinition: true, verificationSet: true },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      const hash = sourceDefinitionHash(source);
+      if (!hash) {
+        throw new TRPCError({
+          code: 'PRECONDITION_FAILED',
+          message: `Source ${input.sourceId} has no schema definition to verify`,
+        });
+      }
+
+      const inFlight = await ctx.db.query.sourceVerifications.findFirst({
+        where: and(eq(sourceVerifications.sourceId, input.sourceId), isNull(sourceVerifications.completedAt)),
+        orderBy: [desc(sourceVerifications.startedAt)],
+      });
+
+      if (inFlight) {
+        const age = Date.now() - inFlight.startedAt.getTime();
+        if (age < VERIFY_STALL_MS) {
+          return { verificationId: inFlight.id, status: 'in-progress' as const };
+        }
+        await ctx.db
+          .update(sourceVerifications)
+          .set({ errorMessage: 'stalled', completedAt: new Date() })
+          .where(eq(sourceVerifications.id, inFlight.id));
+      }
+
+      const [row] = await ctx.db
+        .insert(sourceVerifications)
+        .values({ sourceId: input.sourceId, definitionHash: hash })
+        .returning({ id: sourceVerifications.id });
+
+      void runSourceVerification(input.sourceId, row!.id, { onlyKeys: input.onlyKeys }).catch((err) => {
+        console.error(`[sources.verify] verification ${row!.id} failed:`, err);
+      });
+
+      return { verificationId: row!.id, status: 'started' as const };
+    }),
+
+  /**
+   * Poll a Source's latest verification run. `current` is decided at read
+   * time by comparing the row's `definitionHash` against the Source's
+   * present definition — `updateSchema` never touches past rows, so a hash
+   * mismatch (not a stored flag) is what tells the dashboard the schema
+   * moved on since this run.
+   *
+   * `_stage` (written by `runSourceVerification`'s `onProgress`) is a
+   * reserved key inside the `captures` jsonb column, not a real capture
+   * ref — surfaced here as `stage` and stripped from the `captures` map so
+   * callers never mistake it for one.
+   */
+  verificationStatus: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.query.sourceVerifications.findFirst({
+        where: eq(sourceVerifications.sourceId, input.sourceId),
+        orderBy: [desc(sourceVerifications.startedAt)],
+      });
+      if (!row) return null;
+
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { schemaDefinition: true, verificationSet: true },
+      });
+      const currentHash = source ? sourceDefinitionHash(source) : null;
+
+      const captures = { ...(row.captures as Record<string, unknown>) };
+      const stage = (captures._stage as string | undefined) ?? null;
+      delete captures._stage;
+
+      return {
+        id: row.id,
+        startedAt: row.startedAt,
+        completedAt: row.completedAt,
+        allPassed: row.allPassed,
+        results: row.results,
+        captures,
+        stage,
+        aiCalls: row.aiCalls,
+        costUsd: row.costUsd,
+        errorMessage: row.errorMessage,
+        current: currentHash !== null && currentHash === row.definitionHash,
+      };
     }),
 });
