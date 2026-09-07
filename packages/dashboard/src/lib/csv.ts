@@ -1,4 +1,4 @@
-/** Minimal RFC 4180: quoted fields, doubled quotes, CRLF or LF rows. Trailing empty row dropped. */
+/** Minimal RFC 4180: quoted fields, doubled quotes, CRLF or LF rows. Any all-blank row is dropped, not just a trailing one. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];

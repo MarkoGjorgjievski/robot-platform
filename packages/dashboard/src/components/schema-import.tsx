@@ -2,7 +2,7 @@ import { useState, type ChangeEvent } from 'react';
 import { Upload } from 'lucide-react';
 import readXlsxFile from 'read-excel-file';
 import { parseCsv } from '../lib/csv';
-import { rowsFromTable, type GridRow } from '../lib/schema-grid';
+import { rowsFromTable, importProblems, type GridRow } from '../lib/schema-grid';
 
 type Props = { urlCount: number; onRows: (rows: GridRow[]) => void };
 
@@ -20,9 +20,15 @@ export function SchemaImport({ urlCount, onRows }: Props) {
     e.target.value = ''; // allow re-selecting the same file
     if (!file) return;
 
-    const table = file.name.toLowerCase().endsWith('.xlsx')
-      ? (await readXlsxFile(file)).map((row) => row.map((c) => (c === null || c === undefined ? '' : String(c))))
-      : parseCsv(await file.text());
+    let table: string[][];
+    try {
+      table = file.name.toLowerCase().endsWith('.xlsx')
+        ? (await readXlsxFile(file)).map((row) => row.map((c) => (c === null || c === undefined ? '' : String(c))))
+        : parseCsv(await file.text());
+    } catch (err) {
+      setProblems(importProblems(err));
+      return;
+    }
 
     const { rows, problems: nextProblems } = rowsFromTable(table, urlCount);
     setProblems(nextProblems);

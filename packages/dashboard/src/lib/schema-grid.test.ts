@@ -12,6 +12,7 @@ import {
   shortUrl,
   toSchemaInput,
   fromSource,
+  importProblems,
   type GridState,
 } from './schema-grid';
 
@@ -277,5 +278,15 @@ describe('fromSource', () => {
   test('returns null when schemaDefinition or verificationSet is missing', () => {
     expect(fromSource({ schemaDefinition: null, verificationSet: null })).toBeNull();
     expect(fromSource({ schemaDefinition: [], verificationSet: null })).toBeNull();
+  });
+});
+
+describe('importProblems', () => {
+  test('formats an Error message', () => {
+    expect(importProblems(new Error('bad zip'))).toEqual(['Could not read the file: bad zip']);
+  });
+
+  test('formats a non-Error thrown value', () => {
+    expect(importProblems('nope')).toEqual(['Could not read the file: nope']);
   });
 });
