@@ -6,7 +6,7 @@ import { sanitizeCatalogue, type CandidateCatalogue, type Candidate } from './ca
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human' | 'ai-vision' | 'ai-discovered-variants';
+export type PathSource = 'api' | 'api-ai' | 'json-ld' | 'meta' | 'xpath' | 'xpath-cached' | 'human' | 'ai-vision' | 'ai-discovered-variants' | 'verified';
 
 /** A single extraction path for a field */
 export type FieldPath = {
@@ -21,6 +21,12 @@ export type FieldPath = {
   pinned?: boolean;
   /** URL of the page this path last resolved on; conflict detection compares only same-page observations. */
   lastUrl?: string;
+  /** How the raw captured value is converted before it is served. `'identity'` when absent. */
+  transform?: 'identity' | 'cents_to_units' | 'first_of_list';
+  /** For `source === 'verified'` only: the structured source the customer-schema
+   *  verification pass certified this path against, so `lookupVerifiedPaths` can
+   *  rebuild a `CertifiedPath` from the stored `FieldPath`. */
+  origin?: 'api' | 'json-ld' | 'meta' | 'xpath';
 };
 
 /** All paths for a single field, ranked by reliability */
@@ -190,6 +196,7 @@ export type AttemptedPath = { source: PathSource; path: string };
  */
 const SOURCE_AUTHORITY: Record<PathSource, number> = {
   'human': 100,
+  'verified': 90,
   'json-ld': 80,
   'meta': 70,
   'xpath': 60,
@@ -609,7 +616,7 @@ const MAX_PATHS_PER_FIELD = 5;
  * simply crowded out. That contradicts the "flag, never auto-reset" rule.
  */
 function isProtectedPath(p: FieldPath): boolean {
-  return p.pinned === true || p.source === 'human';
+  return p.pinned === true || p.source === 'human' || p.source === 'verified';
 }
 
 /**
@@ -1090,6 +1097,83 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
         consecutiveFailures: isSuccess ? 0 : 1,
       });
     }
+  });
+}
+
+// ─── Verified paths (customer schema verification) ──────────────────────────
+
+/** Structurally identical to `@robot/scraper`'s `verify/types.js` `CertifiedPath` —
+ *  kept as a local alias rather than a runtime import so this module carries no
+ *  dependency on `./verify/`. */
+type VerifiedPathLite = { source: 'api' | 'json-ld' | 'meta' | 'xpath'; path: string; transform: 'identity' | 'cents_to_units' | 'first_of_list' };
+
+function sameVerified(p: FieldPath, c: VerifiedPathLite): boolean {
+  return p.source === 'verified' && p.origin === c.source && p.path === c.path && (p.transform ?? 'identity') === c.transform;
+}
+
+/**
+ * Persist the certified paths a customer-schema verification pass proved
+ * correct, under `source: 'verified'`. Merges by `(origin, path, transform)`
+ * identity — re-saving an already-known path leaves its hit/miss counters
+ * untouched instead of resetting them. Mirrors `saveDomainCache`'s
+ * read-modify-write-under-lock shape so a concurrent pin or save can't be lost.
+ */
+export async function saveVerifiedPaths(domain: string, pageType: string, byConcept: Record<string, VerifiedPathLite[]>, url: string): Promise<void> {
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(domainIntelligence)
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType))).for('update');
+    const fieldPaths = { ...((existing?.fieldPaths as Record<string, FieldPathSet> | null) ?? {}) };
+    for (const [concept, paths] of Object.entries(byConcept)) {
+      const set = fieldPaths[concept] ?? { paths: [], conflictCount: 0 };
+      for (const c of paths) {
+        const prior = set.paths.find((p) => sameVerified(p, c));
+        if (prior) { prior.lastUsedAt = now; prior.lastUrl = url; continue; }
+        set.paths.push({ path: c.path, source: 'verified', origin: c.source, transform: c.transform, confidence: 1, hits: 0, misses: 0, lastValue: null, lastUsedAt: now, lastUrl: url });
+      }
+      fieldPaths[concept] = set;
+    }
+    if (existing) {
+      await tx.update(domainIntelligence).set({ fieldPaths, updatedAt: new Date() }).where(eq(domainIntelligence.id, existing.id));
+    } else {
+      await tx.insert(domainIntelligence).values({ domain, pageType, fieldPaths, apiEndpoints: [], popupSelectors: [], hasJsonLd: false, hasNextData: false, totalRuns: 0, successfulRuns: 0, consecutiveFailures: 0 });
+    }
+  });
+  console.log(`[cache] verified paths for ${domain}/${pageType}: ${Object.keys(byConcept).length} concept(s)`);
+}
+
+/** The concept's `verified` paths, ranked by hit rate then `rankCertified`'s
+ *  source/length tie-break, rebuilt into `CertifiedPath` shape from the
+ *  stored `origin`. */
+export async function lookupVerifiedPaths(domain: string, pageType: string, concept: string): Promise<VerifiedPathLite[]> {
+  const cache = await lookupDomainCache(domain, pageType);
+  const set = cache?.fieldPaths[concept];
+  if (!set) return [];
+  const rate = (p: FieldPath) => (p.hits + p.misses > 0 ? p.hits / (p.hits + p.misses) : 1);
+  return set.paths
+    .filter((p) => p.source === 'verified' && p.origin)
+    .sort((a, b) => rate(b) - rate(a))
+    .map((p) => ({ source: p.origin!, path: p.path, transform: p.transform ?? 'identity' }));
+}
+
+/** Record a hit/miss against a stored `verified` path — same shape as the
+ *  cache's other stat-recording functions, scoped to `source: 'verified'`
+ *  entries via `sameVerified` identity. No-ops if the domain has no row yet. */
+export async function recordVerifiedPathStats(domain: string, pageType: string, entries: Array<{ concept: string; path: VerifiedPathLite; hit: boolean; value?: unknown; url?: string }>): Promise<void> {
+  if (entries.length === 0) return;
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(domainIntelligence)
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType))).for('update');
+    if (!existing) return;
+    const fieldPaths = { ...((existing.fieldPaths as Record<string, FieldPathSet> | null) ?? {}) };
+    for (const e of entries) {
+      const p = fieldPaths[e.concept]?.paths.find((x) => sameVerified(x, e.path));
+      if (!p) continue;
+      if (e.hit) { p.hits++; p.lastValue = e.value ?? p.lastValue; if (e.url) p.lastUrl = e.url; } else { p.misses++; }
+      p.lastUsedAt = now;
+    }
+    await tx.update(domainIntelligence).set({ fieldPaths, updatedAt: new Date() }).where(eq(domainIntelligence.id, existing.id));
   });
 }
 
