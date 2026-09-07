@@ -144,8 +144,9 @@ export default function SourceRunDetail() {
   const targetFields = Array.isArray(run.targetFields) ? (run.targetFields as string[]) : [];
   // Pull field shape from the source's stored selectors if available — best-effort.
   // `DETAIL_URL_FIELD` (packages/api/src/crawl/effective-schema.ts) is the
-  // synthetic row-scoped "which detail page" field `sources.analyze` persists
-  // into `selectorsJson.fields` verbatim for the discovery report — it is
+  // synthetic row-scoped "which detail page" field the scraper router's
+  // `runAnalysis` persists into `selectorsJson.fields` verbatim for the
+  // discovery report — it is
   // filtered out of the server's effective schema but round-trips into this
   // raw read, so it must be excluded here too or it renders as a dead
   // always-"—" column.

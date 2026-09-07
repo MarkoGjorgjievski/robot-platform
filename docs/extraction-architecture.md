@@ -113,6 +113,38 @@ Each extraction runs through these steps in order. Later steps only run for fiel
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## Verification-first sources
+
+Added 2026-09 (`docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md`
+§4–§5). A Source whose customer filled the schema grid — one row per field, an expected value
+typed on each of three product URLs — skips the chain above entirely, through a module beside
+it, not inside it: `packages/scraper/src/verify/`.
+
+**Verify (once, at setup time):** capture the three URLs the same way the chain does →
+normalize both sides per field type (`$129.99` vs `129.99`) → mechanically search every
+capture's JSON bodies, JSON-LD, meta, and DOM for a node matching the expected value (a DOM
+match whose XPath contains the literal value is rejected) → **certify a candidate only if it
+produces the expected value on all three captures**, no two-of-three tolerance, ranked by
+source authority then path length, top primary plus up to four fallbacks → any field still
+uncertified gets exactly one AI `propose_path` call, whose proposal must certify the same way
+or is discarded → each cell paints green (certified) or red (a fixed reason with a
+customer-facing hint). Extract stays disabled until every cell is green.
+
+**Extraction at scale:** on a full pass, certified paths are written into
+`domain_intelligence.field_paths` under the field's **concept** (not the customer's name/key)
+as `PathSource: 'verified'` — above every source but a human pin, never auto-pruned; the next
+customer verifying the same concept on that domain gets them tried first. Runs then go through
+`runVerifiedExtraction`, not the chain above: only that Source's certified paths, first
+type-valid hit wins, no mechanical/cache/AI fallback. A miss leaves the cell empty and is
+recorded per path (same hit/miss ledger the 2026-09-02 cache-reputation fix made real) — empty
+means "no proven path found it," never a guess. A field whose run miss-rate crosses
+`DRIFT_MISS_SHARE` (0.2) flags `drifted`; the fix is a free re-verify if the pages haven't
+changed.
+
+Legacy Sources (no schema definition) keep running the full chain above unchanged.
+`sources.confirm`'s certification gate enforces "verify before extracting"; a listing URL on a
+verified Source still goes through the existing probe-confirm gate once the grid is green.
+
 ## Domain Intelligence Cache
 
 ### Data Model
