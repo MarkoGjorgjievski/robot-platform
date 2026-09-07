@@ -340,8 +340,16 @@ export class PlaywrightBrowser implements IBrowser {
     const context = await this.browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     try {
-      // Offline: setContent does NOT trigger navigation or network fetches.
-      await page.setContent(html, { waitUntil: 'load' });
+      // Offline by construction, not by claim: `setContent({ waitUntil: 'load' })`
+      // alone does NOT stop Chromium from fetching real subresources a captured
+      // page references (trackers, ad tags, remote <script src>) — on a heavy real
+      // page one of those can hang and blow the timeout (a real currys.co.uk
+      // capture did exactly this). The route abort below intercepts and cancels
+      // every outgoing request before setContent runs, so no network request ever
+      // leaves this page; 'domcontentloaded' then only waits for the (offline) DOM
+      // to parse, and any remote <script> is aborted before it can execute.
+      await page.route('**/*', (route) => route.abort());
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
       // Playwright evaluates a string argument as a JS expression. The scripts we feed
       // (e.g. buildCachedXPathScript) are self-invoking IIFEs that return a value.
       const result = await page.evaluate(script);

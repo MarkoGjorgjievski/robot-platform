@@ -25,6 +25,16 @@ import { withBrowserSession } from '../browser-session.js';
 import { persistScreenshot, getCapturesDir } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 
+/**
+ * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
+ * "Call log:" output carries in a timeout error) so a persisted
+ * `errorMessage` renders as plain text instead of garbled glyphs in the
+ * dashboard's error banner.
+ */
+function stripAnsi(message: string): string {
+  return message.replace(new RegExp('\u001b\[[0-9;]*m', 'g'), '');
+}
+
 type StoredCaptureRef = { captureId: string; capturedAt: string; screenshotUrl?: string; blockedReason?: string };
 
 async function storeCapture(sourceId: string, url: string, c: PageCapture): Promise<StoredCaptureRef> {
@@ -169,7 +179,7 @@ export async function runSourceVerification(sourceId: string, verificationId: st
     console.error(`[verify] verification ${verificationId} failed:`, err);
     try {
       await db.update(sourceVerifications).set({
-        errorMessage: safeErrorMessage(err).slice(0, 1000),
+        errorMessage: stripAnsi(safeErrorMessage(err)).slice(0, 1000),
         completedAt: new Date(),
       }).where(eq(sourceVerifications.id, verificationId));
     } catch (recoveryErr) {

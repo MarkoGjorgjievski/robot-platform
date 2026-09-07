@@ -159,6 +159,30 @@ describe('runSourceVerification', () => {
     }
   });
 
+  it('on failure: strips ANSI escape codes from a Playwright-style errorMessage before persisting it', async () => {
+    const { sourceId } = await makeSchemaSource('failure-ansi');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      // Shaped like Playwright's real `page.setContent` timeout: the "Call log:"
+      // lines are dim/reset-styled with raw ANSI codes (2026-09-07 live pre-check
+      // — these rendered as garbled glyphs in the dashboard's error banner).
+      const ansiMessage = 'page.setContent: Timeout 30000ms exceeded.\nCall log:\n\\u001b[2m  - setting frame content\\u001b[22m\n\\u001b[2m  - waiting until "load"\\u001b[22m'
+        .replace(/\\u001b/g, '');
+      runVerificationMock.mockRejectedValue(new Error(ansiMessage));
+
+      await runSourceVerification(sourceId, verificationId);
+
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      expect(row!.completedAt).not.toBeNull();
+      expect(row!.errorMessage).toBe(
+        'page.setContent: Timeout 30000ms exceeded.\nCall log:\n  - setting frame content\n  - waiting until "load"',
+      );
+      expect(row!.errorMessage).not.toContain('');
+    } finally {
+      await cleanupSource(sourceId);
+    }
+  });
+
   it('re-verify (onlyKeys) reuses fresh captures from the previous completed run — skipping a newer failed row — and never creates a new captures row for a reused page', async () => {
     const { sourceId, urls } = await makeSchemaSource('reuse');
     try {
