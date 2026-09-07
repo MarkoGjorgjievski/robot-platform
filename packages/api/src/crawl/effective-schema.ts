@@ -13,13 +13,20 @@
 // feeds `extract-item.ts` via `crawl.ts`'s execute) must fall back the same
 // way, or a Scratch source silently plans/extracts zero fields.
 
-import { DETAIL_URL_FIELD, type OriginField } from '@robot/scraper';
+import { DETAIL_URL_FIELD, customerTypeToFieldType, type OriginField, type SchemaDefinitionField } from '@robot/scraper';
 
-export type EffectiveSchemaField = OriginField;
+export type EffectiveSchemaField = OriginField & { displayName?: string };
 
 type SelectorsJsonFieldsShape = {
   fields?: Array<OriginField & Record<string, unknown>>;
 };
+
+/** True whenever the Source carries a customer-authored schema definition
+ * (Task 1's `sources.schemaDefinition`) that should win over both the
+ * dataset schema and `selectorsJson.fields`. */
+export function isCustomerSchema(source: { schemaDefinition?: unknown }): boolean {
+  return Array.isArray(source.schemaDefinition) && source.schemaDefinition.length > 0;
+}
 
 /**
  * Dataset schema wins whenever it is non-empty — that is the normal case for
@@ -49,7 +56,17 @@ type SelectorsJsonFieldsShape = {
 export function effectiveSchema(source: {
   dataset?: { schema?: unknown } | null;
   selectorsJson?: unknown;
+  schemaDefinition?: unknown;
 }): EffectiveSchemaField[] {
+  if (isCustomerSchema(source)) {
+    return (source.schemaDefinition as SchemaDefinitionField[]).map((f) => ({
+      name: f.key,
+      type: customerTypeToFieldType(f.type),
+      origin: 'detail' as const,
+      displayName: f.name,
+    }));
+  }
+
   const datasetSchema = source.dataset?.schema as EffectiveSchemaField[] | null | undefined;
   if (Array.isArray(datasetSchema) && datasetSchema.length > 0) {
     return datasetSchema.filter((f) => f.name !== DETAIL_URL_FIELD);

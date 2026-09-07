@@ -142,6 +142,63 @@ describe('buildRunExport', () => {
     expect(result.fields).toEqual(['listing_id', 'title']);
   });
 
+  it('exports rows keyed by field key under the customer-declared display name header', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: {
+        ...SOURCE,
+        schemaDefinition: [
+          { key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' },
+          { key: 'title', name: 'Title', type: 'text', description: '', concept: 'product_name' },
+        ],
+      },
+      captureUrl: null,
+      extractionData: [{ price: 79, title: 'Kallax' }],
+    });
+    expect(result.fields).toEqual(['Price', 'Title']);
+    expect(result.rows).toEqual([{ Price: 79, Title: 'Kallax' }]);
+  });
+
+  it('keeps `_`-prefixed keys and drops undeclared keys for a customer schema', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: {
+        ...SOURCE,
+        schemaDefinition: [{ key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' }],
+      },
+      captureUrl: null,
+      extractionData: [{ price: 79, _url: 'https://example.com/1', undeclared: 'drop me' }],
+    });
+    expect(result.rows).toEqual([{ Price: 79, _url: 'https://example.com/1' }]);
+  });
+
+  it('fills a missing customer field with null rather than omitting the key', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: {
+        ...SOURCE,
+        schemaDefinition: [
+          { key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' },
+          { key: 'title', name: 'Title', type: 'text', description: '', concept: 'product_name' },
+        ],
+      },
+      captureUrl: null,
+      extractionData: [{ price: 79 }],
+    });
+    expect(result.rows).toEqual([{ Price: 79, Title: null }]);
+  });
+
+  it('ignores an empty schemaDefinition and falls back to legacy selectorsJson behaviour', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: { ...SOURCE, schemaDefinition: [] },
+      captureUrl: null,
+      extractionData: [{ title: 'Kallax', price: 79 }],
+    });
+    expect(result.fields).toEqual(['title', 'price']);
+    expect(result.rows).toEqual([{ title: 'Kallax', price: 79 }]);
+  });
+
   it('tolerates a source whose selectorsJson holds no field list', () => {
     const result = buildRunExport({
       run: RUN,
