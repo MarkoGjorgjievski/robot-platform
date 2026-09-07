@@ -11,8 +11,10 @@ import type { CellStatus } from '../components/schema-grid';
 
 export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch';
 
+export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
+
 export type CellResult =
-  | { status: 'pass'; found: string }
+  | { status: 'pass'; found: string; path?: { source: CertifiedSource; path: string; transform?: string } }
   | { status: 'fail'; reason: FailReason; found?: string; nearMisses?: string[] }
   | { status: 'not_captured' };
 
@@ -27,7 +29,10 @@ export type FieldVerification = {
 
 export type VerificationResults = Record<string, FieldVerification>;
 
-export type VerificationRow = { completedAt: string | Date | null } | null | undefined;
+export type VerificationRow =
+  | { startedAt?: string | Date | null; completedAt: string | Date | null; errorMessage?: string | null }
+  | null
+  | undefined;
 
 /** Spec §4.6 red-cell hints, verbatim, with `found`/`type` substituted where the copy calls for it. */
 export function hintFor(reason: FailReason, found?: string, type?: string): string {
@@ -41,6 +46,18 @@ export function hintFor(reason: FailReason, found?: string, type?: string): stri
     case 'type_mismatch':
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
   }
+}
+
+/**
+ * Where a green cell's value actually came from, in the operator's words
+ * (M7): `xpath` is an internal name for "we read it off the rendered page",
+ * so it is shown as `page`; the structured sources keep their own names
+ * because those are what the evidence panels elsewhere call them. Undefined
+ * for a pass whose result predates the per-cell `path` (older stored rows).
+ */
+function pathSourceLabel(source: CertifiedSource | undefined): string | undefined {
+  if (!source) return undefined;
+  return source === 'xpath' ? 'page' : source;
 }
 
 /**
@@ -65,7 +82,7 @@ export function cellStatusFor(
   if (!cell) return null;
 
   const weak = fv.weakEvidence || undefined;
-  if (cell.status === 'pass') return { status: 'pass', found: cell.found, weak };
+  if (cell.status === 'pass') return { status: 'pass', found: cell.found, weak, pathSource: pathSourceLabel(cell.path?.source) };
   if (cell.status === 'not_captured') return { status: 'not_captured', weak };
   return {
     status: 'fail',
@@ -84,9 +101,56 @@ export function summaryLine(results: VerificationResults | null | undefined): st
   return `${verified} of ${total} field${total === 1 ? '' : 's'} verified`;
 }
 
-/** A verification run is active from the moment it starts until `completedAt` is set. No row at all is not active. */
-export function isVerificationActive(row: VerificationRow): boolean {
-  return !!row && row.completedAt === null;
+export type VerificationState = 'active' | 'stalled' | 'failed' | 'done' | 'none';
+
+/**
+ * How old an in-flight row is, in ms — `null` when it carries no parseable
+ * `startedAt`. That is the "we cannot tell" case, and it must never read as
+ * stalled: a row we cannot date stays `active` rather than showing the stall
+ * banner over a run that may have started a second ago.
+ */
+function ageMs(row: NonNullable<VerificationRow>, now: number): number | null {
+  if (row.startedAt === null || row.startedAt === undefined) return null;
+  const started = row.startedAt instanceof Date ? row.startedAt.getTime() : Date.parse(row.startedAt);
+  return Number.isNaN(started) ? null : now - started;
+}
+
+/**
+ * The single classification the Schema screen reads (C1). A verification that
+ * died with the api-server (`completedAt` never set, nothing polling it any
+ * more) used to read as forever-`active` and wedge the screen: the grid
+ * stayed disabled and Verify stayed greyed out with no way back. So an
+ * in-flight row older than the server's own `VERIFY_STALL_MS` — handed to us
+ * by `sources.verifyEstimate` as `stallMs`, never hardcoded here — is
+ * `'stalled'`, not `'active'`, and the screen offers Verify again (whose
+ * server side closes the stale row out and starts a fresh one).
+ *
+ * `'failed'` is a run that DID complete but recorded an `errorMessage`;
+ * `'done'` is a clean completion; `'none'` is a Source never verified at all.
+ */
+export function verificationState(
+  row: VerificationRow,
+  opts?: { now?: number; stallMs?: number },
+): VerificationState {
+  if (!row) return 'none';
+  if (row.completedAt !== null && row.completedAt !== undefined) {
+    return row.errorMessage ? 'failed' : 'done';
+  }
+  const { now = Date.now(), stallMs } = opts ?? {};
+  if (stallMs !== undefined) {
+    const age = ageMs(row, now);
+    if (age !== null && age > stallMs) return 'stalled';
+  }
+  return 'active';
+}
+
+/**
+ * A verification run is active from the moment it starts until `completedAt`
+ * is set — or until it has been in flight longer than `stallMs`, when one is
+ * given (see `verificationState`). No row at all is not active.
+ */
+export function isVerificationActive(row: VerificationRow, opts?: { now?: number; stallMs?: number }): boolean {
+  return verificationState(row, opts) === 'active';
 }
 
 /**

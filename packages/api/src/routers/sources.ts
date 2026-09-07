@@ -649,6 +649,11 @@ export const sourcesRouter = router({
         fields,
         upperBoundUsd: fields * EST_AI_COST_PER_FIELD_USD,
         aiAvailable: !!process.env.ANTHROPIC_API_KEY,
+        // The dashboard must not hardcode the stall window (C1): it decides
+        // whether an in-flight verification is genuinely running or is a
+        // crash leftover using the SAME threshold `sources.verify` applies
+        // server-side when it closes a stalled row out and starts a fresh one.
+        stallMs: VERIFY_STALL_MS,
       };
     }),
 

@@ -2,7 +2,7 @@ import { useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { Trash2, Plus } from 'lucide-react';
 import { FIELD_TYPES, URL_COUNT, applyPaste, emptyRow, parseBlock, shortUrl, validateExpectedClient, type GridState } from '../lib/schema-grid';
 
-export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean };
+export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string };
 type Props = { state: GridState; onChange: (next: GridState) => void; cellStatus?: (rowId: string, urlIndex: number) => CellStatus | null; disabled?: boolean };
 
 const COLS = 3 + URL_COUNT;
@@ -64,7 +64,9 @@ export function SchemaGrid({ state, onChange, cellStatus, disabled }: Props) {
                 const err = validateExpectedClient(row.type, v);
                 return (
                   <td key={u} className="p-1 align-top">
+                    {/* M7: a green cell says, on hover, WHERE the value was certified from. */}
                     <input ref={reg(r, 3 + u)} disabled={disabled} value={v} onChange={(e) => setExpected(r, u, e.target.value)} onKeyDown={(e) => onKey(e, r, 3 + u)} onPaste={(e) => onPaste(e, r, 3 + u)}
+                      title={status?.status === 'pass' && status.pathSource ? `verified from ${status.pathSource}` : undefined}
                       className={`w-full rounded border px-2 py-1 ${status ? CELL_BG[status.status] : err && v !== '' ? 'border-red-300' : 'border-gray-300'}`} />
                     {err && v !== '' && <p className="mt-0.5 text-xs text-red-700">{err}</p>}
                     {status?.status === 'pass' && status.found !== undefined && status.found !== v && <p className="mt-0.5 text-xs text-emerald-800">found: {status.found}</p>}
