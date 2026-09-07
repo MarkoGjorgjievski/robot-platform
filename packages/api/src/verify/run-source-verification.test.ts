@@ -7,7 +7,7 @@ import type { PageCapture } from '@robot/browser';
 import { db, sources, inputSets, sourceVerifications, captures } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from '../routers/index.js';
-import { runSourceVerification } from './run-source-verification.js';
+import { runSourceVerification, writeStage } from './run-source-verification.js';
 
 // `runSourceVerification` never launches a real browser or calls
 // `@robot/scraper`'s `runVerification` for real — both are stubbed here, the
@@ -80,10 +80,10 @@ async function makeSchemaSource(tag: string) {
   return { sourceId: created.sourceId, urls };
 }
 
-async function startVerificationRow(sourceId: string): Promise<string> {
+async function startVerificationRow(sourceId: string, overrides: Partial<{ startedAt: Date }> = {}): Promise<string> {
   const [row] = await db
     .insert(sourceVerifications)
-    .values({ sourceId, definitionHash: 'irrelevant-for-this-test', completedAt: null })
+    .values({ sourceId, definitionHash: 'irrelevant-for-this-test', completedAt: null, ...overrides })
     .returning({ id: sourceVerifications.id });
   return row!.id;
 }
@@ -159,7 +159,7 @@ describe('runSourceVerification', () => {
     }
   });
 
-  it('re-verify (onlyKeys) reuses fresh captures from the previous completed run — no new captures row for a reused page', async () => {
+  it('re-verify (onlyKeys) reuses fresh captures from the previous completed run — skipping a newer failed row — and never creates a new captures row for a reused page', async () => {
     const { sourceId, urls } = await makeSchemaSource('reuse');
     try {
       const certifiedPrice = [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }];
@@ -176,17 +176,31 @@ describe('runSourceVerification', () => {
         },
         captureErrors: {},
       };
+      const base = Date.now();
 
       // First (full) verification — produces a completed row with real
       // on-disk capture files (.capture.json sidecars) to reuse from.
-      const firstId = await startVerificationRow(sourceId);
+      const firstId = await startVerificationRow(sourceId, { startedAt: new Date(base - 20_000) });
       runVerificationMock.mockResolvedValueOnce(cannedRun);
       await runSourceVerification(sourceId, firstId);
       const firstRow = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, firstId) });
       const firstRefs = firstRow!.captures as Record<string, { captureId: string }>;
 
-      // Second (re-verify, onlyKeys given) — must reuse those captures.
-      const secondId = await startVerificationRow(sourceId);
+      // A newer row that STALLED/FAILED (errorMessage set) sits between the
+      // completed run above and the current re-verify below — fix round 1
+      // (minor): it carries no real results/captures and must be skipped in
+      // favour of the older-but-genuinely-completed row.
+      await db.insert(sourceVerifications).values({
+        sourceId,
+        definitionHash: 'irrelevant-for-this-test',
+        startedAt: new Date(base - 10_000),
+        completedAt: new Date(base - 10_000),
+        errorMessage: 'stalled',
+      });
+
+      // Second (re-verify, onlyKeys given) — must reuse the FIRST run's
+      // captures, not the failed row's (which has none).
+      const secondId = await startVerificationRow(sourceId, { startedAt: new Date(base) });
       runVerificationMock.mockResolvedValueOnce(cannedRun);
       await runSourceVerification(sourceId, secondId, { onlyKeys: ['price'] });
 
@@ -203,6 +217,40 @@ describe('runSourceVerification', () => {
 
       const capturesForUrl = await db.query.captures.findMany({ where: eq(captures.url, urls[0]!) });
       expect(capturesForUrl).toHaveLength(1);
+    } finally {
+      await cleanupSource(sourceId);
+    }
+  });
+});
+
+describe('writeStage', () => {
+  it('is a no-op against an already-completed row — never clobbers its real captures', async () => {
+    const { sourceId } = await makeSchemaSource('stage-completed');
+    try {
+      const realRefs = { [`https://test-runverify-stage-completed.example.com/p/1`]: { captureId: 'abc123', capturedAt: new Date().toISOString() } };
+      const [row] = await db
+        .insert(sourceVerifications)
+        .values({ sourceId, definitionHash: 'irrelevant-for-this-test', completedAt: new Date(), captures: realRefs })
+        .returning({ id: sourceVerifications.id });
+
+      await writeStage(db, row!.id, 'searching');
+
+      const after = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, row!.id) });
+      expect(after!.captures).toEqual(realRefs);
+    } finally {
+      await cleanupSource(sourceId);
+    }
+  });
+
+  it('writes _stage onto an in-flight (uncompleted) row', async () => {
+    const { sourceId } = await makeSchemaSource('stage-inflight');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+
+      await writeStage(db, verificationId, 'searching');
+
+      const after = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      expect(after!.captures).toEqual({ _stage: 'searching' });
     } finally {
       await cleanupSource(sourceId);
     }

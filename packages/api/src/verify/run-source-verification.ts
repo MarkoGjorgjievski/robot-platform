@@ -4,7 +4,7 @@
 // escapes as an unhandled promise rejection, and every failure path must
 // still leave the row terminal (`completedAt` set).
 
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PageCapture } from '@robot/browser';
@@ -20,6 +20,7 @@ import {
   type CertifiedPath,
 } from '@robot/scraper';
 import { db, sources, sourceVerifications, captures } from '@robot/db';
+import type { Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { persistScreenshot, getCapturesDir } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
@@ -59,6 +60,27 @@ async function loadStoredCapture(ref: StoredCaptureRef): Promise<PageCapture | n
   }
 }
 
+/**
+ * Write the current progress stage into the reserved _stage key of
+ * sourceVerifications.captures — called un-awaited from onProgress
+ * (fire-and-forget: it must never delay or fail the verification itself).
+ *
+ * Fix round 1 (Important defect): guarded with a completed_at IS NULL
+ * condition. A stage write is fired synchronously from inside
+ * runVerification and never awaited, so one can still be in flight when the
+ * final results/captures/completedAt update lands. Without this guard, that
+ * race lets a late stage write land AFTER completion and clobber the real
+ * capture refs with { _stage: '...' }, corrupting an already-completed row.
+ * Scoping the WHERE to an uncompleted row makes a late write a silent,
+ * harmless no-op instead.
+ */
+export async function writeStage(dbOrTx: Database, verificationId: string, stage: string): Promise<void> {
+  await dbOrTx
+    .update(sourceVerifications)
+    .set({ captures: { _stage: stage } })
+    .where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)));
+}
+
 export async function runSourceVerification(sourceId: string, verificationId: string, opts: { onlyKeys?: string[] } = {}): Promise<void> {
   try {
     const source = await db.query.sources.findFirst({
@@ -71,7 +93,11 @@ export async function runSourceVerification(sourceId: string, verificationId: st
     const hostname = new URL(set.urls[0]!).hostname;
 
     // Re-verify only: reuse the previous completed run's captures when young
-    // enough. The row being filled in is the newest, so look past it.
+    // enough. The row being filled in is the newest, so look past it — and
+    // past any failed/stalled row too (fix round 1, minor): a row closed out
+    // with errorMessage set (a stall, or a genuine failure) never got as far
+    // as writing real results/captures, so it must be skipped in favour of
+    // the newest run that actually completed cleanly.
     const reuse: Record<string, PageCapture> = {};
     const reusedRefs = new Map<string, StoredCaptureRef>();
     let previous: VerificationOutcome | undefined;
@@ -79,9 +105,9 @@ export async function runSourceVerification(sourceId: string, verificationId: st
       const rows = await db.query.sourceVerifications.findMany({
         where: eq(sourceVerifications.sourceId, sourceId),
         orderBy: (t, { desc }) => [desc(t.startedAt)],
-        limit: 3,
+        limit: 5,
       });
-      const last = rows.find((r) => r.id !== verificationId && r.completedAt !== null);
+      const last = rows.find((r) => r.id !== verificationId && r.completedAt !== null && r.errorMessage === null);
       if (last) {
         previous = { fields: last.results as VerificationOutcome['fields'], allPassed: last.allPassed, aiCalls: last.aiCalls };
         for (const [url, ref] of Object.entries(last.captures as Record<string, StoredCaptureRef>)) {
@@ -95,10 +121,7 @@ export async function runSourceVerification(sourceId: string, verificationId: st
     const before = snapshotUsage();
     const agent = process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;
     const onProgress = (stage: string) =>
-      void db.update(sourceVerifications)
-        .set({ captures: { _stage: stage } })
-        .where(eq(sourceVerifications.id, verificationId))
-        .catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
+      void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
     const run = await withBrowserSession((browser) => runVerification({ fields, verificationSet: set }, {
       browser,
       agent,
