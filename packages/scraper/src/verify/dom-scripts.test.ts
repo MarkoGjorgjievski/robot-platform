@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
-import { buildDomSearchScript, buildXPathProbeScript, xpathContainsValue, type DomHit, type XPathProbeResult } from './dom-scripts.js';
+import { buildDomSearchScript, buildXPathProbeScript, xpathContainsValue, PAGE_SCRIPT_PRELUDE, type DomHit, type XPathProbeResult } from './dom-scripts.js';
 
 const HTML = `<html><body>
 <div id="main">
@@ -73,6 +73,21 @@ describe('buildXPathProbeScript', () => {
     expect(r['//*[@id="main"]/h1[@class="title"]']).toBe('Widget A');
     expect(r['//*[@id="main"]/img[@class="hero"]/@src']).toBe('/img/a.jpg');
     expect(r['//*[@id="nope"]']).toBeNull();
+  });
+});
+
+describe('PAGE_SCRIPT_PRELUDE', () => {
+  it('is present in both built scripts', () => {
+    expect(buildDomSearchScript([], 'https://shop.example/')).toContain(PAGE_SCRIPT_PRELUDE);
+    expect(buildXPathProbeScript([])).toContain(PAGE_SCRIPT_PRELUDE);
+  });
+
+  it('shims esbuild\'s __name helper so a keepNames-transformed function runs in the page', async () => {
+    const result = await browser.setContentEvaluate<number>(
+      '<html><body></body></html>',
+      `(() => { ${PAGE_SCRIPT_PRELUDE} const f = __name((x) => x * 2, 'f'); return f(21); })()`,
+    );
+    expect(result).toBe(42);
   });
 });
 
