@@ -15,7 +15,10 @@
 //   pnpm test:ui
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { chromium, type Browser } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
+import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import superjson from 'superjson';
+import type { AppRouter } from '@robot/api/routers';
 
 const ENABLED = process.env.RUN_UI_SMOKE === '1';
 const DASHBOARD = process.env.DASHBOARD_URL ?? 'http://localhost:3456';
@@ -61,38 +64,61 @@ beforeAll(async () => {
 
 afterAll(async () => { await browser?.close(); });
 
+/** Shared "did it render" assertion — same checks the static ROUTES loop and the dynamic Scratch-source test both need. */
+async function checkRoute(route: string) {
+  const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    const text = m.text();
+    if (IGNORABLE.some((re) => re.test(text))) return;
+    problems.push(`console: ${text}`);
+  });
+
+  try {
+    const response = await page.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });
+    expect(response?.ok(), `${route} returned HTTP ${response?.status()}`).toBe(true);
+
+    // Queries resolve after first paint; give them a moment to fail if they will.
+    await page.waitForTimeout(1500);
+
+    const body = (await page.locator('body').innerText()).trim();
+    expect(body.length, `${route} rendered an empty page`).toBeGreaterThan(20);
+
+    // The app's own error surface — a route that loads but reports failure is
+    // still broken, and would otherwise pass a "did it render" check.
+    const banner = await page.getByText(/something went wrong|failed to fetch/i).count();
+    expect(banner, `${route} rendered an error banner`).toBe(0);
+
+    expect(problems, `${route} logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  } finally {
+    await page.close();
+  }
+}
+
 describe.skipIf(!ENABLED)('dashboard routes render', () => {
   for (const route of ROUTES) {
     it(`${route} renders without throwing`, async () => {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      const problems: string[] = [];
-      page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-      page.on('console', (m) => {
-        if (m.type() !== 'error') return;
-        const text = m.text();
-        if (IGNORABLE.some((re) => re.test(text))) return;
-        problems.push(`console: ${text}`);
-      });
-
-      try {
-        const response = await page.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });
-        expect(response?.ok(), `${route} returned HTTP ${response?.status()}`).toBe(true);
-
-        // Queries resolve after first paint; give them a moment to fail if they will.
-        await page.waitForTimeout(1500);
-
-        const body = (await page.locator('body').innerText()).trim();
-        expect(body.length, `${route} rendered an empty page`).toBeGreaterThan(20);
-
-        // The app's own error surface — a route that loads but reports failure is
-        // still broken, and would otherwise pass a "did it render" check.
-        const banner = await page.getByText(/something went wrong|failed to fetch/i).count();
-        expect(banner, `${route} rendered an error banner`).toBe(0);
-
-        expect(problems, `${route} logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
-      } finally {
-        await page.close();
-      }
+      await checkRoute(route);
     }, 60_000);
   }
+
+  // The Schema screen (Task 15) replaces Set-up at `/p/$project/sources/$source/setup`.
+  // Unlike the static routes above, there's no seeded Scratch source to point at, so this
+  // creates one via `sources.createWithSchema` — the same procedure the NewSource wizard
+  // calls — then renders its `/setup` route.
+  it("a Scratch source's /setup renders without throwing", async () => {
+    const client = createTRPCClient<AppRouter>({
+      links: [httpBatchLink({ url: `${API}/trpc`, transformer: superjson })],
+    });
+    const host = `smoke-${Date.now()}.example`;
+    const { projectSlug, sourceSlug } = await client.sources.createWithSchema.mutate({
+      urls: [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`],
+      fields: [{ name: 'price', type: 'money', description: 'the price near Add to cart' }],
+      expected: { price: { [`https://${host}/p/1`]: '$10', [`https://${host}/p/2`]: '$20', [`https://${host}/p/3`]: '$30' } },
+    });
+
+    await checkRoute(`/p/${projectSlug}/sources/${sourceSlug}/setup`);
+  }, 60_000);
 });

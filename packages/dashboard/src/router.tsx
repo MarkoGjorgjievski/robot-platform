@@ -7,7 +7,7 @@ import {
 import { Layout } from './components/layout';
 import { Placeholder } from './components/placeholder';
 
-import LandingPage from './routes/landing';
+import NewSource from './routes/new-source';
 import ProjectsList from './routes/projects-list';
 import ProjectHome from './routes/project-home';
 import DatasetsList from './routes/datasets-list';
@@ -19,7 +19,7 @@ import ProjectDomainDetail from './routes/project-domain-detail';
 import SourcesList from './routes/sources-list';
 import SourceDetail from './routes/source-detail';
 import SourceIndex from './routes/source-index';
-import SourceSetup from './routes/source-setup';
+import SourceSchema from './routes/source-schema';
 import SourceConfig from './routes/source-config';
 import SourceInputs from './routes/source-inputs';
 import SourceRuns from './routes/source-runs';
@@ -32,7 +32,7 @@ const rootRoute = createRootRoute({ component: Layout });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: LandingPage,
+  component: NewSource,
 });
 
 const projectsListRoute = createRoute({
@@ -95,7 +95,7 @@ const sourceDetailLayoutRoute = createRoute({
   component: SourceDetail,
 });
 
-// The bare source URL: the Set-up workspace until the Source has a completed
+// The bare source URL: the Schema workspace until the Source has a completed
 // run, then Overview — see source-index.tsx. The 'setup' route below is the
 // explicit tab, always reachable regardless of that default.
 const sourceOverviewRoute = createRoute({
@@ -107,7 +107,7 @@ const sourceOverviewRoute = createRoute({
 const sourceSetupRoute = createRoute({
   getParentRoute: () => sourceDetailLayoutRoute,
   path: 'setup',
-  component: SourceSetup,
+  component: SourceSchema,
 });
 
 const sourceConfigRoute = createRoute({
