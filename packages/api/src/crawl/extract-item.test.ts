@@ -1,8 +1,21 @@
 // packages/api/src/crawl/extract-item.test.ts
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { IBrowser } from '@robot/browser';
+import type { VerifiedField, VerifiedExtractionResult } from '@robot/scraper';
 import { extractItem } from './extract-item.js';
 import type { ClaimedItem } from './claim-item.js';
+import type { Certification } from '../verify/current-certification.js';
+
+// A certified Source must NEVER reach runExtraction — the whole point of
+// certification is that only proven paths run. Mocked at the module boundary
+// (rather than merely "never passing deps.extract") so a regression that
+// falls through to the DEFAULT (`deps.extract ?? runExtraction`) inside a
+// certified branch is provably caught, not just untested.
+const { runExtractionMock } = vi.hoisted(() => ({ runExtractionMock: vi.fn() }));
+vi.mock('@robot/scraper', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@robot/scraper')>();
+  return { ...actual, runExtraction: runExtractionMock };
+});
 
 const ITEM: ClaimedItem = {
   id: 'item-1',
@@ -138,5 +151,116 @@ describe('extractItem', () => {
       extract: fakeExtract,
     });
     expect(seen).toEqual([['title', 'isbn', 'author']]);
+  });
+});
+
+// ─── Certified extraction (Task 13) ─────────────────────────────────────────
+
+describe('extractItem — with a certification', () => {
+  const CERT_SCHEMA = [
+    { name: 'price', type: 'number', origin: 'detail' as const },
+    { name: 'category_name', type: 'string', origin: 'listing' as const },
+    { name: 'requested_category', type: 'string', origin: 'input' as const, input_column: 'category_slug' },
+  ];
+  const SCHEMA_DEFINITION = [
+    { key: 'price', name: 'Price', type: 'money' as const, description: 'x', concept: 'price' },
+  ];
+  const CERTIFICATION: Certification = {
+    verificationId: 'v1',
+    completedAt: new Date(),
+    paths: { price: [{ source: 'api', path: 'item.priceCents', transform: 'cents_to_units' }] },
+    concepts: { price: 'price_concept' },
+  };
+
+  it('routes through extractVerified with the field\'s certified paths, and never calls runExtraction', async () => {
+    runExtractionMock.mockReset();
+    let seenFields: VerifiedField[] = [];
+    const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
+      seenFields = req.fields;
+      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }] };
+    };
+    const recordStats = vi.fn(async () => {});
+
+    const result = await extractItem(fakeDb, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats,
+    });
+
+    expect(seenFields).toEqual([
+      { key: 'price', type: 'money', concept: 'price_concept', paths: CERTIFICATION.paths.price },
+    ]);
+    expect(runExtractionMock).not.toHaveBeenCalled();
+    expect(result.row).toMatchObject({ price: 129.99, category_name: 'Shelves', requested_category: 'shelves' });
+    expect(recordStats).toHaveBeenCalledWith('example.com', 'detail', [
+      { concept: 'price_concept', path: CERTIFICATION.paths.price![0], hit: true, value: 129.99, url: ITEM.url },
+    ]);
+  });
+
+  it('defaults an untyped field to \'text\' when the key has no schemaDefinition entry', async () => {
+    const cert: Certification = { verificationId: 'v2', completedAt: new Date(), paths: { price: [] }, concepts: {} };
+    let seenFields: VerifiedField[] = [];
+    const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
+      seenFields = req.fields;
+      return { data: { price: null }, stats: [] };
+    };
+
+    await extractItem(fakeDb, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: cert, schemaDefinition: [], extractVerified, recordStats: async () => {},
+    });
+
+    expect(seenFields).toEqual([{ key: 'price', type: 'text', concept: 'price', paths: [] }]);
+  });
+
+  function captureConfidence() {
+    let confidence: number | undefined;
+    const fakeDbCapturing = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          if ('confidence' in v) confidence = v.confidence as number;
+          return { returning: async () => [{ id: 'x' }] };
+        },
+      }),
+    } as never;
+    return { fakeDbCapturing, get confidence() { return confidence; } };
+  }
+
+  it('confidence is 100 when the certification produced every field', async () => {
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [] });
+    const cap = captureConfidence();
+
+    await extractItem(cap.fakeDbCapturing, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {},
+    });
+
+    expect(cap.confidence).toBe(100);
+  });
+
+  it('confidence is 0 when the certification produced no value for any field', async () => {
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [] });
+    const cap = captureConfidence();
+
+    await extractItem(cap.fakeDbCapturing, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {},
+    });
+
+    expect(cap.confidence).toBe(0);
+  });
+
+  it('falls back to the legacy runExtraction path when there is no certification', async () => {
+    runExtractionMock.mockReset();
+    const extractVerified = vi.fn();
+    const result = await extractItem(fakeDb, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: SCHEMA,
+      extract: async () => ({ data: [{ title: 'Kallax' }], plan: null, confidence: 0.9, sources: {},
+        fieldCount: { found: 1, total: 1 }, fieldsByTier: { requested: [], discovered: [] }, cacheHit: false }),
+      extractVerified,
+      certification: null,
+    });
+    expect(extractVerified).not.toHaveBeenCalled();
+    expect(runExtractionMock).not.toHaveBeenCalled(); // deps.extract stub was used instead of the default
+    expect(result.row).toMatchObject({ title: 'Kallax' });
   });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
-import { db, sources, orgs, projects, inputSets, runs, runItems } from '@robot/db';
+import { db, sources, orgs, projects, datasets, inputSets, runs, runItems } from '@robot/db';
 import type { PlanRunOutcome } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
@@ -80,6 +80,29 @@ describe('crawlRouter.plan', () => {
     } catch (err) {
       if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);
       expect(err.code).toBe('PRECONDITION_FAILED');
+    }
+  });
+});
+
+// ─── Task 13: the certification gate ────────────────────────────────────────
+
+describe('crawlRouter.plan — certification gate', () => {
+  it('refuses a full plan (probe: false) on a customer Source with no current certification', async () => {
+    const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const [org] = await db.insert(orgs).values({ name: `crawl-cert-${stamp}`, slug: `crawl-cert-${stamp}` }).returning({ id: orgs.id });
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: 'x', slug: `crawl-cert-${stamp}` }).returning({ id: projects.id });
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: 'x', slug: `crawl-cert-${stamp}`, schema: [] }).returning({ id: datasets.id });
+    const [source] = await db.insert(sources).values({
+      datasetId: dataset!.id, name: 'x', slug: `crawl-cert-${stamp}`, country: 'us',
+      schemaDefinition: [{ key: 'price', name: 'Price', type: 'money', description: 'x', concept: 'price' }],
+    }).returning({ id: sources.id });
+    try {
+      await expect(caller.crawl.plan({ sourceId: source!.id, probe: false }))
+        .rejects.toThrow(/Verify the schema before extracting/);
+    } finally {
+      await db.delete(sources).where(eq(sources.id, source!.id));
+      await db.delete(projects).where(eq(projects.id, project!.id));
+      await db.delete(orgs).where(eq(orgs.id, org!.id));
     }
   });
 });

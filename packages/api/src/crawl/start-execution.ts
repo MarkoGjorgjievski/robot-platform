@@ -7,10 +7,11 @@
 
 import { eq } from 'drizzle-orm';
 import { SchemaAgent } from '@robot/agent';
-import { type OriginField } from '@robot/scraper';
-import { db, runs } from '@robot/db';
+import { type OriginField, type SchemaDefinitionField } from '@robot/scraper';
+import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
+import { loadCurrentCertification } from '../verify/current-certification.js';
 import { claimNextItem } from './claim-item.js';
 import { markItemDone, markItemFailed } from './record-outcome.js';
 import { mergeBackfillResult } from './merge-backfill.js';
@@ -18,6 +19,7 @@ import { finaliseRun } from './roll-up-run.js';
 import { isRunCancelled } from './is-cancelled.js';
 import { executeRun, type ExecuteDeps } from './execute-run.js';
 import { extractItem } from './extract-item.js';
+import { flagDrift } from './drift.js';
 import { safeErrorMessage } from './plan-source.js';
 
 /**
@@ -96,9 +98,19 @@ export async function startExecution(
     // execution error on its way out.
     await withBrowserSession(async (browser) => {
       const agent = new SchemaAgent();
+      // Loaded once per execution: a certified Source runs ONLY its certified
+      // paths for the whole loop (extractItem never falls back to the cache/AI
+      // chain), and after the loop finishes, drift is checked against exactly
+      // these same certified keys.
+      const certification = await loadCurrentCertification(db, sourceId);
+      const sourceRow = certification
+        ? await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true } })
+        : null;
+      const schemaDefinition = (sourceRow?.schemaDefinition as SchemaDefinitionField[] | null) ?? undefined;
+
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),
-        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema }),
+        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition }),
         onDone: buildOnDone(db, opts?.mergeToParent),
         onFailed: (itemId, message) => markItemFailed(db, itemId, message),
         // Both `cancelling` (the stop request) and `cancelled` (a stop another
@@ -110,7 +122,16 @@ export async function startExecution(
         // own record of why the loop stopped with items still pending, and
         // finaliseRun needs both to roll a still-pending run up to
         // 'cancelled'/'partial' instead of leaving it stuck at 'extracting'.
-        finalise: (_rowCount, cancelled, limitReached) => finaliseRun(db, runId, cancelled, limitReached),
+        finalise: async (_rowCount, cancelled, limitReached) => {
+          const status = await finaliseRun(db, runId, cancelled, limitReached);
+          // Drift is only meaningful once the run has actually stopped —
+          // checking it mid-loop (status still 'extracting') would judge a
+          // miss share off a partial, still-growing sample.
+          if (certification && status !== 'extracting') {
+            await flagDrift(db, runId, sourceId, Object.keys(certification.paths));
+          }
+          return status;
+        },
       }, { limit });
     });
   } catch (err) {

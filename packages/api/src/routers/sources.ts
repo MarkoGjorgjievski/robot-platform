@@ -12,6 +12,7 @@ import { schemaInput, prepareSchema, httpUrl } from '../verify/schema-input.js';
 import { rankProductLinks } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
+import { requireCertification } from '../crawl/require-certification.js';
 
 // ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
 //
@@ -709,6 +710,7 @@ export const sourcesRouter = router({
   confirm: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await requireCertification(ctx.db, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
         columns: { id: true, confirmedAt: true },

@@ -11,6 +11,7 @@ import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
 import { effectiveSchema } from '../crawl/effective-schema.js';
+import { requireCertification } from '../crawl/require-certification.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import { loadRunCoverage } from '../crawl/load-run-coverage.js';
@@ -47,6 +48,11 @@ export const crawlRouter = router({
       probe: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // A probe is the cheap, pre-commitment sanity check — gating it would
+      // block the very step that lets an operator discover the schema needs
+      // verifying in the first place. A full plan (probe: false) spends real
+      // budget against the certified paths, so it is gated.
+      if (!input.probe) await requireCertification(ctx.db, input.sourceId);
       return planSource(ctx.db, input.sourceId, { probe: input.probe === true });
     }),
   /**
@@ -68,6 +74,7 @@ export const crawlRouter = router({
   probeAndSample: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await requireCertification(ctx.db, input.sourceId);
       // Finding 3 (final-review-findings.md): neither guard below existed —
       // the "Probe & sample" button reappears on every mount while
       // unconfirmed, so a double-click, two tabs, or a re-mount fired a
@@ -305,6 +312,12 @@ export const crawlRouter = router({
       });
       if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
       if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      // First thing done once the Source is known — before the requeue, the
+      // retryFailed rewrite, or dryRun's early return — so a customer schema
+      // that lost its certification (schema edited since) is refused before
+      // touching anything, not after already reclaiming stale items.
+      await requireCertification(ctx.db, run.source.id);
 
       // An item abandoned at `running` — the api-server died mid-item — is
       // work nothing will ever pick up: `claimNextItem` claims `pending` only,
