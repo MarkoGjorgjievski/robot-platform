@@ -6,8 +6,8 @@ import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
-import { emptyState, fromSource, isComplete, toSchemaInput, type GridRow, type GridState } from '../lib/schema-grid';
-import { cellStatusFor, isRowStale, isVerificationActive, summaryLine, type FieldVerification, type VerificationResults } from '../lib/verification-view';
+import { emptyState, fromSource, gridProblems, isComplete, toSchemaInput, type GridState } from '../lib/schema-grid';
+import { cellStatusFor, isRowStale, isVerificationActive, reverifyKeys, summaryLine, type VerificationResults } from '../lib/verification-view';
 
 /**
  * The Schema tab (Task 15 brief) — what used to be Set-up. `fromSource`
@@ -25,7 +25,17 @@ export default function SourceSchema() {
 
   const [grid, setGrid] = useState<GridState>(emptyState());
   const [error, setError] = useState<string | null>(null);
+  // Spec 2.1: a hostname mismatch (and friends) is rejected inline, not just
+  // silently disabling Save/Verify. Gated on `touched` so a grid freshly
+  // seeded from the Source does not scream on first paint - flips true on
+  // any grid edit, or a click on the (possibly disabled) Verify button.
+  const [touched, setTouched] = useState(false);
   const initialized = useRef(false);
+
+  const updateGrid: typeof setGrid = (value) => {
+    setTouched(true);
+    setGrid(value);
+  };
 
   const listQuery = trpc.sources.listByProject.useQuery({ orgSlug: DEFAULT_ORG_SLUG, projectSlug });
   const source = (listQuery.data ?? []).find((s) => s.slug === sourceSlug);
@@ -44,9 +54,9 @@ export default function SourceSchema() {
   const extractPending = planMutation.isPending || executeMutation.isPending || probeMutation.isPending;
 
   // Seed the grid once the Source loads. After that, local edits are the
-  // source of truth — a background refetch of `listByProject` (e.g. from
+  // source of truth - a background refetch of `listByProject` (e.g. from
   // the verify-triggered invalidation below) must never clobber what the
-  // operator is mid-typing.
+  // operator is mid-typing. Not a user edit, so it does not flip `touched`.
   useEffect(() => {
     if (initialized.current || !source) return;
     const seeded = fromSource(source);
@@ -63,9 +73,11 @@ export default function SourceSchema() {
   const estimate = estimateQuery.data;
 
   // `savedGrid` is null for a Source that predates this feature (never had a
-  // schema saved) — treated as "saved: nothing" so any grid the operator
+  // schema saved) - treated as "saved: nothing" so any grid the operator
   // fills in reads as dirty, not as already matching a saved state.
   const isDirty = JSON.stringify(toSchemaInput(grid)) !== JSON.stringify(toSchemaInput(savedGrid ?? emptyState()));
+  const problems = gridProblems(grid);
+  const showProblems = touched && problems.length > 0;
 
   function cellStatus(rowId: string, urlIndex: number): CellStatus | null {
     const row = grid.rows.find((r) => r.id === rowId);
@@ -78,22 +90,16 @@ export default function SourceSchema() {
     return base;
   }
 
-  /** A row needs re-verifying when it's stale, or its last result wasn't a full pass (never checked, or any red cell). */
-  function needsReverify(row: GridRow): boolean {
-    if (isRowStale(row, savedGrid)) return true;
-    const fv: FieldVerification | undefined = row.key ? (results?.[row.key] ?? undefined) : undefined;
-    if (!fv) return true;
-    return fv.certified.length === 0;
-  }
-
   async function handleVerify() {
     if (!source) return;
     setError(null);
     try {
-      // Scope a re-verify to red/stale fields once there's a previous run to
-      // compare against — matched by NAME (not key), since a brand-new,
-      // unsaved field has no key yet until `updateSchema` assigns one below.
-      const namesNeedingVerify = results ? new Set(grid.rows.filter(needsReverify).map((r) => r.name.trim())) : null;
+      // `results`/`savedGrid` are the PRE-save baseline - captured now,
+      // before `updateSchema` catches the Source's saved definition up to
+      // `grid`, so a field the operator just edited still reads as having
+      // drifted from what the last verification actually ran against.
+      const priorResults = results;
+      const priorSavedGrid = savedGrid;
 
       let latestDefinition: { schemaDefinition: unknown; verificationSet: unknown } = source;
       if (isDirty) {
@@ -102,11 +108,11 @@ export default function SourceSchema() {
         if (refreshed) setGrid(refreshed);
       }
 
-      let onlyKeys: string[] | undefined;
-      if (namesNeedingVerify) {
-        const latestGrid = fromSource(latestDefinition) ?? grid;
-        onlyKeys = latestGrid.rows.filter((r) => r.key && namesNeedingVerify.has(r.name.trim())).map((r) => r.key!);
-      }
+      // Matched by key against the fresh (post-save) grid: an existing field
+      // keeps its key across the save, and a brand-new field's fresh key was
+      // never in `priorResults` at all - `reverifyKeys` picks up both cases.
+      const latestGrid = fromSource(latestDefinition) ?? grid;
+      const onlyKeys = reverifyKeys(priorResults, latestGrid, priorSavedGrid);
 
       await verifyMutation.mutateAsync({ sourceId: source.id, onlyKeys });
       utils.sources.verificationStatus.invalidate({ sourceId: source.id });
@@ -123,7 +129,7 @@ export default function SourceSchema() {
       const isListing = source.listingMode === 'listing_to_detail';
       if (!isListing) {
         // Detail Source: plan (one detail item per input row), then execute
-        // every one of them — no probe gate for a Source already pointed
+        // every one of them - no probe gate for a Source already pointed
         // straight at product pages.
         const plan = await planMutation.mutateAsync({ sourceId: source.id, probe: false });
         await executeMutation.mutateAsync({ runId: plan.runId });
@@ -149,6 +155,13 @@ export default function SourceSchema() {
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
   if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
 
+  const isListing = source.listingMode === 'listing_to_detail';
+  const extractLabel = !isListing
+    ? 'Extract'
+    : !source.confirmedAt
+      ? 'Probe & sample'
+      : 'Extract everything';
+
   const verifyLabel = !estimate
     ? 'Verify'
     : estimate.aiAvailable
@@ -162,19 +175,36 @@ export default function SourceSchema() {
 
   return (
     <div className="mt-6">
+      {showProblems && (
+        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-xs">
+          <ul className="list-inside list-disc text-red-700">
+            {problems.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-gray-900">{summaryLine(results)}</p>
           {active && status?.stage && <p className="mt-0.5 text-xs text-gray-500">{status.stage}</p>}
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <button type="button" className="btn-quiet h-9" disabled={verifyDisabled} onClick={handleVerify}>
-            {verifyBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {verifyLabel}
-          </button>
+          {/*
+            Wrapping div, not the button itself: a disabled <button> never
+            dispatches click at all, not even to ancestors, so clicking a
+            disabled Verify while incomplete needs a non-disabled element
+            underneath to catch the click and reveal the inline problems
+            list above (spec 2.1 - "rejected inline").
+          */}
+          <div onClick={() => setTouched(true)}>
+            <button type="button" className="btn-quiet h-9" disabled={verifyDisabled} onClick={handleVerify}>
+              {verifyBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {verifyLabel}
+            </button>
+          </div>
           <button type="button" className="btn-primary h-9" disabled={!extractEnabled || extractPending} onClick={handleExtract}>
             {extractPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            Extract
+            {extractLabel}
           </button>
         </div>
       </div>
@@ -199,7 +229,7 @@ export default function SourceSchema() {
       )}
 
       <div className="card mt-4 p-4">
-        <SchemaGrid state={grid} onChange={setGrid} cellStatus={cellStatus} disabled={active} />
+        <SchemaGrid state={grid} onChange={updateGrid} cellStatus={cellStatus} disabled={active} />
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import {
   summaryLine,
   isVerificationActive,
   isRowStale,
+  reverifyKeys,
   type VerificationResults,
 } from './verification-view';
 import { emptyRow, type GridState } from './schema-grid';
@@ -165,5 +166,47 @@ describe('isRowStale', () => {
     const saved = state();
     const row = { ...emptyRow(), name: 'New field' };
     expect(isRowStale(row, saved)).toBe(false);
+  });
+});
+
+describe('reverifyKeys', () => {
+  function row(key: string, overrides: Partial<ReturnType<typeof emptyRow>> = {}) {
+    return { ...emptyRow(), key, name: key, type: 'text' as const, description: `the ${key}`, expected: ['a', 'b', 'c'], ...overrides };
+  }
+
+  function grid(rows: ReturnType<typeof row>[]): GridState {
+    return { urls: ['u1', 'u2', 'u3'], listingUrl: '', rows };
+  }
+
+  test('no previous results (null): undefined', () => {
+    const g = grid([row('price')]);
+    expect(reverifyKeys(null, g, g)).toBeUndefined();
+    expect(reverifyKeys(undefined, g, g)).toBeUndefined();
+  });
+
+  test('previous results is an empty object (stalled/failed run): undefined', () => {
+    const g = grid([row('price')]);
+    expect(reverifyKeys({}, g, g)).toBeUndefined();
+  });
+
+  test('results present: only unpassed-or-stale rows, nothing else', () => {
+    const saved = grid([row('price'), row('qty'), row('desc')]);
+    const current = grid([row('price'), row('qty'), row('desc', { description: 'edited after verifying' })]);
+    const results: VerificationResults = {
+      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+      qty: { key: 'qty', cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false },
+      desc: { key: 'desc', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    expect(reverifyKeys(results, current, saved)).toEqual(['qty', 'desc']);
+  });
+
+  test('all rows green and unchanged: empty array', () => {
+    const saved = grid([row('price'), row('qty')]);
+    const current = grid([row('price'), row('qty')]);
+    const results: VerificationResults = {
+      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+      qty: { key: 'qty', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    expect(reverifyKeys(results, current, saved)).toEqual([]);
   });
 });

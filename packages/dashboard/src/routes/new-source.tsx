@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Loader2, Search } from 'lucide-react';
 import { trpc } from '../lib/trpc';
-import { emptyState, isComplete, toSchemaInput, URL_COUNT, type GridState } from '../lib/schema-grid';
+import { emptyState, gridProblems, isComplete, toSchemaInput, URL_COUNT, type GridState } from '../lib/schema-grid';
 import { SchemaGrid } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 
@@ -18,6 +18,16 @@ export default function NewSource() {
   const [grid, setGrid] = useState<GridState>(emptyState());
   const [candidates, setCandidates] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Spec 2.1: a hostname mismatch (and friends) is rejected inline, not just
+  // silently disabling Save. An untouched, still-empty grid should not
+  // scream on first paint, so this only flips true once the operator edits
+  // something, or clicks the (possibly disabled) Save button.
+  const [touched, setTouched] = useState(false);
+
+  const updateGrid: typeof setGrid = (value) => {
+    setTouched(true);
+    setGrid(value);
+  };
 
   const findMutation = trpc.sources.findProductPages.useMutation({
     onSuccess: (res) => setCandidates(res.urls),
@@ -31,7 +41,7 @@ export default function NewSource() {
     onError: (err) => setError(err.message),
   });
 
-  const setUrl = (i: number, value: string) => setGrid((g) => ({ ...g, urls: g.urls.map((u, j) => (j === i ? value : u)) }));
+  const setUrl = (i: number, value: string) => updateGrid((g) => ({ ...g, urls: g.urls.map((u, j) => (j === i ? value : u)) }));
 
   function handleFindProductPages() {
     setError(null);
@@ -43,6 +53,9 @@ export default function NewSource() {
     setError(null);
     createMutation.mutate(toSchemaInput(grid));
   }
+
+  const problems = gridProblems(grid);
+  const showProblems = touched && problems.length > 0;
 
   return (
     <div className="mt-6 max-w-5xl">
@@ -56,7 +69,7 @@ export default function NewSource() {
           <div className="mt-1.5 flex gap-2">
             <input
               value={grid.listingUrl}
-              onChange={(e) => setGrid((g) => ({ ...g, listingUrl: e.target.value }))}
+              onChange={(e) => updateGrid((g) => ({ ...g, listingUrl: e.target.value }))}
               placeholder="https://shop.example/category/sofas"
               className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
             />
@@ -109,11 +122,11 @@ export default function NewSource() {
       </div>
 
       <div className="mt-4">
-        <SchemaImport urlCount={URL_COUNT} onRows={(rows) => setGrid((g) => ({ ...g, rows }))} />
+        <SchemaImport urlCount={URL_COUNT} onRows={(rows) => updateGrid((g) => ({ ...g, rows }))} />
       </div>
 
       <div className="card mt-4 p-4">
-        <SchemaGrid state={grid} onChange={setGrid} />
+        <SchemaGrid state={grid} onChange={updateGrid} />
       </div>
 
       {error && (
@@ -122,16 +135,33 @@ export default function NewSource() {
         </div>
       )}
 
+      {showProblems && (
+        <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-xs">
+          <ul className="list-inside list-disc text-red-700">
+            {problems.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-6 flex items-center justify-end">
-        <button
-          type="button"
-          className="btn-primary h-9"
-          disabled={!isComplete(grid) || createMutation.isPending}
-          onClick={handleSave}
-        >
-          {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          Save schema
-        </button>
+        {/*
+          Wrapping div, not the button itself: a disabled <button> never
+          dispatches click at all, not even to ancestors, so clicking a
+          disabled Save while incomplete needs a non-disabled element
+          underneath to catch the click and reveal `gridProblems` above
+          (spec 2.1 - "rejected inline").
+        */}
+        <div onClick={() => setTouched(true)}>
+          <button
+            type="button"
+            className="btn-primary h-9"
+            disabled={!isComplete(grid) || createMutation.isPending}
+            onClick={handleSave}
+          >
+            {createMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save schema
+          </button>
+        </div>
       </div>
     </div>
   );
