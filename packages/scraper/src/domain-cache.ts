@@ -1122,7 +1122,9 @@ export async function saveVerifiedPaths(domain: string, pageType: string, byConc
   const now = new Date().toISOString();
   await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(domainIntelligence)
-      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType))).for('update');
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)))
+      .limit(1)
+      .for('update');
     const fieldPaths = { ...((existing?.fieldPaths as Record<string, FieldPathSet> | null) ?? {}) };
     for (const [concept, paths] of Object.entries(byConcept)) {
       const set = fieldPaths[concept] ?? { paths: [], conflictCount: 0 };
@@ -1142,17 +1144,42 @@ export async function saveVerifiedPaths(domain: string, pageType: string, byConc
   console.log(`[cache] verified paths for ${domain}/${pageType}: ${Object.keys(byConcept).length} concept(s)`);
 }
 
-/** The concept's `verified` paths, ranked by hit rate then `rankCertified`'s
- *  source/length tie-break, rebuilt into `CertifiedPath` shape from the
- *  stored `origin`. */
+/** Source-rank tie-break for equally-performing verified paths — the same
+ *  ordering `rankCertified` (`verify/certify.ts`) uses to prefer a stronger
+ *  structured source. Reimplemented locally rather than imported: importing
+ *  `rankCertified` here would create a runtime cycle (`domain-cache.ts` →
+ *  `verify/certify.ts` → `verify/search-structured.ts` → `domain-cache.ts`). */
+const VERIFIED_SOURCE_RANK: Record<'api' | 'json-ld' | 'meta' | 'xpath', number> = { api: 0, 'json-ld': 1, meta: 2, xpath: 3 };
+
+/**
+ * The concept's `verified` paths, ranked by hit rate, then — for untried or
+ * tied paths — the certification tie-break: source rank api > json-ld > meta
+ * > xpath, then shorter path first. Rebuilt into `CertifiedPath` shape from
+ * the stored `origin`.
+ *
+ * Reads the exact `(domain, pageType)` row directly rather than going through
+ * `lookupDomainCache`: that function's brand-fallback can return a related
+ * domain's row (e.g. `newegg.co.uk` when asked about `newegg.com`), which is
+ * correct for ordinary field-path resolution but wrong here — a verified path
+ * is proof about the ONE site it was certified against, and must never be
+ * served for a different hostname just because they share a brand.
+ */
 export async function lookupVerifiedPaths(domain: string, pageType: string, concept: string): Promise<VerifiedPathLite[]> {
-  const cache = await lookupDomainCache(domain, pageType);
-  const set = cache?.fieldPaths[concept];
+  const [row] = await db.select().from(domainIntelligence)
+    .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)))
+    .limit(1);
+  const set = ((row?.fieldPaths as Record<string, FieldPathSet> | null) ?? {})[concept];
   if (!set) return [];
   const rate = (p: FieldPath) => (p.hits + p.misses > 0 ? p.hits / (p.hits + p.misses) : 1);
   return set.paths
     .filter((p) => p.source === 'verified' && p.origin)
-    .sort((a, b) => rate(b) - rate(a))
+    .sort((a, b) => {
+      const rateDelta = rate(b) - rate(a);
+      if (rateDelta !== 0) return rateDelta;
+      const rankDelta = VERIFIED_SOURCE_RANK[a.origin!] - VERIFIED_SOURCE_RANK[b.origin!];
+      if (rankDelta !== 0) return rankDelta;
+      return a.path.length - b.path.length;
+    })
     .map((p) => ({ source: p.origin!, path: p.path, transform: p.transform ?? 'identity' }));
 }
 
@@ -1164,7 +1191,9 @@ export async function recordVerifiedPathStats(domain: string, pageType: string, 
   const now = new Date().toISOString();
   await db.transaction(async (tx) => {
     const [existing] = await tx.select().from(domainIntelligence)
-      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType))).for('update');
+      .where(and(eq(domainIntelligence.domain, domain), eq(domainIntelligence.pageType, pageType)))
+      .limit(1)
+      .for('update');
     if (!existing) return;
     const fieldPaths = { ...((existing.fieldPaths as Record<string, FieldPathSet> | null) ?? {}) };
     for (const e of entries) {
