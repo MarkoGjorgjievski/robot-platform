@@ -11,7 +11,7 @@ export async function loadRunExport(db: typeof Database, runId: string): Promise
   const run = await db.query.runs.findFirst({
     where: eq(runs.id, runId),
     with: {
-      source: { columns: { slug: true, name: true, urlTemplate: true, selectorsJson: true } },
+      source: { columns: { slug: true, name: true, urlTemplate: true, selectorsJson: true, schemaDefinition: true } },
     },
   });
   if (!run) return null;

@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './derive-concept.js';
 export * from './constants.js';
 export * from './normalize.js';
 export * from './transforms.js';

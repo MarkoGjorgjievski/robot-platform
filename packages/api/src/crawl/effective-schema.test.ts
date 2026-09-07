@@ -1,8 +1,41 @@
 import { describe, it, expect } from 'vitest';
 import { DETAIL_URL_FIELD } from '@robot/scraper';
-import { effectiveSchema } from './effective-schema.js';
+import { effectiveSchema, isCustomerSchema } from './effective-schema.js';
+
+describe('isCustomerSchema', () => {
+  it('is true only for a non-empty array', () => {
+    expect(isCustomerSchema({ schemaDefinition: [{ key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' }] })).toBe(true);
+    expect(isCustomerSchema({ schemaDefinition: [] })).toBe(false);
+    expect(isCustomerSchema({ schemaDefinition: null })).toBe(false);
+    expect(isCustomerSchema({})).toBe(false);
+  });
+});
 
 describe('effectiveSchema', () => {
+  it('uses the customer schema definition when present, ignoring dataset schema and selectorsJson', () => {
+    const result = effectiveSchema({
+      dataset: { schema: [{ name: 'ignored', type: 'string' }] },
+      selectorsJson: { fields: [{ name: 'also-ignored', type: 'string' }] },
+      schemaDefinition: [
+        { key: 'price', name: 'Unit cost', type: 'money', description: '', concept: 'price' },
+        { key: 'name', name: 'Product Name', type: 'text', description: '', concept: 'product_name' },
+      ],
+    });
+    expect(result).toEqual([
+      { name: 'price', type: 'price', origin: 'detail', displayName: 'Unit cost' },
+      { name: 'name', type: 'string', origin: 'detail', displayName: 'Product Name' },
+    ]);
+  });
+
+  it('falls back to legacy branches when schemaDefinition is absent or empty', () => {
+    const result = effectiveSchema({
+      dataset: { schema: [{ name: 'price', type: 'number' }] },
+      selectorsJson: null,
+      schemaDefinition: [],
+    });
+    expect(result).toEqual([{ name: 'price', type: 'number' }]);
+  });
+
   it('returns the dataset schema when it is non-empty', () => {
     const result = effectiveSchema({
       dataset: { schema: [{ name: 'price', type: 'number' }, { name: 'title', type: 'string' }] },

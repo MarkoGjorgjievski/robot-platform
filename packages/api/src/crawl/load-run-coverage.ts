@@ -17,7 +17,7 @@ export async function loadRunCoverage(db: Database, runId: string): Promise<RunC
     where: eq(runs.id, runId),
     with: {
       source: {
-        columns: { id: true, selectorsJson: true, datasetId: true },
+        columns: { id: true, selectorsJson: true, datasetId: true, schemaDefinition: true },
         with: { dataset: { columns: { schema: true } } },
       },
     },

@@ -141,7 +141,7 @@ export const crawlRouter = router({
           // dataset schema is empty — see effective-schema.ts. Mirrors
           // `execute`'s own lookup exactly, so a probe source and a confirmed
           // source resolve their schema the same way.
-          columns: { id: true, selectorsJson: true },
+          columns: { id: true, selectorsJson: true, schemaDefinition: true },
           with: { dataset: { columns: { schema: true } } },
         });
         // planSource already confirmed sourceId exists (it would have thrown
@@ -298,7 +298,7 @@ export const crawlRouter = router({
           source: {
             // selectorsJson: a Scratch source's schema falls back here when
             // its dataset schema is empty — see effective-schema.ts.
-            columns: { id: true, datasetId: true, selectorsJson: true },
+            columns: { id: true, datasetId: true, selectorsJson: true, schemaDefinition: true },
             with: { dataset: { columns: { schema: true } } },
           },
         },
@@ -438,7 +438,7 @@ export const crawlRouter = router({
         where: eq(runs.id, input.runId),
         with: {
           source: {
-            columns: { id: true, selectorsJson: true, datasetId: true },
+            columns: { id: true, selectorsJson: true, datasetId: true, schemaDefinition: true },
             with: { dataset: { columns: { schema: true } } },
           },
         },

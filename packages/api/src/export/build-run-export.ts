@@ -21,6 +21,7 @@ export type RunExportInput = {
     name: string;
     urlTemplate: string | null;
     selectorsJson: unknown;
+    schemaDefinition?: unknown;
   } | null;
   /** The URL actually fetched, which may carry parameters the template does not. */
   captureUrl: string | null;
@@ -91,8 +92,38 @@ function schemaFields(selectorsJson: unknown): ExportSchemaField[] {
   );
 }
 
+/**
+ * A customer schema definition (Task 1's `sources.schemaDefinition`) names
+ * its own columns — the header a customer sees is the `name` they typed,
+ * not the internal field `key`. `null` (not a customer schema, or an empty
+ * definition) tells the caller to fall back to `selectorsJson`-derived
+ * columns unchanged.
+ */
+function customerColumns(schemaDefinition: unknown): Array<{ key: string; name: string }> | null {
+  if (!Array.isArray(schemaDefinition) || schemaDefinition.length === 0) return null;
+  return schemaDefinition
+    .filter((f): f is { key: string; name: string } => f && typeof f.key === 'string' && typeof f.name === 'string')
+    .map((f) => ({ key: f.key, name: f.name }));
+}
+
 export function buildRunExport(input: RunExportInput): RunExport {
   const rows = (Array.isArray(input.extractionData) ? input.extractionData : []) as Record<string, unknown>[];
+  const customer = customerColumns(input.source?.schemaDefinition);
+  // Customer schema: rows are re-keyed from the internal field `key` to the
+  // customer's declared `name` so the export header reads the way they
+  // authored it. `_`-prefixed keys (e.g. `_url`) are provenance metadata
+  // added outside the schema and survive untouched; any other undeclared
+  // key is dropped rather than leaking an internal field name into a
+  // customer-facing export.
+  const outRows = customer
+    ? rows.map((r) => {
+        const o: Record<string, unknown> = {};
+        for (const c of customer) o[c.name] = r[c.key] ?? null;
+        for (const k of Object.keys(r)) if (k.startsWith('_')) o[k] = r[k];
+        return o;
+      })
+    : rows;
+  const fieldList = customer ? customer.map((c) => ({ name: c.name })) : schemaFields(input.source?.selectorsJson ?? null);
   return {
     run: {
       id: input.run.id,
@@ -110,8 +141,8 @@ export function buildRunExport(input: RunExportInput): RunExport {
           url: input.captureUrl ?? input.source.urlTemplate ?? null,
         }
       : null,
-    fields: deriveColumns(schemaFields(input.source?.selectorsJson ?? null), rows),
-    rows,
+    fields: deriveColumns(fieldList, outRows),
+    rows: outRows,
   };
 }
 
