@@ -188,7 +188,9 @@ describe('sources.verifyEstimate', () => {
     delete process.env.ANTHROPIC_API_KEY;
     try {
       const est = await caller.sources.verifyEstimate({ sourceId: created.sourceId });
-      expect(est).toEqual({ fields: 2, upperBoundUsd: 0.1, aiAvailable: false });
+      // `stallMs` (C1) rides along on every estimate: the Schema screen needs the
+      // server's own stall window to tell a live verification from a crash leftover.
+      expect(est).toEqual({ fields: 2, upperBoundUsd: 0.1, aiAvailable: false, stallMs: VERIFY_STALL_MS });
     } finally {
       if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
       await cleanupSource(created.sourceId);
