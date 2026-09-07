@@ -230,7 +230,7 @@ describe('extractItem — with a certification', () => {
   });
 
   it('defaults an untyped field to \'text\' when the key has no schemaDefinition entry', async () => {
-    const cert: Certification = { verificationId: 'v2', completedAt: new Date(), paths: { price: [] }, concepts: {} };
+    const cert: Certification = { verificationId: 'v2', completedAt: new Date(), paths: { price: [] }, concepts: {}, hostname: 'shop.example.com' };
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
