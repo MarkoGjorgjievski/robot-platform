@@ -138,8 +138,9 @@ customer verifying the same concept on that domain gets them tried first. Runs t
 type-valid hit wins, no mechanical/cache/AI fallback. A miss leaves the cell empty and is
 recorded per path (same hit/miss ledger the 2026-09-02 cache-reputation fix made real) — empty
 means "no proven path found it," never a guess. A field whose run miss-rate crosses
-`DRIFT_MISS_SHARE` (0.2) flags `drifted`; the fix is a free re-verify if the pages haven't
-changed.
+`DRIFT_MISS_SHARE` (0.2) flags `drifted` — but only on a run of at least `DRIFT_MIN_ROWS` (5)
+rows, since a two-row run is too small a sample to accuse a certified path of anything. The fix
+is a free re-verify if the pages haven't changed.
 
 Legacy Sources (no schema definition) keep running the full chain above unchanged.
 `sources.confirm`'s certification gate enforces "verify before extracting"; a listing URL on a
