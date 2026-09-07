@@ -145,15 +145,6 @@ export function verificationState(
 }
 
 /**
- * A verification run is active from the moment it starts until `completedAt`
- * is set — or until it has been in flight longer than `stallMs`, when one is
- * given (see `verificationState`). No row at all is not active.
- */
-export function isVerificationActive(row: VerificationRow, opts?: { now?: number; stallMs?: number }): boolean {
-  return verificationState(row, opts) === 'active';
-}
-
-/**
  * A row is stale (spec §4.6) when its name, type, description, or any
  * expected value differs from what was last saved — matched by `key`, since
  * that's what a verification result is keyed on. A row with no matching
@@ -173,6 +164,21 @@ export function isRowStale(row: GridRow, saved: GridState | null): boolean {
 }
 
 /**
+ * Do the verification URLs differ between the grid and its saved baseline?
+ * Order-sensitive (URL 1 and URL 2 swapped IS a change — every stored cell
+ * is keyed by url, and the expected-value columns are positional) and
+ * trimmed, since that is exactly what `toSchemaInput` sends to the server.
+ */
+function urlsChanged(grid: GridState, saved: GridState): boolean {
+  const trim = (u: string) => u.trim();
+  const a = grid.urls.map(trim);
+  const b = saved.urls.map(trim);
+  if (a.length !== b.length) return true;
+  if (a.some((u, i) => u !== b[i])) return true;
+  return grid.listingUrl.trim() !== saved.listingUrl.trim();
+}
+
+/**
  * Which field keys a re-verify should scope to, given the previous
  * verification's `results` and the (post-save) grid vs. its pre-edit
  * baseline. `undefined` means "verify everything" — either there's no prior
@@ -184,6 +190,15 @@ export function isRowStale(row: GridRow, saved: GridState | null): boolean {
  * when nothing qualifies (everything's already green and unchanged). Rows
  * with no key (never saved) are skipped — nothing in `results` could ever
  * reference them.
+ *
+ * A CHANGED URL (or listing URL) also forces `undefined`. Every stored cell
+ * result is keyed on the URL it was proven against, so when the set of URLs
+ * moves, none of the previous results describe the pages we are about to
+ * verify — but no ROW changed, so the per-row staleness check above sees
+ * nothing and would hand back `[]`. Server-side `[]` is truthy, which means
+ * "re-run none of them, copy them all": the copies (cells keyed by the OLD
+ * urls) would be stored under the NEW definitionHash and Extract would
+ * unlock against pages nobody verified.
  */
 export function reverifyKeys(
   results: VerificationResults | null | undefined,
@@ -191,6 +206,7 @@ export function reverifyKeys(
   savedGrid: GridState | null,
 ): string[] | undefined {
   if (!results || Object.keys(results).length === 0) return undefined;
+  if (savedGrid && urlsChanged(grid, savedGrid)) return undefined;
   const keys: string[] = [];
   for (const row of grid.rows) {
     if (!row.key) continue;

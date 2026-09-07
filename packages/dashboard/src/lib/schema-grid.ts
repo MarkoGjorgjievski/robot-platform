@@ -134,3 +134,28 @@ export function importProblems(err: unknown): string[] {
   const message = err instanceof Error ? err.message : String(err);
   return [`Could not read the file: ${message}`];
 }
+
+/**
+ * Merge an imported table into the rows already on screen, matching by field
+ * NAME (case-insensitive, trimmed).
+ *
+ * The New Source wizard can simply replace its rows — nothing it holds has
+ * been saved yet. The Schema tab cannot: its rows carry the stable `key` that
+ * every stored verification result, every certified path and the Source's own
+ * `schemaDefinition` are addressed by. Replacing them wholesale drops those
+ * keys, so `prepareSchema` mints brand-new ones and the field silently loses
+ * its verification history and its cached certified paths.
+ *
+ * So: a matched row keeps its `key` (and its `id`, so React does not remount
+ * the row mid-edit) and takes the imported type, description and expected
+ * values; an imported row with no match is appended; a current row absent
+ * from the import is dropped — an import describes the whole schema, not a
+ * patch.
+ */
+export function mergeImportedRows(current: GridRow[], imported: GridRow[]): GridRow[] {
+  const byName = new Map(current.map((r) => [r.name.trim().toLowerCase(), r]));
+  return imported.map((row) => {
+    const prior = byName.get(row.name.trim().toLowerCase());
+    return prior ? { ...row, id: prior.id, ...(prior.key ? { key: prior.key } : {}) } : row;
+  });
+}
