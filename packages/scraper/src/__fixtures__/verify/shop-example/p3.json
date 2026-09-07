@@ -1,0 +1,43 @@
+{
+  "url": "https://shop.example/p/3",
+  "html": "<html><body><div id=\"main\"><h1>Widget C</h1><div class=\"price-box\"><span class=\"now\">$149.00</span></div><p class=\"stock\">Out of stock</p><img class=\"hero\" src=\"/img/c.jpg\" alt=\"Widget C photo\"><a class=\"buy\" href=\"/buy/3\">Buy now</a><time class=\"ship\">Sep 6, 2026</time><ul class=\"colors\"><li>Black</li><li>White</li><li>Grey</li></ul><span class=\"rating\">4.9</span></div></body></html>",
+  "structuredData": {
+    "ldJson": [
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Widget C",
+        "offers": { "@type": "Offer", "price": "149.00", "priceCurrency": "USD", "availability": "https://schema.org/OutOfStock" }
+      }
+    ],
+    "nextData": null,
+    "initialState": null,
+    "meta": { "product:price:amount": "149.00", "og:title": "Widget C" }
+  },
+  "interceptedRequests": [
+    {
+      "url": "https://shop.example/api/product/3",
+      "method": "GET",
+      "resourceType": "xhr",
+      "responseStatus": 200,
+      "responseHeaders": {},
+      "responseBody": "{}",
+      "contentType": "application/json",
+      "bodySize": 1,
+      "isJson": true,
+      "parsedJson": {
+        "item": {
+          "name": "Widget C",
+          "priceCents": 14900,
+          "code": "SKU-C3",
+          "shortCode": "C3",
+          "images": ["https://shop.example/img/c.jpg"],
+          "colors": ["Black", "White", "Grey"],
+          "rating": 4.9,
+          "shipDate": "2026-09-06"
+        }
+      },
+      "timestamp": 0
+    }
+  ]
+}
