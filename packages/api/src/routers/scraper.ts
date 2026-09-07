@@ -1,11 +1,9 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
-import { writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { domainIntelligence } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
+import { persistScreenshot } from '../persist-screenshot.js';
 
 // ─── Shared field shape ─────────────────────────────────────────────────────
 
@@ -20,13 +18,6 @@ const fieldInputSchema = z.object({
   /** The customer's explicit candidate choice for this field (v2.5 serving order). */
   candidate: z.object({ concept: z.string().min(1), label: z.string().min(1) }).optional(),
 });
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function getCapturesDir(): string {
-  // api-server sets CAPTURES_DIR before procedures run; fall back to a sensible default.
-  return process.env.CAPTURES_DIR ?? join(process.cwd(), 'public', 'captures');
-}
 
 // ─── Procedures ─────────────────────────────────────────────────────────────
 
@@ -54,14 +45,7 @@ export const scraperRouter = router({
           runAnalysis(input, {
             browser,
             agent: new SchemaAgent(),
-            persistScreenshot: async (screenshot) => {
-              const id = randomUUID();
-              const filename = `${id}.png`;
-              const dir = getCapturesDir();
-              await mkdir(dir, { recursive: true });
-              await writeFile(join(dir, filename), screenshot);
-              return { id, url: `/captures/${filename}` };
-            },
+            persistScreenshot,
           }),
         );
       } catch (err) {
