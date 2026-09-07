@@ -11,7 +11,7 @@ import { type OriginField, type SchemaDefinitionField } from '@robot/scraper';
 import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
-import { loadCurrentCertification } from '../verify/current-certification.js';
+import { loadCurrentCertification, type Certification } from '../verify/current-certification.js';
 import { claimNextItem } from './claim-item.js';
 import { markItemDone, markItemFailed } from './record-outcome.js';
 import { mergeBackfillResult } from './merge-backfill.js';
@@ -69,6 +69,50 @@ export function buildOnDone(
 }
 
 /**
+ * Drift bookkeeping can never change a run's status. `finaliseRun` has
+ * ALREADY committed the run's terminal status by the time this looks at
+ * `certification` — a throw out of `flagDrift` must never be allowed to
+ * propagate past that point, because `executeRun`'s `finally` calls
+ * `deps.finalise` and any exception it throws escapes into `startExecution`'s
+ * outer catch, which then overwrites the already-committed status with
+ * `'failed'` — replacing a truthful `'completed'`/`'partial'` with a lie.
+ * So `flagDrift` runs inside its own try/catch, logged and swallowed:
+ * missing one run's drift flag is a much smaller loss than corrupting that
+ * run's status.
+ *
+ * Pulled out and exported, mirroring `buildOnDone` above, so this is testable
+ * with stubbed `finaliseRun`/`flagDrift` — no browser, no real DB.
+ */
+export function buildFinalise(
+  db: typeof Database,
+  runId: string,
+  sourceId: string,
+  certification: Certification | null,
+  deps: {
+    finaliseRun?: typeof finaliseRun;
+    flagDrift?: typeof flagDrift;
+  } = {},
+): ExecuteDeps['finalise'] {
+  const doFinaliseRun = deps.finaliseRun ?? finaliseRun;
+  const doFlagDrift = deps.flagDrift ?? flagDrift;
+
+  return async (_rowCount, cancelled, limitReached) => {
+    const status = await doFinaliseRun(db, runId, cancelled, limitReached);
+    // Drift is only meaningful once the run has actually stopped — checking
+    // it mid-loop (status still 'extracting') would judge a miss share off
+    // a partial, still-growing sample.
+    if (certification && status !== 'extracting') {
+      try {
+        await doFlagDrift(db, runId, sourceId, Object.keys(certification.paths));
+      } catch (err) {
+        console.error(`[crawl] drift flagging failed for run ${runId}:`, err);
+      }
+    }
+    return status;
+  };
+}
+
+/**
  * Runs the loop outside the request. Deliberately not awaited: 200 items at
  * ~30s each is ~100 minutes, which no HTTP mutation can hold open. The honest
  * limit of having no job queue is that an api-server restart pauses the run —
@@ -122,16 +166,7 @@ export async function startExecution(
         // own record of why the loop stopped with items still pending, and
         // finaliseRun needs both to roll a still-pending run up to
         // 'cancelled'/'partial' instead of leaving it stuck at 'extracting'.
-        finalise: async (_rowCount, cancelled, limitReached) => {
-          const status = await finaliseRun(db, runId, cancelled, limitReached);
-          // Drift is only meaningful once the run has actually stopped —
-          // checking it mid-loop (status still 'extracting') would judge a
-          // miss share off a partial, still-growing sample.
-          if (certification && status !== 'extracting') {
-            await flagDrift(db, runId, sourceId, Object.keys(certification.paths));
-          }
-          return status;
-        },
+        finalise: buildFinalise(db, runId, sourceId, certification),
       }, { limit });
     });
   } catch (err) {
