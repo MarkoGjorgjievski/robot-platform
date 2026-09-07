@@ -287,3 +287,22 @@ describe('crawl.probeAndSample', () => {
     });
   });
 });
+
+// ─── Task 13: the certification gate ────────────────────────────────────────
+
+describe('crawl.probeAndSample — certification gate', () => {
+  it('refuses a customer Source with no current certification, before touching planSource', async () => {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({
+      datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US',
+      schemaDefinition: [{ key: 'price', name: 'Price', type: 'money', description: 'x', concept: 'price' }],
+    }).returning();
+
+    await expect(caller.crawl.probeAndSample({ sourceId: source!.id }))
+      .rejects.toThrow(/Verify the schema before extracting/);
+    expect(planSourceMock).not.toHaveBeenCalled();
+  });
+});

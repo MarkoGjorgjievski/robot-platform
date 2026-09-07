@@ -7,3 +7,4 @@ export { rankCertified, type CaptureLike, type CandidatePath } from './certify.j
 export { buildXPathProbeScript, type XPathProbeResult, type DomHit, type DomNeedle } from './dom-scripts.js';
 export * from './ai-fallback.js';
 export * from './run-verification.js';
+export * from './verified-extraction.js';

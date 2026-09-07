@@ -221,6 +221,35 @@ describe('crawl.execute', () => {
   });
 });
 
+// ─── Task 13: the certification gate ────────────────────────────────────────
+
+describe('crawl.execute — certification gate', () => {
+  async function seedCustomerSchemaRun() {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({
+      datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US',
+      schemaDefinition: [{ key: 'price', name: 'Price', type: 'money', description: 'x', concept: 'price' }],
+    }).returning();
+    const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'planned' }).returning();
+    await db.insert(runItems).values({
+      runId: run!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'pending',
+    });
+    return run!.id;
+  }
+
+  it('refuses to execute a run whose Source has a customer schema but no current certification', async () => {
+    const runId = await seedCustomerSchemaRun();
+    await expect(caller.crawl.execute({ runId, dryRun: true }))
+      .rejects.toThrow(/Verify the schema before extracting/);
+    // Refused before the requeue/dryRun bookkeeping ran: nothing was touched.
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.status).toBe('planned');
+  });
+});
+
 // Finding 1 (critical, final-review-findings.md): a probe stopped by its own
 // sample limit (PROBE_SAMPLE_LIMIT=3 of up to 30 planned items) must still
 // reach a TERMINAL status with completedAt set — not roll up to 'extracting'

@@ -859,6 +859,31 @@ describe('sources.confirm', () => {
       expectZodValidationError(err);
     }
   });
+
+  // Task 13: the certification gate — a customer schema Source must be
+  // verified before it can be confirmed into a real, paid crawl.
+  it('refuses to confirm a customer-schema Source with no current certification', async () => {
+    const urls = [
+      'https://test-confirm-cert.example.com/p/1',
+      'https://test-confirm-cert.example.com/p/2',
+      'https://test-confirm-cert.example.com/p/3',
+    ];
+    const created = await caller.sources.createWithSchema({
+      urls,
+      fields: [{ name: 'Price', type: 'money', description: 'x' }],
+      expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
+    });
+    try {
+      await expect(caller.sources.confirm({ sourceId: created.sourceId }))
+        .rejects.toThrow(/Verify the schema before extracting/);
+      expect(planSourceMock).not.toHaveBeenCalled();
+
+      const after = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
+      expect(after!.confirmedAt).toBeNull();
+    } finally {
+      await cleanupSource(created.sourceId);
+    }
+  });
 });
 
 describe('sources.listByProject', () => {
