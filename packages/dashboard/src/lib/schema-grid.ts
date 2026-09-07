@@ -128,3 +128,9 @@ export function fromSource(source: { schemaDefinition: unknown; verificationSet:
     rows: def.map((f) => ({ ...emptyRow(), key: f.key, name: f.name, type: f.type, description: f.description, expected: set.urls.map((u) => set.expected[f.key]?.[u] ?? '') })),
   };
 }
+
+/** Formats an unknown thrown value (file read/parse failure) into the grid's problems-list shape. */
+export function importProblems(err: unknown): string[] {
+  const message = err instanceof Error ? err.message : String(err);
+  return [`Could not read the file: ${message}`];
+}

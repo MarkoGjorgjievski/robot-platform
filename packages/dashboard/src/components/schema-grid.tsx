@@ -14,6 +14,10 @@ export function SchemaGrid({ state, onChange, cellStatus, disabled }: Props) {
   const focus = (r: number, c: number) => inputs.current.get(`${r},${c}`)?.focus();
 
   function onKey(e: KeyboardEvent, r: number, c: number) {
+    // The type cell is a native <select>: let ArrowUp/Down/Left/Right and
+    // Enter drive its own dropdown instead of stealing grid focus. Tab still
+    // navigates the grid like every other cell.
+    if (e.target instanceof HTMLSelectElement && e.key !== 'Tab') return;
     const move: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], Enter: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], Tab: [0, e.shiftKey ? -1 : 1] };
     const d = move[e.key];
     if (!d) return;
