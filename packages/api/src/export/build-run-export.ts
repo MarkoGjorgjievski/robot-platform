@@ -73,8 +73,9 @@ export function deriveColumns(
  * `DETAIL_URL_FIELD` is filtered here for the same reason
  * `effective-schema.ts` filters it out of the schema handed to extraction:
  * it is planning machinery (the row-scoped "which detail page does this row
- * link to" field `runListingAnalysis` always adds, and `sources.analyze`
- * persists into `selectorsJson.fields` verbatim for the discovery report),
+ * link to" field `runListingAnalysis` always adds, and that the deleted
+ * `sources.analyze` procedure (removed 2026-09; no live writer) used to
+ * persist into `selectorsJson.fields` verbatim for the discovery report),
  * never a field extraction actually resolves per item. Left in, no row ever
  * carries the key, and the schema-driven half of `deriveColumns` below adds
  * it as a column anyway — a permanently empty phantom column in every

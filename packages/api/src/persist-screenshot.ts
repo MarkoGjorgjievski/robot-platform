@@ -1,7 +1,10 @@
 // Screenshot persistence, extracted out of `routers/scraper.ts` (task 12)
 // so `verify/run-source-verification.ts` can write verification-run
 // screenshots to the exact same place — and in the exact same shape — as
-// `sources.analyze` already does, instead of duplicating the write.
+// `scraper.analyze` (this file's other caller, in `routers/scraper.ts`)
+// already does, instead of duplicating the write. (This comment used to say
+// `sources.analyze`, which never called `persistScreenshot` directly and no
+// longer exists at all — removed 2026-09.)
 
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
