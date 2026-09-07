@@ -1,6 +1,6 @@
 {
   "url": "https://shop.example/p/1",
-  "html": "<html><body><div id=\"main\"><h1>Widget A</h1><div class=\"price-box\"><span class=\"was\">$159.99</span><span class=\"now\">$129.99</span></div><p class=\"stock\">In stock</p><img class=\"hero\" src=\"/img/a.jpg\" alt=\"Widget A photo\"><a class=\"buy\" href=\"/buy/1\">Buy now</a><time class=\"ship\">Sep 4, 2026</time><ul class=\"colors\"><li>Red</li><li>Blue</li></ul><span class=\"rating\">4.5</span></div></body></html>",
+  "html": "<html><body><div id=\"main\"><h1>Widget A</h1><div class=\"price-box\"><span class=\"was\">$159.99</span><span class=\"now\">$129.99</span></div><p class=\"stock\">In stock</p><img class=\"hero\" src=\"/img/a.jpg\" alt=\"Widget A photo\"><a class=\"buy\" href=\"/buy/1\">Buy now</a><time class=\"ship\">Sep 4, 2026</time><ul class=\"colors\"><li>Red</li><li>Blue</li></ul><span class=\"rating\">4.5</span><span class=\"sku\" data-sku=\"A1\"></span></div></body></html>",
   "structuredData": {
     "ldJson": [
       {
@@ -30,7 +30,6 @@
           "name": "Widget A",
           "priceCents": 12999,
           "code": "SKU-A1",
-          "shortCode": "A1",
           "images": ["https://shop.example/img/a.jpg"],
           "colors": ["Red", "Blue"],
           "rating": 4.5,

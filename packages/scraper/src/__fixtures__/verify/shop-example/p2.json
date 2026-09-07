@@ -1,6 +1,6 @@
 {
   "url": "https://shop.example/p/2",
-  "html": "<html><body><div id=\"main\"><h1>Widget B</h1><div class=\"price-box\"><span class=\"was\">$259.99</span><span class=\"now\">$219.99</span></div><p class=\"stock\">In stock</p><img class=\"hero\" src=\"/img/b.jpg\" alt=\"Widget B photo\"><a class=\"buy\" href=\"/buy/2\">Buy now</a><time class=\"ship\">Sep 5, 2026</time><ul class=\"colors\"><li>Green</li></ul><span class=\"rating\">3.8</span></div></body></html>",
+  "html": "<html><body><div id=\"main\"><h1>Widget B</h1><div class=\"price-box\"><span class=\"was\">$259.99</span><span class=\"now\">$219.99</span></div><p class=\"stock\">In stock</p><img class=\"hero\" src=\"/img/b.jpg\" alt=\"Widget B photo\"><a class=\"buy\" href=\"/buy/2\">Buy now</a><time class=\"ship\">Sep 5, 2026</time><ul class=\"colors\"><li>Green</li></ul><span class=\"rating\">3.8</span><span class=\"sku\" data-sku=\"B2\"></span></div></body></html>",
   "structuredData": {
     "ldJson": [
       {
@@ -30,7 +30,6 @@
           "name": "Widget B",
           "priceCents": 21999,
           "code": "SKU-B2",
-          "shortCode": "B2",
           "images": ["https://shop.example/img/b.jpg"],
           "colors": ["Green"],
           "rating": 3.8,

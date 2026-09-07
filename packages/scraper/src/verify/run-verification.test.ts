@@ -46,18 +46,28 @@ describe('runVerification (shop-example, offline)', () => {
 
   it('a stubborn field asks the agent once; a bad proposal is discarded, a good one certifies', async () => {
     const stubborn = [{ key: 'sku', name: 'SKU', type: 'text' as const, description: 'item number', concept: 'sku' }];
-    // SKUs are only in the api under `item.code` as "SKU-A1" while the customer typed "A1" — nothing matches mechanically.
+    // The SKU is readable only as an attribute (span.sku's data-sku) that the mechanical
+    // DOM search never scans (it only scans href/src/content), and `item.code` never equals
+    // the customer's typed short code ("SKU-A1" ≠ "A1") — nothing matches mechanically.
     const skuSet = { urls: U, expected: { sku: { [U[0]!]: 'A1', [U[1]!]: 'B2', [U[2]!]: 'C3' } } };
     let calls = 0;
     const agent = { proposePaths: async () => { calls++; return [
       { source: 'api' as const, path: 'item.code', transform: 'identity' as const },      // "SKU-A1" ≠ "A1" → discarded
-      { source: 'api' as const, path: 'item.shortCode', transform: 'identity' as const }, // "A1" → certifies
+      { source: 'xpath' as const, path: '//*[@id="main"]/span[@class="sku"]/@data-sku', transform: 'identity' as const }, // "A1" → certifies
     ]; } };
     const run = await runVerification({ fields: stubborn, verificationSet: skuSet }, { browser, agent, captures: loadShopExample() });
     expect(calls).toBe(1);
     expect(run.outcome.aiCalls).toBe(1);
     expect(run.outcome.fields.sku!.aiCalled).toBe(true);
-    expect(run.outcome.fields.sku!.certified).toEqual([{ source: 'api', path: 'item.shortCode', transform: 'identity' }]);
+    expect(run.outcome.fields.sku!.certified).toEqual([{ source: 'xpath', path: '//*[@id="main"]/span[@class="sku"]/@data-sku', transform: 'identity' }]);
+
+    // Without an agent, the mechanical pass genuinely cannot find it — proving the field
+    // is authentically stubborn rather than certifying by coincidence.
+    const noAgentRun = await runVerification({ fields: stubborn, verificationSet: skuSet }, { browser, agent: null, captures: loadShopExample() });
+    expect(noAgentRun.outcome.fields.sku!.certified).toEqual([]);
+    for (const url of U) {
+      expect(noAgentRun.outcome.fields.sku!.cells[url]).toMatchObject({ status: 'fail', reason: 'not_found' });
+    }
   }, 60_000);
 
   it('a failing capture marks the column not_captured and records the error', async () => {
