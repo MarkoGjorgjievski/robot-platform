@@ -2,6 +2,7 @@ import { db, domainIntelligence } from '@robot/db';
 import { eq, and } from 'drizzle-orm';
 import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
+import { MAX_CERTIFIED_PATHS } from './verify/constants.js';
 import { sanitizeCatalogue, type CandidateCatalogue, type Candidate } from './candidate-catalogue.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1133,6 +1134,19 @@ export async function saveVerifiedPaths(domain: string, pageType: string, byConc
         if (prior) { prior.lastUsedAt = now; prior.lastUrl = url; continue; }
         set.paths.push({ path: c.path, source: 'verified', origin: c.source, transform: c.transform, confidence: 1, hits: 0, misses: 0, lastValue: null, lastUsedAt: now, lastUrl: url });
       }
+      // M1: `verified` paths are protected from the general prune and the
+      // five-path cap (`isProtectedPath`), which is right — statistics must
+      // not delete proof — but it left this list unbounded: every re-verify
+      // that certifies a slightly different path grows the concept forever,
+      // and `lookupVerifiedPaths` probes each one on every extraction. Cap
+      // it here, at the only place that adds to it, keeping the best
+      // MAX_CERTIFIED_PATHS by the same order `lookupVerifiedPaths` serves
+      // them in. Paths belonging to any other source are untouched.
+      const verified = set.paths.filter((p) => p.source === 'verified');
+      if (verified.length > MAX_CERTIFIED_PATHS) {
+        const keep = new Set([...verified].sort(compareVerified).slice(0, MAX_CERTIFIED_PATHS));
+        set.paths = set.paths.filter((p) => p.source !== 'verified' || keep.has(p));
+      }
       fieldPaths[concept] = set;
     }
     if (existing) {
@@ -1150,6 +1164,26 @@ export async function saveVerifiedPaths(domain: string, pageType: string, byConc
  *  `rankCertified` here would create a runtime cycle (`domain-cache.ts` →
  *  `verify/certify.ts` → `verify/search-structured.ts` → `domain-cache.ts`). */
 const VERIFIED_SOURCE_RANK: Record<'api' | 'json-ld' | 'meta' | 'xpath', number> = { api: 0, 'json-ld': 1, meta: 2, xpath: 3 };
+
+/** Hit rate of a stored path; an untried path counts as perfect, so a freshly
+ *  certified path is never dropped in favour of one already known to miss. */
+const verifiedRate = (p: FieldPath) => (p.hits + p.misses > 0 ? p.hits / (p.hits + p.misses) : 1);
+
+/**
+ * Best verified path first: an operator's pin always survives (nothing
+ * automatic removes a pin), then hit rate, then the certification tie-break
+ * — source rank api > json-ld > meta > xpath, then the shorter path.
+ * `lookupVerifiedPaths` serves them in this order and `saveVerifiedPaths`
+ * caps by it, so what the cache keeps is what the extractor would have used.
+ */
+function compareVerified(a: FieldPath, b: FieldPath): number {
+  if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+  const rateDelta = verifiedRate(b) - verifiedRate(a);
+  if (rateDelta !== 0) return rateDelta;
+  const rankDelta = (VERIFIED_SOURCE_RANK[a.origin!] ?? 9) - (VERIFIED_SOURCE_RANK[b.origin!] ?? 9);
+  if (rankDelta !== 0) return rankDelta;
+  return a.path.length - b.path.length;
+}
 
 /**
  * The concept's `verified` paths, ranked by hit rate, then — for untried or
@@ -1170,16 +1204,9 @@ export async function lookupVerifiedPaths(domain: string, pageType: string, conc
     .limit(1);
   const set = ((row?.fieldPaths as Record<string, FieldPathSet> | null) ?? {})[concept];
   if (!set) return [];
-  const rate = (p: FieldPath) => (p.hits + p.misses > 0 ? p.hits / (p.hits + p.misses) : 1);
   return set.paths
     .filter((p) => p.source === 'verified' && p.origin)
-    .sort((a, b) => {
-      const rateDelta = rate(b) - rate(a);
-      if (rateDelta !== 0) return rateDelta;
-      const rankDelta = VERIFIED_SOURCE_RANK[a.origin!] - VERIFIED_SOURCE_RANK[b.origin!];
-      if (rankDelta !== 0) return rankDelta;
-      return a.path.length - b.path.length;
-    })
+    .sort(compareVerified)
     .map((p) => ({ source: p.origin!, path: p.path, transform: p.transform ?? 'identity' }));
 }
 

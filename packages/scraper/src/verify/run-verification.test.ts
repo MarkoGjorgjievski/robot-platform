@@ -79,6 +79,45 @@ describe('runVerification (shop-example, offline)', () => {
     expect(run.outcome.allPassed).toBe(false);
   }, 60_000);
 
+  // I4: a block page served AT the requested path passes `samePath`, so it
+  // used to be handed to the certifier as if it were the product page —
+  // every field failing `not_found`, blaming the customer's expected values
+  // for a page we never actually got. `checkPageHealth` (the same gate the
+  // extraction chain uses) makes it an honest `not_captured` instead.
+  it('a blocked page at the right URL is not_captured with the block reason, not not_found', async () => {
+    const caps = loadShopExample();
+    delete caps[U[2]!];
+    // Smallest thing checkPageHealth calls blocked: a page TITLED "Captcha"
+    // is a challenge page whatever its markup weight (page-health.ts, bot
+    // patterns — a title match is precise on its own).
+    const blocked = {
+      url: U[2]!,
+      html: '<html><head><title>Captcha</title></head><body><p>Verify you are human.</p></body></html>',
+      markdown: '',
+      screenshot: Buffer.alloc(0),
+      screenshotTiles: [],
+      title: 'Captcha',
+      timestamp: 0,
+      structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [],
+    };
+    const stages: string[] = [];
+
+    const run = await runVerification({ fields: [fields[0]!], verificationSet: set }, {
+      browser, agent: null, captures: caps,
+      captureOne: async () => blocked,
+      onProgress: (stage) => stages.push(stage),
+    });
+
+    expect(run.captureErrors[U[2]!]).toBe('CAPTCHA detected — site requires human verification');
+    expect(run.captures[U[2]!]).toBeNull();
+    expect(run.outcome.fields.product_name!.cells[U[2]!]).toEqual({ status: 'not_captured' });
+    expect(run.outcome.fields.product_name!.incomplete).toBe(true);
+    expect(run.outcome.allPassed).toBe(false);
+    // Progress is still reported for the page we tried and lost.
+    expect(stages).toContain(`capturing 3/${U.length}`);
+  }, 60_000);
+
   it('onlyKeys re-runs a subset and copies the rest from previous', async () => {
     const first = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
     const second = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample(), onlyKeys: ['price'], previous: first.outcome });
