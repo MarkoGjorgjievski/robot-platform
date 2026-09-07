@@ -4,6 +4,7 @@ import {
   cellStatusFor,
   summaryLine,
   isVerificationActive,
+  verificationState,
   isRowStale,
   reverifyKeys,
   type VerificationResults,
@@ -109,6 +110,26 @@ describe('cellStatusFor', () => {
     });
   });
 
+  // M7: a green cell should be able to say where the value came from.
+  test('pass cell carries the certified path source, xpath rendered as "page"', () => {
+    const withPath = (source: 'api' | 'json-ld' | 'meta' | 'xpath'): VerificationResults => ({
+      price: {
+        key: 'price',
+        cells: { 'https://x/1': { status: 'pass', found: '$10', path: { source, path: 'p', transform: 'identity' } } },
+        certified: [{}],
+        weakEvidence: false,
+        aiCalled: false,
+        incomplete: false,
+      },
+    });
+    expect(cellStatusFor(withPath('api'), 'price', 'https://x/1', false)?.pathSource).toBe('api');
+    expect(cellStatusFor(withPath('json-ld'), 'price', 'https://x/1', false)?.pathSource).toBe('json-ld');
+    expect(cellStatusFor(withPath('meta'), 'price', 'https://x/1', false)?.pathSource).toBe('meta');
+    expect(cellStatusFor(withPath('xpath'), 'price', 'https://x/1', false)?.pathSource).toBe('page');
+    // A stored result predating the per-cell path leaves it undefined, not a guess.
+    expect(cellStatusFor(results, 'price', 'https://x/1', false)?.pathSource).toBeUndefined();
+  });
+
   test('not_captured cell', () => {
     const ncResults: VerificationResults = {
       qty: { key: 'qty', cells: { 'https://x/1': { status: 'not_captured' } }, certified: [], weakEvidence: false, aiCalled: false, incomplete: true },
@@ -130,6 +151,56 @@ describe('isVerificationActive', () => {
   test('completedAt set is not active', () => {
     expect(isVerificationActive({ completedAt: new Date() })).toBe(false);
     expect(isVerificationActive({ completedAt: '2026-09-04T00:00:00Z' })).toBe(false);
+  });
+
+  // C1: an in-flight row older than the server's stall window is a crash
+  // leftover, and must stop reading as active — that is what wedged the
+  // Schema screen (grid disabled, Verify greyed out, nothing to click).
+  test('an in-flight row older than stallMs is not active', () => {
+    const now = Date.parse('2026-09-04T01:00:00Z');
+    const row = { startedAt: '2026-09-04T00:00:00Z', completedAt: null };
+    expect(isVerificationActive(row, { now, stallMs: 15 * 60 * 1000 })).toBe(false);
+    expect(isVerificationActive(row, { now, stallMs: 2 * 60 * 60 * 1000 })).toBe(true);
+    // No stallMs supplied: the old behaviour, in flight until completed.
+    expect(isVerificationActive(row, { now })).toBe(true);
+  });
+});
+
+describe('verificationState', () => {
+  const NOW = Date.parse('2026-09-04T01:00:00Z');
+  const STALL = 15 * 60 * 1000;
+
+  test('none: no row at all', () => {
+    expect(verificationState(null, { now: NOW, stallMs: STALL })).toBe('none');
+    expect(verificationState(undefined, { now: NOW, stallMs: STALL })).toBe('none');
+  });
+
+  test('active: in flight, younger than stallMs', () => {
+    const row = { startedAt: '2026-09-04T00:55:00Z', completedAt: null };
+    expect(verificationState(row, { now: NOW, stallMs: STALL })).toBe('active');
+  });
+
+  test('stalled: in flight, older than stallMs', () => {
+    const row = { startedAt: '2026-09-04T00:30:00Z', completedAt: null };
+    expect(verificationState(row, { now: NOW, stallMs: STALL })).toBe('stalled');
+  });
+
+  test('failed: completed with an errorMessage', () => {
+    const row = { startedAt: '2026-09-04T00:55:00Z', completedAt: '2026-09-04T00:56:00Z', errorMessage: 'boom' };
+    expect(verificationState(row, { now: NOW, stallMs: STALL })).toBe('failed');
+  });
+
+  test('done: completed cleanly', () => {
+    const row = { startedAt: '2026-09-04T00:55:00Z', completedAt: '2026-09-04T00:56:00Z', errorMessage: null };
+    expect(verificationState(row, { now: NOW, stallMs: STALL })).toBe('done');
+    // A completed row is done however old it is — the stall window is only
+    // ever asked about rows that never completed.
+    expect(verificationState({ startedAt: '2020-01-01T00:00:00Z', completedAt: '2020-01-01T00:01:00Z' }, { now: NOW, stallMs: STALL })).toBe('done');
+  });
+
+  test('an undateable in-flight row stays active rather than reading as stalled', () => {
+    expect(verificationState({ completedAt: null }, { now: NOW, stallMs: STALL })).toBe('active');
+    expect(verificationState({ startedAt: 'not a date', completedAt: null }, { now: NOW, stallMs: STALL })).toBe('active');
   });
 });
 

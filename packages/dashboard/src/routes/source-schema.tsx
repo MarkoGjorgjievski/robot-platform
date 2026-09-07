@@ -6,8 +6,10 @@ import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { screenshotUrl } from '../lib/screenshot-url';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
-import { emptyState, fromSource, gridProblems, isComplete, toSchemaInput, type GridState } from '../lib/schema-grid';
-import { cellStatusFor, isRowStale, isVerificationActive, reverifyKeys, summaryLine, type VerificationResults } from '../lib/verification-view';
+import { SchemaImport } from '../components/schema-import';
+import { SchemaUrls } from '../components/schema-urls';
+import { emptyState, fromSource, gridProblems, isComplete, toSchemaInput, URL_COUNT, type GridState } from '../lib/schema-grid';
+import { cellStatusFor, isRowStale, reverifyKeys, summaryLine, verificationState, type VerificationResults } from '../lib/verification-view';
 
 /**
  * The Schema tab (Task 15 brief) — what used to be Set-up. `fromSource`
@@ -40,14 +42,25 @@ export default function SourceSchema() {
   const listQuery = trpc.sources.listByProject.useQuery({ orgSlug: DEFAULT_ORG_SLUG, projectSlug });
   const source = (listQuery.data ?? []).find((s) => s.slug === sourceSlug);
 
+  // Declared before the status query: its `stallMs` is what tells the poll
+  // (and everything else on this screen) whether an in-flight row is really
+  // in flight or is a crash leftover — see `verificationState` (C1).
+  const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '' }, { enabled: !!source });
+  const stallMs = estimateQuery.data?.stallMs;
+
   const statusQuery = trpc.sources.verificationStatus.useQuery(
     { sourceId: source?.id ?? '' },
-    { enabled: !!source, refetchInterval: (query) => (isVerificationActive(query.state.data ?? null) ? 3000 : false) },
+    {
+      enabled: !!source,
+      // Poll only while genuinely active: a stalled row is never coming back
+      // on its own, and polling it forever is exactly what wedged this screen.
+      refetchInterval: (query) => (verificationState(query.state.data ?? null, { stallMs }) === 'active' ? 3000 : false),
+    },
   );
-  const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '' }, { enabled: !!source });
 
   const updateSchemaMutation = trpc.sources.updateSchema.useMutation();
   const verifyMutation = trpc.sources.verify.useMutation();
+  const findMutation = trpc.sources.findProductPages.useMutation();
   const planMutation = trpc.crawl.plan.useMutation();
   const executeMutation = trpc.crawl.execute.useMutation();
   const probeMutation = trpc.crawl.probeAndSample.useMutation();
@@ -67,7 +80,8 @@ export default function SourceSchema() {
   }, [source]);
 
   const status = statusQuery.data ?? null;
-  const active = isVerificationActive(status);
+  const state = verificationState(status, { stallMs });
+  const active = state === 'active';
   const savedGrid = source ? fromSource(source) : null;
   const results = (status?.results ?? null) as VerificationResults | null;
   const estimate = estimateQuery.data;
@@ -172,6 +186,9 @@ export default function SourceSchema() {
   const extractEnabled = !!(status?.current && status?.allPassed);
 
   const captures = (status?.captures ?? {}) as Record<string, { blockedReason?: string; screenshotUrl?: string }>;
+  // M8: a field can be neither green nor red — `incomplete` means a page it
+  // needed never got captured, so there was nothing to certify against.
+  const anyIncomplete = Object.values(results ?? {}).some((f) => f.incomplete);
 
   return (
     <div className="mt-6">
@@ -187,6 +204,9 @@ export default function SourceSchema() {
         <div>
           <p className="text-sm font-medium text-gray-900">{summaryLine(results)}</p>
           {active && status?.stage && <p className="mt-0.5 text-xs text-gray-500">{status.stage}</p>}
+          {anyIncomplete && (
+            <p className="mt-0.5 text-xs text-gray-500">Some pages were not captured, so nothing certified yet.</p>
+          )}
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
           {/*
@@ -211,6 +231,21 @@ export default function SourceSchema() {
 
       {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
 
+      {/*
+        C1: a verification that died with the api-server leaves a row that
+        never completes. Say so, and leave Verify enabled — its click goes
+        through `sources.verify`, which closes the stale row out server-side
+        and starts a fresh one.
+      */}
+      {state === 'stalled' && (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This verification stalled (the server may have restarted). Run it again.
+        </div>
+      )}
+
+      {/* A run that completed with an error: show what it said, Verify stays enabled. */}
+      {state === 'failed' && status?.errorMessage && <ErrorBanner message={status.errorMessage} />}
+
       {grid.urls.some((u) => captures[u]?.blockedReason) && (
         <div className="mt-4 space-y-2">
           {grid.urls.map((u, i) => {
@@ -227,6 +262,29 @@ export default function SourceSchema() {
           })}
         </div>
       )}
+
+      {/*
+        C2 (spec §2.1, §7, §9): the three verification URLs and the optional
+        listing URL belong to the schema, so this screen owns them too — not
+        only the New Source wizard. Edits go through `updateGrid`, so a URL
+        change marks the grid dirty exactly like a cell edit: Verify saves it
+        first via `updateSchema`, and the changed `definitionHash`
+        invalidates the old certification on its own. A Source with no saved
+        `schemaDefinition` at all (a legacy or `quickCreate`d one) therefore
+        opens here with empty URL inputs and one empty row, ready to fill in.
+      */}
+      <div className="mt-4">
+        <SchemaUrls
+          state={grid}
+          onChange={updateGrid}
+          disabled={active}
+          onFindProductPages={async (listingUrl) => (await findMutation.mutateAsync({ listingUrl })).urls}
+        />
+      </div>
+
+      <div className="mt-4">
+        <SchemaImport urlCount={URL_COUNT} onRows={(rows) => updateGrid((g) => ({ ...g, rows }))} />
+      </div>
 
       <div className="card mt-4 p-4">
         <SchemaGrid state={grid} onChange={updateGrid} cellStatus={cellStatus} disabled={active} />
