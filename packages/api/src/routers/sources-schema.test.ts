@@ -79,6 +79,49 @@ describe('prepareSchema / schemaProblems', () => {
     expect(r.fields[0]!.name).toBe('Unit cost');
   });
 
+  // I6: a preserved key never goes through `deriveKey`, so it used to be
+  // invisible to the uniqueness check a NEW field's key is derived against —
+  // and a new field whose name slugs to the same thing minted a duplicate.
+  // Two fields sharing a key means one silently clobbers the other's
+  // `expected` cells and, later, its verification results.
+  it('never derives a key that an existing field will keep', () => {
+    const existing = [{ key: 'price', name: 'Price', type: 'money' as const, description: 'd', concept: 'price' }];
+
+    // The new field is listed FIRST — the order that actually collides,
+    // since the preserved `price` is not yet in `taken` when the new one's
+    // key is derived.
+    const added = prepareSchema(
+      {
+        ...base,
+        fields: [
+          { name: 'Price!', type: 'money', description: 'the struck-through one' },
+          { key: 'price', name: 'Price', type: 'money', description: 'green' },
+        ],
+        expected: { 'Price!': base.expected.Price!, price: base.expected.Price! },
+      },
+      existing,
+    );
+    expect(added.fields.map((f) => f.key)).toEqual(['price_2', 'price']);
+    expect(Object.keys(added.verificationSet.expected).sort()).toEqual(['price', 'price_2']);
+
+    // Same collision with the existing field RENAMED (so its own name no
+    // longer slugs to `price`) while a brand-new field takes the old name:
+    // the existing field still keeps `price`, the new one gets `price_2`.
+    const renamed = prepareSchema(
+      {
+        ...base,
+        fields: [
+          { name: 'Price', type: 'money', description: 'the new one' },
+          { key: 'price', name: 'Cost', type: 'money', description: 'green' },
+        ],
+        expected: { Price: base.expected.Price!, price: base.expected.Price! },
+      },
+      existing,
+    );
+    expect(renamed.fields.map((f) => f.key)).toEqual(['price_2', 'price']);
+    expect(renamed.fields.map((f) => f.name)).toEqual(['Price', 'Cost']);
+  });
+
   // Controller ruling: a field whose derived key would be the reserved
   // planning key `detail_url` is rejected — keeps the customer branch of
   // `effectiveSchema` free of the listing-crawl planning sentinel.

@@ -64,7 +64,7 @@ describe('sourceDefinitionHash', () => {
 
 describe('loadCurrentCertification', () => {
   it('returns the certification for a matching all-passed completed verification', async () => {
-    const { sourceId, source } = await makeSchemaSource('match');
+    const { sourceId, source, urls } = await makeSchemaSource('match');
     try {
       const hash = sourceDefinitionHash(source)!;
       const [row] = await db
@@ -83,6 +83,9 @@ describe('loadCurrentCertification', () => {
       expect(cert!.verificationId).toBe(row!.id);
       expect(cert!.paths).toEqual({ price: certifiedPrice });
       expect(cert!.concepts).toEqual({ price: 'price' });
+      // M3: the host the paths were certified against — `verificationSet.urls[0]`'s —
+      // is what verified-path stats must be booked under later.
+      expect(cert!.hostname).toBe(new URL(urls[0]!).hostname);
     } finally {
       await cleanupSource(sourceId);
     }

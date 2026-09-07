@@ -102,7 +102,18 @@ export function prepareSchema(
   const problems = schemaProblems(input);
   if (problems.length > 0) throw new TRPCError({ code: 'BAD_REQUEST', message: problems.join('\n') });
   const byKey = new Map(existing.map((f) => [f.key, f]));
-  const taken = new Set<string>();
+
+  // I6: `taken` must start out holding every PRESERVED key, not fill up as
+  // the loop goes. A preserved key is not derived, so it never passed
+  // through `deriveKey`'s uniqueness check — and a new field earlier in the
+  // list derives against a `taken` that does not know about it yet. Adding
+  // "Price!" alongside an existing `price` field used to mint a second
+  // `price` key: two schema fields with one key, one clobbering the other's
+  // `expected` cells and its verification results.
+  const taken = new Set<string>(
+    input.fields.map((f) => (f.key ? byKey.get(f.key)?.key : undefined)).filter((k): k is string => !!k),
+  );
+
   const fields: SchemaDefinitionField[] = [];
   const expected: VerificationSet['expected'] = {};
   for (const f of input.fields) {
@@ -113,5 +124,14 @@ export function prepareSchema(
     const cells = expectedCellsFor(input, f);
     expected[key] = Object.fromEntries(input.urls.map((u) => [u, cells[u] ?? '']));
   }
+
+  // Defensive: a collision that survives the pre-seeding above would be
+  // silent data loss (`expected[key]` overwritten, one field's results
+  // reported as the other's), so it fails loudly here instead.
+  const keys = fields.map((f) => f.key);
+  if (new Set(keys).size !== fields.length) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `Field keys collide: ${keys.join(', ')}` });
+  }
+
   return { fields, verificationSet: { urls: input.urls, expected, ...(input.listingUrl ? { listing_url: input.listingUrl } : {}) }, hostname: host(input.urls[0]!) };
 }

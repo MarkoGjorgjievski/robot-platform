@@ -20,6 +20,18 @@ export type Certification = {
   completedAt: Date;
   paths: Record<string /* field key */, CertifiedPath[]>;
   concepts: Record<string, string>;
+  /**
+   * The hostname the certification was proven against — `verificationSet.urls[0]`'s.
+   *
+   * M3: every verified-path hit/miss must be booked against THIS host,
+   * because that is the `domain_intelligence` row `saveVerifiedPaths` wrote
+   * the paths into. Deriving it from the item URL instead (what
+   * `extract-item.ts` used to do) books stats against whatever host the
+   * crawl happens to be on — a CDN host, a country domain, a redirect
+   * target — where the paths do not exist, so `recordVerifiedPathStats`
+   * silently no-ops and the real row's hit rates never move.
+   */
+  hostname: string;
 };
 
 export function sourceDefinitionHash(source: { schemaDefinition: unknown; verificationSet: unknown }): string | null {
@@ -49,10 +61,12 @@ export async function loadCurrentCertification(db: Database, sourceId: string): 
 
   const results = row.results as Record<string, FieldVerification>;
   const fields = source!.schemaDefinition as SchemaDefinitionField[];
+  const set = source!.verificationSet as VerificationSet;
   return {
     verificationId: row.id,
     completedAt: row.completedAt!,
     paths: Object.fromEntries(fields.map((f) => [f.key, results[f.key]?.certified ?? []])),
     concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
+    hostname: new URL(set.urls[0]!).hostname,
   };
 }

@@ -8,7 +8,7 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs, runItems, extractions, captures, sources, orgs, projects, datasets } from '@robot/db';
+import { db, runs, runItems, extractions, captures, sources, sourceVerifications, orgs, projects, datasets } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { effectiveSchema } from '../crawl/effective-schema.js';
@@ -129,6 +129,27 @@ async function seedCompletedRunWithHealthyGap() {
   return { runId: run!.id, sourceId, item1Id: item1!.id, item2Id: item2!.id };
 }
 
+/**
+ * Turns a seeded Source into a CUSTOMER-schema Source whose only
+ * verification is stale: it completed and passed, but against a different
+ * definition than the Source now carries (`definitionHash` mismatch), which
+ * is exactly what `loadCurrentCertification` refuses to honour. I3's target.
+ */
+async function makeCustomerSchemaWithStaleCertification(sourceId: string) {
+  const urls = ['https://example.com/p/1', 'https://example.com/p/2', 'https://example.com/p/3'];
+  await db.update(sources).set({
+    schemaDefinition: [{ key: 'title', name: 'Title', type: 'text', description: 'the product title', concept: 'title' }],
+    verificationSet: { urls, expected: { title: Object.fromEntries(urls.map((u) => [u, 'A'])) } },
+  }).where(eq(sources.id, sourceId));
+  await db.insert(sourceVerifications).values({
+    sourceId,
+    definitionHash: 'a-hash-from-a-schema-this-source-no-longer-has',
+    completedAt: new Date(),
+    allPassed: true,
+    results: { title: { key: 'title', cells: {}, certified: [{ source: 'api', path: 'title', transform: 'identity' }], weakEvidence: false, aiCalled: false, incomplete: false } },
+  });
+}
+
 afterEach(async () => {
   startExecutionMock.mockReset();
   runRepairSweepMock.mockReset();
@@ -147,6 +168,25 @@ describe('crawl.backfill', () => {
     await expect(caller.crawl.backfill({ runId: backfillRunId }))
       .rejects.toThrow(new RegExp(`backfill.*parent.*${realParentRunId}`, 'i'));
     expect(startExecutionMock).not.toHaveBeenCalled();
+  });
+
+  // I3: a backfill buys pages exactly like `execute` does, and was the one
+  // extraction entry point with no certification gate — so a customer Source
+  // whose schema changed since its last verification could keep spending
+  // against paths nobody has proven still work.
+  it('refuses a customer Source whose certification is stale, writing nothing', async () => {
+    const { runId, sourceId } = await seedCompletedRunWithHealthyGap();
+    await makeCustomerSchemaWithStaleCertification(sourceId);
+
+    await expect(caller.crawl.backfill({ runId })).rejects.toMatchObject({
+      code: 'PRECONDITION_FAILED',
+      message: 'Verify the schema before extracting',
+    });
+
+    expect(startExecutionMock).not.toHaveBeenCalled();
+    // The gate runs before any side effect: no backfill run, no items.
+    const children = await db.select().from(runs).where(eq(runs.parentRunId, runId));
+    expect(children).toEqual([]);
   });
 
   // Guard 2: a still-executing parent has no settled coverage to backfill from.
@@ -230,7 +270,9 @@ describe('crawl.backfill', () => {
     // dataset schema shape ever changes.
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
-      columns: { id: true, selectorsJson: true, datasetId: true },
+      // Mirrors crawl.ts guard 1's own column list exactly — `schemaDefinition`
+      // included (ledger T10), since `effectiveSchema` branches on it.
+      columns: { id: true, selectorsJson: true, datasetId: true, schemaDefinition: true },
       with: { dataset: { columns: { schema: true } } },
     });
     expect(call[2]).toEqual(effectiveSchema(source!));

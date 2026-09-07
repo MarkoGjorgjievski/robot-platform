@@ -116,6 +116,7 @@ describe('buildFinalise', () => {
     completedAt: new Date(),
     paths: { price: [], sku: [] },
     concepts: { price: 'price', sku: 'sku' },
+    hostname: 'shop.example.com',
   };
 
   it('calls only finaliseRun and returns its status when certification is null', async () => {
