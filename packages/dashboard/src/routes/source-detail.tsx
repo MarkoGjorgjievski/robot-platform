@@ -79,7 +79,7 @@ export default function SourceDetailLayout() {
         activeTo={activeTo}
         tabs={[
           { label: 'Overview', to: '/p/$project/sources/$source/', params: { project: projectSlug, source: sourceSlug } },
-          { label: 'Set up', to: '/p/$project/sources/$source/setup', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Schema', to: '/p/$project/sources/$source/setup', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Config', to: '/p/$project/sources/$source/config', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Inputs', to: '/p/$project/sources/$source/inputs', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Runs', to: '/p/$project/sources/$source/runs', params: { project: projectSlug, source: sourceSlug } },

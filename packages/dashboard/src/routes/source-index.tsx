@@ -3,13 +3,13 @@ import { trpc } from '../lib/trpc';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import SourceOverview from './source-overview';
-import SourceSetup from './source-setup';
+import SourceSchema from './source-schema';
 
 /**
- * The bare source URL (`/p/$project/sources/$source`): the Set-up workspace
+ * The bare source URL (`/p/$project/sources/$source`): the Schema workspace
  * by default, until the Source has a completed run — then Overview. Both
  * remain one click away via the tab bar regardless of which one is showing
- * here (source-detail.tsx's "Overview" and "Set up" tabs).
+ * here (source-detail.tsx's "Overview" and "Schema" tabs).
  */
 export default function SourceIndex() {
   const { project: projectSlug, source: sourceSlug } = useParams({ from: '/p/$project/sources/$source' });
@@ -40,5 +40,5 @@ export default function SourceIndex() {
   const hasCompletedRun = (runsQuery.data ?? []).some(
     (r) => r.status === 'completed' && r.inputLabel !== 'probe' && r.inputLabel !== 'backfill',
   );
-  return hasCompletedRun ? <SourceOverview /> : <SourceSetup />;
+  return hasCompletedRun ? <SourceOverview /> : <SourceSchema />;
 }

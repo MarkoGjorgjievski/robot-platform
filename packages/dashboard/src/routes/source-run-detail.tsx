@@ -22,7 +22,6 @@ import {
 } from '../lib/backfill-preview';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
-import { AddFieldsControl } from '../components/add-fields-control';
 
 // Mirrors `DETAIL_URL_FIELD` in packages/api/src/crawl/effective-schema.ts
 // (re-exported from @robot/scraper). Not imported directly — the dashboard
@@ -826,7 +825,6 @@ function ProbeConfirmGate({
 }) {
   const navigate = useNavigate();
   const [showDiagnosis, setShowDiagnosis] = useState(false);
-  const [showAddFields, setShowAddFields] = useState(false);
 
   // Always called (rules-of-hooks) — gated below by isProbeRun/sourceConfirmed instead.
   const itemsQuery = trpc.crawl.items.useQuery({ runId }, { enabled: isProbeRun && !sourceConfirmed });
@@ -920,28 +918,11 @@ function ProbeConfirmGate({
             <button onClick={() => setShowDiagnosis((v) => !v)} className="btn-quiet">
               Something's wrong
             </button>
-            <button onClick={() => setShowAddFields((v) => !v)} className="btn-quiet">
-              Request more fields
-            </button>
           </div>
           {confirmMutation.isError && (
             <p className="mt-2 text-xs text-red-600">{confirmMutation.error.message}</p>
           )}
         </div>
-      )}
-
-      {/*
-        Same shared control as the Set-up page's add-fields section
-        (components/add-fields-control.tsx) — here its "Re-analyze" click
-        navigates back to Set-up after firing (`onAnalyzed`), landing the
-        operator where the new schema actually renders, since a probe run's
-        own page has no FieldsTable to refresh.
-      */}
-      {showAddFields && sourceId && (
-        <AddFieldsControl
-          sourceId={sourceId}
-          onAnalyzed={() => navigate({ to: '/p/$project/sources/$source', params: { project: projectSlug, source: sourceSlug } })}
-        />
       )}
 
       {showDiagnosisPanel && (
