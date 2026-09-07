@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { db, sources, inputSets, datasets, sourceVerifications } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
-import { prepareSchema, schemaProblems } from '../verify/schema-input.js';
+import { prepareSchema, schemaProblems, schemaInput } from '../verify/schema-input.js';
 
 // `sources.findProductPages` launches a real browser via `withBrowserSession`
 // — stubbed here (same pattern sources.test.ts uses for `@robot/browser`) so
@@ -108,6 +108,14 @@ describe('prepareSchema / schemaProblems', () => {
       expected: { '': { [U[0]!]: '1', [U[1]!]: '2', [U[2]!]: '3' }, Price: { [U[0]!]: '1', [U[1]!]: '2', [U[2]!]: '3' } },
     });
     expect(problems).toEqual([]);
+  });
+
+  // Important defect (review round 1): `httpUrl` must reject non-http(s)
+  // schemes at Zod-parse time, before `schemaProblems`/`prepareSchema` (which
+  // assume a URL-shaped string) ever run.
+  it('fails schemaInput parsing for an ftp:// product URL', () => {
+    const result = schemaInput.safeParse({ ...base, urls: [U[0]!, U[1]!, 'ftp://shop.example/p/3'] });
+    expect(result.success).toBe(false);
   });
 });
 
@@ -364,6 +372,22 @@ describe('sources.findProductPages', () => {
     } catch (err) {
       expectZodValidationError(err);
     }
+  });
+
+  // Important defect (review round 1): `z.string().url()` alone accepts any
+  // scheme the WHATWG URL parser recognizes, so a `file://` (or `javascript:`,
+  // `data:`, ...) listingUrl would have reached `withBrowserSession` and been
+  // handed to a real browser to navigate to. `httpUrl`'s refine must reject it
+  // during input parsing, before the browser session is ever opened.
+  it('rejects a file:// listingUrl as BAD_REQUEST, without ever calling withBrowserSession', async () => {
+    try {
+      await caller.sources.findProductPages({ listingUrl: 'file:///etc/passwd' });
+      throw new Error('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(TRPCError);
+      expect((err as TRPCError).code).toBe('BAD_REQUEST');
+    }
+    expect(withBrowserSessionMock).not.toHaveBeenCalled();
   });
 });
 

@@ -8,7 +8,7 @@ import { router, publicProcedure } from '../trpc';
 import { scraperRouter } from './scraper';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
-import { schemaInput, prepareSchema } from '../verify/schema-input.js';
+import { schemaInput, prepareSchema, httpUrl } from '../verify/schema-input.js';
 import { rankProductLinks } from '../verify/find-product-pages.js';
 
 // ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
@@ -525,7 +525,7 @@ export const sourcesRouter = router({
    * Feeds the "pick your verification URLs" step of the schema wizard.
    */
   findProductPages: publicProcedure
-    .input(z.object({ listingUrl: z.string().url() }))
+    .input(z.object({ listingUrl: httpUrl }))
     .mutation(async ({ input }) => {
       const anchors = await withBrowserSession(async (browser) => {
         const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
