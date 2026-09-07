@@ -22,6 +22,7 @@ export { pinFieldPath } from './domain-cache.js';
 export { saveCandidateCatalogue, clearCandidateCatalogue } from './domain-cache.js';
 export { markDisplayed } from './domain-cache.js';
 export { saveVerifiedRowPlan, recordRowPlanMiss, recordRowPlanHit, type RowSelector, type RowFieldPath } from './domain-cache.js';
+export { saveVerifiedPaths, lookupVerifiedPaths, recordVerifiedPathStats } from './domain-cache.js';
 export { runAnalysis, type AnalysisOutcome, type AnalysisDeps, type AnalysisAgent } from './analysis-orchestrator.js';
 export { cachedFieldsFromCache, type CachedFieldSummary } from './cached-fields-from-cache.js';
 export { describesSamePage, extractIdentifiers, filterEntitiesForPage, type EntityMatch } from './entity-match.js';
