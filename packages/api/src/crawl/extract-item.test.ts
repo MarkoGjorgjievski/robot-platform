@@ -170,6 +170,10 @@ describe('extractItem — with a certification', () => {
     completedAt: new Date(),
     paths: { price: [{ source: 'api', path: 'item.priceCents', transform: 'cents_to_units' }] },
     concepts: { price: 'price_concept' },
+    // M3: deliberately NOT `ITEM.url`'s host — the stats must follow the
+    // certification's own hostname (the domain_intelligence row the paths
+    // were saved into), not whatever host the crawled item happens to be on.
+    hostname: 'shop.example.com',
   };
 
   it('routes through extractVerified with the field\'s certified paths, and never calls runExtraction', async () => {
@@ -191,9 +195,38 @@ describe('extractItem — with a certification', () => {
     ]);
     expect(runExtractionMock).not.toHaveBeenCalled();
     expect(result.row).toMatchObject({ price: 129.99, category_name: 'Shelves', requested_category: 'shelves' });
-    expect(recordStats).toHaveBeenCalledWith('example.com', 'detail', [
+    // M3: the certification's hostname, not `new URL(ITEM.url).hostname`.
+    expect(recordStats).toHaveBeenCalledWith('shop.example.com', 'detail', [
       { concept: 'price_concept', path: CERTIFICATION.paths.price![0], hit: true, value: 129.99, url: ITEM.url },
     ]);
+  });
+
+  // I5: cache bookkeeping is an enrichment. A failing `recordVerifiedPathStats`
+  // must never cost us the row it was booking stats for.
+  it('persists and returns the row even when recordStats rejects', async () => {
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+      data: { price: 129.99 },
+      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }],
+    });
+    const recordStats = vi.fn(async () => { throw new Error('deadlock detected'); });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const result = await extractItem(fakeDb, ITEM, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats,
+      });
+
+      expect(recordStats).toHaveBeenCalledTimes(1);
+      expect(result.row).toMatchObject({ price: 129.99, category_name: 'Shelves' });
+      expect(result.extractionId).toBe('ext-1');
+      expect(logged).toHaveBeenCalledWith(
+        `[crawl] verified path stats failed for ${ITEM.url}:`,
+        expect.any(Error),
+      );
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   it('defaults an untyped field to \'text\' when the key has no schemaDefinition entry', async () => {

@@ -98,8 +98,21 @@ export async function extractItem(
 
     const verified = await extractVerified({ url: item.url, fields }, { browser: deps.browser });
 
-    const hostname = new URL(item.url).hostname;
-    await recordStats(hostname, 'detail', verified.stats.map((s) => ({ concept: s.concept, path: s.path, hit: s.hit, value: s.value, url: item.url })));
+    // M3: the stats belong to the host the certification was proven against
+    // — the `domain_intelligence` row `saveVerifiedPaths` actually wrote
+    // these paths into — not to whatever host this item's URL happens to
+    // carry (a CDN host, a country domain, a redirect target), where they
+    // do not exist and the update would silently no-op.
+    //
+    // I5: cache bookkeeping is an enrichment, never a reason to fail a work
+    // item. The row below is real, extracted data; losing it because a
+    // stats UPDATE deadlocked or the domain row vanished would be strictly
+    // worse than losing one hit/miss tally, so this logs and carries on.
+    try {
+      await recordStats(deps.certification.hostname, 'detail', verified.stats.map((s) => ({ concept: s.concept, path: s.path, hit: s.hit, value: s.value, url: item.url })));
+    } catch (err) {
+      console.error(`[crawl] verified path stats failed for ${item.url}:`, err);
+    }
 
     const row = mergeRow({
       inputFields: partitions.input,

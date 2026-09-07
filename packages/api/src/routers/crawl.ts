@@ -459,6 +459,15 @@ export const crawlRouter = router({
       if (!parent) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
       if (!parent.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
 
+      // I3: a backfill spends money on pages exactly like `execute` does, so
+      // it takes the same certification gate — before any side effect. It
+      // was the one extraction entry point left ungated, which let a
+      // customer Source whose schema changed since its last verification
+      // (stale `definitionHash`) keep buying pages against paths nobody has
+      // proven still work. Legacy Sources are untouched (see
+      // `requireCertification`).
+      await requireCertification(ctx.db, parent.source.id);
+
       // Guard 1b (Finding 3, final-review-findings.md): a backfill run's own
       // rows are deliberately partial — every non-target field reads dead by
       // design, not because the page lacks it. Backfilling a backfill run is
