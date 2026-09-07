@@ -38,6 +38,20 @@ describe('rankProductLinks', () => {
     ]);
   });
 
+  it('treats a query-string or trailing-slash variant of the listing as "the listing itself" (query and hash ignored)', () => {
+    const anchors = [
+      { href: '/c/shoes', text: 'self, bare' },
+      { href: '/c/shoes?page=2', text: 'pagination link back to the listing' },
+      { href: '/c/shoes/', text: 'self, trailing slash' },
+      { href: '/p/air-1-12345', text: 'Air 1' },
+      { href: '/p/air-2-12346', text: 'Air 2' },
+    ];
+    expect(rankProductLinks(anchors, 'https://shop.example/c/shoes?sort=new#top', 10)).toEqual([
+      'https://shop.example/p/air-1-12345',
+      'https://shop.example/p/air-2-12346',
+    ]);
+  });
+
   it('returns an empty list when no anchors share a same-host template', () => {
     const anchors = [
       { href: '/about', text: 'About' },
