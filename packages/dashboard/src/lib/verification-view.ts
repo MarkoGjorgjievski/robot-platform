@@ -107,3 +107,31 @@ export function isRowStale(row: GridRow, saved: GridState | null): boolean {
     row.expected.some((v, i) => v !== savedRow.expected[i])
   );
 }
+
+/**
+ * Which field keys a re-verify should scope to, given the previous
+ * verification's `results` and the (post-save) grid vs. its pre-edit
+ * baseline. `undefined` means "verify everything" — either there's no prior
+ * run to compare against, or that prior run's `results` are empty (a
+ * stalled/crashed run left nothing to diff), so scoping down would be
+ * meaningless. Otherwise: every row whose field never certified (never
+ * verified at all, or its last run had no certified path) or whose
+ * definition/expected values drifted from the saved baseline — a plain `[]`
+ * when nothing qualifies (everything's already green and unchanged). Rows
+ * with no key (never saved) are skipped — nothing in `results` could ever
+ * reference them.
+ */
+export function reverifyKeys(
+  results: VerificationResults | null | undefined,
+  grid: GridState,
+  savedGrid: GridState | null,
+): string[] | undefined {
+  if (!results || Object.keys(results).length === 0) return undefined;
+  const keys: string[] = [];
+  for (const row of grid.rows) {
+    if (!row.key) continue;
+    const fv = results[row.key];
+    if (isRowStale(row, savedGrid) || !fv || fv.certified.length === 0) keys.push(row.key);
+  }
+  return keys;
+}
