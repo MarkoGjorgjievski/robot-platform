@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { checkPageHealth } from '@robot/browser';
 import type { IBrowser, PageCapture } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
 import { certify, gatherCandidates, type CandidatePath, type CaptureLike } from './certify.js';
@@ -50,12 +51,29 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     try {
       const c = await captureOne(deps.browser, url);
       // Spec §4.1: a capture that landed on a different path (category page,
-      // block page) is not this product page. `PageCapture.url` must be the
-      // FINAL url for this to bite — check `PlaywrightBrowser.capture` sets it
-      // from `page.url()` after navigation; if it only echoes the request, set
-      // it there first (one line) and cover it in browser's own tests.
-      if (samePath(c.url, url)) captures[url] = c;
-      else { captures[url] = null; captureErrors[url] = `redirected to ${c.url}`; }
+      // block page) is not this product page. `PageCapture.url` is the FINAL
+      // url — `PlaywrightBrowser.capture` sets it from `page.url()` after
+      // navigation (playwright-browser.ts ~265) — so this comparison bites.
+      if (!samePath(c.url, url)) {
+        captures[url] = null;
+        captureErrors[url] = `redirected to ${c.url}`;
+        continue;
+      }
+      // I4: a block page, CAPTCHA interstitial or soft 404 served AT the
+      // requested path passes `samePath` and used to be handed to the
+      // certifier as if it were the product page — where every field then
+      // failed `not_found`, blaming the customer's expected values for a
+      // page we never actually got. The same `checkPageHealth` the extraction
+      // chain has always used says so plainly: `not_captured`, with the
+      // block's own reason, and the amber "could not be captured" banner the
+      // Schema screen already renders for a redirect.
+      const health = checkPageHealth(c.html, c.title, url);
+      if (!health.healthy) {
+        captures[url] = null;
+        captureErrors[url] = health.reason ?? 'page is not usable';
+        continue;
+      }
+      captures[url] = c;
     } catch (err) { captures[url] = null; captureErrors[url] = err instanceof Error ? err.message : String(err); }
   }
 
