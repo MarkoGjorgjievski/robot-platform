@@ -4,6 +4,18 @@ export type DomNeedle = { key: string; type: CustomerFieldType; expected: string
 export type DomHit = { key: string; xpath: string; raw: string };
 export type XPathProbeResult = Record<string, string | null>;
 
+/**
+ * Runs INSIDE the page, as the first statement of every injected IIFE.
+ *
+ * Under the dev runtime (`tsx watch` → esbuild with `keepNames: true`), the transformed
+ * source of a stringified function wraps its nested arrows in esbuild's `__name(fn, name)`
+ * helper — `Function.prototype.toString()` returns that post-transform source, not the
+ * original TypeScript. The page never defines `__name` itself, so the first call into a
+ * stringified function throws `ReferenceError: __name is not defined`. `var` (not `const`)
+ * so this is hoisted and harmless if esbuild's own `__name` helper is also present.
+ */
+export const PAGE_SCRIPT_PRELUDE = 'var __name = (fn) => fn;';
+
 /** Runs INSIDE the page. Keep it dependency-free: it is stringified into the script. */
 function browserNormalize(type: string, raw: string, pageUrl: string): string | null {
   const t = raw.normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -74,6 +86,7 @@ function browserXPath(el: Element): string {
 
 export function buildDomSearchScript(needles: DomNeedle[], pageUrl: string): string {
   return `(() => {
+    ${PAGE_SCRIPT_PRELUDE}
     const normalize = ${browserNormalize.toString()};
     const xpathOf = ${browserXPath.toString()};
     const needles = ${JSON.stringify(needles)};
@@ -102,6 +115,7 @@ export function buildDomSearchScript(needles: DomNeedle[], pageUrl: string): str
 
 export function buildXPathProbeScript(xpaths: string[]): string {
   return `(() => {
+    ${PAGE_SCRIPT_PRELUDE}
     const out = {};
     for (const xp of ${JSON.stringify(xpaths)}) {
       try {
