@@ -13,6 +13,12 @@ Exploratory items that aren't release-staged yet. When an idea is concrete enoug
 
 How we identify which extracted values map to which schema fields. Today's chain: exact name → alias list → suffix match in flattened API JSON → AI fallback. Real customer schemas have names that don't match the source data, so this chain misses easy wins.
 
+### 💡 Store the expected currency on money fields
+
+Spec §4.2 (`docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md`) asked the verifier to record the expected currency on a `money` field, if present in the customer's typed value.
+
+The verifier drops it today because nothing consumes it — normalization strips the currency symbol/code and compares magnitude only, so a stored currency would sit unread. When a customer wants prices returned in a stated currency (not just a bare number), this is where it starts: thread the recorded currency through the certified path's transform and into the export.
+
 ### 🔬 Entry-point resolution: a hub page is not the listing (Marko, 2026-08-26)
 
 Pasting `newegg.com/GPU-Video-Graphics-Device/Category/ID-38` revealed the gap: that URL is a
