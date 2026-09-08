@@ -212,4 +212,12 @@ export const projectsRouter = router({
       if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       return row;
     }),
+
+  /** Test and cleanup use only for now: cascades datasets, sources and runs. */
+  delete: publicProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.delete(projects).where(eq(projects.id, input.projectId));
+      return { deleted: true };
+    }),
 });
