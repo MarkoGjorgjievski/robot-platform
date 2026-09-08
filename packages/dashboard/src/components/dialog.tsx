@@ -18,7 +18,7 @@ export function Dialog({ open, title, onClose, children }: { open: boolean; titl
     <dialog
       ref={ref}
       onClose={onClose}
-      onClick={(e) => { if (e.target === ref.current) onClose(); }}
+      onClick={(e) => { if (e.target === ref.current) ref.current?.close(); }}
       className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-0 shadow-xl backdrop:bg-gray-900/30"
     >
       <div className="px-5 pt-4 pb-5" onClick={(e) => e.stopPropagation()}>
