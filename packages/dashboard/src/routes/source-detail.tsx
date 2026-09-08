@@ -1,8 +1,9 @@
 import { useParams, Link, Outlet, useRouterState } from '@tanstack/react-router';
-import { Layers, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SubTabNav } from '../components/sub-tab-nav';
+import { InlineRename } from '../components/inline-rename';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourceDetailLayout() {
@@ -17,6 +18,9 @@ export default function SourceDetailLayout() {
     orgSlug: DEFAULT_ORG_SLUG,
     projectSlug,
   });
+  const projectQuery = trpc.projects.getWithStats.useQuery({ orgSlug: DEFAULT_ORG_SLUG, projectSlug });
+  const utils = trpc.useUtils();
+  const rename = trpc.sources.rename.useMutation({ onSuccess: () => utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug }) });
 
   // Determine active tab from URL pathname
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -38,30 +42,15 @@ export default function SourceDetailLayout() {
         <Link to="/projects" className="hover:text-gray-700">Projects</Link>
         <span>/</span>
         <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
-          Project
+          {projectQuery.data?.project.name ?? projectSlug}
         </Link>
-        <span>/</span>
-        <Link to="/projects/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-700">
-          Sources
-        </Link>
-        <span>/</span>
-        <span className="text-gray-700">{source.name}</span>
       </div>
 
-      <div className="mt-2 flex items-center gap-3">
-        <Layers className="h-5 w-5 text-gray-400" />
-        <h1 className="text-xl font-semibold tracking-tight">{source.name}</h1>
-        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">
-          {source.inputStrategy ?? 'unknown'}
-        </span>
+      <div className="mt-1 flex items-center gap-3">
+        <InlineRename value={source.name} pending={rename.isPending} onSave={(name) => rename.mutate({ sourceId: source.id, name })} className="text-xl font-semibold tracking-tight" />
         {source.urlTemplate && (
-          <a
-            href={source.urlTemplate}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 truncate font-mono text-xs text-gray-500 hover:text-accent-700"
-          >
-            <span className="truncate max-w-md">{source.urlTemplate}</span>
+          <a href={source.urlTemplate} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 truncate font-mono text-xs text-gray-500 hover:text-accent-700">
+            <span className="max-w-md truncate">{hostOf(source.urlTemplate)}</span>
             <ExternalLink className="h-3 w-3 flex-shrink-0" />
           </a>
         )}
@@ -80,4 +69,8 @@ export default function SourceDetailLayout() {
       <Outlet />
     </div>
   );
+}
+
+function hostOf(url: string): string {
+  try { return new URL(url).hostname; } catch { return url; }
 }
