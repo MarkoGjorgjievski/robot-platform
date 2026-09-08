@@ -4,10 +4,11 @@ import { TRPCError } from '@trpc/server';
 import { projects, orgs, datasets, sources, runs } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
+import { loadCurrentCertification } from '../verify/current-certification.js';
 
 export const projectsRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
-    const results = await ctx.db
+    const base = await ctx.db
       .select({
         id: projects.id,
         orgId: projects.orgId,
@@ -17,13 +18,52 @@ export const projectsRouter = router({
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
         datasetCount: sql<number>`count(${datasets.id})::int`,
+        fieldCount: sql<number>`coalesce(sum(case when jsonb_typeof(${datasets.schema}) = 'array' then jsonb_array_length(${datasets.schema}) else 0 end), 0)::int`,
       })
       .from(projects)
       .leftJoin(datasets, eq(projects.id, datasets.projectId))
       .groupBy(projects.id)
       .orderBy(projects.name);
 
-    return results;
+    const sourceRows = await ctx.db
+      .select({ projectId: datasets.projectId, id: sources.id, schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet })
+      .from(sources)
+      .innerJoin(datasets, eq(sources.datasetId, datasets.id));
+
+    const lastRuns = await ctx.db
+      .select({
+        projectId: datasets.projectId,
+        createdAt: sql<Date>`max(${runs.createdAt})`,
+      })
+      .from(runs)
+      .innerJoin(sources, eq(runs.sourceId, sources.id))
+      .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+      .groupBy(datasets.projectId);
+
+    const verifiedByProject = new Map<string, number>();
+    const countByProject = new Map<string, number>();
+    for (const s of sourceRows) {
+      countByProject.set(s.projectId, (countByProject.get(s.projectId) ?? 0) + 1);
+      const cert = await loadCurrentCertification(ctx.db, s.id);
+      if (cert) verifiedByProject.set(s.projectId, (verifiedByProject.get(s.projectId) ?? 0) + 1);
+    }
+
+    const lastRunByProject = new Map<string, { createdAt: Date; resultCount: number | null }>();
+    for (const r of lastRuns) {
+      const createdAt = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
+      const run = await ctx.db.query.runs.findFirst({
+        where: eq(runs.createdAt, createdAt),
+        columns: { createdAt: true, resultCount: true },
+      });
+      if (run) lastRunByProject.set(r.projectId, run);
+    }
+
+    return base.map((p) => ({
+      ...p,
+      sourceCount: countByProject.get(p.id) ?? 0,
+      verifiedSourceCount: verifiedByProject.get(p.id) ?? 0,
+      lastRun: lastRunByProject.get(p.id) ?? null,
+    }));
   }),
 
   listByOrg: publicProcedure

@@ -42,3 +42,19 @@ describe('projects.rename', () => {
     expect(row?.slug).toBe('before');
   });
 });
+
+describe('projects.list stats', () => {
+  it('counts websites, verified websites, fields, and reports the last run', async () => {
+    const p = await caller.projects.create({ name: 'Stats' });
+    created.push(p.id);
+    await caller.sources.createInProject({ projectSlug: p.slug, name: 'A', url: 'https://a.example/' });
+    await caller.sources.createInProject({ projectSlug: p.slug, name: 'B', url: 'https://b.example/' });
+    await db.update(datasets).set({ schema: [{ key: 'price', name: 'price', type: 'money' }, { key: 'title', name: 'title', type: 'text' }] }).where(eq(datasets.id, p.datasetId));
+
+    const row = (await caller.projects.list()).find((r) => r.id === p.id)!;
+    expect(row.sourceCount).toBe(2);
+    expect(row.verifiedSourceCount).toBe(0);
+    expect(row.fieldCount).toBe(2);
+    expect(row.lastRun).toBeNull();
+  });
+});
