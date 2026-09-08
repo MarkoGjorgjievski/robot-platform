@@ -5,6 +5,7 @@ import { sources, datasets, projects, orgs, domains, inputSets, sourceVerificati
 import type { Database } from '@robot/db';
 import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
+import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { schemaInput, prepareSchema, httpUrl } from '../verify/schema-input.js';
@@ -416,6 +417,64 @@ export const sourcesRouter = router({
       return { sourceId: source!.id, projectSlug: SCRATCH_SLUG, sourceSlug };
     }),
 
+  // ─── Project-scoped creation (mvp-flow phase 1, spec 5.4) ────────────────
+
+  /**
+   * "Add website": a named source in the project's dataset with nothing else
+   * yet. The three proof pages, the fields and the listing pages are filled
+   * in on its tabs afterwards; `updateSchema` creates the input set the
+   * first time it has URLs to put in it.
+   */
+  createInProject: publicProcedure
+    .input(z.object({
+      projectSlug: z.string().min(1),
+      name: z.string().trim().min(1).max(255),
+      url: httpUrl,
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const project = await ctx.db.query.projects.findFirst({
+        where: eq(projects.slug, input.projectSlug),
+        with: { datasets: { orderBy: (d, { asc }) => [asc(d.createdAt)], limit: 1 } },
+      });
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
+
+      let datasetId = project.datasets[0]?.id;
+      if (!datasetId) {
+        const [ds] = await ctx.db.insert(datasets).values({ projectId: project.id, name: project.name, slug: project.slug, schema: [] }).returning({ id: datasets.id });
+        datasetId = ds!.id;
+      }
+
+      const sourceSlug = await uniqueSlug(slugify(input.name), async (s) =>
+        !!(await ctx.db.query.sources.findFirst({ where: and(eq(sources.datasetId, datasetId!), eq(sources.slug, s)), columns: { id: true } })),
+      );
+
+      const [source] = await ctx.db
+        .insert(sources)
+        .values({
+          datasetId,
+          name: input.name,
+          slug: sourceSlug,
+          country: 'us',
+          inputStrategy: 'direct',
+          urlTemplate: input.url,
+        })
+        .returning({ id: sources.id });
+
+      return { sourceId: source!.id, projectSlug: project.slug, sourceSlug };
+    }),
+
+  rename: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), name: z.string().trim().min(1).max(255) }))
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .update(sources)
+        .set({ name: input.name, updatedAt: new Date() })
+        .where(eq(sources.id, input.sourceId))
+        .returning({ id: sources.id, name: sources.name });
+      if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      return row;
+    }),
+
   // ─── Customer-defined schema (customer schema verification, task 11) ─────
 
   /**
@@ -521,6 +580,34 @@ export const sourcesRouter = router({
         .set({ schemaDefinition: fields, verificationSet, updatedAt: new Date() })
         .where(eq(sources.id, sourceId))
         .returning();
+
+      // Keep the planner's input in step with the schema (phase 1 plan, Task 5):
+      // a listing URL means one listing row and listing mode; none means the
+      // three product pages as detail rows. Updated in place so a source keeps
+      // its input set id across edits.
+      const rows = schema.listingUrl ? [{ url: schema.listingUrl }] : schema.urls.map((url) => ({ url }));
+      const listingMode = schema.listingUrl ? 'listing_to_detail' : 'detail';
+      const withProject = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, sourceId),
+        columns: { inputSetId: true, name: true, confirmedAt: true, listingMode: true },
+        with: { dataset: { columns: { projectId: true } } },
+      });
+      if (withProject?.confirmedAt && withProject.listingMode && withProject.listingMode !== listingMode) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
+      }
+      if (withProject?.inputSetId) {
+        await ctx.db.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, withProject.inputSetId));
+        await ctx.db.update(sources).set({ listingMode }).where(eq(sources.id, sourceId));
+      } else if (withProject?.dataset?.projectId) {
+        const [inputSet] = await ctx.db
+          .insert(inputSets)
+          .values({ projectId: withProject.dataset.projectId, type: 'direct', name: withProject.name, columns: [{ name: 'url', primary: true }], rows })
+          .returning({ id: inputSets.id });
+        await ctx.db
+          .update(sources)
+          .set({ inputSetId: inputSet!.id, listingMode, ...(schema.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}) })
+          .where(eq(sources.id, sourceId));
+      }
 
       return updated;
     }),
