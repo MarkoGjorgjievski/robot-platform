@@ -6,7 +6,7 @@ import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function DatasetsList() {
-  const { project: projectSlug } = useParams({ from: '/p/$project/datasets' });
+  const { project: projectSlug } = useParams({ from: '/projects/$project/output' });
 
   // Need the project id; use getWithStats which also returns the project.
   const statsQuery = trpc.projects.getWithStats.useQuery({
@@ -46,8 +46,8 @@ export default function DatasetsList() {
           {datasets.map((d) => (
             <li key={d.id}>
               <Link
-                to="/p/$project/datasets/$dataset"
-                params={{ project: projectSlug, dataset: d.slug }}
+                to="/projects/$project/output"
+                params={{ project: projectSlug }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
                 <Database className="h-4 w-4 text-gray-400" />
@@ -75,7 +75,7 @@ function Breadcrumbs({ projectSlug, projectName }: { projectSlug: string; projec
     <div className="flex items-center gap-1 text-xs text-gray-500">
       <Link to="/projects" className="hover:text-gray-700">Projects</Link>
       <span>/</span>
-      <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
+      <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
         {projectName}
       </Link>
       <span>/</span>

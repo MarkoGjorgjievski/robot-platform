@@ -7,7 +7,7 @@ import { formatDate } from '../lib/format';
 import { RunStatusDot } from '../components/run-status-dot';
 
 export default function ProjectHome() {
-  const { project: projectSlug } = useParams({ from: '/p/$project' });
+  const { project: projectSlug } = useParams({ from: '/projects/$project' });
   const statsQuery = trpc.projects.getWithStats.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
     projectSlug,
@@ -30,17 +30,17 @@ export default function ProjectHome() {
       )}
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard icon={<Database className="h-4 w-4" />} label="Datasets" value={datasetCount} link={{ to: '/p/$project/datasets', params: { project: projectSlug } }} />
-        <StatCard icon={<Layers className="h-4 w-4" />} label="Sources" value={sourceCount} link={{ to: '/p/$project/sources', params: { project: projectSlug } }} />
+        <StatCard icon={<Database className="h-4 w-4" />} label="Datasets" value={datasetCount} link={{ to: '/projects/$project/output', params: { project: projectSlug } }} />
+        <StatCard icon={<Layers className="h-4 w-4" />} label="Sources" value={sourceCount} link={{ to: '/projects/$project/sources', params: { project: projectSlug } }} />
         <StatCard icon={<Activity className="h-4 w-4" />} label="Runs" value={runCount} />
-        <StatCard icon={<Globe className="h-4 w-4" />} label="Domains" link={{ to: '/p/$project/domains', params: { project: projectSlug } }} />
+        <StatCard icon={<Globe className="h-4 w-4" />} label="Domains" link={{ to: '/projects/$project/domains', params: { project: projectSlug } }} />
       </div>
 
       {lastRun ? (
         <div className="card mt-6 p-4">
           <div className="micro-label">Last run</div>
           <Link
-            to="/p/$project/sources/$source/runs/$run"
+            to="/projects/$project/sources/$source/runs/$run"
             params={{ project: projectSlug, source: lastRun.sourceSlug ?? '', run: lastRun.id }}
             className="mt-1 flex items-center gap-2 text-sm hover:underline"
           >

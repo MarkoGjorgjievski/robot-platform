@@ -48,7 +48,7 @@ export default function DomainsList() {
                 <tr key={d.domain} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
                   <td className="px-3 py-2">
                     <Link
-                      to="/domains/$domain"
+                      to="/ops/domains/$domain"
                       params={{ domain: d.domain }}
                       className="flex items-center gap-2 font-mono text-gray-800 hover:text-accent-700"
                     >
@@ -64,7 +64,7 @@ export default function DomainsList() {
                     {new Date(d.lastVerifiedAt).toLocaleDateString()}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <Link to="/domains/$domain" params={{ domain: d.domain }}>
+                    <Link to="/ops/domains/$domain" params={{ domain: d.domain }}>
                       <ArrowRight className="h-4 w-4 text-gray-400" />
                     </Link>
                   </td>

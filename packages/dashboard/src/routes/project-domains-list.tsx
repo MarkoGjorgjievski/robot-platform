@@ -6,7 +6,7 @@ import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function ProjectDomainsList() {
-  const { project: projectSlug } = useParams({ from: '/p/$project/domains' });
+  const { project: projectSlug } = useParams({ from: '/projects/$project/domains' });
   const listQuery = trpc.domains.listByProject.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
     projectSlug,
@@ -22,7 +22,7 @@ export default function ProjectDomainsList() {
       <div className="flex items-center gap-1 text-xs text-gray-500">
         <Link to="/projects" className="hover:text-gray-700">Projects</Link>
         <span>/</span>
-        <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
         <span>/</span>
         <span className="text-gray-700">Domains</span>
       </div>
@@ -43,7 +43,7 @@ export default function ProjectDomainsList() {
           {domains.map((d) => (
             <li key={d.hostname}>
               <Link
-                to="/p/$project/domains/$domain"
+                to="/projects/$project/domains/$domain"
                 params={{ project: projectSlug, domain: d.hostname }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >

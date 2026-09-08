@@ -7,7 +7,7 @@ import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourceDetailLayout() {
   const { project: projectSlug, source: sourceSlug } = useParams({
-    from: '/p/$project/sources/$source',
+    from: '/projects/$project/sources/$source',
   });
 
   // For Phase 3a, query via sources.listByProject and pick the matching one.
@@ -20,19 +20,11 @@ export default function SourceDetailLayout() {
 
   // Determine active tab from URL pathname
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const sourceBasePath = `/p/${projectSlug}/sources/${sourceSlug}`;
-  let activeTo = '/p/$project/sources/$source/';
-  if (pathname === sourceBasePath || pathname === `${sourceBasePath}/`) {
-    activeTo = '/p/$project/sources/$source/';
-  } else if (pathname.startsWith(`${sourceBasePath}/setup`)) {
-    activeTo = '/p/$project/sources/$source/setup';
-  } else if (pathname.startsWith(`${sourceBasePath}/config`)) {
-    activeTo = '/p/$project/sources/$source/config';
-  } else if (pathname.startsWith(`${sourceBasePath}/inputs`)) {
-    activeTo = '/p/$project/sources/$source/inputs';
-  } else if (pathname.startsWith(`${sourceBasePath}/runs`)) {
-    activeTo = '/p/$project/sources/$source/runs';
-  }
+  const sourceBasePath = `/projects/${projectSlug}/sources/${sourceSlug}`;
+  let activeTo = '/projects/$project/sources/$source/';
+  if (pathname.startsWith(`${sourceBasePath}/overview`)) activeTo = '/projects/$project/sources/$source/overview';
+  else if (pathname.startsWith(`${sourceBasePath}/settings`)) activeTo = '/projects/$project/sources/$source/settings';
+  else if (pathname.startsWith(`${sourceBasePath}/runs`)) activeTo = '/projects/$project/sources/$source/runs';
 
   if (listQuery.isLoading) return <Spinner label="Loading source..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
@@ -45,11 +37,11 @@ export default function SourceDetailLayout() {
       <div className="flex items-center gap-1 text-xs text-gray-500">
         <Link to="/projects" className="hover:text-gray-700">Projects</Link>
         <span>/</span>
-        <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
           Project
         </Link>
         <span>/</span>
-        <Link to="/p/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-700">
           Sources
         </Link>
         <span>/</span>
@@ -78,11 +70,10 @@ export default function SourceDetailLayout() {
       <SubTabNav
         activeTo={activeTo}
         tabs={[
-          { label: 'Overview', to: '/p/$project/sources/$source/', params: { project: projectSlug, source: sourceSlug } },
-          { label: 'Schema', to: '/p/$project/sources/$source/setup', params: { project: projectSlug, source: sourceSlug } },
-          { label: 'Config', to: '/p/$project/sources/$source/config', params: { project: projectSlug, source: sourceSlug } },
-          { label: 'Inputs', to: '/p/$project/sources/$source/inputs', params: { project: projectSlug, source: sourceSlug } },
-          { label: 'Runs', to: '/p/$project/sources/$source/runs', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Schema', to: '/projects/$project/sources/$source/', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Overview', to: '/projects/$project/sources/$source/overview', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Runs', to: '/projects/$project/sources/$source/runs', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Settings', to: '/projects/$project/sources/$source/settings', params: { project: projectSlug, source: sourceSlug } },
         ]}
       />
 

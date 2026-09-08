@@ -30,7 +30,7 @@ const DETAIL_URL_FIELD = 'detail_url';
 
 export default function SourceRunDetail() {
   const { project: projectSlug, source: sourceSlug, run: runId } = useParams({
-    from: '/p/$project/sources/$source/runs/$run',
+    from: '/projects/$project/sources/$source/runs/$run',
   });
 
   const detailQuery = trpc.runs.getWithDetails.useQuery({ id: runId });
@@ -176,15 +176,15 @@ export default function SourceRunDetail() {
       <div className="flex items-center gap-1 text-xs text-gray-500">
         <Link to="/projects" className="hover:text-gray-700">Projects</Link>
         <span>/</span>
-        <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
         <span>/</span>
-        <Link to="/p/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-700">Sources</Link>
+        <Link to="/projects/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-700">Sources</Link>
         <span>/</span>
-        <Link to="/p/$project/sources/$source" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project/sources/$source" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-700">
           {source?.name ?? sourceSlug}
         </Link>
         <span>/</span>
-        <Link to="/p/$project/sources/$source/runs" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-700">Runs</Link>
+        <Link to="/projects/$project/sources/$source/runs" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-700">Runs</Link>
         <span>/</span>
         <span className="text-gray-700 font-mono">{runId.slice(0, 8)}</span>
       </div>
@@ -205,7 +205,7 @@ export default function SourceRunDetail() {
         <p className="mt-1 text-xs text-gray-500">
           Backfill of run{' '}
           <Link
-            to="/p/$project/sources/$source/runs/$run"
+            to="/projects/$project/sources/$source/runs/$run"
             params={{ project: projectSlug, source: sourceSlug, run: run.parentRunId }}
             className="font-mono text-accent-700 hover:underline"
           >
@@ -222,7 +222,7 @@ export default function SourceRunDetail() {
             <span key={b.id}>
               {i > 0 && ', '}
               <Link
-                to="/p/$project/sources/$source/runs/$run"
+                to="/projects/$project/sources/$source/runs/$run"
                 params={{ project: projectSlug, source: sourceSlug, run: b.id }}
                 className="font-mono text-accent-700 hover:underline"
               >
@@ -460,7 +460,7 @@ function useBackfillMutation(projectSlug: string, sourceSlug: string) {
       utils.runs.getWithDetails.invalidate();
       utils.crawl.coverage.invalidate();
       navigate({
-        to: '/p/$project/sources/$source/runs/$run',
+        to: '/projects/$project/sources/$source/runs/$run',
         params: { project: projectSlug, source: sourceSlug, run: result.backfillRunId },
       });
     },
@@ -833,7 +833,7 @@ function ProbeConfirmGate({
   const confirmMutation = trpc.sources.confirm.useMutation({
     onSuccess: (result) => {
       navigate({
-        to: '/p/$project/sources/$source/runs/$run',
+        to: '/projects/$project/sources/$source/runs/$run',
         params: { project: projectSlug, source: sourceSlug, run: result.runId },
       });
     },
@@ -960,7 +960,7 @@ function DiagnosisPanel({
   const deleteMutation = trpc.sources.delete.useMutation({
     onSuccess: () => {
       utils.sources.listByProject.invalidate();
-      navigate({ to: '/p/$project/sources', params: { project: projectSlug } });
+      navigate({ to: '/projects/$project/sources', params: { project: projectSlug } });
     },
   });
 
@@ -992,7 +992,7 @@ function DiagnosisPanel({
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link
-          to="/p/$project/sources/$source/config"
+          to="/projects/$project/sources/$source/settings"
           params={{ project: projectSlug, source: sourceSlug }}
           className="btn-quiet"
         >

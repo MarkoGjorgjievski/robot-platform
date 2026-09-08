@@ -34,7 +34,7 @@ export default function ProjectsList() {
           {projects.map((p) => (
             <li key={p.id}>
               <Link
-                to="/p/$project"
+                to="/projects/$project"
                 params={{ project: p.slug }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >

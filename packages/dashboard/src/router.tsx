@@ -1,27 +1,24 @@
+// packages/dashboard/src/router.tsx
 import {
   RouterProvider,
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
 } from '@tanstack/react-router';
 import { Layout } from './components/layout';
-import { Placeholder } from './components/placeholder';
+import { legacyTarget } from './lib/legacy-routes';
 
-import NewSource from './routes/new-source';
 import ProjectsList from './routes/projects-list';
 import ProjectHome from './routes/project-home';
-import DatasetsList from './routes/datasets-list';
-import DatasetDetail from './routes/dataset-detail';
-import InputSetsList from './routes/inputsets-list';
-import InputSetDetail from './routes/inputset-detail';
+import ProjectOutput from './routes/project-output';
 import ProjectDomainsList from './routes/project-domains-list';
 import ProjectDomainDetail from './routes/project-domain-detail';
 import SourcesList from './routes/sources-list';
 import SourceDetail from './routes/source-detail';
-import SourceIndex from './routes/source-index';
 import SourceSchema from './routes/source-schema';
+import SourceOverview from './routes/source-overview';
 import SourceConfig from './routes/source-config';
-import SourceInputs from './routes/source-inputs';
 import SourceRuns from './routes/source-runs';
 import SourceRunDetail from './routes/source-run-detail';
 import DomainsList from './routes/domains-list';
@@ -29,145 +26,72 @@ import DomainDetail from './routes/domain-detail';
 
 const rootRoute = createRootRoute({ component: Layout });
 
+// Home is the projects list. After auth, `/` becomes the landing page and
+// signed-in users still land on /projects (spec 3.3).
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: NewSource,
+  beforeLoad: () => {
+    throw redirect({ to: '/projects' });
+  },
 });
 
-const projectsListRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/projects',
-  component: ProjectsList,
-});
-
-const projectHomeRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project',
-  component: ProjectHome,
-});
-
-const datasetsListRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/datasets',
-  component: DatasetsList,
-});
-
-const datasetDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/datasets/$dataset',
-  component: DatasetDetail,
-});
-
-const inputSetsListRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/inputs',
-  component: InputSetsList,
-});
-
-const inputSetDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/inputs/$inputset',
-  component: InputSetDetail,
-});
-
-const projectDomainsListRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/domains',
-  component: ProjectDomainsList,
-});
-
-const projectDomainDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/domains/$domain',
-  component: ProjectDomainDetail,
-});
-
-const sourcesListRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/p/$project/sources',
-  component: SourcesList,
-});
+const projectsListRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects', component: ProjectsList });
+const projectHomeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$project', component: ProjectHome });
+const projectOutputRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$project/output', component: ProjectOutput });
+const projectDomainsListRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$project/domains', component: ProjectDomainsList });
+const projectDomainDetailRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$project/domains/$domain', component: ProjectDomainDetail });
+const sourcesListRoute = createRoute({ getParentRoute: () => rootRoute, path: '/projects/$project/sources', component: SourcesList });
 
 const sourceDetailLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/p/$project/sources/$source',
+  path: '/projects/$project/sources/$source',
   component: SourceDetail,
 });
+// The bare source URL is the Schema tab, always (spec 5.6).
+const sourceSchemaRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: '/', component: SourceSchema });
+const sourceOverviewRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'overview', component: SourceOverview });
+const sourceSettingsRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'settings', component: SourceConfig });
+const sourceRunsRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'runs', component: SourceRuns });
 
-// The bare source URL: the Schema workspace until the Source has a completed
-// run, then Overview — see source-index.tsx. The 'setup' route below is the
-// explicit tab, always reachable regardless of that default.
-const sourceOverviewRoute = createRoute({
-  getParentRoute: () => sourceDetailLayoutRoute,
-  path: '/',
-  component: SourceIndex,
-});
-
-const sourceSetupRoute = createRoute({
-  getParentRoute: () => sourceDetailLayoutRoute,
-  path: 'setup',
-  component: SourceSchema,
-});
-
-const sourceConfigRoute = createRoute({
-  getParentRoute: () => sourceDetailLayoutRoute,
-  path: 'config',
-  component: SourceConfig,
-});
-
-const sourceInputsRoute = createRoute({
-  getParentRoute: () => sourceDetailLayoutRoute,
-  path: 'inputs',
-  component: SourceInputs,
-});
-
-const sourceRunsRoute = createRoute({
-  getParentRoute: () => sourceDetailLayoutRoute,
-  path: 'runs',
-  component: SourceRuns,
-});
-
-// Run detail stays at root level — own breadcrumbs, no SubTabNav
+// Run detail stays at root level: own breadcrumbs, no tabs.
 const sourceRunDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/p/$project/sources/$source/runs/$run',
+  path: '/projects/$project/sources/$source/runs/$run',
   component: SourceRunDetail,
 });
 
-const domainsListRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/domains',
-  component: DomainsList,
-});
+// Operator views. Out of the customer nav, still routed (spec 3.1).
+const opsDomainsListRoute = createRoute({ getParentRoute: () => rootRoute, path: '/ops/domains', component: DomainsList });
+const opsDomainDetailRoute = createRoute({ getParentRoute: () => rootRoute, path: '/ops/domains/$domain', component: DomainDetail });
 
-const domainDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/domains/$domain',
-  component: DomainDetail,
-});
+// Legacy paths. `legacyTarget` is the single table of where each one went;
+// these three routes only exist to catch the old prefixes and call it.
+function legacyRedirect({ location }: { location: { pathname: string } }): never {
+  const target = legacyTarget(location.pathname) ?? '/projects';
+  throw redirect({ to: target as never });
+}
+const legacyProjectRoute = createRoute({ getParentRoute: () => rootRoute, path: '/p/$project', beforeLoad: legacyRedirect });
+const legacyProjectSplatRoute = createRoute({ getParentRoute: () => rootRoute, path: '/p/$project/$', beforeLoad: legacyRedirect });
+const legacyDomainsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/domains', beforeLoad: legacyRedirect });
+const legacyDomainDetailRoute = createRoute({ getParentRoute: () => rootRoute, path: '/domains/$', beforeLoad: legacyRedirect });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   projectsListRoute,
   projectHomeRoute,
-  datasetsListRoute,
-  datasetDetailRoute,
-  inputSetsListRoute,
-  inputSetDetailRoute,
+  projectOutputRoute,
   projectDomainsListRoute,
   projectDomainDetailRoute,
   sourcesListRoute,
-  sourceDetailLayoutRoute.addChildren([
-    sourceOverviewRoute,
-    sourceSetupRoute,
-    sourceConfigRoute,
-    sourceInputsRoute,
-    sourceRunsRoute,
-  ]),
+  sourceDetailLayoutRoute.addChildren([sourceSchemaRoute, sourceOverviewRoute, sourceSettingsRoute, sourceRunsRoute]),
   sourceRunDetailRoute,
-  domainsListRoute,
-  domainDetailRoute,
+  opsDomainsListRoute,
+  opsDomainDetailRoute,
+  legacyProjectRoute,
+  legacyProjectSplatRoute,
+  legacyDomainsRoute,
+  legacyDomainDetailRoute,
 ]);
 
 export const router = createRouter({ routeTree });

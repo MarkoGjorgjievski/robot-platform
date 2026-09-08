@@ -5,7 +5,7 @@ import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourceOverview() {
   const { project: projectSlug, source: sourceSlug } = useParams({
-    from: '/p/$project/sources/$source/',
+    from: '/projects/$project/sources/$source/overview',
   });
 
   const listQuery = trpc.sources.listByProject.useQuery({

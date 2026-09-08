@@ -9,7 +9,7 @@ import { DEFAULT_ORG_SLUG } from '../lib/constants';
 // and is what the Run detail page's "Switch mode" diagnosis button leads to.
 export default function SourceConfig() {
   const { project: projectSlug, source: sourceSlug } = useParams({
-    from: '/p/$project/sources/$source/config',
+    from: '/projects/$project/sources/$source/settings',
   });
   const utils = trpc.useUtils();
 

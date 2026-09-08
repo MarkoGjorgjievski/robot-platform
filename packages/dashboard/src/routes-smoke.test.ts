@@ -33,15 +33,17 @@ const API = process.env.API_URL ?? 'http://localhost:4000';
 const ROUTES = [
   '/',
   '/projects',
-  '/domains',
+  '/projects/scratch',
+  '/projects/scratch/output',
+  '/projects/scratch/domains',
+  '/projects/scratch/sources',
+  '/ops/domains',
+  // Requires at least one extraction to have run.
+  '/ops/domains/www.newegg.com',
+  // Legacy paths must redirect, not 404 (spec 3.1).
   '/p/scratch',
-  '/p/scratch/datasets',
-  '/p/scratch/inputs',
-  '/p/scratch/domains',
   '/p/scratch/sources',
-  // Requires at least one extraction to have run. Worth including: it is the
-  // busiest read-only view and the only one rendering cache internals.
-  '/domains/www.newegg.com',
+  '/domains',
 ];
 
 /** Console noise that is not a rendering failure. */
