@@ -25,7 +25,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Extraction Chain (priority order)
 
-0. **Customer-verified paths** — a Source with a verified schema (the grid on the home page) runs its certified paths only; nothing below applies to it. A miss leaves the cell empty and is counted.
+0. **Customer-verified paths** — a Source with a verified schema (the Schema tab of a website inside a project) runs its certified paths only; nothing below applies to it. A miss leaves the cell empty and is counted.
 1. **Mechanical** — flatten intercepted APIs + JSON-LD + meta tags (free, instant)
 2. **Cached API paths** — replay stored dot-notation paths against fresh API JSON (free)
 3. **Cached XPaths** — execute stored XPath selectors on live page (free)
@@ -76,6 +76,7 @@ Variables already set in the shell take precedence over `.env`.
 - Provider abstraction — Anthropic and Ollama supported, auto-detected from env
 - `"type": "module"` in all packages
 - Dashboard is a Vite + TanStack Router/Query SPA (client-side), talking to `@robot/api-server` (Hono) over tRPC-HTTP. NOTE: this replaced the original Next.js dashboard in v1.5 (commit 0937bad, 2026-05-15) — older docs/commits that say "Next.js 15 / Server Components / App Router" are stale.
+- Customer routes live under `/projects/…`; `/p/…` and `/domains/…` are redirects (2026-09-08, spec `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`). Operator views are under `/ops/…`.
 - Radix UI + Tailwind v4 + shadcn pattern, light mode
 
 ## Conventions
