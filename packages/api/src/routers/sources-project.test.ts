@@ -116,6 +116,25 @@ describe('sources.updateSchema keeps the input set in step', () => {
     expect(s?.listingMode).toBe('listing_to_detail');
   });
 
+  it('does not replace a legacy input set the schema flow did not author (final review, finding 1)', async () => {
+    const p = await freshProject();
+    const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
+
+    const legacyRows = Array.from({ length: 5 }, (_, i) => ({ url: `https://${host}/legacy/${i + 1}` }));
+    const [legacyInputSet] = await db
+      .insert(inputSets)
+      .values({ projectId: p.id, type: 'direct', name: 'legacy', columns: [{ name: 'url', primary: true }], rows: legacyRows })
+      .returning({ id: inputSets.id });
+    await db.update(sources).set({ inputSetId: legacyInputSet!.id, listingMode: 'detail' }).where(eq(sources.id, r.sourceId));
+
+    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
+    expect(s?.inputSetId).toBe(legacyInputSet!.id);
+    expect(s?.inputSet?.rows).toEqual(legacyRows);
+    expect(s?.listingMode).toBe('detail');
+  });
+
   it('resets the budget on a mode change: {} in detail, the listing default in listing_to_detail (fix round 1, finding 2)', async () => {
     const p = await freshProject();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });

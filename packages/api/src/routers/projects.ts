@@ -213,11 +213,14 @@ export const projectsRouter = router({
       return row;
     }),
 
-  /** Test and cleanup use only for now: cascades datasets, sources and runs. */
+  /**
+   * Test and cleanup use only for now: cascades datasets, sources and runs,
+   * and bypasses the confirmed-source refusal that `sources.delete` enforces.
+   */
   delete: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.delete(projects).where(eq(projects.id, input.projectId));
-      return { deleted: true };
+      const rows = await ctx.db.delete(projects).where(eq(projects.id, input.projectId)).returning({ id: projects.id });
+      return { deleted: rows.length > 0 };
     }),
 });

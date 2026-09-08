@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
-import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField } from '@robot/scraper';
+import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -559,8 +559,8 @@ export const sourcesRouter = router({
 
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, sourceId),
-        columns: { id: true, schemaDefinition: true, inputSetId: true, name: true, confirmedAt: true, listingMode: true, budget: true },
-        with: { dataset: { columns: { projectId: true } } },
+        columns: { id: true, schemaDefinition: true, verificationSet: true, inputSetId: true, name: true, confirmedAt: true, listingMode: true, budget: true },
+        with: { dataset: { columns: { projectId: true } }, inputSet: { columns: { rows: true } } },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${sourceId} not found` });
@@ -599,22 +599,33 @@ export const sourcesRouter = router({
           .where(eq(sources.id, sourceId))
           .returning();
 
-        // Updated in place so a source keeps its input set id across edits.
-        if (source.inputSetId) {
-          await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
+        // Updated in place so a source keeps its input set id across edits —
+        // but only when the schema flow authored the rows it's about to
+        // replace (final review, finding 1). A legacy source created by
+        // `quickCreate` may hold up to 50 listing/detail URLs in its input
+        // set; without this check, the first schema save silently replaced
+        // them with the three proof pages.
+        if (source.inputSetId && source.inputSet) {
+          const previousVerificationSet = source.verificationSet as VerificationSet | null;
+          const authoredRows = inputRowsFor(previousVerificationSet?.urls ?? [], previousVerificationSet?.listing_url).rows;
+          const flowOwnsInputSet = JSON.stringify(source.inputSet.rows) === JSON.stringify(authoredRows);
 
-          // Fix round 1, finding 2: reset the budget on a mode change — a
-          // detail switch drops any listing budget, and a listing switch
-          // gets the starter budget only if none is already set.
-          const budgetPatch =
-            source.listingMode === listingMode
-              ? {}
-              : listingMode === 'detail'
-                ? { budget: {} }
-                : Object.keys((source.budget as object | null) ?? {}).length === 0
-                  ? { budget: LISTING_DEFAULT_BUDGET }
-                  : {};
-          await tx.update(sources).set({ listingMode, ...budgetPatch }).where(eq(sources.id, sourceId));
+          if (flowOwnsInputSet) {
+            await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
+
+            // Fix round 1, finding 2: reset the budget on a mode change — a
+            // detail switch drops any listing budget, and a listing switch
+            // gets the starter budget only if none is already set.
+            const budgetPatch =
+              source.listingMode === listingMode
+                ? {}
+                : listingMode === 'detail'
+                  ? { budget: {} }
+                  : Object.keys((source.budget as object | null) ?? {}).length === 0
+                    ? { budget: LISTING_DEFAULT_BUDGET }
+                    : {};
+            await tx.update(sources).set({ listingMode, ...budgetPatch }).where(eq(sources.id, sourceId));
+          }
         } else if (source.dataset?.projectId) {
           const [inputSet] = await tx
             .insert(inputSets)

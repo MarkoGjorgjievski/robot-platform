@@ -983,11 +983,7 @@ function DiagnosisPanel({
       )}
 
       <p className="mt-3 text-xs text-gray-500">
-        To change the input URLs, delete this source and paste new ones from{' '}
-        <Link to="/" className="font-medium text-accent-700 underline-offset-2 hover:underline">
-          the home page
-        </Link>
-        {' '}— InputSet editing isn't built yet.
+        To change the pages this website extracts from, edit the product pages on its Schema tab.
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
