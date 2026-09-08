@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, datasets } from '@robot/db';
+import { db, projects, datasets, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 
@@ -56,5 +56,24 @@ describe('projects.list stats', () => {
     expect(row.verifiedSourceCount).toBe(0);
     expect(row.fieldCount).toBe(2);
     expect(row.lastRun).toBeNull();
+  });
+
+  it('attributes each project its own latest run even when timestamps collide', async () => {
+    const a = await caller.projects.create({ name: 'RunsA' });
+    const b = await caller.projects.create({ name: 'RunsB' });
+    created.push(a.id, b.id);
+    const sourceA = await caller.sources.createInProject({ projectSlug: a.slug, name: 'A', url: 'https://a.example/' });
+    const sourceB = await caller.sources.createInProject({ projectSlug: b.slug, name: 'B', url: 'https://b.example/' });
+
+    await db.insert(runs).values([
+      { sourceId: sourceA.sourceId, status: 'completed', resultCount: 7 },
+      { sourceId: sourceB.sourceId, status: 'completed', resultCount: 3 },
+    ]);
+
+    const rows = await caller.projects.list();
+    const rowA = rows.find((r) => r.id === a.id)!;
+    const rowB = rows.find((r) => r.id === b.id)!;
+    expect(rowA.lastRun?.resultCount).toBe(7);
+    expect(rowB.lastRun?.resultCount).toBe(3);
   });
 });

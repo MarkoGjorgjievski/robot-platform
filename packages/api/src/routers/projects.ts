@@ -26,19 +26,20 @@ export const projectsRouter = router({
       .orderBy(projects.name);
 
     const sourceRows = await ctx.db
-      .select({ projectId: datasets.projectId, id: sources.id, schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet })
+      .select({ projectId: datasets.projectId, id: sources.id })
       .from(sources)
       .innerJoin(datasets, eq(sources.datasetId, datasets.id));
 
     const lastRuns = await ctx.db
-      .select({
+      .selectDistinctOn([datasets.projectId], {
         projectId: datasets.projectId,
-        createdAt: sql<Date>`max(${runs.createdAt})`,
+        createdAt: runs.createdAt,
+        resultCount: runs.resultCount,
       })
       .from(runs)
       .innerJoin(sources, eq(runs.sourceId, sources.id))
       .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-      .groupBy(datasets.projectId);
+      .orderBy(datasets.projectId, desc(runs.createdAt), desc(runs.id));
 
     const verifiedByProject = new Map<string, number>();
     const countByProject = new Map<string, number>();
@@ -50,12 +51,7 @@ export const projectsRouter = router({
 
     const lastRunByProject = new Map<string, { createdAt: Date; resultCount: number | null }>();
     for (const r of lastRuns) {
-      const createdAt = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt);
-      const run = await ctx.db.query.runs.findFirst({
-        where: eq(runs.createdAt, createdAt),
-        columns: { createdAt: true, resultCount: true },
-      });
-      if (run) lastRunByProject.set(r.projectId, run);
+      lastRunByProject.set(r.projectId, { createdAt: r.createdAt, resultCount: r.resultCount });
     }
 
     return base.map((p) => ({
