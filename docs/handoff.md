@@ -18,6 +18,22 @@ type: project
 
 The v2 crawler (listing → detail, two phases) is built and **merged into `main`** (merge commit `3908780`, 2026-08-21). It has been run against a live site end to end twice: once exposed a real shared-browser lifecycle bug in `runExtraction` (7/8 items failed), once after the fix ran clean (8/8 items done, CSV export shows all 8 rows). A follow-up review round found and fixed the identical bug pattern one file over (`runAnalysis` in `analysis-orchestrator.ts`) and made the "whoever launches the browser closes it" rule structural instead of a convention — see `task-9-fix2-report.md`. The full narrative — both live runs' logs, verification queries, and the root-cause walkthrough — lives in `.superpowers/sdd/2026-08-20-v2-crawler-phase2/task-9-report.md` and `task-9-fix-report.md`; this file keeps only what's still true and useful to a fresh session.
 
+## MVP flow phase 1 (2026-09-08): routes and shell landed; phases 2 to 5 follow the spec
+
+Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`. Plan for this phase:
+`docs/superpowers/plans/2026-09-08-mvp-flow-phase1-routes-and-shell.md`. What changed: `/projects`
+is home; every customer route moved from `/p/…` to `/projects/…` with redirects kept
+(`packages/dashboard/src/lib/legacy-routes.ts` is the table); operator cache views moved to
+`/ops/domains`; the wizard landing page is gone; a project is created by name
+(`projects.create` also makes its dataset) and a website by name inside it
+(`sources.createInProject`); both are renameable inline; `sources.updateSchema` now keeps the
+source's input set in step with the schema (listing URL → one listing row, else the three product
+URLs as detail rows). Scratch is an ordinary project. `createWithSchema` and `quickCreate` still
+exist and are removed in phase 2 with the project-level field list.
+
+Next: phase 2 (contract on the dataset, per-field certification), then 3 (Schema tab), 4 (Extract
+tab), 5 (visual system), each as its own plan.
+
 ## Customer schema verification (2026-09-07): built and offline-proven — NO live site has verified through this flow yet
 
 **What shipped.** Marko's ruling after the 2026-09-02 corpus measurement (~65% verifiable accuracy over 7 of 8 domains) was that discovery-based extraction cannot reach competitive precision, and that the customer must define what they need and we must prove we can get it before spending at scale. `docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md` is the spec; 39 commits across Tasks 1-16 (plus the final whole-branch review's fix wave) of `docs/superpowers/plans/2026-09-04-customer-schema-verification.md` built it: a new `packages/scraper/src/verify/` module (normalization, mechanical structured/DOM search, cross-capture certification, the closed transform set, the AI `propose_path` fallback, `runVerification`, and `runVerifiedExtraction` for certified-only extraction at scale); `@robot/api`'s `sources.createWithSchema`, `sources.updateSchema`, `sources.findProductPages`, `sources.verify`, `sources.verificationStatus`, and `sources.verifyEstimate` procedures plus the `requireCertification` gate wired into `sources.confirm`; and a dashboard schema-grid screen (`packages/dashboard/src/routes/new-source.tsx` / `source-schema.tsx`) that replaces the old landing page and Set-up workspace — one row per field, an expected value typed on each of three product URLs, Verify paints cells green/red, Extract stays locked until every cell is green. See `docs/extraction-architecture.md` → "Verification-first sources" for how the mechanism works and `CLAUDE.md`'s Extraction Chain step 0.
