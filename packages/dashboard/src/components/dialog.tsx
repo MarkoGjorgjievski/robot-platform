@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
  * Native <dialog>: focus trapping, Escape, and the backdrop come from the
  * browser. Body content is the form; the caller owns the footer buttons.
  */
-export function Dialog({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({ open, title, onClose, preventClose, children }: { open: boolean; title: string; onClose: () => void; preventClose?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -18,6 +18,7 @@ export function Dialog({ open, title, onClose, children }: { open: boolean; titl
     <dialog
       ref={ref}
       onClose={onClose}
+      onCancel={(e) => { if (preventClose) e.preventDefault(); }}
       onClick={(e) => { if (e.target === ref.current) ref.current?.close(); }}
       className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-0 shadow-xl backdrop:bg-gray-900/30"
     >
