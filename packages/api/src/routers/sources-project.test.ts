@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 import { db, projects, sources, inputSets, datasets } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
@@ -88,5 +89,50 @@ describe('sources.updateSchema keeps the input set in step', () => {
     expect(s?.listingMode).toBe('detail');
     expect(s?.inputSetId).toBe(firstInputSetId); // updated in place, not recreated
     expect(s?.inputSet?.rows).toEqual(urls.map((url) => ({ url })));
+  });
+
+  it('refuses to flip the listing mode of a confirmed source, and leaves the schema untouched (fix round 1, finding 1 + 3)', async () => {
+    const p = await freshProject();
+    const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
+    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected, listingUrl: `https://${host}/all` });
+    await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, r.sourceId));
+
+    const changedFields = [{ name: 'price', type: 'money' as const, description: 'a changed description' }];
+    let caught: unknown;
+    try {
+      await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields: changedFields, expected });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(TRPCError);
+    expect((caught as TRPCError).code).toBe('PRECONDITION_FAILED');
+
+    // The refused request must not have partially committed the schema write
+    // (fix round 1, finding 1: the schema update and the lock check now run
+    // in the same transaction).
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
+    const persistedFields = s?.schemaDefinition as Array<{ description: string }>;
+    expect(persistedFields[0]!.description).toBe('the price');
+    expect(s?.listingMode).toBe('listing_to_detail');
+  });
+
+  it('resets the budget on a mode change: {} in detail, the listing default in listing_to_detail (fix round 1, finding 2)', async () => {
+    const p = await freshProject();
+    const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
+
+    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    let s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
+    expect(s?.listingMode).toBe('detail');
+    expect(s?.budget).toEqual({});
+
+    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected, listingUrl: `https://${host}/all` });
+    s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
+    expect(s?.listingMode).toBe('listing_to_detail');
+    expect(s?.budget).toEqual({ max_items: 40, max_pages: 3, mode: 'first_n' });
+
+    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
+    expect(s?.listingMode).toBe('detail');
+    expect(s?.budget).toEqual({});
   });
 });

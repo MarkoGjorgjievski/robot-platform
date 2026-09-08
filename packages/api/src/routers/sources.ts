@@ -38,6 +38,13 @@ function shortRandomSuffix(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+/** The planner's input rows for a schema: the listing page when given, else the proof pages as detail rows. */
+function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: Array<{ url: string }>; listingMode: 'listing_to_detail' | 'detail' } {
+  return listingUrl
+    ? { rows: [{ url: listingUrl }], listingMode: 'listing_to_detail' }
+    : { rows: urls.map((url) => ({ url })), listingMode: 'detail' };
+}
+
 const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } as const;
 
 async function getScratchProjectId(db: Database): Promise<string> {
@@ -500,7 +507,7 @@ export const sourcesRouter = router({
       const scratchProjectId = await getScratchProjectId(ctx.db);
       const scratchDatasetId = await getOrCreateScratchDataset(ctx.db, scratchProjectId);
 
-      const rows = input.listingUrl ? [{ url: input.listingUrl }] : input.urls.map((url) => ({ url }));
+      const { rows, listingMode } = inputRowsFor(input.urls, input.listingUrl);
 
       const [inputSet] = await ctx.db
         .insert(inputSets)
@@ -513,7 +520,6 @@ export const sourcesRouter = router({
         })
         .returning({ id: inputSets.id });
 
-      const listingMode = input.listingUrl ? 'listing_to_detail' : 'detail';
       const sourceSlug = `${slugifyDomain(firstUrl.hostname)}-${shortRandomSuffix()}`;
 
       const [source] = await ctx.db
@@ -553,7 +559,8 @@ export const sourcesRouter = router({
 
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, sourceId),
-        columns: { id: true, schemaDefinition: true },
+        columns: { id: true, schemaDefinition: true, inputSetId: true, name: true, confirmedAt: true, listingMode: true, budget: true },
+        with: { dataset: { columns: { projectId: true } } },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${sourceId} not found` });
@@ -572,44 +579,55 @@ export const sourcesRouter = router({
         });
       }
 
+      // Keep the planner's input in step with the schema (phase 1 plan, Task 5):
+      // a listing URL means one listing row and listing mode; none means the
+      // three product pages as detail rows. Checked BEFORE any write below —
+      // a confirmed Source's listing mode is locked (fix round 1, finding 1:
+      // this must refuse before the schema write commits, not after).
+      const { rows, listingMode } = inputRowsFor(schema.urls, schema.listingUrl);
+      if (source.confirmedAt && source.listingMode && source.listingMode !== listingMode) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
+      }
+
       const existing = (source.schemaDefinition as SchemaDefinitionField[] | null) ?? [];
       const { fields, verificationSet } = prepareSchema(schema, existing);
 
-      const [updated] = await ctx.db
-        .update(sources)
-        .set({ schemaDefinition: fields, verificationSet, updatedAt: new Date() })
-        .where(eq(sources.id, sourceId))
-        .returning();
-
-      // Keep the planner's input in step with the schema (phase 1 plan, Task 5):
-      // a listing URL means one listing row and listing mode; none means the
-      // three product pages as detail rows. Updated in place so a source keeps
-      // its input set id across edits.
-      const rows = schema.listingUrl ? [{ url: schema.listingUrl }] : schema.urls.map((url) => ({ url }));
-      const listingMode = schema.listingUrl ? 'listing_to_detail' : 'detail';
-      const withProject = await ctx.db.query.sources.findFirst({
-        where: eq(sources.id, sourceId),
-        columns: { inputSetId: true, name: true, confirmedAt: true, listingMode: true },
-        with: { dataset: { columns: { projectId: true } } },
-      });
-      if (withProject?.confirmedAt && withProject.listingMode && withProject.listingMode !== listingMode) {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
-      }
-      if (withProject?.inputSetId) {
-        await ctx.db.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, withProject.inputSetId));
-        await ctx.db.update(sources).set({ listingMode }).where(eq(sources.id, sourceId));
-      } else if (withProject?.dataset?.projectId) {
-        const [inputSet] = await ctx.db
-          .insert(inputSets)
-          .values({ projectId: withProject.dataset.projectId, type: 'direct', name: withProject.name, columns: [{ name: 'url', primary: true }], rows })
-          .returning({ id: inputSets.id });
-        await ctx.db
+      return ctx.db.transaction(async (tx) => {
+        const [updated] = await tx
           .update(sources)
-          .set({ inputSetId: inputSet!.id, listingMode, ...(schema.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}) })
-          .where(eq(sources.id, sourceId));
-      }
+          .set({ schemaDefinition: fields, verificationSet, updatedAt: new Date() })
+          .where(eq(sources.id, sourceId))
+          .returning();
 
-      return updated;
+        // Updated in place so a source keeps its input set id across edits.
+        if (source.inputSetId) {
+          await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
+
+          // Fix round 1, finding 2: reset the budget on a mode change — a
+          // detail switch drops any listing budget, and a listing switch
+          // gets the starter budget only if none is already set.
+          const budgetPatch =
+            source.listingMode === listingMode
+              ? {}
+              : listingMode === 'detail'
+                ? { budget: {} }
+                : Object.keys((source.budget as object | null) ?? {}).length === 0
+                  ? { budget: LISTING_DEFAULT_BUDGET }
+                  : {};
+          await tx.update(sources).set({ listingMode, ...budgetPatch }).where(eq(sources.id, sourceId));
+        } else if (source.dataset?.projectId) {
+          const [inputSet] = await tx
+            .insert(inputSets)
+            .values({ projectId: source.dataset.projectId, type: 'direct', name: source.name, columns: [{ name: 'url', primary: true }], rows })
+            .returning({ id: inputSets.id });
+          await tx
+            .update(sources)
+            .set({ inputSetId: inputSet!.id, listingMode, ...(schema.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}) })
+            .where(eq(sources.id, sourceId));
+        }
+
+        return updated;
+      });
     }),
 
   /**
