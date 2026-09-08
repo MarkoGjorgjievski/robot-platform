@@ -63,6 +63,9 @@ const client = createTRPCClient<AppRouter>({
  */
 const created: string[] = [];
 
+/** Projects this run created (M11), deleted in afterAll alongside sources. */
+const createdProjects: string[] = [];
+
 beforeAll(async () => {
   if (!ENABLED) return;
   for (const [label, url] of [['dashboard', DASHBOARD], ['api-server', API + '/healthz']] as const) {
@@ -83,6 +86,9 @@ afterAll(async () => {
     await client.sources.delete.mutate({ sourceId }).catch((err) => {
       console.error(`[smoke] could not delete source ${sourceId}:`, err);
     });
+  }
+  for (const projectId of createdProjects.splice(0)) {
+    await client.projects.delete.mutate({ projectId }).catch((err) => console.error(`[smoke] could not delete project ${projectId}:`, err));
   }
 });
 
@@ -126,48 +132,38 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
     }, 60_000);
   }
 
-  // The Schema screen (Task 15) replaces Set-up at `/p/$project/sources/$source/setup`.
-  // Unlike the static routes above, there's no seeded Scratch source to point at, so this
-  // creates one via `sources.createWithSchema` — the same procedure the NewSource wizard
-  // calls — then renders its `/setup` route.
-  it("a Scratch source's /setup renders without throwing", async () => {
-    const host = `smoke-${Date.now()}.example`;
-    const { sourceId, projectSlug, sourceSlug } = await client.sources.createWithSchema.mutate({
-      urls: [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`],
-      fields: [{ name: 'price', type: 'money', description: 'the price near Add to cart' }],
-      expected: { price: { [`https://${host}/p/1`]: '$10', [`https://${host}/p/2`]: '$20', [`https://${host}/p/3`]: '$30' } },
-    });
-    created.push(sourceId);
+  // Legacy paths must land on their new home, not render the old tree or a 404.
+  it('redirects /p/scratch/sources to /projects/scratch/sources', async () => {
+    const page: Page = await browser.newPage();
+    try {
+      await page.goto(DASHBOARD + '/p/scratch/sources', { waitUntil: 'networkidle', timeout: 30_000 });
+      expect(new URL(page.url()).pathname).toBe('/projects/scratch/sources');
+    } finally {
+      await page.close();
+    }
+  });
 
-    await checkRoute(`/p/${projectSlug}/sources/${sourceSlug}/setup`);
-  }, 60_000);
+  // The phase 1 create flow: a named project, a named website in it, and the
+  // website's Schema tab (the index route) rendering its URL inputs and grid.
+  it('a project and a website created through the new procedures render', async () => {
+    const project = await client.projects.create.mutate({ name: `Smoke ${Date.now()}` });
+    createdProjects.push(project.id);
+    const site = await client.sources.createInProject.mutate({ projectSlug: project.slug, name: 'Smoke site', url: 'https://smoke.example/' });
+    created.push(site.sourceId);
 
-  // C2: a Source created any other way — `quickCreate`, or anything
-  // predating customer schemas — has no `schemaDefinition` at all, so the
-  // Schema tab seeds an empty grid. It must still render the URL inputs and
-  // the grid (that is the only screen where those URLs can be filled in),
-  // not an error banner.
-  it("a quickCreate'd source's /setup renders the URL inputs and the grid", async () => {
-    const host = `smoke-quick-${Date.now()}.example`;
-    const { sourceId, projectSlug, sourceSlug } = await client.sources.quickCreate.mutate({
-      mode: 'detail',
-      urls: [`https://${host}/p/1`],
-    });
-    created.push(sourceId);
-
-    const route = `/p/${projectSlug}/sources/${sourceSlug}/setup`;
+    await checkRoute(`/projects/${project.slug}`);
+    const route = `/projects/${project.slug}/sources/${site.sourceSlug}`;
     await checkRoute(route);
 
     const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
       await page.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });
       await page.waitForTimeout(1500);
-      // The three product URL inputs the Schema tab now owns...
       for (let i = 1; i <= 3; i++) {
         expect(await page.getByText(`Product URL ${i}`).count(), `Product URL ${i} label is missing`).toBeGreaterThan(0);
       }
-      // ...and the (empty) grid underneath them.
       expect(await page.getByPlaceholder('price').count(), 'the schema grid did not render').toBeGreaterThan(0);
+      expect(await page.getByText('Smoke site').count(), 'the website name is not in the header').toBeGreaterThan(0);
     } finally {
       await page.close();
     }
