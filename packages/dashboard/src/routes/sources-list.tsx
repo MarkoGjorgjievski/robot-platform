@@ -6,7 +6,7 @@ import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function SourcesList() {
-  const { project: projectSlug } = useParams({ from: '/p/$project/sources' });
+  const { project: projectSlug } = useParams({ from: '/projects/$project/sources' });
 
   const listQuery = trpc.sources.listByProject.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
@@ -23,7 +23,7 @@ export default function SourcesList() {
       <div className="flex items-center gap-1 text-xs text-gray-500">
         <Link to="/projects" className="hover:text-gray-700">Projects</Link>
         <span>/</span>
-        <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
           Project
         </Link>
         <span>/</span>
@@ -46,7 +46,7 @@ export default function SourcesList() {
           {sources.map((s) => (
             <li key={s.id}>
               <Link
-                to="/p/$project/sources/$source"
+                to="/projects/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >

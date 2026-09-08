@@ -22,7 +22,7 @@ import { cellStatusFor, isRowStale, reverifyKeys, summaryLine, verificationState
  */
 export default function SourceSchema() {
   const navigate = useNavigate();
-  const { project: projectSlug, source: sourceSlug } = useParams({ from: '/p/$project/sources/$source' });
+  const { project: projectSlug, source: sourceSlug } = useParams({ from: '/projects/$project/sources/$source' });
   const utils = trpc.useUtils();
 
   const [grid, setGrid] = useState<GridState>(emptyState());
@@ -147,19 +147,19 @@ export default function SourceSchema() {
         // straight at product pages.
         const plan = await planMutation.mutateAsync({ sourceId: source.id, probe: false });
         await executeMutation.mutateAsync({ runId: plan.runId });
-        navigate({ to: '/p/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
+        navigate({ to: '/projects/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
         return;
       }
       if (!source.confirmedAt) {
         // Listing, unconfirmed: probe the first input + sample a few
         // details. The run-detail page's confirm gate takes it from here.
         const probe = await probeMutation.mutateAsync({ sourceId: source.id });
-        navigate({ to: '/p/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: probe.runId } });
+        navigate({ to: '/projects/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: probe.runId } });
         return;
       }
       // Listing, already confirmed: a full plan across every input row.
       const plan = await planMutation.mutateAsync({ sourceId: source.id, probe: false });
-      navigate({ to: '/p/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
+      navigate({ to: '/projects/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

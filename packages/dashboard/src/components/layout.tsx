@@ -13,12 +13,17 @@ export function Layout() {
             <span className="text-accent-600">▮</span>
             <span>robot·platform</span>
           </Link>
-          <nav className="flex gap-1">
+          <nav className="flex items-center gap-1">
             <Link to="/projects" className={navLink} activeProps={{ className: `${navLink} ${navLinkActive}` }}>
               Projects
             </Link>
-            <Link to="/domains" className={navLink} activeProps={{ className: `${navLink} ${navLinkActive}` }}>
-              Domains
+            <Link
+              to="/ops/domains"
+              className={`${navLink} text-gray-400`}
+              activeProps={{ className: `${navLink} ${navLinkActive}` }}
+              title="Operator view of the domain cache"
+            >
+              Ops
             </Link>
           </nav>
         </div>

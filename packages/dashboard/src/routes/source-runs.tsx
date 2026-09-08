@@ -9,7 +9,7 @@ import { summariseWorkList, planCrawlLabel } from '../lib/work-list';
 
 export default function SourceRuns() {
   const { project: projectSlug, source: sourceSlug } = useParams({
-    from: '/p/$project/sources/$source/runs',
+    from: '/projects/$project/sources/$source/runs',
   });
 
   const listQuery = trpc.sources.listByProject.useQuery({
@@ -50,7 +50,7 @@ export default function SourceRuns() {
           {runs.map((r) => (
             <li key={r.id}>
               <Link
-                to="/p/$project/sources/$source/runs/$run"
+                to="/projects/$project/sources/$source/runs/$run"
                 params={{ project: projectSlug, source: sourceSlug, run: r.id }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >

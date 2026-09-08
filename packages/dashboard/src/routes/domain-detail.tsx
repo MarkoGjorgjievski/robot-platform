@@ -7,7 +7,7 @@ import { formatValue, previewValue } from '../lib/format';
 import type { CandidateCatalogue } from '../lib/candidate-picker';
 
 export default function DomainDetail() {
-  const { domain } = useParams({ from: '/domains/$domain' });
+  const { domain } = useParams({ from: '/ops/domains/$domain' });
   const detailQuery = trpc.domains.intelligenceDetail.useQuery({ domain });
 
   if (detailQuery.isLoading) return <Spinner label="Loading domain..." />;
@@ -21,7 +21,7 @@ export default function DomainDetail() {
   return (
     <div>
       <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Link to="/domains" className="hover:text-gray-700">Domains</Link>
+        <Link to="/ops/domains" className="hover:text-gray-700">Domains</Link>
         <span>/</span>
         <span className="font-mono text-gray-700">{domain}</span>
       </div>
@@ -61,7 +61,7 @@ export default function DomainDetail() {
           {sources.map((s) => (
             <li key={s.id}>
               <Link
-                to="/p/$project/sources/$source"
+                to="/projects/$project/sources/$source"
                 params={{ project: s.projectSlug, source: s.slug }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >

@@ -6,7 +6,7 @@ import { DEFAULT_ORG_SLUG } from '../lib/constants';
 
 export default function ProjectDomainDetail() {
   const { project: projectSlug, domain } = useParams({
-    from: '/p/$project/domains/$domain',
+    from: '/projects/$project/domains/$domain',
   });
   const detailQuery = trpc.domains.detailByProject.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
@@ -25,9 +25,9 @@ export default function ProjectDomainDetail() {
       <div className="flex items-center gap-1 text-xs text-gray-500">
         <Link to="/projects" className="hover:text-gray-700">Projects</Link>
         <span>/</span>
-        <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
         <span>/</span>
-        <Link to="/p/$project/domains" params={{ project: projectSlug }} className="hover:text-gray-700">Domains</Link>
+        <Link to="/projects/$project/domains" params={{ project: projectSlug }} className="hover:text-gray-700">Domains</Link>
         <span>/</span>
         <span className="font-mono text-gray-700">{domain}</span>
       </div>
@@ -65,7 +65,7 @@ export default function ProjectDomainDetail() {
           {sources.map((s) => (
             <li key={s.id}>
               <Link
-                to="/p/$project/sources/$source"
+                to="/projects/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >

@@ -21,10 +21,8 @@ type SchemaField = {
 
 type Source = { id: string; slug: string; name: string; urlTemplate?: string };
 
-export default function DatasetDetail() {
-  const { project: projectSlug, dataset: datasetSlug } = useParams({
-    from: '/p/$project/datasets/$dataset',
-  });
+export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) {
+  const { project: projectSlug } = useParams({ from: '/projects/$project/output' });
 
   const detailQuery = trpc.datasets.getBySlug.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
@@ -62,7 +60,7 @@ export default function DatasetDetail() {
           {sources.map((s) => (
             <li key={s.id}>
               <Link
-                to="/p/$project/sources/$source"
+                to="/projects/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
               >
@@ -246,11 +244,11 @@ function Breadcrumbs({ projectSlug, datasetName }: { projectSlug: string; datase
     <div className="flex items-center gap-1 text-xs text-gray-500">
       <Link to="/projects" className="hover:text-gray-700">Projects</Link>
       <span>/</span>
-      <Link to="/p/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
+      <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
         Project
       </Link>
       <span>/</span>
-      <Link to="/p/$project/datasets" params={{ project: projectSlug }} className="hover:text-gray-700">
+      <Link to="/projects/$project/output" params={{ project: projectSlug }} className="hover:text-gray-700">
         Datasets
       </Link>
       <span>/</span>
