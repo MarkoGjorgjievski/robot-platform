@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { trpc } from '../lib/trpc';
@@ -81,8 +81,15 @@ function NewProjectDialog({ open, onClose }: { open: boolean; onClose: () => voi
     },
   });
 
+  useEffect(() => {
+    if (!open) { setName(''); setDescription(''); create.reset(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const closeIfIdle = () => { if (!create.isPending) onClose(); };
+
   return (
-    <Dialog open={open} title="New project" onClose={onClose}>
+    <Dialog open={open} title="New project" onClose={closeIfIdle} preventClose={create.isPending}>
       <form onSubmit={(e) => { e.preventDefault(); create.mutate({ name, description: description || undefined }); }}>
         <label className={labelClass}>Name
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} placeholder="AbeBooks Q3" />
@@ -93,7 +100,7 @@ function NewProjectDialog({ open, onClose }: { open: boolean; onClose: () => voi
         <p className="mt-2 text-xs text-gray-500">Fields and websites come next, on the project page.</p>
         {create.isError && <p className="mt-2 text-xs text-red-700">{create.error.message}</p>}
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" className="btn-quiet h-9" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-quiet h-9" disabled={create.isPending} onClick={closeIfIdle}>Cancel</button>
           <button type="submit" className="btn-primary h-9" disabled={!name.trim() || create.isPending}>
             {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />}Create project
           </button>
