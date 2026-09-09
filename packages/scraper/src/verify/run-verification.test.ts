@@ -1,7 +1,33 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
-import { runVerification, definitionHash } from './run-verification.js';
+import type { IBrowser } from '@robot/browser';
+import { runVerification, definitionHash, fieldHash } from './run-verification.js';
+import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
+
+/** A capture with no signal: empty html, nothing intercepted or embedded. */
+const emptyCapture = (url: string) => ({
+  url,
+  html: '<html></html>',
+  title: '',
+  markdown: '',
+  screenshot: Buffer.alloc(0),
+  screenshotTiles: [],
+  timestamp: 0,
+  structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
+  interceptedRequests: [],
+});
+
+/** Offline deps: no real browser, no agent, captures resolve to blank pages. */
+function fakeDeps(_set: VerificationSet) {
+  return {
+    browser: {
+      setContentEvaluate: async () => [],
+    } as unknown as IBrowser,
+    agent: null,
+    captureOne: async (_b: IBrowser, url: string) => emptyCapture(url),
+  };
+}
 
 const fields = [
   { key: 'product_name', name: 'Product name', type: 'text' as const, description: 'big heading', concept: 'product_name' },
@@ -170,5 +196,55 @@ describe('definitionHash', () => {
     expect(a).not.toBe(b); // order is part of the definition
     expect(definitionHash(fields, { ...set, listing_url: 'https://shop.example/c' })).not.toBe(a);
     expect(definitionHash(fields, set)).toBe(a);
+  });
+});
+
+describe('fieldHash / definitionHash', () => {
+  const set: VerificationSet = {
+    urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'],
+    expected: {
+      price: { 'https://s.example/1': '1', 'https://s.example/2': '2', 'https://s.example/3': '3' },
+      title: { 'https://s.example/1': 'a', 'https://s.example/2': 'b', 'https://s.example/3': 'c' },
+    },
+  };
+  const price: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'green', concept: 'price' };
+  const title: SchemaDefinitionField = { key: 'title', name: 'Title', type: 'text', description: 'h1', concept: 'product_name' };
+
+  it('is stable and ignores the field name', () => {
+    expect(fieldHash(price, set)).toBe(fieldHash({ ...price, name: 'Cost' }, set));
+    expect(definitionHash([price, title], set)).toBe(definitionHash([{ ...price, name: 'Cost' }, title], set));
+  });
+  it('changes with type, description, urls, or that field\'s expected values only', () => {
+    const h = fieldHash(price, set);
+    expect(fieldHash({ ...price, type: 'number' }, set)).not.toBe(h);
+    expect(fieldHash({ ...price, description: 'red' }, set)).not.toBe(h);
+    expect(fieldHash(price, { ...set, urls: [...set.urls].reverse() })).not.toBe(h);
+    expect(fieldHash(price, { ...set, expected: { ...set.expected, price: { ...set.expected.price, 'https://s.example/1': '9' } } })).not.toBe(h);
+    expect(fieldHash(price, { ...set, expected: { ...set.expected, title: { ...set.expected.title, 'https://s.example/1': 'zzz' } } })).toBe(h);
+  });
+});
+
+describe('runVerification per-field copy-forward', () => {
+  it('stamps fieldHash on every computed result and copies a previous result only when its hash still matches', async () => {
+    const set: VerificationSet = {
+      urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'],
+      expected: {
+        price: { 'https://s.example/1': '1', 'https://s.example/2': '2', 'https://s.example/3': '3' },
+        title: { 'https://s.example/1': 'a', 'https://s.example/2': 'b', 'https://s.example/3': 'c' },
+      },
+    };
+    const price: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'green', concept: 'price' };
+    const title: SchemaDefinitionField = { key: 'title', name: 'Title', type: 'text', description: 'h1', concept: 'product_name' };
+    const stale: FieldVerification = { key: 'title', cells: {}, certified: [{ source: 'meta', path: 'og:title', transform: 'identity' }], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: 'not-the-current-hash' };
+    const fresh: FieldVerification = { ...stale, fieldHash: fieldHash(title, set) };
+
+    const deps = fakeDeps(set); // the file's existing helper: a browser stub whose captures return nothing, no agent
+    const a = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: stale }, allPassed: false, aiCalls: 0 }, previousUrls: set.urls });
+    expect(a.outcome.fields.title.fieldHash).toBe(fieldHash(title, set)); // recomputed, not copied
+    expect(a.outcome.fields.title.certified).toEqual([]);                // the stub finds nothing, proving it re-ran
+    expect(a.outcome.fields.price.fieldHash).toBe(fieldHash(price, set));
+
+    const b = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: fresh }, allPassed: false, aiCalls: 0 }, previousUrls: set.urls });
+    expect(b.outcome.fields.title).toBe(fresh);                          // copied as-is
   });
 });

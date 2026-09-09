@@ -32,6 +32,8 @@ export type FieldVerification = {
   weakEvidence: boolean;               // all three expected values identical
   aiCalled: boolean;
   incomplete: boolean;                 // true when any capture is null
+  /** sha256 over this field's definition + the pages + its expected values; a result is current only while it matches (spec 4.4). Absent on rows written before phase 2. */
+  fieldHash?: string;
 };
 
 export type VerificationOutcome = {
