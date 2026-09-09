@@ -37,14 +37,28 @@ function samePath(finalUrl: string, requested: string): boolean {
   } catch { return false; }
 }
 
+const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+/** Whole-definition hash, kept for history and the fast path. Excludes `name`: renaming is free (spec 4.3). */
 export function definitionHash(fields: SchemaDefinitionField[], set: VerificationSet): string {
-  const canon = JSON.stringify({
-    fields: fields.map((f) => ({ key: f.key, name: f.name, type: f.type, description: f.description, concept: f.concept })),
+  return sha256(JSON.stringify({
+    fields: fields.map((f) => ({ key: f.key, type: f.type, description: f.description, concept: f.concept })),
     urls: set.urls,
     expected: Object.fromEntries(Object.keys(set.expected).sort().map((k) => [k, Object.fromEntries(Object.entries(set.expected[k]!).sort())])),
     listing_url: set.listing_url ?? null,
-  });
-  return createHash('sha256').update(canon).digest('hex');
+  }));
+}
+
+/** Per-field hash (spec 4.4): the field's own definition, the pages, and only its expected cells. */
+export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): string {
+  return sha256(JSON.stringify({
+    key: field.key,
+    type: field.type,
+    description: field.description,
+    concept: field.concept,
+    urls: set.urls,
+    expected: Object.fromEntries(Object.entries(set.expected[field.key] ?? {}).sort()),
+  }));
 }
 
 /**
@@ -112,8 +126,10 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
   // against DIFFERENT pages is wrong however the request got here.
   const reuseAllowed = !previousIsStale(deps.previousUrls, req.verificationSet.urls);
   for (const field of req.fields) {
-    if (reuseAllowed && deps.onlyKeys && !deps.onlyKeys.includes(field.key) && deps.previous?.fields[field.key]) {
-      fields[field.key] = deps.previous.fields[field.key]!;
+    const fh = fieldHash(field, req.verificationSet);
+    const prev = deps.previous?.fields[field.key];
+    if (reuseAllowed && deps.onlyKeys && !deps.onlyKeys.includes(field.key) && prev && prev.fieldHash === fh) {
+      fields[field.key] = prev;
       continue;
     }
     const expected = req.verificationSet.expected[field.key] ?? {};
@@ -139,7 +155,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals] }, { evalXPaths });
       result.aiCalled = true;
     }
-    fields[field.key] = result;
+    fields[field.key] = { ...result, fieldHash: fh };
   }
 
   const allPassed = req.fields.length > 0 && Object.values(fields).every((f) => f.certified.length > 0 && Object.values(f.cells).every((c) => c.status === 'pass'));
