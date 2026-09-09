@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, inputSets, sourceVerifications } from '@robot/db';
-import type { CertifiedPath } from '@robot/scraper';
+import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from '../routers/index.js';
-import { loadCurrentCertification, sourceDefinitionHash } from './current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
 
 const createCaller = createCallerFactory(appRouter);
 const caller = createCaller({ db });
@@ -40,8 +40,17 @@ async function makeSchemaSource(tag: string) {
 
 const certifiedPrice: CertifiedPath[] = [{ source: 'api', path: 'item.price', transform: 'identity' }];
 
-function fieldVerification(certified: CertifiedPath[]) {
-  return { key: 'price', cells: {}, certified, weakEvidence: false, aiCalled: false, incomplete: false };
+function fieldVerification(certified: CertifiedPath[], extra: { fieldHash?: string; cells?: Record<string, unknown> } = {}) {
+  return { key: 'price', cells: {}, certified, weakEvidence: false, aiCalled: false, incomplete: false, ...extra };
+}
+
+/** A field is current only when its stored `fieldHash` matches the field as it stands now
+ *  AND its cells all read 'pass' (spec 4.4) — build both from the source's own definition. */
+function currentPriceVerification(source: { schemaDefinition: unknown; verificationSet: unknown }, urls: string[], certified: CertifiedPath[]) {
+  const fields = source.schemaDefinition as SchemaDefinitionField[];
+  const set = source.verificationSet as VerificationSet;
+  const cells = Object.fromEntries(urls.map((u) => [u, { status: 'pass', found: '1', path: certified[0] }]));
+  return fieldVerification(certified, { fieldHash: fieldHash(fields[0]!, set), cells });
 }
 
 describe('sourceDefinitionHash', () => {
@@ -74,7 +83,7 @@ describe('loadCurrentCertification', () => {
           definitionHash: hash,
           completedAt: new Date(),
           allPassed: true,
-          results: { price: fieldVerification(certifiedPrice) },
+          results: { price: currentPriceVerification(source, urls, certifiedPrice) },
         })
         .returning({ id: sourceVerifications.id });
 
@@ -97,7 +106,7 @@ describe('loadCurrentCertification', () => {
   // (recoverable: `requireCertification` says verify first), never blow up
   // the whole procedure with a TypeError.
   it('returns null when the verification set has an unparseable url', async () => {
-    const { sourceId, source } = await makeSchemaSource('badurl');
+    const { sourceId, source, urls } = await makeSchemaSource('badurl');
     try {
       const hash = sourceDefinitionHash(source)!;
       await db.insert(sourceVerifications).values({
@@ -105,7 +114,7 @@ describe('loadCurrentCertification', () => {
         definitionHash: hash,
         completedAt: new Date(),
         allPassed: true,
-        results: { price: fieldVerification(certifiedPrice) },
+        results: { price: currentPriceVerification(source, urls, certifiedPrice) },
       });
       // Sanity: it IS a current certification before the url is corrupted.
       expect(await loadCurrentCertification(db, sourceId)).not.toBeNull();
@@ -135,7 +144,7 @@ describe('loadCurrentCertification', () => {
         definitionHash: hash,
         completedAt: new Date(),
         allPassed: true,
-        results: { price: fieldVerification(certifiedPrice) },
+        results: { price: currentPriceVerification(source, urls, certifiedPrice) },
       });
 
       // Certified while the schema had just "Price" — confirm it's found first.
@@ -196,6 +205,47 @@ describe('loadCurrentCertification', () => {
       expect(await loadCurrentCertification(db, created.sourceId)).toBeNull();
     } finally {
       await cleanupSource(created.sourceId);
+    }
+  });
+
+  it('loadFieldCurrency: a field is current only when the latest clean row holds a passing result with the present fieldHash', async () => {
+    // setup: a source with fields price + title (see this file's existing fixture), then one completed row
+    // whose results carry a matching fieldHash for price and a stale one for title.
+    const urls = [
+      'https://test-cert-fieldcurrency.example.com/p/1',
+      'https://test-cert-fieldcurrency.example.com/p/2',
+      'https://test-cert-fieldcurrency.example.com/p/3',
+    ];
+    const created = await caller.sources.createWithSchema({
+      urls,
+      fields: [
+        { name: 'Price', type: 'money', description: 'x' },
+        { name: 'Title', type: 'text', description: 'y' },
+      ],
+      expected: {
+        Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' },
+        Title: { [urls[0]!]: 'A', [urls[1]!]: 'B', [urls[2]!]: 'C' },
+      },
+    });
+    const sourceId = created.sourceId;
+    try {
+      const src = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+      const fields = src!.schemaDefinition as SchemaDefinitionField[];
+      const set = src!.verificationSet as VerificationSet;
+      const pass = (key: string, fh: string) => ({
+        key, fieldHash: fh, weakEvidence: false, aiCalled: false, incomplete: false,
+        certified: [{ source: 'meta', path: 'x', transform: 'identity' }],
+        cells: Object.fromEntries(set.urls.map((u) => [u, { status: 'pass', found: '1', path: { source: 'meta', path: 'x', transform: 'identity' } }])),
+      });
+      await db.insert(sourceVerifications).values({
+        sourceId, definitionHash: 'any', allPassed: false, completedAt: new Date(),
+        results: { price: pass('price', fieldHash(fields[0]!, set)), title: pass('title', 'stale') },
+      });
+      const c = await loadFieldCurrency(db, sourceId);
+      expect(c.currentKeys).toEqual(['price']);
+      expect(await loadCurrentCertification(db, sourceId)).toBeNull(); // title is not current
+    } finally {
+      await cleanupSource(sourceId);
     }
   });
 });

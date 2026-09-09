@@ -4,11 +4,12 @@
 // never touches past `source_verifications` rows, so "current" is decided
 // here, at read time, by comparing hashes rather than by any stored flag.
 
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { sources, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
 import {
   definitionHash,
+  fieldHash,
   type CertifiedPath,
   type FieldVerification,
   type SchemaDefinitionField,
@@ -39,29 +40,54 @@ export function sourceDefinitionHash(source: { schemaDefinition: unknown; verifi
   return definitionHash(source.schemaDefinition as SchemaDefinitionField[], source.verificationSet as VerificationSet);
 }
 
-/** The latest completed, all-passed verification whose hash matches the Source's current definition; null otherwise. */
+/**
+ * Per-field currency (spec 4.4). The latest completed, error-free run is the
+ * only one consulted; a field is current when that run holds a passing result
+ * for it whose `fieldHash` equals the hash of the field as it stands now.
+ * Rows written before phase 2 carry no `fieldHash` and are never current.
+ */
+export async function loadFieldCurrency(db: Database, sourceId: string): Promise<{
+  latest: { id: string; completedAt: Date; results: Record<string, FieldVerification> } | null;
+  currentKeys: string[];
+}> {
+  const source = await db.query.sources.findFirst({
+    where: eq(sources.id, sourceId),
+    columns: { schemaDefinition: true, verificationSet: true },
+  });
+  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [] };
+  const fields = source.schemaDefinition as SchemaDefinitionField[];
+  const set = source.verificationSet as VerificationSet;
+
+  const row = await db.query.sourceVerifications.findFirst({
+    where: and(eq(sourceVerifications.sourceId, sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
+    orderBy: [desc(sourceVerifications.completedAt)],
+  });
+  if (!row) return { latest: null, currentKeys: [] };
+  const results = row.results as Record<string, FieldVerification>;
+
+  const currentKeys = fields
+    .filter((f) => {
+      const r = results[f.key];
+      if (!r || !r.fieldHash || r.fieldHash !== fieldHash(f, set)) return false;
+      return r.certified.length > 0 && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
+    })
+    .map((f) => f.key);
+
+  return { latest: { id: row.id, completedAt: row.completedAt!, results }, currentKeys };
+}
+
+/** A certification exists only when EVERY contract field is current on this source (spec 4.4). */
 export async function loadCurrentCertification(db: Database, sourceId: string): Promise<Certification | null> {
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
     columns: { schemaDefinition: true, verificationSet: true },
   });
-  const hash = source ? sourceDefinitionHash(source) : null;
-  if (!hash) return null;
+  if (!source || !Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 || !source.verificationSet) return null;
+  const fields = source.schemaDefinition as SchemaDefinitionField[];
+  const set = source.verificationSet as VerificationSet;
 
-  const row = await db.query.sourceVerifications.findFirst({
-    where: and(
-      eq(sourceVerifications.sourceId, sourceId),
-      eq(sourceVerifications.definitionHash, hash),
-      eq(sourceVerifications.allPassed, true),
-      isNotNull(sourceVerifications.completedAt),
-    ),
-    orderBy: [desc(sourceVerifications.completedAt)],
-  });
-  if (!row) return null;
-
-  const results = row.results as Record<string, FieldVerification>;
-  const fields = source!.schemaDefinition as SchemaDefinitionField[];
-  const set = source!.verificationSet as VerificationSet;
+  const { latest, currentKeys } = await loadFieldCurrency(db, sourceId);
+  if (!latest || currentKeys.length !== fields.length) return null;
 
   // A certification with no usable hostname is not a certification: the
   // hostname IS the domain_intelligence row the certified paths live in and
@@ -80,9 +106,9 @@ export async function loadCurrentCertification(db: Database, sourceId: string): 
   }
 
   return {
-    verificationId: row.id,
-    completedAt: row.completedAt!,
-    paths: Object.fromEntries(fields.map((f) => [f.key, results[f.key]?.certified ?? []])),
+    verificationId: latest.id,
+    completedAt: latest.completedAt,
+    paths: Object.fromEntries(fields.map((f) => [f.key, latest.results[f.key]?.certified ?? []])),
     concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
     hostname,
   };

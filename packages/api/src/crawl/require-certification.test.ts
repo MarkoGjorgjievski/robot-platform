@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, sources, inputSets, sourceVerifications } from '@robot/db';
-import type { CertifiedPath } from '@robot/scraper';
+import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from '../routers/index.js';
 import { requireCertification } from './require-certification.js';
@@ -70,12 +70,15 @@ describe('requireCertification', () => {
     try {
       const hash = sourceDefinitionHash(source)!;
       const certified: CertifiedPath[] = [{ source: 'api', path: 'item.price', transform: 'identity' }];
+      const fields = source.schemaDefinition as SchemaDefinitionField[];
+      const set = source.verificationSet as VerificationSet;
+      const cells = Object.fromEntries(set.urls.map((u) => [u, { status: 'pass', found: '1', path: certified[0] }]));
       await db.insert(sourceVerifications).values({
         sourceId,
         definitionHash: hash,
         completedAt: new Date(),
         allPassed: true,
-        results: { price: { key: 'price', cells: {}, certified, weakEvidence: false, aiCalled: false, incomplete: false } },
+        results: { price: { key: 'price', fieldHash: fieldHash(fields[0]!, set), cells, certified, weakEvidence: false, aiCalled: false, incomplete: false } },
       });
 
       const cert = await requireCertification(db, sourceId);
