@@ -104,7 +104,10 @@ describe('loadCurrentCertification', () => {
   // `urls[0]` to be a parseable URL — and M3 made `new URL(urls[0])` run on
   // every certification load. An unparseable url must read as "uncertified"
   // (recoverable: `requireCertification` says verify first), never blow up
-  // the whole procedure with a TypeError.
+  // the whole procedure with a TypeError. This test isolates that guard: the
+  // field is re-certified against the corrupted set (fieldHash + cells both
+  // recomputed against it) so `price` stays fully current — only the
+  // hostname parse is what refuses the certification.
   it('returns null when the verification set has an unparseable url', async () => {
     const { sourceId, source, urls } = await makeSchemaSource('badurl');
     try {
@@ -119,16 +122,22 @@ describe('loadCurrentCertification', () => {
       // Sanity: it IS a current certification before the url is corrupted.
       expect(await loadCurrentCertification(db, sourceId)).not.toBeNull();
 
-      // Corrupt urls[0] only — the definition hash still has to match, so the
-      // row stays "current" and the url guard is genuinely what refuses it.
+      // Corrupt urls[0], then re-certify the row against the corrupted set —
+      // `price`'s fieldHash and cells are recomputed from the corrupted
+      // urls, so the field stays current and the url guard is genuinely
+      // what refuses the certification, not a stale fieldHash.
       const set = source.verificationSet as { urls: string[] };
       const corrupted = { ...set, urls: ['not a url', ...set.urls.slice(1)] };
       await db.update(sources).set({ verificationSet: corrupted }).where(eq(sources.id, sourceId));
       const refreshed = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
+      const refreshedSet = refreshed!.verificationSet as VerificationSet;
       await db.update(sourceVerifications)
-        .set({ definitionHash: sourceDefinitionHash(refreshed!)! })
+        .set({ results: { price: currentPriceVerification(refreshed!, refreshedSet.urls, certifiedPrice) } })
         .where(eq(sourceVerifications.sourceId, sourceId));
 
+      // The field itself IS current against the corrupted set — only the
+      // hostname parse is what refuses the certification.
+      expect((await loadFieldCurrency(db, sourceId)).currentKeys).toEqual(['price']);
       expect(await loadCurrentCertification(db, sourceId)).toBeNull();
     } finally {
       await cleanupSource(sourceId);
