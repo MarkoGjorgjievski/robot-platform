@@ -34,13 +34,13 @@ export default function ProjectDomainDetail() {
 
       <div className="mt-2 flex items-center gap-3">
         <Globe className="h-5 w-5 text-gray-400" />
-        <h1 className="font-mono text-xl font-semibold tracking-tight">{domain}</h1>
+        <h1 className="font-mono text-2xl font-medium">{domain}</h1>
       </div>
 
       {intelligence && (
-        <div className="card mt-6 p-4">
+        <div className="mt-6">
           <h2 className="text-sm font-medium text-gray-900">Cached intelligence</h2>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-600">
             Cross-customer knowledge accumulated for this domain.
           </p>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
@@ -61,19 +61,19 @@ export default function ProjectDomainDetail() {
           description="If you see this on a domain page you navigated to, the project's sources changed since the listing was generated."
         />
       ) : (
-        <ul className="card mt-2 divide-y divide-gray-100">
+        <ul className="mt-2 divide-y divide-gray-200">
           {sources.map((s) => (
             <li key={s.id}>
               <Link
                 to="/projects/$project/sources/$source"
                 params={{ project: projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
+                className="flex items-center gap-3 px-3 py-3 transition-colors hover:bg-gray-50"
               >
                 <Layers className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{s.name}</div>
                   <div className="truncate font-mono text-xs text-gray-500">
-                    {s.datasetName} · {s.urlTemplate}
+                    {s.datasetName}, {s.urlTemplate}
                   </div>
                 </div>
                 <ArrowRight className="h-4 w-4 text-gray-400" />
@@ -89,7 +89,7 @@ export default function ProjectDomainDetail() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="micro-label">{label}</div>
+      <div className="label-soft">{label}</div>
       <div className="mt-1 font-medium">{value}</div>
     </div>
   );
