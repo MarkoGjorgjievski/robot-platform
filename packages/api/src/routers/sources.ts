@@ -25,6 +25,17 @@ function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: A
 
 const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } as const;
 
+/** The all/all starter budget `setListingPages` seeds when a Source has no budget yet. */
+const LISTING_ALL_BUDGET = { max_items: 'all', max_pages: 'all', mode: 'all' } as const;
+
+const budgetShape = z.object({
+  max_items: z.union([z.number().int().positive(), z.literal('all')]),
+  max_pages: z.union([z.number().int().positive(), z.literal('all')]),
+  mode: z.enum(['all', 'first_n']).optional(),
+});
+
+const hostOf = (u: string) => new URL(u).hostname.toLowerCase();
+
 export const sourcesRouter = router({
   listByDataset: publicProcedure
     .input(z.object({ datasetId: z.string().uuid() }))
@@ -220,10 +231,12 @@ export const sourcesRouter = router({
       // proxyType/...) rode along here from the pre-Source model with no
       // caller ever sending it — dead surface, removed with it the
       // `parameters` read-modify-write merge that only existed for it.
+      // `budget` now comes from the Extract tab's run sentence (task 3).
       z.object({
         id: z.string().uuid(),
         isActive: z.boolean().optional(),
         listingMode: z.enum(['listing_to_detail', 'detail']).optional(),
+        budget: budgetShape.optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -331,6 +344,115 @@ export const sourcesRouter = router({
       return row;
     }),
 
+  // ─── Extract tab: the customer's pages as the source's input (phase 4, task 3) ──
+
+  /**
+   * The Extract tab's "listing pages" input: the given URLs become the
+   * source's input set rows as-is (one row per URL — the crawler paginates
+   * each), `listingMode` becomes `listing_to_detail`, and `parameters.inputMode`
+   * is set to `'listing'` so `updateBinding`'s schema save (task 3, spec)
+   * knows the pages here — not the proof pages — own the input from now on.
+   * Refuses an off-host URL outright (unlike `setProductUrls`, which just
+   * drops them) since a listing page's host IS the site being crawled.
+   */
+  setListingPages: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(50) }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, name: true, confirmedAt: true, listingMode: true, budget: true, parameters: true, inputSetId: true, verificationSet: true },
+        with: { dataset: { columns: { projectId: true } } },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      if (source.confirmedAt && source.listingMode && source.listingMode !== 'listing_to_detail') {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${input.sourceId} is confirmed; its listing mode is locked` });
+      }
+
+      const verificationSet = source.verificationSet as VerificationSet | null;
+      const referenceHost = verificationSet?.urls?.[0] ? hostOf(verificationSet.urls[0]) : hostOf(input.urls[0]!);
+      for (const url of input.urls) {
+        if (hostOf(url) !== referenceHost) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `${url} is not on the same website as this source's other pages` });
+        }
+      }
+
+      const rows = input.urls.map((url) => ({ url }));
+      const budgetPatch = Object.keys((source.budget as object | null) ?? {}).length === 0 ? { budget: LISTING_ALL_BUDGET } : {};
+      const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: 'listing' };
+
+      await ctx.db.transaction(async (tx) => {
+        if (source.inputSetId) {
+          await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
+          await tx.update(sources).set({ listingMode: 'listing_to_detail', parameters, ...budgetPatch, updatedAt: new Date() }).where(eq(sources.id, source.id));
+        } else {
+          const [inputSet] = await tx
+            .insert(inputSets)
+            .values({ projectId: source.dataset!.projectId, type: 'direct', name: source.name, columns: [{ name: 'url', primary: true }], rows })
+            .returning({ id: inputSets.id });
+          await tx
+            .update(sources)
+            .set({ inputSetId: inputSet!.id, listingMode: 'listing_to_detail', parameters, ...budgetPatch, updatedAt: new Date() })
+            .where(eq(sources.id, source.id));
+        }
+      });
+
+      return { count: rows.length };
+    }),
+
+  /**
+   * The Extract tab's "product URLs" input: same shape as `setListingPages`
+   * but for a hand-picked list of detail pages, `listingMode: 'detail'`, and
+   * no budget seed (a fixed URL list has nothing to page through). An
+   * off-host URL is not refused here — it is dropped into `skipped` so the
+   * customer can paste a mixed list and see what didn't make it.
+   */
+  setProductUrls: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(5000) }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, name: true, confirmedAt: true, listingMode: true, parameters: true, inputSetId: true, verificationSet: true },
+        with: { dataset: { columns: { projectId: true } } },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      if (source.confirmedAt && source.listingMode && source.listingMode !== 'detail') {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${input.sourceId} is confirmed; its listing mode is locked` });
+      }
+
+      const verificationSet = source.verificationSet as VerificationSet | null;
+      const referenceHost = verificationSet?.urls?.[0] ? hostOf(verificationSet.urls[0]) : hostOf(input.urls[0]!);
+      const accepted: string[] = [];
+      const skipped: string[] = [];
+      for (const url of input.urls) {
+        (hostOf(url) === referenceHost ? accepted : skipped).push(url);
+      }
+
+      const rows = accepted.map((url) => ({ url }));
+      const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: 'detail' };
+
+      await ctx.db.transaction(async (tx) => {
+        if (source.inputSetId) {
+          await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
+          await tx.update(sources).set({ listingMode: 'detail', parameters, updatedAt: new Date() }).where(eq(sources.id, source.id));
+        } else {
+          const [inputSet] = await tx
+            .insert(inputSets)
+            .values({ projectId: source.dataset!.projectId, type: 'direct', name: source.name, columns: [{ name: 'url', primary: true }], rows })
+            .returning({ id: inputSets.id });
+          await tx
+            .update(sources)
+            .set({ inputSetId: inputSet!.id, listingMode: 'detail', parameters, updatedAt: new Date() })
+            .where(eq(sources.id, source.id));
+        }
+      });
+
+      return { accepted: accepted.length, skipped };
+    }),
+
   // ─── Customer schema verification (task 12) ──────────────────────────────
 
   /**
@@ -351,7 +473,7 @@ export const sourcesRouter = router({
 
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, sourceId),
-        columns: { id: true, schemaDefinition: true, verificationSet: true, inputSetId: true, name: true, confirmedAt: true, listingMode: true, budget: true },
+        columns: { id: true, schemaDefinition: true, verificationSet: true, inputSetId: true, name: true, confirmedAt: true, listingMode: true, budget: true, parameters: true },
         with: { dataset: { columns: { projectId: true, schema: true } }, inputSet: { columns: { rows: true } } },
       });
       if (!source) {
@@ -381,8 +503,16 @@ export const sourcesRouter = router({
       // three product pages as detail rows. Checked BEFORE any write below —
       // a confirmed Source's listing mode is locked (fix round 1, finding 1:
       // this must refuse before the schema write commits, not after).
+      //
+      // Extract tab phase 4, task 3: once `setListingPages`/`setProductUrls`
+      // has set `parameters.inputMode`, the pages the customer set there own
+      // the input — the proof pages no longer drive it, so both the derived
+      // confirmed-mode precondition and the input-set sync below are skipped
+      // entirely for this Source.
+      const inputMode = (source.parameters as { inputMode?: string } | null)?.inputMode;
+      const extractOwnsInput = inputMode === 'listing' || inputMode === 'detail';
       const { rows, listingMode } = inputRowsFor(binding.urls, binding.listingUrl);
-      if (source.confirmedAt && source.listingMode && source.listingMode !== listingMode) {
+      if (!extractOwnsInput && source.confirmedAt && source.listingMode && source.listingMode !== listingMode) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
       }
 
@@ -394,6 +524,10 @@ export const sourcesRouter = router({
           .set({ schemaDefinition: fields, verificationSet, updatedAt: new Date() })
           .where(eq(sources.id, sourceId))
           .returning();
+
+        if (extractOwnsInput) {
+          return updated;
+        }
 
         // Updated in place so a source keeps its input set id across edits —
         // but only when the binding flow authored the rows it's about to
