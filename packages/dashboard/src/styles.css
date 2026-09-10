@@ -74,3 +74,19 @@
 @utility btn-quiet {
   @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50;
 }
+
+/* Schema tab: status rail on expected cells (3px left border + faint tint), never a filled cell. */
+@utility cell-rail-pass { @apply border-l-[3px] border-l-emerald-600 bg-emerald-50/60; }
+@utility cell-rail-fail { @apply border-l-[3px] border-l-red-600 bg-red-50/60; }
+@utility cell-rail-stale { @apply border-l-[3px] border-l-gray-400 bg-gray-100/70; }
+@utility cell-rail-not-captured { @apply border-l-[3px] border-l-amber-500 bg-amber-50/60; }
+@utility cell-rail-none { @apply border-l-[3px] border-l-transparent; }
+
+/* Shimmer for cells whose result is pending. Still under prefers-reduced-motion. */
+@utility shimmer {
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.09) 50%, rgba(0,0,0,0.04) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .shimmer { animation: none; } }
