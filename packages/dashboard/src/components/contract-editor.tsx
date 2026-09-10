@@ -15,14 +15,15 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
   const fieldsQuery = trpc.datasets.fieldStatus.useQuery({ datasetId });
   const contractQuery = trpc.datasets.getContract.useQuery({ datasetId });
   const invalidate = () => { utils.datasets.invalidate(); utils.sources.invalidate(); utils.projects.list.invalidate(); };
-  const add = trpc.datasets.addField.useMutation({ onSuccess: invalidate });
-  const rename = trpc.datasets.renameField.useMutation({ onSuccess: invalidate });
-  const retype = trpc.datasets.retypeField.useMutation({ onSuccess: invalidate });
-  const del = trpc.datasets.deleteField.useMutation({ onSuccess: invalidate });
+  const [lastError, setLastError] = useState<string | null>(null);
+  const add = trpc.datasets.addField.useMutation({ onSuccess: () => { setLastError(null); invalidate(); }, onError: (e) => setLastError(e.message) });
+  const rename = trpc.datasets.renameField.useMutation({ onSuccess: () => { setLastError(null); invalidate(); }, onError: (e) => setLastError(e.message) });
+  const retype = trpc.datasets.retypeField.useMutation();
+  const del = trpc.datasets.deleteField.useMutation({ onSuccess: () => { setLastError(null); invalidate(); }, onError: (e) => setLastError(e.message) });
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<GridFieldType>('text');
   const [deleting, setDeleting] = useState<Field | null>(null);
-  const error = add.error ?? rename.error ?? retype.error ?? del.error;
+  const [pendingType, setPendingType] = useState<Record<string, GridFieldType>>({});
 
   const fields = (contractQuery.data ?? []) as Field[];
   const status = fieldsQuery.data ?? {};
@@ -45,8 +46,16 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
               <tr key={f.key}>
                 <td className="py-1.5"><InlineRename value={f.name} className="font-mono text-xs" onSave={(name) => rename.mutate({ datasetId, key: f.key, name })} /></td>
                 <td className="py-1.5">
-                  <select value={f.type} disabled={locked} title={locked ? 'A verified website uses this type. Delete and re-add the field to change it.' : undefined}
-                    onChange={(e) => retype.mutate({ datasetId, key: f.key, type: e.target.value as GridFieldType })} className="rounded border border-gray-300 px-2 py-0.5 text-xs disabled:opacity-60">
+                  <select value={pendingType[f.key] ?? f.type} disabled={locked || f.key in pendingType} title={locked ? 'A verified website uses this type. Delete and re-add the field to change it.' : undefined}
+                    onChange={(e) => {
+                      const next = e.target.value as GridFieldType;
+                      setPendingType((p) => ({ ...p, [f.key]: next }));
+                      retype.mutate({ datasetId, key: f.key, type: next }, {
+                        onSuccess: () => { setLastError(null); invalidate(); },
+                        onError: (err) => setLastError(`${f.name}: ${err.message}`),
+                        onSettled: () => setPendingType((p) => { const { [f.key]: _, ...rest } = p; return rest; }),
+                      });
+                    }} className="rounded border border-gray-300 px-2 py-0.5 text-xs disabled:opacity-60">
                     {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </td>
@@ -73,7 +82,7 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
         </tbody>
       </table>
       <p className="mt-2 text-xs text-gray-500">Add a field here and every website gets a new column to verify. Renaming is free. A type locks once a website has verified it.</p>
-      {error && <p className="mt-2 text-xs text-red-700">{error.message}</p>}
+      {lastError && <p className="mt-2 text-xs text-red-700">{lastError} <button type="button" className="underline-offset-2 hover:underline" onClick={() => setLastError(null)}>Dismiss</button></p>}
 
       <Dialog open={!!deleting} title={deleting ? `Delete ${deleting.name}?` : ''} onClose={() => { if (!del.isPending) setDeleting(null); }} preventClose={del.isPending}>
         {deleting && (

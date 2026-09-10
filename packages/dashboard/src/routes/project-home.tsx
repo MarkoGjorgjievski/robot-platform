@@ -56,7 +56,7 @@ export default function ProjectHome() {
           {datasets.length > 0 && (
             <div className="mt-4 flex items-center gap-3 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-700">
               <span className="font-medium">Output</span>
-              <span>{Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as unknown[]).length : 0} columns</span>
+              <span>{Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as Array<{ key?: unknown }>).filter((f) => typeof f.key === 'string').length : 0} columns</span>
               <Link to="/projects/$project/output" params={{ project: projectSlug }} className="ml-auto underline-offset-2 hover:underline">Open</Link>
             </div>
           )}
