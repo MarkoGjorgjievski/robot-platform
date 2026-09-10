@@ -161,4 +161,21 @@ describe('sources.updateBinding keeps the input set in step', () => {
     expect(s?.listingMode).toBe('detail');
     expect(s?.budget).toEqual({});
   });
+
+  it('leaves the Extract tab\'s pages alone once setListingPages owns the input (phase 4, task 3)', async () => {
+    const p = await freshProjectWithPriceField();
+    const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
+    const listingUrls = [`https://${host}/c/1`, `https://${host}/c/2`, `https://${host}/c/3`];
+    await caller.sources.setListingPages({ sourceId: r.sourceId, urls: listingUrls });
+
+    // A binding (schema) save must not overwrite the rows, the listing mode,
+    // or the budget the Extract tab set — only the schema fields.
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
+
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
+    expect(s?.inputSet?.rows).toEqual(listingUrls.map((url) => ({ url })));
+    expect(s?.listingMode).toBe('listing_to_detail');
+    expect(s?.budget).toEqual({ max_items: 'all', max_pages: 'all', mode: 'all' });
+    expect((s?.schemaDefinition as Array<{ description: string }>)[0]!.description).toBe('the price');
+  });
 });

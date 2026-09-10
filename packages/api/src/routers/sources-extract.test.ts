@@ -1,9 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
-import { db } from '@robot/db';
+import { eq } from 'drizzle-orm';
+import { db, sources } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
 // The Extract tab's free per-row listing check. Like `sources.findProductPages`
 // (sources-schema.test.ts), it launches a real browser via `withBrowserSession`
@@ -79,5 +81,125 @@ describe('sources.checkListingPage', () => {
       expect((err as TRPCError).code).toBe('BAD_REQUEST');
     }
     expect(withBrowserSessionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('sources.setListingPages', () => {
+  it('writes the urls as input-set rows, sets listing_to_detail, seeds the all/all budget, and marks parameters.inputMode', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const listingUrls = ['https://test-set-listing.example.com/c/shoes', 'https://test-set-listing.example.com/c/bags'];
+      const result = await caller.sources.setListingPages({ sourceId: f.sourceId, urls: listingUrls });
+      expect(result).toEqual({ count: 2 });
+
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), with: { inputSet: true } });
+      expect(row?.listingMode).toBe('listing_to_detail');
+      expect(row?.inputSet?.rows).toEqual(listingUrls.map((url) => ({ url })));
+      expect(row?.budget).toEqual({ max_items: 'all', max_pages: 'all', mode: 'all' });
+      expect((row?.parameters as { inputMode?: string } | null)?.inputMode).toBe('listing');
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('does not overwrite an already-seeded budget', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing-budget-kept', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await db.update(sources).set({ budget: { max_items: 5, max_pages: 1, mode: 'first_n' } }).where(eq(sources.id, f.sourceId));
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls: ['https://test-set-listing-budget-kept.example.com/c/shoes'] });
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect(row?.budget).toEqual({ max_items: 5, max_pages: 1, mode: 'first_n' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('refuses a listing url on a different host than the binding\'s proof pages', async () => {
+    const urls = ['https://test-set-listing-diffhost.example.com/p/1', 'https://test-set-listing-diffhost.example.com/p/2', 'https://test-set-listing-diffhost.example.com/p/3'];
+    const f = await createProjectWithSource(caller, {
+      tag: 'set-listing-diffhost',
+      urls,
+      fields: [{ name: 'Price', type: 'money' }],
+      expected: { Price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' } },
+    });
+    try {
+      const offHost = 'https://other-host.example.com/c/all';
+      await expect(caller.sources.setListingPages({ sourceId: f.sourceId, urls: [offHost] })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      await expect(caller.sources.setListingPages({ sourceId: f.sourceId, urls: [offHost] })).rejects.toThrow(new RegExp(offHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('refuses two urls on different hosts when there is no binding yet', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing-mixed', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await expect(
+        caller.sources.setListingPages({
+          sourceId: f.sourceId,
+          urls: ['https://test-set-listing-mixed.example.com/c/shoes', 'https://other-host.example.com/c/bags'],
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('refuses once the source is confirmed on a different mode', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing-confirmed', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await caller.sources.setProductUrls({ sourceId: f.sourceId, urls: ['https://test-set-listing-confirmed.example.com/p/1'] });
+      await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, f.sourceId));
+      await expect(
+        caller.sources.setListingPages({ sourceId: f.sourceId, urls: ['https://test-set-listing-confirmed.example.com/c/all'] }),
+      ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+});
+
+describe('sources.setProductUrls', () => {
+  it('accepts same-host urls, drops an off-host url into skipped, and sets detail mode', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-product', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const host = 'test-set-product.example.com';
+      const offHost = 'https://other-host.example.com/p/3';
+      const urls = [`https://${host}/p/1`, `https://${host}/p/2`, offHost];
+      const result = await caller.sources.setProductUrls({ sourceId: f.sourceId, urls });
+      expect(result).toEqual({ accepted: 2, skipped: [offHost] });
+
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), with: { inputSet: true } });
+      expect(row?.listingMode).toBe('detail');
+      expect(row?.inputSet?.rows).toEqual([{ url: urls[0] }, { url: urls[1] }]);
+      expect((row?.parameters as { inputMode?: string } | null)?.inputMode).toBe('detail');
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('refuses once the source is confirmed on a different mode', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-product-confirmed', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls: ['https://test-set-product-confirmed.example.com/c/all'] });
+      await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, f.sourceId));
+      await expect(
+        caller.sources.setProductUrls({ sourceId: f.sourceId, urls: ['https://test-set-product-confirmed.example.com/p/1'] }),
+      ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+});
+
+describe('sources.update budget', () => {
+  it('stores the given budget as given', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'update-budget', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const updated = await caller.sources.update({ id: f.sourceId, budget: { max_items: 40, max_pages: 'all' } });
+      expect(updated.budget).toEqual({ max_items: 40, max_pages: 'all' });
+    } finally {
+      await f.cleanup();
+    }
   });
 });
