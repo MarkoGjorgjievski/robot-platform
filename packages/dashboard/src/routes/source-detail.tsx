@@ -26,7 +26,7 @@ export default function SourceDetailLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sourceBasePath = `/projects/${projectSlug}/sources/${sourceSlug}`;
   let activeTo = '/projects/$project/sources/$source/';
-  if (pathname.startsWith(`${sourceBasePath}/overview`)) activeTo = '/projects/$project/sources/$source/overview';
+  if (pathname.startsWith(`${sourceBasePath}/extract`)) activeTo = '/projects/$project/sources/$source/extract';
   else if (pathname.startsWith(`${sourceBasePath}/settings`)) activeTo = '/projects/$project/sources/$source/settings';
   else if (pathname.startsWith(`${sourceBasePath}/runs`)) activeTo = '/projects/$project/sources/$source/runs';
 
@@ -60,7 +60,7 @@ export default function SourceDetailLayout() {
         activeTo={activeTo}
         tabs={[
           { label: 'Schema', to: '/projects/$project/sources/$source/', params: { project: projectSlug, source: sourceSlug } },
-          { label: 'Overview', to: '/projects/$project/sources/$source/overview', params: { project: projectSlug, source: sourceSlug } },
+          { label: 'Extract', to: '/projects/$project/sources/$source/extract', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Runs', to: '/projects/$project/sources/$source/runs', params: { project: projectSlug, source: sourceSlug } },
           { label: 'Settings', to: '/projects/$project/sources/$source/settings', params: { project: projectSlug, source: sourceSlug } },
         ]}

@@ -203,3 +203,32 @@ describe('sources.update budget', () => {
     }
   });
 });
+
+describe('sources.inputRows', () => {
+  it('returns the saved page URLs and when they were written', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'input-rows', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      // No input set yet: the ordinary state of a website whose pages have
+      // never been saved, which is exactly when the Extract tab asks.
+      expect(await caller.sources.inputRows({ sourceId: f.sourceId })).toEqual({ urls: [], updatedAt: null });
+
+      const urls = ['https://test-input-rows.example.com/c/a', 'https://test-input-rows.example.com/c/b'];
+      const before = new Date();
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls });
+
+      const after = await caller.sources.inputRows({ sourceId: f.sourceId });
+      expect(after.urls).toEqual(urls);
+      expect(after.updatedAt).toBeInstanceOf(Date);
+      // The timestamp is the input set's own, so it moves when the rows do.
+      expect(after.updatedAt!.getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('refuses an unknown source', async () => {
+    await expect(
+      caller.sources.inputRows({ sourceId: '00000000-0000-0000-0000-000000000000' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});

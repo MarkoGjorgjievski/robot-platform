@@ -17,7 +17,7 @@ import ProjectDomainDetail from './routes/project-domain-detail';
 import SourcesList from './routes/sources-list';
 import SourceDetail from './routes/source-detail';
 import SourceSchema from './routes/source-schema';
-import SourceOverview from './routes/source-overview';
+import SourceExtract from './routes/source-extract';
 import SourceConfig from './routes/source-config';
 import SourceRuns from './routes/source-runs';
 import SourceRunDetail from './routes/source-run-detail';
@@ -50,7 +50,17 @@ const sourceDetailLayoutRoute = createRoute({
 });
 // The bare source URL is the Schema tab, always (spec 5.6).
 const sourceSchemaRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: '/', component: SourceSchema });
-const sourceOverviewRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'overview', component: SourceOverview });
+// The Extract tab (phase 4): pages, sample, run.
+const sourceExtractRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'extract', component: SourceExtract });
+// Overview is retired — everything it showed now lives on the Schema and
+// Extract tabs. The path stays, as a redirect, so a bookmark still lands.
+const sourceOverviewRoute = createRoute({
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: 'overview',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/projects/$project/sources/$source/extract', params });
+  },
+});
 const sourceSettingsRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'settings', component: SourceConfig });
 const sourceRunsRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'runs', component: SourceRuns });
 
@@ -84,7 +94,7 @@ const routeTree = rootRoute.addChildren([
   projectDomainsListRoute,
   projectDomainDetailRoute,
   sourcesListRoute,
-  sourceDetailLayoutRoute.addChildren([sourceSchemaRoute, sourceOverviewRoute, sourceSettingsRoute, sourceRunsRoute]),
+  sourceDetailLayoutRoute.addChildren([sourceSchemaRoute, sourceExtractRoute, sourceOverviewRoute, sourceSettingsRoute, sourceRunsRoute]),
   sourceRunDetailRoute,
   opsDomainsListRoute,
   opsDomainDetailRoute,

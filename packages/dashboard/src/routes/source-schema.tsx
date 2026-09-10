@@ -61,10 +61,6 @@ export default function SourceSchema() {
   const updateBindingMutation = trpc.sources.updateBinding.useMutation();
   const verifyMutation = trpc.sources.verify.useMutation();
   const findMutation = trpc.sources.findProductPages.useMutation();
-  const planMutation = trpc.crawl.plan.useMutation();
-  const executeMutation = trpc.crawl.execute.useMutation();
-  const probeMutation = trpc.crawl.probeAndSample.useMutation();
-  const extractPending = planMutation.isPending || executeMutation.isPending || probeMutation.isPending;
 
   // Retypes a field to `url` from the grid's type-fix chip. The seeding
   // effect will not re-run after this (`initialized` is already true), so
@@ -205,45 +201,14 @@ export default function SourceSchema() {
     }
   }
 
-  async function handleExtract() {
-    if (!source) return;
-    setError(null);
-    try {
-      const isListing = source.listingMode === 'listing_to_detail';
-      if (!isListing) {
-        // Detail Source: plan (one detail item per input row), then execute
-        // every one of them - no probe gate for a Source already pointed
-        // straight at product pages.
-        const plan = await planMutation.mutateAsync({ sourceId: source.id, probe: false });
-        await executeMutation.mutateAsync({ runId: plan.runId });
-        navigate({ to: '/projects/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
-        return;
-      }
-      if (!source.confirmedAt) {
-        // Listing, unconfirmed: probe the first input + sample a few
-        // details. The run-detail page's confirm gate takes it from here.
-        const probe = await probeMutation.mutateAsync({ sourceId: source.id });
-        navigate({ to: '/projects/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: probe.runId } });
-        return;
-      }
-      // Listing, already confirmed: a full plan across every input row.
-      const plan = await planMutation.mutateAsync({ sourceId: source.id, probe: false });
-      navigate({ to: '/projects/$project/sources/$source/runs/$run', params: { project: projectSlug, source: sourceSlug, run: plan.runId } });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
   if (listQuery.isLoading) return <Spinner label="Loading source..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
   if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
 
-  const isListing = source.listingMode === 'listing_to_detail';
-  const extractLabel = !isListing
-    ? 'Extract'
-    : !source.confirmedAt
-      ? 'Probe & sample'
-      : 'Extract everything';
+  // The strip's second button is now a handoff, not an action: everything it
+  // used to start (probe, plan, execute) belongs to the Extract tab, which
+  // asks for the pages and the budget first. Still gated on the same green,
+  // so the tab is only offered once there is something certified to run.
   const extractEnabled = !!(status?.current && status?.allPassed);
 
   function typeFix(rowId: string) {
@@ -280,7 +245,7 @@ export default function SourceSchema() {
             lockNote={active ? 'table locked while verifying' : null}
             tone={tone}
             verify={{ label: verify.label, disabled: verify.disabled, reason: verify.reason, busy: verifyBusy, onClick: handleVerify, onDisabledClick: () => setTouched(true) }}
-            extract={{ label: extractLabel, disabled: !extractEnabled || extractPending, reason: 'Unlocks when every cell is green', busy: extractPending, onClick: handleExtract }}
+            extract={{ label: 'Go to Extract', disabled: !extractEnabled, reason: 'Unlocks when every cell is green', busy: false, onClick: () => navigate({ to: '/projects/$project/sources/$source/extract', params: { project: projectSlug, source: sourceSlug } }) }}
           />
 
           {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}

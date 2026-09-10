@@ -253,6 +253,12 @@ export const sourcesRouter = router({
           // nullable) reads as 0 rather than a null propagating into NaN.
           urlCount: sql<number>`coalesce(jsonb_array_length(${inputSets.rows}), 0)::int`,
           isActive: sources.isActive,
+          // The Extract tab reads both off the row it already has (phase 4,
+          // task 6): `budget` seeds the run sentence's two dropdowns, and
+          // `parameters.inputMode` is the marker that says the customer's own
+          // pages — not the three proof pages — own the input set now.
+          budget: sources.budget,
+          parameters: sources.parameters,
           // Customer-defined schema (Task 1) + its last drift check — the
           // Set-up workspace's schema/verification surfaces read these.
           schemaDefinition: sources.schemaDefinition,
@@ -468,6 +474,42 @@ export const sourcesRouter = router({
         }),
       );
       return { accepted: rows.length, skipped };
+    }),
+
+  /**
+   * The pages this Source will actually be run against, as the Extract tab
+   * needs them: the input set's row URLs, plus when that set was last
+   * written.
+   *
+   * `updatedAt` is the input set's own, deliberately not the Source's. The
+   * tab uses it for one decision — "were the pages changed since this
+   * sample ran?" — and `sources.updated_at` is bumped by a rename, a
+   * budget save, a schema save and a confirm as well, every one of which
+   * would falsely mark a perfectly good sample stale. The input set's
+   * timestamp moves if and only if the rows did.
+   *
+   * A Source with no input set yet reads as `{ urls: [], updatedAt: null }`
+   * rather than throwing: that is the ordinary state of a website whose
+   * pages have never been saved, which is exactly when the tab asks.
+   */
+  inputRows: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true },
+        with: { inputSet: { columns: { rows: true, updatedAt: true } } },
+      });
+      if (!source) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      }
+      if (!source.inputSet) return { urls: [], updatedAt: null };
+
+      const rows = (source.inputSet.rows ?? []) as Array<Record<string, unknown>>;
+      const urls = rows
+        .map((row) => row.url)
+        .filter((url): url is string => typeof url === 'string' && url.length > 0);
+      return { urls, updatedAt: source.inputSet.updatedAt };
     }),
 
   // ─── Customer schema verification (task 12) ──────────────────────────────
