@@ -18,8 +18,12 @@ import type { ExtractMode } from '../lib/extract-view';
 const DEFAULT_ITEMS = 40;
 const DEFAULT_PAGES = 3;
 
-const SELECT_CLASS =
-  'rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50';
+/**
+ * A quiet control sitting inline in the sentence: a 1px rule border on
+ * surface, 32px tall, no box of its own. The focus ring comes from the base
+ * layer.
+ */
+const BOX_CLASS = 'h-8 rounded-md border border-gray-300 bg-gray-50 px-2 text-sm text-gray-900';
 
 /**
  * A number box that lets the operator clear it while typing, but never lets
@@ -54,7 +58,7 @@ function NumberBox({ value, onValue, label }: { value: number; onValue: (n: numb
         const parsed = Number.parseInt(draft, 10);
         if (!Number.isFinite(parsed) || parsed < 1) setDraft(String(value));
       }}
-      className="w-16 rounded-md border border-gray-300 px-2 py-1 font-mono text-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
+      className={`${BOX_CLASS} w-16 font-mono`}
     />
   );
 }
@@ -96,13 +100,13 @@ export function ExtractRun({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-800">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
         <span>Run</span>
         <select
           aria-label="How many products"
           value={items === 'all' ? 'all' : 'custom'}
           onChange={(e) => onChange({ items: e.target.value === 'all' ? 'all' : DEFAULT_ITEMS, pages })}
-          className={SELECT_CLASS}
+          className={BOX_CLASS}
         >
           <option value="all">all</option>
           <option value="custom">custom</option>
@@ -119,7 +123,7 @@ export function ExtractRun({
               aria-label="How many pages"
               value={pages === 'all' ? 'all' : 'custom'}
               onChange={(e) => onChange({ items, pages: e.target.value === 'all' ? 'all' : DEFAULT_PAGES })}
-              className={SELECT_CLASS}
+              className={BOX_CLASS}
             >
               <option value="all">all</option>
               <option value="custom">custom</option>
@@ -132,12 +136,14 @@ export function ExtractRun({
         )}
       </div>
 
-      <p className="text-xs text-gray-500">{sentence}</p>
+      {/* Facts, not prose: the separators are what hold the budget's clauses
+          apart on one line. */}
+      <p className="text-xs text-gray-600">{sentence}</p>
 
       {activeRun ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <span className="flex items-center gap-2 text-gray-800">
-            {activeRun.moving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
+          <span className="flex items-center gap-2 font-mono text-gray-900">
+            {activeRun.moving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-600" />}
             {activeRun.label}
           </span>
           <Link
@@ -154,7 +160,7 @@ export function ExtractRun({
             {extracting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Extract
           </button>
-          {disabled && reason && <span className="text-xs text-gray-500">{reason}</span>}
+          {disabled && reason && <span className="text-xs text-gray-600">{reason}</span>}
         </div>
       )}
     </div>

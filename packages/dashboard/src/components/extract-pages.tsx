@@ -10,7 +10,6 @@ import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { listingCheckLabel, productUrlCounts, type ExtractMode } from '../lib/extract-view';
 import { parseUrlLines } from '../lib/parse-url-lines';
-import { fieldClass } from './dialog';
 
 /**
  * A listing page's check, as the parent holds it. `{ saved: true }` is a page
@@ -24,12 +23,20 @@ export type ListingCheck =
   | { saved: true }
   | null;
 
+/** The check label's tone, on the status tokens (spec 7). */
 const CHECK_TONE: Record<'ok' | 'warn' | 'error' | 'pending', string> = {
-  ok: 'text-emerald-700',
-  warn: 'text-amber-700',
-  error: 'text-red-600',
-  pending: 'text-gray-500',
+  ok: 'text-pass',
+  warn: 'text-warn',
+  error: 'text-fail',
+  pending: 'text-gray-600',
 };
+
+/**
+ * A URL box. Every URL is a value, so it is set in mono at table size; the
+ * focus ring comes from the base layer rather than a per-field border colour.
+ */
+const URL_FIELD =
+  'mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 font-mono text-[13px] text-gray-900';
 
 export function ExtractPages({
   mode,
@@ -120,8 +127,8 @@ export function ExtractPages({
             aria-checked={mode === value}
             disabled={readOnly}
             onClick={() => onMode(value)}
-            className={`px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-              mode === value ? 'bg-accent-50 text-accent-700' : 'bg-white text-gray-600 hover:bg-gray-50'
+            className={`px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-45 ${
+              mode === value ? 'bg-accent-50 text-gray-900' : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
             {label}
@@ -129,17 +136,17 @@ export function ExtractPages({
         ))}
       </div>
 
-      {mode === null && <p className="text-xs text-gray-500">Pick one to carry on.</p>}
+      {mode === null && <p className="text-xs text-gray-600">Pick one to carry on.</p>}
 
       {mode === 'listing' && (
         <>
           {listing.length > 0 && (
-            <table className="w-full text-sm">
+            <table className="sheet">
               <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="w-[55%] px-2 py-1 text-xs font-medium text-gray-500">Listing page</th>
-                  <th className="px-2 py-1 text-xs font-medium text-gray-500">Check</th>
-                  <th className="w-20 px-2 py-1" />
+                <tr className="sheet-head sheet-row h-8 text-left">
+                  <th className="w-[55%] px-2 font-semibold">Listing page</th>
+                  <th className="px-2 font-semibold">Check</th>
+                  <th className="w-20 px-2" />
                 </tr>
               </thead>
               <tbody>
@@ -154,19 +161,19 @@ export function ExtractPages({
                   // edited, is exactly when a re-check is wanted.
                   const askable = check !== null;
                   return (
-                    <tr key={url} className="border-b border-gray-100 last:border-b-0">
-                      <td className="max-w-0 px-2 py-1.5">
-                        <span className="block truncate font-mono text-xs text-gray-800" title={url}>
+                    <tr key={url} className="sheet-row h-8 last:border-b-0">
+                      <td className="max-w-0 px-2">
+                        <span className="block truncate font-mono text-[13px] text-gray-900" title={url}>
                           {url}
                         </span>
                       </td>
-                      <td className={`px-2 py-1.5 text-xs ${CHECK_TONE[label.tone]}`}>
+                      <td className={`px-2 text-xs ${CHECK_TONE[label.tone]}`}>
                         <span className="flex items-center gap-2">
                           <span className="min-w-0 truncate" title={label.text}>{label.text}</span>
                           {askable && (
                             <button
                               type="button"
-                              className="btn-quiet flex-shrink-0"
+                              className="btn-quiet flex-shrink-0 py-0.5"
                               disabled={readOnly}
                               onClick={() => onCheck(url)}
                             >
@@ -175,13 +182,13 @@ export function ExtractPages({
                           )}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="px-2 text-right">
                         <button
                           type="button"
                           aria-label="Remove listing page"
                           disabled={readOnly}
                           onClick={() => onListing(listing.filter((u) => u !== url))}
-                          className="rounded px-1 text-xs text-gray-500 transition-colors hover:text-gray-800 disabled:opacity-50"
+                          className="text-xs text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-45"
                         >
                           remove
                         </button>
@@ -199,14 +206,14 @@ export function ExtractPages({
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
-                // The amber note names lines that are no longer on screen the
-                // moment the box is edited, so it must not outlive the edit.
+                // The note names lines that are no longer on screen the moment
+                // the box is edited, so it must not outlive the edit.
                 setRejected([]);
               }}
               disabled={readOnly}
               rows={2}
               placeholder="paste one or more listing URLs"
-              className={`${fieldClass} font-mono text-xs`}
+              className={URL_FIELD}
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
@@ -218,7 +225,7 @@ export function ExtractPages({
                 Add
               </button>
               {rejected.length > 0 && (
-                <span className="text-xs text-amber-800">
+                <span className="text-xs text-warn">
                   {rejected.length === 1
                     ? 'One line is not a URL, so it was left in the box.'
                     : `${rejected.length} lines are not URLs, so they were left in the box.`}
@@ -238,10 +245,10 @@ export function ExtractPages({
             disabled={readOnly}
             rows={6}
             placeholder="paste one or more product URLs"
-            className={`${fieldClass} font-mono text-xs`}
+            className={URL_FIELD}
           />
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <label className={`btn-quiet ${readOnly ? 'opacity-50' : 'cursor-pointer'}`}>
+            <label className={`btn-quiet ${readOnly ? 'opacity-45' : 'cursor-pointer'}`}>
               Import CSV
               <input
                 type="file"
@@ -256,7 +263,9 @@ export function ExtractPages({
                 }}
               />
             </label>
-            <span className="text-xs text-gray-500">
+            {/* Counts, not prose: the separators are what keep three facts on
+                one line, the same shape as the run sentence in step 3. */}
+            <span className="text-xs text-gray-600">
               {[
                 `${counts.total} ${counts.total === 1 ? 'URL' : 'URLs'}`,
                 counts.proof > 0
@@ -284,7 +293,7 @@ export function ExtractPages({
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {saveLabel}
           </button>
-          {emptyList && <span className="text-xs text-gray-500">{saveReason}</span>}
+          {emptyList && <span className="text-xs text-gray-600">{saveReason}</span>}
         </div>
       )}
     </div>

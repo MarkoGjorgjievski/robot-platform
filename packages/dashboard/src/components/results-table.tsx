@@ -1,4 +1,3 @@
-import { CheckCircle2 } from 'lucide-react';
 import { formatValue } from '../lib/format';
 import { fillBadge, cellState, type FieldCoverage } from '../lib/coverage-view';
 
@@ -61,48 +60,52 @@ export function ResultsTable({
     <div className="mt-8">
       {headerVariant !== 'none' && (
       <div className="mb-3 flex items-baseline gap-3">
+        {/* No glyph on the celebrate variant: the accent tint behind the words
+            is the mark that the run finished (spec 7). */}
         {headerVariant === 'celebrate' ? (
-          <span className="flex items-center gap-2 text-sm font-medium text-gray-900">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          <span className="rounded bg-accent-50 px-2 py-0.5 text-sm font-medium text-gray-900">
             Extraction complete
           </span>
         ) : (
-          <h2 className="text-sm font-medium text-gray-900">Extraction results</h2>
+          <h2 className="name text-lg leading-[1.25]">Extraction results</h2>
         )}
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-gray-600">
           {data.length} {data.length === 1 ? 'row' : 'rows'}
         </span>
         {confidence != null && (
-          <span className="text-xs text-gray-500">· {confidence}% confidence</span>
+          <span className="label-soft rounded bg-changed-tint px-1.5 py-0.5 text-changed">
+            {confidence}% confidence
+          </span>
         )}
       </div>
       )}
       {data.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-white/50 p-8 text-center text-sm text-gray-500">
-          No rows extracted.
-        </div>
+        <p className="py-6 text-sm text-gray-600">No rows extracted.</p>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="sheet">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50/60">
-                {selectable && <th className="w-8 px-3 py-2" />}
+              <tr className="sheet-head sheet-row h-8">
+                {selectable && <th className="w-8 px-3" />}
                 {fieldNames.map((name) => {
                   const candidate = candidateByName.get(name);
                   const heading = labelByName.get(name) ?? name;
                   const title = candidate ? `${name} · ${candidate.label}` : name;
                   const badge = fillBadge(coverageByName.get(name));
                   return (
-                    <th key={name} title={title} className="px-3 py-2 text-left font-mono text-[11px] font-medium text-gray-500">
+                    <th key={name} title={title} className="px-3 text-left font-semibold">
                       <div className="flex items-center gap-1.5">
                         <span>{heading}</span>
+                        {/* A badge only ever appears on a column with gaps
+                            (`fillBadge` returns null on a clean one), so it is
+                            always the warn token. */}
                         {badge && (
                           <button
                             type="button"
                             onClick={() => onFilterField?.(name)}
                             disabled={!onFilterField}
                             title={`${badge} filled — click to show only rows missing ${name}`}
-                            className="micro-label rounded border border-gray-200 px-1 py-0.5 normal-case tracking-normal text-gray-500 transition-colors hover:border-accent-300 hover:text-accent-700 disabled:cursor-default disabled:hover:border-gray-200 disabled:hover:text-gray-500"
+                            className="label-soft rounded bg-warn-tint px-1 py-0.5 font-mono text-warn transition-colors enabled:hover:text-gray-900 disabled:cursor-default"
                           >
                             {badge}
                           </button>
@@ -118,9 +121,9 @@ export function ResultsTable({
                 const url = typeof row._url === 'string' ? row._url : undefined;
                 const absentFields = (url && absentByUrl?.get(url)) || EMPTY_ABSENT_SET;
                 return (
-                  <tr key={i} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
+                  <tr key={i} className="sheet-row h-8 transition-colors last:border-b-0 hover:bg-gray-100">
                     {selectable && (
-                      <td className="px-3 py-2 align-top">
+                      <td className="px-3">
                         <input
                           type="checkbox"
                           checked={!!url && !!selectedUrls?.has(url)}
@@ -133,15 +136,15 @@ export function ResultsTable({
                     {fieldNames.map((name) => {
                       const state = cellState(row[name], name, absentFields);
                       return (
-                        <td key={name} className="px-3 py-2 align-top font-mono text-xs text-gray-800">
+                        <td key={name} className="px-3 font-mono text-[13px] text-gray-900">
                           {state === 'filled' ? (
                             <span className="block max-w-[300px] truncate" title={formatValue(row[name])}>
                               {formatValue(row[name])}
                             </span>
                           ) : state === 'absent' ? (
-                            <span className="italic text-gray-400">not on page</span>
+                            <span className="italic text-gray-600">not on page</span>
                           ) : (
-                            <span className="text-gray-300">—</span>
+                            <span className="text-gray-400">—</span>
                           )}
                         </td>
                       );
@@ -154,7 +157,7 @@ export function ResultsTable({
         </div>
       )}
       {data.length > 100 && (
-        <p className="mt-2 text-xs text-gray-500">Showing 100 of {data.length} rows.</p>
+        <p className="mt-2 text-xs text-gray-600">Showing 100 of {data.length} rows.</p>
       )}
     </div>
   );
