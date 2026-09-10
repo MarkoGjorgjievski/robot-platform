@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
+import type { ExtractMode } from '../lib/extract-view';
 
 /** Where a `custom` box starts when the dropdown flips to it (mockup values). */
 const DEFAULT_ITEMS = 40;
@@ -59,6 +60,7 @@ function NumberBox({ value, onValue, label }: { value: number; onValue: (n: numb
 }
 
 export function ExtractRun({
+  mode,
   items,
   pages,
   onChange,
@@ -71,6 +73,8 @@ export function ExtractRun({
   projectSlug,
   sourceSlug,
 }: {
+  /** A fixed list of product URLs has nothing to page through, so detail mode has no pages control. */
+  mode: ExtractMode;
   items: number | 'all';
   pages: number | 'all';
   onChange: (budget: { items: number | 'all'; pages: number | 'all' }) => void;
@@ -100,20 +104,26 @@ export function ExtractRun({
         {items !== 'all' && (
           <NumberBox value={items} label="How many products" onValue={(n) => onChange({ items: n, pages })} />
         )}
-        <span>products across</span>
-        <select
-          aria-label="How many pages"
-          value={pages === 'all' ? 'all' : 'custom'}
-          onChange={(e) => onChange({ items, pages: e.target.value === 'all' ? 'all' : DEFAULT_PAGES })}
-          className={SELECT_CLASS}
-        >
-          <option value="all">all</option>
-          <option value="custom">custom</option>
-        </select>
-        {pages !== 'all' && (
-          <NumberBox value={pages} label="How many pages" onValue={(n) => onChange({ items, pages: n })} />
+        {mode === 'detail' ? (
+          <span>products.</span>
+        ) : (
+          <>
+            <span>products across</span>
+            <select
+              aria-label="How many pages"
+              value={pages === 'all' ? 'all' : 'custom'}
+              onChange={(e) => onChange({ items, pages: e.target.value === 'all' ? 'all' : DEFAULT_PAGES })}
+              className={SELECT_CLASS}
+            >
+              <option value="all">all</option>
+              <option value="custom">custom</option>
+            </select>
+            {pages !== 'all' && (
+              <NumberBox value={pages} label="How many pages" onValue={(n) => onChange({ items, pages: n })} />
+            )}
+            <span>pages.</span>
+          </>
         )}
-        <span>pages.</span>
       </div>
 
       <p className="text-xs text-gray-500">{sentence}</p>

@@ -3,7 +3,10 @@ import { formatValue } from '../lib/format';
 import { fillBadge, cellState, type FieldCoverage } from '../lib/coverage-view';
 
 type SchemaField = {
+  /** The identifier a result row is keyed by. */
   name: string;
+  /** Plain-language header text. Header only — every lookup still goes through `name`. */
+  label?: string;
   type: string;
   description?: string;
   source?: string;
@@ -52,6 +55,7 @@ export function ResultsTable({
   const visibleFields = fields.filter((f) => f.enabled !== false);
   const fieldNames = visibleFields.map((f) => f.name);
   const candidateByName = new Map(visibleFields.map((f) => [f.name, f.candidate]));
+  const labelByName = new Map(visibleFields.map((f) => [f.name, f.label ?? f.name]));
   const coverageByName = new Map((coverage ?? []).map((c) => [c.name, c]));
   return (
     <div className="mt-8">
@@ -85,12 +89,13 @@ export function ResultsTable({
                 {selectable && <th className="w-8 px-3 py-2" />}
                 {fieldNames.map((name) => {
                   const candidate = candidateByName.get(name);
+                  const heading = labelByName.get(name) ?? name;
                   const title = candidate ? `${name} · ${candidate.label}` : name;
                   const badge = fillBadge(coverageByName.get(name));
                   return (
                     <th key={name} title={title} className="px-3 py-2 text-left font-mono text-[11px] font-medium text-gray-500">
                       <div className="flex items-center gap-1.5">
-                        <span>{name}</span>
+                        <span>{heading}</span>
                         {badge && (
                           <button
                             type="button"

@@ -8,11 +8,12 @@ import {
   budgetToForm,
   lockedStripText,
   sampleFacts,
+  sampleFinished,
   emptyCellNote,
 } from './extract-view';
 
 describe('stepStates', () => {
-  const base = { schemaGreen: true, mode: null as null | 'listing' | 'detail', pagesSaved: false, sampleRun: null as null | { status: string }, running: false };
+  const base = { schemaGreen: true, mode: null as null | 'listing' | 'detail', pagesSaved: false, sampleRun: null as null | { status: string; rows: number }, running: false };
   it('locks everything when the schema is not green', () => {
     expect(stepStates({ ...base, schemaGreen: false })).toEqual(['locked', 'locked', 'locked']);
     expect(stepStates({ ...base, schemaGreen: false, mode: 'listing', pagesSaved: true })).toEqual(['locked', 'locked', 'locked']);
@@ -23,19 +24,26 @@ describe('stepStates', () => {
   });
   it('listing mode with pages saved moves to sampling until a sample completes', () => {
     expect(stepStates({ ...base, mode: 'listing', pagesSaved: true })).toEqual(['done', 'current', 'later']);
-    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'running' } })).toEqual(['done', 'current', 'later']);
-    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed' } })).toEqual(['done', 'done', 'current']);
+    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'running', rows: 0 } })).toEqual(['done', 'current', 'later']);
+    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed', rows: 3 } })).toEqual(['done', 'done', 'current']);
+  });
+  // A probe that extracted some rows and gave up on the rest finalises
+  // `partial` and is terminal — it never becomes `completed`, so treating it
+  // as unfinished put Run permanently out of reach.
+  it('a partial sample with rows counts as finished; one with no rows does not', () => {
+    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'partial', rows: 3 } })).toEqual(['done', 'done', 'current']);
+    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'partial', rows: 0 } })).toEqual(['done', 'current', 'later']);
   });
   it('detail mode with pages saved goes straight to run regardless of sampleRun', () => {
     expect(stepStates({ ...base, mode: 'detail', pagesSaved: true })).toEqual(['done', 'done', 'current']);
-    expect(stepStates({ ...base, mode: 'detail', pagesSaved: true, sampleRun: { status: 'failed' } })).toEqual(['done', 'done', 'current']);
+    expect(stepStates({ ...base, mode: 'detail', pagesSaved: true, sampleRun: { status: 'failed', rows: 0 } })).toEqual(['done', 'done', 'current']);
   });
   it('running marks all three done', () => {
-    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed' }, running: true })).toEqual(['done', 'done', 'done']);
+    expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed', rows: 3 }, running: true })).toEqual(['done', 'done', 'done']);
     expect(stepStates({ ...base, mode: 'detail', pagesSaved: true, running: true })).toEqual(['done', 'done', 'done']);
   });
   it('schema-not-green wins over running', () => {
-    expect(stepStates({ ...base, schemaGreen: false, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed' }, running: true })).toEqual(['locked', 'locked', 'locked']);
+    expect(stepStates({ ...base, schemaGreen: false, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed', rows: 3 }, running: true })).toEqual(['locked', 'locked', 'locked']);
   });
   // Pinning current precedence deliberately: `running` short-circuits before mode/pagesSaved are checked, so an
   // otherwise-unstarted stepper still shows all-done while a run is in flight.
@@ -44,9 +52,28 @@ describe('stepStates', () => {
   });
 });
 
+describe('sampleFinished', () => {
+  it('is false with no sample at all', () => {
+    expect(sampleFinished(null)).toBe(false);
+  });
+  it('is true for completed, and for partial that produced rows', () => {
+    expect(sampleFinished({ status: 'completed', rows: 0 })).toBe(true);
+    expect(sampleFinished({ status: 'partial', rows: 3 })).toBe(true);
+  });
+  it('is false for a partial that produced nothing, and for anything still moving', () => {
+    expect(sampleFinished({ status: 'partial', rows: 0 })).toBe(false);
+    expect(sampleFinished({ status: 'planning', rows: 0 })).toBe(false);
+    expect(sampleFinished({ status: 'extracting', rows: 2 })).toBe(false);
+    expect(sampleFinished({ status: 'failed', rows: 0 })).toBe(false);
+  });
+});
+
 describe('listingCheckLabel', () => {
   it('is pending while checking', () => {
     expect(listingCheckLabel(null)).toEqual({ tone: 'pending', text: 'checking…' });
+  });
+  it('says saved for a page that came back from the database, unchecked', () => {
+    expect(listingCheckLabel({ saved: true })).toEqual({ tone: 'pending', text: 'saved' });
   });
   it('surfaces the error message', () => {
     expect(listingCheckLabel({ error: 'timed out' })).toEqual({ tone: 'error', text: 'timed out' });
@@ -82,6 +109,15 @@ describe('runSentence', () => {
     expect(runSentence({ items: 5, pages: 'all' }, 2)).toBe('2 listings · first 5 products from each · up to 10 pages per listing · safety stop at 5,000 products per run');
     expect(runSentence({ items: 1, pages: 'all' }, 2)).toBe('2 listings · first 1 product from each · up to 10 pages per listing · safety stop at 5,000 products per run');
   });
+  it('names product URLs and drops the pagination clause in detail mode', () => {
+    expect(runSentence({ items: 'all', pages: 'all' }, 12, 'detail')).toBe('12 product URLs · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 'all', pages: 3 }, 1, 'detail')).toBe('1 product URL · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 5, pages: 'all' }, 12, 'detail')).toBe('12 product URLs · first 5 products · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 1, pages: 'all' }, 12, 'detail')).toBe('12 product URLs · first 1 product · safety stop at 5,000 products per run');
+  });
+  it('defaults to listing mode when none is given', () => {
+    expect(runSentence({ items: 'all', pages: 'all' }, 2)).toBe(runSentence({ items: 'all', pages: 'all' }, 2, 'listing'));
+  });
   it('describes numeric pages, singular and plural', () => {
     expect(runSentence({ items: 'all', pages: 3 }, 2)).toBe('2 listings · first 3 pages of each · safety stop at 5,000 products per run');
     expect(runSentence({ items: 'all', pages: 1 }, 2)).toBe('2 listings · first 1 page of each · safety stop at 5,000 products per run');
@@ -103,6 +139,17 @@ describe('budgetFromForm / budgetToForm', () => {
     expect(budgetToForm({ max_items: -1, max_pages: 'x' })).toEqual({ items: 'all', pages: 'all' });
     expect(budgetToForm({ mode: 'all', max_items: 20 })).toEqual({ items: 'all', pages: 'all' });
   });
+  // `LISTING_DEFAULT_BUDGET` in packages/api/src/routers/sources.ts: the old
+  // flow wrote it by itself, so it is not a customer choice and must not open
+  // the Run section on `custom 40 / custom 3`.
+  it('reads the old automatic starter budget as unset', () => {
+    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n' })).toEqual({ items: 'all', pages: 'all' });
+  });
+  it('but keeps 40/3 when it is not exactly that object', () => {
+    expect(budgetToForm({ max_items: 40, max_pages: 3 })).toEqual({ items: 40, pages: 3 });
+    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n', chosen: true })).toEqual({ items: 40, pages: 3 });
+    expect(budgetToForm({ max_items: 40, max_pages: 4, mode: 'first_n' })).toEqual({ items: 40, pages: 4 });
+  });
 });
 
 describe('lockedStripText', () => {
@@ -120,16 +167,24 @@ describe('lockedStripText', () => {
 });
 
 describe('sampleFacts', () => {
-  it('returns the four facts in order with the given labels', () => {
-    expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { detail: 42, done: 40 })).toEqual([
+  it('returns the four facts in order, the last one about the sample rows only', () => {
+    expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 })).toEqual([
       { label: 'Pages walked', value: '3' },
       { label: 'Product links found', value: '42' },
       { label: 'Pagination detected', value: 'offset' },
-      { label: 'Sample rows complete', value: '40 of 42' },
+      // Not '3 of 42': the sample extracted three products and all three are
+      // complete. Measuring them against every link the walk found read as a
+      // 93% failure on a sample that did exactly what it promised.
+      { label: 'Sample rows complete', value: '3 of 3' },
     ]);
   });
+  it('reports an incomplete row honestly', () => {
+    expect(sampleFacts({ pagesWalked: 2, itemsFound: 28, warningsCount: 0, paginationNote: 'url-pattern' }, { complete: 2, total: 3 })[3]).toEqual(
+      { label: 'Sample rows complete', value: '2 of 3' },
+    );
+  });
   it('carries through zero counts', () => {
-    expect(sampleFacts({ pagesWalked: 0, itemsFound: 0, warningsCount: 0, paginationNote: 'not reported' }, { detail: 0, done: 0 })).toEqual([
+    expect(sampleFacts({ pagesWalked: 0, itemsFound: 0, warningsCount: 0, paginationNote: 'not reported' }, { complete: 0, total: 0 })).toEqual([
       { label: 'Pages walked', value: '0' },
       { label: 'Product links found', value: '0' },
       { label: 'Pagination detected', value: 'not reported' },

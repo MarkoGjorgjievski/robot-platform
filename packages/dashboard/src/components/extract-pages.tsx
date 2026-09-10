@@ -12,7 +12,17 @@ import { listingCheckLabel, productUrlCounts, type ExtractMode } from '../lib/ex
 import { parseUrlLines } from '../lib/parse-url-lines';
 import { fieldClass } from './dialog';
 
-export type ListingCheck = { productLinks: number; pagerSeen: boolean } | { error: string } | null;
+/**
+ * A listing page's check, as the parent holds it. `{ saved: true }` is a page
+ * that came back from the database and has never been checked in this session
+ * — the state that keeps opening the tab from launching a browser per saved
+ * page. `null` (or a missing key) means a check is in flight.
+ */
+export type ListingCheck =
+  | { productLinks: number; pagerSeen: boolean }
+  | { error: string }
+  | { saved: true }
+  | null;
 
 const CHECK_TONE: Record<'ok' | 'warn' | 'error' | 'pending', string> = {
   ok: 'text-emerald-700',
@@ -127,7 +137,12 @@ export function ExtractPages({
               </thead>
               <tbody>
                 {listing.map((url) => {
-                  const label = listingCheckLabel(checks[url] ?? null);
+                  const check = checks[url] ?? null;
+                  const label = listingCheckLabel(check);
+                  // A page is checked when someone asks. Never on load: the
+                  // check is a real page load on the api-server, and opening
+                  // the tab must not spend one per saved page.
+                  const askable = check !== null && ('saved' in check || 'error' in check);
                   return (
                     <tr key={url} className="border-b border-gray-100 last:border-b-0">
                       <td className="max-w-0 px-2 py-1.5">
@@ -135,7 +150,21 @@ export function ExtractPages({
                           {url}
                         </span>
                       </td>
-                      <td className={`px-2 py-1.5 text-xs ${CHECK_TONE[label.tone]}`}>{label.text}</td>
+                      <td className={`px-2 py-1.5 text-xs ${CHECK_TONE[label.tone]}`}>
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 truncate" title={label.text}>{label.text}</span>
+                          {askable && (
+                            <button
+                              type="button"
+                              className="btn-quiet flex-shrink-0"
+                              disabled={readOnly}
+                              onClick={() => onCheck(url)}
+                            >
+                              Check
+                            </button>
+                          )}
+                        </span>
+                      </td>
                       <td className="px-2 py-1.5 text-right">
                         <button
                           type="button"

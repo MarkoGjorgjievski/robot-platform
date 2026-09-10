@@ -33,8 +33,10 @@ import {
   lockedStripText,
   productUrlCounts,
   runSentence,
+  sampleFinished,
   stepStates,
   type ExtractMode,
+  type SampleRun,
   type StepState,
 } from '../lib/extract-view';
 
@@ -100,7 +102,8 @@ export default function SourceExtract() {
   const [error, setError] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [startedRunId, setStartedRunId] = useState<string | null>(null);
-  const seeded = useRef(false);
+  /** The Source id the local state was seeded from, so a `$source` change reseeds. */
+  const seeded = useRef<string | null>(null);
 
   const checkMutation = trpc.sources.checkListingPage.useMutation();
   const listingPagesMutation = trpc.sources.setListingPages.useMutation();
@@ -115,11 +118,15 @@ export default function SourceExtract() {
   const savedMode = parameters?.inputMode ?? null;
   const urlCount = source?.urlCount ?? 0;
 
-  // Seeded once, from saved data, and never again: after this the local state
-  // is what the operator is editing, and a background refetch (the
-  // invalidation after a save, say) must not type over them.
+  // Seeded once per website, from saved data: after that the local state is
+  // what the operator is editing, and a background refetch (the invalidation
+  // after a save, say) must not type over them. Keyed on the Source's id, not
+  // a bare boolean, so navigating from one website's Extract tab to another's
+  // — the router reuses this component — reseeds instead of leaving the first
+  // website's pages on screen.
   useEffect(() => {
-    if (seeded.current || !source || !rowsQuery.data) return;
+    if (!source || !rowsQuery.data) return;
+    if (seeded.current === source.id) return;
     const initialMode: ExtractMode | null =
       savedMode ??
       (source.listingMode === 'listing_to_detail'
@@ -129,31 +136,20 @@ export default function SourceExtract() {
           : null);
     setMode(initialMode);
     const urls = rowsQuery.data.urls;
-    if (initialMode === 'listing') setListing(urls);
-    if (initialMode === 'detail') setProductText(urls.join('\n'));
+    // Saved pages arrive unchecked, and stay that way until someone asks: the
+    // check is a real page load on the api-server, and opening a tab must not
+    // spend one per page. `Check` on the row is how it is asked for.
+    setChecks(Object.fromEntries(urls.map((url) => [url, { saved: true as const }])));
+    setListing(initialMode === 'listing' ? urls : []);
+    setProductText(initialMode === 'detail' ? urls.join('\n') : '');
     setBudget(budgetToForm(source.budget));
-    seeded.current = true;
+    setEditing(null);
+    setSaveNote(null);
+    setStartedRunId(null);
+    seeded.current = source.id;
   }, [source, rowsQuery.data, savedMode, urlCount]);
 
-  // Every listing page on screen carries a check, including the ones that were
-  // already saved when the tab opened — a listing that has since stopped
-  // yielding product links is exactly what step 1 exists to show, and a stored
-  // count from some earlier day would not show it. The check is free (one page
-  // load, no AI), and it runs once per mount for URLs that have no result yet.
-  const checked = useRef(new Set<string>());
-  useEffect(() => {
-    if (mode !== 'listing') return;
-    for (const url of listing) {
-      if (checked.current.has(url)) continue;
-      void runCheck(url);
-    }
-  }, [mode, listing]);
-
   async function runCheck(url: string) {
-    // Marked here, not in the effect: `ExtractPages` calls `onCheck` for a URL
-    // it has just added, in the same handler that added it, so the effect must
-    // find it already claimed or the new page would be checked twice.
-    checked.current.add(url);
     setChecks((prev) => ({ ...prev, [url]: null })); // null renders as "checking…"
     try {
       const result = await checkMutation.mutateAsync({ listingUrl: url });
@@ -171,26 +167,26 @@ export default function SourceExtract() {
   const runRows = runsQuery.data ?? [];
   // `listBySource` is newest-first, so the first match is the latest.
   const latestProbe = runRows.find((r) => r.inputLabel === 'probe') ?? null;
+  const sampleRun: SampleRun | null = latestProbe
+    ? { status: latestProbe.status, rows: latestProbe.resultCount ?? 0 }
+    : null;
+  const sampleIsFinished = sampleFinished(sampleRun);
 
-  /**
-   * Has the sample finished producing its evidence?
-   *
-   * `stepStates` unlocks step 3 on a `completed` sample. A probe that
-   * extracted some rows and gave up on the rest finalises `partial` — the
-   * ordinary outcome of a three-product sample where one page 404s or a
-   * certified path misses — and that run is terminal: it will never become
-   * `completed`, no matter how long the tab waits. Its evidence is the same
-   * evidence. So a terminal probe that produced rows is handed to
-   * `stepStates` as the finished sample it is, rather than leaving Run
-   * permanently out of reach behind a run that is already over.
-   */
-  const sampleFinished = !!(
-    latestProbe &&
-    (latestProbe.status === 'completed' || (latestProbe.status === 'partial' && (latestProbe.resultCount ?? 0) > 0))
-  );
+  // The website's own full runs — not the probe samples, not a repair
+  // backfill, which is a different run's remainder.
+  const latestFullRun = runRows.find((r) => r.inputLabel !== 'probe' && r.inputLabel !== 'backfill') ?? null;
 
   const rowsUpdatedAt = rowsQuery.data?.updatedAt ?? null;
   const sampleStale = !!(latestProbe && rowsUpdatedAt && rowsUpdatedAt > latestProbe.createdAt);
+
+  // A run started from this tab is not the only run worth showing: reloading
+  // the page, or opening the tab while a crawl kicked off an hour ago is still
+  // working, must show the progress line and the link to it rather than
+  // offering Extract again on a website already extracting.
+  useEffect(() => {
+    if (startedRunId || !latestFullRun) return;
+    if (isRunActive(latestFullRun.status)) setStartedRunId(latestFullRun.id);
+  }, [startedRunId, latestFullRun]);
 
   const runStatusQuery = trpc.crawl.status.useQuery(
     { runId: startedRunId ?? '' },
@@ -204,19 +200,24 @@ export default function SourceExtract() {
   );
 
   const running = startedRunId !== null;
-  // Saved, not merely typed: `inputMode` is the marker `setListingPages`/
-  // `setProductUrls` write, so a legacy website whose input set predates the
-  // Extract tab starts at step 1 with its rows already in the box, rather
-  // than claiming pages it never confirmed.
-  const pagesSaved = urlCount > 0 && savedMode !== null;
+  /**
+   * Are the pages on screen the pages that are actually stored?
+   *
+   * Saved, not merely typed: `inputMode` is the marker `setListingPages`/
+   * `setProductUrls` write, so a legacy website whose input set predates the
+   * Extract tab starts at step 1 with its rows already in the box, rather than
+   * claiming pages it never confirmed.
+   *
+   * `savedMode === mode` is the other half, and it is what stops a real
+   * misfire: flipping the segmented control to the other shape without saving
+   * left this true, so Run stayed unlocked and Extract planned against the
+   * input still stored for the mode the operator had just navigated away from.
+   * A switched mode has nothing saved *for that mode*, so step 1 goes back to
+   * `current` until it does.
+   */
+  const pagesSaved = urlCount > 0 && savedMode !== null && savedMode === mode;
   const states = withEditing(
-    stepStates({
-      schemaGreen: green,
-      mode,
-      pagesSaved,
-      sampleRun: latestProbe ? { status: sampleFinished ? 'completed' : latestProbe.status } : null,
-      running,
-    }),
+    stepStates({ schemaGreen: green, mode, pagesSaved, sampleRun, running }),
     editing,
   );
 
@@ -302,7 +303,12 @@ export default function SourceExtract() {
     setError(null);
     try {
       await probeMutation.mutateAsync({ sourceId: source.id });
-      await utils.runs.listBySource.invalidate({ sourceId: source.id });
+      // `listByProject` too: a probe's plan writes to the Source row, and the
+      // header/tabs above read it from the same cached list this tab does.
+      await Promise.all([
+        utils.runs.listBySource.invalidate({ sourceId: source.id }),
+        utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug }),
+      ]);
     } catch (err) {
       setError(message(err));
     }
@@ -348,7 +354,7 @@ export default function SourceExtract() {
 
   if (listQuery.isLoading) return <Spinner label="Loading website..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
-  if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
+  if (!source) return <NotFound what={`Website "${sourceSlug}"`} />;
 
   // "Extracting · 12 of 40" while the loop is working; the run page's own
   // wording (`progressLabel`) once it is planned-but-idle or finished, so the
@@ -366,12 +372,12 @@ export default function SourceExtract() {
     : null;
 
   const listingCount = mode === 'listing' ? listing.length : productCounts.total;
-  const extractBlocked = !green || !pagesSaved || (mode === 'listing' && !sampleFinished);
+  const extractBlocked = !green || !pagesSaved || (mode === 'listing' && !sampleIsFinished);
   const extractReason = !pagesSaved
     ? mode === 'detail'
       ? 'Save your URLs first'
       : 'Save your pages first'
-    : mode === 'listing' && !sampleFinished
+    : mode === 'listing' && !sampleIsFinished
       ? 'Sample first'
       : undefined;
 
@@ -414,11 +420,10 @@ export default function SourceExtract() {
           listing={listing}
           onListing={(urls) => {
             setListing(urls);
-            // A removed page takes its check with it — and is forgotten, so
-            // pasting it back checks it again rather than showing "checking…"
-            // for a request that will never be made.
+            // A removed page takes its check with it, so re-adding it later
+            // starts from "checking…" rather than showing the result of a
+            // check on a page that has since been taken off the list.
             const kept = new Set(urls);
-            for (const url of checked.current) if (!kept.has(url)) checked.current.delete(url);
             setChecks((prev) => Object.fromEntries(Object.entries(prev).filter(([url]) => kept.has(url))));
           }}
           checks={checks}
@@ -441,7 +446,10 @@ export default function SourceExtract() {
         hint={HINTS[1]}
         reason={green ? 'Save your pages first' : LOCKED_REASON}
         state={states[1]}
-        onEdit={() => setEditing(2)}
+        onEdit={() => {
+          setSaveNote(null);
+          setEditing(2);
+        }}
       >
         <ExtractSample
           mode={mode ?? 'listing'}
@@ -463,10 +471,11 @@ export default function SourceExtract() {
         state={states[2]}
       >
         <ExtractRun
+          mode={mode ?? 'listing'}
           items={budget.items}
           pages={budget.pages}
           onChange={setBudget}
-          sentence={runSentence(budget, listingCount)}
+          sentence={runSentence(budget, listingCount, mode ?? 'listing')}
           onExtract={() => void handleExtract()}
           extracting={extracting}
           disabled={extractBlocked}

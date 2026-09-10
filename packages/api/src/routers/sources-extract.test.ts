@@ -114,6 +114,33 @@ describe('sources.setListingPages', () => {
     }
   });
 
+  // `LISTING_DEFAULT_BUDGET` — what `updateBinding` writes by itself the first
+  // time a binding names a listing URL. Nobody chose 40 and 3, so it counts as
+  // unset and the all/all starter replaces it.
+  it('replaces the old flow\'s automatic 40/3 starter, which nobody chose', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing-budget-auto', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await db.update(sources).set({ budget: { max_items: 40, max_pages: 3, mode: 'first_n' } }).where(eq(sources.id, f.sourceId));
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls: ['https://test-set-listing-budget-auto.example.com/c/shoes'] });
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect(row?.budget).toEqual({ max_items: 'all', max_pages: 'all', mode: 'all' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('keeps a 40/3 budget that is not exactly that object', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing-budget-40-3', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await db.update(sources).set({ budget: { max_items: 40, max_pages: 3 } }).where(eq(sources.id, f.sourceId));
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls: ['https://test-set-listing-budget-40-3.example.com/c/shoes'] });
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect(row?.budget).toEqual({ max_items: 40, max_pages: 3 });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it('refuses a listing url on a different host than the binding\'s proof pages', async () => {
     const urls = ['https://test-set-listing-diffhost.example.com/p/1', 'https://test-set-listing-diffhost.example.com/p/2', 'https://test-set-listing-diffhost.example.com/p/3'];
     const f = await createProjectWithSource(caller, {
