@@ -148,6 +148,14 @@ describe('applyPasteByName', () => {
     expect(next.rows[1]!.description).toBe('the h1');
   });
 
+  test('a 5-column block whose description equals a type name is still read as 5 columns', () => {
+    const block = [['Price', 'url', '1', '2', '3']];
+    const { state: next, byName } = applyPasteByName(named, { row: 0, col: 0 }, block);
+    expect(byName).toBe(true);
+    expect(next.rows[0]!.description).toBe('url');
+    expect(next.rows[0]!.expected).toEqual(['1', '2', '3']);
+  });
+
   test('falls back to positional paste, clipped to existing rows, when the first column is not a field name', () => {
     const block = [
       ['not-a-field', 'x', 'y'],
