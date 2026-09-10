@@ -60,9 +60,12 @@ export function applyPasteByName(state: GridState, at: { row: number; col: numbe
   const matched = block.filter((line) => names.has((line[0] ?? '').trim().toLowerCase()));
   if (block.length > 0 && matched.length === block.length) {
     const rows = [...state.rows];
+    // A pasted block has one width. Six columns means name, type, description, v1..v3;
+    // five means the type column is absent. Decided by width, not by sniffing column
+    // two, so a description that happens to read "url" or "date" cannot shift the row.
+    const hasType = block[0]!.length >= 2 + 1 + URL_COUNT;
     for (const line of block) {
       const i = names.get(line[0]!.trim().toLowerCase())!;
-      const hasType = (FIELD_TYPES as readonly string[]).includes((line[1] ?? '').trim().toLowerCase());
       const rest = line.slice(hasType ? 2 : 1);
       const [description, ...expected] = rest;
       const row = rows[i]!;
