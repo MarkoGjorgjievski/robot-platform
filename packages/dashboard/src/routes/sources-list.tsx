@@ -1,5 +1,4 @@
 import { useParams, Link } from '@tanstack/react-router';
-import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState } from '../components/page-states';
 import { PageHeader } from '../components/page-header';
@@ -13,58 +12,63 @@ export default function SourcesList() {
     projectSlug,
   });
 
-  if (listQuery.isLoading) return <Spinner label="Loading sources..." />;
+  if (listQuery.isLoading) return <Spinner label="Loading websites..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
 
   const sources = listQuery.data ?? [];
 
   return (
     <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Link to="/projects" className="hover:text-gray-700">Projects</Link>
+      <div className="flex items-center gap-1 text-xs text-gray-600">
+        <Link to="/projects" className="hover:text-gray-900">Projects</Link>
         <span>/</span>
-        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">
           Project
         </Link>
         <span>/</span>
-        <span className="text-gray-700">Sources</span>
+        <span className="text-gray-900">Websites</span>
       </div>
       <div className="mt-2">
         <PageHeader
-          title="Sources"
-          description={<>All sources in this project. {sources.length} {sources.length === 1 ? 'source' : 'sources'}.</>}
+          title="Websites"
+          description={<>Every website in this project. {sources.length} {sources.length === 1 ? 'website' : 'websites'}.</>}
         />
       </div>
 
       {sources.length === 0 ? (
         <EmptyState
-          title="No sources yet"
-          description="Sources appear here once they're created in this project."
+          title="No websites yet"
+          description="Add a website on the project page and it appears here."
         />
       ) : (
-        <ul className="card mt-6 divide-y divide-gray-100">
-          {sources.map((s) => (
-            <li key={s.id}>
-              <Link
-                to="/projects/$project/sources/$source"
-                params={{ project: projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
-              >
-                <Layers className="h-4 w-4 text-gray-400" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{s.name}</div>
-                  <div className="truncate font-mono text-xs text-gray-500">
-                    {s.datasetSlug ? `${s.datasetName} · ` : ''}{s.urlTemplate}
-                  </div>
-                </div>
-                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">
-                  {s.inputStrategy ?? 'unknown'}
-                </span>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <table className="sheet mt-6">
+          <thead>
+            <tr className="sheet-row">
+              <th className="sheet-head px-3 py-2 text-left">Name</th>
+              <th className="sheet-head px-3 py-2 text-left">Address</th>
+              <th className="sheet-head px-3 py-2 text-left">Pages</th>
+              <th className="sheet-head px-3 py-2 text-left"> </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sources.map((s) => (
+              <tr key={s.id} className="sheet-row h-8">
+                <td className="px-3"><span className="name text-[15px]">{s.name}</span></td>
+                <td className="max-w-md truncate px-3 font-mono text-xs text-gray-600">{s.urlTemplate}</td>
+                <td className="px-3 font-mono">{s.urlCount}</td>
+                <td className="px-3 text-right">
+                  <Link
+                    to="/projects/$project/sources/$source"
+                    params={{ project: projectSlug, source: s.slug }}
+                    className="text-xs text-accent-700 underline-offset-2 hover:underline"
+                  >
+                    Open
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

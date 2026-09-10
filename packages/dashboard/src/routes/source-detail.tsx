@@ -30,26 +30,26 @@ export default function SourceDetailLayout() {
   else if (pathname.startsWith(`${sourceBasePath}/settings`)) activeTo = '/projects/$project/sources/$source/settings';
   else if (pathname.startsWith(`${sourceBasePath}/runs`)) activeTo = '/projects/$project/sources/$source/runs';
 
-  if (listQuery.isLoading) return <Spinner label="Loading source..." />;
+  if (listQuery.isLoading) return <Spinner label="Loading website..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
 
   const source = (listQuery.data ?? []).find((s) => s.slug === sourceSlug);
-  if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
+  if (!source) return <NotFound what={`Website "${sourceSlug}"`} />;
 
   return (
     <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Link to="/projects" className="hover:text-gray-700">Projects</Link>
+      <div className="flex items-center gap-1 text-xs text-gray-600">
+        <Link to="/projects" className="hover:text-gray-900">Projects</Link>
         <span>/</span>
-        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">
           {projectQuery.data?.project.name ?? projectSlug}
         </Link>
       </div>
 
       <div className="mt-1 flex items-center gap-3">
-        <InlineRename value={source.name} pending={rename.isPending} onSave={(name) => rename.mutate({ sourceId: source.id, name })} className="text-xl font-semibold tracking-tight" />
+        <InlineRename value={source.name} pending={rename.isPending} onSave={(name) => rename.mutate({ sourceId: source.id, name })} className="text-2xl leading-[1.2]" />
         {source.urlTemplate && (
-          <a href={source.urlTemplate} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 truncate font-mono text-xs text-gray-500 hover:text-accent-700">
+          <a href={source.urlTemplate} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 truncate font-mono text-xs text-gray-600 hover:text-accent-700">
             <span className="max-w-md truncate">{hostOf(source.urlTemplate)}</span>
             <ExternalLink className="h-3 w-3 flex-shrink-0" />
           </a>

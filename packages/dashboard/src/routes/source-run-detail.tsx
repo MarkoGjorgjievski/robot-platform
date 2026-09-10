@@ -928,15 +928,16 @@ function ProbeConfirmGate({
       )}
 
       {showDiagnosisPanel && (
-        <DiagnosisPanel diagnosis={diagnosis} projectSlug={projectSlug} sourceSlug={sourceSlug} sourceId={sourceId} />
+        <DiagnosisPanel diagnosis={diagnosis} projectSlug={projectSlug} sourceSlug={sourceSlug} />
       )}
     </div>
   );
 }
 
 /**
- * The honest actions on "no" (spec §3): switch mode, delete — and, in place
- * of an "Edit URLs" link, an honest note.
+ * The honest actions on "no" (spec §3): switch mode — and, in place of an
+ * "Edit URLs" link, an honest note. Deleting the website lives on its Settings
+ * tab (spec 5.8), not here.
  *
  * Ruling R7 (final-review-findings.md, Finding 5): "Edit URLs" used to link
  * to `source-inputs.tsx`, an EmptyState stub with no editing behind it —
@@ -948,22 +949,12 @@ function ProbeConfirmGate({
  * this ruling.
  */
 function DiagnosisPanel({
-  diagnosis, projectSlug, sourceSlug, sourceId,
+  diagnosis, projectSlug, sourceSlug,
 }: {
   diagnosis: Diagnosis[];
   projectSlug: string;
   sourceSlug: string;
-  sourceId: string | null;
 }) {
-  const navigate = useNavigate();
-  const utils = trpc.useUtils();
-  const deleteMutation = trpc.sources.delete.useMutation({
-    onSuccess: () => {
-      utils.sources.listByProject.invalidate();
-      navigate({ to: '/projects/$project/sources', params: { project: projectSlug } });
-    },
-  });
-
   return (
     <div className="mt-4 border-t border-gray-100 pt-4">
       {diagnosis.length === 0 ? (
@@ -994,20 +985,7 @@ function DiagnosisPanel({
         >
           Switch mode
         </Link>
-        <button
-          onClick={() => {
-            if (!sourceId) return;
-            if (window.confirm('Delete this source? This cannot be undone.')) {
-              deleteMutation.mutate({ sourceId });
-            }
-          }}
-          disabled={deleteMutation.isPending || !sourceId}
-          className="btn-quiet hover:border-red-300 hover:bg-red-50 hover:text-red-700"
-        >
-          Delete source
-        </button>
       </div>
-      {deleteMutation.isError && <p className="mt-2 text-xs text-red-600">{deleteMutation.error.message}</p>}
     </div>
   );
 }
