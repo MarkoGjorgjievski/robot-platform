@@ -10,10 +10,15 @@
 // can be clicked, typed into, or tabbed to.
 //
 // Visually (spec 7): none of this is a box. The strip is three quiet cells
-// carrying a 2px rail under them — accent on the current step, pass on a
+// carrying a 2px rail under them — accent on the current step, ink on a
 // finished one, rule-soft on one that is out of reach — and each section is a
 // block on the paper separated from the one above by a single rule. No glyphs:
 // a finished step is marked by the colour of its rail, not by a check.
+//
+// Ink, not `pass`, for a done step: pass (#1f7a4d) and accent (#1f5e4a) are
+// close enough that at 2px the finished and current rails were the same green.
+// Ink is also the sheet's own 2px language — the rule on top of every table —
+// so a finished step reads as settled rather than as a second kind of go.
 import type { ReactNode } from 'react';
 import type { StepState } from '../lib/extract-view';
 
@@ -35,7 +40,7 @@ export function Stepper({ steps }: { steps: Step[] }) {
               current
                 ? 'border-accent-600 text-gray-900'
                 : done
-                  ? 'border-pass text-gray-900'
+                  ? 'border-gray-900 text-gray-900'
                   : 'border-gray-200 text-gray-600'
             }`}
           >
