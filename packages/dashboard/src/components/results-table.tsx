@@ -31,7 +31,13 @@ export function ResultsTable({
   data: Record<string, unknown>[];
   confidence: number | null;
   fields: SchemaField[];
-  headerVariant?: 'neutral' | 'celebrate';
+  /**
+   * `'none'` renders the table with no header of its own — no "Extraction
+   * results" heading and no row count. For a caller that already has a
+   * heading above it (the Extract tab's numbered sections), the table's own
+   * <h2> would sit under that section's <h3> and invert the outline.
+   */
+  headerVariant?: 'neutral' | 'celebrate' | 'none';
   /** Per-field fill counts (Task 2's `crawl.coverage`) — drives the header's fill badges. */
   coverage?: FieldCoverage[];
   /** Per-row confirmed-absent field names, keyed by `_url`. Optional — see cellState's fallback below. */
@@ -49,6 +55,7 @@ export function ResultsTable({
   const coverageByName = new Map((coverage ?? []).map((c) => [c.name, c]));
   return (
     <div className="mt-8">
+      {headerVariant !== 'none' && (
       <div className="mb-3 flex items-baseline gap-3">
         {headerVariant === 'celebrate' ? (
           <span className="flex items-center gap-2 text-sm font-medium text-gray-900">
@@ -65,6 +72,7 @@ export function ResultsTable({
           <span className="text-xs text-gray-500">· {confidence}% confidence</span>
         )}
       </div>
+      )}
       {data.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 bg-white/50 p-8 text-center text-sm text-gray-500">
           No rows extracted.

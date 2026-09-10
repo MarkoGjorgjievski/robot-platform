@@ -122,7 +122,7 @@ export function ExtractPages({
                 <tr className="border-b border-gray-200 text-left">
                   <th className="w-[55%] px-2 py-1 text-xs font-medium text-gray-500">Listing page</th>
                   <th className="px-2 py-1 text-xs font-medium text-gray-500">Check</th>
-                  <th className="w-10 px-2 py-1" />
+                  <th className="w-20 px-2 py-1" />
                 </tr>
               </thead>
               <tbody>
@@ -142,9 +142,9 @@ export function ExtractPages({
                           aria-label="Remove listing page"
                           disabled={readOnly}
                           onClick={() => onListing(listing.filter((u) => u !== url))}
-                          className="rounded px-1 text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-50"
+                          className="rounded px-1 text-xs text-gray-500 transition-colors hover:text-gray-800 disabled:opacity-50"
                         >
-                          ×
+                          remove
                         </button>
                       </td>
                     </tr>
@@ -156,8 +156,14 @@ export function ExtractPages({
 
           <div>
             <textarea
+              aria-label="Listing pages to add"
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                // The amber note names lines that are no longer on screen the
+                // moment the box is edited, so it must not outlive the edit.
+                setRejected([]);
+              }}
               disabled={readOnly}
               rows={2}
               placeholder="paste one or more listing URLs"
@@ -187,6 +193,7 @@ export function ExtractPages({
       {mode === 'detail' && (
         <div>
           <textarea
+            aria-label="Product URLs"
             value={productText}
             onChange={(e) => onProductText(e.target.value)}
             disabled={readOnly}
