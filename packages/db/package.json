@@ -13,6 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "seed:scratch": "tsx src/scripts/seed-scratch.ts",
+    "lift:contracts": "tsx src/scripts/lift-contracts.ts",
     "test": "vitest",
     "typecheck": "tsc --noEmit"
   },
