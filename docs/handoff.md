@@ -193,6 +193,14 @@ is treated as a real choice and never silently reseeded to all/all — which mat
 `budgetFromForm(40, 3)` is byte-identical to the starter, so a customer who deliberately picks
 40/3 must not have that choice mistaken for the unset default on their next visit.
 
+**The 5,000-product safety stop is per listing input, not per run.** `planRun` measures each
+input's item cap and `maxPages` against that input's own gain, never a running total across the
+run — invisible before this tab, when a Source had exactly one listing URL from the wizard, and
+material now that up to 50 listing pages can be saved (50 × 5,000 at all/all). The Run sentence
+says "safety stop at 5,000 products per listing" for that reason; product-URL mode, which has one
+input row per URL and no walk, says "safety stop at 5,000 products". Enforcing a genuine run-level
+total in `planRun` is the alternative, and is a phase 5 decision.
+
 **The sample-finished rule**, used to unlock step 3: a probe run counts as finished when its
 status is `completed`, **or** `partial` with `rows > 0`. `partial` is a terminal status on this
 engine (it never becomes `completed`), and the ordinary outcome of a sample walk that finds more
@@ -209,7 +217,7 @@ finished with sample rows complete **3 of 3**. Instrumenting the network confirm
 on page load — the saved row shows `saved` with a manual `Check` button, nothing fires until it's
 clicked. For a website going through the tab for the first time, the Run section opens with both
 dropdowns on `all`/`all`: "1 listing · up to 10 pages per listing · safety stop at 5,000 products
-per run". Four screenshots recorded the walk-through: `docs/testing/screens/extract-pages.png`,
+per listing". Four screenshots recorded the walk-through: `docs/testing/screens/extract-pages.png`,
 `extract-checked.png`, `extract-sample.png`, `extract-run.png`. **The plan+execute path — the
 Extract button itself, in every branch — was not exercised live**; only the free steps (check,
 sample) were clicked.

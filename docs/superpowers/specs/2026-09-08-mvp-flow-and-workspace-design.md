@@ -237,6 +237,9 @@ Section 1, Pages. A segmented control: "Listing pages" or "Product URLs".
 
 - Listing pages: a small table, one row per listing URL, with a Check column and remove. A row is
   checked automatically when added: one page load, no AI, nothing saved until Sample or Extract.
+  Correction (implemented in phase 4): the section has an explicit "Save pages" / "Save URLs"
+  button instead — checking is still free and nothing is written by the check itself, but the
+  input set is written when the customer saves, not as a side effect of sampling or extracting.
   Check reports "n product links · pager found" green, "n product links · no pager seen" amber,
   or an error. The check is the existing link harvest, extended to return the count and whether a
   pagination control was seen.
@@ -253,9 +256,15 @@ place. Product-URL mode shows one line: "No sample needed, the pages are known."
 
 Section 3, Run. One line: Run [all ▾] products across [all ▾] pages. Each dropdown offers all
 and custom; custom reveals a number box after it. Both default to all. Below: "n listings ·
-safety stop at 5,000 products per run". Button: Extract. On start, the section shows the run's
+safety stop at 5,000 products per listing". Button: Extract. On start, the section shows the run's
 progress line and a link; it does not change into something else. Unlock rule: listing mode
 after a sample exists; product-URL mode as soon as the schema is fully green.
+
+Correction (phase 4 review): the 5,000-product ceiling is **per listing input**, not per run —
+`planRun` measures every input's budget against that input's own gain, never a running total
+across the run, so n listing pages at all/all can plan up to n × 5,000. The sentence says "per
+listing" for that reason. Product-URL mode has one input row per URL and no walk, so it reads
+"safety stop at 5,000 products" with no qualifier.
 
 Locked tab: when the schema is not fully green, every section is dimmed and the strip says
 "Extraction is locked · n of m fields verified · fix <field> on the Schema tab" with a link.
@@ -357,7 +366,9 @@ input, as it does today.
   written into every result.
 - `runVerification` accepts `onlyKeys` as today and copies forward results whose `fieldHash` is
   unchanged.
-- `resolveBudget` and the walks accept unbounded pages per section 8.
+- `resolveBudget` and the walks accept `'all'` pages per section 8 — resolved to
+  `PAGES_ALL_CEILING` (10, the existing single-burst api-walk cap), not unbounded. Section 8's own
+  wording was corrected the same way; this bullet said "unbounded" and was stale.
 - The link harvest behind `findProductPages` also returns the count of same-template links and
   whether a pagination control exists, reusing the pager detection the walk already has.
 
