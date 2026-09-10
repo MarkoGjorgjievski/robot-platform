@@ -31,33 +31,34 @@ export default function ProjectHome() {
 
   return (
     <div>
-      <div className="text-xs text-gray-500"><Link to="/projects" className="hover:text-gray-700">Projects</Link></div>
-      <InlineRename value={project.name} pending={rename.isPending} onSave={(name) => rename.mutate({ projectId: project.id, name })} className="mt-1 text-xl font-semibold tracking-tight" />
-      {project.description && <p className="mt-1 text-sm text-gray-600">{project.description}</p>}
+      <div className="text-xs text-gray-600"><Link to="/projects" className="hover:text-gray-900">Projects</Link></div>
+      <InlineRename value={project.name} pending={rename.isPending} onSave={(name) => rename.mutate({ projectId: project.id, name })} className="mt-1 text-2xl leading-[1.2]" />
+      {project.description && <p className="mt-1 text-xs text-gray-600">{project.description}</p>}
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <section>
-          <h2 className="text-sm font-medium text-gray-900">Fields <span className="font-normal text-gray-500">the columns of your output</span></h2>
+          <h2 className="name text-lg">Fields</h2>
+          <p className="label-soft mt-0.5">The columns of your output.</p>
           <div className="mt-2">
-            {datasets[0] ? <ContractEditor datasetId={datasets[0].id} projectSlug={projectSlug} /> : <p className="text-sm text-gray-500">Loading…</p>}
+            {datasets[0] ? <ContractEditor datasetId={datasets[0].id} projectSlug={projectSlug} /> : <p className="text-sm text-gray-600">Loading…</p>}
           </div>
         </section>
 
         <section>
-          <h2 className="text-sm font-medium text-gray-900">Websites <span className="font-normal text-gray-500">where the fields are proven and extracted</span></h2>
+          <h2 className="name text-lg">Websites</h2>
+          <p className="label-soft mt-0.5">Where the fields are proven and extracted.</p>
           <ul className="mt-2 space-y-1.5">
             {sources.map((s) => <WebsiteRow key={s.id} projectSlug={projectSlug} source={s} />)}
-            <li>
-              <button type="button" onClick={() => setAdding(true)} className="flex w-full items-center gap-3 rounded-lg border border-dashed border-gray-300 px-3 py-2.5 text-left text-sm text-gray-600 hover:border-gray-400 hover:bg-gray-50">
-                + Add website <span className="text-xs text-gray-400">name it, then pick three product pages</span>
-              </button>
-            </li>
           </ul>
+          <button type="button" onClick={() => setAdding(true)} className="btn-primary mt-3 h-9">Add website</button>
+          <p className="label-soft mt-1.5">Name it, then pick three product pages.</p>
           {datasets.length > 0 && (
-            <div className="mt-4 flex items-center gap-3 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-700">
-              <span className="font-medium">Output</span>
-              <span>{Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as Array<{ key?: unknown }>).filter((f) => typeof f.key === 'string').length : 0} columns</span>
-              <Link to="/projects/$project/output" params={{ project: projectSlug }} className="ml-auto underline-offset-2 hover:underline">Open</Link>
+            <div className="mt-6 border-t border-gray-200 pt-3">
+              <p className="label-soft">Output</p>
+              <p className="mt-0.5 text-sm">
+                <span className="font-mono">{Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as Array<{ key?: unknown }>).filter((f) => typeof f.key === 'string').length : 0}</span> columns.{' '}
+                <Link to="/projects/$project/output" params={{ project: projectSlug }} className="text-accent-700 underline-offset-2 hover:underline">Open</Link>
+              </p>
             </div>
           )}
         </section>
@@ -75,15 +76,15 @@ function WebsiteRow({ projectSlug, source }: { projectSlug: string; source: { id
   const passed = Object.values(results).filter((f) => Array.isArray(f.certified) && f.certified.length > 0).length;
   const current = !!status.data?.current;
   const label = total === 0 ? 'no fields yet' : current && status.data?.allPassed ? `${total} of ${total} verified` : `${current ? passed : 0} of ${total} verified`;
-  const dot = total === 0 ? 'bg-gray-300' : current && status.data?.allPassed ? 'bg-emerald-600' : 'bg-red-500';
+  const rail = total === 0 ? 'border-l-warn' : current && status.data?.allPassed ? 'border-l-pass' : 'border-l-fail';
   let host = '';
   try { host = source.urlTemplate ? new URL(source.urlTemplate).hostname : ''; } catch { host = ''; }
   return (
     <li>
-      <Link to="/projects/$project/sources/$source" params={{ project: projectSlug, source: source.slug }} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm hover:bg-gray-50/60">
-        <span className="font-medium">{source.name}</span>
-        <span className="font-mono text-xs text-gray-500">{host}</span>
-        <span className="ml-auto inline-flex items-center gap-2 text-xs text-gray-600"><span className={`h-2 w-2 rounded-full ${dot}`} />{label}</span>
+      <Link to="/projects/$project/sources/$source" params={{ project: projectSlug, source: source.slug }} className="card flex items-center gap-3 px-3 py-2.5 hover:bg-gray-100">
+        <span className="name text-[15px]">{source.name}</span>
+        <span className="font-mono text-xs text-gray-600">{host}</span>
+        <span className={`label-soft ml-auto border-l-[3px] pl-2 ${rail}`}>{label}</span>
       </Link>
     </li>
   );
@@ -125,9 +126,9 @@ function AddWebsiteDialog({ open, onClose, projectSlug }: { open: boolean; onClo
         <label className={`${labelClass} mt-3`}>Name
           <input value={name} onChange={(e) => { setNameTouched(true); setName(e.target.value); }} className={fieldClass} placeholder="AbeBooks" />
         </label>
-        <p className="mt-1 text-xs text-gray-500">Prefilled from the address. Change it to anything.</p>
-        <p className="mt-2 text-xs text-gray-500">Next you'll pick three product pages and fill in the expected values.</p>
-        {create.isError && <p className="mt-2 text-xs text-red-700">{create.error.message}</p>}
+        <p className="mt-1 text-xs text-gray-600">Prefilled from the address. Change it to anything.</p>
+        <p className="mt-2 text-xs text-gray-600">Next you'll pick three product pages and fill in the expected values.</p>
+        {create.isError && <p className="mt-2 text-xs text-fail">{create.error.message}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="btn-quiet h-9" disabled={create.isPending} onClick={closeIfIdle}>Cancel</button>
           <button type="submit" className="btn-primary h-9" disabled={!name.trim() || !/^https?:\/\//.test(url) || create.isPending}>

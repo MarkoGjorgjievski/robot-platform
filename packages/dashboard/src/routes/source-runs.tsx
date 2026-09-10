@@ -1,5 +1,4 @@
 import { useParams, Link } from '@tanstack/react-router';
-import { Activity, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
@@ -23,67 +22,70 @@ export default function SourceRuns() {
     { enabled: !!source?.id },
   );
 
-  if (listQuery.isLoading) return <Spinner label="Loading source..." />;
+  if (listQuery.isLoading) return <Spinner label="Loading website..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
-  if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
-  if (runsQuery.isLoading) return <Spinner label="Loading runs..." />;
+  if (!source) return <NotFound what={`Website "${sourceSlug}"`} />;
+  if (runsQuery.isLoading) return <Spinner label="Loading extractions..." />;
   if (runsQuery.isError) return <ErrorBanner message={runsQuery.error.message} />;
 
   const runs = runsQuery.data ?? [];
+  const planButton = <PlanCrawlButton sourceId={source.id} listingMode={source.listingMode} />;
 
   return (
     <div className="mt-6">
-      <div className="flex items-center gap-3">
-        <h2 className="text-sm font-medium text-gray-900">Runs ({runs.length})</h2>
-        <div className="ml-auto">
-          <PlanCrawlButton sourceId={source.id} listingMode={source.listingMode} />
+      <div className="flex items-start gap-3">
+        <div>
+          <h2 className="name text-lg">Runs</h2>
+          <p className="label-soft mt-0.5">Every extraction this website has run.</p>
         </div>
+        <div className="ml-auto">{planButton}</div>
       </div>
 
       {runs.length === 0 ? (
         <EmptyState
-          title="No runs yet"
-          description="Each extraction creates a Run row. Confirm this source's schema to kick off the first one."
+          title="No extractions yet"
+          description="Plan a crawl to enumerate the pages, then extract them."
+          action={planButton}
         />
       ) : (
-        <ul className="card mt-4 divide-y divide-gray-100">
-          {runs.map((r) => (
-            <li key={r.id}>
-              <Link
-                to="/projects/$project/sources/$source/runs/$run"
-                params={{ project: projectSlug, source: sourceSlug, run: r.id }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
-              >
-                <RunStatusDot status={r.status} />
-                <Activity className="h-4 w-4 text-gray-400" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
+        <table className="sheet mt-4">
+          <thead>
+            <tr className="sheet-row">
+              <th className="sheet-head px-3 py-2 text-left">Started</th>
+              <th className="sheet-head px-3 py-2 text-left">Status</th>
+              <th className="sheet-head px-3 py-2 text-left">Items</th>
+              <th className="sheet-head px-3 py-2 text-left"> </th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((r) => (
+              <tr key={r.id} className="sheet-row h-8">
+                <td className="px-3 font-mono text-gray-600">{formatDate(new Date(r.createdAt))}</td>
+                <td className="px-3">
+                  <span className="inline-flex items-center gap-2">
+                    <RunStatusDot status={r.status} />
                     {r.status}
-                    {r.resultCount != null && ` · ${r.resultCount} rows`}
-                    {/* Finding 8a (final-review-findings.md): a backfill run
-                        used to render indistinguishably from an ordinary
-                        crawl — a quiet chip so "Rows" and status here are
-                        read in context (a backfill's rows are deliberately
-                        partial), without competing with the row's own
-                        status text. */}
-                    {r.inputLabel === 'backfill' && (
-                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 align-middle font-mono text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                        backfill
-                      </span>
-                    )}
-                  </div>
-                  <div className="truncate font-mono text-[11px] text-gray-500">
-                    {r.id}
-                  </div>
-                </div>
-                <span className="text-xs text-gray-400">
-                  {formatDate(new Date(r.createdAt))}
-                </span>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+                    {/* Finding 8a (final-review-findings.md): a backfill run used
+                        to render indistinguishably from an ordinary crawl — a
+                        quiet second fact so "Items" and status here are read in
+                        context (a backfill's rows are deliberately partial). */}
+                    {r.inputLabel === 'backfill' && <span className="text-xs text-gray-600">backfill</span>}
+                  </span>
+                </td>
+                <td className="px-3 font-mono">{r.resultCount ?? '—'}</td>
+                <td className="px-3 text-right">
+                  <Link
+                    to="/projects/$project/sources/$source/runs/$run"
+                    params={{ project: projectSlug, source: sourceSlug, run: r.id }}
+                    className="text-xs text-accent-700 underline-offset-2 hover:underline"
+                  >
+                    Open
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
@@ -108,7 +110,7 @@ function PlanCrawlButton({ sourceId, listingMode }: { sourceId: string; listingM
       <button
         onClick={() => plan.mutate({ sourceId })}
         disabled={plan.isPending}
-        className="btn-quiet disabled:opacity-50"
+        className="btn-quiet"
         title={
           listingMode === 'listing_to_detail'
             ? 'Walk the listing pages and enumerate detail URLs. Fetches no detail pages.'
@@ -118,9 +120,9 @@ function PlanCrawlButton({ sourceId, listingMode }: { sourceId: string; listingM
         {planCrawlLabel(plan.isPending)}
       </button>
       {plan.isPending && (
-        <span className="text-[11px] text-gray-500">Fetching listing pages — this takes a minute.</span>
+        <span className="text-[11px] text-gray-600">Fetching listing pages — this takes a minute.</span>
       )}
-      {plan.isError && <span className="max-w-xs text-right text-[11px] text-red-600">{plan.error.message}</span>}
+      {plan.isError && <span className="max-w-xs text-right text-[11px] text-fail">{plan.error.message}</span>}
       {plan.data && (
         <span className="text-[11px] text-gray-600">
           {summariseWorkList({
@@ -133,7 +135,7 @@ function PlanCrawlButton({ sourceId, listingMode }: { sourceId: string; listingM
         </span>
       )}
       {plan.data?.warnings.map((w) => (
-        <span key={w} className="max-w-xs text-right text-[11px] text-amber-700">{w}</span>
+        <span key={w} className="max-w-xs text-right text-[11px] text-warn">{w}</span>
       ))}
     </div>
   );

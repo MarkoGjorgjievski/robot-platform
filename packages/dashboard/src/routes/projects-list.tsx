@@ -27,40 +27,38 @@ export default function ProjectsList() {
       {projects.length === 0 ? (
         <EmptyState title="No projects yet" description="A project holds the fields you want and the websites to get them from." action={newButton} />
       ) : (
-        <div className="card mt-6 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-600">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">Project</th>
-                <th className="px-4 py-2 text-left font-medium">Websites</th>
-                <th className="px-4 py-2 text-left font-medium">Fields</th>
-                <th className="px-4 py-2 text-left font-medium">Last extraction</th>
+        <table className="sheet mt-6">
+          <thead>
+            <tr className="sheet-row">
+              <th className="sheet-head px-3 py-2 text-left">Name</th>
+              <th className="sheet-head px-3 py-2 text-left">Websites</th>
+              <th className="sheet-head px-3 py-2 text-left">Fields</th>
+              <th className="sheet-head px-3 py-2 text-left">Last extraction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {projects.map((p) => (
+              <tr key={p.id} className="sheet-row h-8">
+                <td className="px-3">
+                  <Link to="/projects/$project" params={{ project: p.slug }} className="name text-[15px] hover:underline">{p.name}</Link>
+                  {p.description && <span className="ml-2 text-xs text-gray-600">{p.description}</span>}
+                </td>
+                <td className="px-3">
+                  {p.sourceCount === 0 ? <span className="text-gray-600">none yet</span> : (
+                    <span className="inline-flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${p.verifiedSourceCount === p.sourceCount ? 'bg-pass' : p.verifiedSourceCount === 0 ? 'bg-gray-400' : 'bg-warn'}`} />
+                      <span className="font-mono">{p.verifiedSourceCount} of {p.sourceCount}</span> verified
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 font-mono">{p.fieldCount}</td>
+                <td className="px-3 text-gray-600">
+                  {p.lastRun ? <><span className="font-mono">{formatDate(new Date(p.lastRun.createdAt))}</span>{p.lastRun.resultCount != null && <>, <span className="font-mono">{p.lastRun.resultCount}</span> rows</>}</> : 'never'}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {projects.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50/60">
-                  <td className="px-4 py-3">
-                    <Link to="/projects/$project" params={{ project: p.slug }} className="font-medium text-gray-900 hover:underline">{p.name}</Link>
-                    {p.description && <div className="truncate text-xs text-gray-500">{p.description}</div>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {p.sourceCount === 0 ? <span className="text-gray-400">none yet</span> : (
-                      <span className="inline-flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${p.verifiedSourceCount === p.sourceCount ? 'bg-emerald-600' : p.verifiedSourceCount === 0 ? 'bg-gray-400' : 'bg-amber-500'}`} />
-                        {p.verifiedSourceCount} of {p.sourceCount} verified
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 tabular-nums">{p.fieldCount}</td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {p.lastRun ? <>{formatDate(new Date(p.lastRun.createdAt))}{p.lastRun.resultCount != null && <>, {p.lastRun.resultCount} rows</>}</> : 'never'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       )}
 
       <NewProjectDialog open={creating} onClose={() => setCreating(false)} />
@@ -97,8 +95,8 @@ function NewProjectDialog({ open, onClose }: { open: boolean; onClose: () => voi
         <label className={`${labelClass} mt-3`}>What is it for <span className="text-gray-400">(optional)</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={fieldClass} placeholder="mountaineering books, prices and authors" />
         </label>
-        <p className="mt-2 text-xs text-gray-500">Fields and websites come next, on the project page.</p>
-        {create.isError && <p className="mt-2 text-xs text-red-700">{create.error.message}</p>}
+        <p className="mt-2 text-xs text-gray-600">Fields and websites come next, on the project page.</p>
+        {create.isError && <p className="mt-2 text-xs text-fail">{create.error.message}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="btn-quiet h-9" disabled={create.isPending} onClick={closeIfIdle}>Cancel</button>
           <button type="submit" className="btn-primary h-9" disabled={!name.trim() || create.isPending}>

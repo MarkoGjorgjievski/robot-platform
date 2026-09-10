@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from '@tanstack/react-router';
-import { Layers, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
 import { PageHeader } from '../components/page-header';
@@ -42,37 +41,45 @@ export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) 
     <div>
       <Breadcrumbs projectSlug={projectSlug} datasetName={dataset.name} />
       <div className="mt-2">
-        <PageHeader title={dataset.name} description={dataset.description} />
+        <PageHeader title="Output" description={dataset.description ?? `Every column in ${dataset.name}.`} />
       </div>
 
       <SchemaFieldOrigins datasetId={dataset.id} schema={schema} sources={sources} />
 
-      <h2 className="mt-8 text-sm font-medium text-gray-900">
-        Sources ({sources.length})
-      </h2>
+      <h2 className="name mt-8 text-lg">Websites</h2>
+      <p className="label-soft mt-0.5">Where these columns are proven and extracted.</p>
       {sources.length === 0 ? (
         <EmptyState
-          title="No sources yet"
-          description="Sources for this dataset will appear here when they're created. (Bulk-create UX coming in Phase 3b.)"
+          title="No websites yet"
+          description="Add a website on the project page and it appears here."
         />
       ) : (
-        <ul className="card mt-2 divide-y divide-gray-100">
-          {sources.map((s) => (
-            <li key={s.id}>
-              <Link
-                to="/projects/$project/sources/$source"
-                params={{ project: projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
-              >
-                <Layers className="h-4 w-4 text-gray-400" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{s.name}</div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <table className="sheet mt-2">
+          <thead>
+            <tr className="sheet-row">
+              <th className="sheet-head px-3 py-2 text-left">Name</th>
+              <th className="sheet-head px-3 py-2 text-left">Address</th>
+              <th className="sheet-head px-3 py-2 text-left"> </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sources.map((s) => (
+              <tr key={s.id} className="sheet-row h-8">
+                <td className="px-3"><span className="name text-[15px]">{s.name}</span></td>
+                <td className="max-w-xs truncate px-3 font-mono text-xs text-gray-600">{s.urlTemplate ?? ''}</td>
+                <td className="px-3 text-right">
+                  <Link
+                    to="/projects/$project/sources/$source"
+                    params={{ project: projectSlug, source: s.slug }}
+                    className="text-xs text-accent-700 underline-offset-2 hover:underline"
+                  >
+                    Open
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
@@ -151,49 +158,49 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
   }
 
   if (fields.length === 0) {
-    return <p className="mt-6 text-sm text-gray-500">This dataset has no schema fields yet.</p>;
+    return <p className="mt-6 text-sm text-gray-600">There are no fields yet. Add them on the project page.</p>;
   }
 
   return (
     <div className="mt-6">
-      <h2 className="text-sm font-medium text-gray-900">Schema fields</h2>
-      <p className="mt-1 text-xs text-gray-500">
+      <h2 className="name text-lg">Fields</h2>
+      <p className="label-soft mt-0.5">
         Where each value comes from. Listing-page fields are captured while crawling and carried
-        down to every detail row.
+        down to every product row.
       </p>
-      <div className="card mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="mt-3 overflow-x-auto">
+        <table className="sheet">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50/60">
-              <th className="micro-label px-3 py-2 text-left">Field</th>
-              <th className="micro-label px-3 py-2 text-left">Type</th>
-              <th className="micro-label px-3 py-2 text-left">Required</th>
-              <th className="micro-label px-3 py-2 text-left">Description</th>
-              <th className="micro-label px-3 py-2 text-left">Comes from</th>
-              <th className="micro-label px-3 py-2 text-left">Candidate</th>
+            <tr className="sheet-row">
+              <th className="sheet-head px-3 py-2 text-left">Field</th>
+              <th className="sheet-head px-3 py-2 text-left">Type</th>
+              <th className="sheet-head px-3 py-2 text-left">Required</th>
+              <th className="sheet-head px-3 py-2 text-left">Description</th>
+              <th className="sheet-head px-3 py-2 text-left">Comes from</th>
+              <th className="sheet-head px-3 py-2 text-left">Candidate</th>
             </tr>
           </thead>
           <tbody>
             {fields.map((field, i) => {
               const options = pickerOptions(catalogue, field.name, field.candidate);
               return (
-                <tr key={field.name} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
-                  <td className="px-3 py-2 font-mono text-xs">{field.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{field.type}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500">{field.required ? 'yes' : 'no'}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500">{field.description ?? '—'}</td>
-                  <td className="px-3 py-2">
+                <tr key={field.name} className="sheet-row h-8">
+                  <td className="px-3 font-mono text-xs">{field.name}</td>
+                  <td className="px-3 font-mono text-xs text-gray-600">{field.type}</td>
+                  <td className="px-3 text-xs text-gray-600">{field.required ? 'yes' : 'no'}</td>
+                  <td className="px-3 text-xs text-gray-600">{field.description ?? '—'}</td>
+                  <td className="px-3">
                     <select
                       value={field.origin ?? 'detail'}
                       onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
-                      className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
+                      className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs focus:border-accent-600 focus:outline-none"
                     >
                       {FIELD_ORIGINS.map((origin) => (
                         <option key={origin} value={origin}>{originLabel(origin)}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3">
                     {options ? (
                       <select
                         value={field.candidate?.label ?? 'default'}
@@ -206,7 +213,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
                           const chosen = options.find((o) => o.label === value);
                           if (chosen) setCandidate(i, { concept: chosen.concept, label: chosen.label });
                         }}
-                        className="rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
+                        className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs focus:border-accent-600 focus:outline-none"
                       >
                         <option value="default">default</option>
                         {options.map((o) => (
@@ -216,7 +223,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
                         ))}
                       </select>
                     ) : (
-                      <span className="text-xs text-gray-300">—</span>
+                      <span className="text-xs text-gray-400">—</span>
                     )}
                   </td>
                 </tr>
@@ -228,12 +235,12 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
       <button
         onClick={() => updateSchema.mutate({ datasetId, schema: fields })}
         disabled={updateSchema.isPending}
-        className="btn-quiet mt-3 disabled:opacity-50"
+        className="btn-quiet mt-3"
       >
         {updateSchema.isPending ? 'Saving...' : 'Save field origins'}
       </button>
       {updateSchema.isError && (
-        <p className="mt-2 text-xs text-red-600">{updateSchema.error.message}</p>
+        <p className="mt-2 text-xs text-fail">{updateSchema.error.message}</p>
       )}
     </div>
   );
@@ -241,18 +248,14 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
 
 function Breadcrumbs({ projectSlug, datasetName }: { projectSlug: string; datasetName: string }) {
   return (
-    <div className="flex items-center gap-1 text-xs text-gray-500">
-      <Link to="/projects" className="hover:text-gray-700">Projects</Link>
+    <div className="flex items-center gap-1 text-xs text-gray-600">
+      <Link to="/projects" className="hover:text-gray-900">Projects</Link>
       <span>/</span>
-      <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">
-        Project
+      <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">
+        {datasetName}
       </Link>
       <span>/</span>
-      <Link to="/projects/$project/output" params={{ project: projectSlug }} className="hover:text-gray-700">
-        Datasets
-      </Link>
-      <span>/</span>
-      <span className="text-gray-700">{datasetName}</span>
+      <span className="text-gray-900">Output</span>
     </div>
   );
 }
