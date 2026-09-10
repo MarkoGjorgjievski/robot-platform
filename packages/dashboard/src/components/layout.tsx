@@ -1,10 +1,14 @@
-import { Outlet, Link } from '@tanstack/react-router';
+import { Outlet, Link, useRouterState } from '@tanstack/react-router';
 
-const navLink =
-  'border-b-2 border-transparent px-0.5 py-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900';
-const navLinkActive = '!border-accent-600 text-gray-900';
+const navLink = 'border-b-2 px-0.5 py-1.5 text-sm transition-colors';
+const navLinkActive = 'border-accent-600 text-gray-900';
+const navLinkInactive = 'border-transparent text-gray-600 hover:text-gray-900';
 
 export function Layout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const projectsActive = pathname === '/' || pathname.startsWith('/projects');
+  const opsActive = pathname.startsWith('/ops');
+
   return (
     <div className="min-h-screen">
       <header className="border-b border-gray-200 bg-gray-100">
@@ -13,13 +17,12 @@ export function Layout() {
             robot platform
           </Link>
           <nav className="flex items-center gap-4">
-            <Link to="/projects" className={navLink} activeProps={{ className: `${navLink} ${navLinkActive}` }}>
+            <Link to="/projects" className={`${navLink} ${projectsActive ? navLinkActive : navLinkInactive}`}>
               Projects
             </Link>
             <Link
               to="/ops/domains"
-              className={`${navLink} text-gray-400`}
-              activeProps={{ className: `${navLink} ${navLinkActive}` }}
+              className={`${navLink} ${opsActive ? navLinkActive : navLinkInactive}`}
               title="Operator view of the domain cache"
             >
               Ops

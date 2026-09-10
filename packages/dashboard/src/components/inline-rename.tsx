@@ -33,7 +33,7 @@ export function InlineRename({ value, onSave, pending, className }: { value: str
   return (
     <button type="button" onClick={() => { settled.current = false; setEditing(true); }} className={`group inline-flex items-center gap-2 text-left ${className ?? ''}`} title="Rename" aria-label="Rename">
       <span className="name">{value}</span>
-      {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-600" /> : <Pencil className="h-3.5 w-3.5 text-gray-600 opacity-0 focus:opacity-100 group-hover:opacity-100 group-focus:opacity-100" />}
+      {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-600" /> : <Pencil className="h-3.5 w-3.5 text-gray-600 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />}
     </button>
   );
 }
