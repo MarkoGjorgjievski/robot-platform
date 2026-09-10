@@ -68,11 +68,11 @@
 }
 
 @utility btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:opacity-50 disabled:hover:bg-accent-600;
+  @apply inline-flex items-center justify-center gap-2 rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:opacity-50 disabled:hover:bg-accent-600 disabled:pointer-events-none;
 }
 
 @utility btn-quiet {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none;
 }
 
 /* Schema tab: status rail on expected cells (3px left border + faint tint), never a filled cell. */
