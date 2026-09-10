@@ -8,7 +8,7 @@ import { SchemaImport } from '../components/schema-import';
 import { StatusStrip } from '../components/status-strip';
 import { applyImportToRows, bindingProblems, emptyRow, emptyState, fromSource, isComplete, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, verificationState, type VerificationResults } from '../lib/verification-view';
-import { stripState, columnStates, stripSummary, verifyButton, typeFixSuggestion } from '../lib/schema-tab-view';
+import { stripState, columnStates, stripSummary, verifyButton, typeFixSuggestion, type TimeEstimate } from '../lib/schema-tab-view';
 
 /**
  * The Schema tab (Task 15 brief) — what used to be Set-up. `fromSource`
@@ -148,14 +148,33 @@ export default function SourceSchema() {
   const firstRun = strip === 'editing' || strip === 'none';
   const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '', ...(firstRun ? {} : { onlyKeys: reverify ?? undefined }) }, { enabled: !!source });
   const estimate = estimateQuery.data;
+  // The rough time in the Verifying strip is frozen for the life of the run.
+  // `estimateQuery` already describes the NEXT run — it re-prices against
+  // `reverify`, and `capturesFresh` flips to true the moment this very run
+  // stores its captures — so reading it live would let "about 2 min" shrink to
+  // "a few seconds" while the same run is still going. Only a run started from
+  // this screen has a snapshot; after a reload mid-run there is none, and the
+  // strip honestly says just "Verifying" rather than guessing from next-run
+  // numbers.
+  const [runEstimate, setRunEstimate] = useState<TimeEstimate | null>(null);
+  const sawActive = useRef(false);
   const verifyBusy = updateBindingMutation.isPending || verifyMutation.isPending;
   const verify = verifyButton({ state: strip, firstRun, reverifyCount, capturesFresh: !!estimate?.capturesFresh, aiAvailable: !!estimate?.aiAvailable, upperBoundUsd: estimate?.upperBoundUsd ?? 0, complete: isComplete(grid) && !contractEmpty, busy: verifyBusy });
   const captures = (status?.captures ?? {}) as Record<string, { captureId?: string; capturedAt?: string; screenshotUrl?: string; blockedReason?: string }>;
   const columns = columnStates({ urls: grid.urls, state: strip, stage: status?.stage ?? null, captures });
   const progress = active ? (() => { const m = /^capturing (\d+)\/(\d+)/.exec(status?.stage ?? ''); return m ? (Number(m[1]) - 1) / Number(m[2]) : status?.stage ? 0.9 : 0.05; })() : null;
+  // The run's frozen snapshot is released once it is over, so the next run
+  // starts from a fresh one. Keyed on `active` alone: setting `runEstimate` in
+  // the handler does not re-run this, so it cannot clear the value it was just
+  // given in the window before the status query reports the run as active.
+  useEffect(() => {
+    if (active) { sawActive.current = true; return; }
+    if (sawActive.current) { sawActive.current = false; setRunEstimate(null); }
+  }, [active]);
+
   // The Verifying strip states two facts: that it is verifying, and roughly how
   // long that takes (spec 5.6). Until the estimate lands there is only the first.
-  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: URL_COUNT, currentKeys, failingKeys, staleKeys, estimate: estimate ?? null });
+  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: URL_COUNT, currentKeys, failingKeys, staleKeys, estimate: active ? runEstimate : (estimate ?? null) });
   const stage = active ? (status?.stage ?? 'starting') : strip === 'failed' ? (status?.errorMessage ?? null) : null;
   const tone = strip === 'stalled' ? 'warn' : strip === 'failed' ? 'error' : 'neutral';
   const lockNote = active ? 'table locked while verifying' : null;
@@ -178,6 +197,9 @@ export default function SourceSchema() {
   async function handleVerify() {
     if (!source) return;
     setError(null);
+    // Freeze the rough time before anything can move it: `estimate` is priced
+    // against exactly the fields this run is about to do.
+    setRunEstimate(estimate ?? null);
     try {
       // `results`/`savedGrid` are the PRE-save baseline - captured now,
       // before `updateBinding` catches the Source's saved definition up to
@@ -204,6 +226,7 @@ export default function SourceSchema() {
       utils.sources.verificationStatus.invalidate({ sourceId: source.id });
       utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug });
     } catch (err) {
+      setRunEstimate(null); // the run never started, so nothing is frozen
       setError(err instanceof Error ? err.message : String(err));
     }
   }

@@ -37,7 +37,7 @@ const LINE_TEXT: Record<'pass' | 'fail' | 'stale' | 'not_captured' | 'none', str
   fail: 'line-fail',
   stale: 'line-stale',
   not_captured: 'line-warn',
-  none: 'line-pass',
+  none: '', // no status, no line: the <p> is there to reserve the space, nothing more
 };
 
 export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures, readOnly, pending, onFindPages, typeFix }: Props) {
