@@ -77,6 +77,7 @@ Variables already set in the shell take precedence over `.env`.
 - `"type": "module"` in all packages
 - Dashboard is a Vite + TanStack Router/Query SPA (client-side), talking to `@robot/api-server` (Hono) over tRPC-HTTP. NOTE: this replaced the original Next.js dashboard in v1.5 (commit 0937bad, 2026-05-15) — older docs/commits that say "Next.js 15 / Server Components / App Router" are stale.
 - Customer routes live under `/projects/…`; `/p/…` and `/domains/…` are redirects (2026-09-08, spec `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`). Operator views are under `/ops/…`.
+- Field name and type live on the project's dataset (the contract); a website owns only its location hints, proof pages, expected values and certification, which is current per field (2026-09-09, spec section 4).
 - Radix UI + Tailwind v4 + shadcn pattern, light mode
 
 ## Conventions

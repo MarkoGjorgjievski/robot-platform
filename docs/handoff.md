@@ -34,6 +34,45 @@ exist and are removed in phase 2 with the project-level field list.
 Next: phase 2 (contract on the dataset, per-field certification), then 3 (Schema tab), 4 (Extract
 tab), 5 (visual system), each as its own plan.
 
+## MVP flow phase 2 (2026-09-09): contract on the dataset
+
+Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md` §12 item 2. Plan:
+`.superpowers/sdd/2026-09-09-mvp-flow-phase2-contract-on-dataset/`. Field name and type now live
+on the project's dataset (the contract), not on the website: `datasets.schema` is an array of
+`ContractField` entries — `{ key, name, type, concept }` — with a stable `key` derived once from
+the name and never recomputed on rename, so a field keeps its identity across a rename or a
+retype. `datasets.addField`, `renameField`, `retypeField`, and `deleteField` mutate that array and
+propagate the change to every website in the project; `datasets.fieldStatus` and `getContract`
+read back the per-field state (name, type, concept, and "verified on n of m websites") that the
+project home's editable field list and the Schema tab both use. `sources.updateBinding` replaced
+`sources.updateSchema` and now owns only a website's own state: its location hints (description
+per field), its three proof pages, and the expected values typed on them — never the field's name
+or type, which the Schema tab now locks and links back to the project page instead of letting you
+edit inline. `sources.createInProject` seeds a new website's bindings straight from the project's
+current contract, so a website is never created with an empty or divergent field list.
+`sources.createWithSchema` and `sources.quickCreate` — phase 1 leftovers that let a website define
+its own fields — are removed. Certification is current per field rather than for the source as a
+whole: each verification result carries a `fieldHash` (derived from that field's key, type,
+description and concept, plus its binding's proof pages and that field's expected cells —
+deliberately excluding `name`, since a rename is free per spec §4.3), and
+`verificationStatus.currentKeys` is the set of field keys whose stored result's `fieldHash` still
+matches the field's current definition. A retype (or a proof-page/expected-value edit) after a
+website was verified falls out of `currentKeys` for that website until it is re-verified — free,
+since a re-verify replays the same proof pages against the new definition.
+
+`pnpm db:lift-contracts` migrates pre-phase-2 data: it lifts each project's existing per-website
+fields into that project's (until-now-empty) dataset, so existing projects get a contract instead
+of starting over. **It has been run once on this machine**, during Task 6 of this plan. Its final
+run here printed `datasets updated: 0; projects given a dataset: 0` — not because there was
+nothing to lift, but because the lift had already happened earlier in the same test run; the
+run that actually did the lifting is the one the summary line describes as having found the one
+real conflict it flagged for hand review: the dataset for the Scratch project, field `price`,
+**kept `money` and ignored `number`** from one Scratch source. That conflict is parked for hand
+review, not auto-resolved. Every website that existed before this lift needs **one free re-verify**
+to become current again — the lift populates the contract and the bindings, but a stored
+verification result's `fieldHash` predates the lift and won't match until the website is
+re-verified against its now-contract-derived field definitions.
+
 ## Customer schema verification (2026-09-07): built and offline-proven — NO live site has verified through this flow yet
 
 **What shipped.** Marko's ruling after the 2026-09-02 corpus measurement (~65% verifiable accuracy over 7 of 8 domains) was that discovery-based extraction cannot reach competitive precision, and that the customer must define what they need and we must prove we can get it before spending at scale. `docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md` is the spec; 39 commits across Tasks 1-16 (plus the final whole-branch review's fix wave) of `docs/superpowers/plans/2026-09-04-customer-schema-verification.md` built it: a new `packages/scraper/src/verify/` module (normalization, mechanical structured/DOM search, cross-capture certification, the closed transform set, the AI `propose_path` fallback, `runVerification`, and `runVerifiedExtraction` for certified-only extraction at scale); `@robot/api`'s `sources.createWithSchema`, `sources.updateSchema`, `sources.findProductPages`, `sources.verify`, `sources.verificationStatus`, and `sources.verifyEstimate` procedures plus the `requireCertification` gate wired into `sources.confirm`; and a dashboard schema-grid screen (`packages/dashboard/src/routes/new-source.tsx` / `source-schema.tsx`) that replaces the old landing page and Set-up workspace — one row per field, an expected value typed on each of three product URLs, Verify paints cells green/red, Extract stays locked until every cell is green. See `docs/extraction-architecture.md` → "Verification-first sources" for how the mechanism works and `CLAUDE.md`'s Extraction Chain step 0.

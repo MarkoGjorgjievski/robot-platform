@@ -148,6 +148,7 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
   it('a project and a website created through the new procedures render', async () => {
     const project = await client.projects.create.mutate({ name: `Smoke ${Date.now()}` });
     createdProjects.push(project.id);
+    await client.datasets.addField.mutate({ datasetId: project.datasetId, name: 'price', type: 'money' });
     const site = await client.sources.createInProject.mutate({ projectSlug: project.slug, name: 'Smoke site', url: 'https://smoke.example/' });
     created.push(site.sourceId);
 
@@ -164,6 +165,7 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
       }
       expect(await page.getByPlaceholder('price').count(), 'the schema grid did not render').toBeGreaterThan(0);
       expect(await page.getByText('Smoke site').count(), 'the website name is not in the header').toBeGreaterThan(0);
+      expect(await page.locator('input[value="price"][disabled]').count(), 'the contract row is not locked').toBeGreaterThan(0);
     } finally {
       await page.close();
     }
