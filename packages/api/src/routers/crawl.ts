@@ -75,27 +75,35 @@ export const crawlRouter = router({
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await requireCertification(ctx.db, input.sourceId);
-      // Finding 3 (final-review-findings.md): neither guard below existed —
-      // the "Probe & sample" button reappears on every mount while
-      // unconfirmed, so a double-click, two tabs, or a re-mount fired a
+      // Finding 3 (final-review-findings.md): the duplicate-probe guard below
+      // did not exist — the "Probe & sample" button reappears on every mount
+      // while unconfirmed, so a double-click, two tabs, or a re-mount fired a
       // fresh PAID probe every time.
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
-        columns: { id: true, confirmedAt: true },
+        columns: { id: true },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       }
-      // A confirmed Source is either already crawling for real or already
-      // crawled — probing it again makes no sense, and there is no
-      // "existing run" to sensibly hand back the way the duplicate-probe
-      // guard below does.
-      if (source.confirmedAt) {
-        throw new TRPCError({
-          code: 'PRECONDITION_FAILED',
-          message: `Source ${input.sourceId} is already confirmed; probeAndSample only applies before confirmation`,
-        });
-      }
+      // There used to be a second guard here refusing a Source with
+      // `confirmedAt`, on the reasoning that "a confirmed Source is either
+      // already crawling for real or already crawled, so probing it again
+      // makes no sense". Phase 4 made that false. The Extract tab's first
+      // Extract stamps `confirmedAt` (via `sources.confirm`), and from then
+      // on editing the listing pages is an ordinary thing to do — the tab
+      // itself says "Pages changed since this sample. Sample again to refresh
+      // it." The guard turned that instruction into a guaranteed dead end.
+      //
+      // Nothing else depended on it: a probe is free by construction (no AI,
+      // certified paths only, `PROBE_SAMPLE_LIMIT` rows), the duplicate-probe
+      // guard below still stops two probes running at once, and the run
+      // page's confirm gate only renders for an UNconfirmed Source
+      // (`probeGateShowing` in routes/source-run-detail.tsx), so a later
+      // probe cannot re-open a confirm decision that has already been made.
+      //
+      // `source` is still read above: the duplicate-probe guard and the
+      // NOT_FOUND check both need it.
       // An unfinished probe already exists for this Source: refuse to start a
       // SECOND one (planSource never runs, so nothing is spent) and hand back
       // the one already in flight instead — the caller (source-setup.tsx)

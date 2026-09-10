@@ -160,16 +160,24 @@ describe('crawl.probeAndSample', () => {
     expect(planSourceMock).not.toHaveBeenCalled();
   });
 
-  // Finding 3 (final-review-findings.md): neither guard used to exist, so the
-  // "Probe & sample" button reappearing on every mount fired a fresh PAID
-  // probe every click.
-  describe('duplicate-probe and confirmed-source guards', () => {
-    it('refuses to probe a Source that is already confirmed, without spending a plan', async () => {
+  // Finding 3 (final-review-findings.md): the duplicate-probe guard did not
+  // exist, so the "Probe & sample" button reappearing on every mount fired a
+  // fresh PAID probe every click.
+  describe('duplicate-probe guard', () => {
+    // The Extract tab's first Extract stamps `confirmedAt`, and editing the
+    // listing pages afterwards is ordinary — the tab's own banner asks for a
+    // fresh sample when it happens. A probe is free (no AI), so the guard
+    // that used to refuse a confirmed Source only produced a dead end.
+    it('samples a confirmed Source, which the Extract tab asks for after a page edit', async () => {
       const sourceId = await makeSource();
       await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, sourceId));
+      planSourceMock.mockResolvedValue({ ...OUTCOME_BASE, runId: 'run-confirmed', status: 'planned', itemCount: 0 } satisfies PlanSourceResult);
 
-      await expect(caller.crawl.probeAndSample({ sourceId })).rejects.toThrow(/already confirmed/i);
-      expect(planSourceMock).not.toHaveBeenCalled();
+      const result = await caller.crawl.probeAndSample({ sourceId });
+
+      expect(result.runId).toBe('run-confirmed');
+      expect(result.status).toBe('planned');
+      expect(planSourceMock).toHaveBeenCalledWith(expect.anything(), sourceId, { probe: true });
     });
 
     it('hands back the existing run instead of starting a second probe when one is already in flight', async () => {
