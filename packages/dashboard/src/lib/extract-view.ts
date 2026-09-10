@@ -100,13 +100,22 @@ export function productUrlCounts(
  * What this budget means, said out loud.
  *
  * Listing mode: "3 listings · first 5 products from each · up to 10 pages per
- * listing · safety stop at 5,000 products per run" (or the numeric-pages
+ * listing · safety stop at 5,000 products per listing" (or the numeric-pages
  * variant). `count` is how many listing pages will be walked.
  *
- * Detail mode: "12 product URLs · safety stop at 5,000 products per run", and
+ * Detail mode: "12 product URLs · safety stop at 5,000 products", and
  * `count` is how many URLs were pasted. There is no pagination clause at all —
  * a fixed list of product pages has nothing to page through, and the old
  * wording called those URLs "listings", which they are not.
+ *
+ * "per listing", not "per run": `planRun` (packages/scraper/src/crawl/
+ * plan-run.ts) applies both the item cap and `maxPages` PER LISTING INPUT —
+ * every input's `remaining` is measured against that input's own gain, never
+ * a running total across the run. That was invisible before this tab, when a
+ * Source had exactly one listing URL from the wizard; now that up to 50 pages
+ * can be saved, a per-run promise would be false by a factor of 50. Detail
+ * mode has one input row per product URL and no walk, so the ceiling there is
+ * simply the ceiling — no qualifier reads sensibly, and none is added.
  */
 export function runSentence(
   b: { items: number | 'all'; pages: number | 'all' },
@@ -134,7 +143,11 @@ export function runSentence(
         : `first ${b.pages} ${b.pages === 1 ? 'page' : 'pages'} of each`,
     );
   }
-  parts.push(`safety stop at ${(5000).toLocaleString('en-US')} products per run`);
+  parts.push(
+    detail
+      ? `safety stop at ${(5000).toLocaleString('en-US')} products`
+      : `safety stop at ${(5000).toLocaleString('en-US')} products per listing`,
+  );
   return parts.join(' · ');
 }
 
@@ -144,6 +157,36 @@ export function budgetFromForm(
   pages: number | 'all',
 ): { max_items: number | 'all'; max_pages: number | 'all'; mode: 'all' | 'first_n' } {
   return { max_items: items, max_pages: pages, mode: items === 'all' ? 'all' : 'first_n' };
+}
+
+/**
+ * Does the stored budget need writing before this run starts?
+ *
+ * The obvious test — compare `budgetToForm(stored)` with the form on screen —
+ * cannot see the case that matters: `budgetToForm({})` is `all/all`, exactly
+ * the form's default, so a Source that never had a budget written looked
+ * identical to one storing all/all and no write ever happened. The engine
+ * then read `{}` as `maxItems: 50`. So the comparison is made on the STORED
+ * side instead: anything that is not already byte-for-byte the budget this
+ * form produces has to be written.
+ *
+ * Deliberately not a value-equality-after-normalisation check. `{max_items:
+ * 'all', max_pages: 'all'}` (no `mode`) resolves the same way as the full
+ * object, and rewriting it costs one idempotent update — far cheaper than the
+ * class of bug where two different-looking budgets are treated as the same.
+ */
+export function budgetNeedsSave(
+  raw: unknown,
+  form: { max_items: number | 'all'; max_pages: number | 'all'; mode: 'all' | 'first_n' },
+): boolean {
+  if (typeof raw !== 'object' || raw === null) return true;
+  const r = raw as Record<string, unknown>;
+  return (
+    Object.keys(r).length !== Object.keys(form).length ||
+    r.max_items !== form.max_items ||
+    r.max_pages !== form.max_pages ||
+    r.mode !== form.mode
+  );
 }
 
 function positiveInt(v: unknown): number | null {

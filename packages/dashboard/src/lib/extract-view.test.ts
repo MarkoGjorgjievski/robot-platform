@@ -5,6 +5,7 @@ import {
   productUrlCounts,
   runSentence,
   budgetFromForm,
+  budgetNeedsSave,
   budgetToForm,
   lockedStripText,
   sampleFacts,
@@ -102,25 +103,53 @@ describe('productUrlCounts', () => {
 
 describe('runSentence', () => {
   it('pluralizes listings and formats the safety stop with a comma', () => {
-    expect(runSentence({ items: 'all', pages: 'all' }, 3)).toBe('3 listings · up to 10 pages per listing · safety stop at 5,000 products per run');
-    expect(runSentence({ items: 'all', pages: 'all' }, 1)).toBe('1 listing · up to 10 pages per listing · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 'all', pages: 'all' }, 3)).toBe('3 listings · up to 10 pages per listing · safety stop at 5,000 products per listing');
+    expect(runSentence({ items: 'all', pages: 'all' }, 1)).toBe('1 listing · up to 10 pages per listing · safety stop at 5,000 products per listing');
   });
   it('adds the products-per-listing clause when items is a number, singular and plural', () => {
-    expect(runSentence({ items: 5, pages: 'all' }, 2)).toBe('2 listings · first 5 products from each · up to 10 pages per listing · safety stop at 5,000 products per run');
-    expect(runSentence({ items: 1, pages: 'all' }, 2)).toBe('2 listings · first 1 product from each · up to 10 pages per listing · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 5, pages: 'all' }, 2)).toBe('2 listings · first 5 products from each · up to 10 pages per listing · safety stop at 5,000 products per listing');
+    expect(runSentence({ items: 1, pages: 'all' }, 2)).toBe('2 listings · first 1 product from each · up to 10 pages per listing · safety stop at 5,000 products per listing');
   });
   it('names product URLs and drops the pagination clause in detail mode', () => {
-    expect(runSentence({ items: 'all', pages: 'all' }, 12, 'detail')).toBe('12 product URLs · safety stop at 5,000 products per run');
-    expect(runSentence({ items: 'all', pages: 3 }, 1, 'detail')).toBe('1 product URL · safety stop at 5,000 products per run');
-    expect(runSentence({ items: 5, pages: 'all' }, 12, 'detail')).toBe('12 product URLs · first 5 products · safety stop at 5,000 products per run');
-    expect(runSentence({ items: 1, pages: 'all' }, 12, 'detail')).toBe('12 product URLs · first 1 product · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 'all', pages: 'all' }, 12, 'detail')).toBe('12 product URLs · safety stop at 5,000 products');
+    expect(runSentence({ items: 'all', pages: 3 }, 1, 'detail')).toBe('1 product URL · safety stop at 5,000 products');
+    expect(runSentence({ items: 5, pages: 'all' }, 12, 'detail')).toBe('12 product URLs · first 5 products · safety stop at 5,000 products');
+    expect(runSentence({ items: 1, pages: 'all' }, 12, 'detail')).toBe('12 product URLs · first 1 product · safety stop at 5,000 products');
   });
   it('defaults to listing mode when none is given', () => {
     expect(runSentence({ items: 'all', pages: 'all' }, 2)).toBe(runSentence({ items: 'all', pages: 'all' }, 2, 'listing'));
   });
   it('describes numeric pages, singular and plural', () => {
-    expect(runSentence({ items: 'all', pages: 3 }, 2)).toBe('2 listings · first 3 pages of each · safety stop at 5,000 products per run');
-    expect(runSentence({ items: 'all', pages: 1 }, 2)).toBe('2 listings · first 1 page of each · safety stop at 5,000 products per run');
+    expect(runSentence({ items: 'all', pages: 3 }, 2)).toBe('2 listings · first 3 pages of each · safety stop at 5,000 products per listing');
+    expect(runSentence({ items: 'all', pages: 1 }, 2)).toBe('2 listings · first 1 page of each · safety stop at 5,000 products per listing');
+  });
+});
+
+describe('budgetNeedsSave', () => {
+  const allAll = budgetFromForm('all', 'all');
+
+  // The Critical: `{}` and all/all are indistinguishable once both have gone
+  // through `budgetToForm`, so the old form-side diff never wrote anything
+  // and the engine kept reading `{}` as `maxItems: 50`.
+  it('needs a save when nothing is stored', () => {
+    expect(budgetNeedsSave({}, allAll)).toBe(true);
+    expect(budgetNeedsSave(null, allAll)).toBe(true);
+    expect(budgetNeedsSave(undefined, allAll)).toBe(true);
+  });
+
+  it('needs no save when the stored budget is already exactly the form', () => {
+    expect(budgetNeedsSave({ max_items: 'all', max_pages: 'all', mode: 'all' }, allAll)).toBe(false);
+    expect(budgetNeedsSave({ max_items: 20, max_pages: 2, mode: 'first_n' }, budgetFromForm(20, 2))).toBe(false);
+  });
+
+  it('needs a save when any part differs', () => {
+    expect(budgetNeedsSave({ max_items: 'all', max_pages: 3, mode: 'all' }, allAll)).toBe(true);
+    expect(budgetNeedsSave({ max_items: 40, max_pages: 3, mode: 'first_n' }, allAll)).toBe(true);
+    expect(budgetNeedsSave({ max_items: 20, max_pages: 2, mode: 'first_n' }, budgetFromForm(20, 3))).toBe(true);
+  });
+
+  it('needs a save when the stored budget is a partial object that happens to agree', () => {
+    expect(budgetNeedsSave({ max_items: 'all', max_pages: 'all' }, allAll)).toBe(true);
   });
 });
 
