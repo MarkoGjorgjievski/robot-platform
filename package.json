@@ -13,6 +13,7 @@
     "test:scraper": "pnpm --filter @robot/scraper exec tsx src/test-run.ts",
     "db:migrate": "pnpm --filter @robot/db exec drizzle-kit migrate",
     "db:seed": "pnpm --filter @robot/db run seed:scratch",
+    "db:lift-contracts": "pnpm --filter @robot/db run lift:contracts",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
