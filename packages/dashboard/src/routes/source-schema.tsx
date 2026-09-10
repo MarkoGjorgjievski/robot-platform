@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from '@tanstack/react-router';
-import { Loader2, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
-import { screenshotUrl } from '../lib/screenshot-url';
 import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
-import { SchemaUrls } from '../components/schema-urls';
+import { StatusStrip } from '../components/status-strip';
 import { applyImportToRows, bindingProblems, emptyRow, emptyState, fromSource, isComplete, toBindingInput, URL_COUNT, type GridState } from '../lib/schema-grid';
-import { cellStatusFor, isRowStale, reverifyKeys, summaryLine, verificationState, type VerificationResults } from '../lib/verification-view';
+import { cellStatusFor, isRowStale, reverifyKeys, verificationState, type VerificationResults } from '../lib/verification-view';
+import { stripState, columnStates, stripSummary, verifyButton, typeFixSuggestion } from '../lib/schema-tab-view';
 
 /**
  * The Schema tab (Task 15 brief) — what used to be Set-up. `fromSource`
@@ -46,8 +45,8 @@ export default function SourceSchema() {
   // Declared before the status query: its `stallMs` is what tells the poll
   // (and everything else on this screen) whether an in-flight row is really
   // in flight or is a crash leftover — see `verificationState` (C1).
-  const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '' }, { enabled: !!source });
-  const stallMs = estimateQuery.data?.stallMs;
+  const stallEstimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '' }, { enabled: !!source });
+  const stallMs = stallEstimateQuery.data?.stallMs;
 
   const statusQuery = trpc.sources.verificationStatus.useQuery(
     { sourceId: source?.id ?? '' },
@@ -66,6 +65,17 @@ export default function SourceSchema() {
   const executeMutation = trpc.crawl.execute.useMutation();
   const probeMutation = trpc.crawl.probeAndSample.useMutation();
   const extractPending = planMutation.isPending || executeMutation.isPending || probeMutation.isPending;
+
+  // Retypes a field to `url` from the grid's type-fix chip. The seeding
+  // effect will not re-run after this (`initialized` is already true), so
+  // the grid row's type is patched locally here too.
+  const retype = trpc.datasets.retypeField.useMutation({
+    onSuccess: (_data, vars) => {
+      utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug });
+      utils.datasets.invalidate();
+      setGrid((g) => ({ ...g, rows: g.rows.map((r) => (r.key === vars.key ? { ...r, type: 'url' } : r)) }));
+    },
+  });
 
   // Seed the grid once the Source loads. After that, local edits are the
   // source of truth - a background refetch of `listByProject` (e.g. from
@@ -101,11 +111,7 @@ export default function SourceSchema() {
   }, [source]);
 
   const status = statusQuery.data ?? null;
-  const state = verificationState(status, { stallMs });
-  const active = state === 'active';
   const savedGrid = source ? fromSource(source) : null;
-  const results = (status?.results ?? null) as VerificationResults | null;
-  const estimate = estimateQuery.data;
 
   // `savedGrid` is null for a Source that predates this feature (never had a
   // schema saved) - treated as "saved: nothing" so any grid the operator
@@ -114,6 +120,28 @@ export default function SourceSchema() {
   const problems = bindingProblems(grid);
   const contractEmpty = !Array.isArray(source?.schemaDefinition) || source.schemaDefinition.length === 0;
   const showProblems = touched && !contractEmpty && problems.length > 0;
+
+  const results = (status?.results ?? null) as VerificationResults | null;
+  const vState = verificationState(status, { stallMs });
+  const strip = stripState({ verification: vState, results, dirty: isDirty });
+  const active = strip === 'active';
+  const currentKeys = status?.currentKeys ?? [];
+  const keyed = grid.rows.filter((r) => r.key);
+  const staleKeys = keyed.filter((r) => isRowStale(r, savedGrid)).map((r) => r.key!);
+  const failingKeys = keyed.filter((r) => !staleKeys.includes(r.key!) && results?.[r.key!] && results[r.key!]!.certified.length === 0).map((r) => r.key!);
+  const reverify = reverifyKeys(results, grid, savedGrid); // undefined = everything
+  const reverifyCount = reverify === undefined ? keyed.length : reverify.length;
+  const firstRun = strip === 'editing' || strip === 'none';
+  const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '', ...(firstRun ? {} : { onlyKeys: reverify ?? undefined }) }, { enabled: !!source });
+  const estimate = estimateQuery.data;
+  const verifyBusy = updateBindingMutation.isPending || verifyMutation.isPending;
+  const verify = verifyButton({ state: strip, firstRun, reverifyCount, capturesFresh: !!estimate?.capturesFresh, aiAvailable: !!estimate?.aiAvailable, upperBoundUsd: estimate?.upperBoundUsd ?? 0, complete: isComplete(grid) && !contractEmpty, busy: verifyBusy });
+  const captures = (status?.captures ?? {}) as Record<string, { captureId?: string; capturedAt?: string; screenshotUrl?: string; blockedReason?: string }>;
+  const columns = columnStates({ urls: grid.urls, state: strip, stage: status?.stage ?? null, captures });
+  const progress = active ? (() => { const m = /^capturing (\d+)\/(\d+)/.exec(status?.stage ?? ''); return m ? (Number(m[1]) - 1) / Number(m[2]) : status?.stage ? 0.9 : 0.05; })() : null;
+  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: URL_COUNT, currentKeys, failingKeys, staleKeys });
+  const stage = active ? (status?.stage ?? 'starting') : strip === 'failed' ? (status?.errorMessage ?? null) : null;
+  const tone = strip === 'stalled' ? 'warn' : strip === 'failed' ? 'error' : 'neutral';
 
   function cellStatus(rowId: string, urlIndex: number): CellStatus | null {
     const row = grid.rows.find((r) => r.id === rowId);
@@ -197,91 +225,24 @@ export default function SourceSchema() {
     : !source.confirmedAt
       ? 'Probe & sample'
       : 'Extract everything';
-
-  const verifyLabel = !estimate
-    ? 'Verify'
-    : estimate.aiAvailable
-      ? `Verify · up to $${estimate.upperBoundUsd.toFixed(2)}`
-      : 'Verify · mechanical only';
-  const verifyBusy = updateBindingMutation.isPending || verifyMutation.isPending;
-  const verifyDisabled = active || !isComplete(grid) || verifyBusy;
   const extractEnabled = !!(status?.current && status?.allPassed);
 
-  const captures = (status?.captures ?? {}) as Record<string, { blockedReason?: string; screenshotUrl?: string }>;
-  // M8: a field can be neither green nor red — `incomplete` means a page it
-  // needed never got captured, so there was nothing to certify against.
-  const anyIncomplete = Object.values(results ?? {}).some((f) => f.incomplete);
+  function typeFix(rowId: string) {
+    const row = grid.rows.find((r) => r.id === rowId);
+    if (!row?.key || !source?.datasetId) return null;
+    const cells = grid.urls.map((_, i) => cellStatus(rowId, i));
+    const suggested = typeFixSuggestion(row, cells);
+    if (!suggested) return null;
+    return { suggested, pending: retype.isPending && retype.variables?.key === row.key, error: retype.error && retype.variables?.key === row.key ? retype.error.message : undefined, onApply: () => retype.mutate({ datasetId: source.datasetId!, key: row.key!, type: 'url' }) };
+  }
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 space-y-4">
       {showProblems && (
-        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-xs">
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-xs">
           <ul className="list-inside list-disc text-red-700">
             {problems.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-gray-900">{summaryLine(results)}</p>
-          {active && status?.stage && <p className="mt-0.5 text-xs text-gray-500">{status.stage}</p>}
-          {anyIncomplete && (
-            <p className="mt-0.5 text-xs text-gray-500">Some pages were not captured, so nothing certified yet.</p>
-          )}
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {/*
-            Wrapping div, not the button itself: a disabled <button> never
-            dispatches click at all, not even to ancestors, so clicking a
-            disabled Verify while incomplete needs a non-disabled element
-            underneath to catch the click and reveal the inline problems
-            list above (spec 2.1 - "rejected inline").
-          */}
-          <div onClick={() => setTouched(true)}>
-            <button type="button" className="btn-quiet h-9" disabled={verifyDisabled} onClick={handleVerify}>
-              {verifyBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {verifyLabel}
-            </button>
-          </div>
-          <button type="button" className="btn-primary h-9" disabled={!extractEnabled || extractPending} onClick={handleExtract}>
-            {extractPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-            {extractLabel}
-          </button>
-        </div>
-      </div>
-
-      {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
-
-      {/*
-        C1: a verification that died with the api-server leaves a row that
-        never completes. Say so, and leave Verify enabled — its click goes
-        through `sources.verify`, which closes the stale row out server-side
-        and starts a fresh one.
-      */}
-      {state === 'stalled' && (
-        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          This verification stalled (the server may have restarted). Run it again.
-        </div>
-      )}
-
-      {/* A run that completed with an error: show what it said, Verify stays enabled. */}
-      {state === 'failed' && status?.errorMessage && <ErrorBanner message={status.errorMessage} />}
-
-      {grid.urls.some((u) => captures[u]?.blockedReason) && (
-        <div className="mt-4 space-y-2">
-          {grid.urls.map((u, i) => {
-            const capture = captures[u];
-            if (!capture?.blockedReason) return null;
-            return (
-              <div key={i} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                <p><span className="font-medium">URL {i + 1}</span> could not be captured: {capture.blockedReason}</p>
-                {capture.screenshotUrl && (
-                  <img src={screenshotUrl(capture.screenshotUrl) ?? ''} alt="Capture screenshot" className="mt-2 max-w-sm rounded border" />
-                )}
-              </div>
-            );
-          })}
         </div>
       )}
 
@@ -293,26 +254,19 @@ export default function SourceSchema() {
         />
       ) : (
         <>
-          {/*
-            C2 (spec §2.1, §7, §9): the three verification URLs and the optional
-            listing URL belong to the schema, so this screen owns them too — not
-            only the New Source wizard. Edits go through `updateGrid`, so a URL
-            change marks the grid dirty exactly like a cell edit: Verify saves it
-            first via `updateBinding`, and the changed `definitionHash`
-            invalidates the old certification on its own. A Source with no saved
-            `verificationSet` at all opens here with empty URL inputs, ready to
-            fill in.
-          */}
-          <div className="mt-4">
-            <SchemaUrls
-              state={grid}
-              onChange={updateGrid}
-              disabled={active}
-              onFindProductPages={async (listingUrl) => (await findMutation.mutateAsync({ listingUrl })).urls}
-            />
-          </div>
+          <StatusStrip
+            summary={summary}
+            stage={stage}
+            progress={progress}
+            lockNote={active ? 'table locked while verifying' : null}
+            tone={tone}
+            verify={{ label: verify.label, disabled: verify.disabled, reason: verify.reason, busy: verifyBusy, onClick: handleVerify, onDisabledClick: () => setTouched(true) }}
+            extract={{ label: extractLabel, disabled: !extractEnabled || extractPending, reason: 'Unlocks when every cell is green', busy: extractPending, onClick: handleExtract }}
+          />
 
-          <div className="mt-4">
+          {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
+
+          <div className={active ? 'pointer-events-none opacity-40' : ''}>
             {/*
               Import fills existing rows by name; it cannot add fields (those
               come from the project) — names not found among this contract's
@@ -329,12 +283,22 @@ export default function SourceSchema() {
             {importIgnored.length > 0 && <p className="mt-1 text-xs text-amber-800">Not in this project, so skipped: {importIgnored.join(', ')}</p>}
           </div>
 
-          <p className="mt-4 text-xs text-gray-500">
+          <p className="text-xs text-gray-500">
             Field names and types come from the project. <Link to="/projects/$project" params={{ project: projectSlug }} className="underline-offset-2 hover:underline">Edit fields on the project page.</Link>
           </p>
 
-          <div className="card mt-4 p-4">
-            <SchemaGrid state={grid} onChange={updateGrid} cellStatus={cellStatus} disabled={active} locked />
+          <div className="card p-4">
+            <SchemaGrid
+              state={grid}
+              onChange={updateGrid}
+              cellStatus={cellStatus}
+              columnStates={columns}
+              captures={captures}
+              readOnly={active}
+              pending={active}
+              onFindPages={async (u) => (await findMutation.mutateAsync({ listingUrl: u })).urls}
+              typeFix={typeFix}
+            />
           </div>
         </>
       )}
