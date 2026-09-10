@@ -169,8 +169,9 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
       await extractPage.goto(DASHBOARD + `${route}/extract`, { waitUntil: 'networkidle', timeout: 30_000 });
       await extractPage.waitForTimeout(1500);
       expect(await extractPage.getByText('Extraction is locked').count(), 'the locked strip is missing').toBeGreaterThan(0);
-      for (const title of ['1 · Pages', '2 · Sample', '3 · Run']) {
-        expect(await extractPage.getByText(title).count(), `${title} is missing`).toBeGreaterThan(0);
+      // Phase 5: the step heading is a mono number badge followed by the title (no middle dot), so match the heading by its id.
+      for (const [n, title] of [[1, 'Pages'], [2, 'Sample'], [3, 'Run']] as const) {
+        expect(await extractPage.locator(`#extract-step-${n}`).getByText(title).count(), `${title} is missing`).toBeGreaterThan(0);
       }
     } finally {
       await extractPage.close();
