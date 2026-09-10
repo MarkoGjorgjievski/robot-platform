@@ -42,12 +42,12 @@ export default function SourceConfig() {
       <p className="label-soft mt-0.5">Mostly read-only. Full editing comes later.</p>
 
       <dl className="mt-4 border-t-2 border-t-gray-900 [&>div:last-child]:border-b-0">
-        <Row label="Strategy" value={source.inputStrategy ?? '—'} />
+        <Row label="Strategy" value={strategyWords(source.inputStrategy)} />
         <Row label="Address" value={source.urlTemplate ?? '—'} mono />
         <div className="grid h-8 grid-cols-[160px_1fr] items-center border-b border-gray-200 px-3">
           <dt className="label-soft">Listing mode</dt>
           <dd className="flex items-center gap-3">
-            <span className="font-mono text-xs">{source.listingMode ?? '—'}</span>
+            <span className="text-sm">{listingModeWords(source.listingMode)}</span>
             {isLocked ? (
               <span className="label-soft">Mode is locked once the website is confirmed</span>
             ) : (
@@ -73,6 +73,22 @@ export default function SourceConfig() {
       <DeleteWebsite projectSlug={projectSlug} sourceId={source.id} name={source.name} />
     </div>
   );
+}
+
+/**
+ * The stored values are engine enums; the customer reads what they mean. An
+ * unknown value is shown verbatim rather than swallowed, so a new mode added
+ * server-side is visible here instead of silently reading as one of these.
+ */
+function listingModeWords(mode: string | null): string {
+  if (mode === 'listing_to_detail') return 'Listing pages, then each product';
+  if (mode === 'detail') return 'Product URLs';
+  return mode ?? '—';
+}
+
+function strategyWords(strategy: string | null): string {
+  if (strategy === 'direct') return 'Given URLs';
+  return strategy ?? '—';
 }
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
@@ -101,6 +117,9 @@ function DeleteWebsite({ projectSlug, sourceId, name }: { projectSlug: string; s
       navigate({ to: '/projects/$project', params: { project: projectSlug } });
     },
   });
+  // Closing resets the mutation: a refusal from a previous attempt must not be
+  // waiting inside the dialog the next time it opens.
+  const close = () => { setConfirming(false); deleteMutation.reset(); };
 
   return (
     <div className="mt-6 border-t border-gray-200 pt-6">
@@ -117,7 +136,7 @@ function DeleteWebsite({ projectSlug, sourceId, name }: { projectSlug: string; s
       <Dialog
         open={confirming}
         title={`Delete ${name}?`}
-        onClose={() => { if (!deleteMutation.isPending) setConfirming(false); }}
+        onClose={() => { if (!deleteMutation.isPending) close(); }}
         preventClose={deleteMutation.isPending}
       >
         <p className="text-sm text-gray-600">Its runs and results are deleted too. This cannot be undone.</p>
@@ -126,13 +145,13 @@ function DeleteWebsite({ projectSlug, sourceId, name }: { projectSlug: string; s
             type="button"
             className="btn-quiet h-9"
             disabled={deleteMutation.isPending}
-            onClick={() => setConfirming(false)}
+            onClick={close}
           >
             Keep it
           </button>
           <button
             type="button"
-            className="btn-primary h-9 bg-fail hover:bg-fail"
+            className="btn-primary h-9 bg-fail hover:bg-fail disabled:hover:bg-fail"
             disabled={deleteMutation.isPending}
             onClick={() => deleteMutation.mutate({ sourceId })}
           >
