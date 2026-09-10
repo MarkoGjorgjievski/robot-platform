@@ -58,8 +58,20 @@ function budgetIsUnchosen(budget: unknown, priorInputMode: string | undefined): 
   );
 }
 
-/** The all/all starter budget `setListingPages` seeds when a Source has no budget yet. */
-const LISTING_ALL_BUDGET = { max_items: 'all', max_pages: 'all', mode: 'all' } as const;
+/**
+ * The all/all starter budget both Extract-tab setters seed when a Source has
+ * no budget the customer chose (see `budgetIsUnchosen`).
+ *
+ * Detail mode needs it just as much as listing mode does, and for a reason
+ * that is easy to miss: `max_items` is NOT a pagination concept. In detail
+ * mode `planRun` uses the resolved item cap as *the* cap on how many of the
+ * saved product URLs get planned at all, dropping the rest into
+ * `skipped_budget`. Leaving the column default `{}` on a detail Source
+ * therefore resolved to `maxItems: 50` — a customer who pasted 500 URLs got
+ * 50 of them, while the Run sentence said "all". The tab's promise is only
+ * true if the stored budget says all.
+ */
+const ALL_BUDGET = { max_items: 'all', max_pages: 'all', mode: 'all' } as const;
 
 const budgetShape = z.object({
   max_items: z.union([z.number().int().positive(), z.literal('all')]),
@@ -76,8 +88,13 @@ const uniqueUrls = (urls: string[]): string[] => Array.from(new Set(urls));
  * `parameters.inputMode` + `listingMode` + an optional budget seed) all run
  * inside the SAME transaction the caller opened — the read moved in here
  * from before the transaction so the parameters merge and the
- * budget-emptiness check can never race a concurrent write between the read
- * and the write (the lost-update window a pre-transaction read left open).
+ * budget-emptiness check see a snapshot that at least belongs to this write.
+ * That NARROWS the lost-update window a pre-transaction read left open; it
+ * does not close it: under PostgreSQL's default READ COMMITTED, with no
+ * `FOR UPDATE` on the read, two concurrent saves can still both observe the
+ * pre-state. The effects here are benign (the `parameters` merge is
+ * idempotent, and the worst case is a duplicate budget seed of the same
+ * value), so no row lock is taken.
  * Off-host handling is the one thing that differs between the two callers:
  * `offHost: 'reject'` throws BAD_REQUEST naming the offending URL (a listing
  * page's host IS the site being crawled); `'skip'` drops it and reports it
@@ -119,6 +136,15 @@ async function setInputPages(
     } else {
       skipped.push(url);
     }
+  }
+
+  // Every URL was off-host, so `rows` would be `[]` — written straight over
+  // whatever the customer had saved. Pasting the wrong site's export (or a
+  // `shop.` list against `www.` proof pages) would silently empty the input
+  // of a website that may be mid-extraction, with only the amber "N were
+  // skipped" note as feedback. Nothing accepted means nothing to save.
+  if (accepted.length === 0) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `No URLs on ${referenceHost}; nothing saved` });
   }
 
   const rows = accepted.map((url) => ({ url }));
@@ -484,7 +510,7 @@ export const sourcesRouter = router({
           listingMode: 'listing_to_detail',
           inputMode: 'listing',
           offHost: 'reject',
-          seedBudget: LISTING_ALL_BUDGET,
+          seedBudget: ALL_BUDGET,
         }),
       );
       return { count: rows.length };
@@ -492,10 +518,14 @@ export const sourcesRouter = router({
 
   /**
    * The Extract tab's "product URLs" input: same shape as `setListingPages`
-   * but for a hand-picked list of detail pages, `listingMode: 'detail'`, and
-   * no budget seed (a fixed URL list has nothing to page through). An
+   * but for a hand-picked list of detail pages and `listingMode: 'detail'`. An
    * off-host URL is not refused here — it is dropped into `skipped` so the
    * customer can paste a mixed list and see what didn't make it.
+   *
+   * The all/all budget is seeded here too, under the same "unchosen" rule.
+   * A fixed URL list has nothing to page through, which is why this used to
+   * seed nothing — but the item half of the budget is not about paging: it is
+   * what caps how many of these URLs `planRun` plans at all. See `ALL_BUDGET`.
    */
   setProductUrls: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(5000) }))
@@ -506,6 +536,7 @@ export const sourcesRouter = router({
           listingMode: 'detail',
           inputMode: 'detail',
           offHost: 'skip',
+          seedBudget: ALL_BUDGET,
         }),
       );
       return { accepted: rows.length, skipped };
