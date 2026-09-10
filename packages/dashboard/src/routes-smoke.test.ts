@@ -143,8 +143,13 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
     }
   });
 
-  // The phase 1 create flow: a named project, a named website in it, and the
-  // website's Schema tab (the index route) rendering its URL inputs and grid.
+  // The create flow: a named project, a named website in it, and the
+  // website's Schema tab (the index route) rendering its page headers (each
+  // with an edit pencil), the contract grid, and the status strip. Phase 3
+  // made the field/type columns read-only text rather than disabled inputs
+  // ("the table is the page"), so this no longer probes for a placeholder or
+  // a disabled `<input>` on the contract row — it checks for the field name
+  // as text and the absence of any input carrying its value instead.
   it('a project and a website created through the new procedures render', async () => {
     const project = await client.projects.create.mutate({ name: `Smoke ${Date.now()}` });
     createdProjects.push(project.id);
@@ -161,13 +166,13 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
       await page.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });
       await page.waitForTimeout(1500);
       for (let i = 1; i <= 3; i++) {
-        expect(await page.getByText(`Product URL ${i}`).count(), `Product URL ${i} label is missing`).toBeGreaterThan(0);
+        expect(await page.getByLabel(`Edit page ${i}`).count(), `page ${i} header has no pencil`).toBeGreaterThan(0);
       }
-      expect(await page.getByPlaceholder('price').count(), 'the schema grid did not render').toBeGreaterThan(0);
+      expect(await page.getByText('Where it is on this website').count(), 'the grid did not render').toBeGreaterThan(0);
       expect(await page.getByText('Smoke site').count(), 'the website name is not in the header').toBeGreaterThan(0);
-      expect(await page.locator('input[value="price"][disabled]').count(), 'the contract row is not locked').toBeGreaterThan(0);
+      expect(await page.locator('input[value="price"]').count(), 'the field name must not be an input').toBe(0);
+      expect(await page.getByText('price', { exact: true }).count(), 'the contract row is missing').toBeGreaterThan(0);
       expect(await page.getByRole('status').count(), 'the status strip is missing').toBeGreaterThan(0);
-      expect(await page.getByLabel('Edit page 1').count(), 'page 1 header has no pencil').toBeGreaterThan(0);
     } finally {
       await page.close();
     }

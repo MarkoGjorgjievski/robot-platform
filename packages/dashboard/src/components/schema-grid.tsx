@@ -1,6 +1,6 @@
 import { useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { Loader2 } from 'lucide-react';
-import { URL_COUNT, applyPaste, parseBlock, validateExpectedClient, type GridState } from '../lib/schema-grid';
+import { URL_COUNT, applyPasteByName, parseBlock, validateExpectedClient, type GridState } from '../lib/schema-grid';
 import { cellLine, type ColumnState } from '../lib/schema-tab-view';
 import { PageHeaderCell } from './page-header-cell';
 
@@ -63,8 +63,8 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
     const text = e.clipboardData.getData('text/plain');
     if (!text.includes('\t') && !text.includes('\n')) return; // single value: let the input handle it
     e.preventDefault();
-    const next = applyPaste(state, { row: r, col: c }, parseBlock(text));
-    onChange({ ...next, rows: next.rows.slice(0, state.rows.length) }); // paste never creates rows
+    const result = applyPasteByName(state, { row: r, col: c }, parseBlock(text));
+    onChange(result.state);
   }
 
   const setDescription = (i: number, v: string) => onChange({ ...state, rows: state.rows.map((row, j) => (j === i ? { ...row, description: v } : row)) });
@@ -72,12 +72,12 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+      <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="text-left">
-            <th className="px-2 py-1">Field</th>
-            <th className="px-2 py-1">Type</th>
-            <th className="px-2 py-1">Where it is on this website</th>
+            <th className="w-[110px] px-2 py-1">Field</th>
+            <th className="w-[70px] px-2 py-1">Type</th>
+            <th className="min-w-[240px] px-2 py-1">Where it is on this website</th>
             {state.urls.map((u, i) => (
               <th key={i} className="px-2 py-1 text-left align-top">
                 <PageHeaderCell
@@ -126,7 +126,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                 </td>
                 {row.expected.map((v, u) => {
                   const status = cellStatus?.(row.id, u) ?? null;
-                  const base = cellLine(status, v);
+                  const base = cellLine(status, v, fix?.suggested ?? null);
                   let tone = base.tone;
                   let text = base.text;
                   if (status?.weak) text = text ? `${text} · weak evidence: same value on every page` : 'weak evidence: same value on every page';
@@ -146,7 +146,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                         onPaste={(e) => onPaste(e, r, 3 + u)}
                         className={`w-full rounded border border-gray-300 px-2 py-1 ${pending ? 'shimmer' : ''}`}
                       />
-                      <p className={`min-h-[14px] text-[11px] ${LINE_TEXT[tone]}`}>{text}</p>
+                      <p className={`min-h-[14px] line-clamp-1 text-[11px] ${LINE_TEXT[tone]}`} title={text}>{text}</p>
                     </td>
                   );
                 })}

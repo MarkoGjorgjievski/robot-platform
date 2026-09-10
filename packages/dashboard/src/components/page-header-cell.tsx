@@ -21,6 +21,13 @@ export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!open) setDraft(url); }, [url, open]);
+  // The table locking while verifying (`disabled` going true) must close an
+  // already-open popover, or its stale draft would sit there and commit onto
+  // a Source the operator can no longer edit.
+  useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
+  // Intentionally no deps array: this must re-subscribe on every render so
+  // `commit()` always closes over the CURRENT `draft`/`url`, never a stale
+  // one captured back when the popover opened.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) commit(); };
@@ -47,7 +54,7 @@ export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl
     <div ref={ref} className="relative">
       <div className="flex items-center gap-1 font-mono text-xs font-medium text-gray-700" title={url || undefined}>
         <span className="truncate">{url ? shortUrl(url) : `Page ${index + 1}`}</span>
-        {!disabled && <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Edit page ${index + 1}`} title="Edit this page" className="text-gray-300 hover:text-gray-600"><Pencil className="h-3 w-3" /></button>}
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Edit page ${index + 1}`} title="Edit this page" className={disabled ? 'invisible' : 'text-gray-300 hover:text-gray-600'}><Pencil className="h-3 w-3" /></button>
       </div>
       <div className="mt-0.5 flex h-4 items-center gap-1 font-sans text-[11px] font-normal text-gray-500" title={blockedReason}>
         {icon}<span className="truncate">{state === 'not_captured' && blockedReason ? `not captured: ${blockedReason}` : STATE_LABEL[state] || `page ${index + 1}`}</span>

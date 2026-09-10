@@ -3,12 +3,12 @@ import { stripState, columnStates, stripSummary, cellLine, verifyButton, typeFix
 
 describe('stripState', () => {
   it('maps verification state and results', () => {
-    expect(stripState({ verification: 'none', results: null, dirty: false })).toBe('editing');
-    expect(stripState({ verification: 'active', results: null, dirty: false })).toBe('active');
-    expect(stripState({ verification: 'stalled', results: null, dirty: false })).toBe('stalled');
-    expect(stripState({ verification: 'failed', results: null, dirty: false })).toBe('failed');
-    expect(stripState({ verification: 'done', results: {}, dirty: false })).toBe('editing');
-    expect(stripState({ verification: 'done', results: { price: fv(true) }, dirty: true })).toBe('results');
+    expect(stripState({ verification: 'none', results: null })).toBe('editing');
+    expect(stripState({ verification: 'active', results: null })).toBe('active');
+    expect(stripState({ verification: 'stalled', results: null })).toBe('stalled');
+    expect(stripState({ verification: 'failed', results: null })).toBe('failed');
+    expect(stripState({ verification: 'done', results: {} })).toBe('editing');
+    expect(stripState({ verification: 'done', results: { price: fv(true) } })).toBe('results');
   });
 });
 
@@ -50,6 +50,18 @@ describe('cellLine', () => {
     expect(cellLine({ status: 'stale' }, 'x')).toEqual({ tone: 'stale', text: 'changed since verified' });
     expect(cellLine({ status: 'not_captured' }, 'x')).toEqual({ tone: 'not_captured', text: 'page not captured' });
     expect(cellLine(null, 'x')).toEqual({ tone: 'none', text: '' });
+  });
+  it('names the url type-fix directly when the cell is not_found and the chip suggests it', () => {
+    expect(cellLine({ status: 'fail', reason: 'not_found', hint: 'Not found on this page. Check the value, or say where it is.' }, 'https://a.example/x', 'url')).toEqual({
+      tone: 'fail',
+      text: 'Not found as text. It looks like a link: set type to url.',
+    });
+  });
+  it('keeps the generic hint when not_found but the chip suggests nothing', () => {
+    expect(cellLine({ status: 'fail', reason: 'not_found', hint: 'Not found on this page. Check the value, or say where it is.' }, 'x', null)).toEqual({
+      tone: 'fail',
+      text: 'Not found on this page. Check the value, or say where it is.',
+    });
   });
 });
 

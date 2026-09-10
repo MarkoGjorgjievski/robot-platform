@@ -54,6 +54,26 @@ export function applyPaste(state: GridState, at: { row: number; col: number }, b
   return { ...state, rows };
 }
 
+/** Spec 5.6: paste maps by field name when it can. A block whose first column matches existing field names fills description and expected values on those rows (a second column that is a field type is skipped); otherwise it falls back to positional paste clipped to existing rows. */
+export function applyPasteByName(state: GridState, at: { row: number; col: number }, block: string[][]): { state: GridState; byName: boolean } {
+  const names = new Map(state.rows.map((r, i) => [r.name.trim().toLowerCase(), i]));
+  const matched = block.filter((line) => names.has((line[0] ?? '').trim().toLowerCase()));
+  if (block.length > 0 && matched.length === block.length) {
+    const rows = [...state.rows];
+    for (const line of block) {
+      const i = names.get(line[0]!.trim().toLowerCase())!;
+      const hasType = (FIELD_TYPES as readonly string[]).includes((line[1] ?? '').trim().toLowerCase());
+      const rest = line.slice(hasType ? 2 : 1);
+      const [description, ...expected] = rest;
+      const row = rows[i]!;
+      rows[i] = { ...row, description: description ?? row.description, expected: row.expected.map((v, k) => expected[k] ?? v) };
+    }
+    return { state: { ...state, rows }, byName: true };
+  }
+  const next = applyPaste(state, at, block);
+  return { state: { ...next, rows: next.rows.slice(0, state.rows.length) }, byName: false };
+}
+
 const HEADER_ALIASES: Record<string, number> = { name: 0, field: 0, 'field name': 0, type: 1, description: 2, where: 2 };
 
 export function rowsFromTable(table: string[][], urlCount: number): { rows: GridRow[]; problems: string[] } {
