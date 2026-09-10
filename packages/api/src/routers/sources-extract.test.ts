@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources } from '@robot/db';
+import { itemCap, resolveBudget } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -221,6 +222,94 @@ describe('sources.setProductUrls', () => {
       expect(row?.listingMode).toBe('detail');
       expect(row?.inputSet?.rows).toEqual([{ url: urls[0] }, { url: urls[1] }]);
       expect((row?.parameters as { inputMode?: string } | null)?.inputMode).toBe('detail');
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  // The Critical from the whole-branch review: `setProductUrls` seeded no
+  // budget, so a detail Source kept the column default `{}`, `resolveBudget`
+  // read that as `maxItems: 50`, and `planRun`'s detail branch dropped every
+  // saved URL past the fiftieth into `skipped_budget` while the Run sentence
+  // said "all".
+  it('seeds the all/all budget so more than 50 saved URLs are all planned', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-product-budget', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const host = 'https://test-set-product-budget.example.com';
+      const urls = Array.from({ length: 60 }, (_, i) => `${host}/p/${i}`);
+      const result = await caller.sources.setProductUrls({ sourceId: f.sourceId, urls });
+      expect(result.accepted).toBe(60);
+
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect(row?.budget).toEqual({ max_items: 'all', max_pages: 'all', mode: 'all' });
+      // What the engine makes of it: the item cap must not be under the
+      // number of URLs the customer saved.
+      const budget = resolveBudget(row?.budget);
+      expect(itemCap(budget)).toBeGreaterThanOrEqual(urls.length);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('does not overwrite a budget the customer already chose', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-product-budget-kept', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const host = 'https://test-set-product-budget-kept.example.com';
+      await caller.sources.setProductUrls({ sourceId: f.sourceId, urls: [`${host}/p/1`] });
+      await caller.sources.update({ id: f.sourceId, budget: { max_items: 5, max_pages: 1, mode: 'first_n' } });
+
+      await caller.sources.setProductUrls({ sourceId: f.sourceId, urls: [`${host}/p/1`, `${host}/p/2`] });
+
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect(row?.budget).toEqual({ max_items: 5, max_pages: 1, mode: 'first_n' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  // Important finding I2: with `offHost: 'skip'`, an all-off-host paste left
+  // `accepted` empty and wrote `rows: []` straight over the saved input.
+  it('refuses an all-off-host list instead of wiping the saved URLs', async () => {
+    const urls = [
+      'https://test-set-product-allofhost.example.com/p/1',
+      'https://test-set-product-allofhost.example.com/p/2',
+      'https://test-set-product-allofhost.example.com/p/3',
+    ];
+    const f = await createProjectWithSource(caller, {
+      tag: 'set-product-allofhost',
+      urls,
+      fields: [{ name: 'Price', type: 'money' }],
+      expected: { Price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' } },
+    });
+    try {
+      await caller.sources.setProductUrls({ sourceId: f.sourceId, urls: [urls[0]!, urls[1]!] });
+
+      await expect(
+        caller.sources.setProductUrls({ sourceId: f.sourceId, urls: ['https://other-host.example.com/p/9'] }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      await expect(
+        caller.sources.setProductUrls({ sourceId: f.sourceId, urls: ['https://other-host.example.com/p/9'] }),
+      ).rejects.toThrow(/No URLs on test-set-product-allofhost\.example\.com; nothing saved/);
+
+      // The rows the customer had saved are still there.
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), with: { inputSet: true } });
+      expect(row?.inputSet?.rows).toEqual([{ url: urls[0] }, { url: urls[1] }]);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('keeps the first occurrence of a repeated URL', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-product-dedupe', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const host = 'https://test-set-product-dedupe.example.com';
+      const result = await caller.sources.setProductUrls({
+        sourceId: f.sourceId,
+        urls: [`${host}/p/1`, `${host}/p/2`, `${host}/p/1`],
+      });
+      expect(result.accepted).toBe(2);
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), with: { inputSet: true } });
+      expect(row?.inputSet?.rows).toEqual([{ url: `${host}/p/1` }, { url: `${host}/p/2` }]);
     } finally {
       await f.cleanup();
     }
