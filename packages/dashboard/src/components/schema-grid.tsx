@@ -30,12 +30,14 @@ const RAIL: Record<'pass' | 'fail' | 'stale' | 'not_captured' | 'none', string> 
   not_captured: 'cell-rail-not-captured',
   none: 'cell-rail-none',
 };
+// Spec 7: the second line is coloured only where it carries a problem — fail and
+// not-captured. Everything else reads as ink-soft, and the rail is the glyph.
 const LINE_TEXT: Record<'pass' | 'fail' | 'stale' | 'not_captured' | 'none', string> = {
-  pass: 'text-emerald-700',
-  fail: 'text-red-700',
-  stale: 'text-gray-600',
-  not_captured: 'text-amber-700',
-  none: 'text-gray-400',
+  pass: 'line-pass',
+  fail: 'line-fail',
+  stale: 'line-stale',
+  not_captured: 'line-warn',
+  none: 'line-pass',
 };
 
 export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures, readOnly, pending, onFindPages, typeFix }: Props) {
@@ -72,14 +74,14 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] border-separate border-spacing-0 text-sm">
+      <table className="sheet min-w-[1100px]">
         <thead>
-          <tr className="text-left">
-            <th className="w-[110px] px-2 py-1">Field</th>
-            <th className="w-[70px] px-2 py-1">Type</th>
-            <th className="min-w-[240px] px-2 py-1">Where it is on this website</th>
+          <tr className="sheet-head sheet-row text-left">
+            <th className="w-[110px] px-2 py-1.5 font-semibold">Field</th>
+            <th className="w-[70px] px-2 py-1.5 font-semibold">Type</th>
+            <th className="min-w-[240px] px-2 py-1.5 font-semibold">Where it is on this website</th>
             {state.urls.map((u, i) => (
-              <th key={i} className="px-2 py-1 text-left align-top">
+              <th key={i} className="px-2 py-1.5 text-left align-top font-semibold">
                 <PageHeaderCell
                   index={i}
                   url={u}
@@ -98,21 +100,21 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
           {state.rows.map((row, r) => {
             const fix = typeFix?.(row.id) ?? null;
             return (
-              <tr key={row.id}>
-                <td className="p-1 align-top font-mono text-xs text-gray-700">
+              <tr key={row.id} className="sheet-row h-9">
+                <td className="px-2 align-top font-medium text-gray-900">
                   {row.name}
                   {fix && (
-                    <div className="mt-1">
+                    <div className="mt-1 mb-1">
                       <button type="button" className="btn-quiet" disabled={fix.pending || readOnly} onClick={fix.onApply}>
                         {fix.pending && <Loader2 className="h-3 w-3 animate-spin" />}
                         Set type to url
                       </button>
-                      {fix.error && <p className="mt-0.5 text-[11px] text-red-700">{fix.error}</p>}
+                      {fix.error && <p className="mt-0.5 text-[11px] leading-[1.35] line-fail">{fix.error}</p>}
                     </div>
                   )}
                 </td>
-                <td className="p-1 align-top text-xs text-gray-700">{row.type}</td>
-                <td className="p-1">
+                <td className="px-2 align-top font-mono text-[12px] text-gray-600">{row.type}</td>
+                <td className="px-2 align-top">
                   <input
                     ref={reg(r, 2)}
                     readOnly={readOnly}
@@ -120,7 +122,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                     onChange={(e) => setDescription(r, e.target.value)}
                     onKeyDown={(e) => onKey(e, r, 2)}
                     onPaste={(e) => onPaste(e, r, 2)}
-                    className="w-full rounded border border-gray-300 px-2 py-1"
+                    className="w-full bg-transparent text-[13px] text-gray-900 placeholder:text-gray-400"
                     placeholder="green number next to Add to cart, not the crossed-out one"
                   />
                 </td>
@@ -136,7 +138,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                   }
                   if (pending) { tone = 'none'; text = ''; }
                   return (
-                    <td key={u} className={`p-1 align-top ${RAIL[tone]}`}>
+                    <td key={u} className={`px-2 align-top ${RAIL[tone]}`}>
                       <input
                         ref={reg(r, 3 + u)}
                         readOnly={readOnly}
@@ -144,9 +146,9 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                         onChange={(e) => setExpected(r, u, e.target.value)}
                         onKeyDown={(e) => onKey(e, r, 3 + u)}
                         onPaste={(e) => onPaste(e, r, 3 + u)}
-                        className={`w-full rounded border border-gray-300 px-2 py-1 ${pending ? 'shimmer' : ''}`}
+                        className={`w-full bg-transparent font-mono text-[13px] text-gray-900 ${pending ? 'shimmer' : ''}`}
                       />
-                      <p className={`min-h-[14px] line-clamp-1 text-[11px] ${LINE_TEXT[tone]}`} title={text}>{text}</p>
+                      <p className={`min-h-[15px] line-clamp-1 text-[11px] leading-[1.35] ${LINE_TEXT[tone]}`} title={text}>{text}</p>
                     </td>
                   );
                 })}

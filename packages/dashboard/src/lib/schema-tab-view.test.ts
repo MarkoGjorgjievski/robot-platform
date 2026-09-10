@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripState, columnStates, stripSummary, cellLine, verifyButton, typeFixSuggestion } from './schema-tab-view';
+import { stripState, columnStates, stripSummary, cellLine, verifyButton, typeFixSuggestion, roughTime } from './schema-tab-view';
 
 describe('stripState', () => {
   it('maps verification state and results', () => {
@@ -32,10 +32,41 @@ describe('stripSummary', () => {
     expect(stripSummary({ state: 'results', fieldCount: 2, pageCount: 3, currentKeys: ['a', 'b'], failingKeys: [], staleKeys: [] })).toBe('2 of 2 fields verified');
     expect(stripSummary({ state: 'results', fieldCount: 1, pageCount: 3, currentKeys: ['a'], failingKeys: [], staleKeys: [] })).toBe('1 of 1 field verified');
   });
+  it('active carries the rough time as its second fact once the estimate is in', () => {
+    const args = { state: 'active' as const, fieldCount: 8, pageCount: 3, currentKeys: [], failingKeys: [], staleKeys: [] };
+    expect(stripSummary({ ...args, estimate: { fields: 8, aiFields: 8, capturesFresh: false } })).toBe('Verifying · about 2 min');
+    expect(stripSummary({ ...args, estimate: { fields: 8, aiFields: 0, capturesFresh: true } })).toBe('Verifying · a few seconds');
+    expect(stripSummary({ ...args, estimate: null })).toBe('Verifying');
+  });
+  it('the rough time is only ever appended to Verifying', () => {
+    const estimate = { fields: 5, aiFields: 8, capturesFresh: false };
+    expect(stripSummary({ state: 'editing', fieldCount: 5, pageCount: 3, currentKeys: [], failingKeys: [], staleKeys: [], estimate })).toBe('Not verified yet · 5 fields · 3 pages');
+    expect(stripSummary({ state: 'results', fieldCount: 2, pageCount: 3, currentKeys: ['a', 'b'], failingKeys: [], staleKeys: [], estimate })).toBe('2 of 2 fields verified');
+  });
   it('other states', () => {
     expect(stripSummary({ state: 'active', fieldCount: 1, pageCount: 3, currentKeys: [], failingKeys: [], staleKeys: [] })).toBe('Verifying');
     expect(stripSummary({ state: 'stalled', fieldCount: 1, pageCount: 3, currentKeys: [], failingKeys: [], staleKeys: [] })).toBe('This verification stalled. Run it again.');
     expect(stripSummary({ state: 'failed', fieldCount: 1, pageCount: 3, currentKeys: [], failingKeys: [], staleKeys: [] })).toBe('The last verification failed');
+  });
+});
+
+describe('roughTime', () => {
+  it('is a few seconds when there is nothing to capture and nothing to ask AI', () => {
+    expect(roughTime({ fields: 5, aiFields: 0, capturesFresh: true })).toBe('a few seconds');
+  });
+  it('is under a minute for a short run', () => {
+    expect(roughTime({ fields: 5, aiFields: 3, capturesFresh: true })).toBe('under a minute'); // 24s
+    expect(roughTime({ fields: 5, aiFields: 1, capturesFresh: false })).toBe('under a minute'); // 36 + 8 = 44s
+    expect(roughTime({ fields: 5, aiFields: 0, capturesFresh: false })).toBe('under a minute'); // 36s
+  });
+  it('rounds whole minutes up past 45 seconds', () => {
+    expect(roughTime({ fields: 5, aiFields: 2, capturesFresh: false })).toBe('about 1 min'); // 36 + 16 = 52s
+    expect(roughTime({ fields: 8, aiFields: 8, capturesFresh: false })).toBe('about 2 min'); // 36 + 64 = 100s
+    expect(roughTime({ fields: 8, aiFields: 8, capturesFresh: true })).toBe('about 2 min'); // 64s
+    expect(roughTime({ fields: 20, aiFields: 20, capturesFresh: false })).toBe('about 4 min'); // 36 + 160 = 196s
+  });
+  it('ignores the field count: only AI fields and stale captures cost time', () => {
+    expect(roughTime({ fields: 40, aiFields: 0, capturesFresh: true })).toBe('a few seconds');
   });
 });
 
