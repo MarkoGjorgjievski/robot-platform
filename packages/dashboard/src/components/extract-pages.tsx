@@ -6,7 +6,7 @@
 // they give the product URLs directly and there is nothing to walk. The
 // segmented control is the only thing that switches between them; everything
 // below it is the chosen shape's own editor plus the one Save button.
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { listingCheckLabel, productUrlCounts, type ExtractMode } from '../lib/extract-view';
 import { parseUrlLines } from '../lib/parse-url-lines';
@@ -86,8 +86,15 @@ export function ExtractPages({
     setDraft(invalid.join('\n'));
   }
 
-  const productLines = productText.split('\n');
-  const counts = productUrlCounts(productLines, proofUrls, host);
+  // Memoised: this walks every pasted line with a `new URL()`, and at the
+  // 5,000-URL ceiling an unmemoised call is 5,000 constructions on every
+  // render — of which a keystroke in the textarea causes one, and the route
+  // pays for a second set of its own.
+  const productLines = useMemo(() => productText.split('\n'), [productText]);
+  const counts = useMemo(
+    () => productUrlCounts(productLines, proofUrls, host),
+    [productLines, proofUrls, host],
+  );
 
   const emptyList = mode === 'detail' ? counts.total === 0 : listing.length === 0;
   const saveLabel = mode === 'detail' ? 'Save URLs' : 'Save pages';
@@ -141,8 +148,11 @@ export function ExtractPages({
                   const label = listingCheckLabel(check);
                   // A page is checked when someone asks. Never on load: the
                   // check is a real page load on the api-server, and opening
-                  // the tab must not spend one per saved page.
-                  const askable = check !== null && ('saved' in check || 'error' in check);
+                  // the tab must not spend one per saved page. Anything but
+                  // "checking…" (`null`) can be asked again — a listing that
+                  // checked cleanly an hour ago, before the pages were
+                  // edited, is exactly when a re-check is wanted.
+                  const askable = check !== null;
                   return (
                     <tr key={url} className="border-b border-gray-100 last:border-b-0">
                       <td className="max-w-0 px-2 py-1.5">
@@ -249,7 +259,11 @@ export function ExtractPages({
             <span className="text-xs text-gray-500">
               {[
                 `${counts.total} ${counts.total === 1 ? 'URL' : 'URLs'}`,
-                counts.proof > 0 ? `${counts.proof} are the proof pages` : null,
+                counts.proof > 0
+                  ? counts.proof === 1
+                    ? '1 is a proof page'
+                    : `${counts.proof} are the proof pages`
+                  : null,
                 counts.offHost > 0 ? `${counts.offHost} off this website, skipped` : null,
               ]
                 .filter((part): part is string => part !== null)

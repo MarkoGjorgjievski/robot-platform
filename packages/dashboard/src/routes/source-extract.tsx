@@ -29,6 +29,7 @@ import { parseCsv } from '../lib/csv';
 import { isRunActive, progressLabel } from '../lib/run-progress';
 import {
   budgetFromForm,
+  budgetNeedsSave,
   budgetToForm,
   lockedStripText,
   productUrlCounts,
@@ -49,6 +50,21 @@ const HINTS = [
 
 /** Why a section is dimmed. The locked one is the same for all three: the schema is not green yet. */
 const LOCKED_REASON = 'Verify every field on the Schema tab first';
+
+/**
+ * A probe run that has not settled yet, so the runs list is worth polling.
+ * The lifecycle is `planning -> planned -> extracting -> completed | partial
+ * | failed`, plus `cancelling`/`cancelled` — the same set `ExtractSample`'s
+ * own `isActive` covers, kept here because this component sees run ROWS
+ * rather than a `crawl.status` payload.
+ */
+/** The server's own Zod bounds on the two setters, so the client can say them in words first. */
+const MAX_LISTING_PAGES = 50;
+const MAX_PRODUCT_URLS = 5000;
+
+function isProbeMoving(status: string): boolean {
+  return status === 'planning' || status === 'planned' || isRunActive(status);
+}
 
 function hostOf(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -87,7 +103,32 @@ export default function SourceExtract() {
 
   const statusQuery = trpc.sources.verificationStatus.useQuery({ sourceId }, { enabled: !!source });
   const rowsQuery = trpc.sources.inputRows.useQuery({ sourceId }, { enabled: !!source });
-  const runsQuery = trpc.runs.listBySource.useQuery({ sourceId }, { enabled: !!source });
+  // Polled while the latest probe is still moving, and only then.
+  //
+  // This query is what step 3's unlock is derived from (`sampleRun` ->
+  // `sampleFinished` -> `stepStates`), and the query client here sets
+  // `refetchOnWindowFocus: false` with a 30s `staleTime` — so without an
+  // interval nothing ever refetched it after `handleSample` invalidated it
+  // (which happens while the probe is still `extracting`). The whole happy
+  // path stopped dead after the sample: section 2 filled in from its own
+  // poll, section 3 stayed dimmed with "Sample first" until a reload.
+  // `ExtractSample` polls `crawl.status` for its own display, but that status
+  // never reached this component.
+  const runsQuery = trpc.runs.listBySource.useQuery(
+    { sourceId },
+    {
+      enabled: !!source,
+      refetchInterval: (query) => {
+        const probe = (query.state.data ?? []).find((r) => r.inputLabel === 'probe');
+        // `completedAt` is the terminal marker every reader in this codebase
+        // trusts (see `probeAndSample`'s duplicate guard): a `planned` probe
+        // that planned nothing is as finished as a `completed` one, and
+        // status alone cannot tell those apart.
+        if (!probe || probe.completedAt !== null) return false;
+        return isProbeMoving(probe.status) ? 2000 : false;
+      },
+    },
+  );
   const contractQuery = trpc.datasets.getContract.useQuery(
     { datasetId: source?.datasetId ?? '' },
     { enabled: !!source?.datasetId },
@@ -227,9 +268,17 @@ export default function SourceExtract() {
   const steps: Step[] = TITLES.map((title, i) => ({ n: i + 1, title, detail: HINTS[i]!, state: states[i]! }));
 
   const verificationSet = (source?.verificationSet ?? null) as { urls?: string[] } | null;
-  const proofUrls = verificationSet?.urls ?? [];
+  // Stable identity: this array is a prop of `ExtractPages` and a dependency
+  // of the memo below, and `?? []` would hand both a fresh one per render.
+  const proofUrlsRaw = verificationSet?.urls;
+  const proofUrls = useMemo(() => proofUrlsRaw ?? [], [proofUrlsRaw]);
   const host = hostOf(proofUrls[0] ?? source?.urlTemplate);
-  const productCounts = productUrlCounts(productText.split('\n'), proofUrls, host);
+  // One pass over every pasted line, not one per render: at the 5,000-URL
+  // ceiling this is 5,000 `new URL()` calls, and only `total` is used here.
+  const productCounts = useMemo(
+    () => productUrlCounts(productText.split('\n'), proofUrls, host),
+    [productText, proofUrls, host],
+  );
 
   const firstFailing = contract.find((f) => !currentKeys.includes(f.key));
   const stripText = lockedStripText({
@@ -248,15 +297,41 @@ export default function SourceExtract() {
     setSaveNote(null);
     try {
       if (mode === 'listing') {
+        // The server's own `.max(50)`, said in words. Without this the whole
+        // save comes back as a raw Zod issue payload naming an array index.
+        if (listing.length > MAX_LISTING_PAGES) {
+          setError(`That is ${listing.length} listing pages; ${MAX_LISTING_PAGES} is the most a website can have. Remove some and save again.`);
+          return;
+        }
         await listingPagesMutation.mutateAsync({ sourceId: source.id, urls: listing });
       } else {
-        const { urls } = parseUrlLines(productText);
+        // `invalid` is every non-blank line that is not an http(s) URL. It is
+        // deliberately NOT sent: `setProductUrls` validates each entry with
+        // `httpUrl`, so one `ftp:` line used to fail the entire save with a
+        // Zod payload naming an index the customer cannot map back to a line.
+        // The lines stay in the box; the note says how many were left out.
+        const { urls, invalid } = parseUrlLines(productText);
+        if (urls.length > MAX_PRODUCT_URLS) {
+          setError(`That is ${urls.length.toLocaleString('en-US')} URLs; ${MAX_PRODUCT_URLS.toLocaleString('en-US')} is the most a website can have. Remove some and save again.`);
+          return;
+        }
+        if (urls.length === 0) {
+          setError('None of those lines are web addresses, so nothing was saved.');
+          return;
+        }
         const result = await productUrlsMutation.mutateAsync({ sourceId: source.id, urls });
+        const notes: string[] = [];
         if (result.skipped.length > 0) {
-          setSaveNote(
+          notes.push(
             `${result.skipped.length} ${result.skipped.length === 1 ? 'URL is' : 'URLs are'} off this website, so ${result.skipped.length === 1 ? 'it was' : 'they were'} skipped.`,
           );
         }
+        if (invalid.length > 0) {
+          notes.push(
+            `${invalid.length} ${invalid.length === 1 ? 'line was' : 'lines were'} not URLs and ${invalid.length === 1 ? 'was' : 'were'} left out.`,
+          );
+        }
+        if (notes.length > 0) setSaveNote(notes.join(' '));
       }
       await Promise.all([
         utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug }),
@@ -322,7 +397,11 @@ export default function SourceExtract() {
    *
    * The budget is saved first, and only when it actually differs from what is
    * stored — the run reads it from the Source row, so a dropdown the operator
-   * moved but never saved would otherwise be a lie on screen.
+   * moved but never saved would otherwise be a lie on screen. The comparison
+   * is against the RAW stored value, not against `budgetToForm` of it: `{}`
+   * and all/all both read back as `all`/`all`, so the form-side diff could
+   * never see a Source whose budget had never been written (see
+   * `budgetNeedsSave`).
    *
    * Then, per mode: an unconfirmed listing website graduates through
    * `sources.confirm` (which plans at full budget and stamps `confirmedAt`),
@@ -336,9 +415,9 @@ export default function SourceExtract() {
     if (!source) return;
     setError(null);
     try {
-      const stored = budgetToForm(source.budget, { legacy: savedMode === null });
-      if (stored.items !== budget.items || stored.pages !== budget.pages) {
-        await updateMutation.mutateAsync({ id: source.id, budget: budgetFromForm(budget.items, budget.pages) });
+      const form = budgetFromForm(budget.items, budget.pages);
+      if (budgetNeedsSave(source.budget, form)) {
+        await updateMutation.mutateAsync({ id: source.id, budget: form });
       }
       const runId =
         mode === 'listing' && !source.confirmedAt
@@ -371,6 +450,11 @@ export default function SourceExtract() {
           : isRunActive(runStatus.status)
             ? `Extracting · ${runStatus.counts.done} of ${runStatus.counts.detail}`
             : progressLabel(runStatus.counts, runStatus.status),
+        // The spinner belongs to work in progress, not to the line that
+        // reports the result. `startedRunId` is never cleared (the finished
+        // run's line and its link stay on screen — nothing disappears), so
+        // without this the tab spun forever beside "Completed · 40 of 40".
+        moving: !runStatus || isProbeMoving(runStatus.status),
       }
     : null;
 

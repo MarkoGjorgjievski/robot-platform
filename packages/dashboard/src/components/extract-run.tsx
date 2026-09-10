@@ -84,7 +84,13 @@ export function ExtractRun({
   extracting: boolean;
   disabled: boolean;
   reason?: string;
-  activeRun: { id: string; label: string } | null;
+  /**
+   * The run this section is showing, and whether it is still moving. `moving`
+   * is what the spinner keys off: `label` goes on saying what happened once
+   * the run is finished ("Completed · 40 of 40"), and a spinner still turning
+   * beside a finished run reads as work that is still going on.
+   */
+  activeRun: { id: string; label: string; moving: boolean } | null;
   projectSlug: string;
   sourceSlug: string;
 }) {
@@ -131,7 +137,7 @@ export function ExtractRun({
       {activeRun ? (
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="flex items-center gap-2 text-gray-800">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />
+            {activeRun.moving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" />}
             {activeRun.label}
           </span>
           <Link
