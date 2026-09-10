@@ -1,20 +1,23 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
-import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
+import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications, type Database } from '@robot/db';
 import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
-import { bindingInput, prepareBinding } from '../verify/binding-input.js';
+import { bindingInput, prepareBinding, host } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
+
+/** The transaction handle `ctx.db.transaction` hands its callback — named so `setInputPages` can take one as a parameter. */
+type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /** The planner's input rows for a schema: the listing page when given, else the proof pages as detail rows. */
 function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: Array<{ url: string }>; listingMode: 'listing_to_detail' | 'detail' } {
@@ -34,7 +37,83 @@ const budgetShape = z.object({
   mode: z.enum(['all', 'first_n']).optional(),
 });
 
-const hostOf = (u: string) => new URL(u).hostname.toLowerCase();
+/** Keeps the first occurrence of each URL, comparing exact strings. */
+const uniqueUrls = (urls: string[]): string[] => Array.from(new Set(urls));
+
+/**
+ * The shared body of `setListingPages`/`setProductUrls` (task 3, fix round
+ * 1): reads the Source, the confirmed-mode lock, and the write (rows +
+ * `parameters.inputMode` + `listingMode` + an optional budget seed) all run
+ * inside the SAME transaction the caller opened — the read moved in here
+ * from before the transaction so the parameters merge and the
+ * budget-emptiness check can never race a concurrent write between the read
+ * and the write (the lost-update window a pre-transaction read left open).
+ * Off-host handling is the one thing that differs between the two callers:
+ * `offHost: 'reject'` throws BAD_REQUEST naming the offending URL (a listing
+ * page's host IS the site being crawled); `'skip'` drops it and reports it
+ * back instead.
+ */
+async function setInputPages(
+  tx: Tx,
+  sourceId: string,
+  opts: {
+    urls: string[];
+    listingMode: 'listing_to_detail' | 'detail';
+    inputMode: 'listing' | 'detail';
+    offHost: 'reject' | 'skip';
+    seedBudget?: Record<string, unknown>;
+  },
+): Promise<{ rows: Array<{ url: string }>; skipped: string[] }> {
+  const source = await tx.query.sources.findFirst({
+    where: eq(sources.id, sourceId),
+    columns: { id: true, name: true, confirmedAt: true, listingMode: true, budget: true, parameters: true, inputSetId: true, verificationSet: true },
+    with: { dataset: { columns: { projectId: true } } },
+  });
+  if (!source) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${sourceId} not found` });
+  }
+  if (source.confirmedAt && source.listingMode && source.listingMode !== opts.listingMode) {
+    throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
+  }
+
+  const urls = uniqueUrls(opts.urls);
+  const verificationSet = source.verificationSet as VerificationSet | null;
+  const referenceHost = verificationSet?.urls?.[0] ? host(verificationSet.urls[0]) : host(urls[0]!);
+  const accepted: string[] = [];
+  const skipped: string[] = [];
+  for (const url of urls) {
+    if (host(url) === referenceHost) {
+      accepted.push(url);
+    } else if (opts.offHost === 'reject') {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: `${url} is not on the same website as this source's other pages` });
+    } else {
+      skipped.push(url);
+    }
+  }
+
+  const rows = accepted.map((url) => ({ url }));
+  const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: opts.inputMode };
+  const budgetPatch = opts.seedBudget && Object.keys((source.budget as object | null) ?? {}).length === 0 ? { budget: opts.seedBudget } : {};
+
+  if (source.inputSetId) {
+    await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
+    await tx.update(sources).set({ listingMode: opts.listingMode, parameters, ...budgetPatch, updatedAt: new Date() }).where(eq(sources.id, sourceId));
+  } else {
+    if (!source.dataset?.projectId) {
+      throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} has no project to create an input set in` });
+    }
+    const [inputSet] = await tx
+      .insert(inputSets)
+      .values({ projectId: source.dataset.projectId, type: 'direct', name: source.name, columns: [{ name: 'url', primary: true }], rows })
+      .returning({ id: inputSets.id });
+    await tx
+      .update(sources)
+      .set({ inputSetId: inputSet!.id, listingMode: opts.listingMode, parameters, ...budgetPatch, updatedAt: new Date() })
+      .where(eq(sources.id, sourceId));
+  }
+
+  return { rows, skipped };
+}
 
 export const sourcesRouter = router({
   listByDataset: publicProcedure
@@ -358,46 +437,15 @@ export const sourcesRouter = router({
   setListingPages: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(50) }))
     .mutation(async ({ ctx, input }) => {
-      const source = await ctx.db.query.sources.findFirst({
-        where: eq(sources.id, input.sourceId),
-        columns: { id: true, name: true, confirmedAt: true, listingMode: true, budget: true, parameters: true, inputSetId: true, verificationSet: true },
-        with: { dataset: { columns: { projectId: true } } },
-      });
-      if (!source) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
-      }
-      if (source.confirmedAt && source.listingMode && source.listingMode !== 'listing_to_detail') {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${input.sourceId} is confirmed; its listing mode is locked` });
-      }
-
-      const verificationSet = source.verificationSet as VerificationSet | null;
-      const referenceHost = verificationSet?.urls?.[0] ? hostOf(verificationSet.urls[0]) : hostOf(input.urls[0]!);
-      for (const url of input.urls) {
-        if (hostOf(url) !== referenceHost) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: `${url} is not on the same website as this source's other pages` });
-        }
-      }
-
-      const rows = input.urls.map((url) => ({ url }));
-      const budgetPatch = Object.keys((source.budget as object | null) ?? {}).length === 0 ? { budget: LISTING_ALL_BUDGET } : {};
-      const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: 'listing' };
-
-      await ctx.db.transaction(async (tx) => {
-        if (source.inputSetId) {
-          await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
-          await tx.update(sources).set({ listingMode: 'listing_to_detail', parameters, ...budgetPatch, updatedAt: new Date() }).where(eq(sources.id, source.id));
-        } else {
-          const [inputSet] = await tx
-            .insert(inputSets)
-            .values({ projectId: source.dataset!.projectId, type: 'direct', name: source.name, columns: [{ name: 'url', primary: true }], rows })
-            .returning({ id: inputSets.id });
-          await tx
-            .update(sources)
-            .set({ inputSetId: inputSet!.id, listingMode: 'listing_to_detail', parameters, ...budgetPatch, updatedAt: new Date() })
-            .where(eq(sources.id, source.id));
-        }
-      });
-
+      const { rows } = await ctx.db.transaction((tx) =>
+        setInputPages(tx, input.sourceId, {
+          urls: input.urls,
+          listingMode: 'listing_to_detail',
+          inputMode: 'listing',
+          offHost: 'reject',
+          seedBudget: LISTING_ALL_BUDGET,
+        }),
+      );
       return { count: rows.length };
     }),
 
@@ -411,46 +459,15 @@ export const sourcesRouter = router({
   setProductUrls: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(5000) }))
     .mutation(async ({ ctx, input }) => {
-      const source = await ctx.db.query.sources.findFirst({
-        where: eq(sources.id, input.sourceId),
-        columns: { id: true, name: true, confirmedAt: true, listingMode: true, parameters: true, inputSetId: true, verificationSet: true },
-        with: { dataset: { columns: { projectId: true } } },
-      });
-      if (!source) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
-      }
-      if (source.confirmedAt && source.listingMode && source.listingMode !== 'detail') {
-        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${input.sourceId} is confirmed; its listing mode is locked` });
-      }
-
-      const verificationSet = source.verificationSet as VerificationSet | null;
-      const referenceHost = verificationSet?.urls?.[0] ? hostOf(verificationSet.urls[0]) : hostOf(input.urls[0]!);
-      const accepted: string[] = [];
-      const skipped: string[] = [];
-      for (const url of input.urls) {
-        (hostOf(url) === referenceHost ? accepted : skipped).push(url);
-      }
-
-      const rows = accepted.map((url) => ({ url }));
-      const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: 'detail' };
-
-      await ctx.db.transaction(async (tx) => {
-        if (source.inputSetId) {
-          await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
-          await tx.update(sources).set({ listingMode: 'detail', parameters, updatedAt: new Date() }).where(eq(sources.id, source.id));
-        } else {
-          const [inputSet] = await tx
-            .insert(inputSets)
-            .values({ projectId: source.dataset!.projectId, type: 'direct', name: source.name, columns: [{ name: 'url', primary: true }], rows })
-            .returning({ id: inputSets.id });
-          await tx
-            .update(sources)
-            .set({ inputSetId: inputSet!.id, listingMode: 'detail', parameters, updatedAt: new Date() })
-            .where(eq(sources.id, source.id));
-        }
-      });
-
-      return { accepted: accepted.length, skipped };
+      const { rows, skipped } = await ctx.db.transaction((tx) =>
+        setInputPages(tx, input.sourceId, {
+          urls: input.urls,
+          listingMode: 'detail',
+          inputMode: 'detail',
+          offHost: 'skip',
+        }),
+      );
+      return { accepted: rows.length, skipped };
     }),
 
   // ─── Customer schema verification (task 12) ──────────────────────────────

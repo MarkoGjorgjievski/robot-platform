@@ -16,7 +16,8 @@ export const bindingInput = z.object({
 });
 export type BindingInput = z.infer<typeof bindingInput>;
 
-const host = (u: string) => new URL(u).hostname.toLowerCase();
+/** Shared with `sources.setListingPages`/`setProductUrls` (task 3 fix round 1): the same-host comparison must use the same lowercasing everywhere. */
+export const host = (u: string) => new URL(u).hostname.toLowerCase();
 
 export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { sourceId?: string }, contract: ContractField[]): string[] {
   const problems: string[] = [];
