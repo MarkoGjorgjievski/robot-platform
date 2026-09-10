@@ -241,7 +241,12 @@ sections apart on the same tab and can look contradictory to an operator. Worth 
 nothing to page through; `{saved: true}` checks are seeded for detail-mode URLs but are inert
 there (no check ever fires for them); "rough time" in the Verifying strip, the strip's
 summary/detail split, and the visual system generally are all deferred to phase 5 (see the spec
-corrections below).
+corrections below). Two residuals from the fix wave's re-review, both minor: the `crawl.status`
+polls in `source-extract.tsx` and `extract-sample.tsx` key on status alone, so a run that ended
+at the planning stage (`planned` with `completedAt` set, the 0-item walk) keeps polling every 2 s
+while the tab is open — `crawl.status` does not return `completedAt`, which is the one-line fix;
+and after an Extract the Run section shows the run line permanently, so a second Extract in the
+same visit needs a reload.
 
 ## Customer schema verification (2026-09-07): built and offline-proven — NO live site has verified through this flow yet
 
