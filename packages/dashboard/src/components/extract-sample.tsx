@@ -126,7 +126,11 @@ export function ExtractSample({
     const notes: string[] = [];
     for (const column of columns) {
       const emptyOn = rows.filter((row) => isEmptyCell(row[column.key])).length;
-      if (emptyOn > 0) notes.push(emptyCellNote(column.key, emptyOn, rows.length));
+      // `column.key` looks up the cell; `column.name` is what the note says.
+      // The customer named the field on the contract and the table header two
+      // elements up already uses that name — a note reading "price_currency
+      // was empty on 2 of 3 sampled pages" leaks the key nobody chose.
+      if (emptyOn > 0) notes.push(emptyCellNote(column.name, emptyOn, rows.length));
     }
     return notes;
   }, [columns, rows]);
