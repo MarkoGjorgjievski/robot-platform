@@ -21,12 +21,17 @@ const SELECT_CLASS =
   'rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-800 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100 disabled:opacity-50';
 
 /**
- * A number box that lets the operator clear it while typing.
+ * A number box that lets the operator clear it while typing, but never lets
+ * the screen disagree with what the parent holds.
  *
  * A plain controlled `value={n}` snaps an emptied box straight back to its
  * old number, so replacing "40" with "5" means selecting the text first or
- * fighting the input. The draft absorbs every keystroke; only a positive
- * integer is ever handed upward.
+ * fighting the input. The draft absorbs every keystroke and only a positive
+ * integer is ever handed upward — which leaves exactly one gap: an empty,
+ * `0`, negative or otherwise unparseable draft is shown while the parent
+ * still holds the last good number, so the sentence under it describes a
+ * budget the box does not show. Blur closes that gap by snapping the draft
+ * back to `value`.
  */
 function NumberBox({ value, onValue, label }: { value: number; onValue: (n: number) => void; label: string }) {
   const [draft, setDraft] = useState(String(value));
@@ -43,6 +48,10 @@ function NumberBox({ value, onValue, label }: { value: number; onValue: (n: numb
         setDraft(e.target.value);
         const parsed = Number.parseInt(e.target.value, 10);
         if (Number.isFinite(parsed) && parsed > 0) onValue(parsed);
+      }}
+      onBlur={() => {
+        const parsed = Number.parseInt(draft, 10);
+        if (!Number.isFinite(parsed) || parsed < 1) setDraft(String(value));
       }}
       className="w-16 rounded-md border border-gray-300 px-2 py-1 font-mono text-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100"
     />

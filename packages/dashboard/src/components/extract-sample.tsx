@@ -33,11 +33,21 @@ const SAMPLE_SENTENCE =
 
 const EMPTY_COUNTS = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };
 
-/** Still moving, so keep polling. `planned`/`running` are the sample's own
- * early statuses; `isRunActive` covers the executing statuses the run
- * pipeline writes once phase 2 starts. */
+/**
+ * Still moving, so keep polling.
+ *
+ * The run lifecycle is `planning -> planned -> extracting -> completed |
+ * partial | failed`, plus `cancelling`/`cancelled` (see `planSource` in
+ * packages/api/src/crawl/plan-source.ts and `RunStatusBadge` in
+ * routes/source-run-detail.tsx). `running` is an ITEM status — `run_items
+ * .status` — that a run row never holds, so branching on it polls nothing.
+ * `planning` is the one that matters most here: a sample observed while its
+ * plan is still being built would otherwise never start polling at all, and
+ * `refetchInterval` is only re-evaluated when the query updates.
+ * `isRunActive` covers `extracting`/`cancelling` once phase 2 starts.
+ */
 function isActive(status: string): boolean {
-  return status === 'planned' || status === 'running' || isRunActive(status);
+  return status === 'planning' || status === 'planned' || isRunActive(status);
 }
 
 function isEmptyCell(value: unknown): boolean {
@@ -153,8 +163,8 @@ export function ExtractSample({
       <dl className="flex flex-wrap gap-6">
         {facts.map((fact) => (
           <div key={fact.label}>
-            <dd className="text-base font-medium text-gray-900">{fact.value}</dd>
             <dt className="text-[11px] text-gray-500">{fact.label}</dt>
+            <dd className="text-base font-medium text-gray-900">{fact.value}</dd>
           </div>
         ))}
       </dl>
@@ -173,8 +183,18 @@ export function ExtractSample({
       {/* Cell-level highlighting is deliberately left out: ResultsTable
           exposes no per-cell hook beyond `absentByUrl` (which renders a
           confirmed-absent cell as "not on page"). The notes below carry the
-          same information without forking the table. */}
-      <ResultsTable data={rows} confidence={null} fields={fields} absentByUrl={absentByUrl} />
+          same information without forking the table.
+
+          `headerVariant="none"` because the section already has its own
+          heading — the table's own <h2> under this section's <h3> would
+          invert the document outline. */}
+      <ResultsTable
+        data={rows}
+        confidence={null}
+        fields={fields}
+        absentByUrl={absentByUrl}
+        headerVariant="none"
+      />
 
       {emptyNotes.map((note) => (
         <p key={note} className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
