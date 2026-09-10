@@ -24,6 +24,8 @@ export function legacyTarget(pathname: string): string | null {
     const sbase = `${base}/sources/${sourceSlug}`;
     if (tail === '' || tail === '/setup') return sbase;
     if (tail === '/config') return `${sbase}/settings`;
+    // Overview is retired; the Extract tab took its place (phase 4).
+    if (tail === '/overview') return `${sbase}/extract`;
     return `${sbase}${tail}`;
   }
   return `${base}${rest}`;

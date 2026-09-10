@@ -160,6 +160,9 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
     await checkRoute(`/projects/${project.slug}`);
     const route = `/projects/${project.slug}/sources/${site.sourceSlug}`;
     await checkRoute(route);
+    // The Extract tab on a website whose schema has never been verified: the
+    // locked path, which is the one that renders with the most null data.
+    await checkRoute(`${route}/extract`);
 
     const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
@@ -176,5 +179,17 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
     } finally {
       await page.close();
     }
-  }, 60_000);
+
+    // Overview is retired: its path is a redirect to Extract now, in the
+    // router and in the legacy `/p/...` table alike.
+    for (const from of [`${route}/overview`, `/p/${project.slug}/sources/${site.sourceSlug}/overview`]) {
+      const overview: Page = await browser.newPage();
+      try {
+        await overview.goto(DASHBOARD + from, { waitUntil: 'networkidle', timeout: 30_000 });
+        expect(new URL(overview.url()).pathname, `${from} did not land on Extract`).toBe(`${route}/extract`);
+      } finally {
+        await overview.close();
+      }
+    }
+  }, 90_000);
 });

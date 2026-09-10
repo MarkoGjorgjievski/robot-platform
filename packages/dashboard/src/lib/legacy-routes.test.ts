@@ -11,6 +11,7 @@ describe('legacyTarget', () => {
     expect(legacyTarget('/p/scratch/sources/abc')).toBe('/projects/scratch/sources/abc');
     expect(legacyTarget('/p/scratch/sources/abc/setup')).toBe('/projects/scratch/sources/abc');
     expect(legacyTarget('/p/scratch/sources/abc/config')).toBe('/projects/scratch/sources/abc/settings');
+    expect(legacyTarget('/p/scratch/sources/abc/overview')).toBe('/projects/scratch/sources/abc/extract');
     expect(legacyTarget('/p/scratch/sources/abc/runs')).toBe('/projects/scratch/sources/abc/runs');
     expect(legacyTarget('/p/scratch/sources/abc/runs/r1')).toBe('/projects/scratch/sources/abc/runs/r1');
   });
