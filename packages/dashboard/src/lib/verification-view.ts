@@ -177,9 +177,12 @@ function urlsChanged(grid: GridState, saved: GridState): boolean {
  * run to compare against, or that prior run's `results` are empty (a
  * stalled/crashed run left nothing to diff), so scoping down would be
  * meaningless. Otherwise: every row whose field never certified (never
- * verified at all, or its last run had no certified path) or whose
- * definition/expected values drifted from the saved baseline — a plain `[]`
- * when nothing qualifies (everything's already green and unchanged). Rows
+ * verified at all, or its last run had no certified path), whose
+ * definition/expected values drifted from the saved baseline, or — when
+ * `currentKeys` is given — whose key the server no longer counts as current
+ * (its stored `fieldHash` no longer matches the live definition, even
+ * though its last result did certify) — a plain `[]` when nothing
+ * qualifies (everything's already green, unchanged, and current). Rows
  * with no key (never saved) are skipped — nothing in `results` could ever
  * reference them.
  *
@@ -196,6 +199,7 @@ export function reverifyKeys(
   results: VerificationResults | null | undefined,
   grid: GridState,
   savedGrid: GridState | null,
+  currentKeys?: string[],
 ): string[] | undefined {
   if (!results || Object.keys(results).length === 0) return undefined;
   if (savedGrid && urlsChanged(grid, savedGrid)) return undefined;
@@ -203,7 +207,7 @@ export function reverifyKeys(
   for (const row of grid.rows) {
     if (!row.key) continue;
     const fv = results[row.key];
-    if (isRowStale(row, savedGrid) || !fv || fv.certified.length === 0) keys.push(row.key);
+    if (isRowStale(row, savedGrid) || !fv || fv.certified.length === 0 || (currentKeys && !currentKeys.includes(row.key))) keys.push(row.key);
   }
   return keys;
 }

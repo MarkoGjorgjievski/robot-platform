@@ -129,7 +129,7 @@ export default function SourceSchema() {
   const keyed = grid.rows.filter((r) => r.key);
   const staleKeys = keyed.filter((r) => isRowStale(r, savedGrid)).map((r) => r.key!);
   const failingKeys = keyed.filter((r) => !staleKeys.includes(r.key!) && results?.[r.key!] && results[r.key!]!.certified.length === 0).map((r) => r.key!);
-  const reverify = reverifyKeys(results, grid, savedGrid); // undefined = everything
+  const reverify = reverifyKeys(results, grid, savedGrid, currentKeys); // undefined = everything
   const reverifyCount = reverify === undefined ? keyed.length : reverify.length;
   const firstRun = strip === 'editing' || strip === 'none';
   const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId: source?.id ?? '', ...(firstRun ? {} : { onlyKeys: reverify ?? undefined }) }, { enabled: !!source });
@@ -164,6 +164,7 @@ export default function SourceSchema() {
       // drifted from what the last verification actually ran against.
       const priorResults = results;
       const priorSavedGrid = savedGrid;
+      const priorCurrentKeys = currentKeys;
 
       let latestDefinition: { schemaDefinition: unknown; verificationSet: unknown } = source;
       if (isDirty) {
@@ -176,7 +177,7 @@ export default function SourceSchema() {
       // keeps its key across the save, and a brand-new field's fresh key was
       // never in `priorResults` at all - `reverifyKeys` picks up both cases.
       const latestGrid = fromSource(latestDefinition) ?? grid;
-      const onlyKeys = reverifyKeys(priorResults, latestGrid, priorSavedGrid);
+      const onlyKeys = reverifyKeys(priorResults, latestGrid, priorSavedGrid, priorCurrentKeys);
 
       await verifyMutation.mutateAsync({ sourceId: source.id, onlyKeys });
       utils.sources.verificationStatus.invalidate({ sourceId: source.id });
