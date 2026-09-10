@@ -20,15 +20,15 @@ export function Dialog({ open, title, onClose, preventClose, children }: { open:
       onClose={onClose}
       onCancel={(e) => { if (preventClose) e.preventDefault(); }}
       onClick={(e) => { if (!preventClose && e.target === ref.current) ref.current?.close(); }}
-      className="w-[26rem] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-0 shadow-xl backdrop:bg-gray-900/30"
+      className="card w-[26rem] max-w-[calc(100vw-2rem)] p-0 shadow-xl backdrop:bg-gray-900/30"
     >
       <div className="px-5 pt-4 pb-5" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+        <h2 className="name text-lg">{title}</h2>
         <div className="mt-3">{children}</div>
       </div>
     </dialog>
   );
 }
 
-export const fieldClass = 'mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-100';
-export const labelClass = 'block text-xs text-gray-600';
+export const fieldClass = 'mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 text-sm text-gray-900 focus:border-accent-600';
+export const labelClass = 'block label-soft';
