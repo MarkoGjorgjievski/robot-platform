@@ -50,7 +50,7 @@ export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl
         {!disabled && <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Edit page ${index + 1}`} title="Edit this page" className="text-gray-300 hover:text-gray-600"><Pencil className="h-3 w-3" /></button>}
       </div>
       <div className="mt-0.5 flex h-4 items-center gap-1 font-sans text-[11px] font-normal text-gray-500" title={blockedReason}>
-        {icon}<span>{state === 'not_captured' && blockedReason ? `not captured: ${blockedReason}` : STATE_LABEL[state] || `page ${index + 1}`}</span>
+        {icon}<span className="truncate">{state === 'not_captured' && blockedReason ? `not captured: ${blockedReason}` : STATE_LABEL[state] || `page ${index + 1}`}</span>
         {state === 'not_captured' && shot && <a href={screenshotUrl(shot) ?? '#'} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">screenshot</a>}
       </div>
 
