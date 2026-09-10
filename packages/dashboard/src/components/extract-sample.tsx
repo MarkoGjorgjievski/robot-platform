@@ -1,0 +1,193 @@
+// packages/dashboard/src/components/extract-sample.tsx
+// Step 2 of the Extract tab: proof that the walk works before anything runs
+// at scale.
+//
+// This is the one section that reads its own data. The parent owns the
+// *decision* (which run is the sample, whether it is stale, whether a new one
+// is being kicked off) and this component owns everything that follows from a
+// run id — progress, the evidence facts, the rows, and the honest note under
+// any column that came back empty.
+//
+// Three queries, one run id:
+//   crawl.status         — the sample's own status, polled while it moves
+//   crawl.items          — the work-list counts and per-item confirmed-absent
+//                          fields (the "not on page" cells)
+//   runs.getWithDetails  — `run.logs` (the only place a persisted run's plan
+//                          warnings survive, see parse-run-log.ts) and the
+//                          extracted rows themselves
+//
+// In product-URL mode there is nothing to prove: the pages are known, so the
+// section says exactly that and asks for nothing.
+import { useMemo } from 'react';
+import { Loader2 } from 'lucide-react';
+import { trpc } from '../lib/trpc';
+import { parseRunLog } from '../lib/parse-run-log';
+import { probeEvidence } from '../lib/probe-evidence';
+import { isRunActive } from '../lib/run-progress';
+import { emptyCellNote, sampleFacts, type ExtractMode } from '../lib/extract-view';
+import { ResultsTable } from './results-table';
+
+/** The one line the sample's own button promises, verbatim from the mockup. */
+const SAMPLE_SENTENCE =
+  'walks the first listing for up to 3 pages, extracts 3 products with the verified paths. No AI. Free.';
+
+const EMPTY_COUNTS = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };
+
+/** Still moving, so keep polling. `planned`/`running` are the sample's own
+ * early statuses; `isRunActive` covers the executing statuses the run
+ * pipeline writes once phase 2 starts. */
+function isActive(status: string): boolean {
+  return status === 'planned' || status === 'running' || isRunActive(status);
+}
+
+function isEmptyCell(value: unknown): boolean {
+  return value === null || value === undefined || value === '';
+}
+
+export function ExtractSample({
+  mode,
+  runId,
+  sampling,
+  onSample,
+  onSampleAgain,
+  columns,
+  stale,
+  readOnly,
+}: {
+  mode: ExtractMode;
+  runId: string | null;
+  sampling: boolean;
+  onSample: () => void;
+  onSampleAgain: () => void;
+  /** The project's contract columns: `key` is what a result row is keyed by
+   * (see `effectiveSchema` in packages/api — a keyed contract entry's `key`
+   * becomes the extraction chain's field name), `name` is the plain-language
+   * label. */
+  columns: Array<{ key: string; name: string }>;
+  stale: boolean;
+  readOnly: boolean;
+}) {
+  const statusQuery = trpc.crawl.status.useQuery(
+    { runId: runId ?? '' },
+    {
+      enabled: !!runId,
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status !== undefined && isActive(status) ? 2000 : false;
+      },
+    },
+  );
+  const itemsQuery = trpc.crawl.items.useQuery({ runId: runId ?? '' }, { enabled: !!runId });
+  const detailQuery = trpc.runs.getWithDetails.useQuery({ id: runId ?? '' }, { enabled: !!runId });
+
+  const absentByUrl = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const item of itemsQuery.data?.items ?? []) {
+      const absent = Array.isArray(item.absentFields) ? (item.absentFields as string[]) : [];
+      if (absent.length > 0) map.set(item.url, new Set(absent));
+    }
+    return map;
+  }, [itemsQuery.data]);
+
+  const rawRows = detailQuery.data?.extraction?.data;
+  const rows = useMemo(
+    () => (Array.isArray(rawRows) ? (rawRows as Record<string, unknown>[]) : []),
+    [rawRows],
+  );
+
+  const fields = useMemo(
+    () =>
+      columns.map((c) => ({
+        name: c.key,
+        type: 'text',
+        // ResultsTable's only per-column hook: the header's title attribute
+        // becomes "key · Plain-language label".
+        candidate: { concept: c.key, label: c.name },
+      })),
+    [columns],
+  );
+
+  // Every column that came back empty on at least one sampled row, with how
+  // many rows it was empty on. One note per such column, under the table.
+  const emptyNotes = useMemo(() => {
+    if (rows.length === 0) return [];
+    const notes: string[] = [];
+    for (const column of columns) {
+      const emptyOn = rows.filter((row) => isEmptyCell(row[column.key])).length;
+      if (emptyOn > 0) notes.push(emptyCellNote(column.key, emptyOn, rows.length));
+    }
+    return notes;
+  }, [columns, rows]);
+
+  if (mode === 'detail') {
+    return <p className="text-xs text-gray-500">No sample needed, the pages are known.</p>;
+  }
+
+  if (!runId) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" className="btn-primary h-8" disabled={readOnly || sampling} onClick={onSample}>
+          {sampling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Sample 3 products
+        </button>
+        <span className="text-xs text-gray-500">{SAMPLE_SENTENCE}</span>
+      </div>
+    );
+  }
+
+  const status = statusQuery.data?.status ?? null;
+  const active = status !== null && isActive(status);
+  const counts = itemsQuery.data?.counts ?? EMPTY_COUNTS;
+  const warnings = parseRunLog(detailQuery.data?.run.logs ?? null).warnings;
+  const evidence = probeEvidence({ counts: { listing: counts.listing, detail: counts.detail }, warnings });
+  const facts = sampleFacts(evidence, { detail: counts.detail, done: counts.done });
+
+  return (
+    <div className="space-y-3">
+      {stale && (
+        <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+          Pages changed since this sample. Sample again to refresh it.
+        </p>
+      )}
+
+      <dl className="flex flex-wrap gap-6">
+        {facts.map((fact) => (
+          <div key={fact.label}>
+            <dd className="text-base font-medium text-gray-900">{fact.value}</dd>
+            <dt className="text-[11px] text-gray-500">{fact.label}</dt>
+          </div>
+        ))}
+      </dl>
+
+      {active && (
+        <p className="flex items-center gap-2 text-xs text-gray-500">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Sampling · {counts.done} of {counts.detail} rows extracted
+        </p>
+      )}
+
+      {statusQuery.data?.errorMessage && (
+        <p className="text-xs text-red-600">{statusQuery.data.errorMessage}</p>
+      )}
+
+      {/* Cell-level highlighting is deliberately left out: ResultsTable
+          exposes no per-cell hook beyond `absentByUrl` (which renders a
+          confirmed-absent cell as "not on page"). The notes below carry the
+          same information without forking the table. */}
+      <ResultsTable data={rows} confidence={null} fields={fields} absentByUrl={absentByUrl} />
+
+      {emptyNotes.map((note) => (
+        <p key={note} className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+          {note}
+        </p>
+      ))}
+
+      <div>
+        <button type="button" className="btn-quiet" disabled={readOnly || sampling || active} onClick={onSampleAgain}>
+          {sampling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Sample again
+        </button>
+      </div>
+    </div>
+  );
+}
