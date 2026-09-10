@@ -1,0 +1,5 @@
+# The smoke run creates a throwaway project named `Smoke <timestamp>` and screenshots
+# its routes, so those three files carry a different name on every run. They are worth
+# looking at while they are on disk (a brand-new website's Schema tab and its locked
+# Extract tab are the emptiest states the app has) and worth nothing committed.
+projects-smoke-*.png

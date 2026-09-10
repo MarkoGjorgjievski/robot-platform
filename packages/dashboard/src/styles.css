@@ -41,8 +41,6 @@
 @utility name { @apply font-serif font-semibold tracking-[-0.005em]; }
 /* Secondary label, sentence case: replaces the retired uppercase micro-label. */
 @utility label-soft { @apply text-xs font-medium text-gray-600; }
-/* retired: replaced by label-soft in tasks 2-7 */
-@utility micro-label { @apply label-soft; }
 /* Card: dialogs and the websites list only. */
 @utility card { @apply rounded-lg border border-gray-300 bg-gray-50; }
 /* Sheet: a table on the paper. 2px ink rule on top, rule-soft between rows, surface background. */

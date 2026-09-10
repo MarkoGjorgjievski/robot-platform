@@ -18,6 +18,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type Page } from 'playwright';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { AppRouter } from '@robot/api/routers';
 
 const ENABLED = process.env.RUN_UI_SMOKE === '1';
@@ -48,6 +51,21 @@ const ROUTES = [
 
 /** Console noise that is not a rendering failure. */
 const IGNORABLE = [/favicon/i, /Download the React DevTools/i];
+
+/**
+ * Spec 10: one screenshot per screen state, captured by the smoke run into
+ * `docs/testing/screens/` for hand review — never asserted on, because a
+ * screenshot cannot say whether a page is right, only show it to someone who
+ * can. The test runs from `packages/dashboard`, so the directory is resolved
+ * from this file rather than from the working directory.
+ */
+const SCREENS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../docs/testing/screens');
+
+/** `/` -> `index`; `/projects/scratch/output` -> `projects-scratch-output`. */
+function screenSlug(route: string): string {
+  const slug = route.replaceAll('/', '-').replace(/^-/, '');
+  return slug === '' ? 'index' : slug;
+}
 
 let browser: Browser;
 
@@ -121,6 +139,14 @@ async function checkRoute(route: string) {
 
     expect(problems, `${route} logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   } finally {
+    if (ENABLED) {
+      // Taken in `finally` so a route that failed its checks is still on film,
+      // and swallowed so a capture problem can never mask the real failure.
+      mkdirSync(SCREENS, { recursive: true });
+      await page
+        .screenshot({ path: path.join(SCREENS, `${screenSlug(route)}.png`), fullPage: true })
+        .catch((err) => console.error(`[smoke] could not screenshot ${route}:`, err));
+    }
     await page.close();
   }
 }
