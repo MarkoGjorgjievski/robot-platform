@@ -44,7 +44,15 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
             const locked = !!s && s.verified > 0;
             return (
               <tr key={f.key} className="sheet-row h-8">
-                <td className="py-1.5"><InlineRename value={f.name} className="font-mono text-xs" onSave={(name) => rename.mutate({ datasetId, key: f.key, name })} /></td>
+                {/*
+                  A field name is a name the customer chose, so it reads like the
+                  grid's Field column: Public Sans 500 ink, never mono — mono is
+                  for keys, types and values. InlineRename styles its own display
+                  span with `name` (Fraunces), which is right for a project or
+                  website title but not for a column of the output, so this one
+                  call site reaches in and overrides it.
+                */}
+                <td className="py-1.5"><InlineRename value={f.name} className="text-[13px] text-gray-900 [&>span]:font-sans [&>span]:font-medium [&>span]:tracking-normal" onSave={(name) => rename.mutate({ datasetId, key: f.key, name })} /></td>
                 <td className="py-1.5">
                   <select value={pendingType[f.key] ?? f.type} disabled={locked || f.key in pendingType} title={locked ? 'A verified website uses this type. Delete and re-add the field to change it.' : undefined}
                     onChange={(e) => {
@@ -74,7 +82,7 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
               </tr>
             );
           })}
-          <tr>
+          <tr className="sheet-row h-8">
             <td className="py-1.5"><input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); }} placeholder="field name" className="w-full rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 font-mono text-xs" aria-label="New field name" /></td>
             <td className="py-1.5"><select value={newType} onChange={(e) => setNewType(e.target.value as GridFieldType)} className="rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs">{FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
             <td className="py-1.5" colSpan={2}><button type="button" className="btn-quiet h-7" disabled={!newName.trim() || add.isPending} onClick={submitNew}>{add.isPending && <Loader2 className="h-3 w-3 animate-spin" />}Add field</button></td>
