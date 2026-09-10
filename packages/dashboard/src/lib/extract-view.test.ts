@@ -34,6 +34,14 @@ describe('stepStates', () => {
     expect(stepStates({ ...base, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed' }, running: true })).toEqual(['done', 'done', 'done']);
     expect(stepStates({ ...base, mode: 'detail', pagesSaved: true, running: true })).toEqual(['done', 'done', 'done']);
   });
+  it('schema-not-green wins over running', () => {
+    expect(stepStates({ ...base, schemaGreen: false, mode: 'listing', pagesSaved: true, sampleRun: { status: 'completed' }, running: true })).toEqual(['locked', 'locked', 'locked']);
+  });
+  // Pinning current precedence deliberately: `running` short-circuits before mode/pagesSaved are checked, so an
+  // otherwise-unstarted stepper still shows all-done while a run is in flight.
+  it('running wins over an unstarted stepper (mode null, pages not saved)', () => {
+    expect(stepStates({ ...base, mode: null, pagesSaved: false, running: true })).toEqual(['done', 'done', 'done']);
+  });
 });
 
 describe('listingCheckLabel', () => {
