@@ -3,12 +3,12 @@ import { Trash2, Plus } from 'lucide-react';
 import { FIELD_TYPES, URL_COUNT, applyPaste, emptyRow, parseBlock, shortUrl, validateExpectedClient, type GridState } from '../lib/schema-grid';
 
 export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string };
-type Props = { state: GridState; onChange: (next: GridState) => void; cellStatus?: (rowId: string, urlIndex: number) => CellStatus | null; disabled?: boolean };
+type Props = { state: GridState; onChange: (next: GridState) => void; cellStatus?: (rowId: string, urlIndex: number) => CellStatus | null; disabled?: boolean; locked?: boolean };
 
 const COLS = 3 + URL_COUNT;
 const CELL_BG: Record<CellStatus['status'], string> = { pass: 'bg-emerald-50 border-emerald-300', fail: 'bg-red-50 border-red-300', not_captured: 'bg-amber-50 border-amber-300', stale: 'bg-gray-100 border-gray-300' };
 
-export function SchemaGrid({ state, onChange, cellStatus, disabled }: Props) {
+export function SchemaGrid({ state, onChange, cellStatus, disabled, locked }: Props) {
   const inputs = useRef(new Map<string, HTMLElement>());
   const reg = (r: number, c: number) => (el: HTMLElement | null) => { if (el) inputs.current.set(`${r},${c}`, el); else inputs.current.delete(`${r},${c}`); };
   const focus = (r: number, c: number) => inputs.current.get(`${r},${c}`)?.focus();
@@ -50,14 +50,14 @@ export function SchemaGrid({ state, onChange, cellStatus, disabled }: Props) {
           <tr className="text-left">
             <th className="px-2 py-1">Field</th><th className="px-2 py-1">Type</th><th className="px-2 py-1">Description (where it is, what it looks like)</th>
             {state.urls.map((u, i) => <th key={i} className="px-2 py-1 font-mono text-xs" title={u}>{u ? shortUrl(u) : `URL ${i + 1}`}</th>)}
-            <th />
+            {!locked && <th />}
           </tr>
         </thead>
         <tbody>
           {state.rows.map((row, r) => (
             <tr key={row.id}>
-              <td className="p-1"><input ref={reg(r, 0)} disabled={disabled} value={row.name} onChange={(e) => setRow(r, { name: e.target.value })} onKeyDown={(e) => onKey(e, r, 0)} onPaste={(e) => onPaste(e, r, 0)} className="w-full rounded border border-gray-300 px-2 py-1" placeholder="price" /></td>
-              <td className="p-1"><select ref={reg(r, 1)} disabled={disabled} value={row.type} onChange={(e) => setRow(r, { type: e.target.value as GridState['rows'][number]['type'] })} onKeyDown={(e) => onKey(e, r, 1)} className="rounded border border-gray-300 px-2 py-1">{FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
+              <td className="p-1"><input ref={reg(r, 0)} disabled={disabled || locked} title={locked ? 'Field names and types come from the project' : undefined} value={row.name} onChange={(e) => setRow(r, { name: e.target.value })} onKeyDown={(e) => onKey(e, r, 0)} onPaste={(e) => onPaste(e, r, 0)} className="w-full rounded border border-gray-300 px-2 py-1" placeholder="price" /></td>
+              <td className="p-1"><select ref={reg(r, 1)} disabled={disabled || locked} title={locked ? 'Field names and types come from the project' : undefined} value={row.type} onChange={(e) => setRow(r, { type: e.target.value as GridState['rows'][number]['type'] })} onKeyDown={(e) => onKey(e, r, 1)} className="rounded border border-gray-300 px-2 py-1">{FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
               <td className="p-1"><input ref={reg(r, 2)} disabled={disabled} value={row.description} onChange={(e) => setRow(r, { description: e.target.value })} onKeyDown={(e) => onKey(e, r, 2)} onPaste={(e) => onPaste(e, r, 2)} className="w-full rounded border border-gray-300 px-2 py-1" placeholder="green number next to Add to cart, not the crossed-out one" /></td>
               {row.expected.map((v, u) => {
                 const status = cellStatus?.(row.id, u) ?? null;
@@ -77,12 +77,12 @@ export function SchemaGrid({ state, onChange, cellStatus, disabled }: Props) {
                   </td>
                 );
               })}
-              <td className="p-1"><button type="button" disabled={disabled} onClick={() => onChange({ ...state, rows: state.rows.filter((_, j) => j !== r) })} className="text-gray-400 hover:text-red-600" aria-label="Delete row"><Trash2 className="h-4 w-4" /></button></td>
+              {!locked && <td className="p-1"><button type="button" disabled={disabled} onClick={() => onChange({ ...state, rows: state.rows.filter((_, j) => j !== r) })} className="text-gray-400 hover:text-red-600" aria-label="Delete row"><Trash2 className="h-4 w-4" /></button></td>}
             </tr>
           ))}
         </tbody>
       </table>
-      <button type="button" disabled={disabled} onClick={() => onChange({ ...state, rows: [...state.rows, emptyRow()] })} className="mt-2 inline-flex items-center gap-1 text-sm text-accent-700"><Plus className="h-4 w-4" /> Add row</button>
+      {!locked && <button type="button" disabled={disabled} onClick={() => onChange({ ...state, rows: [...state.rows, emptyRow()] })} className="mt-2 inline-flex items-center gap-1 text-sm text-accent-700"><Plus className="h-4 w-4" /> Add row</button>}
     </div>
   );
 }

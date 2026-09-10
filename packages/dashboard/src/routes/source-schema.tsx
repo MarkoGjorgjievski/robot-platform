@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from '@tanstack/react-router';
+import { useParams, useNavigate, Link } from '@tanstack/react-router';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { screenshotUrl } from '../lib/screenshot-url';
-import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
+import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 import { SchemaUrls } from '../components/schema-urls';
-import { emptyState, fromSource, gridProblems, isComplete, mergeImportedRows, toSchemaInput, URL_COUNT, type GridState } from '../lib/schema-grid';
+import { applyImportToRows, bindingProblems, emptyRow, emptyState, fromSource, isComplete, toBindingInput, URL_COUNT, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, summaryLine, verificationState, type VerificationResults } from '../lib/verification-view';
 
 /**
@@ -32,6 +32,7 @@ export default function SourceSchema() {
   // seeded from the Source does not scream on first paint - flips true on
   // any grid edit, or a click on the (possibly disabled) Verify button.
   const [touched, setTouched] = useState(false);
+  const [importIgnored, setImportIgnored] = useState<string[]>([]);
   const initialized = useRef(false);
 
   const updateGrid: typeof setGrid = (value) => {
@@ -58,7 +59,7 @@ export default function SourceSchema() {
     },
   );
 
-  const updateSchemaMutation = trpc.sources.updateSchema.useMutation();
+  const updateBindingMutation = trpc.sources.updateBinding.useMutation();
   const verifyMutation = trpc.sources.verify.useMutation();
   const findMutation = trpc.sources.findProductPages.useMutation();
   const planMutation = trpc.crawl.plan.useMutation();
@@ -76,6 +77,19 @@ export default function SourceSchema() {
     if (seeded) {
       setGrid(seeded);
       initialized.current = true;
+      return;
+    }
+    // A website with fields lifted from the project (Task 6) but no
+    // verification set yet: seed rows from the project's fields with empty
+    // URLs, ready for the operator to fill in.
+    if (Array.isArray(source.schemaDefinition) && source.schemaDefinition.length > 0) {
+      const fields = source.schemaDefinition as Array<{ key: string; name: string; type: GridState['rows'][number]['type']; description: string }>;
+      setGrid({
+        urls: ['', '', ''],
+        listingUrl: '',
+        rows: fields.map((f) => ({ ...emptyRow(), key: f.key, name: f.name, type: f.type, description: f.description })),
+      });
+      initialized.current = true;
     }
   }, [source]);
 
@@ -89,8 +103,8 @@ export default function SourceSchema() {
   // `savedGrid` is null for a Source that predates this feature (never had a
   // schema saved) - treated as "saved: nothing" so any grid the operator
   // fills in reads as dirty, not as already matching a saved state.
-  const isDirty = JSON.stringify(toSchemaInput(grid)) !== JSON.stringify(toSchemaInput(savedGrid ?? emptyState()));
-  const problems = gridProblems(grid);
+  const isDirty = JSON.stringify(toBindingInput(grid)) !== JSON.stringify(toBindingInput(savedGrid ?? emptyState()));
+  const problems = bindingProblems(grid);
   const showProblems = touched && problems.length > 0;
 
   function cellStatus(rowId: string, urlIndex: number): CellStatus | null {
@@ -109,7 +123,7 @@ export default function SourceSchema() {
     setError(null);
     try {
       // `results`/`savedGrid` are the PRE-save baseline - captured now,
-      // before `updateSchema` catches the Source's saved definition up to
+      // before `updateBinding` catches the Source's saved definition up to
       // `grid`, so a field the operator just edited still reads as having
       // drifted from what the last verification actually ran against.
       const priorResults = results;
@@ -117,7 +131,7 @@ export default function SourceSchema() {
 
       let latestDefinition: { schemaDefinition: unknown; verificationSet: unknown } = source;
       if (isDirty) {
-        latestDefinition = await updateSchemaMutation.mutateAsync({ sourceId: source.id, ...toSchemaInput(grid) });
+        latestDefinition = await updateBindingMutation.mutateAsync({ sourceId: source.id, ...toBindingInput(grid) });
         const refreshed = fromSource(latestDefinition);
         if (refreshed) setGrid(refreshed);
       }
@@ -181,7 +195,7 @@ export default function SourceSchema() {
     : estimate.aiAvailable
       ? `Verify · up to $${estimate.upperBoundUsd.toFixed(2)}`
       : 'Verify · mechanical only';
-  const verifyBusy = updateSchemaMutation.isPending || verifyMutation.isPending;
+  const verifyBusy = updateBindingMutation.isPending || verifyMutation.isPending;
   const verifyDisabled = active || !isComplete(grid) || verifyBusy;
   const extractEnabled = !!(status?.current && status?.allPassed);
 
@@ -263,38 +277,59 @@ export default function SourceSchema() {
         </div>
       )}
 
-      {/*
-        C2 (spec §2.1, §7, §9): the three verification URLs and the optional
-        listing URL belong to the schema, so this screen owns them too — not
-        only the New Source wizard. Edits go through `updateGrid`, so a URL
-        change marks the grid dirty exactly like a cell edit: Verify saves it
-        first via `updateSchema`, and the changed `definitionHash`
-        invalidates the old certification on its own. A Source with no saved
-        `schemaDefinition` at all (a legacy or `quickCreate`d one) therefore
-        opens here with empty URL inputs and one empty row, ready to fill in.
-      */}
-      <div className="mt-4">
-        <SchemaUrls
-          state={grid}
-          onChange={updateGrid}
-          disabled={active}
-          onFindProductPages={async (listingUrl) => (await findMutation.mutateAsync({ listingUrl })).urls}
+      {!Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 ? (
+        <EmptyState
+          title="No fields yet"
+          description="Add the fields you want on the project page. Every website in the project gets them."
+          action={<Link to="/projects/$project" params={{ project: projectSlug }} className="btn-primary h-9">Go to the project</Link>}
         />
-      </div>
+      ) : (
+        <>
+          {/*
+            C2 (spec §2.1, §7, §9): the three verification URLs and the optional
+            listing URL belong to the schema, so this screen owns them too — not
+            only the New Source wizard. Edits go through `updateGrid`, so a URL
+            change marks the grid dirty exactly like a cell edit: Verify saves it
+            first via `updateBinding`, and the changed `definitionHash`
+            invalidates the old certification on its own. A Source with no saved
+            `verificationSet` at all opens here with empty URL inputs, ready to
+            fill in.
+          */}
+          <div className="mt-4">
+            <SchemaUrls
+              state={grid}
+              onChange={updateGrid}
+              disabled={active}
+              onFindProductPages={async (listingUrl) => (await findMutation.mutateAsync({ listingUrl })).urls}
+            />
+          </div>
 
-      <div className="mt-4">
-        {/*
-          Merged by field name, not replaced (unlike the wizard): these rows
-          carry the stable `key` every stored verification result and
-          certified path is addressed by, and a wholesale replace would drop
-          it — minting new keys and silently losing the field's history.
-        */}
-        <SchemaImport urlCount={URL_COUNT} onRows={(rows) => updateGrid((g) => ({ ...g, rows: mergeImportedRows(g.rows, rows) }))} />
-      </div>
+          <div className="mt-4">
+            {/*
+              Import fills existing rows by name; it cannot add fields (those
+              come from the project) — names not found among this contract's
+              fields are reported as skipped, not silently dropped.
+            */}
+            <SchemaImport
+              urlCount={URL_COUNT}
+              onRows={(rows) => {
+                const r = applyImportToRows(grid.rows, rows);
+                updateGrid((g) => ({ ...g, rows: r.rows }));
+                setImportIgnored(r.ignored);
+              }}
+            />
+            {importIgnored.length > 0 && <p className="mt-1 text-xs text-amber-800">Not in this project, so skipped: {importIgnored.join(', ')}</p>}
+          </div>
 
-      <div className="card mt-4 p-4">
-        <SchemaGrid state={grid} onChange={updateGrid} cellStatus={cellStatus} disabled={active} />
-      </div>
+          <p className="mt-4 text-xs text-gray-500">
+            Field names and types come from the project. <Link to="/projects/$project" params={{ project: projectSlug }} className="underline-offset-2 hover:underline">Edit fields on the project page.</Link>
+          </p>
+
+          <div className="card mt-4 p-4">
+            <SchemaGrid state={grid} onChange={updateGrid} cellStatus={cellStatus} disabled={active} locked />
+          </div>
+        </>
+      )}
     </div>
   );
 }
