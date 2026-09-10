@@ -94,6 +94,14 @@ describe('datasets.renameField / retypeField / deleteField', () => {
   });
 });
 
+describe('datasets.getContract', () => {
+  it('returns the added field', async () => {
+    const p = await project();
+    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
+    expect(await caller.datasets.getContract({ datasetId: p.datasetId })).toEqual([{ key: f.key, name: 'Price', type: 'money', concept: 'price' }]);
+  });
+});
+
 describe('datasets.fieldStatus', () => {
   it('reports verified-on counts per field', async () => {
     const p = await project();
