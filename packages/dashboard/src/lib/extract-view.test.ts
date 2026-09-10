@@ -139,16 +139,22 @@ describe('budgetFromForm / budgetToForm', () => {
     expect(budgetToForm({ max_items: -1, max_pages: 'x' })).toEqual({ items: 'all', pages: 'all' });
     expect(budgetToForm({ mode: 'all', max_items: 20 })).toEqual({ items: 'all', pages: 'all' });
   });
-  // `LISTING_DEFAULT_BUDGET` in packages/api/src/routers/sources.ts: the old
-  // flow wrote it by itself, so it is not a customer choice and must not open
-  // the Run section on `custom 40 / custom 3`.
-  it('reads the old automatic starter budget as unset', () => {
-    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n' })).toEqual({ items: 'all', pages: 'all' });
+  // `LISTING_DEFAULT_BUDGET` in packages/api/src/routers/sources.ts: while the
+  // Extract tab has never owned the input, the old flow wrote it by itself, so
+  // it is not a customer choice and must not open the Run section on
+  // `custom 40 / custom 3`.
+  it('reads the old automatic starter budget as unset, but only for a legacy website', () => {
+    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n' }, { legacy: true })).toEqual({ items: 'all', pages: 'all' });
   });
-  it('but keeps 40/3 when it is not exactly that object', () => {
-    expect(budgetToForm({ max_items: 40, max_pages: 3 })).toEqual({ items: 40, pages: 3 });
-    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n', chosen: true })).toEqual({ items: 40, pages: 3 });
-    expect(budgetToForm({ max_items: 40, max_pages: 4, mode: 'first_n' })).toEqual({ items: 40, pages: 4 });
+  // `budgetFromForm(40, 3)` is byte-identical to that starter, so once the tab
+  // has saved pages the same object can only be a real choice.
+  it('passes 40/3 straight through once the Extract tab owns the input', () => {
+    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n' }, { legacy: false })).toEqual({ items: 40, pages: 3 });
+    expect(budgetToForm({ max_items: 40, max_pages: 3, mode: 'first_n' })).toEqual({ items: 40, pages: 3 });
+  });
+  it('keeps 40/3 even for a legacy website when it is not exactly that object', () => {
+    expect(budgetToForm({ max_items: 40, max_pages: 3 }, { legacy: true })).toEqual({ items: 40, pages: 3 });
+    expect(budgetToForm({ max_items: 40, max_pages: 4, mode: 'first_n' }, { legacy: true })).toEqual({ items: 40, pages: 4 });
   });
 });
 

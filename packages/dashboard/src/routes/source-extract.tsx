@@ -142,7 +142,10 @@ export default function SourceExtract() {
     setChecks(Object.fromEntries(urls.map((url) => [url, { saved: true as const }])));
     setListing(initialMode === 'listing' ? urls : []);
     setProductText(initialMode === 'detail' ? urls.join('\n') : '');
-    setBudget(budgetToForm(source.budget));
+    // `legacy`: no `inputMode` marker means the Extract tab has never saved
+    // this website's pages, so a stored 40/3 can only be the old flow's own
+    // starter rather than a choice. See `budgetToForm`.
+    setBudget(budgetToForm(source.budget, { legacy: savedMode === null }));
     setEditing(null);
     setSaveNote(null);
     setStartedRunId(null);
@@ -333,7 +336,7 @@ export default function SourceExtract() {
     if (!source) return;
     setError(null);
     try {
-      const stored = budgetToForm(source.budget);
+      const stored = budgetToForm(source.budget, { legacy: savedMode === null });
       if (stored.items !== budget.items || stored.pages !== budget.pages) {
         await updateMutation.mutateAsync({ id: source.id, budget: budgetFromForm(budget.items, budget.pages) });
       }
