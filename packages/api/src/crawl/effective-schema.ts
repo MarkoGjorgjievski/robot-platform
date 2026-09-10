@@ -3,25 +3,31 @@
 // actually lives.
 //
 // A normal Source's schema lives on its Dataset (`datasets.schema`), shared
-// across every Source in that dataset. A Scratch source (mvp-simplification
-// task 7; its wizard-era creation procedure was itself removed in the
-// mvp-flow-phase2 contract-on-dataset rewrite, task 5) has no meaningful
-// dataset schema to inherit — its Scratch dataset is deliberately created
-// with an EMPTY schema — so its schema falls back to
-// `sources.selectorsJson.fields` instead, legacy data written by the deleted
-// `sources.analyze` procedure (removed 2026-09; no live writer).
+// across every Source in that dataset. Phase 2 (contract-on-dataset) put the
+// project's field list there too, as keyed contract entries `{ key, name,
+// type: CustomerFieldType, concept }` (spec 4.1) sitting alongside whatever
+// legacy unkeyed operator entries were already on the dataset — so the
+// Scratch dataset is no longer guaranteed empty. Only a Source whose dataset
+// has no schema at all falls back to `sources.selectorsJson.fields` instead,
+// legacy data written by the deleted `sources.analyze` procedure (removed
+// 2026-09; no live writer).
 //
 // Both readers of "the schema" (`crawl.ts`'s plan path and the schema that
 // feeds `extract-item.ts` via `crawl.ts`'s execute) must fall back the same
 // way, or a Scratch source silently plans/extracts zero fields.
 
-import { DETAIL_URL_FIELD, customerTypeToFieldType, type OriginField, type SchemaDefinitionField } from '@robot/scraper';
+import { DETAIL_URL_FIELD, customerTypeToFieldType, type CustomerFieldType, type OriginField, type SchemaDefinitionField } from '@robot/scraper';
 
 export type EffectiveSchemaField = OriginField & { displayName?: string };
 
 type SelectorsJsonFieldsShape = {
   fields?: Array<OriginField & Record<string, unknown>>;
 };
+
+/** A dataset schema entry as it comes off the wire: either a keyed contract
+ * entry (`contractFields`'s shape, spec 4.1) or a legacy unkeyed operator
+ * entry (already an `OriginField`). */
+type DatasetSchemaEntry = (EffectiveSchemaField & Record<string, unknown>) & { key?: unknown };
 
 /** True whenever the Source carries a customer-authored schema definition
  * (Task 1's `sources.schemaDefinition`) that should win over both the
@@ -35,6 +41,15 @@ export function isCustomerSchema(source: { schemaDefinition?: unknown }): boolea
  * every non-Scratch Source. Only when the dataset has no schema at all does
  * this fall back to the source's own `selectorsJson.fields`, excluding any
  * field explicitly disabled (`enabled === false`).
+ *
+ * The dataset branch maps each keyed contract entry (`{ key, name, type:
+ * CustomerFieldType, concept }`, spec 4.1) into the shape the extraction
+ * chain expects: `key` becomes `name` (the chain's field identifier),
+ * `type` is translated from the customer's vocabulary to the agent's
+ * `FieldType` vocabulary via `customerTypeToFieldType`, `origin` defaults to
+ * `'detail'` when absent, and the customer's plain-language label survives
+ * as `displayName`. A legacy unkeyed operator entry has no `key` and passes
+ * through unchanged.
  *
  * BOTH branches preserve the full field objects. The fallback used to map
  * down to `{name, type}`, which silently stripped `origin`/`input_column`/
@@ -70,9 +85,21 @@ export function effectiveSchema(source: {
     }));
   }
 
-  const datasetSchema = source.dataset?.schema as EffectiveSchemaField[] | null | undefined;
+  const datasetSchema = source.dataset?.schema as DatasetSchemaEntry[] | null | undefined;
   if (Array.isArray(datasetSchema) && datasetSchema.length > 0) {
-    return datasetSchema.filter((f) => f.name !== DETAIL_URL_FIELD);
+    return datasetSchema
+      .filter((f) => f.name !== DETAIL_URL_FIELD)
+      .map((f) =>
+        typeof f.key === 'string'
+          ? {
+              ...f,
+              name: f.key,
+              type: customerTypeToFieldType(f.type as unknown as CustomerFieldType),
+              origin: f.origin ?? 'detail',
+              displayName: f.name,
+            }
+          : f,
+      );
   }
 
   const selectors = source.selectorsJson as SelectorsJsonFieldsShape | null | undefined;

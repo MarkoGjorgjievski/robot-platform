@@ -47,6 +47,28 @@ describe('effectiveSchema', () => {
     ]);
   });
 
+  // Phase 2 (contract-on-dataset) lifted keyed contract entries onto
+  // `datasets.schema` alongside legacy unkeyed operator entries. A keyed
+  // entry must be mapped into the extraction chain's shape — `key` becomes
+  // `name`, the customer type is translated via `customerTypeToFieldType`,
+  // and the customer's label survives as `displayName` — while a legacy
+  // unkeyed entry passes through unchanged.
+  it('maps keyed contract entries in the dataset-schema branch, leaving legacy entries unchanged', () => {
+    const result = effectiveSchema({
+      dataset: {
+        schema: [
+          { key: 'price', name: 'Price', type: 'money', concept: 'price' },
+          { name: 'legacy', type: 'string', origin: 'listing' },
+        ],
+      },
+      selectorsJson: null,
+    });
+    expect(result).toEqual([
+      { key: 'price', name: 'price', type: 'price', concept: 'price', origin: 'detail', displayName: 'Price' },
+      { name: 'legacy', type: 'string', origin: 'listing' },
+    ]);
+  });
+
   it('falls back to selectorsJson.fields — full objects, nothing stripped — when the dataset schema is empty', () => {
     const result = effectiveSchema({
       dataset: { schema: [] },

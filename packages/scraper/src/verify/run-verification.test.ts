@@ -238,7 +238,7 @@ describe('runVerification per-field copy-forward', () => {
     const stale: FieldVerification = { key: 'title', cells: {}, certified: [{ source: 'meta', path: 'og:title', transform: 'identity' }], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: 'not-the-current-hash' };
     const fresh: FieldVerification = { ...stale, fieldHash: fieldHash(title, set) };
 
-    const deps = fakeDeps(set); // the file's existing helper: a browser stub whose captures return nothing, no agent
+    const deps = fakeDeps(set); // offline deps: captures resolve to blank pages, no agent — a re-run finds nothing
     const a = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: stale }, allPassed: false, aiCalls: 0 }, previousUrls: set.urls });
     expect(a.outcome.fields.title.fieldHash).toBe(fieldHash(title, set)); // recomputed, not copied
     expect(a.outcome.fields.title.certified).toEqual([]);                // the stub finds nothing, proving it re-ran
