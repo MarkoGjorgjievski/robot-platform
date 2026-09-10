@@ -618,11 +618,15 @@ export const sourcesRouter = router({
     }),
 
   /**
-   * Poll a Source's latest verification run. `current` is decided at read
-   * time by comparing the row's `definitionHash` against the Source's
-   * present definition — `updateSchema` never touches past rows, so a hash
-   * mismatch (not a stored flag) is what tells the dashboard the schema
-   * moved on since this run.
+   * Poll a Source's latest verification run. Currency (spec 4.4) is decided
+   * per field, at read time: `loadFieldCurrency` compares each stored
+   * result's `fieldHash` against the present `fieldHash(field, set)` on the
+   * latest completed, error-free run, and `current` here is true only when
+   * every contract field is current. `definitionHash` still rides on each
+   * row, but only for history — nothing reads it to decide currency.
+   * Editing the binding (`updateBinding`) or the contract never touches past
+   * rows, so a hash mismatch (not a stored flag) is what tells the
+   * dashboard a field moved on since this run.
    *
    * `_stage` (written by `runSourceVerification`'s `onProgress`) is a
    * reserved key inside the `captures` jsonb column, not a real capture

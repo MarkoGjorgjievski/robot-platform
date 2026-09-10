@@ -31,6 +31,21 @@ async function loadDataset(db: Database, datasetId: string) {
   return ds;
 }
 
+/** Re-reads a dataset's sources with a row lock, inside the caller's transaction, right
+ * before `propagate` writes them back wholesale. `loadDataset`'s `ds.sources` is read
+ * outside any transaction (it also feeds `retypeField`'s pre-check and `fieldStatus`,
+ * which have no write to protect), so a concurrent `updateBinding` commit between that
+ * read and this mutation's write would otherwise be silently overwritten by `propagate`
+ * writing back the stale copy. Locking here makes `updateBinding` block until this
+ * transaction commits, instead of losing its write. */
+async function lockSources(tx: Pick<Database, 'select'>, datasetId: string) {
+  return tx
+    .select({ id: sources.id, schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet })
+    .from(sources)
+    .where(eq(sources.datasetId, datasetId))
+    .for('update');
+}
+
 function assertNameFree(contract: ContractField[], name: string, exceptKey?: string) {
   const lower = name.trim().toLowerCase();
   if (contract.some((f) => f.key !== exceptKey && f.name.trim().toLowerCase() === lower)) {
@@ -159,6 +174,19 @@ export const datasetsRouter = router({
       return dataset;
     }),
 
+  /**
+   * Bulk-saves the dataset schema — but only the parts of it that aren't the
+   * contract (spec 4.1/4.3): a keyed entry's `name` and `type` are changed
+   * exclusively via `renameField`/`retypeField` (the latter gated by
+   * `loadFieldCurrency`'s certification lock), and keyed entries are added
+   * or dropped exclusively via `addField`/`deleteField` (the latter
+   * propagating to every website). Without this guard, a caller could
+   * bulk-save a renamed or retyped keyed entry straight past those checks —
+   * in particular past `retypeField`'s refusal to retype a field a website
+   * has already verified. Unkeyed legacy entries, and every other property
+   * of a keyed entry (`origin`, `candidate`, `required`, `input_column`,
+   * `description`), may still change freely here.
+   */
   updateSchema: publicProcedure
     .input(
       z.object({
@@ -167,6 +195,23 @@ export const datasetsRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const current = await ctx.db.query.datasets.findFirst({ where: eq(datasets.id, input.datasetId), columns: { schema: true } });
+      if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${input.datasetId} not found` });
+      const currentByKey = new Map(contractFields(current.schema).map((f) => [f.key, f]));
+      const incomingKeys = new Set<string>();
+      for (const entry of input.schema) {
+        if (typeof entry.key !== 'string' || entry.key.length === 0) continue; // legacy unkeyed entry: free to change
+        incomingKeys.add(entry.key);
+        const existing = currentByKey.get(entry.key);
+        if (!existing) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Fields are added and removed with addField and deleteField' });
+        if (existing.name !== entry.name || existing.type !== entry.type) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Field names and types are changed with renameField and retypeField' });
+        }
+      }
+      if (incomingKeys.size !== currentByKey.size) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Fields are added and removed with addField and deleteField' });
+      }
+
       const [updated] = await ctx.db
         .update(datasets)
         .set({ schema: input.schema })
@@ -188,7 +233,8 @@ export const datasetsRouter = router({
       const field: ContractField = { key, name: input.name, type: input.type, concept };
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         await tx.update(datasets).set({ schema: [...schema, field], updatedAt: new Date() }).where(eq(datasets.id, ds.id));
-        return propagate(tx, ds.sources, key, { add: { key, name: input.name, type: input.type, description: '', concept } });
+        const locked = await lockSources(tx, ds.id);
+        return propagate(tx, locked, key, { add: { key, name: input.name, type: input.type, description: '', concept } });
       });
       return { key, name: input.name, type: input.type, concept, affectedSourceIds };
     }),
@@ -203,7 +249,8 @@ export const datasetsRouter = router({
       assertNameFree(contract, input.name, input.key);
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         await tx.update(datasets).set({ schema: schema.map((f) => (f.key === input.key ? { ...f, name: input.name } : f)), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
-        return propagate(tx, ds.sources, input.key, { name: input.name });
+        const locked = await lockSources(tx, ds.id);
+        return propagate(tx, locked, input.key, { name: input.name });
       });
       return { key: input.key, name: input.name, affectedSourceIds };
     }),
@@ -223,7 +270,8 @@ export const datasetsRouter = router({
       }
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         await tx.update(datasets).set({ schema: schema.map((f) => (f.key === input.key ? { ...f, type: input.type } : f)), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
-        return propagate(tx, ds.sources, input.key, { type: input.type });
+        const locked = await lockSources(tx, ds.id);
+        return propagate(tx, locked, input.key, { type: input.type });
       });
       return { key: input.key, type: input.type, affectedSourceIds };
     }),
@@ -236,7 +284,8 @@ export const datasetsRouter = router({
       if (!contractFields(schema).some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         await tx.update(datasets).set({ schema: schema.filter((f) => f.key !== input.key), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
-        return propagate(tx, ds.sources, input.key, null);
+        const locked = await lockSources(tx, ds.id);
+        return propagate(tx, locked, input.key, null);
       });
       return { key: input.key, affectedSourceIds };
     }),

@@ -1,8 +1,13 @@
-// A Source's current certification: the latest completed, all-passed
-// verification whose `definitionHash` still matches the Source's current
-// `schemaDefinition` + `verificationSet`. Editing the schema (`updateSchema`)
-// never touches past `source_verifications` rows, so "current" is decided
-// here, at read time, by comparing hashes rather than by any stored flag.
+// A Source's current certification: currency (spec 4.4) is decided per
+// field, at read time, by comparing each stored result's `fieldHash`
+// against the present `fieldHash(field, set)` on the latest completed,
+// error-free run — a certification exists only when every contract field
+// is current on that run. `definitionHash` is still kept on each row, but
+// only for history; nothing here reads it to decide currency. Editing the
+// binding (`updateBinding`) or the contract (`datasets.ts`'s `addField` /
+// `renameField` / `retypeField` / `deleteField`) never touches past
+// `source_verifications` rows, so a hash mismatch — not a stored flag — is
+// what tells a caller a field moved on since that run.
 
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { sources, sourceVerifications } from '@robot/db';

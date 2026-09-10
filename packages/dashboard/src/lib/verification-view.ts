@@ -167,7 +167,7 @@ export function isRowStale(row: GridRow, saved: GridState | null): boolean {
  * Do the verification URLs differ between the grid and its saved baseline?
  * Order-sensitive (URL 1 and URL 2 swapped IS a change — every stored cell
  * is keyed by url, and the expected-value columns are positional) and
- * trimmed, since that is exactly what `toSchemaInput` sends to the server.
+ * trimmed, since that is exactly what `toBindingInput` sends to the server.
  */
 function urlsChanged(grid: GridState, saved: GridState): boolean {
   const trim = (u: string) => u.trim();

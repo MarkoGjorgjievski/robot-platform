@@ -18,7 +18,7 @@ export const projectsRouter = router({
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,
         datasetCount: sql<number>`count(${datasets.id})::int`,
-        fieldCount: sql<number>`coalesce(sum(case when jsonb_typeof(${datasets.schema}) = 'array' then jsonb_array_length(${datasets.schema}) else 0 end), 0)::int`,
+        fieldCount: sql<number>`coalesce(sum((select count(*) from jsonb_array_elements(case when jsonb_typeof(${datasets.schema}) = 'array' then ${datasets.schema} else '[]'::jsonb end) e where e ? 'key')), 0)::int`,
       })
       .from(projects)
       .leftJoin(datasets, eq(projects.id, datasets.projectId))
