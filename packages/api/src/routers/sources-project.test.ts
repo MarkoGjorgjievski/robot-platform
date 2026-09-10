@@ -22,6 +22,13 @@ async function freshProject(name = 'Proj') {
   return p;
 }
 
+/** A fresh project whose contract already has the `price` field `updateBinding` needs. */
+async function freshProjectWithPriceField(name = 'Proj') {
+  const p = await freshProject(name);
+  await caller.datasets.addField({ datasetId: p.datasetId, name: 'price', type: 'money' });
+  return p;
+}
+
 describe('sources.createInProject', () => {
   it('creates a website in the project dataset with the given name and a slug from it', async () => {
     const p = await freshProject();
@@ -61,30 +68,30 @@ describe('sources.rename', () => {
   });
 });
 
-describe('sources.updateSchema keeps the input set in step', () => {
+describe('sources.updateBinding keeps the input set in step', () => {
   const host = 'shop.example';
   const urls = [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
-  const fields = [{ name: 'price', type: 'money' as const, description: 'the price' }];
+  const descriptions = { price: 'the price' };
   const expected = { price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' } };
 
   it('creates a detail input set from the three product urls when there is no listing url', async () => {
-    const p = await freshProject();
+    const p = await freshProjectWithPriceField();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
     const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
     expect(s?.listingMode).toBe('detail');
     expect(s?.inputSet?.rows).toEqual(urls.map((url) => ({ url })));
   });
   it('switches to one listing row and listing mode when a listing url is given, and back', async () => {
-    const p = await freshProject();
+    const p = await freshProjectWithPriceField();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected, listingUrl: `https://${host}/all` });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected, listingUrl: `https://${host}/all` });
     let s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
     expect(s?.listingMode).toBe('listing_to_detail');
     expect(s?.inputSet?.rows).toEqual([{ url: `https://${host}/all` }]);
     const firstInputSetId = s?.inputSetId;
 
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
     s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
     expect(s?.listingMode).toBe('detail');
     expect(s?.inputSetId).toBe(firstInputSetId); // updated in place, not recreated
@@ -92,15 +99,15 @@ describe('sources.updateSchema keeps the input set in step', () => {
   });
 
   it('refuses to flip the listing mode of a confirmed source, and leaves the schema untouched (fix round 1, finding 1 + 3)', async () => {
-    const p = await freshProject();
+    const p = await freshProjectWithPriceField();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected, listingUrl: `https://${host}/all` });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected, listingUrl: `https://${host}/all` });
     await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, r.sourceId));
 
-    const changedFields = [{ name: 'price', type: 'money' as const, description: 'a changed description' }];
+    const changedDescriptions = { price: 'a changed description' };
     let caught: unknown;
     try {
-      await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields: changedFields, expected });
+      await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions: changedDescriptions, expected });
     } catch (err) {
       caught = err;
     }
@@ -117,7 +124,7 @@ describe('sources.updateSchema keeps the input set in step', () => {
   });
 
   it('does not replace a legacy input set the schema flow did not author (final review, finding 1)', async () => {
-    const p = await freshProject();
+    const p = await freshProjectWithPriceField();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
 
     const legacyRows = Array.from({ length: 5 }, (_, i) => ({ url: `https://${host}/legacy/${i + 1}` }));
@@ -127,7 +134,7 @@ describe('sources.updateSchema keeps the input set in step', () => {
       .returning({ id: inputSets.id });
     await db.update(sources).set({ inputSetId: legacyInputSet!.id, listingMode: 'detail' }).where(eq(sources.id, r.sourceId));
 
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
 
     const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
     expect(s?.inputSetId).toBe(legacyInputSet!.id);
@@ -136,20 +143,20 @@ describe('sources.updateSchema keeps the input set in step', () => {
   });
 
   it('resets the budget on a mode change: {} in detail, the listing default in listing_to_detail (fix round 1, finding 2)', async () => {
-    const p = await freshProject();
+    const p = await freshProjectWithPriceField();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
 
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
     let s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
     expect(s?.listingMode).toBe('detail');
     expect(s?.budget).toEqual({});
 
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected, listingUrl: `https://${host}/all` });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected, listingUrl: `https://${host}/all` });
     s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
     expect(s?.listingMode).toBe('listing_to_detail');
     expect(s?.budget).toEqual({ max_items: 40, max_pages: 3, mode: 'first_n' });
 
-    await caller.sources.updateSchema({ sourceId: r.sourceId, urls, fields, expected });
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
     s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
     expect(s?.listingMode).toBe('detail');
     expect(s?.budget).toEqual({});

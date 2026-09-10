@@ -8,9 +8,12 @@ import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
-import { schemaInput, prepareSchema, httpUrl } from '../verify/schema-input.js';
+import { schemaInput, prepareSchema } from '../verify/schema-input.js';
+import { httpUrl } from '../verify/http-url.js';
+import { bindingInput, prepareBinding } from '../verify/binding-input.js';
+import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks } from '../verify/find-product-pages.js';
-import { sourceDefinitionHash } from '../verify/current-certification.js';
+import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
@@ -427,10 +430,12 @@ export const sourcesRouter = router({
   // ─── Project-scoped creation (mvp-flow phase 1, spec 5.4) ────────────────
 
   /**
-   * "Add website": a named source in the project's dataset with nothing else
-   * yet. The three proof pages, the fields and the listing pages are filled
-   * in on its tabs afterwards; `updateSchema` creates the input set the
-   * first time it has URLs to put in it.
+   * "Add website": a named source in the project's dataset, seeded with a
+   * binding row (empty description) for every contract field already on the
+   * project — or `null` when the project has no fields yet. The three proof
+   * pages and the descriptions are filled in on its tabs afterwards;
+   * `updateBinding` creates the input set the first time it has URLs to put
+   * in it.
    */
   createInProject: publicProcedure
     .input(z.object({
@@ -441,19 +446,24 @@ export const sourcesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const project = await ctx.db.query.projects.findFirst({
         where: eq(projects.slug, input.projectSlug),
-        with: { datasets: { orderBy: (d, { asc }) => [asc(d.createdAt)], limit: 1 } },
+        with: { datasets: { orderBy: (d, { asc }) => [asc(d.createdAt)], limit: 1, columns: { id: true, schema: true } } },
       });
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
 
       let datasetId = project.datasets[0]?.id;
+      let datasetSchema: unknown = project.datasets[0]?.schema;
       if (!datasetId) {
-        const [ds] = await ctx.db.insert(datasets).values({ projectId: project.id, name: project.name, slug: project.slug, schema: [] }).returning({ id: datasets.id });
+        const [ds] = await ctx.db.insert(datasets).values({ projectId: project.id, name: project.name, slug: project.slug, schema: [] }).returning({ id: datasets.id, schema: datasets.schema });
         datasetId = ds!.id;
+        datasetSchema = ds!.schema;
       }
 
       const sourceSlug = await uniqueSlug(slugify(input.name), async (s) =>
         !!(await ctx.db.query.sources.findFirst({ where: and(eq(sources.datasetId, datasetId!), eq(sources.slug, s)), columns: { id: true } })),
       );
+
+      const contract = contractFields(datasetSchema);
+      const schemaDefinition = contract.length > 0 ? bindingFor(contract) : null;
 
       const [source] = await ctx.db
         .insert(sources)
@@ -464,6 +474,7 @@ export const sourcesRouter = router({
           country: 'us',
           inputStrategy: 'direct',
           urlTemplate: input.url,
+          schemaDefinition,
         })
         .returning({ id: sources.id });
 
@@ -544,26 +555,33 @@ export const sourcesRouter = router({
     }),
 
   /**
-   * Re-derive a Source's schema definition + verification set from an edited
-   * form. Refused while a verification is in flight (`completed_at IS NULL`)
-   * — editing the schema out from under a running Verify would leave that
-   * run's results describing a schema that no longer exists. `prepareSchema`
-   * is given the Source's existing fields so a field re-submitted with its
-   * prior `key` keeps that key (and its `concept`) rather than being treated
-   * as brand new.
+   * Write a website's binding (spec 4.2): the three proof pages, the optional
+   * listing page, where each contract field lives on this website, and the
+   * expected values. Name and type are never accepted here — they come from
+   * the project's contract (`datasets.addField`/`renameField`/`retypeField`);
+   * this procedure only ever writes descriptions + expected values for the
+   * contract as it stands. Refused while a verification is in flight
+   * (`completed_at IS NULL`) — editing the binding out from under a running
+   * Verify would leave that run's results describing a binding that no
+   * longer exists.
    */
-  updateSchema: publicProcedure
-    .input(schemaInput.extend({ sourceId: z.string().uuid() }))
+  updateBinding: publicProcedure
+    .input(bindingInput)
     .mutation(async ({ ctx, input }) => {
-      const { sourceId, ...schema } = input;
+      const { sourceId, ...binding } = input;
 
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, sourceId),
         columns: { id: true, schemaDefinition: true, verificationSet: true, inputSetId: true, name: true, confirmedAt: true, listingMode: true, budget: true },
-        with: { dataset: { columns: { projectId: true } }, inputSet: { columns: { rows: true } } },
+        with: { dataset: { columns: { projectId: true, schema: true } }, inputSet: { columns: { rows: true } } },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${sourceId} not found` });
+      }
+
+      const contract = contractFields(source.dataset?.schema);
+      if (contract.length === 0) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Add fields to the project before describing this website' });
       }
 
       // Same stall rule `verify` applies (correction round, item 2): a
@@ -584,13 +602,12 @@ export const sourcesRouter = router({
       // three product pages as detail rows. Checked BEFORE any write below —
       // a confirmed Source's listing mode is locked (fix round 1, finding 1:
       // this must refuse before the schema write commits, not after).
-      const { rows, listingMode } = inputRowsFor(schema.urls, schema.listingUrl);
+      const { rows, listingMode } = inputRowsFor(binding.urls, binding.listingUrl);
       if (source.confirmedAt && source.listingMode && source.listingMode !== listingMode) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Source ${sourceId} is confirmed; its listing mode is locked` });
       }
 
-      const existing = (source.schemaDefinition as SchemaDefinitionField[] | null) ?? [];
-      const { fields, verificationSet } = prepareSchema(schema, existing);
+      const { fields, verificationSet } = prepareBinding(binding, contract);
 
       return ctx.db.transaction(async (tx) => {
         const [updated] = await tx
@@ -633,7 +650,7 @@ export const sourcesRouter = router({
             .returning({ id: inputSets.id });
           await tx
             .update(sources)
-            .set({ inputSetId: inputSet!.id, listingMode, ...(schema.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}) })
+            .set({ inputSetId: inputSet!.id, listingMode, ...(binding.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}) })
             .where(eq(sources.id, sourceId));
         }
 
@@ -849,7 +866,9 @@ export const sourcesRouter = router({
         where: eq(sources.id, input.sourceId),
         columns: { schemaDefinition: true, verificationSet: true },
       });
-      const currentHash = source ? sourceDefinitionHash(source) : null;
+
+      const { currentKeys } = await loadFieldCurrency(ctx.db, input.sourceId);
+      const fieldCount = source && Array.isArray(source.schemaDefinition) ? source.schemaDefinition.length : 0;
 
       const captures = { ...(row.captures as Record<string, unknown>) };
       const stage = (captures._stage as string | undefined) ?? null;
@@ -866,7 +885,8 @@ export const sourcesRouter = router({
         aiCalls: row.aiCalls,
         costUsd: row.costUsd,
         errorMessage: row.errorMessage,
-        current: currentHash !== null && currentHash === row.definitionHash,
+        currentKeys,
+        current: fieldCount > 0 && currentKeys.length === fieldCount,
       };
     }),
 });
