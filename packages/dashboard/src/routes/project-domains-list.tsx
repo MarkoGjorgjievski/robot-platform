@@ -39,19 +39,19 @@ export default function ProjectDomainsList() {
           description="As sources are added to this project, their domains appear here."
         />
       ) : (
-        <ul className="card mt-6 divide-y divide-gray-100">
+        <ul className="mt-6 divide-y divide-gray-200">
           {domains.map((d) => (
             <li key={d.hostname}>
               <Link
                 to="/projects/$project/domains/$domain"
                 params={{ project: projectSlug, domain: d.hostname }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
+                className="flex items-center gap-3 px-3 py-3 transition-colors hover:bg-gray-50"
               >
                 <Globe className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-sm">{d.hostname}</div>
+                  <div className="truncate font-mono text-[13px]">{d.hostname}</div>
                 </div>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-500">
                   {d.sourceCount} {d.sourceCount === 1 ? 'source' : 'sources'}
                 </span>
                 <ArrowRight className="h-4 w-4 text-gray-400" />

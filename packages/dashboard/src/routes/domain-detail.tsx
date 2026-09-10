@@ -28,28 +28,30 @@ export default function DomainDetail() {
 
       <div className="mt-2 flex items-center gap-3">
         <Globe className="h-5 w-5 text-gray-400" />
-        <h1 className="font-mono text-xl font-semibold tracking-tight">{domain}</h1>
+        <h1 className="font-mono text-2xl font-medium">{domain}</h1>
       </div>
 
-      {pageTypes.map((pt) => (
-        <div key={pt.pageType} className="card mt-6 p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-gray-900">{pt.pageType}</h2>
-            <div className="flex gap-2">
-              {pt.hasJsonLd && <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">JSON-LD</span>}
-              {pt.hasNextData && <span className="rounded-full bg-gray-100 px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide text-gray-600">NextData</span>}
+      <div className="mt-6 divide-y divide-gray-200">
+        {pageTypes.map((pt) => (
+          <div key={pt.pageType} className="py-6 first:pt-0">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-gray-900">{pt.pageType}</h2>
+              <div className="flex gap-2">
+                {pt.hasJsonLd && <span className="rounded-full bg-changed-tint px-2.5 py-0.5 font-mono text-[10px] font-medium text-changed">JSON-LD</span>}
+                {pt.hasNextData && <span className="rounded-full bg-changed-tint px-2.5 py-0.5 font-mono text-[10px] font-medium text-changed">NextData</span>}
+              </div>
             </div>
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+              <Stat label="Runs (total)" value={String(pt.totalRuns)} />
+              <Stat label="Successful" value={String(pt.successfulRuns)} />
+              <Stat label="Success rate" value={`${pt.successRate}%`} />
+              <Stat label="Last verified" value={new Date(pt.lastVerifiedAt).toLocaleDateString()} />
+            </dl>
+            <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} domain={domain} pageType={pt.pageType} />
+            <CandidateCatalogueSection catalogue={(pt.catalogue ?? {}) as CandidateCatalogue} domain={domain} pageType={pt.pageType} />
           </div>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <Stat label="Runs (total)" value={String(pt.totalRuns)} />
-            <Stat label="Successful" value={String(pt.successfulRuns)} />
-            <Stat label="Success rate" value={`${pt.successRate}%`} />
-            <Stat label="Last verified" value={new Date(pt.lastVerifiedAt).toLocaleDateString()} />
-          </dl>
-          <SelectorsTable selectors={pt.selectors} conflicts={pt.conflicts} domain={domain} pageType={pt.pageType} />
-          <CandidateCatalogueSection catalogue={(pt.catalogue ?? {}) as CandidateCatalogue} domain={domain} pageType={pt.pageType} />
-        </div>
-      ))}
+        ))}
+      </div>
 
       <h2 className="mt-8 text-sm font-medium text-gray-900">
         Sources across customers touching {domain} ({sources.length})
@@ -57,19 +59,19 @@ export default function DomainDetail() {
       {sources.length === 0 ? (
         <EmptyState title="No sources touch this domain yet" description="Nothing has been configured against this domain across projects." />
       ) : (
-        <ul className="card mt-2 divide-y divide-gray-100">
+        <ul className="mt-2 divide-y divide-gray-200">
           {sources.map((s) => (
             <li key={s.id}>
               <Link
                 to="/projects/$project/sources/$source"
                 params={{ project: s.projectSlug, source: s.slug }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50/60"
+                className="flex items-center gap-3 px-3 py-3 transition-colors hover:bg-gray-50"
               >
                 <Layers className="h-4 w-4 text-gray-400" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{s.name}</div>
                   <div className="truncate font-mono text-xs text-gray-500">
-                    {s.projectName} · {s.datasetName} · {s.urlTemplate}
+                    {s.projectName}, {s.datasetName}, {s.urlTemplate}
                   </div>
                 </div>
                 <ArrowRight className="h-4 w-4 text-gray-400" />
@@ -114,22 +116,22 @@ function SelectorsTable({
   return (
     <>
       {conflicts.length > 0 && (
-        <div className="mt-4 rounded border border-red-200 bg-red-50 p-3 text-xs">
-          <p className="font-semibold text-red-800">
+        <div className="mt-4 border-l-[3px] border-l-fail bg-fail-tint p-3 text-xs">
+          <p className="font-semibold text-fail">
             {conflicts.length} field{conflicts.length === 1 ? '' : 's'} with disagreeing paths
           </p>
-          <p className="mt-1 text-red-700">
+          <p className="mt-1 text-gray-900">
             Two or more cached paths return different values. This is how a bad path shows
             itself — but a genuine change on the site looks the same, so nothing is discarded
             automatically. Review and pin the correct one.
           </p>
           {pin.isError && (
-            <p className="mt-2 rounded bg-red-100 px-2 py-1 text-[11px] text-red-900">{pin.error.message}</p>
+            <p className="mt-2 px-2 py-1 text-[11px] text-fail">{pin.error.message}</p>
           )}
           <ul className="mt-2 space-y-2">
             {conflicts.map((c) => (
               <li key={c.field} className="text-[11px]">
-                <span className="font-mono font-semibold text-red-900">{c.field}</span>
+                <span className="font-mono font-semibold text-fail">{c.field}</span>
                 <ul className="mt-1 space-y-1">
                   {c.candidates.map((cand, i) => (
                     <li key={`${cand.path}-${i}`} className="flex items-center gap-2">
@@ -140,20 +142,20 @@ function SelectorsTable({
                           domain, pageType, field: c.field,
                           path: cand.pinned ? null : cand.path,
                         })}
-                        className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase transition-colors disabled:opacity-50 ${
+                        className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] transition-colors disabled:opacity-50 ${
                           cand.pinned
-                            ? 'border-green-600 bg-green-600 text-white'
-                            : 'border-red-300 bg-white text-red-700 hover:bg-red-100'
+                            ? 'border-pass bg-pass text-white'
+                            : 'border-fail bg-gray-50 text-fail hover:bg-fail-tint'
                         }`}
                       >
                         {cand.pinned ? 'Pinned' : 'Pin'}
                       </button>
-                      <span className="font-mono text-red-900">
+                      <span className="font-mono text-gray-900">
                         {cand.source}
                         {i === 0 && !c.candidates.some((x) => x.pinned) && (
-                          <span className="text-red-600"> (served)</span>
+                          <span className="text-fail"> (served)</span>
                         )}
-                        <span className="text-red-500"> · </span>
+                        {': '}
                         {previewValue(cand.value).slice(0, 60)}
                       </span>
                     </li>
@@ -164,18 +166,18 @@ function SelectorsTable({
           </ul>
         </div>
       )}
-      <div className="card mt-4 overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="mt-4 overflow-x-auto">
+        <table className="sheet">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50/60">
-              <th className="micro-label px-3 py-2 text-left">Field</th>
-              <th className="micro-label px-3 py-2 text-left">Source</th>
-              <th className="micro-label cursor-pointer px-3 py-2 text-left" onClick={() => setAsc((v) => !v)}>
+            <tr className="border-b border-gray-300">
+              <th className="sheet-head px-3 py-2 text-left">Field</th>
+              <th className="sheet-head px-3 py-2 text-left">Source</th>
+              <th className="sheet-head cursor-pointer px-3 py-2 text-left" onClick={() => setAsc((v) => !v)}>
                 Hit-rate {asc ? '▲' : '▼'}
               </th>
-              <th className="micro-label px-3 py-2 text-left">Hits/miss</th>
-              <th className="micro-label px-3 py-2 text-left">Conflict</th>
-              <th className="micro-label px-3 py-2 text-left">Last value</th>
+              <th className="sheet-head px-3 py-2 text-left">Hits/miss</th>
+              <th className="sheet-head px-3 py-2 text-left">Conflict</th>
+              <th className="sheet-head px-3 py-2 text-left">Last value</th>
             </tr>
           </thead>
           <tbody>
@@ -185,27 +187,27 @@ function SelectorsTable({
               const conflict = conflictByField.get(s.field);
               // A disagreement outranks a weak hit rate: a path can be reliable and
               // reliably wrong, which is exactly the case worth looking at.
-              const rowClass = conflict ? 'bg-red-50' : weak ? 'bg-orange-50' : resolved ? '' : 'text-gray-400';
+              const rail = conflict ? 'cell-rail-fail' : weak ? 'cell-rail-not-captured' : 'cell-rail-none';
               return (
-                <tr key={`${s.field}-${i}`} className={`border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60 ${rowClass}`}>
-                  <td className="px-3 py-2 font-mono">{s.field}</td>
-                  <td className="px-3 py-2 text-gray-600">
+                <tr key={`${s.field}-${i}`} className={`sheet-row h-8 transition-colors hover:bg-gray-100/60 ${resolved ? '' : 'text-gray-400'}`}>
+                  <td className={`px-3 font-mono text-[13px] ${rail}`}>{s.field}</td>
+                  <td className="px-3 text-gray-600">
                     {s.source ?? '—'}
                     {/* A pin is an operator ruling — it must show even for a
                         field with no active conflict, which the conflict card
                         above (the only other place pins render) never lists. */}
                     {s.pinned && (
-                      <span className="ml-1.5 rounded-full bg-green-100 px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wide text-green-700">
+                      <span className="ml-1.5 rounded-full bg-pass-tint px-1.5 py-0.5 font-mono text-[9px] font-medium text-pass">
                         pinned
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2">{resolved ? `${s.hitRate}%` : '—'}</td>
-                  <td className="px-3 py-2 text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 font-mono text-[13px]">{resolved ? `${s.hitRate}%` : '—'}</td>
+                  <td className="px-3 font-mono text-[13px] text-gray-600">{resolved ? `${s.hits}/${s.misses}` : '—'}</td>
+                  <td className="px-3">
                     {conflict ? (
                       <span
-                        className="text-red-700"
+                        className="text-fail"
                         title={conflict.candidates.map((c) => `${c.source}: ${formatValue(c.value)}`).join('\n')}
                       >
                         ⚠ {conflict.candidates.length} values
@@ -214,7 +216,7 @@ function SelectorsTable({
                       <span className="text-gray-400">—</span>
                     )}
                   </td>
-                  <td className="max-w-xs truncate px-3 py-2 text-gray-600">
+                  <td className="max-w-xs truncate px-3 font-mono text-[13px] text-gray-600">
                     {s.lastValue == null ? '—' : previewValue(s.lastValue).slice(0, 80)}
                   </td>
                 </tr>
@@ -257,7 +259,7 @@ function CandidateCatalogueSection({
   return (
     <div className="mt-4">
       <div className="flex items-center justify-between">
-        <h3 className="micro-label">Candidate catalogue</h3>
+        <h3 className="label-soft">Candidate catalogue</h3>
         <button
           type="button"
           disabled={refresh.isPending}
@@ -273,23 +275,23 @@ function CandidateCatalogueSection({
         Cleared now — rebuilt by the next successful run, not immediately.
       </p>
       {refresh.isError && (
-        <p className="mt-2 text-xs text-red-600">{refresh.error.message}</p>
+        <p className="mt-2 text-xs text-fail">{refresh.error.message}</p>
       )}
       {concepts.length === 0 ? (
-        <div className="mt-2 rounded border border-dashed border-gray-300 bg-white/50 px-4 py-6 text-center text-xs text-gray-400">
+        <div className="mt-2 rounded border border-dashed border-gray-300 px-4 py-6 text-center text-xs text-gray-400">
           No candidates discovered yet for this page type.
         </div>
       ) : (
-        <div className="card mt-2 divide-y divide-gray-100">
+        <div className="mt-2 divide-y divide-gray-200">
           {concepts.map(([concept, candidates]) => (
             <div key={concept} className="px-3 py-2.5">
-              <div className="micro-label">{concept}</div>
+              <div className="label-soft">{concept}</div>
               <div className="mt-1.5 max-w-xl space-y-1.5">
                 {candidates.map((c) => (
                   <div
                     key={c.label}
                     className={`flex items-center gap-3 rounded-md border px-2.5 py-1.5 ${
-                      c.displayed ? 'border-accent-500 bg-accent-50/40' : 'border-gray-200 bg-white'
+                      c.displayed ? 'border-accent-500 bg-accent-50/40' : 'border-gray-200 bg-gray-50'
                     }`}
                   >
                     {looksLikeImageUrl(concept, c.sampleValue) && (
@@ -307,7 +309,7 @@ function CandidateCatalogueSection({
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="truncate text-xs font-semibold text-gray-800">{c.label}</span>
                         {c.displayed && (
-                          <span className="shrink-0 rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium uppercase tracking-wide text-accent-700">
+                          <span className="shrink-0 rounded-full bg-accent-100 px-1.5 font-mono text-[9px] font-medium text-accent-700">
                             displayed
                           </span>
                         )}
@@ -321,7 +323,7 @@ function CandidateCatalogueSection({
                       </div>
                       {c.scope && (
                         <div className="mt-0.5 truncate text-[10px] text-gray-400">
-                          {Object.entries(c.scope).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                          {Object.entries(c.scope).map(([k, v]) => `${k}: ${v}`).join(', ')}
                         </div>
                       )}
                     </div>
@@ -339,7 +341,7 @@ function CandidateCatalogueSection({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="micro-label">{label}</div>
+      <div className="label-soft">{label}</div>
       <div className="mt-1 font-medium">{value}</div>
     </div>
   );
