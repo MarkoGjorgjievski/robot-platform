@@ -261,4 +261,19 @@ describe('reverifyKeys', () => {
     };
     expect(reverifyKeys(results, current, saved)).toEqual([]);
   });
+
+  // The fix-round-1 defect: a field can certify (`certified.length > 0`) and
+  // be unchanged from `savedGrid`, yet the server's per-field `fieldHash`
+  // check no longer counts it as current. Without `currentKeys`, that field
+  // is invisible to this scoping and the customer can never trigger the free
+  // re-verify the spec promises for it.
+  test('a certified, unchanged row the server no longer counts as current joins the set', () => {
+    const saved = grid([row('price')]);
+    const current = grid([row('price')]);
+    const results: VerificationResults = {
+      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    expect(reverifyKeys(results, current, saved, [])).toEqual(['price']);
+    expect(reverifyKeys(results, current, saved, ['price'])).toEqual([]);
+  });
 });
