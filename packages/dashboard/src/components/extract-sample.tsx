@@ -136,7 +136,7 @@ export function ExtractSample({
   }, [columns, rows]);
 
   if (mode === 'detail') {
-    return <p className="text-xs text-gray-500">No sample needed, the pages are known.</p>;
+    return <p className="text-xs text-gray-600">No sample needed, the pages are known.</p>;
   }
 
   if (!runId) {
@@ -146,7 +146,7 @@ export function ExtractSample({
           {sampling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           Sample 3 products
         </button>
-        <span className="text-xs text-gray-500">{SAMPLE_SENTENCE}</span>
+        <span className="text-xs text-gray-600">{SAMPLE_SENTENCE}</span>
       </div>
     );
   }
@@ -165,29 +165,32 @@ export function ExtractSample({
   return (
     <div className="space-y-3">
       {stale && (
-        <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
-          Pages changed since this sample. Sample again to refresh it.
-        </p>
+        <p className="text-xs text-warn">Pages changed since this sample. Sample again to refresh it.</p>
       )}
 
-      <dl className="flex flex-wrap gap-6">
+      {/* Four facts, four columns. The label is secondary; the number is the
+          thing being read, so it is a value in mono. */}
+      <dl className="grid grid-cols-4 gap-6">
         {facts.map((fact) => (
-          <div key={fact.label}>
-            <dt className="text-[11px] text-gray-500">{fact.label}</dt>
-            <dd className="text-base font-medium text-gray-900">{fact.value}</dd>
+          <div key={fact.label} className="min-w-0">
+            <dt className="label-soft">{fact.label}</dt>
+            {/* Wraps rather than truncates: three of the four facts are a
+                number, but the pagination one is a strategy name and cutting
+                it off would hide the very thing the fact reports. */}
+            <dd className="mt-0.5 font-mono text-lg break-words text-gray-900">{fact.value}</dd>
           </div>
         ))}
       </dl>
 
       {active && (
-        <p className="flex items-center gap-2 text-xs text-gray-500">
+        <p className="flex items-center gap-2 text-xs text-gray-600">
           <Loader2 className="h-3 w-3 animate-spin" />
           Sampling · {counts.done} of {counts.detail} rows extracted
         </p>
       )}
 
       {statusQuery.data?.errorMessage && (
-        <p className="text-xs text-red-600">{statusQuery.data.errorMessage}</p>
+        <p className="text-xs text-fail">{statusQuery.data.errorMessage}</p>
       )}
 
       {/* Cell-level highlighting is deliberately left out: ResultsTable
@@ -207,7 +210,7 @@ export function ExtractSample({
       />
 
       {emptyNotes.map((note) => (
-        <p key={note} className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+        <p key={note} className="text-xs text-gray-600">
           {note}
         </p>
       ))}

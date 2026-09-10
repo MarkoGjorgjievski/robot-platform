@@ -469,7 +469,7 @@ export default function SourceExtract() {
       : undefined;
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="mt-6">
       {!green && (
         <StatusStrip
           summary={stripText}
@@ -478,7 +478,7 @@ export default function SourceExtract() {
             <Link
               to="/projects/$project/sources/$source"
               params={{ project: projectSlug, source: sourceSlug }}
-              className="text-xs text-accent-800 underline-offset-2 hover:underline"
+              className="text-xs text-accent-700 underline-offset-2 hover:underline"
             >
               Go to the Schema tab
             </Link>
@@ -486,7 +486,11 @@ export default function SourceExtract() {
         />
       )}
 
-      <Stepper steps={steps} />
+      {/* With a locked strip above it the step rail sits 16px below it; with no
+          strip the rail is the first thing on the paper. */}
+      <div className={green ? '' : 'mt-4'}>
+        <Stepper steps={steps} />
+      </div>
 
       {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
 
@@ -524,7 +528,7 @@ export default function SourceExtract() {
           saving={savingPages}
           readOnly={!green || states[0] !== 'current'}
         />
-        {saveNote && <p className="mt-2 text-xs text-amber-800">{saveNote}</p>}
+        {saveNote && <p className="mt-2 text-xs text-gray-600">{saveNote}</p>}
       </Section>
 
       <Section

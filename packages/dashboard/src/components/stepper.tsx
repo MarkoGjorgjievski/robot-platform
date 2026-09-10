@@ -8,7 +8,12 @@
 // locked/later section wraps its children in `<div inert>` (React 19), so the
 // content is still readable and still in the document, but nothing inside it
 // can be clicked, typed into, or tabbed to.
-import { Check } from 'lucide-react';
+//
+// Visually (spec 7): none of this is a box. The strip is three quiet cells
+// carrying a 2px rail under them — accent on the current step, pass on a
+// finished one, rule-soft on one that is out of reach — and each section is a
+// block on the paper separated from the one above by a single rule. No glyphs:
+// a finished step is marked by the colour of its rail, not by a check.
 import type { ReactNode } from 'react';
 import type { StepState } from '../lib/extract-view';
 
@@ -26,30 +31,18 @@ export function Stepper({ steps }: { steps: Step[] }) {
             key={step.n}
             role="listitem"
             aria-current={current ? 'step' : undefined}
-            className={`flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 py-2 ${
+            className={`flex min-w-0 flex-1 items-baseline gap-2 border-b-2 pb-2 ${
               current
-                ? 'border-accent-500 bg-accent-50'
+                ? 'border-accent-600 text-gray-900'
                 : done
-                  ? 'border-emerald-200 bg-emerald-50/60'
-                  : 'border-gray-200 bg-gray-50 opacity-60'
+                  ? 'border-pass text-gray-900'
+                  : 'border-gray-200 text-gray-600'
             }`}
           >
-            <span
-              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-medium ${
-                current
-                  ? 'bg-accent-600 text-white'
-                  : done
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-gray-300 text-gray-700'
-              }`}
-            >
-              {done ? <Check className="h-3 w-3" aria-hidden /> : step.n}
-            </span>
+            <span className="flex-shrink-0 font-mono text-[12px]">{step.n}</span>
             <span className="min-w-0">
-              <span className={`block truncate text-xs font-medium ${current ? 'text-accent-700' : 'text-gray-900'}`}>
-                {step.title}
-              </span>
-              <span className="block truncate text-[11px] text-gray-500">{step.detail}</span>
+              <span className="block truncate text-xs font-medium">{step.title}</span>
+              <span className="block truncate text-[11px] leading-[1.35] text-gray-600">{step.detail}</span>
             </span>
           </div>
         );
@@ -66,6 +59,10 @@ export function Stepper({ steps }: { steps: Step[] }) {
  * section says *why* it is dimmed rather than leaving the operator to guess.
  * `onEdit` is offered only on a `done` section — that is the handle that
  * reopens it.
+ *
+ * The rule above the heading is what separates one section from the next, so
+ * the first section (n === 1) draws none: there is nothing above it to be
+ * separated from.
  */
 export function Section({
   n,
@@ -92,15 +89,14 @@ export function Section({
     <section
       aria-labelledby={headingId}
       aria-disabled={dimmed ? true : undefined}
-      className={`rounded-lg border border-gray-200 p-4 ${state === 'done' ? 'bg-gray-50' : 'bg-white'} ${
-        dimmed ? 'opacity-50' : ''
-      }`}
+      className={`mt-6 ${n > 1 ? 'border-t border-gray-200 pt-6' : ''} ${dimmed ? 'opacity-50' : ''}`}
     >
       <div className="flex items-baseline gap-3">
-        <h3 id={headingId} className="flex-shrink-0 text-sm font-medium text-gray-900">
-          {n} · {title}
+        <h3 id={headingId} className="flex flex-shrink-0 items-baseline gap-2">
+          <span className="font-mono text-[12px] text-gray-600">{n}</span>
+          <span className="name text-lg leading-[1.25]">{title}</span>
         </h3>
-        {subtitle && <span className="min-w-0 flex-1 truncate text-xs text-gray-500">{subtitle}</span>}
+        {subtitle && <span className="min-w-0 flex-1 truncate text-xs text-gray-600">{subtitle}</span>}
         {state === 'done' && onEdit && (
           <button type="button" className="btn-quiet ml-auto flex-shrink-0" onClick={onEdit}>
             Edit
@@ -108,8 +104,10 @@ export function Section({
         )}
       </div>
       {/* Children always render — a locked section keeps everything it knows on
-          screen; `inert` is what takes the interactivity away. */}
-      <div className="mt-3" inert={dimmed || undefined}>
+          screen; `inert` is what takes the interactivity away. A finished
+          section keeps its content too, quieted to 60% rather than boxed off
+          behind a grey background. */}
+      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''}`} inert={dimmed || undefined}>
         {children}
       </div>
     </section>
