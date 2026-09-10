@@ -90,7 +90,14 @@ export default function SourceSchema() {
         rows: fields.map((f) => ({ ...emptyRow(), key: f.key, name: f.name, type: f.type, description: f.description })),
       });
       initialized.current = true;
+      return;
     }
+    // A truly empty contract (no fields on the project at all): no rows to
+    // seed, so `emptyState()`'s dummy row must not linger - it would leak
+    // validation problems for an empty name/description/cells that the
+    // EmptyState branch below never shows a grid for anyway.
+    setGrid({ urls: ['', '', ''], listingUrl: '', rows: [] });
+    initialized.current = true;
   }, [source]);
 
   const status = statusQuery.data ?? null;
@@ -105,7 +112,8 @@ export default function SourceSchema() {
   // fills in reads as dirty, not as already matching a saved state.
   const isDirty = JSON.stringify(toBindingInput(grid)) !== JSON.stringify(toBindingInput(savedGrid ?? emptyState()));
   const problems = bindingProblems(grid);
-  const showProblems = touched && problems.length > 0;
+  const contractEmpty = !Array.isArray(source?.schemaDefinition) || source.schemaDefinition.length === 0;
+  const showProblems = touched && !contractEmpty && problems.length > 0;
 
   function cellStatus(rowId: string, urlIndex: number): CellStatus | null {
     const row = grid.rows.find((r) => r.id === rowId);
@@ -277,7 +285,7 @@ export default function SourceSchema() {
         </div>
       )}
 
-      {!Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 ? (
+      {contractEmpty ? (
         <EmptyState
           title="No fields yet"
           description="Add the fields you want on the project page. Every website in the project gets them."
