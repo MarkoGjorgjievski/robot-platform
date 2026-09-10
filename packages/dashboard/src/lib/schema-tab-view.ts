@@ -6,8 +6,8 @@ export type StripState = 'none' | 'editing' | 'active' | 'stalled' | 'failed' | 
 export type ColumnState = 'idle' | 'queued' | 'capturing' | 'captured' | 'not_captured';
 export type CellLine = { tone: 'pass' | 'fail' | 'stale' | 'not_captured' | 'none'; text: string };
 
-/** Which strip to show. `results` needs a completed clean run whose `results` are non-empty; `editing` is a never-verified or dirty-with-no-results source. */
-export function stripState(args: { verification: VerificationState; results: VerificationResults | null; dirty: boolean }): StripState {
+/** Which strip to show. `results` needs a completed clean run whose `results` are non-empty; `editing` is a never-verified or no-results source. */
+export function stripState(args: { verification: VerificationState; results: VerificationResults | null }): StripState {
   switch (args.verification) {
     case 'active': return 'active';
     case 'stalled': return 'stalled';
@@ -54,14 +54,16 @@ export function stripSummary(args: { state: StripState; fieldCount: number; page
   }
 }
 
-/** The reserved second line of an expected cell. */
-export function cellLine(status: CellStatus | null, typed: string): CellLine {
+/** The reserved second line of an expected cell. `typeFix` is the row's type-fix chip suggestion (spec 5.6): when a not_found cell's typed value looks like a link, the hint names the fix directly rather than the generic "check the value" copy. */
+export function cellLine(status: CellStatus | null, typed: string, typeFix?: 'url' | null): CellLine {
   if (!status) return { tone: 'none', text: '' };
   switch (status.status) {
     case 'pass':
       if (status.found !== undefined && status.found !== typed) return { tone: 'pass', text: `page shows ${status.found}` };
       return { tone: 'pass', text: status.pathSource ? `from ${status.pathSource}` : 'verified' };
-    case 'fail': return { tone: 'fail', text: status.hint ?? 'Not found on this page.' };
+    case 'fail':
+      if (status.reason === 'not_found' && typeFix === 'url') return { tone: 'fail', text: 'Not found as text. It looks like a link: set type to url.' };
+      return { tone: 'fail', text: status.hint ?? 'Not found on this page.' };
     case 'stale': return { tone: 'stale', text: 'changed since verified' };
     case 'not_captured': return { tone: 'not_captured', text: 'page not captured' };
   }

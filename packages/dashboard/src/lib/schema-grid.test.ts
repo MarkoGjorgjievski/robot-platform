@@ -6,6 +6,7 @@ import {
   validateExpectedClient,
   parseBlock,
   applyPaste,
+  applyPasteByName,
   rowsFromTable,
   toBindingInput,
   bindingProblems,
@@ -107,6 +108,57 @@ describe('applyPaste', () => {
     const state = emptyState();
     const next = applyPaste(state, { row: 0, col: 1 }, [['not-a-real-type']]);
     expect(next.rows[0]!.type).toBe('text');
+  });
+});
+
+describe('applyPasteByName', () => {
+  const named: GridState = {
+    urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'],
+    listingUrl: '',
+    rows: [
+      { id: 'a', key: 'price', name: 'Price', type: 'money', description: '', expected: ['', '', ''] },
+      { id: 'b', key: 'title', name: 'Title', type: 'text', description: '', expected: ['', '', ''] },
+    ],
+  };
+
+  test('a 6-column block (name, type, description, v1..v3) maps by name, in any order', () => {
+    const block = [
+      ['Title', 'text', 'the h1', 'A', 'B', 'C'],
+      ['Price', 'money', 'near the button', '1', '2', '3'],
+    ];
+    const { state: next, byName } = applyPasteByName(named, { row: 0, col: 0 }, block);
+    expect(byName).toBe(true);
+    expect(next.rows[0]!.name).toBe('Price');
+    expect(next.rows[0]!.description).toBe('near the button');
+    expect(next.rows[0]!.expected).toEqual(['1', '2', '3']);
+    expect(next.rows[1]!.name).toBe('Title');
+    expect(next.rows[1]!.description).toBe('the h1');
+    expect(next.rows[1]!.expected).toEqual(['A', 'B', 'C']);
+  });
+
+  test('a 5-column block without the type column also maps by name', () => {
+    const block = [
+      ['Price', 'near the button', '1', '2', '3'],
+      ['Title', 'the h1', 'A', 'B', 'C'],
+    ];
+    const { state: next, byName } = applyPasteByName(named, { row: 0, col: 0 }, block);
+    expect(byName).toBe(true);
+    expect(next.rows[0]!.description).toBe('near the button');
+    expect(next.rows[0]!.expected).toEqual(['1', '2', '3']);
+    expect(next.rows[1]!.description).toBe('the h1');
+  });
+
+  test('falls back to positional paste, clipped to existing rows, when the first column is not a field name', () => {
+    const block = [
+      ['not-a-field', 'x', 'y'],
+      ['also-not', 'x', 'y'],
+      ['still-not', 'x', 'y'],
+    ];
+    const { state: next, byName } = applyPasteByName(named, { row: 0, col: 0 }, block);
+    expect(byName).toBe(false);
+    expect(next.rows).toHaveLength(2);
+    expect(next.rows[0]!.name).toBe('not-a-field');
+    expect(next.rows[1]!.name).toBe('also-not');
   });
 });
 

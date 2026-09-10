@@ -557,7 +557,8 @@ export const sourcesRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       }
       const allKeys = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]).map((f) => f.key) : [];
-      const fields = input.onlyKeys ? input.onlyKeys.filter((k) => allKeys.includes(k)).length : allKeys.length;
+      const estimateKeys = input.onlyKeys ? input.onlyKeys.filter((k) => allKeys.includes(k)) : allKeys;
+      const fields = estimateKeys.length;
       const aiAvailable = !!process.env.ANTHROPIC_API_KEY;
 
       // Fresh captures make a re-verify free of browser time and, when no
@@ -566,7 +567,7 @@ export const sourcesRouter = router({
       const last = await ctx.db.query.sourceVerifications.findFirst({
         where: and(eq(sourceVerifications.sourceId, input.sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
         orderBy: [desc(sourceVerifications.completedAt)],
-        columns: { captures: true },
+        columns: { captures: true, results: true },
       });
       const refs = (last?.captures ?? {}) as Record<string, { captureId?: string; capturedAt?: string }>;
       const capturesFresh = urls.length > 0 && urls.every((url) => {
@@ -574,10 +575,18 @@ export const sourcesRouter = router({
         return !!ref?.captureId && !!ref.capturedAt && Date.now() - Date.parse(ref.capturedAt) < CAPTURE_REUSE_MAX_AGE_MS;
       });
 
+      // Only a key whose latest clean result has no certified path would
+      // actually reach AI on a re-verify — one with a certified path just
+      // replays it for free. `aiFields` prices that reachable subset, not
+      // every key in the estimate set, so "free" (spec 5.6) is honest.
+      const lastResults = (last?.results ?? {}) as Record<string, { certified?: unknown[] }>;
+      const aiFields = estimateKeys.filter((k) => (lastResults[k]?.certified?.length ?? 0) === 0).length;
+
       return {
         fields,
+        aiFields,
         perFieldUsd: EST_AI_COST_PER_FIELD_USD,
-        upperBoundUsd: aiAvailable ? fields * EST_AI_COST_PER_FIELD_USD : 0,
+        upperBoundUsd: aiAvailable ? aiFields * EST_AI_COST_PER_FIELD_USD : 0,
         aiAvailable,
         capturesFresh,
         // The dashboard must not hardcode the stall window (C1): it decides

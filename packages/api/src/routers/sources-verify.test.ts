@@ -189,7 +189,9 @@ describe('sources.verifyEstimate', () => {
       const est = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
       // `stallMs` (C1) rides along on every estimate: the Schema screen needs the
       // server's own stall window to tell a live verification from a crash leftover.
-      expect(est).toEqual({ fields: 2, perFieldUsd: 0.05, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS });
+      // No prior clean run at all, so both fields are un-certified and would
+      // reach AI (aiFields === fields) — priced at 0 only because aiAvailable is false.
+      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.05, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS });
     } finally {
       if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
       await f.cleanup();
@@ -232,8 +234,57 @@ describe('sources.verifyEstimate re-verify pricing', () => {
       });
       const one = await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!] });
       expect(one.fields).toBe(1);
+      // No certified path on the latest clean row for Price, so it would
+      // still reach AI on a re-verify.
+      expect(one.aiFields).toBe(1);
       expect(one.capturesFresh).toBe(true);
       expect(one.upperBoundUsd).toBe(one.aiAvailable ? one.perFieldUsd : 0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('prices only the keys that would actually reach AI: a certified key replays for free', async () => {
+    const tag = `est3-${Date.now()}`;
+    const urls = urlsFor(tag);
+    const f = await createProjectWithSource(caller, {
+      tag,
+      urls,
+      fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }],
+      expected: {
+        Price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' },
+        Title: { [urls[0]!]: 'a', [urls[1]!]: 'b', [urls[2]!]: 'c' },
+      },
+    });
+    try {
+      const certifiedPath = { source: 'json-ld', path: '$.price', transform: 'identity' };
+      const certifiedFv = (key: string) => ({ key, cells: {}, certified: [certifiedPath], weakEvidence: false, aiCalled: false, incomplete: false });
+      const uncertifiedFv = (key: string) => ({ key, cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false });
+
+      // Both keys certified on the latest clean run: neither would reach AI.
+      await db.insert(sourceVerifications).values({
+        sourceId: f.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        results: { [f.keys.Price!]: certifiedFv(f.keys.Price!), [f.keys.Title!]: certifiedFv(f.keys.Title!) },
+      });
+      const bothCertified = await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!, f.keys.Title!] });
+      expect(bothCertified.fields).toBe(2);
+      expect(bothCertified.aiFields).toBe(0);
+      expect(bothCertified.upperBoundUsd).toBe(0);
+
+      // A newer clean run where Title lost its certification: only Title
+      // would reach AI on a re-verify.
+      await db.insert(sourceVerifications).values({
+        sourceId: f.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        results: { [f.keys.Price!]: certifiedFv(f.keys.Price!), [f.keys.Title!]: uncertifiedFv(f.keys.Title!) },
+      });
+      const oneUncertified = await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!, f.keys.Title!] });
+      expect(oneUncertified.fields).toBe(2);
+      expect(oneUncertified.aiFields).toBe(1);
+      expect(oneUncertified.upperBoundUsd).toBe(oneUncertified.aiAvailable ? oneUncertified.perFieldUsd : 0);
     } finally {
       await f.cleanup();
     }

@@ -6,7 +6,7 @@ import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-s
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 import { StatusStrip } from '../components/status-strip';
-import { applyImportToRows, bindingProblems, emptyRow, emptyState, fromSource, isComplete, toBindingInput, URL_COUNT, type GridState } from '../lib/schema-grid';
+import { applyImportToRows, bindingProblems, emptyRow, emptyState, fromSource, isComplete, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, verificationState, type VerificationResults } from '../lib/verification-view';
 import { stripState, columnStates, stripSummary, verifyButton, typeFixSuggestion } from '../lib/schema-tab-view';
 
@@ -123,11 +123,29 @@ export default function SourceSchema() {
 
   const results = (status?.results ?? null) as VerificationResults | null;
   const vState = verificationState(status, { stallMs });
-  const strip = stripState({ verification: vState, results, dirty: isDirty });
+  const strip = stripState({ verification: vState, results });
   const active = strip === 'active';
   const currentKeys = status?.currentKeys ?? [];
+
+  // Fix 1+5: a cell must read as stale for the SAME reasons the strip's
+  // "changed since" count does — not just a row-level definition/expected
+  // drift (`isRowStale`), but also a key the server no longer counts as
+  // current (its stored fieldHash no longer matches the live definition),
+  // or this specific column's URL having been edited since the last
+  // verification (the stored result was proven against a different page at
+  // this index, so showing it here would be describing the wrong page).
+  // The second check must not fire when there are no results at all — a
+  // never-verified source has nothing stale.
+  function cellIsStale(row: GridRow, urlIndex: number): boolean {
+    if (isRowStale(row, savedGrid)) return true;
+    if (row.key && results && !currentKeys.includes(row.key) && results[row.key]) return true; // server no longer counts it current
+    const saved = savedGrid?.urls[urlIndex];
+    const now = grid.urls[urlIndex];
+    return !!(saved && now !== saved && row.key && results?.[row.key]?.cells[saved]); // URL edited: keep the old result visible as stale
+  }
+
   const keyed = grid.rows.filter((r) => r.key);
-  const staleKeys = keyed.filter((r) => isRowStale(r, savedGrid)).map((r) => r.key!);
+  const staleKeys = keyed.filter((r) => grid.urls.some((_, i) => cellIsStale(r, i))).map((r) => r.key!);
   const failingKeys = keyed.filter((r) => !staleKeys.includes(r.key!) && results?.[r.key!] && results[r.key!]!.certified.length === 0).map((r) => r.key!);
   const reverify = reverifyKeys(results, grid, savedGrid, currentKeys); // undefined = everything
   const reverifyCount = reverify === undefined ? keyed.length : reverify.length;
@@ -147,7 +165,7 @@ export default function SourceSchema() {
     const row = grid.rows.find((r) => r.id === rowId);
     if (!row) return null;
     const url = grid.urls[urlIndex] ?? '';
-    const base = cellStatusFor(results, row.key ?? '', url, isRowStale(row, savedGrid), row.type);
+    const base = cellStatusFor(results, row.key ?? '', url, cellIsStale(row, urlIndex), row.type);
     if (base?.status === 'fail' && estimate && !estimate.aiAvailable) {
       return { ...base, hint: `${base.hint} AI is unavailable on this machine, so only the mechanical search ran.` };
     }
