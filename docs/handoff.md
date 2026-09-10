@@ -248,6 +248,126 @@ while the tab is open — `crawl.status` does not return `completedAt`, which is
 and after an Extract the Run section shows the run line permanently, so a second Extract in the
 same visit needs a reload.
 
+## MVP flow phase 5 (2026-09-10): the proof sheet
+
+Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md` §7. Plan:
+`.superpowers/sdd/2026-09-10-mvp-flow-phase5-visual-system/`. Landed across eight tasks
+(`git log --oneline 7b66ca2..HEAD`): the tokens and the utilities (`e82f3cc`); the shell —
+header, page header, sub-tabs, dialogs, states, strip, status dot (`77579d4`, fix `d5a8c27`);
+the ops screens (`54ddf16`); the Schema tab as the sheet, with rough time and the strip's
+accessibility (`2c68f3d`, `9c92afc`, `f3bb5d7`); the Extract tab on paper (`cb039fd`,
+`d077301`, smoke assertion `af1f8f9`); the customer screens and website delete moved to
+Settings (`f9a3f4c`, `079c13e`, `d36550c`); run detail (`11a6464`, `94e3a58`); and this entry
+with the smoke run's screenshots. **Nothing about the flow changed.** Every query, mutation,
+prop, handler and exported name in phases 1 to 4 survives; this phase is classes, markup and
+copy, plus the four defects it tripped over on the way.
+
+**One file restyles everything.** `packages/dashboard/src/styles.css`'s `@theme` block remaps
+the *existing* class vocabulary rather than introducing a parallel one: the whole `gray-*` ramp
+becomes the warm neutrals (`gray-50` surface `#fbfbf9`, `gray-100` paper `#f3f4f1`, `gray-200`
+rule-soft, `gray-300` rule, `gray-600` ink-soft `#5f665c`, `gray-900` ink `#1c1f1a`), `accent-*`
+becomes the moss green `#1f5e4a`, the three fonts become Fraunces / Public Sans / IBM Plex Mono,
+and `pass`/`fail`/`warn`/`changed` with their tints are added as named colours. `--color-white`
+is remapped to surface too — Tailwind 4.3 honours that, so every `bg-white` in the tree landed on
+paper without being touched. That is why a phase that repaints eleven screens is mostly a
+stylesheet: a component that already said `bg-gray-50 border-gray-200` was already correct.
+
+**The named utilities and what each one means.** `name` — the name of a thing, in Fraunces
+(project, website, page title, section heading). `label-soft` — a secondary label in sentence
+case, 12px ink-soft; it replaces the retired uppercase `micro-label`, whose alias is now deleted
+(zero users left in `src`). `sheet` / `sheet-head` / `sheet-row` — a table on the paper: a 2px
+ink rule across the top, 1px rule-soft between rows, surface background, header in Public Sans
+600. `strip` — the 38px paper-dark status bar; `strip-wrap` is the same bar for contents that
+must wrap onto a second line instead of being clipped. `btn-primary` / `btn-quiet` — the filled
+accent button and the 1px-rule outline button, both at 45% opacity when disabled. `cell-rail-*`
+— a 3px rail on the left edge of a cell plus its status tint: **the rail is the glyph**, so no
+icon ever appears inside a data cell. `line-*` — the 11px second line under a cell's value,
+coloured only for fail and warn and ink-soft otherwise. `card` — a rounded box, and per spec 7
+it is now used in exactly two places: dialogs, and the websites list on the project home.
+Everything else sits on the paper with rules.
+
+**The contrast floor is mechanical, not a promise.** `packages/dashboard/src/lib/tokens.ts`
+holds the palette as data plus a WCAG 2.x `contrastRatio`, and `tokens.test.ts` asserts every
+text-token-on-its-tint pairing at ≥ 4.5:1. It caught one: the spec's `changed` `#7a8077` measures
+**3.42:1** on its own tint `#ebece8`. The rule was to darken the text token, never to lower the
+threshold, so `changed` is **`#666c63`** (4.55:1 — `#676d64`, one step lighter, still misses at
+4.48:1). The spec's §7 palette line was corrected to match.
+
+**The content column is `max-w-6xl`.** The schema grid is `min-w-[1100px]` by design (three page
+columns plus field, type and location hint), and the old `max-w-5xl` main column gave it 976px —
+Page 3 was clipped until the operator scrolled. Widening the column in `layout.tsx` is what makes
+the sheet a sheet; it also lets the Extract sample's "mechanical: url-pattern" fact sit on one line.
+
+**Rough time in the Verifying strip**, the last piece parked from phase 3:
+`seconds = (capturesFresh ? 0 : 3 × 12) + aiFields × 8`, rendered as "a few seconds" at zero,
+"under a minute" below 45s, and "about N min" otherwise — so "Verifying · about 2 min", the one
+place the copy rules allow a separator. It is computed from `sources.verifyEstimate`, which the
+tab already queries, and **frozen at run start**: a live-recomputed estimate would tick downward
+as captures landed and read as a progress bar the number is not.
+
+**Names are Public Sans in tables; keys are mono.** This is the rule that settled the schema
+grid's Field column, which had drifted out of step with the contract editor. Fraunces is for the
+*name of a thing at title scale* — a project, a website, a page heading. Inside a table a field's
+**name** is Public Sans 500 in ink, and its **key**, type, values, URLs and numbers are Plex Mono.
+A name is language; a key is a value.
+
+**The stepper's finished rail is ink, not pass.** `pass` (`#1f7a4d`) and `accent` (`#1f5e4a`) are
+the same colour to the eye in a 2px rule, so a done step and the current step were
+indistinguishable — exactly the one thing the strip exists to say. Done is now `gray-900`, the
+sheet's own 2px language; current stays accent; later stays rule-soft.
+
+**What moved.** Deleting a website was a `window.confirm` button buried at the bottom of a run
+detail page. It is now a block on the **Settings** tab — "Delete this website", the sentence "Its
+runs and results are deleted too. This cannot be undone.", and a fail-coloured quiet button
+opening the app's own `Dialog` with "Delete website" / "Keep it". A `sources.delete` refusal (the
+`PRECONDITION_FAILED` on a confirmed website) is rendered verbatim under the buttons. Moved, not
+duplicated: the block is gone from `source-run-detail.tsx`.
+
+**Four defects the restyle exposed, all pre-existing, all fixed.** (1) *The active nav underline
+never rendered.* TanStack Router's `Link` **concatenates** `activeProps.className` onto
+`className` rather than replacing it, so `border-transparent` and `border-accent-600` both landed
+on the element and the transparent one won on stylesheet order. Fixed the way `SubTabNav` already
+did it: compute the active path with `useRouterState` and pick one non-overlapping class string
+with a ternary. (2) *Every dialog rendered in the top-left corner.* Tailwind's preflight zeroes
+the UA stylesheet's `margin: auto` on `<dialog>`, which is what centres a modal — `m-auto` in
+`dialog.tsx` fixes New project, Add website and Delete website at once. Pre-existing since phase 1.
+(3) *The run page's results table had zero columns for any verification-era website.* Its columns
+came from the legacy `source.selectorsJson.fields`, which is empty once the schema lives on the
+project dataset — three rows and no headers. It now falls back to `datasets.getContract` keyed by
+contract key exactly as `effective-schema.ts` and the Extract tab do; Ikea's run shows all eight
+columns with its three rows. (4) *Settings spoke in enums* — `listing_to_detail` and `direct` are
+now "Listing pages, then each product" and "Given URLs", with an unrecognised value shown verbatim
+rather than swallowed.
+
+**A pre-flight correction worth keeping.** The plan's file map called
+`routes/datasets-list.tsx` and `routes/dataset-detail.tsx` dead and scheduled their deletion.
+They are not dead: `routes/project-output.tsx` is a three-line router that renders one or the
+other. They are the Output page, and they were restyled instead of deleted.
+
+**Concurrency lesson, for the next multi-agent phase.** Git's index is per-checkout, not per-agent.
+Two implementers running `git add <paths>` then `git commit` in the same working copy produced one
+commit carrying both agents' files under one agent's message, and an empty commit for the other.
+Recovered by hand, then the rule for the rest of the phase: **`git commit -m … -- <paths>` only**,
+never `git add` followed by `git commit`, whenever agents share a checkout.
+
+**Screenshots are now part of the smoke run.** With `RUN_UI_SMOKE=1` (i.e. `pnpm test:ui`, servers
+up), every `checkRoute` writes a full-page 1280×900 screenshot to `docs/testing/screens/<route with
+slashes turned to dashes>.png`. Not asserted — spec 10 asks for one screenshot per screen state
+*for hand review*, and a screenshot cannot tell you a page is right. States the smoke run cannot
+reach without spending money or clicking something destructive (a verification in flight, a real
+sample, the delete dialog) are still captured by hand and keep their older names, so a few routes
+have two files. `docs/testing/screens/README.md` says which is which. The throwaway project the
+smoke run creates gets screenshotted under a timestamped name and is gitignored.
+
+**Parked, not forgotten.** Spec 5.3's per-website row counts on the Output page — a restyle had no
+place to add the query, and `projects.list` still carries no per-field verified count, so the
+projects list shows "Fields", not "Fields verified". The 18px mono "figure" size is now scoped to
+the probe gate's four evidence facts only (the shared `Stat` was giving header timestamps the same
+treatment); it is a size spec 7's scale does not name, and it stays on that one block until it
+does. And phase 4's **7-vs-28 listing-link disagreement** — `describeListingPage`'s free check
+groups anchors by path template and reports the largest group, while the probe's real walk found
+23–28 links on the identical page — is still open, and is engine work, not visual.
+
 ## Customer schema verification (2026-09-07): built and offline-proven — NO live site has verified through this flow yet
 
 **What shipped.** Marko's ruling after the 2026-09-02 corpus measurement (~65% verifiable accuracy over 7 of 8 domains) was that discovery-based extraction cannot reach competitive precision, and that the customer must define what they need and we must prove we can get it before spending at scale. `docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md` is the spec; 39 commits across Tasks 1-16 (plus the final whole-branch review's fix wave) of `docs/superpowers/plans/2026-09-04-customer-schema-verification.md` built it: a new `packages/scraper/src/verify/` module (normalization, mechanical structured/DOM search, cross-capture certification, the closed transform set, the AI `propose_path` fallback, `runVerification`, and `runVerifiedExtraction` for certified-only extraction at scale); `@robot/api`'s `sources.createWithSchema`, `sources.updateSchema`, `sources.findProductPages`, `sources.verify`, `sources.verificationStatus`, and `sources.verifyEstimate` procedures plus the `requireCertification` gate wired into `sources.confirm`; and a dashboard schema-grid screen (`packages/dashboard/src/routes/new-source.tsx` / `source-schema.tsx`) that replaces the old landing page and Set-up workspace — one row per field, an expected value typed on each of three product URLs, Verify paints cells green/red, Extract stays locked until every cell is green. See `docs/extraction-architecture.md` → "Verification-first sources" for how the mechanism works and `CLAUDE.md`'s Extraction Chain step 0.
@@ -822,6 +942,9 @@ small extraction-layer fixes worth folding into that same cycle.
 
 ## What NOT to redo
 
+- **Don't reintroduce uppercase tracked labels, or cards outside dialogs and the websites list.** Both are spec decisions (§6 copy, §7 cards), both were removed screen by screen in phase 5, and both are the first thing a component copied from an older file will bring back. Secondary labels are `label-soft`; everything that is not a dialog or the websites list sits on the paper with rules.
+- **Don't reach for `!important` to make an active state win.** TanStack Router's `Link` concatenates `activeProps.className` onto `className`, so an active override fights its own base class at equal specificity. Compute the active state with `useRouterState` and pick one non-overlapping class string — `sub-tab-nav.tsx` and `layout.tsx` both do it that way now.
+- **Don't use `git add` followed by `git commit` when more than one agent shares the checkout.** The index is per-checkout: one agent's commit sweeps up whatever another agent has staged. `git commit -m … -- <paths>` is atomic and is the rule for multi-agent phases.
 - **The API-side entity filter.** Tried and reverted (`c606a54`). Documented on `filterRequestsForPage` in `entity-match.ts`, captured as a test.
 - **Don't chase the price/rating "wrong" verdicts as bugs.** Four of the eight remaining wrong verdicts are cases where the extractor returned a real value and nothing said which of several valid values was wanted. They need the labelling design (Open decision 1 below), not a fix.
 - **Don't re-run the AbeBooks or Newegg live crawls to get a better-looking result.** The two v2 runs above (one broken, one fixed) are what happened; that task was authorised for exactly one planning + one execution run after the fix, and that budget is spent. Both runs stay in the DB as the record.

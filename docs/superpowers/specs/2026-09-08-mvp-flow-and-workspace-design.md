@@ -294,11 +294,13 @@ Replaces the current tokens in `packages/dashboard/src/styles.css`. Light mode o
 - Type. Fraunces 500 and 600 for the names of things: project name, website name, page titles.
   Public Sans 400, 500, 600 for all interface text. IBM Plex Mono 400 and 500 for every value,
   URL, key, and number in a table. Scale: 24/1.2 title, 18/1.25 section, 14/1.5 body, 13/1.45
-  table, 12/1.4 secondary, 11/1.35 cell second line. Tabular numerals in tables.
+  table, 12/1.4 secondary, 11/1.35 cell second line. Tabular numerals in tables. Names of things
+  are Public Sans in tables too; keys, values, URLs and numbers are mono.
 - Palette. Paper `#f3f4f1`, surface `#fbfbf9`, ink `#1c1f1a`, ink-soft `#5f665c`, rule
   `#d5d9d1`, rule-soft `#e1e4de`, accent `#1f5e4a` with hover `#174a3a` and tint `#e8f2ea`.
   Status: pass `#1f7a4d` on tint `#eaf4ee`, fail `#a13a2a` on tint `#f6e6e3`, warn `#8a5a12` on
-  tint `#f5ecdc`, changed `#7a8077` on tint `#ebece8`.
+  tint `#f5ecdc`, changed `#666c63` on tint `#ebece8` (corrected 2026-09-10: the spec's `#7a8077`
+  measured 3.42:1 on its tint).
 - Status treatment. A 3px rail on the left edge of the cell in the status colour, the cell
   background in the status tint, the value in ink, the second line in the status colour for
   fail and warn and in ink-soft otherwise. No glyphs in cells; the rail is the glyph.
@@ -404,4 +406,4 @@ Five phases, each shippable on its own, in this order because each constrains th
    `'all'` in the engine. Landed 2026-09-10.
 5. Visual system: tokens, fonts, table and strip styling, restyle of Runs, run detail, Settings,
    ops screens. Phases 1 to 4 are built with the new tokens from the start where a screen is
-   new; phase 5 finishes the rest.
+   new; phase 5 finishes the rest. Landed 2026-09-10.
