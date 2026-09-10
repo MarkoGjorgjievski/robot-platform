@@ -103,7 +103,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                   {row.name}
                   {fix && (
                     <div className="mt-1">
-                      <button type="button" className="btn-quiet" disabled={fix.pending} onClick={fix.onApply}>
+                      <button type="button" className="btn-quiet" disabled={fix.pending || readOnly} onClick={fix.onApply}>
                         {fix.pending && <Loader2 className="h-3 w-3 animate-spin" />}
                         Set type to url
                       </button>
@@ -134,7 +134,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                     const err = v.trim() !== '' ? validateExpectedClient(row.type, v) : null;
                     if (err) { tone = 'fail'; text = err; }
                   }
-                  if (pending) text = '';
+                  if (pending) { tone = 'none'; text = ''; }
                   return (
                     <td key={u} className={`p-1 align-top ${RAIL[tone]}`}>
                       <input
