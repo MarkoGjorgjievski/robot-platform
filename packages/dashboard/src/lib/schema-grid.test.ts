@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
 import {
   URL_COUNT,
   emptyRow,
@@ -7,14 +7,15 @@ import {
   parseBlock,
   applyPaste,
   rowsFromTable,
-  mergeImportedRows,
-  gridProblems,
+  toBindingInput,
+  bindingProblems,
+  applyImportToRows,
   isComplete,
   shortUrl,
-  toSchemaInput,
   fromSource,
   importProblems,
   type GridState,
+  type GridRow,
 } from './schema-grid';
 
 describe('emptyState / emptyRow', () => {
@@ -151,52 +152,23 @@ describe('rowsFromTable', () => {
   });
 });
 
-describe('gridProblems', () => {
-  const urls = ['https://shop.example/a', 'https://shop.example/b', 'https://shop.example/c'];
-
-  function completeState(): GridState {
-    return {
-      urls,
-      listingUrl: '',
-      rows: [
-        {
-          id: 'r1',
-          name: 'Price',
-          type: 'money',
-          description: 'near the button',
-          expected: ['$10.00', '$20.00', '$30.00'],
-        },
-      ],
-    };
-  }
-
-  test('a fully filled-out state has no problems', () => {
-    expect(gridProblems(completeState())).toEqual([]);
-    expect(isComplete(completeState())).toBe(true);
+describe('toBindingInput', () => {
+  it('keys descriptions and expected values by field key and skips keyless rows', () => {
+    const state: GridState = { urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'], listingUrl: '', rows: [
+      { id: 'a', key: 'price', name: 'Price', type: 'money', description: 'green', expected: ['1', '2', '3'] },
+      { id: 'b', name: 'ghost', type: 'text', description: 'x', expected: ['a', 'b', 'c'] },
+    ] };
+    expect(toBindingInput(state)).toEqual({ urls: state.urls, descriptions: { price: 'green' }, expected: { price: { 'https://s.example/1': '1', 'https://s.example/2': '2', 'https://s.example/3': '3' } } });
   });
+});
 
-  test('flags URLs on different hosts', () => {
-    const state = completeState();
-    state.urls = [urls[0]!, urls[1]!, 'https://other.example/p'];
-    expect(gridProblems(state)).toContain('All URLs must be on the same website');
-  });
-
-  test('flags duplicate URLs', () => {
-    const state = completeState();
-    state.urls = [urls[0]!, urls[0]!, urls[2]!];
-    expect(gridProblems(state)).toContain('URLs must be different pages');
-  });
-
-  test('flags a missing expected value with the field @ url wording', () => {
-    const state = completeState();
-    state.rows[0]!.expected = ['', '$20.00', '$30.00'];
-    expect(gridProblems(state)).toContain(`Price @ ${urls[0]}: Expected value is required`);
-  });
-
-  test('flags a non-money expected value with the field @ url wording', () => {
-    const state = completeState();
-    state.rows[0]!.expected = ['call for price', '$20.00', '$30.00'];
-    expect(gridProblems(state)).toContain(`Price @ ${urls[0]}: Not a money amount`);
+describe('bindingProblems', () => {
+  const ok: GridState = { urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'], listingUrl: '', rows: [{ id: 'a', key: 'price', name: 'Price', type: 'money', description: 'green', expected: ['1', '2', '3'] }] };
+  it('is clean when every row has a description and valid cells', () => expect(bindingProblems(ok)).toEqual([]));
+  it('names the gaps by field name', () => {
+    expect(bindingProblems({ ...ok, rows: [{ ...ok.rows[0]!, description: '' }] })).toContain('Price: say where it is on this website');
+    expect(bindingProblems({ ...ok, rows: [{ ...ok.rows[0]!, expected: ['x', '2', '3'] }] })).toEqual(expect.arrayContaining([expect.stringContaining('Price @ https://s.example/1: Not a money amount')]));
+    expect(bindingProblems({ ...ok, urls: ['', ...ok.urls.slice(1)] })).toContain('All 3 product URLs are required');
   });
 });
 
@@ -218,32 +190,16 @@ describe('shortUrl', () => {
   });
 });
 
-describe('toSchemaInput', () => {
-  test('keys expected by key when present, else by name', () => {
-    const state: GridState = {
-      urls: ['https://a.example/1', 'https://a.example/2', 'https://a.example/3'],
-      listingUrl: '',
-      rows: [
-        { id: 'r1', key: 'price_key', name: 'Price', type: 'money', description: 'd', expected: ['1', '2', '3'] },
-        { id: 'r2', name: 'Title', type: 'text', description: 'd2', expected: ['t1', 't2', 't3'] },
-      ],
-    };
-    const input = toSchemaInput(state);
-    expect(Object.keys(input.expected)).toEqual(['price_key', 'Title']);
-    expect(input.expected['price_key']).toEqual({
-      'https://a.example/1': '1',
-      'https://a.example/2': '2',
-      'https://a.example/3': '3',
-    });
-    expect(input.fields[0]).toEqual({ key: 'price_key', name: 'Price', type: 'money', description: 'd' });
-    expect(input.fields[1]).toEqual({ name: 'Title', type: 'text', description: 'd2' });
-  });
-
-  test('omits listingUrl when blank, includes it trimmed when present', () => {
-    const state = emptyState();
-    expect(toSchemaInput(state).listingUrl).toBeUndefined();
-    state.listingUrl = '  https://a.example/list  ';
-    expect(toSchemaInput(state).listingUrl).toBe('https://a.example/list');
+describe('applyImportToRows', () => {
+  const current: GridRow[] = [{ id: 'a', key: 'price', name: 'Price', type: 'money', description: '', expected: ['', '', ''] }];
+  it('fills matching rows and reports names it could not place', () => {
+    const imported: GridRow[] = [
+      { id: 'x', name: 'price', type: 'text', description: 'green', expected: ['1', '2', '3'] },
+      { id: 'y', name: 'colour', type: 'text', description: 'swatch', expected: ['r', 'g', 'b'] },
+    ];
+    const r = applyImportToRows(current, imported);
+    expect(r.rows).toEqual([{ id: 'a', key: 'price', name: 'Price', type: 'money', description: 'green', expected: ['1', '2', '3'] }]);
+    expect(r.ignored).toEqual(['colour']);
   });
 });
 
@@ -271,8 +227,8 @@ describe('fromSource', () => {
     expect(state!.rows[0]!.description).toBe('near the button');
     expect(state!.rows[0]!.expected).toEqual(['$1', '$2', '$3']);
 
-    // Round trip through toSchemaInput should reproduce the same expected map.
-    const input = toSchemaInput(state!);
+    // Round trip through toBindingInput should reproduce the same expected map.
+    const input = toBindingInput(state!);
     expect(input.expected).toEqual(source.verificationSet.expected);
   });
 
@@ -289,43 +245,5 @@ describe('importProblems', () => {
 
   test('formats a non-Error thrown value', () => {
     expect(importProblems('nope')).toEqual(['Could not read the file: nope']);
-  });
-});
-
-describe('mergeImportedRows', () => {
-  const saved = (key: string, name: string) => ({
-    ...emptyRow(), key, name, type: 'text' as const, description: `old ${name}`, expected: ['a', 'b', 'c'],
-  });
-  const fresh = (name: string) => ({
-    ...emptyRow(), name, type: 'money' as const, description: `new ${name}`, expected: ['1', '2', '3'],
-  });
-
-  test('a name match keeps the saved key and id, but takes the imported values', () => {
-    const current = [saved('price', 'Price')];
-    const [merged] = mergeImportedRows(current, [fresh('Price')]);
-    expect(merged!.key).toBe('price');
-    expect(merged!.id).toBe(current[0]!.id);
-    expect(merged!.type).toBe('money');
-    expect(merged!.description).toBe('new Price');
-    expect(merged!.expected).toEqual(['1', '2', '3']);
-  });
-
-  test('matching is case- and whitespace-insensitive', () => {
-    const merged = mergeImportedRows([saved('price', 'Price')], [fresh('  pRiCe ')]);
-    expect(merged[0]!.key).toBe('price');
-  });
-
-  test('an unmatched imported row is appended with no key; a current row absent from the import is dropped', () => {
-    const current = [saved('price', 'Price'), saved('sku', 'SKU')];
-    const merged = mergeImportedRows(current, [fresh('Price'), fresh('Brand')]);
-    expect(merged.map((r) => r.name)).toEqual(['Price', 'Brand']);
-    expect(merged[0]!.key).toBe('price');
-    expect(merged[1]!.key).toBeUndefined();
-  });
-
-  test('rows with no saved key (a never-saved grid) merge cleanly', () => {
-    const merged = mergeImportedRows([fresh('Price')], [fresh('Price')]);
-    expect(merged).toHaveLength(1);
-    expect(merged[0]!.key).toBeUndefined();
   });
 });
