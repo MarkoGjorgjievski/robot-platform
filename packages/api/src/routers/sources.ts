@@ -2,13 +2,11 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
-import type { Database } from '@robot/db';
 import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
-import { schemaInput, prepareSchema } from '../verify/schema-input.js';
 import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
@@ -18,29 +16,6 @@ import { runSourceVerification } from '../verify/run-source-verification.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
 
-// ─── Scratch resolution (mvp-simplification task 7) ────────────────────────
-//
-// `quickCreate` needs the Scratch project's OWN dataset — resolved by slug
-// 'scratch', not just "any dataset in the Scratch project". The Scratch
-// project can already carry unrelated datasets (e.g. seeded corpus fixtures),
-// and attaching a Scratch source to one of those would give it a real,
-// non-empty schema — defeating `effectiveSchema`'s selectorsJson fallback,
-// which only kicks in when the dataset schema is empty.
-
-const SCRATCH_SLUG = 'scratch';
-
-function slugifyDomain(domain: string): string {
-  return domain
-    .toLowerCase()
-    .replace(/^www\./, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function shortRandomSuffix(): string {
-  return Math.random().toString(36).slice(2, 8);
-}
-
 /** The planner's input rows for a schema: the listing page when given, else the proof pages as detail rows. */
 function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: Array<{ url: string }>; listingMode: 'listing_to_detail' | 'detail' } {
   return listingUrl
@@ -49,81 +24,6 @@ function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: A
 }
 
 const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } as const;
-
-async function getScratchProjectId(db: Database): Promise<string> {
-  const allOrgs = await db.select().from(orgs).orderBy(orgs.createdAt).limit(1);
-  if (allOrgs.length === 0) {
-    throw new TRPCError({
-      code: 'PRECONDITION_FAILED',
-      message: 'No orgs found. Run `pnpm --filter @robot/db seed:scratch` first.',
-    });
-  }
-  const scratch = await db.query.projects.findFirst({
-    where: and(eq(projects.orgId, allOrgs[0]!.id), eq(projects.slug, SCRATCH_SLUG)),
-  });
-  if (!scratch) {
-    throw new TRPCError({
-      code: 'PRECONDITION_FAILED',
-      message: `No Scratch project for org ${allOrgs[0]!.slug}. Run seed:scratch first.`,
-    });
-  }
-  return scratch.id;
-}
-
-/**
- * The insert half of find-or-create, isolated so it can be tested directly
- * against an already-conflicting row without needing genuine concurrency to
- * provoke it (two real racing callers are a flaky thing to assert against in
- * a test — this makes the exact conflict outcome deterministic).
- *
- * `INSERT ... ON CONFLICT (project_id, slug) DO NOTHING RETURNING` is atomic:
- * either this call's row wins and comes back from `returning()`, or it lost
- * to a row that already exists (inserted by this call a moment ago via
- * `getOrCreateScratchDataset`'s racing sibling, or literally any pre-existing
- * row at this `(projectId, 'scratch')` slug) and `returning()` comes back
- * empty — in which case the winner's row is fetched instead. Without
- * `onConflictDoNothing()`, the loser's insert throws a raw
- * `datasets_project_slug_idx` unique-constraint error instead of resolving.
- */
-export async function insertScratchDatasetIfAbsent(db: Database, scratchProjectId: string): Promise<string> {
-  const [created] = await db.insert(datasets).values({
-    projectId: scratchProjectId,
-    name: 'Scratch',
-    slug: SCRATCH_SLUG,
-    schema: [],
-  }).onConflictDoNothing().returning({ id: datasets.id });
-  if (created) return created.id;
-
-  // Lost the race (or the row simply already existed): fetch it instead.
-  const winner = await db.query.datasets.findFirst({
-    where: and(eq(datasets.projectId, scratchProjectId), eq(datasets.slug, SCRATCH_SLUG)),
-  });
-  if (!winner) {
-    // Only reachable if the winning row vanished between its insert
-    // committing and this lookup (e.g. a concurrent delete) — genuinely
-    // exceptional, not a normal race outcome.
-    throw new TRPCError({
-      code: 'INTERNAL_SERVER_ERROR',
-      message: `Scratch dataset insert conflicted for project ${scratchProjectId} but no row was found on lookup`,
-    });
-  }
-  return winner.id;
-}
-
-/**
- * Find-or-create is a check-then-act: two concurrent `quickCreate` calls can
- * both pass the `findFirst` below before either dataset exists. The insert
- * that follows is conflict-safe (see `insertScratchDatasetIfAbsent`), so both
- * callers converge on the same dataset id rather than one of them failing.
- */
-export async function getOrCreateScratchDataset(db: Database, scratchProjectId: string): Promise<string> {
-  const existing = await db.query.datasets.findFirst({
-    where: and(eq(datasets.projectId, scratchProjectId), eq(datasets.slug, SCRATCH_SLUG)),
-  });
-  if (existing) return existing.id;
-
-  return insertScratchDatasetIfAbsent(db, scratchProjectId);
-}
 
 export const sourcesRouter = router({
   listByDataset: publicProcedure
@@ -365,68 +265,6 @@ export const sourcesRouter = router({
       return source;
     }),
 
-  // ─── Scratch quick-start (mvp-simplification task 7) ─────────────────────
-
-  /**
-   * Create a Scratch Source + one-row-per-url InputSet from a bare list of
-   * URLs, with zero manual configuration — the fast path into the wizard.
-   * Attaches to the Scratch project's own dataset (created empty on first
-   * use), so the Source starts with no schema at all until a customer
-   * schema is saved via `createWithSchema`/`updateSchema`. It used to gain
-   * one from `sources.analyze` writing `selectorsJson` (read back through
-   * `effectiveSchema`); that procedure is deleted (2026-09) and
-   * `selectorsJson` is now legacy data only.
-   */
-  quickCreate: publicProcedure
-    .input(
-      z.object({
-        mode: z.enum(['listing', 'detail']),
-        urls: z.array(z.string().url()).min(1).max(50),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const { mode, urls } = input;
-      const firstUrl = new URL(urls[0]!);
-      const hostname = firstUrl.hostname;
-      const name = `${hostname} ${firstUrl.pathname}`.slice(0, 255);
-
-      const scratchProjectId = await getScratchProjectId(ctx.db);
-      const scratchDatasetId = await getOrCreateScratchDataset(ctx.db, scratchProjectId);
-
-      const [inputSet] = await ctx.db
-        .insert(inputSets)
-        .values({
-          projectId: scratchProjectId,
-          type: 'direct',
-          name,
-          columns: [{ name: 'url', primary: true }],
-          rows: urls.map((url) => ({ url })),
-        })
-        .returning({ id: inputSets.id });
-
-      const listingMode = mode === 'listing' ? 'listing_to_detail' : 'detail';
-      const sourceSlug = `${slugifyDomain(hostname)}-${shortRandomSuffix()}`;
-
-      const [source] = await ctx.db
-        .insert(sources)
-        .values({
-          datasetId: scratchDatasetId,
-          name,
-          slug: sourceSlug,
-          country: 'us',
-          inputStrategy: 'direct',
-          urlTemplate: urls[0],
-          listingMode,
-          inputSetId: inputSet!.id,
-          // Detail sources keep whatever the schema default (`{}`) is —
-          // only listing sources get a starter budget.
-          ...(mode === 'listing' ? { budget: LISTING_DEFAULT_BUDGET } : {}),
-        })
-        .returning({ id: sources.id });
-
-      return { sourceId: source!.id, projectSlug: SCRATCH_SLUG, sourceSlug };
-    }),
-
   // ─── Project-scoped creation (mvp-flow phase 1, spec 5.4) ────────────────
 
   /**
@@ -493,66 +331,7 @@ export const sourcesRouter = router({
       return row;
     }),
 
-  // ─── Customer-defined schema (customer schema verification, task 11) ─────
-
-  /**
-   * Create a Scratch Source from a customer-authored schema (3 verification
-   * URLs + typed fields + expected values) rather than `quickCreate`'s bare
-   * URL list. `prepareSchema` (schema-input.ts) assigns stable keys/concepts
-   * and validates hostnames + expected values, throwing BAD_REQUEST with a
-   * per-cell problem list on failure.
-   *
-   * Mirrors `quickCreate`'s Scratch InputSet + Source shape exactly, except:
-   * when `listingUrl` is given, the InputSet plans from THAT single row (a
-   * listing crawl plans from the listing, not the verification samples) and
-   * the three product URLs live only in `verificationSet`.
-   */
-  createWithSchema: publicProcedure
-    .input(schemaInput)
-    .mutation(async ({ ctx, input }) => {
-      const { fields, verificationSet } = prepareSchema(input);
-
-      const firstUrl = new URL(input.urls[0]!);
-      const name = `${firstUrl.hostname} ${firstUrl.pathname}`.slice(0, 255);
-
-      const scratchProjectId = await getScratchProjectId(ctx.db);
-      const scratchDatasetId = await getOrCreateScratchDataset(ctx.db, scratchProjectId);
-
-      const { rows, listingMode } = inputRowsFor(input.urls, input.listingUrl);
-
-      const [inputSet] = await ctx.db
-        .insert(inputSets)
-        .values({
-          projectId: scratchProjectId,
-          type: 'direct',
-          name,
-          columns: [{ name: 'url', primary: true }],
-          rows,
-        })
-        .returning({ id: inputSets.id });
-
-      const sourceSlug = `${slugifyDomain(firstUrl.hostname)}-${shortRandomSuffix()}`;
-
-      const [source] = await ctx.db
-        .insert(sources)
-        .values({
-          datasetId: scratchDatasetId,
-          name,
-          slug: sourceSlug,
-          country: 'us',
-          inputStrategy: 'direct',
-          urlTemplate: input.urls[0],
-          listingMode,
-          inputSetId: inputSet!.id,
-          schemaDefinition: fields,
-          verificationSet,
-          // Same rule as quickCreate: only a listing Source gets a starter budget.
-          ...(input.listingUrl ? { budget: LISTING_DEFAULT_BUDGET } : {}),
-        })
-        .returning({ id: sources.id });
-
-      return { sourceId: source!.id, projectSlug: SCRATCH_SLUG, sourceSlug };
-    }),
+  // ─── Customer schema verification (task 12) ──────────────────────────────
 
   /**
    * Write a website's binding (spec 4.2): the three proof pages, the optional
@@ -617,11 +396,11 @@ export const sourcesRouter = router({
           .returning();
 
         // Updated in place so a source keeps its input set id across edits —
-        // but only when the schema flow authored the rows it's about to
-        // replace (final review, finding 1). A legacy source created by
-        // `quickCreate` may hold up to 50 listing/detail URLs in its input
-        // set; without this check, the first schema save silently replaced
-        // them with the three proof pages.
+        // but only when the binding flow authored the rows it's about to
+        // replace (final review, finding 1). A legacy source may hold an
+        // arbitrary number of listing/detail URLs in its input set; without
+        // this check, the first binding save silently replaced them with the
+        // three proof pages.
         if (source.inputSetId && source.inputSet) {
           const previousVerificationSet = source.verificationSet as VerificationSet | null;
           const authoredRows = inputRowsFor(previousVerificationSet?.urls ?? [], previousVerificationSet?.listing_url).rows;
@@ -726,9 +505,8 @@ export const sourcesRouter = router({
    * Delete a Source and its own InputSet — the confirm gate's "something's
    * wrong" honest action (spec §3: "edit the URL(s), switch the Source to
    * detail mode, or delete"). Runs, captures and extractions cascade via
-   * their FKs; the InputSet is deleted alongside it because `quickCreate`
-   * creates one InputSet per Source (never shared), the exact assumption this
-   * file's own test helper (`cleanupSource`) already relies on.
+   * their FKs; the InputSet is deleted alongside it because a Source's
+   * InputSet is never shared with another Source.
    *
    * Controller ruling R5: scoped to UNCONFIRMED sources only. The only caller
    * today is the probe confirm gate's "something's wrong" panel, which only
@@ -761,8 +539,6 @@ export const sourcesRouter = router({
 
       return { deleted: true };
     }),
-
-  // ─── Customer schema verification (task 12) ──────────────────────────────
 
   /**
    * A rough, pre-flight cost ceiling for a Verify run — every field asking

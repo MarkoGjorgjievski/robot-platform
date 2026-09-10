@@ -1,27 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, sources, inputSets, sourceVerifications } from '@robot/db';
+import { db, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from '../routers/index.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { loadCurrentCertification, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
 
 const createCaller = createCallerFactory(appRouter);
 const caller = createCaller({ db });
-
-/** Deletes a Source created by createWithSchema, plus its InputSet — mirrors
- *  sources-schema.test.ts's cleanupSource. `source_verifications` rows
- *  cascade with the Source, so no separate cleanup is needed there. */
-async function cleanupSource(sourceId: string): Promise<void> {
-  const source = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { inputSetId: true },
-  });
-  await db.delete(sources).where(eq(sources.id, sourceId));
-  if (source?.inputSetId) {
-    await db.delete(inputSets).where(eq(inputSets.id, source.inputSetId));
-  }
-}
 
 async function makeSchemaSource(tag: string) {
   const urls = [
@@ -29,13 +16,14 @@ async function makeSchemaSource(tag: string) {
     `https://test-cert-${tag}.example.com/p/2`,
     `https://test-cert-${tag}.example.com/p/3`,
   ];
-  const created = await caller.sources.createWithSchema({
+  const f = await createProjectWithSource(caller, {
+    tag: `cert-${tag}`,
     urls,
     fields: [{ name: 'Price', type: 'money', description: 'x' }],
     expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
   });
-  const source = await db.query.sources.findFirst({ where: eq(sources.id, created.sourceId) });
-  return { sourceId: created.sourceId, source: source!, urls };
+  const source = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+  return { sourceId: f.sourceId, source: source!, urls, keys: f.keys, datasetId: f.datasetId, cleanup: f.cleanup };
 }
 
 const certifiedPrice: CertifiedPath[] = [{ source: 'api', path: 'item.price', transform: 'identity' }];
@@ -60,20 +48,20 @@ describe('sourceDefinitionHash', () => {
   });
 
   it('returns a stable hash for a real Source', async () => {
-    const { sourceId, source } = await makeSchemaSource('hash');
+    const { source, cleanup } = await makeSchemaSource('hash');
     try {
       const hash = sourceDefinitionHash(source);
       expect(typeof hash).toBe('string');
       expect(hash).toBe(sourceDefinitionHash(source));
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 });
 
 describe('loadCurrentCertification', () => {
   it('returns the certification for a matching all-passed completed verification', async () => {
-    const { sourceId, source, urls } = await makeSchemaSource('match');
+    const { sourceId, source, urls, cleanup } = await makeSchemaSource('match');
     try {
       const hash = sourceDefinitionHash(source)!;
       const [row] = await db
@@ -96,7 +84,7 @@ describe('loadCurrentCertification', () => {
       // is what verified-path stats must be booked under later.
       expect(cert!.hostname).toBe(new URL(urls[0]!).hostname);
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
@@ -109,7 +97,7 @@ describe('loadCurrentCertification', () => {
   // recomputed against it) so `price` stays fully current — only the
   // hostname parse is what refuses the certification.
   it('returns null when the verification set has an unparseable url', async () => {
-    const { sourceId, source, urls } = await makeSchemaSource('badurl');
+    const { sourceId, source, urls, cleanup } = await makeSchemaSource('badurl');
     try {
       const hash = sourceDefinitionHash(source)!;
       await db.insert(sourceVerifications).values({
@@ -140,12 +128,12 @@ describe('loadCurrentCertification', () => {
       expect((await loadFieldCurrency(db, sourceId)).currentKeys).toEqual(['price']);
       expect(await loadCurrentCertification(db, sourceId)).toBeNull();
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
-  it('returns null once the schema hash no longer matches (updateSchema edited it)', async () => {
-    const { sourceId, source, urls } = await makeSchemaSource('hashchange');
+  it('returns null once the schema hash no longer matches (the binding was edited)', async () => {
+    const { sourceId, source, urls, keys, datasetId, cleanup } = await makeSchemaSource('hashchange');
     try {
       const hash = sourceDefinitionHash(source)!;
       await db.insert(sourceVerifications).values({
@@ -159,21 +147,28 @@ describe('loadCurrentCertification', () => {
       // Certified while the schema had just "Price" — confirm it's found first.
       expect(await loadCurrentCertification(db, sourceId)).not.toBeNull();
 
-      await caller.sources.updateSchema({
+      // Change the schema underneath the completed row: add a contract field
+      // (datasets.addField) and rebind — same effect `updateSchema` used to
+      // have, achieved through the contract + binding split (Task 4/5).
+      await caller.datasets.addField({ datasetId, name: 'Brand', type: 'text' });
+      await caller.sources.updateBinding({
         sourceId,
         urls,
-        fields: [{ name: 'Brand', type: 'text', description: 'y' }],
-        expected: { Brand: { [urls[0]!]: 'Acme', [urls[1]!]: 'Acme', [urls[2]!]: 'Acme' } },
+        descriptions: { [keys.Price!]: 'x', brand: 'y' },
+        expected: {
+          [keys.Price!]: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' },
+          brand: { [urls[0]!]: 'Acme', [urls[1]!]: 'Acme', [urls[2]!]: 'Acme' },
+        },
       });
 
       expect(await loadCurrentCertification(db, sourceId)).toBeNull();
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('returns null for a completed but not-all-passed row', async () => {
-    const { sourceId, source } = await makeSchemaSource('notallpassed');
+    const { sourceId, source, cleanup } = await makeSchemaSource('notallpassed');
     try {
       const hash = sourceDefinitionHash(source)!;
       await db.insert(sourceVerifications).values({
@@ -186,12 +181,12 @@ describe('loadCurrentCertification', () => {
 
       expect(await loadCurrentCertification(db, sourceId)).toBeNull();
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('ignores an in-flight (uncompleted) row even when allPassed would otherwise match', async () => {
-    const { sourceId, source } = await makeSchemaSource('inflight');
+    const { sourceId, source, cleanup } = await makeSchemaSource('inflight');
     try {
       const hash = sourceDefinitionHash(source)!;
       await db.insert(sourceVerifications).values({
@@ -204,16 +199,16 @@ describe('loadCurrentCertification', () => {
 
       expect(await loadCurrentCertification(db, sourceId)).toBeNull();
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('returns null for a Source with no schema at all', async () => {
-    const created = await caller.sources.quickCreate({ mode: 'detail', urls: ['https://test-cert-noschema.example.com/p/1'] });
+    const f = await createProjectWithSource(caller, { tag: 'cert-noschema', fields: [] });
     try {
-      expect(await loadCurrentCertification(db, created.sourceId)).toBeNull();
+      expect(await loadCurrentCertification(db, f.sourceId)).toBeNull();
     } finally {
-      await cleanupSource(created.sourceId);
+      await f.cleanup();
     }
   });
 
@@ -225,7 +220,8 @@ describe('loadCurrentCertification', () => {
       'https://test-cert-fieldcurrency.example.com/p/2',
       'https://test-cert-fieldcurrency.example.com/p/3',
     ];
-    const created = await caller.sources.createWithSchema({
+    const f = await createProjectWithSource(caller, {
+      tag: 'cert-fieldcurrency',
       urls,
       fields: [
         { name: 'Price', type: 'money', description: 'x' },
@@ -236,7 +232,7 @@ describe('loadCurrentCertification', () => {
         Title: { [urls[0]!]: 'A', [urls[1]!]: 'B', [urls[2]!]: 'C' },
       },
     });
-    const sourceId = created.sourceId;
+    const sourceId = f.sourceId;
     try {
       const src = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
       const fields = src!.schemaDefinition as SchemaDefinitionField[];
@@ -254,7 +250,7 @@ describe('loadCurrentCertification', () => {
       expect(c.currentKeys).toEqual(['price']);
       expect(await loadCurrentCertification(db, sourceId)).toBeNull(); // title is not current
     } finally {
-      await cleanupSource(sourceId);
+      await f.cleanup();
     }
   });
 });
