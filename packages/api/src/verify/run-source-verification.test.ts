@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
-import { db, sources, inputSets, sourceVerifications, captures } from '@robot/db';
+import { db, sources, sourceVerifications, captures } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from '../routers/index.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { runSourceVerification, writeStage } from './run-source-verification.js';
 
 // `runSourceVerification` never launches a real browser or calls
@@ -40,17 +41,6 @@ afterEach(() => {
 const createCaller = createCallerFactory(appRouter);
 const caller = createCaller({ db });
 
-async function cleanupSource(sourceId: string): Promise<void> {
-  const source = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { inputSetId: true },
-  });
-  await db.delete(sources).where(eq(sources.id, sourceId));
-  if (source?.inputSetId) {
-    await db.delete(inputSets).where(eq(inputSets.id, source.inputSetId));
-  }
-}
-
 function fakeCapture(url: string, html: string): PageCapture {
   return {
     url,
@@ -71,13 +61,14 @@ async function makeSchemaSource(tag: string) {
     `https://test-runverify-${tag}.example.com/p/2`,
     `https://test-runverify-${tag}.example.com/p/3`,
   ];
-  const created = await caller.sources.createWithSchema({
+  const f = await createProjectWithSource(caller, {
+    tag: `runverify-${tag}`,
     urls,
     fields: [{ name: 'Price', type: 'money', description: 'x' }],
     expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
   });
-  await db.update(sources).set({ driftedFields: ['price'] }).where(eq(sources.id, created.sourceId));
-  return { sourceId: created.sourceId, urls };
+  await db.update(sources).set({ driftedFields: ['price'] }).where(eq(sources.id, f.sourceId));
+  return { sourceId: f.sourceId, urls, cleanup: f.cleanup };
 }
 
 async function startVerificationRow(sourceId: string, overrides: Partial<{ startedAt: Date }> = {}): Promise<string> {
@@ -90,7 +81,7 @@ async function startVerificationRow(sourceId: string, overrides: Partial<{ start
 
 describe('runSourceVerification', () => {
   it('on success: writes results/allPassed/aiCalls/costUsd, persists captures with screenshots, calls saveVerifiedPaths, and clears driftedFields', async () => {
-    const { sourceId, urls } = await makeSchemaSource('success');
+    const { sourceId, urls, cleanup } = await makeSchemaSource('success');
     try {
       const verificationId = await startVerificationRow(sourceId);
 
@@ -134,12 +125,12 @@ describe('runSourceVerification', () => {
       const sourceRow = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
       expect(sourceRow!.driftedFields).toBeNull();
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('on failure: writes errorMessage and completedAt (terminal, never stuck)', async () => {
-    const { sourceId } = await makeSchemaSource('failure');
+    const { sourceId, cleanup } = await makeSchemaSource('failure');
     try {
       const verificationId = await startVerificationRow(sourceId);
       runVerificationMock.mockRejectedValue(new Error('boom'));
@@ -155,12 +146,12 @@ describe('runSourceVerification', () => {
       const sourceRow = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
       expect(sourceRow!.driftedFields).toEqual(['price']);
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('on failure: strips ANSI escape codes from a Playwright-style errorMessage before persisting it', async () => {
-    const { sourceId } = await makeSchemaSource('failure-ansi');
+    const { sourceId, cleanup } = await makeSchemaSource('failure-ansi');
     try {
       const verificationId = await startVerificationRow(sourceId);
       // Shaped like Playwright's real `page.setContent` timeout: the "Call log:"
@@ -179,12 +170,12 @@ describe('runSourceVerification', () => {
       );
       expect(row!.errorMessage).not.toContain('');
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('re-verify (onlyKeys) reuses fresh captures from the previous completed run — skipping a newer failed row — and never creates a new captures row for a reused page', async () => {
-    const { sourceId, urls } = await makeSchemaSource('reuse');
+    const { sourceId, urls, cleanup } = await makeSchemaSource('reuse');
     try {
       const certifiedPrice = [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }];
       const cannedRun = {
@@ -242,14 +233,14 @@ describe('runSourceVerification', () => {
       const capturesForUrl = await db.query.captures.findMany({ where: eq(captures.url, urls[0]!) });
       expect(capturesForUrl).toHaveLength(1);
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 });
 
 describe('writeStage', () => {
   it('is a no-op against an already-completed row — never clobbers its real captures', async () => {
-    const { sourceId } = await makeSchemaSource('stage-completed');
+    const { sourceId, cleanup } = await makeSchemaSource('stage-completed');
     try {
       const realRefs = { [`https://test-runverify-stage-completed.example.com/p/1`]: { captureId: 'abc123', capturedAt: new Date().toISOString() } };
       const [row] = await db
@@ -262,12 +253,12 @@ describe('writeStage', () => {
       const after = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, row!.id) });
       expect(after!.captures).toEqual(realRefs);
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 
   it('writes _stage onto an in-flight (uncompleted) row', async () => {
-    const { sourceId } = await makeSchemaSource('stage-inflight');
+    const { sourceId, cleanup } = await makeSchemaSource('stage-inflight');
     try {
       const verificationId = await startVerificationRow(sourceId);
 
@@ -276,7 +267,7 @@ describe('writeStage', () => {
       const after = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(after!.captures).toEqual({ _stage: 'searching' });
     } finally {
-      await cleanupSource(sourceId);
+      await cleanup();
     }
   });
 });

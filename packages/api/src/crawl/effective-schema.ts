@@ -3,10 +3,11 @@
 // actually lives.
 //
 // A normal Source's schema lives on its Dataset (`datasets.schema`), shared
-// across every Source in that dataset. A Scratch source (quickCreate,
-// mvp-simplification task 7) has no meaningful dataset schema to inherit — its
-// Scratch dataset is deliberately created with an EMPTY schema (see
-// `sources.quickCreate`) — so its schema falls back to
+// across every Source in that dataset. A Scratch source (mvp-simplification
+// task 7; its wizard-era creation procedure was itself removed in the
+// mvp-flow-phase2 contract-on-dataset rewrite, task 5) has no meaningful
+// dataset schema to inherit — its Scratch dataset is deliberately created
+// with an EMPTY schema — so its schema falls back to
 // `sources.selectorsJson.fields` instead, legacy data written by the deleted
 // `sources.analyze` procedure (removed 2026-09; no live writer).
 //
