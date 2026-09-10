@@ -73,6 +73,73 @@ to become current again — the lift populates the contract and the bindings, bu
 verification result's `fieldHash` predates the lift and won't match until the website is
 re-verified against its now-contract-derived field definitions.
 
+## MVP flow phase 3 (2026-09-10): the Schema tab is the table
+
+Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md` §5.6. Plan:
+`.superpowers/sdd/2026-09-10-mvp-flow-phase3-schema-tab/`. The Schema tab (`source-schema.tsx` +
+`SchemaGrid`) is now the table itself — no separate grid screen and no ghost row; paste and
+CSV/XLSX import both match cells to rows by field name only (unchanged from phase 2). Field and
+Type are read-only in this table (they live on the project's dataset since phase 2) with a note
+pointing back to the project page for edits.
+
+Page URLs moved from the old "Product URL 1/2/3" input row into the table's own column headers
+(`PageHeaderCell`): each header shows the shortened path, a per-column capture-state icon
+(`idle`/`queued`/`capturing`/`captured`/`not_captured`), and — unless the table is read-only or
+locked by an in-flight run — a pencil (`aria-label="Edit page N"`) that opens a popover to retype
+the URL directly, or to type a listing-page URL and "Find pages", picking one of the results with
+"Use as page N". Editing a page URL there marks the whole grid stale via the existing
+`isRowStale`/`reverifyKeys` machinery — a URL change re-verifies *everything*, not just that
+column; this is stricter than necessary but deliberately kept (every stored cell result is keyed
+to the URL it was proven against, so a moved column has no safe partial reuse). **The listing URL
+is no longer edited on this tab at all** — phase 4 gives it a proper home on the Extract tab.
+Nothing was dropped to make room for that: the binding's `listing_url` still round-trips
+untouched — `GridState.listingUrl` still carries it and `toBindingInput` still sends it
+(`{ ...(state.listingUrl.trim() ? { listingUrl: state.listingUrl.trim() } : {}) }`) — the tab
+simply has no input for it right now, so it can only change via `findProductPages`'s remembered
+value or a future Extract-tab control.
+
+The status strip (`StatusStrip`, fixed 38px tall, `role="status"`) has five states
+(`schema-tab-view.ts`'s `stripState`/`stripSummary`): `editing` ("Not verified yet · n fields · k
+pages"), `active` ("Verifying", with the progress bar and stage text), `stalled` ("This
+verification stalled. Run it again."), `failed` ("The last verification failed"), and `results`
+("n of m fields verified" plus " · k need attention" / " · j changed since" when either is
+nonzero). Every expected cell reserves a second line (`cellLine`) so cells never resize between
+states: pass shows "from <source>" or, when the page's live value differs from what was typed,
+"page shows <value>"; fail shows one of the five red hints (`hintFor` — not_found,
+different_value, ambiguous, type_mismatch, verbatim per spec); stale shows "changed since
+verified"; not_captured shows "page not captured" with a screenshot link when one exists. A
+not-found text cell whose typed values are all http(s) URLs gets the type-fix chip (
+`typeFixSuggestion`) suggesting a retype to `url` via `retypeField`, which surfaces the
+project-dataset "which website" ownership error if the field is shared and locked elsewhere.
+
+Re-verify pricing is now scoped and can be free: `sources.verifyEstimate` takes an optional
+`onlyKeys` and returns `capturesFresh` — true when every proof-page URL's last completed
+verification captured within `CAPTURE_REUSE_MAX_AGE_MS` (currently one day). The dashboard's
+`verifyButton` (`schema-tab-view.ts`) labels the button "Re-verify n fields · free" only when
+captures are fresh AND (AI is unavailable OR the scoped upper bound is $0) — otherwise "Re-verify
+n fields · up to $X.XX". `verification-view.ts`'s `reverifyKeys` now also takes a `currentKeys`
+argument: a field whose last result certified but whose stored `fieldHash` the server no longer
+counts as current (phase 2's per-field certification currency, e.g. after
+`pnpm db:lift-contracts`) now falls into the re-verify set too, so a pre-phase-2 proof that never
+touched this UI can still be re-verified for free once captures are fresh, instead of silently
+reading as "everything is verified" against a stale hash.
+
+Unrelated fix folded in here because it's the same button code: `disabled:pointer-events-none`
+was added to the `btn-primary`/`btn-quiet` Tailwind utilities (`styles.css`). Without it, a
+disabled `<button>` still intercepts the pointer event itself, so a wrapping `<span onClick=...>`
+placed around it — used here to show the disabled reason as a tooltip/toast, and already used the
+same way by phase 1's dialogs — never received the click. With `pointer-events-none` on the
+disabled button, the hit-test falls through to the wrapper, which now fires correctly; this
+incidentally fixes a phase 1 dialog bug of the same shape, not just this tab.
+
+Screenshots taken for this task live under `docs/testing/screens/`: `schema-tab-editing.png` (the
+Ikea Schema tab as it loads — 8 fields, 3 captured pages, all cells passing) and
+`schema-tab-popover.png` (page 1's pencil clicked, showing the URL field and the "find pages from
+a listing" control). **The Ikea live re-verify was NOT run**: its button read `Re-verify 8 fields
+· up to $0.40` (captures older than a day), which this task's budget rule forbids clicking, so
+`schema-tab-verifying.png` and `schema-tab-results.png` do not exist yet. They can be captured
+once Marko approves that spend, or once a fresh (same-day) capture makes the button read "free".
+
 ## Customer schema verification (2026-09-07): built and offline-proven — NO live site has verified through this flow yet
 
 **What shipped.** Marko's ruling after the 2026-09-02 corpus measurement (~65% verifiable accuracy over 7 of 8 domains) was that discovery-based extraction cannot reach competitive precision, and that the customer must define what they need and we must prove we can get it before spending at scale. `docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md` is the spec; 39 commits across Tasks 1-16 (plus the final whole-branch review's fix wave) of `docs/superpowers/plans/2026-09-04-customer-schema-verification.md` built it: a new `packages/scraper/src/verify/` module (normalization, mechanical structured/DOM search, cross-capture certification, the closed transform set, the AI `propose_path` fallback, `runVerification`, and `runVerifiedExtraction` for certified-only extraction at scale); `@robot/api`'s `sources.createWithSchema`, `sources.updateSchema`, `sources.findProductPages`, `sources.verify`, `sources.verificationStatus`, and `sources.verifyEstimate` procedures plus the `requireCertification` gate wired into `sources.confirm`; and a dashboard schema-grid screen (`packages/dashboard/src/routes/new-source.tsx` / `source-schema.tsx`) that replaces the old landing page and Set-up workspace — one row per field, an expected value typed on each of three product URLs, Verify paints cells green/red, Extract stays locked until every cell is green. See `docs/extraction-architecture.md` → "Verification-first sources" for how the mechanism works and `CLAUDE.md`'s Extraction Chain step 0.
