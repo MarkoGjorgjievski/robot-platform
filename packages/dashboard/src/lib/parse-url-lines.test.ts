@@ -34,6 +34,23 @@ describe('parseUrlLines', () => {
     });
   });
 
+  // Only http(s) goes anywhere a browser navigates or a `httpUrl`-validated
+  // procedure accepts, and `new URL()` alone parses far more than that.
+  test('rejects URLs that parse but are not http(s)', () => {
+    const text = 'https://example.com/a\nfile:///c:/list.txt\nftp://example.com/x\njavascript:alert(1)\nmailto:a@b.com';
+    expect(parseUrlLines(text)).toEqual({
+      urls: ['https://example.com/a'],
+      invalid: ['file:///c:/list.txt', 'ftp://example.com/x', 'javascript:alert(1)', 'mailto:a@b.com'],
+    });
+  });
+
+  test('accepts plain http as well as https', () => {
+    expect(parseUrlLines('http://example.com/a\nhttps://example.com/b')).toEqual({
+      urls: ['http://example.com/a', 'https://example.com/b'],
+      invalid: [],
+    });
+  });
+
   test('returns empty arrays for empty or all-blank input', () => {
     expect(parseUrlLines('')).toEqual({ urls: [], invalid: [] });
     expect(parseUrlLines('   \n\n\t  ')).toEqual({ urls: [], invalid: [] });
