@@ -19,8 +19,8 @@ export function SubTabNav({ tabs, activeTo }: { tabs: Tab[]; activeTo: string })
               params={tab.params as never}
               className={`-mb-px border-b-2 px-0.5 py-2 text-sm transition-colors ${
                 isActive
-                  ? 'border-accent-600 font-medium text-gray-900'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800'
+                  ? 'border-accent-600 text-gray-900'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
               {tab.label}
