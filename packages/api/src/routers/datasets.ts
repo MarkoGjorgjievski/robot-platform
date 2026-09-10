@@ -93,6 +93,11 @@ export const datasetsRouter = router({
       return results;
     }),
 
+  /** The project's contract (spec 4.1): the dataset schema's keyed fields, for the project home editor. */
+  getContract: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => contractFields((await loadDataset(ctx.db, input.datasetId)).schema)),
+
   getBySlug: publicProcedure
     .input(
       z.object({

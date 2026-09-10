@@ -8,8 +8,7 @@ import { siteNameFromUrl } from '../lib/site-name';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { Dialog, fieldClass, labelClass } from '../components/dialog';
 import { InlineRename } from '../components/inline-rename';
-
-type DatasetField = { key?: string; name: string; type: string };
+import { ContractEditor } from '../components/contract-editor';
 
 /** Project home (spec 5.3): fields on the left, websites on the right, output underneath. */
 export default function ProjectHome() {
@@ -29,7 +28,6 @@ export default function ProjectHome() {
   const { project } = statsQuery.data;
   const sources = sourcesQuery.data ?? [];
   const datasets = datasetsQuery.data ?? [];
-  const fields = datasets.flatMap((d) => (Array.isArray(d.schema) ? (d.schema as DatasetField[]) : []));
 
   return (
     <div>
@@ -40,16 +38,9 @@ export default function ProjectHome() {
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <section>
           <h2 className="text-sm font-medium text-gray-900">Fields <span className="font-normal text-gray-500">the columns of your output</span></h2>
-          {fields.length === 0 ? (
-            <p className="mt-2 text-sm text-gray-500">No fields yet. Fields are edited on a website's Schema tab for now.</p>
-          ) : (
-            <table className="mt-2 w-full text-sm">
-              <thead className="text-xs text-gray-600"><tr><th className="py-1 text-left font-medium">Field</th><th className="py-1 text-left font-medium">Type</th></tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {fields.map((f, i) => <tr key={f.key ?? i}><td className="py-1.5 font-mono text-xs">{f.name}</td><td className="py-1.5 text-gray-600">{f.type}</td></tr>)}
-              </tbody>
-            </table>
-          )}
+          <div className="mt-2">
+            {datasets[0] ? <ContractEditor datasetId={datasets[0].id} projectSlug={projectSlug} /> : <p className="text-sm text-gray-500">Loading…</p>}
+          </div>
         </section>
 
         <section>
@@ -65,7 +56,7 @@ export default function ProjectHome() {
           {datasets.length > 0 && (
             <div className="mt-4 flex items-center gap-3 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-700">
               <span className="font-medium">Output</span>
-              <span>{fields.length} columns</span>
+              <span>{Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as unknown[]).length : 0} columns</span>
               <Link to="/projects/$project/output" params={{ project: projectSlug }} className="ml-auto underline-offset-2 hover:underline">Open</Link>
             </div>
           )}
