@@ -31,16 +31,25 @@ const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } 
 /**
  * Is this budget one nobody chose?
  *
- * Empty, or exactly `LISTING_DEFAULT_BUDGET` — which `updateBinding` writes by
- * itself when a binding first names a listing URL. The customer never picked
- * 40 and 3, so the Extract tab must not open its Run section on "custom 40 /
- * custom 3" and present them as their decision. `budgetToForm` (dashboard
- * `lib/extract-view.ts`) reads the same object the same way.
+ * Empty is the easy case. The other one is exactly `LISTING_DEFAULT_BUDGET`,
+ * which `updateBinding` writes by itself when a binding first names a listing
+ * URL: the customer never picked 40 and 3, so the Extract tab must not open
+ * its Run section on "custom 40 / custom 3" and present them as a decision.
+ *
+ * But `budgetFromForm` produces a byte-identical object when a customer
+ * deliberately picks 40 products across 3 pages, and value-matching alone
+ * cannot tell those two apart. `inputMode` can: it is set the first time the
+ * Extract tab saves pages, and the Extract tab is the only thing that ever
+ * writes a chosen budget. So the automatic starter is only ever recognised
+ * while the tab has never owned this Source's input — after that, 40/3 is the
+ * customer's, and stays. `budgetToForm(raw, { legacy })` in the dashboard's
+ * `lib/extract-view.ts` applies the same rule from the same signal.
  */
-function budgetIsUnchosen(budget: unknown): boolean {
+function budgetIsUnchosen(budget: unknown, priorInputMode: string | undefined): boolean {
   if (typeof budget !== 'object' || budget === null) return true;
   const b = budget as Record<string, unknown>;
   if (Object.keys(b).length === 0) return true;
+  if (priorInputMode !== undefined) return false;
   return (
     Object.keys(b).length === 3 &&
     b.max_items === LISTING_DEFAULT_BUDGET.max_items &&
@@ -113,8 +122,13 @@ async function setInputPages(
   }
 
   const rows = accepted.map((url) => ({ url }));
-  const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: opts.inputMode };
-  const budgetPatch = opts.seedBudget && budgetIsUnchosen(source.budget) ? { budget: opts.seedBudget } : {};
+  const priorParameters = (source.parameters as Record<string, unknown> | null) ?? {};
+  const parameters = { ...priorParameters, inputMode: opts.inputMode };
+  // The mode as it was BEFORE this write — read in the same transaction as the
+  // budget it is judging. Once the Extract tab has owned the input even once,
+  // the stored budget is the customer's and is never reseeded.
+  const priorInputMode = typeof priorParameters.inputMode === 'string' ? priorParameters.inputMode : undefined;
+  const budgetPatch = opts.seedBudget && budgetIsUnchosen(source.budget, priorInputMode) ? { budget: opts.seedBudget } : {};
 
   if (source.inputSetId) {
     await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));

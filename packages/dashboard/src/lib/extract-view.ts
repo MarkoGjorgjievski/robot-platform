@@ -153,9 +153,9 @@ function positiveInt(v: unknown): number | null {
 /**
  * The starter budget the pre-Extract-tab flow wrote by itself — `LISTING_
  * DEFAULT_BUDGET` in packages/api/src/routers/sources.ts, `{ max_items: 40,
- * max_pages: 3, mode: 'first_n' }`. No customer ever chose those numbers, so
- * the Run section must not open on `custom 40 / custom 3` and claim they did.
- * Exactly this object (no more keys, no fewer) reads as "unset".
+ * max_pages: 3, mode: 'first_n' }`. No customer chose those numbers, so the
+ * Run section must not open on `custom 40 / custom 3` and claim they did.
+ * Exactly this object, no more keys and no fewer.
  */
 function isAutomaticStarterBudget(r: Record<string, unknown>): boolean {
   return (
@@ -163,10 +163,27 @@ function isAutomaticStarterBudget(r: Record<string, unknown>): boolean {
   );
 }
 
-/** Persisted budget (possibly missing, legacy, or malformed) -> form values. Unknown/invalid always falls back to 'all'. */
-export function budgetToForm(raw: unknown): { items: number | 'all'; pages: number | 'all' } {
+/**
+ * Persisted budget (possibly missing, legacy, or malformed) -> form values.
+ * Unknown/invalid always falls back to 'all'.
+ *
+ * `legacy` says the Extract tab has never owned this website's input
+ * (`parameters.inputMode` is unset) — the only state in which a budget can
+ * have been written by the old flow rather than chosen. It matters because
+ * `budgetFromForm(40, 3)` produces an object byte-identical to the automatic
+ * starter, so value-matching alone would reset a customer who deliberately
+ * picked 40 products across 3 pages. Outside legacy, 40/3 is a real choice
+ * and passes straight through. The server applies the same rule from the same
+ * signal (`budgetIsUnchosen` in sources.ts).
+ */
+export function budgetToForm(
+  raw: unknown,
+  opts: { legacy: boolean } = { legacy: false },
+): { items: number | 'all'; pages: number | 'all' } {
   if (typeof raw !== 'object' || raw === null) return { items: 'all', pages: 'all' };
-  if (isAutomaticStarterBudget(raw as Record<string, unknown>)) return { items: 'all', pages: 'all' };
+  if (opts.legacy && isAutomaticStarterBudget(raw as Record<string, unknown>)) {
+    return { items: 'all', pages: 'all' };
+  }
   const r = raw as { max_items?: unknown; max_pages?: unknown; mode?: unknown };
   const pages = positiveInt(r.max_pages) ?? 'all';
   if (r.mode === 'all') return { items: 'all', pages };

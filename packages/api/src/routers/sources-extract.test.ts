@@ -141,6 +141,27 @@ describe('sources.setListingPages', () => {
     }
   });
 
+  // The collision the value check alone cannot see: `budgetFromForm(40, 3)`
+  // produces exactly `LISTING_DEFAULT_BUDGET`. Once `parameters.inputMode` is
+  // set, the Extract tab has owned this input and the stored budget is the
+  // customer's — a later save must not quietly reset it to all/all.
+  it('never reseeds once the Extract tab owns the input, even at exactly 40/3', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'set-listing-budget-chosen', fields: [{ name: 'Price', type: 'money' }] });
+    const host = 'https://test-set-listing-budget-chosen.example.com';
+    try {
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls: [`${host}/c/shoes`] });
+      // The customer picks 40 across 3 on the Run section and hits Extract.
+      await caller.sources.update({ id: f.sourceId, budget: { max_items: 40, max_pages: 3, mode: 'first_n' } });
+
+      await caller.sources.setListingPages({ sourceId: f.sourceId, urls: [`${host}/c/shoes`, `${host}/c/boots`] });
+
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect(row?.budget).toEqual({ max_items: 40, max_pages: 3, mode: 'first_n' });
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it('refuses a listing url on a different host than the binding\'s proof pages', async () => {
     const urls = ['https://test-set-listing-diffhost.example.com/p/1', 'https://test-set-listing-diffhost.example.com/p/2', 'https://test-set-listing-diffhost.example.com/p/3'];
     const f = await createProjectWithSource(caller, {
