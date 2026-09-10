@@ -135,22 +135,46 @@ export default function SourceRunDetail() {
     ));
   };
 
+  // The project's contract, for the results table's columns (see `fields`
+  // below). Declared up here with the other hooks — after the early returns
+  // it would be a conditional hook — and disabled until the run's website has
+  // told us which dataset holds it.
+  const contractQuery = trpc.datasets.getContract.useQuery(
+    { datasetId: detailQuery.data?.source?.datasetId ?? '' },
+    { enabled: !!detailQuery.data?.source?.datasetId },
+  );
+
   if (detailQuery.isLoading) return <Spinner label="Loading run..." />;
   if (detailQuery.isError) return <ErrorBanner message={detailQuery.error.message} />;
   if (!detailQuery.data) return <NotFound what={`Run "${runId}"`} />;
 
   const { run, source, capture, extraction, backfillRuns } = detailQuery.data;
   const targetFields = Array.isArray(run.targetFields) ? (run.targetFields as string[]) : [];
-  // Pull field shape from the source's stored selectors if available — best-effort.
-  // `DETAIL_URL_FIELD` (packages/api/src/crawl/effective-schema.ts) is the
-  // synthetic row-scoped "which detail page" field that was written into
-  // `selectorsJson.fields` verbatim by the deleted `sources.analyze`
-  // procedure (removed 2026-09; no live writer — `runAnalysis`, the scraper
-  // router's pure schema-discovery function, persists nothing). It is
-  // filtered out of the server's effective schema but round-trips into this
-  // raw read of legacy data, so it must be excluded here too or it renders
-  // as a dead always-"—" column.
-  const fields = ((source as { selectorsJson?: { fields?: unknown[] } } | null)?.selectorsJson?.fields ?? []) as Array<{ name: string; type: string; enabled?: boolean }>;
+  // The results table's columns, from the same two places the server's own
+  // effective schema reads (`packages/api/src/crawl/effective-schema.ts`):
+  // the website's legacy `selectorsJson.fields` when it has any, else the
+  // project's contract on its dataset. The legacy list keeps priority so a
+  // discovery-era Source still renders exactly the columns it was extracted
+  // with, but it is empty for every verification-era website — the contract
+  // moved to the dataset in phase 2 (spec 4.1) — and an empty list rendered a
+  // results sheet with zero columns and blank rows. The contract is the right
+  // fallback because a row's own keys ARE contract keys: `effective-schema`
+  // maps each contract entry's `key` to the chain's field identifier and its
+  // `name` to the display label, which is why the mapping below is
+  // `key -> name` and `name -> label`, and why `coverage` names, `absentFields`
+  // and the gap filter all keep matching without translation.
+  //
+  // `DETAIL_URL_FIELD` (same file) is the synthetic row-scoped "which detail
+  // page" field that was written into `selectorsJson.fields` verbatim by the
+  // deleted `sources.analyze` procedure (removed 2026-09; no live writer —
+  // `runAnalysis`, the scraper router's pure schema-discovery function,
+  // persists nothing). It is filtered out of the server's effective schema
+  // but round-trips into this raw read of legacy data, so it must be excluded
+  // here too or it renders as a dead always-"—" column.
+  const legacyFields = ((source as { selectorsJson?: { fields?: unknown[] } } | null)?.selectorsJson?.fields ?? []) as Array<{ name: string; type: string; label?: string; enabled?: boolean }>;
+  const fields = legacyFields.length > 0
+    ? legacyFields
+    : (contractQuery.data ?? []).map((f) => ({ name: f.key, type: f.type, label: f.name }));
   const resultsTable = (
     <ResultsTable
       data={filteredData}
@@ -242,7 +266,7 @@ export default function SourceRunDetail() {
       {run.errorMessage && (
         <div className="mt-6 border-l-[3px] border-l-fail bg-fail-tint px-4 py-3">
           <div className="label-soft text-fail">Error</div>
-          <div className="mt-1 font-mono text-[13px] text-fail">{run.errorMessage}</div>
+          <div className="mt-1 font-mono text-[13px] text-gray-900">{run.errorMessage}</div>
         </div>
       )}
 
@@ -325,12 +349,23 @@ function ExportLink({ runId, format }: { runId: string; format: 'csv' | 'json' }
   );
 }
 
-/** One fact of a facts row: the label above, the value in mono below. */
-function Stat({ label, value }: { label: string; value: string }) {
+/**
+ * One fact of a facts row: the label above, the value in mono below.
+ *
+ * `'value'` is the table-sized default every ordinary fact uses. `'figure'`
+ * is the 18px reading reserved for the probe gate's four evidence counts,
+ * where the number itself is the thing being judged.
+ */
+function Stat({ label, value, size = 'value' }: { label: string; value: string; size?: 'value' | 'figure' }) {
   return (
     <div className="min-w-0">
       <dt className="label-soft">{label}</dt>
-      <dd className="mt-1 truncate font-mono text-lg text-gray-900" title={value}>{value}</dd>
+      <dd
+        className={`mt-1 truncate font-mono text-gray-900 ${size === 'figure' ? 'text-lg' : 'text-[13px]'}`}
+        title={value}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -404,12 +439,11 @@ function ExecuteControls({ runId, probeUnconfirmed, backfill }: { runId: string;
     : null;
 
   return (
-    // Strip, not `card`: a status bar on paper-dark (spec 7). Written out
-    // rather than using the `strip` utility because that one locks a 38px
-    // height and clips its overflow — the notice and error lines below wrap
-    // onto their own row here.
-    <div className="mt-6 flex min-h-[38px] flex-wrap items-center gap-3 rounded-lg bg-paper-dark px-3 py-2">
-      <span className="text-sm font-medium text-gray-900">{progressLabel(data.counts, data.status)}</span>
+    // `strip-wrap`, not `card`: a status bar on paper-dark (spec 7), in the
+    // variant that grows instead of clipping — the notice and error lines
+    // below wrap onto their own row here.
+    <div className="strip-wrap mt-6">
+      <span className="font-medium">{progressLabel(data.counts, data.status)}</span>
       <div className="ml-auto flex items-center gap-2">
         {controls.showExtract && (
           <button
@@ -512,9 +546,9 @@ function CoverageActionBar({
 
   return (
     // Same strip as ExecuteControls, for the same reason (see there).
-    <div className="mt-6 flex min-h-[38px] flex-wrap items-center gap-3 rounded-lg bg-paper-dark px-3 py-2">
+    <div className="strip-wrap mt-6">
       {filterField && (
-        <span className="text-sm text-gray-900">
+        <span>
           {missingCount} {missingCount === 1 ? 'row' : 'rows'} missing{' '}
           <code className="font-mono text-[13px] text-gray-900">{filterField}</code>
         </span>
@@ -736,11 +770,11 @@ function WorkList({ runId }: { runId: string }) {
         <table className="sheet">
           <thead>
             <tr className="sheet-head sheet-row h-8">
-              <th className="px-3 text-left font-semibold">Kind</th>
-              <th className="px-3 text-left font-semibold">Page</th>
-              <th className="px-3 text-left font-semibold">Status</th>
-              <th className="px-3 text-left font-semibold">URL</th>
-              <th className="px-3 text-left font-semibold">From the listing</th>
+              <th className="px-3 text-left">Kind</th>
+              <th className="px-3 text-left">Page</th>
+              <th className="px-3 text-left">Status</th>
+              <th className="px-3 text-left">URL</th>
+              <th className="px-3 text-left">From the listing</th>
             </tr>
           </thead>
           <tbody>
@@ -888,10 +922,10 @@ function ProbeConfirmGate({
 
       {evidence ? (
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
-          <Stat label="Pages walked" value={String(evidence.pagesWalked)} />
-          <Stat label="Items found" value={String(evidence.itemsFound)} />
-          <Stat label="Pagination" value={evidence.paginationNote} />
-          <Stat label="Warnings" value={String(evidence.warningsCount)} />
+          <Stat size="figure" label="Pages walked" value={String(evidence.pagesWalked)} />
+          <Stat size="figure" label="Items found" value={String(evidence.itemsFound)} />
+          <Stat size="figure" label="Pagination" value={evidence.paginationNote} />
+          <Stat size="figure" label="Warnings" value={String(evidence.warningsCount)} />
         </dl>
       ) : itemsQuery.isError ? (
         <p className="mt-3 text-sm text-fail">

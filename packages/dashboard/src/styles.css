@@ -51,6 +51,8 @@
 @utility sheet-row { @apply border-b border-gray-200; }
 /* Status strip (38px, paper-dark, radius 8). */
 @utility strip { @apply flex h-[38px] items-center gap-3 overflow-hidden rounded-lg bg-paper-dark px-3 text-sm text-gray-900; }
+/* The same strip for a bar whose contents wrap: it grows past 38px instead of clipping. */
+@utility strip-wrap { @apply flex min-h-[38px] flex-wrap items-center gap-3 rounded-lg bg-paper-dark px-3 py-2 text-sm text-gray-900; }
 @utility btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:opacity-45 disabled:hover:bg-accent-600 disabled:pointer-events-none; }
 @utility btn-quiet { @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-transparent px-3 py-1.5 text-xs font-medium text-gray-900 transition-colors hover:bg-gray-50 disabled:opacity-45 disabled:pointer-events-none; }
 /* The rail is the glyph. */
