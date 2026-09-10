@@ -164,7 +164,7 @@ describe('sources.verificationStatus', () => {
 });
 
 describe('sources.verifyEstimate', () => {
-  it('returns fields × 0.05 and aiAvailable: false in tests', async () => {
+  it('returns fields, perFieldUsd 0.05, and upperBoundUsd 0 when aiAvailable is false', async () => {
     const urls = urlsFor('estimate');
     const f = await createProjectWithSource(caller, {
       tag: 'verify-estimate',
@@ -189,7 +189,7 @@ describe('sources.verifyEstimate', () => {
       const est = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
       // `stallMs` (C1) rides along on every estimate: the Schema screen needs the
       // server's own stall window to tell a live verification from a crash leftover.
-      expect(est).toEqual({ fields: 2, upperBoundUsd: 0.1, aiAvailable: false, stallMs: VERIFY_STALL_MS });
+      expect(est).toEqual({ fields: 2, perFieldUsd: 0.05, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS });
     } finally {
       if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
       await f.cleanup();
@@ -200,5 +200,69 @@ describe('sources.verifyEstimate', () => {
     await expect(
       caller.sources.verifyEstimate({ sourceId: '00000000-0000-0000-0000-000000000000' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('sources.verifyEstimate re-verify pricing', () => {
+  it('prices only the keys asked for and reports fresh captures from the latest clean run', async () => {
+    const tag = `est-${Date.now()}`;
+    const urls = urlsFor(tag);
+    const f = await createProjectWithSource(caller, {
+      tag,
+      urls,
+      fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }],
+      expected: {
+        Price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' },
+        Title: { [urls[0]!]: 'a', [urls[1]!]: 'b', [urls[2]!]: 'c' },
+      },
+    });
+    try {
+      const all = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
+      expect(all.fields).toBe(2);
+      expect(all.capturesFresh).toBe(false);
+      expect(all.perFieldUsd).toBeGreaterThan(0);
+
+      const now = new Date().toISOString();
+      await db.insert(sourceVerifications).values({
+        sourceId: f.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        results: {},
+        captures: Object.fromEntries(f.urls.map((url) => [url, { captureId: 'c', capturedAt: now }])),
+      });
+      const one = await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!] });
+      expect(one.fields).toBe(1);
+      expect(one.capturesFresh).toBe(true);
+      expect(one.upperBoundUsd).toBe(one.aiAvailable ? one.perFieldUsd : 0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('captures are not fresh when one url is missing or blocked', async () => {
+    const tag = `est2-${Date.now()}`;
+    const urls = urlsFor(tag);
+    const f = await createProjectWithSource(caller, {
+      tag,
+      urls,
+      fields: [{ name: 'Price', type: 'money' }],
+      expected: { Price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' } },
+    });
+    try {
+      const now = new Date().toISOString();
+      await db.insert(sourceVerifications).values({
+        sourceId: f.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        results: {},
+        captures: {
+          [f.urls[0]!]: { captureId: 'c', capturedAt: now },
+          [f.urls[1]!]: { captureId: '', capturedAt: now, blockedReason: 'blocked' },
+        },
+      });
+      expect((await caller.sources.verifyEstimate({ sourceId: f.sourceId })).capturesFresh).toBe(false);
+    } finally {
+      await f.cleanup();
+    }
   });
 });
