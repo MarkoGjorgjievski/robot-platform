@@ -77,7 +77,19 @@ export function rowsFromTable(table: string[][], urlCount: number): { rows: Grid
   return { rows, problems: [] };
 }
 
-export function gridProblems(state: GridState): string[] {
+export function toBindingInput(state: GridState) {
+  const urls = state.urls.map((u) => u.trim());
+  const descriptions: Record<string, string> = {};
+  const expected: Record<string, Record<string, string>> = {};
+  for (const r of state.rows) {
+    if (!r.key) continue;
+    descriptions[r.key] = r.description.trim();
+    expected[r.key] = Object.fromEntries(urls.map((u, i) => [u, r.expected[i] ?? '']));
+  }
+  return { urls, ...(state.listingUrl.trim() ? { listingUrl: state.listingUrl.trim() } : {}), descriptions, expected };
+}
+
+export function bindingProblems(state: GridState): string[] {
   const problems: string[] = [];
   const urls = state.urls.map((u) => u.trim());
   if (urls.some((u) => u === '')) problems.push(`All ${URL_COUNT} product URLs are required`);
@@ -85,37 +97,34 @@ export function gridProblems(state: GridState): string[] {
   for (const u of [...urls, state.listingUrl.trim()].filter(Boolean)) { try { hosts.add(new URL(u).hostname.toLowerCase()); } catch { problems.push(`Not a valid URL: ${u}`); } }
   if (hosts.size > 1) problems.push('All URLs must be on the same website');
   if (new Set(urls.map((u) => u.replace(/#.*$/, ''))).size !== urls.length) problems.push('URLs must be different pages');
-  if (state.rows.length === 0) problems.push('Add at least one field');
-  const names = new Set<string>();
   for (const r of state.rows) {
-    if (r.name.trim() === '') { problems.push('Every field needs a name'); continue; }
-    if (names.has(r.name.trim().toLowerCase())) problems.push(`Duplicate field name: ${r.name}`);
-    names.add(r.name.trim().toLowerCase());
-    if (r.description.trim() === '') problems.push(`${r.name}: description is required`);
+    if (r.description.trim() === '') problems.push(`${r.name}: say where it is on this website`);
     r.expected.forEach((v, i) => { const err = validateExpectedClient(r.type, v); if (err) problems.push(`${r.name} @ ${urls[i] || `URL ${i + 1}`}: ${err}`); });
   }
   return problems;
 }
 
-export function isComplete(state: GridState): boolean { return gridProblems(state).length === 0; }
+export function isComplete(state: GridState): boolean { return bindingProblems(state).length === 0; }
+
+/** Import fills existing rows by name; it cannot add fields (those come from the project). */
+export function applyImportToRows(current: GridRow[], imported: GridRow[]): { rows: GridRow[]; ignored: string[] } {
+  const byName = new Map(imported.map((r) => [r.name.trim().toLowerCase(), r]));
+  const used = new Set<string>();
+  const rows = current.map((r) => {
+    const hit = byName.get(r.name.trim().toLowerCase());
+    if (!hit) return r;
+    used.add(r.name.trim().toLowerCase());
+    return { ...r, description: hit.description, expected: hit.expected };
+  });
+  const ignored = imported.filter((r) => !used.has(r.name.trim().toLowerCase())).map((r) => r.name);
+  return { rows, ignored };
+}
 
 export function shortUrl(url: string): string {
   let p: string;
   try { const u = new URL(url); p = u.pathname + (u.search ? '?…' : ''); } catch { p = url; }
   if (p.length <= 28) return p;
   return `${p.slice(0, 13)}…${p.slice(-14)}`;
-}
-
-export function toSchemaInput(state: GridState) {
-  const urls = state.urls.map((u) => u.trim());
-  const expected: Record<string, Record<string, string>> = {};
-  for (const r of state.rows) expected[r.key ?? r.name] = Object.fromEntries(urls.map((u, i) => [u, r.expected[i] ?? '']));
-  return {
-    urls,
-    ...(state.listingUrl.trim() ? { listingUrl: state.listingUrl.trim() } : {}),
-    fields: state.rows.map((r) => ({ ...(r.key ? { key: r.key } : {}), name: r.name.trim(), type: r.type, description: r.description.trim() })),
-    expected,
-  };
 }
 
 export function fromSource(source: { schemaDefinition: unknown; verificationSet: unknown }): GridState | null {
@@ -133,29 +142,4 @@ export function fromSource(source: { schemaDefinition: unknown; verificationSet:
 export function importProblems(err: unknown): string[] {
   const message = err instanceof Error ? err.message : String(err);
   return [`Could not read the file: ${message}`];
-}
-
-/**
- * Merge an imported table into the rows already on screen, matching by field
- * NAME (case-insensitive, trimmed).
- *
- * The New Source wizard can simply replace its rows — nothing it holds has
- * been saved yet. The Schema tab cannot: its rows carry the stable `key` that
- * every stored verification result, every certified path and the Source's own
- * `schemaDefinition` are addressed by. Replacing them wholesale drops those
- * keys, so `prepareSchema` mints brand-new ones and the field silently loses
- * its verification history and its cached certified paths.
- *
- * So: a matched row keeps its `key` (and its `id`, so React does not remount
- * the row mid-edit) and takes the imported type, description and expected
- * values; an imported row with no match is appended; a current row absent
- * from the import is dropped — an import describes the whole schema, not a
- * patch.
- */
-export function mergeImportedRows(current: GridRow[], imported: GridRow[]): GridRow[] {
-  const byName = new Map(current.map((r) => [r.name.trim().toLowerCase(), r]));
-  return imported.map((row) => {
-    const prior = byName.get(row.name.trim().toLowerCase());
-    return prior ? { ...row, id: prior.id, ...(prior.key ? { key: prior.key } : {}) } : row;
-  });
 }
