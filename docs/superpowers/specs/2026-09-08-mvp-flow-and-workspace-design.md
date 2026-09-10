@@ -199,10 +199,13 @@ the stage on the right of that, and the Verify and Extract buttons on the far ri
 | State | Strip | Table | Buttons |
 |---|---|---|---|
 | Editing | "Not verified yet · n fields · 3 pages" | editable | Verify with upper bound, Extract off with tooltip "Unlocks when every cell is green" |
-| Verifying | "Verifying", progress bar, stage text, rough time | inputs read-only, values legible, add/paste/import faded; each column header shows captured / capturing / queued; expected cells shimmer | both off, lock note in the strip |
+| Verifying | "Verifying", progress bar, stage text, rough time (**deferred to phase 5** — not implemented) | inputs read-only, values legible, add/paste/import faded; each column header shows captured / capturing / queued; expected cells shimmer | both off, lock note in the strip |
 | Results | "n of m fields verified · k need attention · j changed since" | cells coloured by rail and tint; second line reserved on every expected cell | Re-verify with count and "free" or cost, Extract on when all green |
 | Stalled | amber note in the strip, "Run it again" | editable | Verify on |
 | Capture failed | column header shows "not captured" with the reason; screenshot on hover | that column's cells amber | Verify on |
+
+Implemented as two spans, summary and detail, so section 6's single-separator rule holds per
+span rather than across the concatenated strip text (phase 3/4).
 
 Cell second line, always reserved so nothing shifts: green shows "from json-ld / api / meta /
 page", and "page shows X" when the found value differs in formatting; red shows the reason and
@@ -221,7 +224,9 @@ Re-verify label rule: "Re-verify n fields · free" when the stored captures are 
 needs AI on the estimate; otherwise "Re-verify n fields · up to $x".
 
 Ghost row is gone from this tab; fields are added on the project. Paste and import remain, mapped
-by field name onto existing rows, filling description and expected values only.
+by field name onto existing rows, filling description and expected values only. Implemented
+(phase 3): rows map by field name, falling back to position when a pasted row's name doesn't
+match any field.
 
 ### 5.7 Extract tab
 
@@ -319,7 +324,17 @@ New or changed procedures in `@robot/api`. Existing ones not listed are untouche
   urls: [3], expected: Record<key, Record<url,string>>`. Same in-flight refusal.
 - `sources.setListingPages`: `sourceId, urls: string[]`, writes the input set rows and
   `listing_mode`. `sources.setProductUrls`: same for detail mode. Both replace the wizard's
-  single `listingUrl`.
+  single `listingUrl`. Both also set `parameters.inputMode` (`'listing'` / `'detail'`) the first
+  time they save pages for a Source. This marker has two effects, implemented (phase 4): (1) a
+  binding save no longer overwrites the input set's remembered listing URL once the marker is
+  set, so the Schema tab's "find pages from a listing" popover can't clobber the Extract tab's
+  saved input; (2) the old flow's automatic 40/3 starter budget
+  (`{max_items:40,max_pages:3,mode:'first_n'}`) is treated as "unset" (and reseeded to all/all) by
+  `budgetIsUnchosen` only while the marker is absent — once it exists, any stored budget, starter
+  value included, is a real choice and is never silently reseeded.
+- `sources.inputRows`: `{ sourceId } → { urls: string[], updatedAt: Date | null }`, implemented
+  (phase 4) as a new public procedure reading the input set directly rather than
+  `sources.updated_at` (which is bumped by unrelated saves — rename, budget, schema, confirm).
 - `sources.checkListingPage`: `listingUrl` → `{ productLinks: number, pagerSeen: boolean,
   sample: string[] }` where `sample` is up to ten of the product links found, for display.
   Extends `findProductPages`, which stays for the Schema tab popover.
@@ -328,9 +343,12 @@ New or changed procedures in `@robot/api`. Existing ones not listed are untouche
   accepts the budget shape below.
 
 Budget shape on `sources.budget`: `{ max_items: number | 'all', max_pages: number | 'all',
-mode }`. `resolveBudget` maps `'all'` items to the existing all mode and `'all'` pages to a new
-`maxPages: Infinity` that the walks treat as "until the listing ends", with the existing per-run
-item ceiling and the existing api-walk batch cap still applied. The budget applies per listing
+mode }`. `resolveBudget` maps `'all'` items to the existing all mode. **Implemented differently
+from the paragraph above (phase 4):** `'all'` pages resolves to `PAGES_ALL_CEILING` (10), the
+walk's existing single-burst anti-bot cap, not to `maxPages: Infinity`. An unbounded value would
+be dishonest — the walk already refuses to burst past ten pages in one go — so the tab's copy
+says "up to 10 pages per listing" rather than promising an unlimited walk. The existing per-run
+item ceiling and the existing api-walk batch cap still apply. The budget applies per listing
 input, as it does today.
 
 ## 9. Engine changes in `@robot/scraper`
@@ -372,7 +390,7 @@ Five phases, each shippable on its own, in this order because each constrains th
 3. Schema tab: header URLs, status strip and states, cell second line, copy, project-linked
    Field and Type columns, paste-by-name.
 4. Extract tab: stepper, listing pages table with Check, sample section, run sentence, budget
-   `'all'` in the engine.
+   `'all'` in the engine. Landed 2026-09-10.
 5. Visual system: tokens, fonts, table and strip styling, restyle of Runs, run detail, Settings,
    ops screens. Phases 1 to 4 are built with the new tokens from the start where a screen is
    new; phase 5 finishes the rest.

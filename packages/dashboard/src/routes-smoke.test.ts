@@ -164,6 +164,18 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
     // locked path, which is the one that renders with the most null data.
     await checkRoute(`${route}/extract`);
 
+    const extractPage: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    try {
+      await extractPage.goto(DASHBOARD + `${route}/extract`, { waitUntil: 'networkidle', timeout: 30_000 });
+      await extractPage.waitForTimeout(1500);
+      expect(await extractPage.getByText('Extraction is locked').count(), 'the locked strip is missing').toBeGreaterThan(0);
+      for (const title of ['1 · Pages', '2 · Sample', '3 · Run']) {
+        expect(await extractPage.getByText(title).count(), `${title} is missing`).toBeGreaterThan(0);
+      }
+    } finally {
+      await extractPage.close();
+    }
+
     const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     try {
       await page.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });

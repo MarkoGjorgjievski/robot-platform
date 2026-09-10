@@ -142,6 +142,99 @@ once Marko approves that spend, or once a fresh (same-day) capture makes the but
 
 **Live proof, same day, free:** after the final fix wave made `verifyEstimate` price only fields that still need AI (a field whose latest result already certified replays stored paths at no cost), the Ikea button read `Re-verify 8 fields · free` and the controller clicked it. The cycle took 9 s: strip `Verifying · starting` then `searching` with the table locked and every header `queued`, then `8 of 8 fields verified` with Extract unlocked. `schema-tab-verifying.png` and `schema-tab-results.png` now exist under `docs/testing/screens/`. The earlier `$0.40` label was the old pricing rule (every field in the set priced), not stale captures.
 
+## MVP flow phase 4 (2026-09-10): the Extract tab is a stepper
+
+Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md` §5.7. Plan:
+`.superpowers/sdd/2026-09-10-mvp-flow-phase4-extract-tab/`. Landed across seven tasks
+(`git log --oneline 8671af7..HEAD`): budget accepts `'all'` pages, resolved to the single-burst
+ceiling (`da65e0e`); `sources.checkListingPage` reports product links and pager presence
+(`49fbbeb`); pure view logic for the stepper (`6211aa9`, `eedd0b5`); listing pages and product
+URLs as the source's input, budget on `update`, binding-save input-mode respect (`c4efcbc`); the
+stepper shell and its three sections (`a6811f3`); an API fix wave for the input-set lost-update
+window and the sandbox-source case (`e027653`); the sample polling from `planning` plus six review
+fixes (`803eb74`); the tab itself — `source-extract.tsx` — wired up, with Overview retired from
+the tab bar (`6d8b24e`); a fix wave including the switched-mode-is-not-saved-pages blocker
+(`2152a66`); and the 40/3-starter-vs-real-choice fix (`38af6e1`). The tab bar is now **Schema /
+Extract / Runs / Settings** — `/overview` and `/p/…/overview` both redirect to `/extract`, and
+nothing on the Schema tab starts a run any more (its strip button became a navigation, "Go to
+Extract").
+
+The tab is three always-rendered sections — **1 · Pages**, **2 · Sample**, **3 · Run** — over one
+`Stepper` strip. Nothing disappears: a finished section locks with an `Edit` button, a
+not-yet-reachable section stays visible and dimmed with the reason in place of its hint, and only
+`inert` removes interactivity. When the website's schema is not fully verified, a `StatusStrip`
+reading "Extraction is locked · n of m fields verified · fix `<field>` on the Schema tab" replaces
+all three sections with the locked/dimmed state and a link back to Schema — nothing below it
+applies until every cell is green.
+
+**API surface added or extended:** `sources.checkListingPage` (product-link count + pager
+detection, free, no AI), `sources.setListingPages` / `sources.setProductUrls` (the input set),
+`sources.inputRows` (new public procedure — `{ urls, updatedAt }`, keyed off `input_sets.updated_at`
+rather than the Source's own `updated_at`, which a rename/budget/schema save/confirm all bump for
+unrelated reasons), `sources.update` now taking a `budget`, and `sources.listByProject` now also
+selecting `budget` and `parameters` (verified live: Ikea's row returns
+`budget: {mode:'first_n',max_items:40,max_pages:3}` and `parameters: {...}`).
+
+**`'all'` pages resolves to `PAGES_ALL_CEILING` (10), not an unbounded walk.** The walk's own
+anti-bot rule already caps a single burst at ten pages, so an "all" that tried to mean "no limit"
+would silently behave like ten anyway; the tab is honest about that limit up front ("up to 10
+pages per listing") instead of promising something the engine can't do in one burst.
+
+**`parameters.inputMode` is the marker that the Extract tab, not the old flow, now owns this
+Source's input.** It is set the first time `setListingPages`/`setProductUrls` saves pages, and it
+has two effects: (1) a **binding save leaves the input alone** — `toBindingInput`'s remembered
+listing URL no longer overwrites what the tab has saved, so re-running "find pages from a listing"
+on the Schema tab can't clobber the Extract tab's input set; (2) the old flow's **40/3 automatic
+starter budget counts as unset only while the marker is absent**. `budgetIsUnchosen` reads the
+Source's *prior* `inputMode` inside the same transaction as the budget it's judging — an empty
+budget is always unset, but the exact starter triple `{max_items:40,max_pages:3,mode:'first_n'}`
+is unset **only when `priorInputMode === undefined`**. Once the marker exists, any non-empty budget
+is treated as a real choice and never silently reseeded to all/all — which matters because
+`budgetFromForm(40, 3)` is byte-identical to the starter, so a customer who deliberately picks
+40/3 must not have that choice mistaken for the unset default on their next visit.
+
+**The sample-finished rule**, used to unlock step 3: a probe run counts as finished when its
+status is `completed`, **or** `partial` with `rows > 0`. `partial` is a terminal status on this
+engine (it never becomes `completed`), and the ordinary outcome of a sample walk that finds more
+product links than it extracts is exactly `partial` with some rows — so gating step 3 on
+`completed` alone would make it unreachable forever for a normal listing. `sampleFinished` lives in
+`lib/extract-view.ts` and is the single source of truth `stepStates` calls; the route does not
+launder the status.
+
+**Live proof — Ikea, project `acne`, `/projects/acne/sources/ikea/extract`, free throughout (one
+listing check, one probe sample, no AI). Extract was never clicked.** The check on the saved
+listing page read, verbatim, **`7 product links · pager found`**. The sample that followed walked
+**2** pages, found **28** product links, detected pagination as **`mechanical: url-pattern`**, and
+finished with sample rows complete **3 of 3**. Instrumenting the network confirmed **0** captures
+on page load — the saved row shows `saved` with a manual `Check` button, nothing fires until it's
+clicked. For a website going through the tab for the first time, the Run section opens with both
+dropdowns on `all`/`all`: "1 listing · up to 10 pages per listing · safety stop at 5,000 products
+per run". Four screenshots recorded the walk-through: `docs/testing/screens/extract-pages.png`,
+`extract-checked.png`, `extract-sample.png`, `extract-run.png`. **The plan+execute path — the
+Extract button itself, in every branch — was not exercised live**; only the free steps (check,
+sample) were clicked.
+
+**Ikea's own Source is a dev-database quirk, not the general case.** Its stored budget is still
+the 40/3 starter, because the first live save against it (during this phase's fix-round checks)
+happened *before* the `inputMode`-gated reseed rule existed, so the save that set the marker did
+not also clear the starter. The two together now read as "a real 40/3 choice" under the current
+rule, so **Ikea's Run section opens on custom 40 / custom 3**, not all/all — that is the rule
+working correctly on a Source whose history predates it, not a bug. One `sources.update` with
+`{max_items:'all',max_pages:'all',mode:'all'}` would clear it if a true all/all screenshot against
+Ikea is ever needed; nothing was written to the customer's Source just to make a screenshot match.
+
+**The listing-check and the probe-walk disagree on the same page (7 vs 28 links), and this is
+pre-existing, not introduced here.** `describeListingPage` (the free check) groups raw anchors by
+path template and reports the largest same-template group; the probe's own walk uses the full
+extraction engine and found 23–28 product links on the identical page. The two numbers sit two
+sections apart on the same tab and can look contradictory to an operator. Worth a look in phase 5.
+
+**Parked, not forgotten:** detail mode still persists `max_pages` even though a fixed URL list has
+nothing to page through; `{saved: true}` checks are seeded for detail-mode URLs but are inert
+there (no check ever fires for them); "rough time" in the Verifying strip, the strip's
+summary/detail split, and the visual system generally are all deferred to phase 5 (see the spec
+corrections below).
+
 ## Customer schema verification (2026-09-07): built and offline-proven — NO live site has verified through this flow yet
 
 **What shipped.** Marko's ruling after the 2026-09-02 corpus measurement (~65% verifiable accuracy over 7 of 8 domains) was that discovery-based extraction cannot reach competitive precision, and that the customer must define what they need and we must prove we can get it before spending at scale. `docs/superpowers/specs/2026-09-04-customer-schema-verification-design.md` is the spec; 39 commits across Tasks 1-16 (plus the final whole-branch review's fix wave) of `docs/superpowers/plans/2026-09-04-customer-schema-verification.md` built it: a new `packages/scraper/src/verify/` module (normalization, mechanical structured/DOM search, cross-capture certification, the closed transform set, the AI `propose_path` fallback, `runVerification`, and `runVerifiedExtraction` for certified-only extraction at scale); `@robot/api`'s `sources.createWithSchema`, `sources.updateSchema`, `sources.findProductPages`, `sources.verify`, `sources.verificationStatus`, and `sources.verifyEstimate` procedures plus the `requireCertification` gate wired into `sources.confirm`; and a dashboard schema-grid screen (`packages/dashboard/src/routes/new-source.tsx` / `source-schema.tsx`) that replaces the old landing page and Set-up workspace — one row per field, an expected value typed on each of three product URLs, Verify paints cells green/red, Extract stays locked until every cell is green. See `docs/extraction-architecture.md` → "Verification-first sources" for how the mechanism works and `CLAUDE.md`'s Extraction Chain step 0.
