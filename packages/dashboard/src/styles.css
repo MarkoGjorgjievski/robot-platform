@@ -1,86 +1,65 @@
 @import "tailwindcss";
-
-/*
- * Design tokens — "instrument, not brochure."
- *
- * The product's own semantics are the design system: chrome is IBM Plex Sans,
- * every value/URL/id/field-name is IBM Plex Mono, and the one saturated voice
- * is a deep teal reserved for actions and active states. Status colors keep
- * their conventional hues (emerald/red/amber) so they never compete with it.
- *
- * The gray ramp below REPLACES Tailwind's default: every existing `gray-*`
- * class in the routes picks up these cool, slightly blue-shifted neutrals.
- */
+/* Proof sheet: names in Fraunces, interface in Public Sans, values in Plex Mono. Warm paper, moss accent, a rail for status. Spec 7. */
 @theme {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces", Georgia, serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  --color-gray-50: #f6f7f9;
-  --color-gray-100: #eceef2;
-  --color-gray-200: #e0e3e9;
-  --color-gray-300: #c6cbd4;
-  --color-gray-400: #9aa1ad;
-  --color-gray-500: #6d7583;
-  --color-gray-600: #545c6b;
-  --color-gray-700: #3e4553;
-  --color-gray-800: #2a303c;
-  --color-gray-900: #1a1e28;
-  --color-gray-950: #11141b;
-
-  --color-accent-50: #ecf8fa;
-  --color-accent-100: #d3eef3;
-  --color-accent-500: #0e7a8a;
-  --color-accent-600: #0c6b79;
-  --color-accent-700: #0a5866;
+  /* The gray ramp is remapped to the warm neutrals so every existing gray-* class lands on the paper. */
+  --color-gray-50: #fbfbf9;  /* surface */
+  --color-gray-100: #f3f4f1; /* paper */
+  --color-gray-200: #e1e4de; /* rule-soft */
+  --color-gray-300: #d5d9d1; /* rule */
+  --color-gray-400: #9ba39a;
+  --color-gray-500: #666c63; /* changed — darkened from spec's #7a8077, see tokens.ts */
+  --color-gray-600: #5f665c; /* ink-soft */
+  --color-gray-700: #444a42;
+  --color-gray-800: #2b312b;
+  --color-gray-900: #1c1f1a; /* ink */
+  --color-gray-950: #121410;
+  --color-accent-50: #e8f2ea;  /* tint */
+  --color-accent-100: #d3e6d8;
+  --color-accent-500: #1f5e4a;
+  --color-accent-600: #1f5e4a;
+  --color-accent-700: #174a3a; /* hover */
+  --color-pass: #1f7a4d;   --color-pass-tint: #eaf4ee;
+  --color-fail: #a13a2a;   --color-fail-tint: #f6e6e3;
+  --color-warn: #8a5a12;   --color-warn-tint: #f5ecdc;
+  --color-changed: #666c63; /* darkened from spec's #7a8077 — see tokens.ts */
+  --color-changed-tint: #ebece8;
+  --color-paper-dark: #e9ebe5;
+  --color-white: #fbfbf9; /* "white" surfaces become surface */
 }
-
 @layer base {
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased;
-  }
-
-  ::selection {
-    background: var(--color-accent-100);
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--color-accent-500);
-    outline-offset: 2px;
-  }
-
-  /* Data is numbers in columns; keep them aligned everywhere. */
-  table {
-    font-variant-numeric: tabular-nums;
-  }
+  body { @apply bg-gray-100 text-gray-900 antialiased; font-size: 14px; line-height: 1.5; }
+  ::selection { background: var(--color-accent-50); }
+  :focus-visible { outline: 2px solid var(--color-accent-500); outline-offset: 2px; }
+  table { font-variant-numeric: tabular-nums; font-size: 13px; line-height: 1.45; }
+  h1 { @apply font-serif text-2xl font-semibold leading-[1.2] tracking-[-0.005em]; }
+  h2 { @apply font-serif text-lg font-medium leading-[1.25]; }
 }
-
-/*
- * The three recurring surfaces, named once so the routes stay terse and drift
- * doesn't creep back in per-file.
- */
-@utility card {
-  @apply rounded-lg border border-gray-200 bg-white;
-}
-
-/* 11px uppercase mono tracked label — the "this is metadata" voice. */
-@utility micro-label {
-  @apply font-mono text-[11px] font-medium uppercase tracking-wider text-gray-500;
-}
-
-@utility btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:opacity-50 disabled:hover:bg-accent-600 disabled:pointer-events-none;
-}
-
-@utility btn-quiet {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50 disabled:pointer-events-none;
-}
-
-/* Schema tab: status rail on expected cells (3px left border + faint tint), never a filled cell. */
-@utility cell-rail-pass { @apply border-l-[3px] border-l-emerald-600 bg-emerald-50/60; }
-@utility cell-rail-fail { @apply border-l-[3px] border-l-red-600 bg-red-50/60; }
-@utility cell-rail-stale { @apply border-l-[3px] border-l-gray-400 bg-gray-100/70; }
-@utility cell-rail-not-captured { @apply border-l-[3px] border-l-amber-500 bg-amber-50/60; }
+/* The name of a thing (project, website, page title). */
+@utility name { @apply font-serif font-semibold tracking-[-0.005em]; }
+/* Secondary label, sentence case: replaces the retired uppercase micro-label. */
+@utility label-soft { @apply text-xs font-medium text-gray-600; }
+/* retired: replaced by label-soft in tasks 2-7 */
+@utility micro-label { @apply label-soft; }
+/* Card: dialogs and the websites list only. */
+@utility card { @apply rounded-lg border border-gray-300 bg-gray-50; }
+/* Sheet: a table on the paper. 2px ink rule on top, rule-soft between rows, surface background. */
+@utility sheet { @apply w-full border-t-2 border-t-gray-900 bg-gray-50; }
+@utility sheet-head { @apply text-xs font-semibold text-gray-600; }
+@utility sheet-row { @apply border-b border-gray-200; }
+/* Status strip (38px, paper-dark, radius 8). */
+@utility strip { @apply flex h-[38px] items-center gap-3 overflow-hidden rounded-lg bg-paper-dark px-3 text-sm text-gray-900; }
+@utility btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-md bg-accent-600 px-4 text-sm font-medium text-white transition-colors hover:bg-accent-700 disabled:opacity-45 disabled:hover:bg-accent-600 disabled:pointer-events-none; }
+@utility btn-quiet { @apply inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-transparent px-3 py-1.5 text-xs font-medium text-gray-900 transition-colors hover:bg-gray-50 disabled:opacity-45 disabled:pointer-events-none; }
+/* The rail is the glyph. */
+@utility cell-rail-pass { @apply border-l-[3px] border-l-pass bg-pass-tint; }
+@utility cell-rail-fail { @apply border-l-[3px] border-l-fail bg-fail-tint; }
+@utility cell-rail-stale { @apply border-l-[3px] border-l-changed bg-changed-tint; }
+@utility cell-rail-not-captured { @apply border-l-[3px] border-l-warn bg-warn-tint; }
 @utility cell-rail-none { @apply border-l-[3px] border-l-transparent; }
+@utility line-pass { @apply text-gray-600; }  @utility line-fail { @apply text-fail; }  @utility line-warn { @apply text-warn; }  @utility line-stale { @apply text-gray-600; }
 
 /* Shimmer for cells whose result is pending. Still under prefers-reduced-motion. */
 @utility shimmer {
