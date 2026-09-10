@@ -166,6 +166,8 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
       expect(await page.getByPlaceholder('price').count(), 'the schema grid did not render').toBeGreaterThan(0);
       expect(await page.getByText('Smoke site').count(), 'the website name is not in the header').toBeGreaterThan(0);
       expect(await page.locator('input[value="price"][disabled]').count(), 'the contract row is not locked').toBeGreaterThan(0);
+      expect(await page.getByRole('status').count(), 'the status strip is missing').toBeGreaterThan(0);
+      expect(await page.getByLabel('Edit page 1').count(), 'page 1 header has no pencil').toBeGreaterThan(0);
     } finally {
       await page.close();
     }
