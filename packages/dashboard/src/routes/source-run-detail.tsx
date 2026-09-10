@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
-import {
-  Activity, Download, ExternalLink, ListChecks, HelpCircle, CheckCircle2, Loader2,
-} from 'lucide-react';
+import { Download, ExternalLink, CheckCircle2, Loader2 } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
@@ -22,6 +20,7 @@ import {
 } from '../lib/backfill-preview';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
+import { RunStatusDot } from '../components/run-status-dot';
 
 // Mirrors `DETAIL_URL_FIELD` in packages/api/src/crawl/effective-schema.ts
 // (re-exported from @robot/scraper). Not imported directly — the dashboard
@@ -173,26 +172,25 @@ export default function SourceRunDetail() {
 
   return (
     <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Link to="/projects" className="hover:text-gray-700">Projects</Link>
+      <div className="flex items-center gap-1 text-xs text-gray-600">
+        <Link to="/projects" className="hover:text-gray-900">Projects</Link>
         <span>/</span>
-        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">Project</Link>
         <span>/</span>
-        <Link to="/projects/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-700">Sources</Link>
+        <Link to="/projects/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-900">Websites</Link>
         <span>/</span>
-        <Link to="/projects/$project/sources/$source" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-700">
+        <Link to="/projects/$project/sources/$source" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-900">
           {source?.name ?? sourceSlug}
         </Link>
         <span>/</span>
-        <Link to="/projects/$project/sources/$source/runs" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-700">Runs</Link>
+        <Link to="/projects/$project/sources/$source/runs" params={{ project: projectSlug, source: sourceSlug }} className="hover:text-gray-900">Runs</Link>
         <span>/</span>
-        <span className="text-gray-700 font-mono">{runId.slice(0, 8)}</span>
+        <span className="font-mono text-gray-900">{runId.slice(0, 8)}</span>
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <Activity className="h-5 w-5 text-gray-400" />
-        <h1 className="text-xl font-semibold tracking-tight">
-          Run <span className="font-mono text-lg text-gray-500">{runId.slice(0, 8)}</span>
+      <div className="mt-1 flex items-center gap-3">
+        <h1 className="name text-2xl leading-[1.2]">
+          Run <span className="font-mono text-xl text-gray-600">{runId.slice(0, 8)}</span>
         </h1>
         <RunStatusBadge status={run.status} />
         <div className="ml-auto flex items-center gap-2">
@@ -202,21 +200,21 @@ export default function SourceRunDetail() {
       </div>
 
       {run.parentRunId && (
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1.5 text-xs text-gray-600">
           Backfill of run{' '}
           <Link
             to="/projects/$project/sources/$source/runs/$run"
             params={{ project: projectSlug, source: sourceSlug, run: run.parentRunId }}
-            className="font-mono text-accent-700 hover:underline"
+            className="font-mono text-accent-700 underline-offset-2 hover:underline"
           >
             {run.parentRunId.slice(0, 8)}
           </Link>
-          {targetFields.length > 0 && <> · fields: {targetFields.join(', ')}</>}
+          {targetFields.length > 0 && <> for fields {targetFields.join(', ')}</>}
         </p>
       )}
 
       {backfillRuns.length > 0 && (
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1.5 text-xs text-gray-600">
           Backfilled by{' '}
           {backfillRuns.map((b, i) => (
             <span key={b.id}>
@@ -224,7 +222,7 @@ export default function SourceRunDetail() {
               <Link
                 to="/projects/$project/sources/$source/runs/$run"
                 params={{ project: projectSlug, source: sourceSlug, run: b.id }}
-                className="font-mono text-accent-700 hover:underline"
+                className="font-mono text-accent-700 underline-offset-2 hover:underline"
               >
                 run {b.id.slice(0, 8)}
               </Link>
@@ -234,7 +232,7 @@ export default function SourceRunDetail() {
         </p>
       )}
 
-      <dl className="card mt-6 grid grid-cols-2 gap-4 p-4 text-sm md:grid-cols-4">
+      <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t-2 border-t-gray-900 pt-4 md:grid-cols-4">
         <Stat label="Status" value={run.status} />
         <Stat label="Started" value={run.startedAt ? new Date(run.startedAt).toLocaleString() : '—'} />
         <Stat label="Completed" value={run.completedAt ? new Date(run.completedAt).toLocaleString() : '—'} />
@@ -242,23 +240,23 @@ export default function SourceRunDetail() {
       </dl>
 
       {run.errorMessage && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
-          <div className="micro-label text-red-600">Error</div>
-          <div className="mt-1 font-mono text-red-800">{run.errorMessage}</div>
+        <div className="mt-6 border-l-[3px] border-l-fail bg-fail-tint px-4 py-3">
+          <div className="label-soft text-fail">Error</div>
+          <div className="mt-1 font-mono text-[13px] text-fail">{run.errorMessage}</div>
         </div>
       )}
 
       {capture?.url && (
-        <div className="mt-8">
-          <h2 className="micro-label">URL</h2>
+        <div className="mt-6">
+          <h2 className="label-soft font-sans">URL</h2>
           <a
             href={capture.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 flex items-center gap-1 font-mono text-xs text-gray-600 hover:text-gray-900"
+            className="mt-1 flex items-center gap-1.5 font-mono text-[13px] text-gray-600 hover:text-accent-700"
           >
-            {capture.url}
-            <ExternalLink className="h-3 w-3" />
+            <span className="truncate">{capture.url}</span>
+            <ExternalLink className="h-3 w-3 flex-shrink-0" />
           </a>
         </div>
       )}
@@ -327,30 +325,31 @@ function ExportLink({ runId, format }: { runId: string; format: 'csv' | 'json' }
   );
 }
 
+/** One fact of a facts row: the label above, the value in mono below. */
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="micro-label">{label}</div>
-      <div className="mt-1 font-medium">{value}</div>
+    <div className="min-w-0">
+      <dt className="label-soft">{label}</dt>
+      <dd className="mt-1 truncate font-mono text-lg text-gray-900" title={value}>{value}</dd>
     </div>
   );
 }
 
 /**
- * Amber is for a run still in motion. It used to branch on `'running'`, which
- * is an ITEM status — `run_items.status` — that a run row never holds, so the
- * one state worth colouring differently never was. The run statuses are
+ * The run's status: the shared dot plus the word, so a status reads the same
+ * here as in the runs list — colour lives in `RunStatusDot` alone.
+ *
+ * That dot is also why this no longer branches on `'running'`, which is an
+ * ITEM status — `run_items.status` — that a run row never holds, so the one
+ * state worth colouring differently never was. The run statuses are
  * planning -> planned -> extracting -> completed | partial | failed, plus
- * cancelling / cancelled.
+ * cancelling / cancelled, and the dot covers each of them.
  */
 function RunStatusBadge({ status }: { status: string }) {
-  const cls = status === 'completed' ? 'bg-emerald-100 text-emerald-800'
-    : status === 'failed' ? 'bg-red-100 text-red-800'
-    : isRunActive(status) || status === 'planning' ? 'bg-amber-100 text-amber-800'
-    : 'bg-gray-100 text-gray-700';
   return (
-    <span className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide ${cls}`}>
-      {status}
+    <span className="inline-flex items-center gap-2">
+      <RunStatusDot status={status} />
+      <span className="label-soft">{status}</span>
     </span>
   );
 }
@@ -405,8 +404,12 @@ function ExecuteControls({ runId, probeUnconfirmed, backfill }: { runId: string;
     : null;
 
   return (
-    <div className="card mt-6 flex flex-wrap items-center gap-3 px-4 py-3">
-      <span className="text-sm font-medium">{progressLabel(data.counts, data.status)}</span>
+    // Strip, not `card`: a status bar on paper-dark (spec 7). Written out
+    // rather than using the `strip` utility because that one locks a 38px
+    // height and clips its overflow — the notice and error lines below wrap
+    // onto their own row here.
+    <div className="mt-6 flex min-h-[38px] flex-wrap items-center gap-3 rounded-lg bg-paper-dark px-3 py-2">
+      <span className="text-sm font-medium text-gray-900">{progressLabel(data.counts, data.status)}</span>
       <div className="ml-auto flex items-center gap-2">
         {controls.showExtract && (
           <button
@@ -432,15 +435,15 @@ function ExecuteControls({ runId, probeUnconfirmed, backfill }: { runId: string;
           <button
             onClick={() => cancel.mutate({ runId })}
             disabled={cancel.isPending}
-            className="btn-quiet hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+            className="btn-quiet hover:border-fail hover:bg-fail-tint hover:text-fail"
           >
             {cancel.isPending ? 'Stopping…' : 'Stop'}
           </button>
         )}
       </div>
       {notice && <span className="basis-full text-[11px] text-gray-600">{notice}</span>}
-      {execute.isError && <span className="text-[11px] text-red-600">{execute.error.message}</span>}
-      {cancel.isError && <span className="text-[11px] text-red-600">{cancel.error.message}</span>}
+      {execute.isError && <span className="basis-full text-[11px] text-fail">{execute.error.message}</span>}
+      {cancel.isError && <span className="basis-full text-[11px] text-fail">{cancel.error.message}</span>}
     </div>
   );
 }
@@ -508,11 +511,12 @@ function CoverageActionBar({
   const note = filterField ? emptyFilterNote(coverage?.find((c) => c.name === filterField)) : null;
 
   return (
-    <div className="card mt-6 flex flex-wrap items-center gap-3 px-4 py-3">
+    // Same strip as ExecuteControls, for the same reason (see there).
+    <div className="mt-6 flex min-h-[38px] flex-wrap items-center gap-3 rounded-lg bg-paper-dark px-3 py-2">
       {filterField && (
-        <span className="text-sm text-gray-700">
+        <span className="text-sm text-gray-900">
           {missingCount} {missingCount === 1 ? 'row' : 'rows'} missing{' '}
-          <code className="font-mono text-xs text-gray-900">{filterField}</code>
+          <code className="font-mono text-[13px] text-gray-900">{filterField}</code>
         </span>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -534,7 +538,7 @@ function CoverageActionBar({
       </div>
       {note && <span className="basis-full text-[11px] text-gray-600">{note}</span>}
       {backfill.isError && (
-        <span className="basis-full text-[11px] text-red-600">{backfill.error.message}</span>
+        <span className="basis-full text-[11px] text-fail">{backfill.error.message}</span>
       )}
     </div>
   );
@@ -624,29 +628,29 @@ function BackfillGapsPanel({
   const mutationInput = previewQuery.data ? backfillMutationInput(fields, activeChecked, strategy) : null;
 
   return (
-    <div className="card mt-6 p-4">
+    <div className="mt-6 border-t border-gray-200 pt-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-gray-900">Backfill gaps</h2>
+        <h2 className="name text-lg">Backfill gaps</h2>
         <button onClick={() => setOpen(false)} className="btn-quiet">Close</button>
       </div>
 
       {!previewQuery.data ? (
-        <p className="mt-3 text-sm text-gray-500">Loading preview…</p>
+        <p className="mt-3 text-sm text-gray-600">Loading preview…</p>
       ) : (
         <>
-          <ul className="mt-3 space-y-1.5">
+          <ul className="mt-3 space-y-2">
             {fields.map((f) => (
-              <li key={f.name} className="flex items-center gap-2 text-sm">
+              <li key={f.name} className="flex items-center gap-3 text-sm">
                 <input
                   type="checkbox"
                   checked={activeChecked.has(f.name)}
                   onChange={() => toggleField(f.name)}
                   aria-label={`Include ${f.name}`}
                 />
-                <span className="font-mono text-xs text-gray-800">{f.name}</span>
-                <span className="micro-label text-gray-500">{Math.round(f.fill * 100)}% filled</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-                  f.classification === 'dead' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                <span className="font-mono text-[13px] text-gray-900">{f.name}</span>
+                <span className="font-mono text-[13px] text-gray-600">{Math.round(f.fill * 100)}% filled</span>
+                <span className={`font-mono text-[12px] ${
+                  f.classification === 'dead' ? 'text-fail' : 'text-pass'
                 }`}
                 >
                   {f.classification}
@@ -661,8 +665,8 @@ function BackfillGapsPanel({
                 const copy = strategyCopy(f);
                 if (!copy) return null;
                 return (
-                  <div key={f.name} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs">
-                    <p className="micro-label text-amber-700">{copy.title}</p>
+                  <div key={f.name} className="border-l-[3px] border-l-warn bg-warn-tint px-3 py-2 text-xs text-gray-900">
+                    <p className="label-soft text-warn">{copy.title}</p>
                     <label className="mt-1.5 flex items-center gap-1.5">
                       <input
                         type="radio"
@@ -688,7 +692,7 @@ function BackfillGapsPanel({
           )}
 
           {checkedPreviewQuery.data && (
-            <p className="mt-3 text-sm text-gray-700">
+            <p className="mt-4 text-sm text-gray-900">
               {previewSummary(checkedPreviewQuery.data)}
             </p>
           )}
@@ -696,11 +700,11 @@ function BackfillGapsPanel({
           <button
             onClick={() => mutationInput && backfill.mutate({ runId, ...mutationInput })}
             disabled={backfill.isPending || !mutationInput || mutationInput.targetFields.length === 0}
-            className="btn-primary mt-3 px-3 py-1.5 text-xs"
+            className="btn-primary mt-3 h-9"
           >
             Run backfill
           </button>
-          {backfill.isError && <p className="mt-2 text-xs text-red-600">{backfill.error.message}</p>}
+          {backfill.isError && <p className="mt-2 text-xs text-fail">{backfill.error.message}</p>}
         </>
       )}
     </div>
@@ -723,55 +727,52 @@ function WorkList({ runId }: { runId: string }) {
 
   return (
     <div className="mt-8">
-      <div className="flex items-baseline gap-3">
-        <ListChecks className="h-4 w-4 self-center text-gray-400" />
-        <h2 className="text-sm font-medium text-gray-900">Work list</h2>
-        <span className="text-xs text-gray-500">{summariseWorkList(data.counts)}</span>
+      <div className="mb-3 flex items-baseline gap-3">
+        <h2 className="name text-lg leading-[1.25]">Work list</h2>
+        <span className="text-xs text-gray-600">{summariseWorkList(data.counts)}</span>
       </div>
 
-      <div className="card mt-3 overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+        <table className="sheet">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50/60">
-              <th className="micro-label px-3 py-2 text-left">Kind</th>
-              <th className="micro-label px-3 py-2 text-left">Page</th>
-              <th className="micro-label px-3 py-2 text-left">Status</th>
-              <th className="micro-label px-3 py-2 text-left">URL</th>
-              <th className="micro-label px-3 py-2 text-left">From the listing</th>
+            <tr className="sheet-head sheet-row h-8">
+              <th className="px-3 text-left font-semibold">Kind</th>
+              <th className="px-3 text-left font-semibold">Page</th>
+              <th className="px-3 text-left font-semibold">Status</th>
+              <th className="px-3 text-left font-semibold">URL</th>
+              <th className="px-3 text-left font-semibold">From the listing</th>
             </tr>
           </thead>
           <tbody>
             {data.items.slice(0, 200).map((item) => (
-              <tr key={item.id} className="border-b border-gray-100 transition-colors last:border-b-0 hover:bg-gray-50/60">
-                <td className="px-3 py-2 align-top">
-                  <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wide ${
-                    item.kind === 'listing' ? 'bg-accent-50 text-accent-700' : 'bg-gray-100 text-gray-600'
-                  }`}>
+              <tr key={item.id} className="sheet-row h-8 transition-colors last:border-b-0 hover:bg-gray-100">
+                <td className="px-3 py-1.5 align-top">
+                  <span className="font-mono text-[12px] text-gray-600">
                     {item.kind}
                   </span>
                 </td>
-                <td className="px-3 py-2 align-top font-mono text-xs text-gray-500">{item.pageNumber ?? '—'}</td>
-                <td className="px-3 py-2 align-top">
-                  <span className={`text-xs font-medium ${
-                    item.status === 'failed' ? 'text-red-600'
-                      : item.status === 'done' ? 'text-emerald-700' : 'text-gray-500'
+                <td className="px-3 py-1.5 align-top font-mono text-[13px] text-gray-600">{item.pageNumber ?? '—'}</td>
+                <td className="px-3 py-1.5 align-top">
+                  <span className={`text-[13px] ${
+                    item.status === 'failed' ? 'text-fail'
+                      : item.status === 'done' ? 'text-pass' : 'text-gray-600'
                   }`}>
                     {item.status}
                   </span>
-                  {item.error && <div className="max-w-[240px] font-mono text-[10px] text-red-600">{item.error}</div>}
+                  {item.error && <div className="max-w-[240px] font-mono text-[11px] text-fail">{item.error}</div>}
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-1.5 align-top">
                   <a
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block max-w-[420px] truncate font-mono text-xs text-gray-700 hover:text-accent-700"
+                    className="block max-w-[420px] truncate font-mono text-[13px] text-gray-900 hover:text-accent-700"
                     title={item.url}
                   >
                     {item.url}
                   </a>
                 </td>
-                <td className="px-3 py-2 align-top font-mono text-[11px] text-gray-500">
+                <td className="px-3 py-1.5 align-top font-mono text-[11px] text-gray-600">
                   {listingValuesLabel(item.listingValues)}
                 </td>
               </tr>
@@ -780,7 +781,7 @@ function WorkList({ runId }: { runId: string }) {
         </table>
       </div>
       {data.items.length > 200 && (
-        <p className="mt-2 text-xs text-gray-500">Showing 200 of {data.items.length} items.</p>
+        <p className="mt-2 text-xs text-gray-600">Showing 200 of {data.items.length} items.</p>
       )}
     </div>
   );
@@ -880,31 +881,30 @@ function ProbeConfirmGate({
   const showDiagnosisPanel = showDiagnosis || runFailed;
 
   return (
-    <div className="card mt-6 p-4">
+    <div className="mt-6 border-t border-gray-200 pt-6">
       <div className="flex items-baseline gap-3">
-        <HelpCircle className="h-4 w-4 self-center text-gray-400" />
-        <h2 className="text-sm font-medium text-gray-900">Probe results</h2>
+        <h2 className="name text-lg leading-[1.25]">Probe results</h2>
       </div>
 
       {evidence ? (
-        <dl className="mt-3 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+        <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
           <Stat label="Pages walked" value={String(evidence.pagesWalked)} />
           <Stat label="Items found" value={String(evidence.itemsFound)} />
           <Stat label="Pagination" value={evidence.paginationNote} />
           <Stat label="Warnings" value={String(evidence.warningsCount)} />
         </dl>
       ) : itemsQuery.isError ? (
-        <p className="mt-3 text-sm text-red-600">
+        <p className="mt-3 text-sm text-fail">
           Couldn't load the probe's evidence: {itemsQuery.error.message}
         </p>
       ) : (
-        <p className="mt-3 text-sm text-gray-500">Loading probe evidence…</p>
+        <p className="mt-3 text-sm text-gray-600">Loading probe evidence…</p>
       )}
 
       {sampleRows}
 
       {evidence && !runFailed && (
-        <div className="mt-4">
+        <div className="mt-6">
           <p className="text-sm font-medium text-gray-900">Is this the desirable path?</p>
           <div className="mt-2 flex items-center gap-2">
             <button
@@ -922,7 +922,7 @@ function ProbeConfirmGate({
             </button>
           </div>
           {confirmMutation.isError && (
-            <p className="mt-2 text-xs text-red-600">{confirmMutation.error.message}</p>
+            <p className="mt-2 text-xs text-fail">{confirmMutation.error.message}</p>
           )}
         </div>
       )}
@@ -956,24 +956,24 @@ function DiagnosisPanel({
   sourceSlug: string;
 }) {
   return (
-    <div className="mt-4 border-t border-gray-100 pt-4">
+    <div className="mt-6 border-t border-gray-200 pt-4">
       {diagnosis.length === 0 ? (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-gray-600">
           No specific problem found in the probe's own evidence — use your judgment, or pick one of
           the actions below.
         </p>
       ) : (
         <div className="space-y-2">
           {diagnosis.map((d, i) => (
-            <div key={i} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm">
-              <p className="micro-label text-red-600">{d.title}</p>
-              <p className="mt-0.5 text-red-800">{d.detail}</p>
+            <div key={i} className="border-l-[3px] border-l-fail bg-fail-tint px-3 py-2 text-sm">
+              <p className="label-soft text-fail">{d.title}</p>
+              <p className="mt-0.5 text-gray-900">{d.detail}</p>
             </div>
           ))}
         </div>
       )}
 
-      <p className="mt-3 text-xs text-gray-500">
+      <p className="mt-4 text-xs text-gray-600">
         To change the pages this website extracts from, edit the product pages on its Schema tab.
       </p>
 
