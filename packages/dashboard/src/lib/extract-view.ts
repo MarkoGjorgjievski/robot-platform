@@ -6,12 +6,31 @@ import type { ProbeEvidence } from './probe-evidence';
 export type StepState = 'locked' | 'current' | 'done' | 'later';
 export type ExtractMode = 'listing' | 'detail';
 
+/** A sample run as the stepper reads it: how it ended, and how many rows it produced. */
+export type SampleRun = { status: string; rows: number };
+
+/**
+ * Has the sample finished producing its evidence?
+ *
+ * Not just `completed`. A probe that extracted some rows and gave up on the
+ * rest finalises `partial` — the ordinary outcome of a three-product sample
+ * where one page 404s or a certified path misses — and that run is terminal:
+ * it will never become `completed`, no matter how long the tab waits. Its
+ * evidence is the same evidence, so it must not leave Run out of reach
+ * forever. A `partial` that produced NO rows proved nothing and does not
+ * count.
+ */
+export function sampleFinished(sampleRun: SampleRun | null): boolean {
+  if (!sampleRun) return false;
+  return sampleRun.status === 'completed' || (sampleRun.status === 'partial' && sampleRun.rows > 0);
+}
+
 /** Which of the three stepper steps (Pages, Sample, Run) is current/done/later, or all locked. */
 export function stepStates(args: {
   schemaGreen: boolean;
   mode: ExtractMode | null;
   pagesSaved: boolean;
-  sampleRun: { status: string } | null;
+  sampleRun: SampleRun | null;
   running: boolean;
 }): [StepState, StepState, StepState] {
   const { schemaGreen, mode, pagesSaved, sampleRun, running } = args;
@@ -20,15 +39,22 @@ export function stepStates(args: {
   if (!mode || !pagesSaved) return ['current', 'later', 'later'];
   if (mode === 'detail') return ['done', 'done', 'current'];
   // mode === 'listing'
-  if (sampleRun && sampleRun.status === 'completed') return ['done', 'done', 'current'];
+  if (sampleFinished(sampleRun)) return ['done', 'done', 'current'];
   return ['done', 'current', 'later'];
 }
 
-/** The listing check chip: pending while running, error text verbatim, or a product-link/pager summary. */
+/**
+ * The listing check chip: pending while running, error text verbatim, a
+ * product-link/pager summary, or `saved` for a page that came back from the
+ * database and has not been checked in this session. `saved` is deliberately
+ * NOT a check result — the page is only ever checked when someone asks, so
+ * opening the tab never launches a browser.
+ */
 export function listingCheckLabel(
-  check: { productLinks: number; pagerSeen: boolean } | { error: string } | null,
+  check: { productLinks: number; pagerSeen: boolean } | { error: string } | { saved: true } | null,
 ): { tone: 'ok' | 'warn' | 'error' | 'pending'; text: string } {
   if (check === null) return { tone: 'pending', text: 'checking…' };
+  if ('saved' in check) return { tone: 'pending', text: 'saved' };
   if ('error' in check) return { tone: 'error', text: check.error };
   const linkWord = check.productLinks === 1 ? 'link' : 'links';
   const base = `${check.productLinks} product ${linkWord}`;
@@ -70,17 +96,43 @@ export function productUrlCounts(
   return { total, proof, offHost };
 }
 
-/** "3 listings · first 5 products from each · up to 10 pages per listing · safety stop at 5,000 products per run" (or the numeric-pages variant). */
-export function runSentence(b: { items: number | 'all'; pages: number | 'all' }, listings: number): string {
+/**
+ * What this budget means, said out loud.
+ *
+ * Listing mode: "3 listings · first 5 products from each · up to 10 pages per
+ * listing · safety stop at 5,000 products per run" (or the numeric-pages
+ * variant). `count` is how many listing pages will be walked.
+ *
+ * Detail mode: "12 product URLs · safety stop at 5,000 products per run", and
+ * `count` is how many URLs were pasted. There is no pagination clause at all —
+ * a fixed list of product pages has nothing to page through, and the old
+ * wording called those URLs "listings", which they are not.
+ */
+export function runSentence(
+  b: { items: number | 'all'; pages: number | 'all' },
+  count: number,
+  mode: ExtractMode = 'listing',
+): string {
   const parts: string[] = [];
-  parts.push(`${listings} ${listings === 1 ? 'listing' : 'listings'}`);
+  const detail = mode === 'detail';
+  parts.push(
+    detail
+      ? `${count} ${count === 1 ? 'product URL' : 'product URLs'}`
+      : `${count} ${count === 1 ? 'listing' : 'listings'}`,
+  );
   if (b.items !== 'all') {
-    parts.push(`first ${b.items} ${b.items === 1 ? 'product' : 'products'} from each`);
+    parts.push(
+      detail
+        ? `first ${b.items} ${b.items === 1 ? 'product' : 'products'}`
+        : `first ${b.items} ${b.items === 1 ? 'product' : 'products'} from each`,
+    );
   }
-  if (b.pages === 'all') {
-    parts.push('up to 10 pages per listing');
-  } else {
-    parts.push(`first ${b.pages} ${b.pages === 1 ? 'page' : 'pages'} of each`);
+  if (!detail) {
+    parts.push(
+      b.pages === 'all'
+        ? 'up to 10 pages per listing'
+        : `first ${b.pages} ${b.pages === 1 ? 'page' : 'pages'} of each`,
+    );
   }
   parts.push(`safety stop at ${(5000).toLocaleString('en-US')} products per run`);
   return parts.join(' · ');
@@ -98,9 +150,23 @@ function positiveInt(v: unknown): number | null {
   return typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null;
 }
 
+/**
+ * The starter budget the pre-Extract-tab flow wrote by itself — `LISTING_
+ * DEFAULT_BUDGET` in packages/api/src/routers/sources.ts, `{ max_items: 40,
+ * max_pages: 3, mode: 'first_n' }`. No customer ever chose those numbers, so
+ * the Run section must not open on `custom 40 / custom 3` and claim they did.
+ * Exactly this object (no more keys, no fewer) reads as "unset".
+ */
+function isAutomaticStarterBudget(r: Record<string, unknown>): boolean {
+  return (
+    Object.keys(r).length === 3 && r.max_items === 40 && r.max_pages === 3 && r.mode === 'first_n'
+  );
+}
+
 /** Persisted budget (possibly missing, legacy, or malformed) -> form values. Unknown/invalid always falls back to 'all'. */
 export function budgetToForm(raw: unknown): { items: number | 'all'; pages: number | 'all' } {
   if (typeof raw !== 'object' || raw === null) return { items: 'all', pages: 'all' };
+  if (isAutomaticStarterBudget(raw as Record<string, unknown>)) return { items: 'all', pages: 'all' };
   const r = raw as { max_items?: unknown; max_pages?: unknown; mode?: unknown };
   const pages = positiveInt(r.max_pages) ?? 'all';
   if (r.mode === 'all') return { items: 'all', pages };
@@ -117,16 +183,25 @@ export function lockedStripText(args: { fieldCount: number; currentKeys: string[
   return text;
 }
 
-/** The confirm gate's four evidence facts, in fixed order. */
+/**
+ * The confirm gate's four evidence facts, in fixed order.
+ *
+ * `rows` is about the SAMPLE, not the walk: `total` is how many rows the
+ * sample actually produced and `complete` how many of those have every
+ * contract column filled. It used to compare the extracted rows against every
+ * product link the listing walk found ("3 of 28"), which read as a 90%
+ * failure when the sample had done exactly what it promised — sample three
+ * products, all three complete.
+ */
 export function sampleFacts(
   evidence: ProbeEvidence,
-  counts: { detail: number; done: number },
+  rows: { complete: number; total: number },
 ): Array<{ label: string; value: string }> {
   return [
     { label: 'Pages walked', value: String(evidence.pagesWalked) },
     { label: 'Product links found', value: String(evidence.itemsFound) },
     { label: 'Pagination detected', value: evidence.paginationNote },
-    { label: 'Sample rows complete', value: `${counts.done} of ${counts.detail}` },
+    { label: 'Sample rows complete', value: `${rows.complete} of ${rows.total}` },
   ];
 }
 

@@ -28,6 +28,27 @@ function inputRowsFor(urls: string[], listingUrl: string | undefined): { rows: A
 
 const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } as const;
 
+/**
+ * Is this budget one nobody chose?
+ *
+ * Empty, or exactly `LISTING_DEFAULT_BUDGET` — which `updateBinding` writes by
+ * itself when a binding first names a listing URL. The customer never picked
+ * 40 and 3, so the Extract tab must not open its Run section on "custom 40 /
+ * custom 3" and present them as their decision. `budgetToForm` (dashboard
+ * `lib/extract-view.ts`) reads the same object the same way.
+ */
+function budgetIsUnchosen(budget: unknown): boolean {
+  if (typeof budget !== 'object' || budget === null) return true;
+  const b = budget as Record<string, unknown>;
+  if (Object.keys(b).length === 0) return true;
+  return (
+    Object.keys(b).length === 3 &&
+    b.max_items === LISTING_DEFAULT_BUDGET.max_items &&
+    b.max_pages === LISTING_DEFAULT_BUDGET.max_pages &&
+    b.mode === LISTING_DEFAULT_BUDGET.mode
+  );
+}
+
 /** The all/all starter budget `setListingPages` seeds when a Source has no budget yet. */
 const LISTING_ALL_BUDGET = { max_items: 'all', max_pages: 'all', mode: 'all' } as const;
 
@@ -93,7 +114,7 @@ async function setInputPages(
 
   const rows = accepted.map((url) => ({ url }));
   const parameters = { ...((source.parameters as Record<string, unknown> | null) ?? {}), inputMode: opts.inputMode };
-  const budgetPatch = opts.seedBudget && Object.keys((source.budget as object | null) ?? {}).length === 0 ? { budget: opts.seedBudget } : {};
+  const budgetPatch = opts.seedBudget && budgetIsUnchosen(source.budget) ? { budget: opts.seedBudget } : {};
 
   if (source.inputSetId) {
     await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));

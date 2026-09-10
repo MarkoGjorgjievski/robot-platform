@@ -109,9 +109,11 @@ export function ExtractSample({
     () =>
       columns.map((c) => ({
         name: c.key,
+        // The header reads the field's plain-language name; the key is still
+        // what every row lookup uses, and stays in the header's tooltip via
+        // `candidate` ("key · Plain-language label").
+        label: c.name,
         type: 'text',
-        // ResultsTable's only per-column hook: the header's title attribute
-        // becomes "key · Plain-language label".
         candidate: { concept: c.key, label: c.name },
       })),
     [columns],
@@ -150,7 +152,11 @@ export function ExtractSample({
   const counts = itemsQuery.data?.counts ?? EMPTY_COUNTS;
   const warnings = parseRunLog(detailQuery.data?.run.logs ?? null).warnings;
   const evidence = probeEvidence({ counts: { listing: counts.listing, detail: counts.detail }, warnings });
-  const facts = sampleFacts(evidence, { detail: counts.detail, done: counts.done });
+  // The fourth fact is about the rows the sample produced, not about every
+  // product link the walk found: a row counts as complete when every contract
+  // column on it is filled.
+  const completeRows = rows.filter((row) => columns.every((c) => !isEmptyCell(row[c.key]))).length;
+  const facts = sampleFacts(evidence, { complete: completeRows, total: rows.length });
 
   return (
     <div className="space-y-3">
