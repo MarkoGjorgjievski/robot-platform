@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications } from '@robot/db';
-import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -547,20 +547,39 @@ export const sourcesRouter = router({
    * even run at all (no key = mechanical/XPath-only verification).
    */
   verifyEstimate: publicProcedure
-    .input(z.object({ sourceId: z.string().uuid() }))
+    .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
     .query(async ({ ctx, input }) => {
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
-        columns: { schemaDefinition: true },
+        columns: { schemaDefinition: true, verificationSet: true },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       }
-      const fields = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]).length : 0;
+      const allKeys = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]).map((f) => f.key) : [];
+      const fields = input.onlyKeys ? input.onlyKeys.filter((k) => allKeys.includes(k)).length : allKeys.length;
+      const aiAvailable = !!process.env.ANTHROPIC_API_KEY;
+
+      // Fresh captures make a re-verify free of browser time and, when no
+      // field needs AI, free of money too (spec 5.6 re-verify label).
+      const urls = (source.verificationSet as VerificationSet | null)?.urls ?? [];
+      const last = await ctx.db.query.sourceVerifications.findFirst({
+        where: and(eq(sourceVerifications.sourceId, input.sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
+        orderBy: [desc(sourceVerifications.completedAt)],
+        columns: { captures: true },
+      });
+      const refs = (last?.captures ?? {}) as Record<string, { captureId?: string; capturedAt?: string }>;
+      const capturesFresh = urls.length > 0 && urls.every((url) => {
+        const ref = refs[url];
+        return !!ref?.captureId && !!ref.capturedAt && Date.now() - Date.parse(ref.capturedAt) < CAPTURE_REUSE_MAX_AGE_MS;
+      });
+
       return {
         fields,
-        upperBoundUsd: fields * EST_AI_COST_PER_FIELD_USD,
-        aiAvailable: !!process.env.ANTHROPIC_API_KEY,
+        perFieldUsd: EST_AI_COST_PER_FIELD_USD,
+        upperBoundUsd: aiAvailable ? fields * EST_AI_COST_PER_FIELD_USD : 0,
+        aiAvailable,
+        capturesFresh,
         // The dashboard must not hardcode the stall window (C1): it decides
         // whether an in-flight verification is genuinely running or is a
         // crash leftover using the SAME threshold `sources.verify` applies
