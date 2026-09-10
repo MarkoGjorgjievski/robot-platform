@@ -14,7 +14,7 @@ import { runExtraction, type ExtractionAgent, type ExtractionDeps, type Extracti
 import { buildExtractionScript } from '../executor.js';
 import { acquireDomainLock } from '../domain-lock.js';
 import { lookupDomainCache, savePaginationConfig } from '../domain-cache.js';
-import { resolveBudget, itemCap } from './budget.js';
+import { resolveBudget, itemCap, PAGES_ALL_CEILING } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
 import { buildInputUrls, type InputSetColumn, type InputStrategy } from './build-input-urls.js';
 import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumerate-detail-urls.js';
@@ -172,8 +172,13 @@ type WalkResult = {
  * signal that payload termination signals are worth their extra navigations —
  * that is the documented revisit condition, recorded in docs/roadmap.md under
  * v2.
+ *
+ * Defined as `PAGES_ALL_CEILING` (imported from `./budget.js`) so the two
+ * names share one source of truth: `resolveBudget`'s `max_pages: 'all'`
+ * resolves to exactly this ceiling, by construction rather than by a test
+ * asserting two independent literals stay in sync.
  */
-export const API_WALK_MAX_BATCH = 10;
+export const API_WALK_MAX_BATCH = PAGES_ALL_CEILING;
 
 /**
  * The api-param miss, in words a human tuning the heuristics can act on.
