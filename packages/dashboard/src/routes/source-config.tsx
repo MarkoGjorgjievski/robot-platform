@@ -59,7 +59,7 @@ export default function SourceConfig() {
                   listingMode: isListing ? 'detail' : 'listing_to_detail',
                 })}
               >
-                Switch to {isListing ? 'detail' : 'listing'}
+                Switch to {isListing ? 'product URLs' : 'listing pages'}
               </button>
             )}
           </dd>
