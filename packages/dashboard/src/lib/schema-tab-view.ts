@@ -35,14 +35,31 @@ export function columnStates(args: { urls: string[]; state: StripState; stage: s
   });
 }
 
-/** "Not verified yet · n fields · 3 pages" | "Verifying" | "n of m fields verified · k need attention · j changed since" | ... per spec 5.6. */
-export function stripSummary(args: { state: StripState; fieldCount: number; pageCount: number; currentKeys: string[]; failingKeys: string[]; staleKeys: string[] }): string {
-  const { state, fieldCount, pageCount, currentKeys, failingKeys, staleKeys } = args;
+/** What a verification is about to cost in wall-clock time, in the vaguest honest words. */
+export type TimeEstimate = { fields: number; aiFields: number; capturesFresh: boolean };
+
+/**
+ * Rough wall-clock time for a verification (spec 5.6's "rough time"), deliberately
+ * coarse: three captures at ~12s each when the stored ones are stale, plus ~8s per
+ * field that has to reach AI. Never a number of seconds — a promise we can keep.
+ */
+export function roughTime(estimate: TimeEstimate): string {
+  const seconds = (estimate.capturesFresh ? 0 : 3 * 12) + estimate.aiFields * 8;
+  if (seconds === 0) return 'a few seconds';
+  if (seconds < 45) return 'under a minute';
+  return `about ${Math.ceil(seconds / 60)} min`;
+}
+
+/** "Not verified yet · n fields · 3 pages" | "Verifying · about 2 min" | "n of m fields verified · k need attention · j changed since" | ... per spec 5.6. */
+export function stripSummary(args: { state: StripState; fieldCount: number; pageCount: number; currentKeys: string[]; failingKeys: string[]; staleKeys: string[]; estimate?: TimeEstimate | null }): string {
+  const { state, fieldCount, pageCount, currentKeys, failingKeys, staleKeys, estimate } = args;
   const fields = (n: number) => `${n} field${n === 1 ? '' : 's'}`;
   switch (state) {
     case 'none':
     case 'editing': return `Not verified yet · ${fields(fieldCount)} · ${pageCount} page${pageCount === 1 ? '' : 's'}`;
-    case 'active': return 'Verifying';
+    // The rough time is the second of the two facts spec 6 allows a separator
+    // between; without a loaded estimate there is only one fact to state.
+    case 'active': return estimate ? `Verifying · ${roughTime(estimate)}` : 'Verifying';
     case 'stalled': return 'This verification stalled. Run it again.';
     case 'failed': return 'The last verification failed';
     case 'results': {

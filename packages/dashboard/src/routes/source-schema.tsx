@@ -153,9 +153,16 @@ export default function SourceSchema() {
   const captures = (status?.captures ?? {}) as Record<string, { captureId?: string; capturedAt?: string; screenshotUrl?: string; blockedReason?: string }>;
   const columns = columnStates({ urls: grid.urls, state: strip, stage: status?.stage ?? null, captures });
   const progress = active ? (() => { const m = /^capturing (\d+)\/(\d+)/.exec(status?.stage ?? ''); return m ? (Number(m[1]) - 1) / Number(m[2]) : status?.stage ? 0.9 : 0.05; })() : null;
-  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: URL_COUNT, currentKeys, failingKeys, staleKeys });
+  // The Verifying strip states two facts: that it is verifying, and roughly how
+  // long that takes (spec 5.6). Until the estimate lands there is only the first.
+  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: URL_COUNT, currentKeys, failingKeys, staleKeys, estimate: estimate ?? null });
   const stage = active ? (status?.stage ?? 'starting') : strip === 'failed' ? (status?.errorMessage ?? null) : null;
   const tone = strip === 'stalled' ? 'warn' : strip === 'failed' ? 'error' : 'neutral';
+  const lockNote = active ? 'table locked while verifying' : null;
+  // Spec 6: a disabled control's reason must be visible within one line of it,
+  // and reachable by keyboard — the strip's `title` alone is neither. Skipped
+  // while the lock note is up, which already says why Verify is off.
+  const verifyReasonNote = verify.disabled && verify.reason && !lockNote ? verify.reason : null;
 
   function cellStatus(rowId: string, urlIndex: number): CellStatus | null {
     const row = grid.rows.find((r) => r.id === rowId);
@@ -223,8 +230,8 @@ export default function SourceSchema() {
   return (
     <div className="mt-6 space-y-4">
       {showProblems && (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-xs">
-          <ul className="list-inside list-disc text-red-700">
+        <div className="rounded-md border border-fail/30 bg-fail-tint p-3 text-xs">
+          <ul className="list-inside list-disc text-fail">
             {problems.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         </div>
@@ -242,10 +249,11 @@ export default function SourceSchema() {
             summary={summary}
             stage={stage}
             progress={progress}
-            lockNote={active ? 'table locked while verifying' : null}
+            lockNote={lockNote}
             tone={tone}
             verify={{ label: verify.label, disabled: verify.disabled, reason: verify.reason, busy: verifyBusy, onClick: handleVerify, onDisabledClick: () => setTouched(true) }}
             extract={{ label: 'Go to Extract', disabled: !extractEnabled, reason: 'Unlocks when every cell is green', busy: false, onClick: () => navigate({ to: '/projects/$project/sources/$source/extract', params: { project: projectSlug, source: sourceSlug } }) }}
+            action={verifyReasonNote ? <span role="note" tabIndex={0} className="label-soft">{verifyReasonNote}</span> : undefined}
           />
 
           {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
@@ -264,26 +272,25 @@ export default function SourceSchema() {
                 setImportIgnored(r.ignored);
               }}
             />
-            {importIgnored.length > 0 && <p className="mt-1 text-xs text-amber-800">Not in this project, so skipped: {importIgnored.join(', ')}</p>}
+            {importIgnored.length > 0 && <p className="mt-1 text-xs text-warn">Not in this project, so skipped: {importIgnored.join(', ')}</p>}
           </div>
 
-          <p className="text-xs text-gray-500">
+          <p className="label-soft">
             Field names and types come from the project. <Link to="/projects/$project" params={{ project: projectSlug }} className="underline-offset-2 hover:underline">Edit fields on the project page.</Link>
           </p>
 
-          <div className="card p-4">
-            <SchemaGrid
-              state={grid}
-              onChange={updateGrid}
-              cellStatus={cellStatus}
-              columnStates={columns}
-              captures={captures}
-              readOnly={active}
-              pending={active}
-              onFindPages={async (u) => (await findMutation.mutateAsync({ listingUrl: u })).urls}
-              typeFix={typeFix}
-            />
-          </div>
+          {/* The proof sheet sits on the paper: rules, not a box (spec 7). */}
+          <SchemaGrid
+            state={grid}
+            onChange={updateGrid}
+            cellStatus={cellStatus}
+            columnStates={columns}
+            captures={captures}
+            readOnly={active}
+            pending={active}
+            onFindPages={async (u) => (await findMutation.mutateAsync({ listingUrl: u })).urls}
+            typeFix={typeFix}
+          />
         </>
       )}
     </div>
