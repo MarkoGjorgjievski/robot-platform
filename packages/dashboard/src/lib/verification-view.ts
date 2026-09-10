@@ -34,15 +34,15 @@ export type VerificationRow =
   | null
   | undefined;
 
-/** Spec §4.6 red-cell hints, verbatim, with `found`/`type` substituted where the copy calls for it. */
+/** Spec 5.6 red-cell hints, verbatim, with `found`/`type` substituted where the copy calls for it. */
 export function hintFor(reason: FailReason, found?: string, type?: string): string {
   switch (reason) {
     case 'not_found':
-      return "We couldn't find this value on this page. Check the value, or open the page and copy it exactly.";
+      return 'Not found on this page. Check the value, or say where it is.';
     case 'different_value':
-      return `On this page we found ${found ?? ''}. Is the expected value right, or does this product show it differently?`;
+      return `This page shows ${found ?? ''}. Is your value right, or does the page show it differently?`;
     case 'ambiguous':
-      return 'Several places on the page match. Add to the description what distinguishes the one you want.';
+      return 'Several places match. Add what makes yours different to the description.';
     case 'type_mismatch':
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
   }
@@ -91,14 +91,6 @@ export function cellStatusFor(
     hint: hintFor(cell.reason, cell.found, fieldType),
     weak,
   };
-}
-
-/** "N of M fields verified" — M is every field in `results`, N is every field with at least one certified path. Singular when M === 1. */
-export function summaryLine(results: VerificationResults | null | undefined): string {
-  const fields = Object.values(results ?? {});
-  const total = fields.length;
-  const verified = fields.filter((f) => f.certified.length > 0).length;
-  return `${verified} of ${total} field${total === 1 ? '' : 's'} verified`;
 }
 
 export type VerificationState = 'active' | 'stalled' | 'failed' | 'done' | 'none';
