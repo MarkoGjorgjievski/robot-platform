@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rankProductLinks } from './find-product-pages.js';
+import { rankProductLinks, describeListingPage } from './find-product-pages.js';
 
 describe('rankProductLinks', () => {
   it('returns the largest same-host path cluster in document order, capped', () => {
@@ -60,5 +60,35 @@ describe('rankProductLinks', () => {
     // Both "/about" and "/contact" template to themselves (no digits/long
     // tokens), forming two singleton groups — the largest is size 1.
     expect(rankProductLinks(anchors, 'https://shop.example/c/shoes', 10)).toEqual(['https://shop.example/about']);
+  });
+});
+
+describe('describeListingPage', () => {
+  const listingUrl = 'https://shop.example/c/shoes';
+
+  // 12 links sharing the /p/{id} template (the largest group) plus 2 links
+  // sharing a smaller /c/{cat} template — the count must reflect the full
+  // group, before rankProductLinks would cut it down to a `limit`.
+  const bigGroup = Array.from({ length: 12 }, (_, i) => ({ href: `/p/air-${i}-123456789012`, text: `Air ${i}` }));
+  const smallGroup = [
+    { href: '/c/running-123456789012', text: 'Running' },
+    { href: '/c/casual-123456789012', text: 'Casual' },
+  ];
+  const anchors = [...bigGroup, ...smallGroup];
+
+  it('reports the full largest-group size, a 10-item sample, and pagerSeen true when a pager is present', () => {
+    const html = '<html><head><link rel="next" href="?page=2"></head><body></body></html>';
+    const result = describeListingPage(anchors, listingUrl, html);
+    expect(result.productLinks).toBe(12);
+    expect(result.pagerSeen).toBe(true);
+    expect(result.sample).toHaveLength(10);
+    expect(result.sample).toEqual(bigGroup.slice(0, 10).map((a) => new URL(a.href, listingUrl).href));
+  });
+
+  it('reports pagerSeen false when the html has no pagination markup', () => {
+    const html = '<html><body><p>no pager here</p></body></html>';
+    const result = describeListingPage(anchors, listingUrl, html);
+    expect(result.productLinks).toBe(12);
+    expect(result.pagerSeen).toBe(false);
   });
 });

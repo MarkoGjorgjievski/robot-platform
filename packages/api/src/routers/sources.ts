@@ -10,7 +10,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
-import { rankProductLinks } from '../verify/find-product-pages.js';
+import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
@@ -457,6 +457,29 @@ export const sourcesRouter = router({
       });
 
       return { urls: rankProductLinks(anchors, input.listingUrl, FIND_PRODUCT_PAGES_LIMIT) };
+    }),
+
+  /**
+   * The Extract tab's per-row listing check — no AI, nothing saved, one page
+   * load. Captures the page with `withBrowserSession` exactly as
+   * `findProductPages` does, but also keeps the html around to feed
+   * `describeListingPage` (find-product-pages.ts): the largest same-path-
+   * template group's full size (not just the capped ranking), a sample of
+   * it, and whether a pager was detected on the page.
+   */
+  checkListingPage: publicProcedure
+    .input(z.object({ listingUrl: httpUrl }))
+    .mutation(async ({ input }) => {
+      const { anchors, html } = await withBrowserSession(async (browser) => {
+        const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
+        const anchors = await browser.setContentEvaluate<Array<{ href: string; text: string }>>(
+          capture.html,
+          `(() => Array.from(document.querySelectorAll('a[href]')).map(a => ({ href: a.getAttribute('href') || '', text: (a.textContent || '').trim().slice(0, 80) })))()`,
+        );
+        return { anchors, html: capture.html };
+      });
+
+      return describeListingPage(anchors, input.listingUrl, html);
     }),
 
   /**
