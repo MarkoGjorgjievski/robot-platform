@@ -162,20 +162,50 @@ describe('sources.updateBinding keeps the input set in step', () => {
     expect(s?.budget).toEqual({});
   });
 
-  it('leaves the Extract tab\'s pages alone once setListingPages owns the input (phase 4, task 3)', async () => {
+  it('leaves the Extract tab\'s listing page, mode, and budget alone on the next binding save (phase 4, task 3, fix round 1a)', async () => {
     const p = await freshProjectWithPriceField();
     const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
-    const listingUrls = [`https://${host}/c/1`, `https://${host}/c/2`, `https://${host}/c/3`];
-    await caller.sources.setListingPages({ sourceId: r.sourceId, urls: listingUrls });
+    const listingUrl = `https://${host}/all`;
 
-    // A binding (schema) save must not overwrite the rows, the listing mode,
-    // or the budget the Extract tab set — only the schema fields.
+    // The binding flow owns the input set at this point: updateBinding
+    // created it (one listing row, this same URL) itself. This is the
+    // scenario that actually exercises the fix — the old ownership check
+    // (`flowOwnsInputSet`) would ALSO think it still owns this row (it's
+    // still exactly what a fresh binding save with this same listingUrl
+    // would write), so re-using the same URL, not a different one, is what
+    // makes `parameters.inputMode` — not the pre-existing heuristic — the
+    // thing actually protecting it below.
+    await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected, listingUrl });
+
+    // The Extract tab now explicitly takes ownership of that same page.
+    await caller.sources.setListingPages({ sourceId: r.sourceId, urls: [listingUrl] });
+    const afterSetListingPages = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
+
+    // A later binding (schema) save without repeating the listing URL must
+    // not fall back to derived detail-mode rows, flip the mode, or reset the
+    // budget — the Extract tab's page owns the input now.
     await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
 
     const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId), with: { inputSet: true } });
-    expect(s?.inputSet?.rows).toEqual(listingUrls.map((url) => ({ url })));
+    expect(s?.inputSet?.rows).toEqual([{ url: listingUrl }]);
     expect(s?.listingMode).toBe('listing_to_detail');
-    expect(s?.budget).toEqual({ max_items: 'all', max_pages: 'all', mode: 'all' });
+    expect(s?.budget).toEqual(afterSetListingPages?.budget);
+    expect(s?.budget).not.toEqual({});
     expect((s?.schemaDefinition as Array<{ description: string }>)[0]!.description).toBe('the price');
+  });
+
+  it('skips the confirmed-mode lock too once the Extract tab owns the input (phase 4, task 3, fix round 1b)', async () => {
+    const p = await freshProjectWithPriceField();
+    const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: `https://${host}/` });
+    await caller.sources.setListingPages({ sourceId: r.sourceId, urls: [`https://${host}/c/1`] });
+    await db.update(sources).set({ confirmedAt: new Date() }).where(eq(sources.id, r.sourceId));
+
+    // Without a listing URL this binding save would derive `detail` mode —
+    // which would normally be refused as a mode flip on a confirmed source.
+    // Since the Extract tab owns the input, that derived-mode precondition
+    // is skipped and the schema write must go through.
+    const s = await caller.sources.updateBinding({ sourceId: r.sourceId, urls, descriptions, expected });
+    expect((s?.schemaDefinition as Array<{ description: string }> | null)?.[0]?.description).toBe('the price');
+    expect(s?.verificationSet).toEqual({ urls, expected });
   });
 });
