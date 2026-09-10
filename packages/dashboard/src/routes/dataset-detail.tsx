@@ -29,9 +29,9 @@ export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) 
     datasetSlug,
   });
 
-  if (detailQuery.isLoading) return <Spinner label="Loading dataset..." />;
+  if (detailQuery.isLoading) return <Spinner label="Loading output..." />;
   if (detailQuery.isError) return <ErrorBanner message={detailQuery.error.message} />;
-  if (!detailQuery.data) return <NotFound what={`Dataset "${datasetSlug}"`} />;
+  if (!detailQuery.data) return <NotFound what={`Output "${datasetSlug}"`} />;
 
   const dataset = detailQuery.data;
   const schema = (Array.isArray(dataset.schema) ? dataset.schema : []) as SchemaField[];
@@ -39,7 +39,7 @@ export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) 
 
   return (
     <div>
-      <Breadcrumbs projectSlug={projectSlug} datasetName={dataset.name} />
+      <Breadcrumbs projectSlug={projectSlug} />
       <div className="mt-2">
         <PageHeader title="Output" description={dataset.description ?? `Every column in ${dataset.name}.`} />
       </div>
@@ -246,13 +246,13 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
   );
 }
 
-function Breadcrumbs({ projectSlug, datasetName }: { projectSlug: string; datasetName: string }) {
+function Breadcrumbs({ projectSlug }: { projectSlug: string }) {
   return (
     <div className="flex items-center gap-1 text-xs text-gray-600">
       <Link to="/projects" className="hover:text-gray-900">Projects</Link>
       <span>/</span>
       <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">
-        {datasetName}
+        {projectSlug}
       </Link>
       <span>/</span>
       <span className="text-gray-900">Output</span>

@@ -20,7 +20,7 @@ export function Dialog({ open, title, onClose, preventClose, children }: { open:
       onClose={onClose}
       onCancel={(e) => { if (preventClose) e.preventDefault(); }}
       onClick={(e) => { if (!preventClose && e.target === ref.current) ref.current?.close(); }}
-      className="card w-[26rem] max-w-[calc(100vw-2rem)] p-0 shadow-xl backdrop:bg-gray-900/30"
+      className="card m-auto w-[26rem] max-w-[calc(100vw-2rem)] p-0 shadow-xl backdrop:bg-gray-900/30"
     >
       <div className="px-5 pt-4 pb-5" onClick={(e) => e.stopPropagation()}>
         <h2 className="name text-lg">{title}</h2>

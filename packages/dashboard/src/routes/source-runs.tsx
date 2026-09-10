@@ -29,6 +29,8 @@ export default function SourceRuns() {
   if (runsQuery.isError) return <ErrorBanner message={runsQuery.error.message} />;
 
   const runs = runsQuery.data ?? [];
+  // One Plan crawl button, never two: with no runs it is the empty state's
+  // action, otherwise it sits in the header.
   const planButton = <PlanCrawlButton sourceId={source.id} listingMode={source.listingMode} />;
 
   return (
@@ -38,7 +40,7 @@ export default function SourceRuns() {
           <h2 className="name text-lg">Runs</h2>
           <p className="label-soft mt-0.5">Every extraction this website has run.</p>
         </div>
-        <div className="ml-auto">{planButton}</div>
+        {runs.length > 0 && <div className="ml-auto">{planButton}</div>}
       </div>
 
       {runs.length === 0 ? (
