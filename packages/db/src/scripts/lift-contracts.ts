@@ -6,23 +6,28 @@ import type { Database } from '../index.js';
 type Field = { key: string; name: string; type: string; description?: string; concept: string };
 type Entry = Record<string, unknown> & { key?: string; name?: string; type?: string; concept?: string };
 
-export async function liftContracts(database: Database) {
+export async function liftContracts(database: Database, opts: { projectIds?: string[] } = {}) {
   const conflicts: Array<{ datasetId: string; key: string; kept: string; ignored: string; sourceId: string }> = [];
   let projectsGivenDataset = 0;
   let datasetsUpdated = 0;
 
   const allProjects = await database.query.projects.findMany({ with: { datasets: { columns: { id: true } } } });
-  for (const p of allProjects) {
+  const scopedProjects = opts.projectIds ? allProjects.filter((p) => opts.projectIds!.includes(p.id)) : allProjects;
+  for (const p of scopedProjects) {
     if (p.datasets.length === 0) {
       await database.insert(datasets).values({ projectId: p.id, name: p.name, slug: p.slug, schema: [] });
       projectsGivenDataset++;
     }
   }
 
-  const allDatasets = await database.query.datasets.findMany({ with: { sources: { columns: { id: true, schemaDefinition: true } } } });
-  for (const ds of allDatasets) {
+  const allDatasets = await database.query.datasets.findMany({
+    with: { sources: { columns: { id: true, schemaDefinition: true }, orderBy: (s, { asc }) => [asc(s.createdAt), asc(s.id)] } },
+  });
+  const scopedDatasets = opts.projectIds ? allDatasets.filter((d) => opts.projectIds!.includes(d.projectId)) : allDatasets;
+  for (const ds of scopedDatasets) {
     const schema: Entry[] = Array.isArray(ds.schema) ? [...(ds.schema as Entry[])] : [];
     let changed = false;
+    // Earliest-created source wins a type disagreement; later ones are recorded as conflicts.
     for (const s of ds.sources) {
       if (!Array.isArray(s.schemaDefinition)) continue;
       for (const f of s.schemaDefinition as Field[]) {
