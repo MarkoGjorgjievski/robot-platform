@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import {
   hintFor,
   cellStatusFor,
-  summaryLine,
   verificationState,
   isRowStale,
   reverifyKeys,
@@ -13,19 +12,19 @@ import { emptyRow, type GridState } from './schema-grid';
 describe('hintFor', () => {
   test('not_found', () => {
     expect(hintFor('not_found')).toBe(
-      "We couldn't find this value on this page. Check the value, or open the page and copy it exactly.",
+      'Not found on this page. Check the value, or say where it is.',
     );
   });
 
   test('different_value substitutes the found value, no asterisks', () => {
     expect(hintFor('different_value', '$42.00')).toBe(
-      'On this page we found $42.00. Is the expected value right, or does this product show it differently?',
+      'This page shows $42.00. Is your value right, or does the page show it differently?',
     );
   });
 
   test('ambiguous', () => {
     expect(hintFor('ambiguous')).toBe(
-      'Several places on the page match. Add to the description what distinguishes the one you want.',
+      'Several places match. Add what makes yours different to the description.',
     );
   });
 
@@ -33,34 +32,6 @@ describe('hintFor', () => {
     expect(hintFor('type_mismatch', 'banana', 'a number')).toBe(
       'Found banana, which is not a valid a number.',
     );
-  });
-});
-
-describe('summaryLine', () => {
-  test('plural', () => {
-    const results: VerificationResults = {};
-    for (let i = 0; i < 15; i++) {
-      results[`f${i}`] = {
-        key: `f${i}`,
-        cells: {},
-        certified: i < 14 ? [{}] : [],
-        weakEvidence: false,
-        aiCalled: false,
-        incomplete: false,
-      };
-    }
-    expect(summaryLine(results)).toBe('14 of 15 fields verified');
-  });
-
-  test('singular', () => {
-    const results: VerificationResults = {
-      price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
-    };
-    expect(summaryLine(results)).toBe('1 of 1 field verified');
-  });
-
-  test('null results', () => {
-    expect(summaryLine(null)).toBe('0 of 0 fields verified');
   });
 });
 
