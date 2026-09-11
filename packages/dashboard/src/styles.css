@@ -9,6 +9,8 @@
   --color-gray-100: #f3f4f1; /* paper */
   --color-gray-200: #e1e4de; /* rule-soft */
   --color-gray-300: #d5d9d1; /* rule */
+  /* 2.35:1 on paper — decorative glyphs only (the spinner). Anything a
+     customer has to read or click takes gray-600 (ink-soft, 5.37:1). */
   --color-gray-400: #9ba39a;
   --color-gray-500: #666c63; /* changed — darkened from spec's #7a8077, see tokens.ts */
   --color-gray-600: #5f665c; /* ink-soft */
@@ -32,6 +34,10 @@
 @layer base {
   body { @apply bg-gray-100 text-gray-900 antialiased; font-size: 14px; line-height: 1.5; }
   ::selection { background: var(--color-accent-50); }
+  /* Checkboxes and radios are the only controls the browser still paints
+     itself; without this they arrive in the default blue on an otherwise
+     moss-and-paper page. */
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--color-accent-600); }
   :focus-visible { outline: 2px solid var(--color-accent-500); outline-offset: 2px; }
   table { font-variant-numeric: tabular-nums; font-size: 13px; line-height: 1.45; }
   h1 { @apply font-serif text-2xl font-semibold leading-[1.2] tracking-[-0.005em]; }

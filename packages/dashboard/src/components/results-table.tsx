@@ -144,7 +144,7 @@ export function ResultsTable({
                           ) : state === 'absent' ? (
                             <span className="italic text-gray-600">not on page</span>
                           ) : (
-                            <span className="text-gray-400">—</span>
+                            <span className="text-gray-600">—</span>
                           )}
                         </td>
                       );
