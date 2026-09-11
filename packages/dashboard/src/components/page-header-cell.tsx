@@ -53,10 +53,10 @@ export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl
 
   return (
     <div ref={ref} className="relative">
-      <div className="flex items-center gap-1 font-mono text-[11.5px] font-medium text-gray-900" title={url || undefined}>
+      <div className="flex items-center gap-1 font-mono text-[12px] font-medium text-gray-900" title={url || undefined}>
         {/* An empty column asks for what it needs; the page number is already on the line below. */}
         <span className={`truncate ${url ? '' : 'font-sans font-normal text-gray-600'}`}>{url ? shortUrl(url) : 'Add a product page'}</span>
-        <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Edit page ${index + 1}`} title="Edit this page" className={disabled ? 'invisible' : 'text-gray-400 hover:text-gray-900'}><Pencil className="h-3 w-3" /></button>
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Edit page ${index + 1}`} title="Edit this page" className={disabled ? 'invisible' : 'text-gray-600 hover:text-gray-900'}><Pencil className="h-3 w-3" /></button>
       </div>
       <div className="label-soft mt-0.5 flex h-4 min-w-0 items-center gap-1.5" title={blockedReason}>
         <span className="flex-shrink-0">Page {index + 1}</span>

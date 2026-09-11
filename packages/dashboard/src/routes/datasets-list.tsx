@@ -39,6 +39,7 @@ export default function DatasetsList() {
         <EmptyState
           title="Nothing to show yet"
           description="Add fields on the project page and the output appears here."
+          action={<Link to="/projects/$project" params={{ project: projectSlug }} className="btn-primary h-9">Go to the project</Link>}
         />
       ) : (
         <table className="sheet mt-6">
@@ -46,26 +47,20 @@ export default function DatasetsList() {
             <tr className="sheet-row">
               <th className="sheet-head px-3 py-2 text-left">Name</th>
               <th className="sheet-head px-3 py-2 text-left">Websites</th>
-              <th className="sheet-head px-3 py-2 text-left"> </th>
             </tr>
           </thead>
           <tbody>
             {datasets.map((d) => (
               <tr key={d.id} className="sheet-row h-8">
                 <td className="px-3">
-                  <span className="name text-[15px]">{d.name}</span>
+                  <span className="text-[15px] font-medium text-gray-900">{d.name}</span>
                   {d.description && <span className="ml-2 text-xs text-gray-600">{d.description}</span>}
                 </td>
+                {/* No "Open" column: this list IS /projects/:project/output
+                     (project-output.tsx renders it whenever a project has more
+                     than one dataset), so the link went to the page it was on.
+                     It comes back when a per-dataset route exists. */}
                 <td className="px-3 font-mono">{d.sourceCount}</td>
-                <td className="px-3 text-right">
-                  <Link
-                    to="/projects/$project/output"
-                    params={{ project: projectSlug }}
-                    className="text-xs text-accent-700 underline-offset-2 hover:underline"
-                  >
-                    Open
-                  </Link>
-                </td>
               </tr>
             ))}
           </tbody>
