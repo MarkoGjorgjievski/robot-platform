@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
-import { Download, ExternalLink, CheckCircle2, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, Loader2 } from 'lucide-react';
 import { trpc } from '../lib/trpc';
+import { useProjectName } from '../lib/use-project-name';
 import { runExportUrl } from '../lib/export-url';
 import { summariseWorkList, listingValuesLabel } from '../lib/work-list';
 import {
@@ -21,6 +22,7 @@ import {
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 import { RunStatusDot } from '../components/run-status-dot';
+import { Stat } from '../components/stat';
 
 // Mirrors `DETAIL_URL_FIELD` in packages/api/src/crawl/effective-schema.ts
 // (re-exported from @robot/scraper). Not imported directly — the dashboard
@@ -31,6 +33,7 @@ export default function SourceRunDetail() {
   const { project: projectSlug, source: sourceSlug, run: runId } = useParams({
     from: '/projects/$project/sources/$source/runs/$run',
   });
+  const projectName = useProjectName(projectSlug);
 
   const detailQuery = trpc.runs.getWithDetails.useQuery({ id: runId });
 
@@ -199,7 +202,7 @@ export default function SourceRunDetail() {
       <div className="flex items-center gap-1 text-xs text-gray-600">
         <Link to="/projects" className="hover:text-gray-900">Projects</Link>
         <span>/</span>
-        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">Project</Link>
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">{projectName}</Link>
         <span>/</span>
         <Link to="/projects/$project/sources" params={{ project: projectSlug }} className="hover:text-gray-900">Websites</Link>
         <span>/</span>
@@ -346,27 +349,6 @@ function ExportLink({ runId, format }: { runId: string; format: 'csv' | 'json' }
       <Download className="h-3 w-3" />
       {format.toUpperCase()}
     </a>
-  );
-}
-
-/**
- * One fact of a facts row: the label above, the value in mono below.
- *
- * `'value'` is the table-sized default every ordinary fact uses. `'figure'`
- * is the 18px reading reserved for the probe gate's four evidence counts,
- * where the number itself is the thing being judged.
- */
-function Stat({ label, value, size = 'value' }: { label: string; value: string; size?: 'value' | 'figure' }) {
-  return (
-    <div className="min-w-0">
-      <dt className="label-soft">{label}</dt>
-      <dd
-        className={`mt-1 truncate font-mono text-gray-900 ${size === 'figure' ? 'text-lg' : 'text-[13px]'}`}
-        title={value}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }
 
@@ -946,9 +928,7 @@ function ProbeConfirmGate({
               disabled={confirmMutation.isPending || !sourceId}
               className="btn-primary h-9"
             >
-              {confirmMutation.isPending
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <CheckCircle2 className="h-4 w-4" />}
+              {confirmMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Yes, crawl everything
             </button>
             <button onClick={() => setShowDiagnosis((v) => !v)} className="btn-quiet">
@@ -978,7 +958,7 @@ function ProbeConfirmGate({
  * a dead end dressed as a button. InputSet editing is Phase 3b work, not
  * this wave's; the honest fix is telling the operator what to do today
  * (delete and recreate from the home page) instead of promising a working
- * editor that isn't there. "Switch mode" DOES work now — it points at
+ * editor that isn't there. "Go to Settings" DOES work now — it points at
  * Source Config's new mode toggle (`source-config.tsx`), the other half of
  * this ruling.
  */
@@ -1017,7 +997,7 @@ function DiagnosisPanel({
           params={{ project: projectSlug, source: sourceSlug }}
           className="btn-quiet"
         >
-          Switch mode
+          Go to Settings
         </Link>
       </div>
     </div>

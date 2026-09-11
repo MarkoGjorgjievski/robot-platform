@@ -4,6 +4,7 @@ import { Globe, Layers, ArrowRight, RefreshCw } from 'lucide-react';
 import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
 import { formatValue, previewValue } from '../lib/format';
+import { Stat } from '../components/stat';
 import type { CandidateCatalogue } from '../lib/candidate-picker';
 
 export default function DomainDetail() {
@@ -20,14 +21,14 @@ export default function DomainDetail() {
 
   return (
     <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Link to="/ops/domains" className="hover:text-gray-700">Domains</Link>
+      <div className="flex items-center gap-1 text-xs text-gray-600">
+        <Link to="/ops/domains" className="hover:text-gray-900">Domains</Link>
         <span>/</span>
-        <span className="font-mono text-gray-700">{domain}</span>
+        <span className="font-mono text-gray-900">{domain}</span>
       </div>
 
       <div className="mt-2 flex items-center gap-3">
-        <Globe className="h-5 w-5 text-gray-400" />
+        <Globe className="h-5 w-5 text-gray-600" />
         <h1 className="font-mono text-2xl font-medium">{domain}</h1>
       </div>
 
@@ -57,7 +58,11 @@ export default function DomainDetail() {
         Sources across customers touching {domain} ({sources.length})
       </h2>
       {sources.length === 0 ? (
-        <EmptyState title="No sources touch this domain yet" description="Nothing has been configured against this domain across projects." />
+        <EmptyState
+          title="No sources touch this domain yet"
+          description="Nothing has been configured against this domain across projects."
+          action={<Link to="/ops/domains" className="btn-primary h-9">Back to domains</Link>}
+        />
       ) : (
         <ul className="mt-2 divide-y divide-gray-200">
           {sources.map((s) => (
@@ -67,14 +72,14 @@ export default function DomainDetail() {
                 params={{ project: s.projectSlug, source: s.slug }}
                 className="flex items-center gap-3 px-3 py-3 transition-colors hover:bg-gray-50"
               >
-                <Layers className="h-4 w-4 text-gray-400" />
+                <Layers className="h-4 w-4 text-gray-600" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{s.name}</div>
-                  <div className="truncate font-mono text-xs text-gray-500">
+                  <div className="truncate font-mono text-xs text-gray-600">
                     {s.projectName}, {s.datasetName}, {s.urlTemplate}
                   </div>
                 </div>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
+                <ArrowRight className="h-4 w-4 text-gray-600" />
               </Link>
             </li>
           ))}
@@ -109,7 +114,7 @@ function SelectorsTable({
     onSuccess: () => utils.domains.intelligenceDetail.invalidate({ domain }),
   });
   if (selectors.length === 0) {
-    return <p className="mt-3 text-xs text-gray-400">No cached field paths.</p>;
+    return <p className="mt-3 text-xs text-gray-600">No cached field paths.</p>;
   }
   const sorted = [...selectors].sort((a, b) => (asc ? a.hitRate - b.hitRate : b.hitRate - a.hitRate));
   const conflictByField = new Map(conflicts.map((c) => [c.field, c]));
@@ -169,7 +174,7 @@ function SelectorsTable({
       <div className="mt-4 overflow-x-auto">
         <table className="sheet">
           <thead>
-            <tr className="border-b border-gray-300">
+            <tr className="sheet-row">
               <th className="sheet-head px-3 py-2 text-left">Field</th>
               <th className="sheet-head px-3 py-2 text-left">Source</th>
               <th className="sheet-head cursor-pointer px-3 py-2 text-left" onClick={() => setAsc((v) => !v)}>
@@ -189,7 +194,7 @@ function SelectorsTable({
               // reliably wrong, which is exactly the case worth looking at.
               const rail = conflict ? 'cell-rail-fail' : weak ? 'cell-rail-not-captured' : 'cell-rail-none';
               return (
-                <tr key={`${s.field}-${i}`} className={`sheet-row h-8 transition-colors hover:bg-gray-100/60 ${resolved ? '' : 'text-gray-400'}`}>
+                <tr key={`${s.field}-${i}`} className={`sheet-row h-8 transition-colors hover:bg-gray-100/60 ${resolved ? '' : 'text-gray-600'}`}>
                   <td className={`px-3 font-mono text-[13px] ${rail}`}>{s.field}</td>
                   <td className="px-3 text-gray-600">
                     {s.source ?? '—'}
@@ -213,7 +218,7 @@ function SelectorsTable({
                         ⚠ {conflict.candidates.length} values
                       </span>
                     ) : (
-                      <span className="text-gray-400">—</span>
+                      <span className="text-gray-600">—</span>
                     )}
                   </td>
                   <td className="max-w-xs truncate px-3 font-mono text-[13px] text-gray-600">
@@ -278,7 +283,7 @@ function CandidateCatalogueSection({
         <p className="mt-2 text-xs text-fail">{refresh.error.message}</p>
       )}
       {concepts.length === 0 ? (
-        <div className="mt-2 rounded border border-dashed border-gray-300 px-4 py-6 text-center text-xs text-gray-400">
+        <div className="mt-2 rounded border border-dashed border-gray-300 px-4 py-6 text-center text-xs text-gray-600">
           No candidates discovered yet for this page type.
         </div>
       ) : (
@@ -314,7 +319,7 @@ function CandidateCatalogueSection({
                           </span>
                         )}
                       </div>
-                      <div className="font-mono text-[10px] text-gray-400">{c.source}</div>
+                      <div className="font-mono text-[10px] text-gray-600">{c.source}</div>
                       <div
                         className="mt-1 truncate font-mono text-sm text-gray-900"
                         title={formatValue(c.sampleValue)}
@@ -322,7 +327,7 @@ function CandidateCatalogueSection({
                         {formatValue(c.sampleValue)}
                       </div>
                       {c.scope && (
-                        <div className="mt-0.5 truncate text-[10px] text-gray-400">
+                        <div className="mt-0.5 truncate text-[10px] text-gray-600">
                           {Object.entries(c.scope).map(([k, v]) => `${k}: ${v}`).join(', ')}
                         </div>
                       )}
@@ -334,15 +339,6 @@ function CandidateCatalogueSection({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="label-soft">{label}</div>
-      <div className="mt-1 font-medium">{value}</div>
     </div>
   );
 }

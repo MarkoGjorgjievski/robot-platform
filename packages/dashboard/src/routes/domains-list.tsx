@@ -14,8 +14,8 @@ export default function DomainsList() {
 
   return (
     <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <span className="text-gray-700">Domains</span>
+      <div className="flex items-center gap-1 text-xs text-gray-600">
+        <span className="text-gray-900">Domains</span>
       </div>
       <div className="mt-2">
         <PageHeader
@@ -28,12 +28,13 @@ export default function DomainsList() {
         <EmptyState
           title="No domain intelligence cached yet"
           description="Run an extraction and the system starts caching selectors per domain here."
+          action={<Link to="/projects" className="btn-primary h-9">Go to projects</Link>}
         />
       ) : (
         <div className="mt-6 overflow-x-auto">
           <table className="sheet">
             <thead>
-              <tr className="border-b border-gray-300">
+              <tr className="sheet-row">
                 <th className="sheet-head px-3 py-2 text-left">Domain</th>
                 <th className="sheet-head px-3 py-2 text-left">Page types</th>
                 <th className="sheet-head px-3 py-2 text-right">Runs (ok/total)</th>
@@ -52,7 +53,7 @@ export default function DomainsList() {
                       params={{ domain: d.domain }}
                       className="flex items-center gap-2 font-mono text-[13px] text-gray-900 hover:text-accent-700"
                     >
-                      <Globe className="h-4 w-4 text-gray-400" />
+                      <Globe className="h-4 w-4 text-gray-600" />
                       {d.domain}
                     </Link>
                   </td>
@@ -65,7 +66,7 @@ export default function DomainsList() {
                   </td>
                   <td className="px-3 py-1.5 text-right">
                     <Link to="/ops/domains/$domain" params={{ domain: d.domain }}>
-                      <ArrowRight className="h-4 w-4 text-gray-400" />
+                      <ArrowRight className="h-4 w-4 text-gray-600" />
                     </Link>
                   </td>
                 </tr>

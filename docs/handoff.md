@@ -283,7 +283,9 @@ accent button and the 1px-rule outline button, both at 45% opacity when disabled
 — a 3px rail on the left edge of a cell plus its status tint: **the rail is the glyph**, so no
 icon ever appears inside a data cell. `line-*` — the 11px second line under a cell's value,
 coloured only for fail and warn and ink-soft otherwise. `card` — a rounded box, and per spec 7
-it is now used in exactly two places: dialogs, and the websites list on the project home.
+it is now used in three places: dialogs (`dialog.tsx`), the websites list on the project home
+(`project-home.tsx`), and the proof-page URL popover (`page-header-cell.tsx`), which is a
+`role="dialog"` and so is covered by the same rule.
 Everything else sits on the paper with rules.
 
 **The contrast floor is mechanical, not a promise.** `packages/dashboard/src/lib/tokens.ts`
