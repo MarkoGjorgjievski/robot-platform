@@ -28,14 +28,24 @@ export function StatusStrip({ summary, stage, progress, lockNote, tone = 'neutra
           <span className="absolute inset-y-0 left-0 bg-accent-600 transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
         </span>
       )}
-      {stage && <span className="truncate text-xs text-gray-500" title={stage}>{stage}</span>}
+      {/* Ink, not `text-gray-500`: the strip's paper-dark puts the `changed`
+          token at 4.49:1, a hundredth under spec 7's floor. See tokens.ts. */}
+      {stage && <span className="truncate text-xs text-gray-900" title={stage}>{stage}</span>}
       <span className="ml-auto flex min-w-0 flex-shrink-0 items-center gap-2">
         {lockNote && <span className="inline-flex min-w-0 items-center gap-1 truncate text-xs text-gray-600"><Lock className="h-3 w-3 flex-shrink-0" />{lockNote}</span>}
         {verify && (
-          <span onClick={() => { if (verify.disabled) verify.onDisabledClick?.(); }} title={verify.disabled ? verify.reason : undefined}>
-            <button type="button" className="btn-quiet h-7" disabled={verify.disabled} onClick={verify.onClick}>
+          <span className="inline-flex min-w-0 items-center gap-2" onClick={() => { if (verify.disabled) verify.onDisabledClick?.(); }} title={verify.disabled ? verify.reason : undefined}>
+            <button type="button" className="btn-quiet h-7 flex-shrink-0" disabled={verify.disabled} onClick={verify.onClick}>
               {verify.busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{verify.label}
             </button>
+            {/* Spec 6: "every disabled control has a visible reason within one
+                line of it" — so the reason belongs beside the button it
+                explains, not at the far end of the strip after the next
+                button. The lock note already says why the whole strip is
+                inert, so the two never double up. */}
+            {verify.disabled && verify.reason && !lockNote && (
+              <span role="note" tabIndex={0} className="truncate text-xs text-gray-600">{verify.reason}</span>
+            )}
           </span>
         )}
         {extract && (
