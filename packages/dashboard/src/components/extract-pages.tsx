@@ -268,7 +268,7 @@ export function ExtractPages({
             {/* The file input is `sr-only`, so the base layer's focus ring paints
                 on a 1px clip nobody can see. `focus-within` moves the same ring
                 onto the label, which is the control the customer sees. */}
-            <label className={`btn-quiet focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-600 ${readOnly ? 'opacity-45' : 'cursor-pointer'}`}>
+            <label className={`btn-quiet focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-500 ${readOnly ? 'opacity-45' : 'cursor-pointer'}`}>
               Import CSV
               <input
                 type="file"
