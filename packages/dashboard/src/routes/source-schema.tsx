@@ -178,10 +178,6 @@ export default function SourceSchema() {
   const stage = active ? (status?.stage ?? 'starting') : strip === 'failed' ? (status?.errorMessage ?? null) : null;
   const tone = strip === 'stalled' ? 'warn' : strip === 'failed' ? 'error' : 'neutral';
   const lockNote = active ? 'table locked while verifying' : null;
-  // Spec 6: a disabled control's reason must be visible within one line of it,
-  // and reachable by keyboard — the strip's `title` alone is neither. Skipped
-  // while the lock note is up, which already says why Verify is off.
-  const verifyReasonNote = verify.disabled && verify.reason && !lockNote ? verify.reason : null;
 
   function cellStatus(rowId: string, urlIndex: number): CellStatus | null {
     const row = grid.rows.find((r) => r.id === rowId);
@@ -231,9 +227,9 @@ export default function SourceSchema() {
     }
   }
 
-  if (listQuery.isLoading) return <Spinner label="Loading source..." />;
+  if (listQuery.isLoading) return <Spinner label="Loading website..." />;
   if (listQuery.isError) return <ErrorBanner message={listQuery.error.message} />;
-  if (!source) return <NotFound what={`Source "${sourceSlug}"`} />;
+  if (!source) return <NotFound what={`Website "${sourceSlug}"`} />;
 
   // The strip's second button is now a handoff, not an action: everything it
   // used to start (probe, plan, execute) belongs to the Extract tab, which
@@ -253,7 +249,7 @@ export default function SourceSchema() {
   return (
     <div className="mt-6 space-y-4">
       {showProblems && (
-        <div className="rounded-md border border-fail/30 bg-fail-tint p-3 text-xs">
+        <div className="border-l-[3px] border-l-fail bg-fail-tint p-3 text-xs">
           <ul className="list-inside list-disc text-fail">
             {problems.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
@@ -276,7 +272,6 @@ export default function SourceSchema() {
             tone={tone}
             verify={{ label: verify.label, disabled: verify.disabled, reason: verify.reason, busy: verifyBusy, onClick: handleVerify, onDisabledClick: () => setTouched(true) }}
             extract={{ label: 'Go to Extract', disabled: !extractEnabled, reason: 'Unlocks when every cell is green', busy: false, onClick: () => navigate({ to: '/projects/$project/sources/$source/extract', params: { project: projectSlug, source: sourceSlug } }) }}
-            action={verifyReasonNote ? <span role="note" tabIndex={0} className="label-soft">{verifyReasonNote}</span> : undefined}
           />
 
           {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}

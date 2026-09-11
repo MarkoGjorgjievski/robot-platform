@@ -94,7 +94,7 @@ export function Section({
     <section
       aria-labelledby={headingId}
       aria-disabled={dimmed ? true : undefined}
-      className={`mt-6 ${n > 1 ? 'border-t border-gray-200 pt-6' : ''} ${dimmed ? 'opacity-50' : ''}`}
+      className={`mt-6 ${n > 1 ? 'border-t border-gray-200 pt-6' : ''}`}
     >
       <div className="flex items-baseline gap-3">
         <h3 id={headingId} className="flex flex-shrink-0 items-baseline gap-2">
@@ -111,8 +111,12 @@ export function Section({
       {/* Children always render — a locked section keeps everything it knows on
           screen; `inert` is what takes the interactivity away. A finished
           section keeps its content too, quieted to 60% rather than boxed off
-          behind a grey background. */}
-      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''}`} inert={dimmed || undefined}>
+          behind a grey background.
+          The dimming lives here and not on the <section>, so the heading row
+          above stays at full contrast: `reason` is the sentence that says why
+          the section is dimmed, and fading it with the body composited it to
+          2.06:1 — unreadable exactly where spec 6 requires a visible reason. */}
+      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''} ${dimmed ? 'opacity-50' : ''}`} inert={dimmed || undefined}>
         {children}
       </div>
     </section>
