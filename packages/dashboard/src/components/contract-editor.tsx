@@ -47,12 +47,9 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
                 {/*
                   A field name is a name the customer chose, so it reads like the
                   grid's Field column: Public Sans 500 ink, never mono — mono is
-                  for keys, types and values. InlineRename styles its own display
-                  span with `name` (Fraunces), which is right for a project or
-                  website title but not for a column of the output, so this one
-                  call site reaches in and overrides it.
+                  for keys, types and values. That is what `variant="plain"` is.
                 */}
-                <td className="py-1.5"><InlineRename value={f.name} className="text-[13px] text-gray-900 [&>span]:font-sans [&>span]:font-medium [&>span]:tracking-normal" onSave={(name) => rename.mutate({ datasetId, key: f.key, name })} /></td>
+                <td className="py-1.5"><InlineRename value={f.name} variant="plain" className="text-[13px] font-medium text-gray-900" onSave={(name) => rename.mutate({ datasetId, key: f.key, name })} /></td>
                 <td className="py-1.5">
                   <select value={pendingType[f.key] ?? f.type} disabled={locked || f.key in pendingType} title={locked ? 'A verified website uses this type. Delete and re-add the field to change it.' : undefined}
                     onChange={(e) => {
@@ -70,7 +67,7 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
                 <td className="py-1.5 text-xs">
                   {!s || s.total === 0 ? <span className="text-gray-600">no websites yet</span> : (
                     <span className="inline-flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${s.verified === s.total ? 'bg-pass' : s.verified === 0 ? 'bg-gray-400' : 'bg-fail'}`} />
+                      <span className={`h-2 w-2 rounded-full ${s.verified === s.total ? 'bg-pass' : s.verified === 0 ? 'bg-changed' : 'bg-warn'}`} />
                       {s.verified} of {s.total} websites
                       {s.verified < s.total && s.websites.filter((w) => !w.verified).slice(0, 1).map((w) => (
                         <Link key={w.sourceId} to="/projects/$project/sources/$source" params={{ project: projectSlug, source: w.slug }} className="underline-offset-2 hover:underline">{w.name}</Link>
@@ -78,12 +75,12 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
                     </span>
                   )}
                 </td>
-                <td className="py-1.5 text-right"><button type="button" aria-label={`Delete ${f.name}`} title="Delete field" onClick={() => setDeleting(f)} className="text-gray-400 hover:text-fail"><Trash2 className="h-4 w-4" /></button></td>
+                <td className="py-1.5 text-right"><button type="button" aria-label={`Delete ${f.name}`} title="Delete field" onClick={() => setDeleting(f)} className="text-gray-600 hover:text-fail"><Trash2 className="h-4 w-4" /></button></td>
               </tr>
             );
           })}
           <tr className="sheet-row h-8">
-            <td className="py-1.5"><input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); }} placeholder="field name" className="w-full rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 font-mono text-xs" aria-label="New field name" /></td>
+            <td className="py-1.5"><input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); }} placeholder="field name" className="w-full rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 text-[13px] font-medium text-gray-900" aria-label="New field name" /></td>
             <td className="py-1.5"><select value={newType} onChange={(e) => setNewType(e.target.value as GridFieldType)} className="rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs">{FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
             <td className="py-1.5" colSpan={2}><button type="button" className="btn-quiet h-7" disabled={!newName.trim() || add.isPending} onClick={submitNew}>{add.isPending && <Loader2 className="h-3 w-3 animate-spin" />}Add field</button></td>
           </tr>
