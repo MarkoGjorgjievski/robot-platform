@@ -21,6 +21,17 @@ type: project
 3. **Engine follow-ups the phases surfaced** (details in the phase 4 and 5 sections): the listing check and the probe walk count product links differently on the same page (7 vs 28 on Ikea); the 5,000-product ceiling is per listing input, not per run; spec 5.3's row counts on the Output page were never built.
 4. Then the older roadmap items below (pagination live proofs, the job queue). None of them blocks a customer.
 
+**Two design notes written 2026-09-11, decision pending (Marko picks which goes first):**
+`docs/superpowers/specs/2026-09-11-lean-capture-for-certified-runs-design.md` (a certified run
+spends 6–15 s per product on a capture built for the AI chain — screenshots, markdown, click
+rounds, a second render — when the certified paths need under a second; also records that the
+certified path bypasses the 2 s politeness lock) and
+`docs/superpowers/specs/2026-09-11-second-layout-learning-design.md` (a listing whose product
+pages differ in layout leaves cells empty on a verified website with no way to certify the second
+layout; the cheap increment is a grouped miss list with "use as proof page"). Both are drafts,
+not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back happy; a few
+non-urgent UX tweaks are still to be named.
+
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
 ## MVP flow phase 1 (2026-09-08): routes and shell landed; phases 2 to 5 follow the spec
