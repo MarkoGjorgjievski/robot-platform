@@ -4,7 +4,6 @@ import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-s
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { formatDate } from '../lib/format';
 import { RunStatusDot } from '../components/run-status-dot';
-import { summariseWorkList, planCrawlLabel } from '../lib/work-list';
 
 export default function SourceRuns() {
   const { project: projectSlug, source: sourceSlug } = useParams({
@@ -29,25 +28,32 @@ export default function SourceRuns() {
   if (runsQuery.isError) return <ErrorBanner message={runsQuery.error.message} />;
 
   const runs = runsQuery.data ?? [];
-  // One Plan crawl button, never two: with no runs it is the empty state's
-  // action, otherwise it sits in the header.
-  const planButton = <PlanCrawlButton sourceId={source.id} listingMode={source.listingMode} />;
+  // Extraction starts on the Extract tab (spec 5.7), which asks for the pages
+  // and the budget first. This tab is the history of what that started, so the
+  // only thing to offer here is the way over to it — no second, differently
+  // worded entry point into the same machinery.
+  const extractLink = (
+    <Link
+      to="/projects/$project/sources/$source/extract"
+      params={{ project: projectSlug, source: sourceSlug }}
+      className="btn-primary h-9"
+    >
+      Go to Extract
+    </Link>
+  );
 
   return (
     <div className="mt-6">
-      <div className="flex items-start gap-3">
-        <div>
-          <h2 className="name text-lg">Runs</h2>
-          <p className="label-soft mt-0.5">Every extraction this website has run.</p>
-        </div>
-        {runs.length > 0 && <div className="ml-auto">{planButton}</div>}
+      <div>
+        <h2 className="name text-lg">Runs</h2>
+        <p className="label-soft mt-0.5">Every extraction this website has run.</p>
       </div>
 
       {runs.length === 0 ? (
         <EmptyState
           title="No extractions yet"
-          description="Plan a crawl to enumerate the pages, then extract them."
-          action={planButton}
+          description="Extract to see runs here."
+          action={extractLink}
         />
       ) : (
         <table className="sheet mt-4">
@@ -89,56 +95,6 @@ export default function SourceRuns() {
           </tbody>
         </table>
       )}
-    </div>
-  );
-}
-
-/**
- * Plans a crawl: walks the listing pages and enumerates the detail URLs, without
- * fetching a single one of them.
- *
- * The button says "Plan", not "Run", because that distinction is the whole point
- * of the two-phase design — a human sees the fan-out before it becomes hundreds
- * of requests against a site.
- */
-function PlanCrawlButton({ sourceId, listingMode }: { sourceId: string; listingMode: string | null }) {
-  const utils = trpc.useUtils();
-  const plan = trpc.crawl.plan.useMutation({
-    onSuccess: () => utils.runs.invalidate(),
-  });
-
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        onClick={() => plan.mutate({ sourceId })}
-        disabled={plan.isPending}
-        className="btn-quiet"
-        title={
-          listingMode === 'listing_to_detail'
-            ? 'Walk the listing pages and enumerate detail URLs. Fetches no detail pages.'
-            : 'Queue one work item per input row. Fetches nothing.'
-        }
-      >
-        {planCrawlLabel(plan.isPending)}
-      </button>
-      {plan.isPending && (
-        <span className="text-[11px] text-gray-600">Fetching listing pages — this takes a minute.</span>
-      )}
-      {plan.isError && <span className="max-w-xs text-right text-[11px] text-fail">{plan.error.message}</span>}
-      {plan.data && (
-        <span className="text-[11px] text-gray-600">
-          {summariseWorkList({
-            listing: plan.data.listingPages,
-            detail: plan.data.itemCount,
-            pending: plan.data.itemCount,
-            done: plan.data.listingPages,
-            failed: 0,
-          })}
-        </span>
-      )}
-      {plan.data?.warnings.map((w) => (
-        <span key={w} className="max-w-xs text-right text-[11px] text-warn">{w}</span>
-      ))}
     </div>
   );
 }
