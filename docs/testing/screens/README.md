@@ -47,7 +47,6 @@ names change every run, so they are gitignored — read them on disk, do not com
 |---|---|
 | `schema-tab-editing.png` | Schema tab, expected values being typed, nothing verified yet |
 | `schema-tab-popover.png` | Schema tab, a page-header URL popover open for editing |
-| `schema-tab-verifying.png` | Schema tab mid-verification: the strip counts down, cells shimmer |
 | `schema-tab-results.png` | Schema tab after a verification — cells painted, rails and second lines |
 | `extract-pages.png` | Extract step 1, Pages, under the three-cell stepper strip |
 | `extract-checked.png` | Extract step 1 after Check ran on a saved listing page |
@@ -59,3 +58,15 @@ names change every run, so they are gitignored — read them on disk, do not com
 | `settings.png` | The Settings tab, including the delete block |
 | `settings-delete.png` | Settings with the Delete website dialog open (never confirmed) |
 | `run-detail.png` | A run detail page: facts row, work list, probe gate, results sheet |
+
+## States with no current capture
+
+- **Schema tab mid-verification** (the strip counting down, cells shimmering). The file that
+  claimed to be it, `schema-tab-verifying.png`, showed the retired visual system — cool grey
+  paper, IBM Plex Sans, the old wordmark, and an "Overview" tab that no longer exists — so it
+  has been deleted rather than left to mislead. Recapturing it means running a verification, and
+  a verification that would be free is also one that cannot be started: the only fully verified
+  website on this machine (Acne / Ikea) offers a Verify button reading **"Everything is verified"**,
+  disabled, because nothing has changed since the last run. Any website where the button is live
+  carries a dollar estimate. Capture this state the next time a paid verification is run for
+  another reason.
