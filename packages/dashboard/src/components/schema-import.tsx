@@ -44,7 +44,7 @@ export function SchemaImport({ urlCount, onRows }: Props) {
       </label>
 
       {problems.length > 0 && (
-        <div className="mt-2 rounded-md border border-fail/30 bg-fail-tint p-3 text-xs">
+        <div className="mt-2 border-l-[3px] border-l-fail bg-fail-tint p-3 text-xs">
           <p className="font-medium text-fail">Couldn't import this file:</p>
           <ul className="mt-1 list-inside list-disc text-fail">
             {problems.map((p, i) => <li key={i}>{p}</li>)}

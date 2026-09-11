@@ -4,9 +4,11 @@ import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState } from '../components/page-states';
 import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
+import { useProjectName } from '../lib/use-project-name';
 
 export default function ProjectDomainsList() {
   const { project: projectSlug } = useParams({ from: '/projects/$project/domains' });
+  const projectName = useProjectName(projectSlug);
   const listQuery = trpc.domains.listByProject.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
     projectSlug,
@@ -19,12 +21,12 @@ export default function ProjectDomainsList() {
 
   return (
     <div>
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Link to="/projects" className="hover:text-gray-700">Projects</Link>
+      <div className="flex items-center gap-1 text-xs text-gray-600">
+        <Link to="/projects" className="hover:text-gray-900">Projects</Link>
         <span>/</span>
-        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-700">Project</Link>
+        <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">{projectName}</Link>
         <span>/</span>
-        <span className="text-gray-700">Domains</span>
+        <span className="text-gray-900">Domains</span>
       </div>
       <div className="mt-2">
         <PageHeader
@@ -37,28 +39,46 @@ export default function ProjectDomainsList() {
         <EmptyState
           title="No domains yet"
           description="As sources are added to this project, their domains appear here."
+          action={
+            <Link to="/projects/$project" params={{ project: projectSlug }} className="btn-primary h-9">
+              Go to the project
+            </Link>
+          }
         />
       ) : (
-        <ul className="mt-6 divide-y divide-gray-200">
-          {domains.map((d) => (
-            <li key={d.hostname}>
-              <Link
-                to="/projects/$project/domains/$domain"
-                params={{ project: projectSlug, domain: d.hostname }}
-                className="flex items-center gap-3 px-3 py-3 transition-colors hover:bg-gray-50"
-              >
-                <Globe className="h-4 w-4 text-gray-400" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-[13px]">{d.hostname}</div>
-                </div>
-                <span className="text-xs text-gray-500">
-                  {d.sourceCount} {d.sourceCount === 1 ? 'source' : 'sources'}
-                </span>
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-6 overflow-x-auto">
+          <table className="sheet">
+            <thead>
+              <tr className="sheet-row">
+                <th className="sheet-head px-3 py-2 text-left">Domain</th>
+                <th className="sheet-head px-3 py-2 text-right">Sources</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {domains.map((d) => (
+                <tr key={d.hostname} className="sheet-row h-8 transition-colors hover:bg-gray-100/60">
+                  <td className="px-3 py-1.5">
+                    <Link
+                      to="/projects/$project/domains/$domain"
+                      params={{ project: projectSlug, domain: d.hostname }}
+                      className="flex items-center gap-2 font-mono text-[13px] text-gray-900 hover:text-accent-700"
+                    >
+                      <Globe className="h-4 w-4 text-gray-600" />
+                      {d.hostname}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono text-[13px] text-gray-600">{d.sourceCount}</td>
+                  <td className="px-3 py-1.5 text-right">
+                    <Link to="/projects/$project/domains/$domain" params={{ project: projectSlug, domain: d.hostname }} aria-label={`Open ${d.hostname}`}>
+                      <ArrowRight className="h-4 w-4 text-gray-600" />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
