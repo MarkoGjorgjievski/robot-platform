@@ -28,26 +28,67 @@ export const palette = {
   // #676d64 (one step lighter) still falls short at 4.48:1. See tokens.test.ts.
   changed: '#666c63',
   changedTint: '#ebece8',
+  // `--color-white` is remapped to surface in styles.css, so `text-white`
+  // (btn-primary, the pass pill on the domain detail) is this colour, not #fff.
+  white: '#fbfbf9',
 } as const;
 
+/**
+ * Every text/background pairing the app actually renders, not just the
+ * spec's token-on-its-own-tint list. The point of the test over this array is
+ * that it fails when someone reaches for a colour on a background nobody
+ * checked — a list that only re-proves the spec's own pairs can never do that.
+ *
+ * Read as: ink and ink-soft go anywhere (paper, surface, the strip's
+ * paper-dark, and every tint); each status colour is used on paper, on
+ * surface, and on its own tint; accent likewise; and `white` rides on the
+ * filled accent/fail/pass buttons and pills.
+ *
+ * One pairing is deliberately absent: `changed` on `paperDark` measures
+ * 4.49:1. The status strip's stage line used to render it (`text-gray-500` on
+ * the strip); it is `text-gray-900` now. Do not put `changed`/`text-gray-500`
+ * on the strip — use ink or ink-soft.
+ */
 export const textOnTint: Array<[text: keyof typeof palette, bg: keyof typeof palette]> = [
+  // Ink and ink-soft, on every surface the app paints.
   ['ink', 'paper'],
   ['ink', 'surface'],
   ['ink', 'paperDark'],
+  ['ink', 'passTint'],
+  ['ink', 'failTint'],
+  ['ink', 'warnTint'],
+  ['ink', 'changedTint'],
+  ['ink', 'accentTint'],
   ['inkSoft', 'paper'],
   ['inkSoft', 'surface'],
   ['inkSoft', 'paperDark'],
-  ['ink', 'passTint'],
+  ['inkSoft', 'passTint'],
+  ['inkSoft', 'failTint'],
+  ['inkSoft', 'warnTint'],
+  ['inkSoft', 'changedTint'],
+  ['inkSoft', 'accentTint'],
+  // Each status colour: on the paper, on a sheet, and on its own tint.
+  ['pass', 'paper'],
+  ['pass', 'surface'],
   ['pass', 'passTint'],
-  ['ink', 'failTint'],
+  ['fail', 'paper'],
+  ['fail', 'surface'],
   ['fail', 'failTint'],
-  ['ink', 'warnTint'],
+  ['warn', 'paper'],
+  ['warn', 'surface'],
   ['warn', 'warnTint'],
-  ['ink', 'changedTint'],
+  ['changed', 'paper'],
+  ['changed', 'surface'],
   ['changed', 'changedTint'],
+  // Accent: links and quiet text on the paper, and its own tint.
   ['accent', 'paper'],
   ['accent', 'surface'],
   ['accent', 'accentTint'],
+  // Filled controls: btn-primary (accent, and its destructive fail variant)
+  // and the domain detail's confirmed-path pill.
+  ['white', 'accent'],
+  ['white', 'fail'],
+  ['white', 'pass'],
 ];
 
 /** sRGB hex channel (0-255) -> linearized channel per WCAG 2.x. */

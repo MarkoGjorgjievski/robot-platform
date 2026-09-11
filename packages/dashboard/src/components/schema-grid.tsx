@@ -122,7 +122,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                     onChange={(e) => setDescription(r, e.target.value)}
                     onKeyDown={(e) => onKey(e, r, 2)}
                     onPaste={(e) => onPaste(e, r, 2)}
-                    className="w-full bg-transparent text-[13px] text-gray-900 placeholder:text-gray-400"
+                    className="w-full bg-transparent text-[13px] text-gray-900 placeholder:text-gray-600"
                     placeholder="green number next to Add to cart, not the crossed-out one"
                   />
                 </td>
