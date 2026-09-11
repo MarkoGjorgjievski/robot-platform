@@ -76,7 +76,17 @@ function WebsiteRow({ projectSlug, source }: { projectSlug: string; source: { id
   const passed = Object.values(results).filter((f) => Array.isArray(f.certified) && f.certified.length > 0).length;
   const current = !!status.data?.current;
   const label = total === 0 ? 'no fields yet' : current && status.data?.allPassed ? `${total} of ${total} verified` : `${current ? passed : 0} of ${total} verified`;
-  const rail = total === 0 ? 'border-l-warn' : current && status.data?.allPassed ? 'border-l-pass' : 'border-l-fail';
+  // Spec 7 gives four status tokens so "not finished" and "wrong" never share
+  // a colour. A website that has fields but has never been verified has not
+  // failed — nobody has asked yet — so it takes the neutral `changed` rail.
+  // `fail` is reserved for a current verification that actually reported a
+  // failing field; `warn` is partly done (some fields proven, the rest moved
+  // on since the last run).
+  const rail =
+    total === 0 ? 'border-l-warn'
+      : current ? (status.data?.allPassed ? 'border-l-pass' : 'border-l-fail')
+        : passed === 0 ? 'border-l-changed'
+          : 'border-l-warn';
   let host = '';
   try { host = source.urlTemplate ? new URL(source.urlTemplate).hostname : ''; } catch { host = ''; }
   return (

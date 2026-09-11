@@ -40,13 +40,13 @@ export default function ProjectsList() {
             {projects.map((p) => (
               <tr key={p.id} className="sheet-row h-8">
                 <td className="px-3">
-                  <Link to="/projects/$project" params={{ project: p.slug }} className="name text-[15px] hover:underline">{p.name}</Link>
+                  <Link to="/projects/$project" params={{ project: p.slug }} className="text-[15px] font-medium text-gray-900 hover:underline">{p.name}</Link>
                   {p.description && <span className="ml-2 text-xs text-gray-600">{p.description}</span>}
                 </td>
                 <td className="px-3">
                   {p.sourceCount === 0 ? <span className="text-gray-600">none yet</span> : (
                     <span className="inline-flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${p.verifiedSourceCount === p.sourceCount ? 'bg-pass' : p.verifiedSourceCount === 0 ? 'bg-gray-400' : 'bg-warn'}`} />
+                      <span className={`h-2 w-2 rounded-full ${p.verifiedSourceCount === p.sourceCount ? 'bg-pass' : p.verifiedSourceCount === 0 ? 'bg-changed' : 'bg-warn'}`} />
                       <span className="font-mono">{p.verifiedSourceCount} of {p.sourceCount}</span> verified
                     </span>
                   )}
@@ -92,7 +92,7 @@ function NewProjectDialog({ open, onClose }: { open: boolean; onClose: () => voi
         <label className={labelClass}>Name
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} className={fieldClass} placeholder="AbeBooks Q3" />
         </label>
-        <label className={`${labelClass} mt-3`}>What is it for <span className="text-gray-400">(optional)</span>
+        <label className={`${labelClass} mt-3`}>What is it for <span className="text-gray-600">(optional)</span>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={fieldClass} placeholder="mountaineering books, prices and authors" />
         </label>
         <p className="mt-2 text-xs text-gray-600">Fields and websites come next, on the project page.</p>
