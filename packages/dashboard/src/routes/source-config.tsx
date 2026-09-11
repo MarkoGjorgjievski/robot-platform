@@ -95,7 +95,7 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   return (
     <div className="grid min-h-8 grid-cols-[160px_1fr] items-center border-b border-gray-200 px-3">
       <dt className="label-soft">{label}</dt>
-      <dd className={mono ? 'break-all font-mono text-xs' : 'text-sm'}>{value}</dd>
+      <dd className={mono ? 'break-all font-mono text-[13px]' : 'text-sm'}>{value}</dd>
     </div>
   );
 }

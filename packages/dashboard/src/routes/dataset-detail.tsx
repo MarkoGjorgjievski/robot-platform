@@ -4,6 +4,7 @@ import { trpc } from '../lib/trpc';
 import { Spinner, ErrorBanner, EmptyState, NotFound } from '../components/page-states';
 import { PageHeader } from '../components/page-header';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
+import { useProjectName } from '../lib/use-project-name';
 import { FIELD_ORIGINS, originLabel, type FieldOrigin } from '../lib/field-origin';
 import { pickerOptions, pickerOptionLabel, sourceHostnames, type CandidateCatalogue } from '../lib/candidate-picker';
 
@@ -22,6 +23,7 @@ type Source = { id: string; slug: string; name: string; urlTemplate?: string };
 
 export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) {
   const { project: projectSlug } = useParams({ from: '/projects/$project/output' });
+  const projectName = useProjectName(projectSlug);
 
   const detailQuery = trpc.datasets.getBySlug.useQuery({
     orgSlug: DEFAULT_ORG_SLUG,
@@ -39,7 +41,7 @@ export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) 
 
   return (
     <div>
-      <Breadcrumbs projectSlug={projectSlug} />
+      <Breadcrumbs projectSlug={projectSlug} projectName={projectName} />
       <div className="mt-2">
         <PageHeader title="Output" description={dataset.description ?? `Every column in ${dataset.name}.`} />
       </div>
@@ -52,6 +54,7 @@ export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) 
         <EmptyState
           title="No websites yet"
           description="Add a website on the project page and it appears here."
+          action={<Link to="/projects/$project" params={{ project: projectSlug }} className="btn-primary h-9">Go to the project</Link>}
         />
       ) : (
         <table className="sheet mt-2">
@@ -65,8 +68,8 @@ export default function DatasetDetail({ datasetSlug }: { datasetSlug: string }) 
           <tbody>
             {sources.map((s) => (
               <tr key={s.id} className="sheet-row h-8">
-                <td className="px-3"><span className="name text-[15px]">{s.name}</span></td>
-                <td className="max-w-xs truncate px-3 font-mono text-xs text-gray-600">{s.urlTemplate ?? ''}</td>
+                <td className="px-3"><span className="text-[15px] font-medium text-gray-900">{s.name}</span></td>
+                <td className="max-w-xs truncate px-3 font-mono text-[13px] text-gray-600">{s.urlTemplate ?? ''}</td>
                 <td className="px-3 text-right">
                   <Link
                     to="/projects/$project/sources/$source"
@@ -185,7 +188,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
               const options = pickerOptions(catalogue, field.name, field.candidate);
               return (
                 <tr key={field.name} className="sheet-row h-8">
-                  <td className="px-3 font-mono text-xs">{field.name}</td>
+                  <td className="px-3 text-[15px] font-medium text-gray-900">{field.name}</td>
                   <td className="px-3 font-mono text-xs text-gray-600">{field.type}</td>
                   <td className="px-3 text-xs text-gray-600">{field.required ? 'yes' : 'no'}</td>
                   <td className="px-3 text-xs text-gray-600">{field.description ?? '—'}</td>
@@ -193,7 +196,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
                     <select
                       value={field.origin ?? 'detail'}
                       onChange={(e) => setOrigin(i, e.target.value as FieldOrigin)}
-                      className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs focus:border-accent-600 focus:outline-none"
+                      className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs focus:border-accent-600"
                     >
                       {FIELD_ORIGINS.map((origin) => (
                         <option key={origin} value={origin}>{originLabel(origin)}</option>
@@ -213,7 +216,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
                           const chosen = options.find((o) => o.label === value);
                           if (chosen) setCandidate(i, { concept: chosen.concept, label: chosen.label });
                         }}
-                        className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs focus:border-accent-600 focus:outline-none"
+                        className="rounded-md border border-gray-300 bg-gray-50 px-2 py-1 text-xs focus:border-accent-600"
                       >
                         <option value="default">default</option>
                         {options.map((o) => (
@@ -223,7 +226,7 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
                         ))}
                       </select>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-gray-600">—</span>
                     )}
                   </td>
                 </tr>
@@ -246,13 +249,13 @@ function SchemaFieldOrigins({ datasetId, schema, sources }: { datasetId: string;
   );
 }
 
-function Breadcrumbs({ projectSlug }: { projectSlug: string }) {
+function Breadcrumbs({ projectSlug, projectName }: { projectSlug: string; projectName: string }) {
   return (
     <div className="flex items-center gap-1 text-xs text-gray-600">
       <Link to="/projects" className="hover:text-gray-900">Projects</Link>
       <span>/</span>
       <Link to="/projects/$project" params={{ project: projectSlug }} className="hover:text-gray-900">
-        {projectSlug}
+        {projectName}
       </Link>
       <span>/</span>
       <span className="text-gray-900">Output</span>
