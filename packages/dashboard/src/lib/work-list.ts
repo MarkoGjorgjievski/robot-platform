@@ -35,10 +35,6 @@ export function summariseWorkList(counts: WorkListCounts): string {
   return parts.join(' · ');
 }
 
-export function planCrawlLabel(isPending: boolean): string {
-  return isPending ? 'Planning…' : 'Plan crawl';
-}
-
 /**
  * The listing-page values carried down to a detail item, as one short line.
  *

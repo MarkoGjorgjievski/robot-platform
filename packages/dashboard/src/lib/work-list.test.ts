@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summariseWorkList, planCrawlLabel, listingValuesLabel } from './work-list';
+import { summariseWorkList, listingValuesLabel } from './work-list';
 
 describe('summariseWorkList', () => {
   it('describes what a plan produced, before anything is extracted', () => {
@@ -20,16 +20,6 @@ describe('summariseWorkList', () => {
   it('says plainly when a plan found nothing', () => {
     expect(summariseWorkList({ listing: 1, detail: 0, pending: 0, done: 1, failed: 0 }))
       .toBe('No URLs found · 1 listing page walked');
-  });
-});
-
-describe('planCrawlLabel', () => {
-  it('names the action and its cost honestly', () => {
-    expect(planCrawlLabel(false)).toBe('Plan crawl');
-  });
-
-  it('shows progress while the plan is running', () => {
-    expect(planCrawlLabel(true)).toBe('Planning…');
   });
 });
 

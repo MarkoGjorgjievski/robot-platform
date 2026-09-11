@@ -170,7 +170,7 @@ export function ExtractSample({
 
       {/* Four facts, four columns. The label is secondary; the number is the
           thing being read, so it is a value in mono. */}
-      <dl className="grid grid-cols-4 gap-6">
+      <dl className="grid grid-cols-2 gap-6 md:grid-cols-4">
         {facts.map((fact) => (
           <div key={fact.label} className="min-w-0">
             <dt className="label-soft">{fact.label}</dt>

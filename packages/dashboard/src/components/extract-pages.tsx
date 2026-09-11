@@ -38,6 +38,14 @@ const CHECK_TONE: Record<'ok' | 'warn' | 'error' | 'pending', string> = {
 const URL_FIELD =
   'mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-1.5 font-mono text-[13px] text-gray-900';
 
+/** The segmented control's options, in tab order. */
+const MODE_OPTIONS = [
+  ['listing', 'Listing pages'],
+  ['detail', 'Product URLs'],
+] as const satisfies ReadonlyArray<readonly [ExtractMode, string]>;
+
+const ROVING_KEYS = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
+
 export function ExtractPages({
   mode,
   onMode,
@@ -109,24 +117,33 @@ export function ExtractPages({
 
   return (
     <div className="space-y-3">
+      {/* A radiogroup is one tab stop: the arrow keys move between the
+          options and Tab leaves the group. Before this, both buttons were
+          tabbable, which is the tablist/toolbar model, not the radio one. With
+          no mode chosen yet neither option is checked, so the first one carries
+          the tab stop — otherwise the group would be unreachable by keyboard. */}
       <div
         role="radiogroup"
         aria-label="Where the products come from"
         className="inline-flex overflow-hidden rounded-md border border-gray-300"
       >
-        {(
-          [
-            ['listing', 'Listing pages'],
-            ['detail', 'Product URLs'],
-          ] as const
-        ).map(([value, label]) => (
+        {MODE_OPTIONS.map(([value, label], i) => (
           <button
             key={value}
             type="button"
             role="radio"
             aria-checked={mode === value}
+            tabIndex={mode === value || (mode === null && i === 0) ? 0 : -1}
             disabled={readOnly}
             onClick={() => onMode(value)}
+            onKeyDown={(e) => {
+              if (!ROVING_KEYS.includes(e.key)) return;
+              e.preventDefault();
+              const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+              const next = MODE_OPTIONS[(i + step + MODE_OPTIONS.length) % MODE_OPTIONS.length]![0];
+              onMode(next);
+              e.currentTarget.parentElement?.querySelectorAll('button')[MODE_OPTIONS.findIndex(([v]) => v === next)]?.focus();
+            }}
             className={`px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-45 ${
               mode === value ? 'bg-accent-50 text-gray-900' : 'text-gray-600 hover:bg-gray-50'
             }`}
@@ -190,7 +207,7 @@ export function ExtractPages({
                           onClick={() => onListing(listing.filter((u) => u !== url))}
                           className="text-xs text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-45"
                         >
-                          remove
+                          Remove
                         </button>
                       </td>
                     </tr>
@@ -248,7 +265,10 @@ export function ExtractPages({
             className={URL_FIELD}
           />
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <label className={`btn-quiet ${readOnly ? 'opacity-45' : 'cursor-pointer'}`}>
+            {/* The file input is `sr-only`, so the base layer's focus ring paints
+                on a 1px clip nobody can see. `focus-within` moves the same ring
+                onto the label, which is the control the customer sees. */}
+            <label className={`btn-quiet focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-600 ${readOnly ? 'opacity-45' : 'cursor-pointer'}`}>
               Import CSV
               <input
                 type="file"
@@ -263,20 +283,25 @@ export function ExtractPages({
                 }}
               />
             </label>
-            {/* Counts, not prose: the separators are what keep three facts on
-                one line, the same shape as the run sentence in step 3. */}
+            {/* Sentences, not a middle-dot chain (spec 6): this is not a strip
+                and there can be three facts, so joining them with `·` put two
+                separators on one line. */}
             <span className="text-xs text-gray-600">
               {[
-                `${counts.total} ${counts.total === 1 ? 'URL' : 'URLs'}`,
+                `${counts.total} ${counts.total === 1 ? 'URL' : 'URLs'}.`,
                 counts.proof > 0
                   ? counts.proof === 1
-                    ? '1 is a proof page'
-                    : `${counts.proof} are the proof pages`
+                    ? '1 is a proof page.'
+                    : `${counts.proof} are the proof pages.`
                   : null,
-                counts.offHost > 0 ? `${counts.offHost} off this website, skipped` : null,
+                counts.offHost > 0
+                  ? counts.offHost === 1
+                    ? '1 is off this website and will be skipped.'
+                    : `${counts.offHost} are off this website and will be skipped.`
+                  : null,
               ]
                 .filter((part): part is string => part !== null)
-                .join(' · ')}
+                .join(' ')}
             </span>
           </div>
         </div>
