@@ -1,6 +1,6 @@
 import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
-import type { IBrowser, BrowserOptions, CaptureOptions, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
+import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
@@ -11,6 +11,14 @@ import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pag
 // default. Raised deliberately: a slow screenshot costs seconds, a failed one costs
 // the entire capture and every judge verdict that depended on it.
 const SCREENSHOT_TIMEOUT_MS = 60_000;
+
+// Ready-check polling (CaptureOptions.ready). The values a certified run needs
+// are usually on the page within a second or two of `load`; the deadline is
+// generous for a slow API, and the settle wait after it is the bounded
+// networkidle that replaces the unbounded 60 s one.
+const READY_POLL_INTERVAL_MS = 250;
+const READY_POLL_TIMEOUT_MS = 8_000;
+const READY_SETTLE_TIMEOUT_MS = 10_000;
 
 /**
  * A current, ordinary desktop Chrome UA. Playwright's default advertises
@@ -203,8 +211,12 @@ export class PlaywrightBrowser implements IBrowser {
         if (m) console.log(`[capture] ${name.padEnd(20)} scrollY=${m.y} height=${m.h} links=${m.links} nodes=${m.nodes}`);
       };
 
+      const t0 = Date.now();
       await this.navigateWithFallback(page, url, options);
+      const navigateMs = Date.now() - t0;
       await stage('after navigate');
+      const ready = options.ready ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
+      if (ready) await stage(`ready: ${ready.state}`);
       await this.dismissPopups(page);
       await stage('after dismissPopups');
       await this.expandHiddenContent(page);
@@ -271,10 +283,53 @@ export class PlaywrightBrowser implements IBrowser {
         timestamp: Date.now(),
         structuredData,
         interceptedRequests: rankedRequests,
+        timings: {
+          navigateMs,
+          readyMs: ready?.ms ?? null,
+          readyState: ready?.state ?? null,
+          totalMs: Date.now() - t0,
+        } satisfies CaptureTimings,
       };
     } finally {
       await page.close();
     }
+  }
+
+  /**
+   * Poll the live page until the caller's ready check passes.
+   *
+   * Runs right after navigation, before popup dismissal, so a page that holds
+   * a connection open (Ikea) is not made to wait out networkidle when the
+   * values it was asked for are already there. Past the poll deadline, one
+   * bounded networkidle wait is the honest last try: a slow API still gets
+   * its chance, and only then is a still-missing value a miss.
+   *
+   * The check itself never fails the capture: a throwing probe reads as
+   * "not ready", a throwing predicate the same. What the caller does with a
+   * 'timeout' state is its own business — the capture goes on regardless.
+   */
+  private async waitUntilReady(page: Page, url: string, intercepted: InterceptedRequest[], check: ReadyCheck): Promise<{ state: NonNullable<CaptureTimings['readyState']>; ms: number }> {
+    const t0 = Date.now();
+    const deadline = t0 + (check.timeoutMs ?? READY_POLL_TIMEOUT_MS);
+    const emptyStructured: StructuredData = { ldJson: [], nextData: null, initialState: null, meta: {} };
+    const snapshot = async (): Promise<ReadySnapshot> => ({
+      probe: await page.evaluate(check.script).catch(() => null),
+      structuredData: await this.extractStructuredData(page).catch(() => emptyStructured),
+      interceptedRequests: rankInterceptedRequests(intercepted, url),
+    });
+    const isReady = async (): Promise<boolean> => {
+      try { return check.isReady(await snapshot()); } catch { return false; }
+    };
+
+    for (;;) {
+      if (await isReady()) return { state: 'ready', ms: Date.now() - t0 };
+      if (Date.now() >= deadline) break;
+      await page.waitForTimeout(READY_POLL_INTERVAL_MS);
+    }
+    await page.waitForLoadState('networkidle', { timeout: check.settleTimeoutMs ?? READY_SETTLE_TIMEOUT_MS }).catch(() => {});
+    const state = (await isReady()) ? 'settled' : 'timeout';
+    if (state === 'timeout') console.warn(`[browser] ready check never passed for ${url} (${Date.now() - t0}ms); capturing as is`);
+    return { state, ms: Date.now() - t0 };
   }
 
   /**

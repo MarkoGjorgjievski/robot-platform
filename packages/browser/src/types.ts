@@ -19,6 +19,22 @@ export type StructuredData = {
   meta: Record<string, string>;
 };
 
+export type CaptureTimings = {
+  /** Navigation until the requested load state (or its fallback) was reached. */
+  navigateMs: number;
+  /** Time spent in the ready check after navigation; null when none was given. */
+  readyMs: number | null;
+  /**
+   * 'ready': the check passed within its poll deadline. 'settled': it passed
+   * only after the bounded networkidle wait that follows the deadline.
+   * 'timeout': it never passed — the capture went on regardless, and a path
+   * that still misses is an honest miss. null: no ready check was given.
+   */
+  readyState: 'ready' | 'settled' | 'timeout' | null;
+  /** Whole capture, navigation to return. */
+  totalMs: number;
+};
+
 export type PageCapture = {
   url: string;
   html: string;
@@ -29,6 +45,28 @@ export type PageCapture = {
   timestamp: number;
   structuredData: StructuredData;
   interceptedRequests: InterceptedRequest[];
+  /** Absent only on captures built outside the browser (fixtures, replays). */
+  timings?: CaptureTimings;
+};
+
+/** What a ready check sees on each poll: the probe's result from the live page,
+ * plus the structured data and JSON responses seen so far. */
+export type ReadySnapshot = Pick<PageCapture, 'structuredData' | 'interceptedRequests'> & { probe: unknown };
+
+/**
+ * Wait for the values a caller needs instead of for the page to go quiet.
+ * A page that holds a connection open never reaches networkidle (Ikea: the
+ * full 60 s timeout on every product page, 2026-09-15), while the values a
+ * certified run needs are on the page within a second or two.
+ */
+export type ReadyCheck = {
+  /** A self-invoking expression evaluated in the live page on every poll; its value is the snapshot's `probe`. */
+  script: string;
+  isReady: (snapshot: ReadySnapshot) => boolean;
+  /** How long to poll after navigation before giving up on readiness. Default 8 000. */
+  timeoutMs?: number;
+  /** After the poll deadline, one bounded wait for networkidle before the final check. Default 10 000. */
+  settleTimeoutMs?: number;
 };
 
 export type BrowserOptions = {
@@ -51,6 +89,8 @@ export type CaptureOptions = {
   waitUntil?: 'load' | 'networkidle' | 'domcontentloaded';
   interceptNetworkRequests?: boolean;
   timeout?: number;
+  /** Poll the live page for the values the caller needs, right after navigation. Pair with `waitUntil: 'load'`. */
+  ready?: ReadyCheck;
 };
 
 export interface IBrowser {

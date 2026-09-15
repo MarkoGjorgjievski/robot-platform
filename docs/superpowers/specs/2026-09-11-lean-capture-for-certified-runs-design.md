@@ -138,3 +138,28 @@ never consults it.
 - The physical floor: the target site's own response time and its tolerance
   for our request rate. Going faster than a site accepts turns a five second
   product into a blocked run.
+
+## First increment landed (2026-09-15)
+
+Items 1 (as `CaptureOptions.ready`, not a separate method), 5 and 6 are on
+`main`. `runVerifiedExtraction` captures with `waitUntil: 'load'` plus a ready
+check built from the certified paths (`buildReadyCheck`), takes the domain
+lock, and returns the capture's timings, which `extract-item.ts` writes to
+`captures.metadata.capture`. Items 2–4 (the XPaths in the live tab, dropping
+the click rounds, screenshots and markdown, the fallback and the in-run
+switch) are the second increment and are not built.
+
+Measured on the same Ikea website, a full Extract limited to 10 products:
+
+| | Before (2026-09-11, 30 products) | After (2026-09-15, 10 products) |
+|---|---|---|
+| Per product, median | 71.6 s | 10.5 s |
+| Per product, range | 69.0–75.3 s | 8.6–11.2 s |
+| Capture alone | ~70 s | 6.5–9.1 s |
+| Ready check | — | passed on the first poll on all 10 (12–36 ms after `load`) |
+| Fields filled | 8 of 8 on every row | 8 of 8 on every row |
+
+Of the ~10.5 s that remain per product, the capture is ~8 s (navigation
+2.3–3.8 s, the rest popup rounds, expand, screenshots, markdown) and the
+second render for the XPaths plus stats and row writes are the other ~2.5 s.
+That is the second increment's territory.

@@ -59,12 +59,12 @@ export async function extractItem(
     : deps.schema;
   const partitions = partitionSchemaByOrigin(schema);
 
-  const persistRow = async (row: Record<string, unknown>, confidence: number) => {
+  const persistRow = async (row: Record<string, unknown>, confidence: number, metadata: Record<string, unknown> = {}) => {
     const [capture] = await db.insert(captures).values({
       sourceId: deps.sourceId,
       runId: deps.runId,
       url: item.url,
-      metadata: {},
+      metadata,
     }).returning({ id: captures.id });
 
     const [extraction] = await db.insert(extractions).values({
@@ -126,7 +126,12 @@ export async function extractItem(
     const hits = fields.filter((f) => verified.data[f.key] !== null).length;
     const confidence = fields.length ? Math.round((100 * hits) / fields.length) : 0;
 
-    return persistRow(row, confidence);
+    // The capture's timings ride on the capture row so a run can be measured
+    // per product from the database, not from a console log: this is how the
+    // 70 s → 7 s Ikea change is checked, and what the next speed work reads.
+    const t = verified.timings;
+    if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms), ${hits}/${fields.length} fields`);
+    return persistRow(row, confidence, t ? { capture: t } : {});
   }
 
   const extract = deps.extract ?? runExtraction;
