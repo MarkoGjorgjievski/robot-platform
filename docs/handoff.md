@@ -22,8 +22,8 @@ type: project
 4. Then the older roadmap items below (pagination live proofs, the job queue). None of them blocks a customer.
 
 **Two design notes written 2026-09-11, decision pending (Marko picks which goes first):**
-`docs/superpowers/specs/2026-09-11-lean-capture-for-certified-runs-design.md` (a certified run
-spends 6–15 s per product on a capture built for the AI chain — screenshots, markdown, click
+`docs/superpowers/specs/2026-09-11-lean-capture-for-certified-runs-design.md` (measured 2026-09-15: a certified run
+spends ~70 s per product on Ikea, 60 s of it the networkidle timeout; `load` gives the same data in 7 s. Beyond that, the capture built for the AI chain — screenshots, markdown, click
 rounds, a second render — when the certified paths need under a second; also records that the
 certified path bypasses the 2 s politeness lock) and
 `docs/superpowers/specs/2026-09-11-second-layout-learning-design.md` (a listing whose product
