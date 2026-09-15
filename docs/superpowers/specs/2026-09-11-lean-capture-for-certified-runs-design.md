@@ -1,6 +1,6 @@
-# Lean capture for certified runs — design note (draft, not yet decided)
+# Lean capture for certified runs — design note
 
-**Status:** discussed 2026-09-11, decision pending. Companion note:
+**Status:** discussed 2026-09-11; first increment (the wait strategy, the lock, the timings) landed 2026-09-15 in `b765f48`, see the last section. The second increment is not decided. Companion note:
 `2026-09-11-second-layout-learning-design.md`. Either can be built first; lean
 capture is the smaller change, second-layout learning the more important one
 for correctness at scale.
