@@ -40,6 +40,22 @@ no popup. Rough split, unmeasured (no certified Extract has run live yet):
 
 A product likely costs 6–15 s, of which under a second is the work we need.
 
+**Measured 2026-09-15.** Marko's Ikea Extract of 2026-09-11 (30 products,
+completed, every field filled) took 1,996 s: 69–75 s per product, median 71.6 s.
+One product page captured directly, stage-logged:
+
+| Wait mode | Total | Where it went |
+|---|---|---|
+| `networkidle` (today) | 69.8 s | 60 s until the networkidle timeout, 4.4 s popup rounds, 0.5 s expand, 0.7 s screenshots + rest |
+| `load` | 7.0 s | 1.7 s navigate, 4.2 s popup rounds, 0.5 s expand, 0.6 s screenshots + rest |
+
+Both captures yielded the same 2 JSON-LD blocks and the same 10 JSON API
+responses, including the product JSON the certified paths read. Ikea holds a
+connection open, so the page never goes idle and every product pays the full
+60 s timeout. The wait strategy (item 1 below) is therefore the whole first
+increment on its own: 70 s → ~7 s. The rest of lean capture (items 2–3, mostly
+the popup rounds) takes 7 s → ~2 s and is the second increment.
+
 Also found while reading: `execute-run.ts` says the per-domain lock's 2 s
 politeness delay protects every request. The lock lives in
 `acquireDomainLock` and is taken by `runExtraction` and `planRun`. The
