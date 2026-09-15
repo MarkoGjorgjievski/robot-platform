@@ -23,7 +23,7 @@ type: project
 
 **Two design notes written 2026-09-11, decision pending (Marko picks which goes first):**
 `docs/superpowers/specs/2026-09-11-lean-capture-for-certified-runs-design.md` (measured 2026-09-15: a certified run
-spends ~70 s per product on Ikea, 60 s of it the networkidle timeout; `load` gives the same data in 7 s. Beyond that, the capture built for the AI chain — screenshots, markdown, click
+spent ~70 s per product on Ikea, 60 s of it the networkidle timeout. **First increment landed 2026-09-15:** the certified path now waits for its own values (`CaptureOptions.ready`) and takes the domain lock; measured 10.5 s per product on the same website, 8 of 8 fields on every row. Still to do there: the capture built for the AI chain — screenshots, markdown, click
 rounds, a second render — when the certified paths need under a second; also records that the
 certified path bypasses the 2 s politeness lock) and
 `docs/superpowers/specs/2026-09-11-second-layout-learning-design.md` (a listing whose product

@@ -181,7 +181,7 @@ describe('extractItem — with a certification', () => {
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
-      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }] };
+      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null };
     };
     const recordStats = vi.fn(async () => {});
 
@@ -206,7 +206,7 @@ describe('extractItem — with a certification', () => {
   it('persists and returns the row even when recordStats rejects', async () => {
     const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
       data: { price: 129.99 },
-      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }],
+      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null,
     });
     const recordStats = vi.fn(async () => { throw new Error('deadlock detected'); });
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -234,7 +234,7 @@ describe('extractItem — with a certification', () => {
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
-      return { data: { price: null }, stats: [] };
+      return { data: { price: null }, stats: [], timings: null };
     };
 
     await extractItem(fakeDb, ITEM, {
@@ -243,6 +243,29 @@ describe('extractItem — with a certification', () => {
     });
 
     expect(seenFields).toEqual([{ key: 'price', type: 'text', concept: 'price', paths: [] }]);
+  });
+
+  it('records the capture timings on the capture row, so a run can be measured per product', async () => {
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+      data: { price: 129.99 }, stats: [],
+      timings: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 },
+    });
+    let metadata: unknown;
+    const fakeDbCapturing = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          if ('metadata' in v) metadata = v.metadata;
+          return { returning: async () => [{ id: 'x' }] };
+        },
+      }),
+    } as never;
+
+    await extractItem(fakeDbCapturing, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {},
+    });
+
+    expect(metadata).toEqual({ capture: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 } });
   });
 
   function captureConfidence() {
@@ -259,7 +282,7 @@ describe('extractItem — with a certification', () => {
   }
 
   it('confidence is 100 when the certification produced every field', async () => {
-    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [] });
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [], timings: null });
     const cap = captureConfidence();
 
     await extractItem(cap.fakeDbCapturing, ITEM, {
@@ -271,7 +294,7 @@ describe('extractItem — with a certification', () => {
   });
 
   it('confidence is 0 when the certification produced no value for any field', async () => {
-    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [] });
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [], timings: null });
     const cap = captureConfidence();
 
     await extractItem(cap.fakeDbCapturing, ITEM, {

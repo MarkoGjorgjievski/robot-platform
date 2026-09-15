@@ -5,8 +5,17 @@
 // extraction chain, never a fresh search. A path that no longer resolves is
 // an honest miss (null in the row, drift's raw material) — not a cue to fall
 // back to anything else.
+//
+// The capture waits for the values it needs, not for the page to go quiet:
+// every path is known up front, so the browser polls the live page until each
+// certified field resolves (`buildReadyCheck`) instead of sitting out the
+// networkidle timeout on a site that never goes idle (Ikea, 2026-09-15:
+// 69.8 s → 7.0 s per product page for identical data). It also takes the
+// per-domain politeness lock the analysis chain takes, which this path used
+// to bypass.
 
-import type { IBrowser, PageCapture } from '@robot/browser';
+import type { CaptureTimings, IBrowser, PageCapture, ReadyCheck, ReadySnapshot } from '@robot/browser';
+import { acquireDomainLock } from '../domain-lock.js';
 import { normalize, renderValue } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured } from './search-structured.js';
@@ -17,14 +26,55 @@ export type VerifiedField = { key: string; type: CustomerFieldType; concept: str
 export type VerifiedExtractionResult = {
   data: Record<string, unknown>;
   stats: Array<{ key: string; concept: string; path: CertifiedPath; hit: boolean; value?: unknown }>;
+  /** The live capture's timings; null when the caller supplied the capture. */
+  timings: CaptureTimings | null;
 };
+
+type Structured = Pick<PageCapture, 'structuredData' | 'interceptedRequests'>;
+
+/** One certified path against one page: the rendered value, or null for a miss.
+ * The same evaluation serves the ready check and the final row, so "ready"
+ * means exactly "would produce a value", placeholders included. */
+function evaluatePath(
+  field: VerifiedField,
+  path: CertifiedPath,
+  structured: Structured,
+  probe: XPathProbeResult,
+  ctx: { pageUrl: string },
+): unknown {
+  const rawBase = path.source === 'xpath' ? probe[path.path] ?? null : resolveStructured(structured, path.source, path.path);
+  const raw = applyTransform(rawBase, path.transform);
+  const norm = raw === null || raw === undefined || raw === '' ? null : normalize(field.type, raw, ctx);
+  if (norm === null) return null;
+  return field.type === 'text' ? String(raw).normalize('NFKC').replace(/\s+/g, ' ').trim() : renderValue(field.type, norm);
+}
+
+function certifiedXPaths(fields: VerifiedField[]): string[] {
+  return [...new Set(fields.flatMap((f) => f.paths.filter((p) => p.source === 'xpath').map((p) => p.path)))];
+}
+
+/** The ready check for a set of certified fields: probe every certified
+ * xpath in the live page, and call the page ready once every field that has
+ * a certified path resolves through at least one of them. A field with no
+ * certified path can never be filled, so it never blocks readiness. */
+export function buildReadyCheck(fields: VerifiedField[], pageUrl: string): ReadyCheck {
+  const certified = fields.filter((f) => f.paths.length > 0);
+  const ctx = { pageUrl };
+  return {
+    script: buildXPathProbeScript(certifiedXPaths(fields)),
+    isReady: (s: ReadySnapshot) => {
+      const probe = (s.probe ?? {}) as XPathProbeResult;
+      return certified.every((f) => f.paths.some((p) => evaluatePath(f, p, s, probe, ctx) !== null));
+    },
+  };
+}
 
 export async function runVerifiedExtraction(
   req: { url: string; fields: VerifiedField[] },
-  deps: { browser: IBrowser; capture?: PageCapture },
+  deps: { browser: IBrowser; capture?: PageCapture; acquireLock?: typeof acquireDomainLock },
 ): Promise<VerifiedExtractionResult> {
-  const capture = deps.capture ?? await deps.browser.capture(req.url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
-  const xpaths = [...new Set(req.fields.flatMap((f) => f.paths.filter((p) => p.source === 'xpath').map((p) => p.path)))];
+  const capture = deps.capture ?? await captureUnderLock(req, deps);
+  const xpaths = certifiedXPaths(req.fields);
   const probe: XPathProbeResult = xpaths.length ? await deps.browser.setContentEvaluate<XPathProbeResult>(capture.html, buildXPathProbeScript(xpaths)) : {};
   const ctx = { pageUrl: capture.url };
   const data: Record<string, unknown> = {};
@@ -32,15 +82,28 @@ export async function runVerifiedExtraction(
   for (const f of req.fields) {
     data[f.key] = null;
     for (const p of f.paths) {
-      const rawBase = p.source === 'xpath' ? probe[p.path] ?? null : resolveStructured(capture, p.source, p.path);
-      const raw = applyTransform(rawBase, p.transform);
-      const norm = raw === null || raw === undefined || raw === '' ? null : normalize(f.type, raw, ctx);
-      if (norm === null) { stats.push({ key: f.key, concept: f.concept, path: p, hit: false }); continue; }
-      const value = f.type === 'text' ? String(raw).normalize('NFKC').replace(/\s+/g, ' ').trim() : renderValue(f.type, norm);
+      const value = evaluatePath(f, p, capture, probe, ctx);
+      if (value === null) { stats.push({ key: f.key, concept: f.concept, path: p, hit: false }); continue; }
       data[f.key] = value;
       stats.push({ key: f.key, concept: f.concept, path: p, hit: true, value });
       break;
     }
   }
-  return { data, stats };
+  return { data, stats, timings: deps.capture ? null : capture.timings ?? null };
+}
+
+async function captureUnderLock(
+  req: { url: string; fields: VerifiedField[] },
+  deps: { browser: IBrowser; acquireLock?: typeof acquireDomainLock },
+): Promise<PageCapture> {
+  const release = await (deps.acquireLock ?? acquireDomainLock)(new URL(req.url).hostname);
+  try {
+    return await deps.browser.capture(req.url, {
+      waitUntil: 'load',
+      interceptNetworkRequests: true,
+      ready: buildReadyCheck(req.fields, req.url),
+    });
+  } finally {
+    release();
+  }
 }
