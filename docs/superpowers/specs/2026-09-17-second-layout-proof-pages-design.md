@@ -47,8 +47,10 @@ New, for a field with expected values on pages P:
   greedy cover: repeatedly take the safe candidate correct on the most
   still-uncovered pages (ties by today's rank) until P is covered or 5 are
   chosen. The chosen list is ordered by pages covered, then today's rank.
-- Each certified path records the pages it was proven on (`provenOn: string[]`,
-  optional on `CertifiedPath`, ignored by `pathId` and by extraction). The
+- When a field needed more than one layout, each certified path records the
+  pages it was proven on (`provenOn: string[]`, optional on `CertifiedPath`,
+  ignored by `pathId` and by extraction). A one-layout result carries no
+  `provenOn`, so it stays byte-for-byte what it is today. The
   Schema tab's cell line reads "from json-ld" as today; a field with more than
   one layout adds "· layout 2" on the pages the second path proved.
 - **One-page evidence.** A path proven on a single page is weaker than one
@@ -151,6 +153,8 @@ analysis-chain concept).
    This is the case that would silently corrupt a run, and it must fail loud.
 4. Nothing covers page 4 → the field does not certify; pages 1–3 still show
    pass cells against the best safe candidate so the customer sees what works.
+   (Only with more than three pages: a three-page field's failure cells stay
+   exactly as they are today.)
 5. A blank cell on page 4 for field X: X's pages are 1–3, X's hash is
    unchanged, X's stored result is reused without a capture-dependent search.
 6. Blank on pages 1–3 is still a validation error.
