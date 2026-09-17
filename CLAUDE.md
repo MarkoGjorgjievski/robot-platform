@@ -71,7 +71,7 @@ Variables already set in the shell take precedence over `.env`.
 - XPath over CSS selectors — supports sibling traversal, ancestor access, text matching
 - Multi-path extraction — each field has multiple ranked extraction paths, cross-validated
 - Domain intelligence cache — enriched over time, never overwritten. Always consulted (no consecutive-failures reset gate; removed in v1.1b). Conservative per-path prune only (≥5 uses & ≤10% hit rate; max 5 paths/field); degradation is flagged for human review, never auto-reset.
-- Verification-first sources (2026-09): the customer defines fields + expected values on three URLs; paths certify only when they produce the expected value on all three; extraction at scale runs certified paths only.
+- Verification-first sources (2026-09): the customer defines fields + expected values on three URLs; paths certify when, together, they cover every proof page a field is checked on and none is wrong on any (three to six pages; 2026-09-17); extraction at scale runs certified paths only.
 - Popup auto-dismissal — 3 rounds of click + JS removal before capture
 - Provider abstraction — Anthropic and Ollama supported, auto-detected from env
 - `"type": "module"` in all packages

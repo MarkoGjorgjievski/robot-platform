@@ -34,6 +34,38 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## Second-layout proof pages (2026-09-17)
+
+Spec: `docs/superpowers/specs/2026-09-17-second-layout-proof-pages-design.md`.
+Plan: `docs/superpowers/plans/2026-09-17-second-layout-proof-pages.md`. This is
+the cheap increment the 2026-09-11 second-layout-learning note called for.
+Landed: a website may carry three to six proof pages instead of exactly three
+(Schema tab: an "Add page" column, "Remove this page" on pages four to six,
+"not checked" for a blank cell there). A field certifies when a set of at most
+five paths together covers every page it is checked on, where a path is safe
+only if it is correct or resolves to nothing on every page it touches — a path
+wrong on any checked page is never certified, so a second layout can only add
+coverage, never launder a bad path. A one-layout website certifies exactly as
+before. When more than one layout is needed, each certified path carries
+`provenOn` (the pages it was proven on), and the field carries
+`thinEvidence: true` if some path is proven on only a single page. `fieldHash`
+and stored-result reuse are per field, over the pages that field is checked
+on, so adding a page for one field leaves every other field's certification
+untouched, and a field with a value on every page keeps its existing hash and
+stays current. `crawl.misses({ runId })` groups a run's empty cells by field
+and by the listing each missed product came from
+(`run_items.input_values.url`); the run page lists them per field with "Use as
+proof page", which pre-fills the Schema tab via `?addPage=<url>&field=<key>`
+(waiting if the table is locked by a running verification).
+`crawl.backfillPreview` reports `certified` with a zero cost estimate for an
+already-certified website, and offers no dead-field strategy. Not built:
+automatic discovery of a second layout's path without an expected value, using
+the other missed pages as unlabelled evidence, a blank on pages one to three
+meaning "not on this product," or speeding up verification's own captures. A
+real second-layout website has not been run through this flow live yet.
+
+Live check: pending (controller).
+
 ## MVP flow phase 1 (2026-09-08): routes and shell landed; phases 2 to 5 follow the spec
 
 Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`. Plan for this phase:
