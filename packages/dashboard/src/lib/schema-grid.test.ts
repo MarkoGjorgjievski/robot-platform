@@ -214,6 +214,29 @@ describe('rowsFromTable', () => {
     expect(rows).toEqual([]);
     expect(problems.length).toBeGreaterThan(0);
   });
+
+  // A website can now have up to six proof pages, but an ordinary file only ever has
+  // the three required columns (spec 2026-09-17 §6, controller ruling 1). Only url
+  // 1..URL_MIN are required; a missing url 4..6 column just leaves those cells blank.
+  test('on a 4-page grid, a file with only url 1..3 fills a blank fourth cell and reports no problems', () => {
+    const table = [
+      ['name', 'type', 'description', 'url 1', 'url 2', 'url 3'],
+      ['price', 'money', 'near the button', '10', '20', '30'],
+    ];
+    const { rows, problems } = rowsFromTable(table, 4);
+    expect(problems).toEqual([]);
+    expect(rows[0]!.expected).toEqual(['10', '20', '30', '']);
+  });
+
+  test('a required column (url 2) missing is still a problem on a 4-page grid', () => {
+    const table = [
+      ['name', 'type', 'description', 'url 1', 'url 3'], // url 2 missing
+      ['price', 'money', 'near the button', '10', '30'],
+    ];
+    const { rows, problems } = rowsFromTable(table, 4);
+    expect(rows).toEqual([]);
+    expect(problems).toContain('Missing column: url 2');
+  });
 });
 
 describe('toBindingInput', () => {
