@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications, type Database } from '@robot/db';
-import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -857,12 +857,20 @@ export const sourcesRouter = router({
         return !!ref?.captureId && !!ref.capturedAt && Date.now() - Date.parse(ref.capturedAt) < CAPTURE_REUSE_MAX_AGE_MS;
       });
 
-      // Only a key whose latest clean result has no certified path would
-      // actually reach AI on a re-verify — one with a certified path just
-      // replays it for free. `aiFields` prices that reachable subset, not
-      // every key in the estimate set, so "free" (spec 5.6) is honest.
-      const lastResults = (last?.results ?? {}) as Record<string, { certified?: unknown[] }>;
-      const aiFields = estimateKeys.filter((k) => (lastResults[k]?.certified?.length ?? 0) === 0).length;
+      // A key reaches AI on a re-verify when its latest clean result has no
+      // certified path, OR when its pages or expected values changed since
+      // (its stored hash no longer matches): a field with a certified path
+      // from pages 1–3 may still need AI on a newly added page four, and a
+      // label reading "free" for it would be a lie (spec 2026-09-17 §6).
+      const lastResults = (last?.results ?? {}) as Record<string, { certified?: unknown[]; fieldHash?: string }>;
+      const definition = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]) : [];
+      const set = source.verificationSet as VerificationSet | null;
+      const aiFields = estimateKeys.filter((k) => {
+        const r = lastResults[k];
+        if ((r?.certified?.length ?? 0) === 0) return true;
+        const f = definition.find((d) => d.key === k);
+        return !!f && !!set && r!.fieldHash !== fieldHash(f, set);
+      }).length;
 
       return {
         fields,
