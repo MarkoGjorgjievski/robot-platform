@@ -98,6 +98,13 @@ gap items; the run page already renders them (`BackfillGapsPanel`). Added:
   one (product urls given directly) form a single "given directly" group. Each
   group has its count and up to ten product urls. No schema change.
   Confirmed-absent cells are excluded, as in coverage. Pure read.
+  **Amended 2026-09-17 after the live check:** only a product that produced a
+  row counts. A pending, running or failed product has no row and is not an
+  empty cell; it is left out of the count, the groups and the total. (The first
+  build copied coverage's repair rule, "every field of a failed item is
+  missing", and on a run capped at 10 of 28 products it reported every field
+  empty on 18 products and suggested a second layout.) Coverage and backfill
+  keep their own rule.
 - **On the run page**, for a verified website, above the gaps panel: one line
   per field, e.g. "price is empty on 38 products · 36 from
   /cat/two-seater-sofas · 2 from /cat/armchairs". Expanding a group lists its
