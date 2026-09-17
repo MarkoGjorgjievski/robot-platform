@@ -134,19 +134,30 @@ describe('crawl.backfillPreview', () => {
 });
 
 describe('crawl.misses', () => {
-  it('groups a run\'s empty cells by field and listing, and says an unverified website is not certified', async () => {
+  it('groups a run\'s empty cells by field and listing, counting only items that were actually extracted, and says an unverified website is not certified', async () => {
     const { runId } = await seedRunWithGapItems();
     const out = await caller.crawl.misses({ runId });
     expect(out.certified).toBe(false);
-    expect(out.fields.map((f) => [f.name, f.count, f.total])).toEqual([['title', 1, 2], ['isbn', 2, 2]]);
-    expect(out.fields[0]!.groups).toEqual([{ listingUrl: null, count: 1, urls: ['https://example.com/p/2'] }]);
-    expect(out.fields[1]!.groups[0]!.urls).toEqual(expect.arrayContaining(['https://example.com/p/1', 'https://example.com/p/2']));
+    // item2 (`failed`, no row — never extracted) contributes nothing and is
+    // excluded from `total`: only item1's row is counted, so `isbn` (null on
+    // that row) is the only reported miss, and `total` is 1, not 2.
+    expect(out.fields.map((f) => [f.name, f.count, f.total])).toEqual([['isbn', 1, 1]]);
+    expect(out.fields[0]!.groups).toEqual([{ listingUrl: null, count: 1, urls: ['https://example.com/p/1'] }]);
   });
   it('a product found on a listing groups under that listing', async () => {
-    const { runId } = await seedRunWithGapItems();
+    const { runId, sourceId } = await seedRunWithGapItems();
+    // Must carry a real row (capture + extraction) — an item with no row is
+    // never extracted and takes no part in misses at all.
+    const [capture3] = await db.insert(captures).values({
+      sourceId, runId, url: 'https://example.com/p/3',
+    }).returning();
+    const [extraction3] = await db.insert(extractions).values({
+      sourceId, captureId: capture3!.id, runId,
+      data: [{ title: null, isbn: '999', _url: 'https://example.com/p/3', _page_number: 1 }],
+    }).returning();
     await db.insert(runItems).values({
       runId, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0,
-      inputValues: { url: 'https://example.com/cat/a' }, status: 'failed', error: 'blocked',
+      inputValues: { url: 'https://example.com/cat/a' }, status: 'done', extractionId: extraction3!.id,
     });
     const title = (await caller.crawl.misses({ runId })).fields.find((f) => f.name === 'title')!;
     expect(title.groups).toEqual(expect.arrayContaining([{ listingUrl: 'https://example.com/cat/a', count: 1, urls: ['https://example.com/p/3'] }]));
@@ -154,6 +165,19 @@ describe('crawl.misses', () => {
   it('a clean run has no misses', async () => {
     const { runId } = await seedRunWithNoGaps();
     expect((await caller.crawl.misses({ runId })).fields).toEqual([]);
+  });
+  it('items never extracted (pending/running/failed) are not misses and are excluded from total — the capped-run case', async () => {
+    const { runId } = await seedRunWithGapItems();
+    // item2 (failed, no row) is already row-less; add two more row-less
+    // items (pending) to model a run capped mid-extraction. None of the
+    // three should appear anywhere in the result.
+    await db.insert(runItems).values([
+      { runId, kind: 'detail', url: 'https://example.com/p/4', inputIndex: 0, status: 'pending' },
+      { runId, kind: 'detail', url: 'https://example.com/p/5', inputIndex: 0, status: 'pending' },
+    ]);
+    const out = await caller.crawl.misses({ runId });
+    // Still only item1's row is counted: isbn is the one miss, total 1.
+    expect(out.fields.map((f) => [f.name, f.count, f.total])).toEqual([['isbn', 1, 1]]);
   });
 });
 
@@ -209,20 +233,26 @@ async function seedCertifiedRunWithGap() {
     },
   });
 
-  // A completed run with a gap: one item fills `price`, one fails outright
-  // (misses every field) — same shape as `seedRunWithGapItems`, keyed on the
-  // certified source's own field key so coverage/misses see real gaps.
+  // A completed run with a gap: both items were extracted (both have a real
+  // row) — one fills `price`, the other's row is missing it. `misses` (fix
+  // round 2: a row-less item is excluded entirely) needs a genuine gap among
+  // EXTRACTED items, not a failed/row-less one, to still prove its point.
   const [run] = await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed' }).returning();
-  const [capture] = await db.insert(captures).values({ sourceId: f.sourceId, runId: run!.id, url: urls[0]! }).returning();
-  const [extraction] = await db.insert(extractions).values({
-    sourceId: f.sourceId, captureId: capture!.id, runId: run!.id,
+  const [capture1] = await db.insert(captures).values({ sourceId: f.sourceId, runId: run!.id, url: urls[0]! }).returning();
+  const [extraction1] = await db.insert(extractions).values({
+    sourceId: f.sourceId, captureId: capture1!.id, runId: run!.id,
     data: [{ [priceKey]: '1.00', _url: urls[0], _page_number: 1 }],
   }).returning();
   await db.insert(runItems).values({
-    runId: run!.id, kind: 'detail', url: urls[0]!, inputIndex: 0, status: 'done', extractionId: extraction!.id,
+    runId: run!.id, kind: 'detail', url: urls[0]!, inputIndex: 0, status: 'done', extractionId: extraction1!.id,
   });
+  const [capture2] = await db.insert(captures).values({ sourceId: f.sourceId, runId: run!.id, url: urls[1]! }).returning();
+  const [extraction2] = await db.insert(extractions).values({
+    sourceId: f.sourceId, captureId: capture2!.id, runId: run!.id,
+    data: [{ [priceKey]: null, _url: urls[1], _page_number: 1 }],
+  }).returning();
   await db.insert(runItems).values({
-    runId: run!.id, kind: 'detail', url: urls[1]!, inputIndex: 0, status: 'failed', error: 'blocked',
+    runId: run!.id, kind: 'detail', url: urls[1]!, inputIndex: 0, status: 'done', extractionId: extraction2!.id,
   });
 
   return { runId: run!.id, priceKey, cleanup: f.cleanup };
