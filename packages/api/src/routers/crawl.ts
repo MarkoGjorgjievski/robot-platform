@@ -410,13 +410,27 @@ export const crawlRouter = router({
    * A run's empty cells by field and by listing (spec 2026-09-17 §5). Read-only.
    * `certified` tells the run page whether "Use as proof page" applies: only a
    * website with a verified schema has proof pages to add to.
+   *
+   * M6: `certified` alone used to gate the whole misses LIST, but saving a
+   * fourth proof page uncertifies the website until the next verify passes —
+   * if that verify then fails, the customer is back on the run page needing
+   * to pick another product, and the list must not have vanished. `proofSheet`
+   * is the weaker, stabler condition that actually makes "Use as proof page"
+   * meaningful: a schema with fields AND a verification set to add pages to,
+   * whether or not the most recent verify is current. `certified` keeps its
+   * old meaning and its old (narrower) consumer, `backfillPreview`'s "free" label.
    */
   misses: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { sourceId, fields } = await loadRunMisses(ctx.db, input.runId);
       const certified = (await loadCurrentCertification(ctx.db, sourceId)) !== null;
-      return { certified, fields };
+      const src = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, sourceId),
+        columns: { schemaDefinition: true, verificationSet: true },
+      });
+      const proofSheet = Array.isArray(src?.schemaDefinition) && src.schemaDefinition.length > 0 && src?.verificationSet != null;
+      return { certified, proofSheet, fields };
     }),
 
   /**

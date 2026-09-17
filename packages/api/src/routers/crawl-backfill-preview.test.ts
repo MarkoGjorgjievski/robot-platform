@@ -138,6 +138,9 @@ describe('crawl.misses', () => {
     const { runId } = await seedRunWithGapItems();
     const out = await caller.crawl.misses({ runId });
     expect(out.certified).toBe(false);
+    // M6: a legacy source (no schemaDefinition/verificationSet at all — this
+    // seed never calls sources.updateBinding) has no proof pages to add to.
+    expect(out.proofSheet).toBe(false);
     // item2 (`failed`, no row — never extracted) contributes nothing and is
     // excluded from `total`: only item1's row is counted, so `isbn` (null on
     // that row) is the only reported miss, and `total` is 1, not 2.
@@ -258,16 +261,62 @@ async function seedCertifiedRunWithGap() {
   return { runId: run!.id, priceKey, cleanup: f.cleanup };
 }
 
+/**
+ * M6: a schema-bound website (schemaDefinition + verificationSet, via
+ * `updateBinding`, same as `seedCertifiedRunWithGap`) that has never been
+ * verified — no `source_verifications` row at all, so `loadCurrentCertification`
+ * finds nothing current. This is the "stale or absent" half of proofSheet:
+ * true, certified: false — the schema exists and has proof pages to add to,
+ * but nothing currently certifies it.
+ */
+async function seedSchemaSourceWithoutCurrentVerification() {
+  const urls = [
+    'https://test-cert-crawlmisses-stale.example.com/p/1',
+    'https://test-cert-crawlmisses-stale.example.com/p/2',
+    'https://test-cert-crawlmisses-stale.example.com/p/3',
+  ];
+  const f = await createProjectWithSource(caller, {
+    tag: 'cert-crawlmisses-stale',
+    urls,
+    fields: [{ name: 'Price', type: 'money', description: 'x' }],
+    expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
+  });
+  const [run] = await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed' }).returning();
+  const [capture1] = await db.insert(captures).values({ sourceId: f.sourceId, runId: run!.id, url: urls[0]! }).returning();
+  const [extraction1] = await db.insert(extractions).values({
+    sourceId: f.sourceId, captureId: capture1!.id, runId: run!.id,
+    data: [{ [f.keys.Price!]: null, _url: urls[0], _page_number: 1 }],
+  }).returning();
+  await db.insert(runItems).values({
+    runId: run!.id, kind: 'detail', url: urls[0]!, inputIndex: 0, status: 'done', extractionId: extraction1!.id,
+  });
+  return { runId: run!.id, cleanup: f.cleanup };
+}
+
 describe('crawl.misses and crawl.backfillPreview on a certified website', () => {
   it('crawl.misses reports certified: true and still groups the run\'s misses', async () => {
     const { runId, priceKey, cleanup } = await seedCertifiedRunWithGap();
     try {
       const out = await caller.crawl.misses({ runId });
       expect(out.certified).toBe(true);
+      // M6: proofSheet is true right alongside certified here — a certified
+      // website obviously has a schema + verification set to add pages to.
+      expect(out.proofSheet).toBe(true);
       const priceMisses = out.fields.find((fld) => fld.name === priceKey);
       expect(priceMisses).toBeDefined();
       expect(priceMisses!.count).toBe(1);
       expect(priceMisses!.total).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('crawl.misses reports proofSheet: true, certified: false when the schema exists but nothing currently verifies it', async () => {
+    const { runId, cleanup } = await seedSchemaSourceWithoutCurrentVerification();
+    try {
+      const out = await caller.crawl.misses({ runId });
+      expect(out.certified).toBe(false);
+      expect(out.proofSheet).toBe(true);
     } finally {
       await cleanup();
     }
