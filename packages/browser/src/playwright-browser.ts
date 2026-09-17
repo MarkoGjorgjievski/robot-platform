@@ -19,6 +19,8 @@ const SCREENSHOT_TIMEOUT_MS = 60_000;
 const READY_POLL_INTERVAL_MS = 250;
 const READY_POLL_TIMEOUT_MS = 8_000;
 const READY_SETTLE_TIMEOUT_MS = 10_000;
+const READY_GRACE_MAX_MS = 3_000;
+const READY_GRACE_POLL_MS = 50;
 
 /**
  * A current, ordinary desktop Chrome UA. Playwright's default advertises
@@ -215,13 +217,20 @@ export class PlaywrightBrowser implements IBrowser {
       await this.navigateWithFallback(page, url, options);
       const navigateMs = Date.now() - t0;
       await stage('after navigate');
-      const ready = options.ready ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
+      const readyWhen = options.ready?.when ?? 'after-navigation';
+      let ready = options.ready && readyWhen === 'after-navigation' ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
       if (ready) await stage(`ready: ${ready.state}`);
       await this.dismissPopups(page);
       await stage('after dismissPopups');
       await this.expandHiddenContent(page);
       await stage('after expandHidden');
       await this.returnIfNavigatedAway(page, url, options);
+      // 'after-expand': poll the page as it will be serialised, once the popup
+      // and "show more" rounds have revealed whatever they reveal.
+      if (options.ready && readyWhen === 'after-expand') {
+        ready = await this.waitUntilReady(page, url, intercepted, options.ready);
+        await stage(`ready (after expand): ${ready.state}`);
+      }
 
       const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
       const clips = computeTileClips(pageHeight);
@@ -287,6 +296,7 @@ export class PlaywrightBrowser implements IBrowser {
           navigateMs,
           readyMs: ready?.ms ?? null,
           readyState: ready?.state ?? null,
+          graceMs: ready?.graceMs ?? null,
           totalMs: Date.now() - t0,
         } satisfies CaptureTimings,
       };
@@ -308,7 +318,7 @@ export class PlaywrightBrowser implements IBrowser {
    * "not ready", a throwing predicate the same. What the caller does with a
    * 'timeout' state is its own business — the capture goes on regardless.
    */
-  private async waitUntilReady(page: Page, url: string, intercepted: InterceptedRequest[], check: ReadyCheck): Promise<{ state: NonNullable<CaptureTimings['readyState']>; ms: number }> {
+  private async waitUntilReady(page: Page, url: string, intercepted: InterceptedRequest[], check: ReadyCheck): Promise<{ state: NonNullable<CaptureTimings['readyState']>; ms: number; graceMs: number | null }> {
     const t0 = Date.now();
     const deadline = t0 + (check.timeoutMs ?? READY_POLL_TIMEOUT_MS);
     const emptyStructured: StructuredData = { ldJson: [], nextData: null, initialState: null, meta: {} };
@@ -322,14 +332,38 @@ export class PlaywrightBrowser implements IBrowser {
     };
 
     for (;;) {
-      if (await isReady()) return { state: 'ready', ms: Date.now() - t0 };
+      if (await isReady()) return { state: 'ready', ms: Date.now() - t0, graceMs: await this.graceAfterReady(page, intercepted, check) };
       if (Date.now() >= deadline) break;
       await page.waitForTimeout(READY_POLL_INTERVAL_MS);
     }
     await page.waitForLoadState('networkidle', { timeout: check.settleTimeoutMs ?? READY_SETTLE_TIMEOUT_MS }).catch(() => {});
     const state = (await isReady()) ? 'settled' : 'timeout';
     if (state === 'timeout') console.warn(`[browser] ready check never passed for ${url} (${Date.now() - t0}ms); capturing as is`);
-    return { state, ms: Date.now() - t0 };
+    const ms = Date.now() - t0;
+    // No grace after a 'timeout': the check never passed, so there is no better source to wait for.
+    return { state, ms, graceMs: state === 'settled' ? await this.graceAfterReady(page, intercepted, check) : null };
+  }
+
+  /**
+   * Hold the capture until responses stop arriving (ReadyCheck.graceQuietMs).
+   *
+   * Counted on intercepted RESPONSES, not on in-flight requests: a page that
+   * holds a connection open (Ikea) has a request in flight forever, and would
+   * cost the full cap on every page. Quiet is measured from the last arrival,
+   * so a response landing mid-grace restarts the clock, up to the cap.
+   */
+  private async graceAfterReady(page: Page, intercepted: InterceptedRequest[], check: ReadyCheck): Promise<number | null> {
+    if (!check.graceQuietMs || check.graceQuietMs <= 0) return null;
+    const t0 = Date.now();
+    const max = check.graceMaxMs ?? READY_GRACE_MAX_MS;
+    let seen = intercepted.length;
+    let lastArrival = t0;
+    for (;;) {
+      const now = Date.now();
+      if (intercepted.length !== seen) { seen = intercepted.length; lastArrival = now; }
+      if (now - lastArrival >= check.graceQuietMs || now - t0 >= max) return now - t0;
+      await page.waitForTimeout(READY_GRACE_POLL_MS);
+    }
   }
 
   /**

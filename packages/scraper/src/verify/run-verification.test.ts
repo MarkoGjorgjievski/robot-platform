@@ -311,3 +311,26 @@ describe('fieldHash — per-field pages', () => {
     expect(fieldHash(f, set)).not.toBe(fieldHash(f, { urls: [...U, P4], expected: { ...set.expected, price: { ...set.expected.price, [P4]: '89.50' } } }));
   });
 });
+
+describe('runVerification — each proof page is captured with a ready check built from its own expected values', () => {
+  it('hands captureOne a check that waits for what was typed on THAT page, after the expand round, with a grace', async () => {
+    const page4 = 'https://shop.example/p/4';
+    const withPage4: VerificationSet = {
+      urls: [...U, page4],
+      expected: Object.fromEntries(Object.entries(set.expected).map(([k, cells]) => [k, { ...cells, [page4]: k === 'price' ? '89.50' : '' }])),
+    };
+    const seen: Record<string, { when?: string; graceQuietMs?: number; script: string } | undefined> = {};
+    await runVerification({ fields, verificationSet: withPage4 }, {
+      browser: { setContentEvaluate: async () => [] } as unknown as IBrowser,
+      agent: null,
+      captureOne: async (_b, url, ready) => { seen[url] = ready; return emptyCapture(url); },
+    });
+    expect(Object.keys(seen)).toEqual([...U, page4]);
+    expect(seen[U[0]!]!.when).toBe('after-expand');
+    expect(seen[U[0]!]!.graceQuietMs).toBeGreaterThan(0);
+    // Page one is checked for every field; page four only for price.
+    expect(seen[U[0]!]!.script).toContain('"expected":"Widget A"');
+    expect(seen[page4]!.script).toContain('"expected":"89.50"');
+    expect(seen[page4]!.script).not.toContain('"key":"product_name"');
+  });
+});
