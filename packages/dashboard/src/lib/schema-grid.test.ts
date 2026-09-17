@@ -477,4 +477,24 @@ describe('planArrival', () => {
     expect(result.note).toBe('Added from a run: type the expected value on this page, then verify.');
     expect(result.focus).toBeNull();
   });
+
+  // Fix round 2 (Task 6 review, controller finding F1): on a cold load, the arrival
+  // effect could fire in the same React commit where the seeding effect flips its ref
+  // (synchronous) but before the seeded `setGrid` (asynchronous) has actually applied —
+  // so `planArrival` must refuse to plan against a grid that has not been seeded yet,
+  // even when everything else about the request looks normal.
+  it('grid not yet seeded from the source (ready: false): none, regardless of addPage or field', () => {
+    const result = planArrival(emptyState(), { addPage: 'https://s.example/4', field: 'title', locked: false, ready: false });
+    expect(result).toEqual({ kind: 'none' });
+  });
+
+  it('not ready takes priority over locked (no "verification running" note before the grid even exists)', () => {
+    const result = planArrival(base(), { addPage: 'https://s.example/4', field: 'title', locked: true, ready: false });
+    expect(result).toEqual({ kind: 'none' });
+  });
+
+  it('ready defaults to true when omitted, so existing callers/tests are unaffected', () => {
+    const result = planArrival(base(), { addPage: 'https://s.example/4', field: 'price', locked: false });
+    expect(result.kind).toBe('add');
+  });
 });
