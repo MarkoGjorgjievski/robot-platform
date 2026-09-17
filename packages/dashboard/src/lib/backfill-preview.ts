@@ -20,10 +20,16 @@ export type FieldClassification = { name: string; fill: number; classification: 
  * resolve for free at a cheaper cache tier than AI
  * (`EST_AI_COST_PER_PAGE_USD`'s own doc comment, packages/api/src/crawl/backfill.ts).
  * One page per gap item, so one count is the whole story.
+ *
+ * `certified` reads "free" instead — a verified website's repair runs
+ * certified paths only, which never call AI (`backfillPreview`'s own
+ * `estCostUsd: 0` for a certified website, packages/api/src/routers/crawl.ts)
+ * — so no dollar figure, "up to" or otherwise, belongs in this line at all.
  */
-export function previewSummary(p: { pages: number; estCostUsd: number }): string {
+export function previewSummary(p: { pages: number; estCostUsd: number; certified?: boolean }): string {
   const pages = p.pages === 1 ? 'page' : 'pages';
-  return `${p.pages} ${pages} — up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
+  const cost = p.certified ? 'free' : `up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
+  return `${p.pages} ${pages} — ${cost}`;
 }
 
 /**
@@ -37,9 +43,15 @@ export function previewSummary(p: { pages: number; estCostUsd: number }): string
  * single enum, not per-field) — each dead field gets its own copy explaining
  * ITS OWN broken path, but the choice the operator makes applies uniformly
  * to every checked dead field, matching what the API actually accepts.
+ *
+ * Also null for a certified website (`opts.certified`) — repair-then-sweep
+ * vs. full-focus is a distinction between two AI extraction strategies, and a
+ * verified website's repair runs certified paths only, never AI. The panel
+ * still sends `deadFieldStrategy: 'full_focus'` to satisfy the server's guard
+ * (`backfillMutationInput`), just without ever showing this choice.
  */
-export function strategyCopy(f: FieldClassification): { title: string; recommended: string; alternative: string } | null {
-  if (f.classification === 'healthy') return null;
+export function strategyCopy(f: FieldClassification, opts?: { certified?: boolean }): { title: string; recommended: string; alternative: string } | null {
+  if (f.classification === 'healthy' || opts?.certified) return null;
   const pct = Math.round(f.fill * 100);
   return {
     title: `${f.name} — ${pct}% filled, its extraction path looks broken`,
@@ -63,12 +75,20 @@ export function checkedHasDeadField(fields: FieldClassification[], checked: Set<
  * `deadFieldStrategy` is omitted, not sent stale, the moment every checked
  * dead field is unchecked — the API refuses a strategy for fields no longer
  * in scope, and this panel never picks one behind the operator's back.
+ *
+ * `opts.certified` sends `full_focus` regardless of `strategy` — a certified
+ * website never shows the strategy radio (`strategyCopy` above returns null
+ * for it), but the server's guard 5 still requires SOME value whenever a
+ * dead field is in scope; `full_focus` is the plain path straight through
+ * `startExecution`, which is exactly what a certified repair already is.
  */
 export function backfillMutationInput(
   fields: FieldClassification[],
   checked: Set<string>,
   strategy: 'repair_sweep' | 'full_focus',
+  opts?: { certified?: boolean },
 ): { targetFields: string[]; deadFieldStrategy?: 'repair_sweep' | 'full_focus' } {
   const targetFields = fields.filter((f) => checked.has(f.name)).map((f) => f.name);
-  return checkedHasDeadField(fields, checked) ? { targetFields, deadFieldStrategy: strategy } : { targetFields };
+  if (!checkedHasDeadField(fields, checked)) return { targetFields };
+  return { targetFields, deadFieldStrategy: opts?.certified ? 'full_focus' : strategy };
 }

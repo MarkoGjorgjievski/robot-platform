@@ -19,6 +19,11 @@ describe('previewSummary', () => {
     expect(previewSummary({ pages: 4, estCostUsd: 0.2 }))
       .toBe('4 pages — up to ~$0.20 if no cache answers');
   });
+
+  it('a verified website\'s repair is free: certified paths never call AI', () => {
+    expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true })).toMatch(/38 .*free/);
+    expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true })).not.toMatch(/\$/);
+  });
 });
 
 describe('strategyCopy', () => {
@@ -41,6 +46,10 @@ describe('strategyCopy', () => {
     expect(copy.recommended.toLowerCase()).toContain('sample');
     expect(copy.recommended.toLowerCase()).toContain('sweep');
     expect(copy.alternative.toLowerCase()).toContain('every');
+  });
+
+  it('offers no dead-field strategy on a verified website', () => {
+    expect(strategyCopy({ name: 'price', fill: 0.1, classification: 'dead' }, { certified: true })).toBeNull();
   });
 });
 
@@ -96,5 +105,10 @@ describe('backfillMutationInput', () => {
   it('omits deadFieldStrategy once the dead field is unchecked — never a stale strategy', () => {
     const result = backfillMutationInput(fields, new Set(['isbn']), 'repair_sweep');
     expect(result).not.toHaveProperty('deadFieldStrategy');
+  });
+
+  it('sends full_focus for a certified website, regardless of the passed strategy — no strategy choice is offered', () => {
+    expect(backfillMutationInput(fields, new Set(['title', 'isbn']), 'repair_sweep', { certified: true }))
+      .toEqual({ targetFields: ['title', 'isbn'], deadFieldStrategy: 'full_focus' });
   });
 });

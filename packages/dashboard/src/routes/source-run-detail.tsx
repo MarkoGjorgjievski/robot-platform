@@ -23,6 +23,7 @@ import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { ResultsTable } from '../components/results-table';
 import { RunStatusDot } from '../components/run-status-dot';
 import { Stat } from '../components/stat';
+import { RunMisses } from '../components/run-misses';
 
 // Mirrors `DETAIL_URL_FIELD` in packages/api/src/crawl/effective-schema.ts
 // (re-exported from @robot/scraper). Not imported directly — the dashboard
@@ -306,6 +307,10 @@ export default function SourceRunDetail() {
           gapByUrl={gapByUrl}
           coverage={coverageQuery.data?.fields}
         />
+      )}
+
+      {runIsTerminal && !probeGateShowing && !isBackfillRun && (
+        <RunMisses runId={runId} projectSlug={projectSlug} sourceSlug={sourceSlug} fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)} />
       )}
 
       {runIsTerminal && !probeGateShowing && !isBackfillRun && (
@@ -629,7 +634,11 @@ function BackfillGapsPanel({
   }
 
   const fields = (previewQuery.data?.fields ?? []) as FieldClassification[];
-  const showStrategy = checkedHasDeadField(fields, activeChecked);
+  // A certified website's repair runs certified paths only — no AI, so no
+  // dead-field strategy choice belongs on screen (strategyCopy's own doc
+  // comment). `full_focus` still goes to the server below, unshown.
+  const certified = previewQuery.data?.certified ?? false;
+  const showStrategy = checkedHasDeadField(fields, activeChecked) && !certified;
   const deadCheckedFields = fields.filter((f) => activeChecked.has(f.name) && f.classification === 'dead');
 
   const toggleField = (name: string) => {
@@ -641,7 +650,7 @@ function BackfillGapsPanel({
     });
   };
 
-  const mutationInput = previewQuery.data ? backfillMutationInput(fields, activeChecked, strategy) : null;
+  const mutationInput = previewQuery.data ? backfillMutationInput(fields, activeChecked, strategy, { certified }) : null;
 
   return (
     <div className="mt-6 border-t border-gray-200 pt-6">
@@ -678,7 +687,7 @@ function BackfillGapsPanel({
           {showStrategy && (
             <div className="mt-4 space-y-2">
               {deadCheckedFields.map((f) => {
-                const copy = strategyCopy(f);
+                const copy = strategyCopy(f, { certified });
                 if (!copy) return null;
                 return (
                   <div key={f.name} className="border-l-[3px] border-l-warn bg-warn-tint px-3 py-2 text-xs text-gray-900">
