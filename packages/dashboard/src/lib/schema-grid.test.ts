@@ -19,6 +19,7 @@ import {
   addPage,
   removePage,
   canAddPage,
+  planArrival,
   type GridState,
   type GridRow,
 } from './schema-grid';
@@ -418,5 +419,62 @@ describe('proof pages: three to six', () => {
   it('toBindingInput sends every page, blanks included', () => {
     const s = addPage(base(), 'https://s.example/4');
     expect(toBindingInput(s).expected.title).toEqual({ 'https://s.example/1': 'A', 'https://s.example/2': 'B', 'https://s.example/3': 'C', 'https://s.example/4': '' });
+  });
+});
+
+// Fix round 1 (Task 6 review, controller finding): the arrival effect's decision logic
+// is a pure function so the "locked" behavior is testable directly, not just reasoned
+// about in a React effect. `col`/`focus` are in the page-index coordinate system
+// SchemaGrid's `focusCell` prop expects (0-based, matching `state.urls`), not the
+// grid's internal +3 ref-key offset.
+describe('planArrival', () => {
+  const base = (): GridState => ({
+    urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'], listingUrl: '',
+    rows: [
+      { id: 'a', key: 'title', name: 'Title', type: 'text', description: 'heading', expected: ['A', 'B', 'C'] },
+      { id: 'b', key: 'price', name: 'Price', type: 'money', description: 'green', expected: ['1', '2', '3'] },
+    ],
+  });
+
+  it('no addPage param: none', () => {
+    expect(planArrival(base(), { locked: false })).toEqual({ kind: 'none' });
+  });
+
+  it('locked: wait, with no state change, even if a page would otherwise be added', () => {
+    const result = planArrival(base(), { addPage: 'https://s.example/4', field: 'title', locked: true });
+    expect(result).toEqual({ kind: 'wait', note: 'A verification is running. This page will be added when it finishes.' });
+  });
+
+  it('six pages already, url absent: refused', () => {
+    let s = base();
+    for (let i = 4; i <= 9; i++) s = addPage(s, `https://s.example/${i}`);
+    expect(s.urls).toHaveLength(URL_MAX);
+    const result = planArrival(s, { addPage: 'https://s.example/99', field: 'title', locked: false });
+    expect(result).toEqual({ kind: 'refused', note: 'This website already has six proof pages. Remove one to add this page.' });
+  });
+
+  it('url already present: add, state unchanged in length, focus on that existing column', () => {
+    const result = planArrival(base(), { addPage: 'https://s.example/2', field: 'title', locked: false });
+    expect(result.kind).toBe('add');
+    if (result.kind !== 'add') throw new Error('unreachable');
+    expect(result.state.urls).toHaveLength(3); // addPage no-ops: the url is already page 2
+    expect(result.focus).toEqual({ row: 0, col: 1 });
+  });
+
+  it('normal: add, a new last column, note names the field, focus at the named row and the new page index', () => {
+    const result = planArrival(base(), { addPage: 'https://s.example/4', field: 'price', locked: false });
+    expect(result.kind).toBe('add');
+    if (result.kind !== 'add') throw new Error('unreachable');
+    expect(result.state.urls).toHaveLength(4);
+    expect(result.note).toBe('Added from a run: type what Price should be on this page, then verify.');
+    expect(result.focus).toEqual({ row: 1, col: 3 });
+  });
+
+  it('normal, field matches no row: generic note, no focus', () => {
+    const result = planArrival(base(), { addPage: 'https://s.example/4', field: 'nope', locked: false });
+    expect(result.kind).toBe('add');
+    if (result.kind !== 'add') throw new Error('unreachable');
+    expect(result.note).toBe('Added from a run: type the expected value on this page, then verify.');
+    expect(result.focus).toBeNull();
   });
 });
