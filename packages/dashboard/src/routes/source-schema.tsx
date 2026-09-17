@@ -33,6 +33,11 @@ export default function SourceSchema() {
   const [touched, setTouched] = useState(false);
   const [importIgnored, setImportIgnored] = useState<string[]>([]);
   const initialized = useRef(false);
+  // A STATE twin of `initialized` (Task 6 review, finding F1): the arrival effect below
+  // must never plan against `grid` until a render has actually committed the seeded
+  // grid, and only a state value — not a ref, which mutates synchronously mid-commit —
+  // can tell it that. See the seeding effect and the arrival effect for why.
+  const [seeded, setSeeded] = useState(false);
 
   const updateGrid: typeof setGrid = (value) => {
     setTouched(true);
@@ -79,10 +84,11 @@ export default function SourceSchema() {
   // operator is mid-typing. Not a user edit, so it does not flip `touched`.
   useEffect(() => {
     if (initialized.current || !source) return;
-    const seeded = fromSource(source);
-    if (seeded) {
-      setGrid(seeded);
+    const fromSaved = fromSource(source);
+    if (fromSaved) {
+      setGrid(fromSaved);
       initialized.current = true;
+      setSeeded(true);
       return;
     }
     // A website with fields lifted from the project (Task 6) but no
@@ -96,6 +102,7 @@ export default function SourceSchema() {
         rows: fields.map((f) => ({ ...emptyRow(), key: f.key, name: f.name, type: f.type, description: f.description })),
       });
       initialized.current = true;
+      setSeeded(true);
       return;
     }
     // A truly empty contract (no fields on the project at all): no rows to
@@ -104,6 +111,7 @@ export default function SourceSchema() {
     // EmptyState branch below never shows a grid for anyway.
     setGrid({ urls: Array(URL_COUNT).fill(''), listingUrl: '', rows: [] });
     initialized.current = true;
+    setSeeded(true);
   }, [source]);
 
   // `active` (the table-locked state) has to be known before the arrival effect below
@@ -122,24 +130,36 @@ export default function SourceSchema() {
   const arrival = useRef(false);
   const [arrivalNote, setArrivalNote] = useState<string | null>(null);
   const [focusCell, setFocusCell] = useState<{ row: number; col: number } | null>(null);
-  // Guarded on `initialized.current` (set inside the seeding effect above) so this never
-  // fires against the placeholder `emptyState()` grid the component starts with. That
-  // effect's `setGrid` is what re-renders this component with `initialized.current`
-  // already true, so `grid` changing reference — not the ref itself, which cannot be a
-  // dependency — is the trigger that lets this effect see the post-seed state.
+  // F1 (Task 6 review, cold-load bug): a ref alone cannot gate this effect against the
+  // placeholder grid. On a cold load, the seeding effect above sets `initialized.current
+  // = true` SYNCHRONOUSLY and calls `setGrid(...)` (an ASYNCHRONOUS state update) in the
+  // very same commit as this effect. Because passive effects for one commit all run in
+  // hook-declaration order against that commit's closures, this effect could see
+  // `initialized.current` already flipped true while `grid` is still the closure's
+  // stale `emptyState()` placeholder — the seeded grid hadn't been applied to state yet.
+  // That is exactly what produced the corruption the browser check caught: a page
+  // appended to an empty one-row grid, "8 of 0 fields", bogus URL-required problems, and
+  // the arrival ref consumed before the real grid ever existed.
   //
-  // While `active` (table locked while verifying), the arrival is NOT consumed: the
-  // `arrival` ref stays false and `addPage` is never called, so a customer landing here
+  // The fix: `seeded` (state, not a ref) is flipped in the SAME seeding-effect call as
+  // `setGrid`, so React batches both into the SAME next commit — the first commit where
+  // this effect can observe `seeded === true` is also the first one where `grid` (in the
+  // same closure) is the real seeded grid. `planArrival` itself refuses (`kind: 'none'`)
+  // whenever `ready` is false, so "not seeded yet" is a directly testable rule, not just
+  // this effect's timing.
+  //
+  // While `active` (table locked while verifying), the arrival is likewise NOT consumed:
+  // the `arrival` ref stays false and nothing is called, so a customer landing here
   // mid-run cannot mutate a grid the UI is showing as locked and read-only. `active` is
   // in the dependency array so the effect re-evaluates once the lock lifts and applies
   // the arrival then, exactly once.
   useEffect(() => {
-    if (!initialized.current || arrival.current || !search.addPage) return;
+    if (arrival.current || !search.addPage) return;
     const addPageUrl = search.addPage;
-    const plan = planArrival(grid, { addPage: addPageUrl, field: search.field, locked: active });
+    const plan = planArrival(grid, { addPage: addPageUrl, field: search.field, locked: active, ready: seeded });
     switch (plan.kind) {
       case 'none':
-        return; // no addPage param — cannot happen here (guarded above), kept for exhaustiveness
+        return; // no addPage param, or the grid isn't seeded yet — retry once `seeded`/`grid` change
       case 'wait':
         setArrivalNote(plan.note); // still locked: don't consume the arrival, retry once it lifts
         return;
@@ -155,7 +175,7 @@ export default function SourceSchema() {
         if (plan.focus) setFocusCell(plan.focus);
         return;
     }
-  }, [search.addPage, search.field, active, grid]);
+  }, [search.addPage, search.field, active, grid, seeded]);
 
   const savedGrid = source ? fromSource(source) : null;
 
@@ -329,14 +349,30 @@ export default function SourceSchema() {
               come from the project) — names not found among this contract's
               fields are reported as skipped, not silently dropped.
             */}
-            <SchemaImport
-              urlCount={grid.urls.length}
-              onRows={(rows) => {
-                const r = applyImportToRows(grid.rows, rows);
-                updateGrid((g) => ({ ...g, rows: r.rows }));
-                setImportIgnored(r.ignored);
-              }}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <SchemaImport
+                urlCount={grid.urls.length}
+                onRows={(rows) => {
+                  const r = applyImportToRows(grid.rows, rows);
+                  updateGrid((g) => ({ ...g, rows: r.rows }));
+                  setImportIgnored(r.ignored);
+                }}
+              />
+              {/*
+                F2 (Task 6 review): the header's own Add-page control is the last
+                column of a wide, horizontally-scrolling table, so on a narrow
+                viewport it can sit off-screen. This is the same handler, kept
+                visible next to Import regardless of scroll position — hidden or
+                faded under exactly the same conditions as the header one: six
+                pages already (canAddPage false) hides it, and the surrounding
+                `active`-faded wrapper disables it while the table is locked.
+              */}
+              {canAddPage(grid) && (
+                <button type="button" className="btn-quiet" onClick={() => setGrid((g) => addPage(g))} aria-label="Add a proof page">
+                  Add proof page
+                </button>
+              )}
+            </div>
             {importIgnored.length > 0 && <p className="mt-1 text-xs text-warn">Not in this project, so skipped: {importIgnored.join(', ')}</p>}
           </div>
 

@@ -139,9 +139,19 @@ export type ArrivalPlan =
  * "consumed": callers should keep retrying until `locked` clears). `col`/`focus` are in
  * the page-index coordinate system (0-based, matching `state.urls`), not the grid
  * component's internal +3 ref-key offset for the fixed name/type/description columns.
+ *
+ * `ready` (default true) must be false while `state` is still the caller's placeholder
+ * grid, before it has been seeded from the saved source (Task 6 review, F1): on a cold
+ * page load, a React effect that mutates state (the seeding effect) can flip its
+ * "initialized" ref synchronously and still run a SECOND effect (this one) later in the
+ * very same commit, before the seeding effect's own `setGrid` has actually been applied
+ * — so a ref alone cannot tell this function's caller whether `state` is trustworthy.
+ * `ready: false` refuses exactly like a missing `addPage`, so nothing is consumed and
+ * the caller can safely retry once it becomes true.
  */
-export function planArrival(state: GridState, args: { addPage?: string; field?: string; locked: boolean }): ArrivalPlan {
+export function planArrival(state: GridState, args: { addPage?: string; field?: string; locked: boolean; ready?: boolean }): ArrivalPlan {
   if (!args.addPage) return { kind: 'none' };
+  if (args.ready === false) return { kind: 'none' };
   if (args.locked) return { kind: 'wait', note: 'A verification is running. This page will be added when it finishes.' };
   if (!canAddPage(state) && !state.urls.includes(args.addPage)) {
     return { kind: 'refused', note: 'This website already has six proof pages. Remove one to add this page.' };
