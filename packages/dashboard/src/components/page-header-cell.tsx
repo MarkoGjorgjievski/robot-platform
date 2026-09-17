@@ -76,7 +76,17 @@ export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl
           </div>
           {findError && <p className="mt-1 text-xs text-fail">{findError}</p>}
           {onRemove && !disabled && (
-            <button type="button" className="btn-quiet mt-2" onClick={onRemove} aria-label={`Remove page ${index + 1}`}>
+            // I2: close the popover BEFORE removing. `onRemove` shrinks the pages
+            // array, so `schema-grid.tsx`'s `<th key={i}>` can re-mount this very
+            // component with a DIFFERENT page's `url` prop at the same index (e.g.
+            // removing page 4 leaves index 3 now meaning page 5). Left open, this
+            // component's `draft` would still hold the REMOVED page's url — the
+            // `useEffect` that syncs `draft` from `url` only fires `if (!open)` — so
+            // the next outside click's `commit()` would see `draft !== url` and write
+            // the removed page's url onto the NEXT page, orphaning its own expected
+            // values. Closing first means `open` is already false when `url` changes,
+            // so that same effect resyncs `draft` immediately instead.
+            <button type="button" className="btn-quiet mt-2" onClick={() => { setOpen(false); onRemove(); }} aria-label={`Remove page ${index + 1}`}>
               Remove this page
             </button>
           )}

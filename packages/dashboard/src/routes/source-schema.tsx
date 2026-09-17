@@ -368,7 +368,7 @@ export default function SourceSchema() {
                 `active`-faded wrapper disables it while the table is locked.
               */}
               {canAddPage(grid) && (
-                <button type="button" className="btn-quiet" onClick={() => setGrid((g) => addPage(g))} aria-label="Add a proof page">
+                <button type="button" className="btn-quiet" onClick={() => updateGrid((g) => addPage(g))} aria-label="Add a proof page">
                   Add proof page
                 </button>
               )}
@@ -393,8 +393,8 @@ export default function SourceSchema() {
             pending={active}
             onFindPages={async (u) => (await findMutation.mutateAsync({ listingUrl: u })).urls}
             typeFix={typeFix}
-            onAddPage={canAddPage(grid) ? () => setGrid((g) => addPage(g)) : undefined}
-            onRemovePage={(i) => setGrid((g) => removePage(g, i))}
+            onAddPage={canAddPage(grid) ? () => updateGrid((g) => addPage(g)) : undefined}
+            onRemovePage={(i) => updateGrid((g) => removePage(g, i))}
             focusCell={focusCell}
           />
         </>

@@ -94,7 +94,14 @@ export function verifyButton(args: { state: StripState; firstRun: boolean; rever
   const { state, firstRun, reverifyCount, capturesFresh, aiAvailable, upperBoundUsd, complete, busy } = args;
   const cost = aiAvailable ? `up to $${upperBoundUsd.toFixed(2)}` : 'mechanical only';
   if (state === 'active') return { label: firstRun ? 'Verify' : 'Re-verify', disabled: true, reason: 'Verifying' };
-  if (!complete) return { label: firstRun ? `Verify · ${cost}` : 'Re-verify', disabled: true, reason: 'Fill in every page and every cell first' };
+  // M7: "Fix the problems listed above first" would only be honest if the problems
+  // list were always on screen at this point, but it is gated on `touched`
+  // (source-schema.tsx) — false on first paint, before the operator has edited
+  // anything or clicked this disabled button once. So this names the actual rule
+  // instead of pointing at a list that may not be showing yet: pages four to six
+  // may be blank (spec 2026-09-17 — extra pages can go unchecked), but one to
+  // three and every cell on them are still required.
+  if (!complete) return { label: firstRun ? `Verify · ${cost}` : 'Re-verify', disabled: true, reason: 'Fill in pages one to three, and at least one value on each extra page' };
   if (firstRun) return { label: `Verify · ${cost}`, disabled: busy };
   if (reverifyCount === 0) return { label: 'Everything is verified', disabled: true, reason: 'Nothing has changed since the last verification' };
   const n = `${reverifyCount} field${reverifyCount === 1 ? '' : 's'}`;
