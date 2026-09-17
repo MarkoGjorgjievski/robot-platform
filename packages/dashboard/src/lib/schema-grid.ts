@@ -9,7 +9,10 @@ export const URL_COUNT = URL_MIN;
 const FIXED_COLS = 3; // name, type, description
 
 let seq = 0;
-export function emptyRow(): GridRow { return { id: `r${Date.now().toString(36)}${(seq++).toString(36)}`, name: '', type: 'text', description: '', expected: Array(URL_COUNT).fill('') }; }
+/** `width` defaults to a fresh grid's starting page count; callers on a grown grid
+ * (4-6 pages) must pass the grid's actual `urls.length` so the invariant every row's
+ * `expected.length === state.urls.length` holds for rows this module creates. */
+export function emptyRow(width = URL_COUNT): GridRow { return { id: `r${Date.now().toString(36)}${(seq++).toString(36)}`, name: '', type: 'text', description: '', expected: Array(width).fill('') }; }
 export function emptyState(): GridState { return { urls: Array(URL_COUNT).fill(''), listingUrl: '', rows: [emptyRow()] }; }
 
 const TRUE = ['true', 'yes', 'y', '1', 'in stock', 'instock', 'available', 'in-stock'];
@@ -49,7 +52,7 @@ export function applyPaste(state: GridState, at: { row: number; col: number }, b
   const rows = [...state.rows];
   block.forEach((line, r) => {
     const idx = at.row + r;
-    while (rows.length <= idx) rows.push(emptyRow());
+    while (rows.length <= idx) rows.push(emptyRow(state.urls.length));
     let row = rows[idx]!;
     line.forEach((value, c) => { row = setCell(row, at.col + c, value); });
     rows[idx] = row;
@@ -93,7 +96,7 @@ export function rowsFromTable(table: string[][], urlCount: number): { rows: Grid
   urlCols.forEach((c, i) => { if (c === -1) problems.push(`Missing column: url ${i + 1}`); });
   if (problems.length) return { rows: [], problems };
   const rows = table.slice(1).map((line) => {
-    const base = emptyRow();
+    const base = emptyRow(urlCount);
     let row = setCell(base, 0, line[nameCol] ?? '');
     row = setCell(row, 1, line[typeCol] ?? '');
     row = setCell(row, 2, line[descCol] ?? '');
@@ -163,7 +166,11 @@ export function applyImportToRows(current: GridRow[], imported: GridRow[]): { ro
     const hit = byName.get(r.name.trim().toLowerCase());
     if (!hit) return r;
     used.add(r.name.trim().toLowerCase());
-    return { ...r, description: hit.description, expected: hit.expected };
+    // Keep the current row's width (the live grid's page count), not the imported
+    // row's — an import parsed at a different url count must not shrink or grow
+    // `expected` out of step with `state.urls`. A narrower import leaves this row's
+    // existing value on the pages it doesn't cover, rather than blanking them.
+    return { ...r, description: hit.description, expected: r.expected.map((v, k) => hit.expected[k] ?? v) };
   });
   const ignored = imported.filter((r) => !used.has(r.name.trim().toLowerCase())).map((r) => r.name);
   return { rows, ignored };

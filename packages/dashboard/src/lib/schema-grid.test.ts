@@ -315,6 +315,48 @@ describe('importProblems', () => {
   });
 });
 
+// Fix round 1: every GridState this module produces must keep every row's
+// expected.length === state.urls.length. A grid grown to four-to-six pages
+// exposed three spots that still assumed a fixed width of three.
+describe('row width matches the grid (invariant: expected.length === urls.length)', () => {
+  it('pasting more rows than the grid has, on a 4-page grid, gives new rows 4 cells and keeps the page-4 value', () => {
+    // No existing rows: both pasted rows are created by applyPaste's own padding loop
+    // (`while (rows.length <= idx) rows.push(emptyRow(...))`), which is exactly the path
+    // the reviewer flagged as width-unaware on a grid past three pages.
+    const state: GridState = { urls: ['u1', 'u2', 'u3', 'u4'], listingUrl: '', rows: [] };
+    const block = [['a', 'text', 'd1', 'w', 'x', 'y', 'z'], ['b', 'text', 'd2', 'w2', 'x2', 'y2', 'z2']];
+    const next = applyPaste(state, { row: 0, col: 0 }, block);
+    expect(next.rows).toHaveLength(2);
+    for (const row of next.rows) expect(row.expected).toHaveLength(4);
+    expect(next.rows[0]!.expected).toEqual(['w', 'x', 'y', 'z']);
+    expect(next.rows[1]!.expected).toEqual(['w2', 'x2', 'y2', 'z2']);
+  });
+
+  it('rowsFromTable(table, 4) with a url 4 column returns rows 4 wide, fourth value included', () => {
+    const table = [
+      ['name', 'type', 'description', 'url 1', 'url 2', 'url 3', 'url 4'],
+      ['price', 'money', 'near the button', '10', '20', '30', '40'],
+    ];
+    const { rows, problems } = rowsFromTable(table, 4);
+    expect(problems).toEqual([]);
+    expect(rows[0]!.expected).toEqual(['10', '20', '30', '40']);
+  });
+
+  it('applyImportToRows: a 3-wide imported row on a 4-page grid stays 4 wide, first three replaced, fourth kept', () => {
+    const current: GridRow[] = [{ id: 'a', key: 'price', name: 'Price', type: 'money', description: '', expected: ['old1', 'old2', 'old3', 'kept4'] }];
+    const imported: GridRow[] = [{ id: 'x', name: 'price', type: 'text', description: 'green', expected: ['1', '2', '3'] }];
+    const { rows } = applyImportToRows(current, imported);
+    expect(rows[0]!.expected).toEqual(['1', '2', '3', 'kept4']);
+  });
+
+  it('applyImportToRows: a 4-wide imported row on a 4-page grid replaces all four', () => {
+    const current: GridRow[] = [{ id: 'a', key: 'price', name: 'Price', type: 'money', description: '', expected: ['old1', 'old2', 'old3', 'old4'] }];
+    const imported: GridRow[] = [{ id: 'x', name: 'price', type: 'text', description: 'green', expected: ['1', '2', '3', '4'] }];
+    const { rows } = applyImportToRows(current, imported);
+    expect(rows[0]!.expected).toEqual(['1', '2', '3', '4']);
+  });
+});
+
 describe('proof pages: three to six', () => {
   const base = (): GridState => ({
     urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'], listingUrl: '',
