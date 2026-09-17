@@ -94,8 +94,8 @@ gap items; the run page already renders them (`BackfillGapsPanel`). Added:
   item already carries it (`run_items.input_values.url`, e.g. the Ikea run's
   items all read `{"url": ".../cat/two-seater-sofas-10668/"}`); items without
   one (product urls given directly) form a single "given directly" group. Each
-  group has its count and up to ten product urls. No schema change. Confirmed-absent cells are excluded, as in
-  coverage. Pure read.
+  group has its count and up to ten product urls. No schema change.
+  Confirmed-absent cells are excluded, as in coverage. Pure read.
 - **On the run page**, for a verified website, above the gaps panel: one line
   per field, e.g. "price is empty on 38 products · 36 from
   /cat/two-seater-sofas · 2 from /cat/armchairs". Expanding a group lists its
@@ -155,10 +155,10 @@ analysis-chain concept).
    unchanged, X's stored result is reused without a capture-dependent search.
 6. Blank on pages 1–3 is still a validation error.
 7. `misses` groups by listing and excludes confirmed-absent cells.
-9. `verifyEstimate` counts a field with a changed hash as AI-reachable, and
-   reads free when only unchanged, certified fields are in scope.
 8. At scale, `[A, B]` on a layout-2 page yields B's value; on a layout-1 page
    A's (an existing property of `runVerifiedExtraction`, pinned explicitly).
+9. `verifyEstimate` counts a field with a changed hash as AI-reachable, and
+   reads free when only unchanged, certified fields are in scope.
 
 ## 10. Files
 
