@@ -64,7 +64,7 @@ the other missed pages as unlabelled evidence, a blank on pages one to three
 meaning "not on this product," or speeding up verification's own captures. A
 real second-layout website has not been run through this flow live yet.
 
-Live check: pending (controller).
+Live check, 2026-09-17, free by construction (a second api-server started with no `ANTHROPIC_API_KEY`, driven over tRPC; Marko's own dev servers untouched): a fourth Ikea product page was added with only `price` typed. On save, 7 of 8 fields stayed current and only `price` went stale; the estimate counted `price` as AI-reachable (`aiFields: 1`, $0 with no key); verifying `price` alone passed on all four pages with no `provenOn` and no thin-evidence flag (Ikea has one layout), and the other seven fields were not re-run. It took 346 s because verification still captures with `networkidle` (four pages at ~70 s on Ikea; the certified-run speed fix does not cover verification). The website was then restored to its three pages (verify 5 s on fresh captures, 8 of 8 current). A look-only browser check of the Schema tab and the run page found and fixed three defects no unit test could see: a cold load of the `?addPage` link applied the page to the placeholder grid before the website's data loaded; the Add page control sat off-screen in the scrolling table (there is now an "Add proof page" button beside the import); and `crawl.misses` counted never-extracted products as empty cells (it now counts only products that produced a row). The reusable browser check lives in the plan's scratch workspace only; the UI smoke does not cover the arrival link yet.
 
 ## MVP flow phase 1 (2026-09-08): routes and shell landed; phases 2 to 5 follow the spec
 
