@@ -1,4 +1,7 @@
-export const VERIFY_URL_COUNT = 3;
+export const VERIFY_URL_MIN = 3;
+export const VERIFY_URL_MAX = 6;
+/** @deprecated the minimum; kept so callers that mean "three" keep compiling until Task 3 moves them. */
+export const VERIFY_URL_COUNT = VERIFY_URL_MIN;
 export const MAX_CERTIFIED_PATHS = 5;
 export const CAPTURE_REUSE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const EST_AI_COST_PER_FIELD_USD = 0.05;
