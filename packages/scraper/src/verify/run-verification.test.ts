@@ -334,3 +334,31 @@ describe('runVerification — each proof page is captured with a ready check bui
     expect(seen[page4]!.script).not.toContain('"key":"product_name"');
   });
 });
+
+describe('runVerification — a cached certification that rests on a volatile XPath is not replayed as is', () => {
+  it('searches again, and the stable paths it finds replace the volatile one', async () => {
+    // Resolves on all three fixture pages, and carries a build hash the way Ikea's stored XPaths do.
+    const volatile = { source: 'xpath' as const, path: '//div[@id="main" or @data-cv="634a7e0"]/span[@class="rating"]', transform: 'identity' as const };
+    const rating = fields.filter((f) => f.key === 'rating');
+    const only = { urls: U, expected: { rating: set.expected.rating } };
+    const run = await runVerification({ fields: rating, verificationSet: only }, {
+      browser, agent: null, captures: loadShopExample(),
+      cachedPaths: async () => [volatile],
+    });
+    const certified = run.outcome.fields.rating!.certified;
+    expect(certified.length).toBeGreaterThan(0);
+    expect(certified.map((p) => p.path)).not.toContain(volatile.path);
+  }, 60_000);
+  it('a cached certification built on stable paths is still replayed without a search', async () => {
+    const stable = { source: 'api' as const, path: 'item.rating', transform: 'identity' as const };
+    const rating = fields.filter((f) => f.key === 'rating');
+    const only = { urls: U, expected: { rating: set.expected.rating } };
+    const run = await runVerification({ fields: rating, verificationSet: only }, {
+      // setContentEvaluate would be the DOM search; it must not be needed.
+      browser: { setContentEvaluate: async () => { throw new Error('searched the DOM although the cached path certifies'); } } as unknown as IBrowser,
+      agent: null, captures: loadShopExample(),
+      cachedPaths: async () => [stable],
+    });
+    expect(run.outcome.fields.rating!.certified).toEqual([stable]);
+  }, 60_000);
+});

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { checkPageHealth } from '@robot/browser';
 import type { IBrowser, PageCapture, ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
-import { certify, checkedPages, gatherCandidates, type CandidatePath, type CaptureLike } from './certify.js';
+import { certify, checkedPages, gatherCandidates, isVolatilePath, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
@@ -138,7 +138,10 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     const cached = deps.cachedPaths ? await deps.cachedPaths(field.concept) : [];
     if (cached.length > 0) {
       const r = await certify({ field, expected, captures: caps, candidates: cached }, { evalXPaths });
-      if (r.certified.length > 0) result = r;
+      // The shortcut is for a certification worth keeping. One that rests on a
+      // volatile XPath (only possible as certify's last resort) is searched
+      // again, so the stable paths the generator now finds can replace it.
+      if (r.certified.length > 0 && !r.certified.some(isVolatilePath)) result = r;
     }
     let candidates: CandidatePath[] = [];
     if (!result) {

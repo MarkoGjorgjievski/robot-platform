@@ -175,3 +175,70 @@ describe('rankCertified', () => {
     expect(ranked.map((p) => p.path)).toEqual(['p', 'item.price.long.path', 'og:price', '//a']);
   });
 });
+
+// An XPath anchored on a build hash or a version stamp certifies today and
+// goes empty after the site's next deploy (Ikea, 2026-09-17). A stable path
+// that certifies always wins; a volatile one is kept only as a last resort.
+describe('certify — stable XPaths before volatile ones', () => {
+  const textField = { key: 'subtitle', name: 'Subtitle', type: 'text' as const, description: 'under the title', concept: 'subtitle' };
+  const pages = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
+  const blank = (url: string): CaptureLike => ({ url, html: '<html></html>', structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
+  const caps = Object.fromEntries(pages.map((u) => [u, blank(u)]));
+  const exp = Object.fromEntries(pages.map((u) => [u, '2-seat sofa']));
+  const VOLATILE = { source: 'xpath' as const, path: '//div[@data-skapa="price-module@11.1.8"]/div[@class="info"]/h1/span', transform: 'identity' as const };
+  const STABLE = { source: 'xpath' as const, path: '//div[@data-region="product"]/div[1]/div[@class="info"]/h1/span', transform: 'identity' as const };
+  const bothResolve = { evalXPaths: async (_html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, '2-seat sofa'])) };
+
+  it('drops a volatile XPath when a stable one certifies', async () => {
+    const r = await certify({ field: textField, expected: exp, captures: caps, candidates: [VOLATILE, STABLE] }, bothResolve);
+    expect(r.certified).toEqual([STABLE]);
+    expect(Object.values(r.cells).every((c) => c.status === 'pass' && c.path === r.certified[0])).toBe(true);
+  });
+  it('keeps a volatile XPath as a last resort when nothing stable certifies', async () => {
+    const r = await certify({ field: textField, expected: exp, captures: caps, candidates: [VOLATILE] }, bothResolve);
+    expect(r.certified).toEqual([VOLATILE]);
+  });
+  it('a stable non-xpath path beats it too', async () => {
+    const withLd = Object.fromEntries(pages.map((u) => [u, { ...blank(u), structuredData: { ldJson: [{ description: '2-seat sofa' }], nextData: null, initialState: null, meta: {} } }]));
+    const r = await certify({ field: textField, expected: exp, captures: withLd, candidates: [VOLATILE, { source: 'json-ld', path: 'description', transform: 'identity' }] }, bothResolve);
+    expect(r.certified).toEqual([{ source: 'json-ld', path: 'description', transform: 'identity' }]);
+  });
+});
+
+// The cover rule (second layout) must not mistake product-specific XPaths for layouts.
+// Ikea, 2026-09-17: subtitle "certified" with three XPaths anchored on data-product-name="KIVIK" /
+// "GLOSTAD" / "HEMLINGBY": each correct on its own proof page and empty on the other two, so each was
+// safe and together they covered every page. At scale none matches any other product.
+describe('certify — a cover is not made of one-page paths', () => {
+  const textField = { key: 'subtitle', name: 'Subtitle', type: 'text' as const, description: 'under the title', concept: 'subtitle' };
+  const pages = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
+  const names = ['KIVIK', 'GLOSTAD', 'HEMLINGBY'];
+  const blank = (url: string): CaptureLike => ({ url, html: `<html data-page="${url}"></html>`, structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
+  const caps = Object.fromEntries(pages.map((u) => [u, blank(u)]));
+  const exp = Object.fromEntries(pages.map((u) => [u, '2-seat sofa']));
+  const specific = names.map((n) => ({ source: 'xpath' as const, path: `//div[@data-product-name="${n}"]/h2[@class="sub"]`, transform: 'identity' as const }));
+  const SHARED = { source: 'xpath' as const, path: '//*[@id="content"]/div[1]/h2[@class="sub"]', transform: 'identity' as const };
+  // Each product-specific XPath resolves only on its own page; the shared one resolves on all of them.
+  const evalXPaths = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => {
+    const i = names.findIndex((n) => x.includes(`"${n}"`));
+    return [x, i === -1 || html.includes(pages[i]!) ? '2-seat sofa' : null];
+  }));
+
+  it('three paths that each work on one page only do not certify the field', async () => {
+    const r = await certify({ field: textField, expected: exp, captures: caps, candidates: specific }, { evalXPaths });
+    expect(r.certified).toEqual([]);
+  });
+  it('with the shared anchor offered as well, that one certifies, alone', async () => {
+    const r = await certify({ field: textField, expected: exp, captures: caps, candidates: [...specific, SHARED] }, { evalXPaths });
+    expect(r.certified).toEqual([SHARED]);
+  });
+  it('a real second layout still certifies: one path proven on three pages, one on the fourth', async () => {
+    const p4 = 'https://s.example/4';
+    const caps4 = { ...caps, [p4]: blank(p4) };
+    const exp4 = { ...exp, [p4]: '2-seat sofa' };
+    const LAYOUT_2 = { source: 'xpath' as const, path: '//*[@id="clearance"]/h2[@class="sub"]', transform: 'identity' as const };
+    const evalTwoLayouts = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, (x === LAYOUT_2.path) === html.includes(p4) ? '2-seat sofa' : null]));
+    const r = await certify({ field: textField, expected: exp4, captures: caps4, candidates: [SHARED, LAYOUT_2] }, { evalXPaths: evalTwoLayouts });
+    expect(r.certified.map((p) => p.path)).toEqual([SHARED.path, LAYOUT_2.path]);
+  });
+});

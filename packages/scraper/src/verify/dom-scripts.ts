@@ -59,36 +59,113 @@ function browserNormalize(type: string, raw: string, pageUrl: string): string | 
 }
 
 /** Runs INSIDE the page. Structural XPath to an element: id anchor, else data-* anchor, else body. */
-function browserXPath(el: Element): string {
+/**
+ * Does this attribute value look machine-generated, so that it will change on
+ * the site's next deploy (or differ from product to product)?
+ *
+ * An XPath anchored on such a value certifies today and goes empty later with
+ * no warning. Found on Ikea, 2026-09-17: `data-cv="634a7e0"` (a build hash,
+ * already "a14a902" a week later) and `data-skapa="price-module@11.1.8"` (a
+ * version stamp; the ONLY certified path for a whole column was anchored on it).
+ *
+ * Errs toward "volatile": skipping a stable anchor only makes the XPath take
+ * the next anchor up or a position, while keeping a volatile one loses data.
+ *
+ * Runs in Node (certify, tests) AND inside the page (serialised with
+ * toString() into buildDomSearchScript), so it must stay self-contained: no
+ * imports, no closures over module state.
+ */
+export function looksVolatile(value: string): boolean {
+  const v = value.trim();
+  if (v === '') return false;
+  // A state value says something about THIS product ("data-online-sellable=true"), not where a field lives:
+  // the next product may carry the other value, and the XPath would miss it.
+  if (/^(true|false|yes|no|on|off|null|undefined|\d{1,4})$/i.test(v)) return true;
+  if (/\d+\.\d+/.test(v)) return true;                          // a version stamp, or a decimal: "price-module@11.1.8"
+  if (/\d{5,}/.test(v)) return true;                             // a long number: a product, build or session id
+  if (/^:[A-Za-z][A-Za-z0-9]*:$/.test(v)) return true;           // React useId: ":r1:"
+  if (/^(css|sc|jsx|jss|emotion)-[A-Za-z0-9]{4,}$/.test(v)) return true; // CSS-in-JS class names
+  for (const seg of v.split(/[^A-Za-z0-9]+/)) {
+    if (seg.length < 5) continue;
+    const digits = seg.replace(/[^0-9]/g, '').length;
+    const letters = seg.length - digits;
+    // Letters and digits interleaved ("634a7e0", "3kX9a") is a hash; a word with a
+    // number on one end ("step3", "col12", "2xl") is a name.
+    if (digits >= 2 && letters >= 2 && !/^[A-Za-z]+[0-9]+$/.test(seg) && !/^[0-9]+[A-Za-z]+$/.test(seg)) return true;
+  }
+  return false;
+}
+
+/** Is any attribute literal in this XPath volatile? Class literals are checked token by token. */
+export function isVolatileXPath(xpath: string): boolean {
+  // Every double-quoted literal: @attr="…" and the class-token predicate's " token ". The bare " " of
+  // that predicate's concat() trims to nothing and is skipped.
+  for (const m of xpath.matchAll(/"([^"]*)"/g)) {
+    const literal = m[1]!.trim();
+    if (literal === '') continue;
+    if (looksVolatile(literal) || literal.split(/\s+/).some((t) => looksVolatile(t))) return true;
+  }
+  return false;
+}
+
+/**
+ * Up to MAX_XPATH_VARIANTS XPaths for one element, nearest anchor first.
+ *
+ * One XPath per STABLE anchor met on the way up (an id, or a data-* attribute
+ * of an ancestor), then the body-rooted path. Several, because a single page
+ * cannot tell a stable anchor from a product-specific one: on Ikea the nearest
+ * stable-looking anchor for the subtitle was `data-product-name="KIVIK"`,
+ * which is right on that page and wrong on every other product. The proof
+ * pages decide: a product-specific variant fails the other pages, a shared one
+ * passes them all, and certify ranks the shorter one first when both do.
+ */
+function browserXPaths(el: Element): string[] {
+  const MAX_XPATH_VARIANTS = 3;
   const step = (e: Element): string => {
     const tag = e.tagName.toLowerCase();
     const cls = (e.getAttribute('class') ?? '').trim();
-    if (cls) return `${tag}[@class="${cls.replace(/"/g, '')}"]`;
+    // A class list often carries STATE next to structure: a BEM modifier ("price-module--bti" on one
+    // product, "--none" on the next), "is-active", "open". Matching the whole string gives the same
+    // element a different XPath per product. So: the exact string only when every token is structural;
+    // otherwise the first structural token, as a whole-token match; with none (all generated), the position.
+    const tokens = cls.split(/\s+/).filter((t) => t !== '');
+    const isState = (t: string) => t.includes('--') || /^(is|has)-/.test(t) || /^(active|selected|current|open|closed|opened|expanded|collapsed|disabled|enabled|hidden|visible|loading|loaded|checked|focused|hover)$/.test(t);
+    const structural = tokens.filter((t) => !looksVolatile(t) && !isState(t));
+    if (tokens.length > 0 && structural.length === tokens.length && !looksVolatile(cls)) return `${tag}[@class="${cls.replace(/"/g, '')}"]`;
+    if (structural.length > 0) return `${tag}[contains(concat(" ",normalize-space(@class)," ")," ${structural[0]!.replace(/"/g, '')} ")]`;
     let i = 1;
     let s = e.previousElementSibling;
     while (s) { if (s.tagName === e.tagName) i++; s = s.previousElementSibling; }
     return `${tag}[${i}]`;
   };
+  const out: string[] = [];
   const parts: string[] = [];
+  const tail = () => (parts.length ? '/' + parts.join('/') : '');
   let cur: Element | null = el;
   while (cur && cur.tagName.toLowerCase() !== 'body') {
     // An id on the matched element itself is a legitimate anchor (the strongest locator) —
     // unlike data-*, which only anchors on an ANCESTOR (checked via `cur !== el` below).
+    // A generated id (":r1:", "item-10489009") or data value ("634a7e0", "price-module@11.1.8", "true")
+    // is skipped: the walk goes on to the next stable anchor further up.
     const id = cur.getAttribute('id');
-    if (id) return `//*[@id="${id.replace(/"/g, '')}"]` + (parts.length ? '/' + parts.join('/') : '');
-    const data = Array.from(cur.attributes).find((a) => a.name.startsWith('data-') && a.value !== '');
-    if (data && cur !== el) return `//${cur.tagName.toLowerCase()}[@${data.name}="${data.value.replace(/"/g, '')}"]` + (parts.length ? '/' + parts.join('/') : '');
+    const data = Array.from(cur.attributes).find((a) => a.name.startsWith('data-') && a.value !== '' && !looksVolatile(a.value));
+    if (out.length < MAX_XPATH_VARIANTS - 1) {
+      if (id && !looksVolatile(id)) out.push(`//*[@id="${id.replace(/"/g, '')}"]` + tail());
+      else if (data && cur !== el) out.push(`//${cur.tagName.toLowerCase()}[@${data.name}="${data.value.replace(/"/g, '')}"]` + tail());
+    }
     parts.unshift(step(cur));
     cur = cur.parentElement;
   }
-  return '//body' + (parts.length ? '/' + parts.join('/') : '');
+  out.push('//body' + tail());
+  return out;
 }
 
 export function buildDomSearchScript(needles: DomNeedle[], pageUrl: string): string {
   return `(() => {
     ${PAGE_SCRIPT_PRELUDE}
     const normalize = ${browserNormalize.toString()};
-    const xpathOf = ${browserXPath.toString()};
+    const looksVolatile = ${looksVolatile.toString()};
+    const xpathsOf = ${browserXPaths.toString()};
     const needles = ${JSON.stringify(needles)};
     const pageUrl = ${JSON.stringify(pageUrl)};
     const wanted = needles.map((n) => ({ ...n, norm: normalize(n.type, n.expected, pageUrl) })).filter((n) => n.norm !== null);
@@ -97,7 +174,7 @@ export function buildDomSearchScript(needles: DomNeedle[], pageUrl: string): str
       if (raw == null || String(raw).trim() === '') return;
       for (const n of wanted) {
         if (normalize(n.type, String(raw), pageUrl) !== n.norm) continue;
-        hits.push({ key: n.key, xpath: xpathOf(el) + (attr ? '/@' + attr : ''), raw: String(raw) });
+        for (const xp of xpathsOf(el)) hits.push({ key: n.key, xpath: xp + (attr ? '/@' + attr : ''), raw: String(raw) });
       }
     };
     const all = document.body ? document.body.querySelectorAll('*') : [];
@@ -139,6 +216,9 @@ export function xpathContainsValue(xpath: string, expected: string): boolean {
   // Structural attribute-equality literals (@class="now", @data-x='red', @id="...") are locators,
   // not literal-value predicates — blank them out before the substring check so a coincidental
   // match on a class/id/data-* value (e.g. expected "now" vs @class="now") is not rejected.
-  const withoutAttrLiterals = xpath.replace(/@[\w:-]+=(?:"[^"]*"|'[^']*')/g, (m) => `${m.slice(0, m.indexOf('='))}=""`);
+  const withoutAttrLiterals = xpath
+    .replace(/@[\w:-]+=(?:"[^"]*"|'[^']*')/g, (m) => `${m.slice(0, m.indexOf('='))}=""`)
+    // The generator's whole-token class match: contains(concat(" ",normalize-space(@class)," ")," token ").
+    .replace(/normalize-space\(@class\)," "\)," [^"]* "\)/g, 'normalize-space(@class)," "),"")');
   return fold(withoutAttrLiterals).includes(e);
 }
