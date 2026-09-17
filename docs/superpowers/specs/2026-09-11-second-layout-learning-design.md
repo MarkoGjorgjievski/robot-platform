@@ -1,6 +1,9 @@
 # Second-layout learning for certified runs — design note (draft, not yet decided)
 
-**Status:** discussed 2026-09-11, decision pending. Companion note:
+**Status:** discussed 2026-09-11; the cheap version (three to six proof pages, a
+never-wrong-anywhere cover rule, `crawl.misses` grouped by field and listing,
+the Schema tab's "Add page") landed 2026-09-17 — see
+`2026-09-17-second-layout-proof-pages-design.md`. Companion note:
 `2026-09-11-lean-capture-for-certified-runs-design.md`. This is the more
 important of the two for correctness at scale; lean capture is the smaller
 change.
