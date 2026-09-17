@@ -3,7 +3,7 @@ import { MAX_CERTIFIED_PATHS, VERIFY_URL_MIN } from './constants.js';
 import { normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
-import { xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
+import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import type { CellResult, CertifiedPath, FieldVerification, SchemaDefinitionField } from './types.js';
 
 export type CandidatePath = CertifiedPath;
@@ -85,10 +85,37 @@ function greedyCover(safe: CandidatePath[], pages: string[], isCorrect: (c: Cand
   }
   if (uncovered.size > 0) return [];
   const proven = (c: CandidatePath) => pages.filter((u) => isCorrect(c, u)).length;
+  // A cover is a common layout plus exceptions, never a pile of one-page paths. Ikea, 2026-09-17:
+  // three XPaths anchored on data-product-name="KIVIK" / "GLOSTAD" / "HEMLINGBY" were each correct on
+  // their own proof page and empty on the others, so each was safe and together they covered every
+  // page; at scale none matches any other product. One path must carry at least two pages.
+  if (Math.max(...chosen.map(proven)) < 2) return [];
   return [...chosen].sort((a, b) => proven(b) - proven(a) || ranked.indexOf(a) - ranked.indexOf(b));
 }
 
+/** Is this an XPath anchored on a value that will change on the site's next deploy (dom-scripts.ts `looksVolatile`)? */
+export function isVolatilePath(p: CandidatePath): boolean {
+  return p.source === 'xpath' && isVolatileXPath(p.path);
+}
+
+/**
+ * Certify a field, preferring paths that will survive the site's next deploy.
+ *
+ * An XPath anchored on a build hash or a version stamp certifies today and
+ * goes empty later with no warning (Ikea, 2026-09-17: a whole column rested on
+ * `data-skapa="price-module@11.1.8"`). The generator no longer produces such
+ * XPaths, but stored and AI-proposed ones still arrive as candidates. So:
+ * certify from the stable candidates alone; fall back to the full set only
+ * when that does not certify, because a fragile column still beats an empty one.
+ */
 export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<FieldVerification> {
+  const stable = input.candidates.filter((c) => !isVolatilePath(c));
+  if (stable.length === input.candidates.length) return certifyCandidates(input, deps);
+  const fromStable = await certifyCandidates({ ...input, candidates: stable }, deps);
+  return fromStable.certified.length > 0 ? fromStable : certifyCandidates(input, deps);
+}
+
+async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promise<FieldVerification> {
   const { field, captures } = input;
   // Only the pages this field is checked on take part: evaluation, cells, completeness.
   const urls = checkedPages(Object.keys(captures), input.expected);

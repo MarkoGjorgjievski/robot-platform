@@ -53,6 +53,13 @@ New, for a field with expected values on pages P:
   `provenOn`, so it stays byte-for-byte what it is today. The
   Schema tab's cell line reads "from json-ld" as today; a field with more than
   one layout adds "· layout 2" on the pages the second path proved.
+- **Amended 2026-09-17 (after the XPath generator work): a cover is a common
+  layout plus exceptions, never a pile of one-page paths.** Its strongest path
+  must be proven on at least two pages. Without this, three XPaths anchored on
+  the three proof pages' own product names (`data-product-name="KIVIK"` …)
+  were each safe and together covered every page, and the field "certified"
+  with paths that match no other product. D2 stands: a SECOND layout may still
+  rest on one page.
 - **One-page evidence.** A path proven on a single page is weaker than one
   proven on three: several nodes can hold the same value on one page. The
   result carries `thinEvidence: true` for a field any of whose paths has
