@@ -129,3 +129,36 @@ describe('crawl.backfillPreview', () => {
     expect(result.fields).toEqual([]);
   });
 });
+
+describe('crawl.misses', () => {
+  it('groups a run\'s empty cells by field and listing, and says an unverified website is not certified', async () => {
+    const { runId } = await seedRunWithGapItems();
+    const out = await caller.crawl.misses({ runId });
+    expect(out.certified).toBe(false);
+    expect(out.fields.map((f) => [f.name, f.count, f.total])).toEqual([['title', 1, 2], ['isbn', 2, 2]]);
+    expect(out.fields[0]!.groups).toEqual([{ listingUrl: null, count: 1, urls: ['https://example.com/p/2'] }]);
+    expect(out.fields[1]!.groups[0]!.urls).toEqual(expect.arrayContaining(['https://example.com/p/1', 'https://example.com/p/2']));
+  });
+  it('a product found on a listing groups under that listing', async () => {
+    const { runId } = await seedRunWithGapItems();
+    await db.insert(runItems).values({
+      runId, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0,
+      inputValues: { url: 'https://example.com/cat/a' }, status: 'failed', error: 'blocked',
+    });
+    const title = (await caller.crawl.misses({ runId })).fields.find((f) => f.name === 'title')!;
+    expect(title.groups).toEqual(expect.arrayContaining([{ listingUrl: 'https://example.com/cat/a', count: 1, urls: ['https://example.com/p/3'] }]));
+  });
+  it('a clean run has no misses', async () => {
+    const { runId } = await seedRunWithNoGaps();
+    expect((await caller.crawl.misses({ runId })).fields).toEqual([]);
+  });
+});
+
+describe('crawl.backfillPreview on an unverified website', () => {
+  it('keeps the "up to" AI estimate and reports certified: false', async () => {
+    const { runId } = await seedRunWithGapItems();
+    const p = await caller.crawl.backfillPreview({ runId });
+    expect(p.certified).toBe(false);
+    expect(p.estCostUsd).toBeGreaterThan(0);
+  });
+});
