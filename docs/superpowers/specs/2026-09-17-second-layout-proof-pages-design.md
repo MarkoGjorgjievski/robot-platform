@@ -1,6 +1,6 @@
 # Second layout, first increment: extra proof pages — design
 
-**Status:** written 2026-09-17, awaiting Marko's review. Builds the "cheap
+**Status:** approved by Marko 2026-09-17 with all three recommendations (D1 six pages, D2 one-page evidence allowed and flagged, D3 blanks only on pages four to six). Builds the "cheap
 version" of `2026-09-11-second-layout-learning-design.md`: no AI discovery, no
 new vendor. The customer certifies a second layout with the gesture they
 already know: a proof page and an expected value.
@@ -185,7 +185,7 @@ analysis-chain concept).
 - Speeding up verification captures the way certified runs were (the
   proof-page captures still wait for `networkidle`).
 
-## 12. Decisions for Marko
+## 12. Decisions (all three taken as recommended, 2026-09-17)
 
 - **D1. Six proof pages at most.** Enough for three layouts at two pages each;
   keeps the grid readable. Alternative: no cap.
