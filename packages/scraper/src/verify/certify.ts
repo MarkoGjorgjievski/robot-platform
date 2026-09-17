@@ -1,5 +1,5 @@
 import type { PageCapture } from '@robot/browser';
-import { MAX_CERTIFIED_PATHS } from './constants.js';
+import { MAX_CERTIFIED_PATHS, VERIFY_URL_MIN } from './constants.js';
 import { normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
@@ -42,6 +42,7 @@ export async function gatherCandidates(
   for (const [url, capture] of Object.entries(captures)) {
     if (!capture) continue;
     const exp = expected[url] ?? '';
+    if (exp.trim() === '') continue; // not checked here: nothing to search for
     const structured = searchStructured(capture, field.type, exp);
     const dom = await deps.runDomSearch(capture.html, [{ key: field.key, type: field.type, expected: exp }], capture.url);
     hitsByUrl[url] = structured.length + dom.length;
@@ -51,15 +52,51 @@ export async function gatherCandidates(
   return { candidates: dedupe(candidates), hitsByUrl };
 }
 
-type Eval = { raw: unknown; correct: boolean };
+type Eval = { raw: unknown; correct: boolean; empty: boolean };
+
+/** A field's pages: the proof pages it has an expected value on, in url order. A blank cell (allowed on pages four to six only; binding-input enforces that) means "not checked here". */
+export function checkedPages(urls: string[], expected: Record<string, string>): string[] {
+  return urls.filter((u) => (expected[u] ?? '').trim() !== '');
+}
+
+/**
+ * Greedy set cover over SAFE candidates: repeatedly take the candidate correct
+ * on the most still-uncovered pages, ties going to today's rank. Returns []
+ * unless every page is covered within MAX_CERTIFIED_PATHS. Order does not
+ * affect correctness (a safe path is correct or empty on every checked page,
+ * so whichever resolves first is right); it is by pages proven, then rank,
+ * so the common layout is tried first at scale.
+ */
+function greedyCover(safe: CandidatePath[], pages: string[], isCorrect: (c: CandidatePath, url: string) => boolean): CandidatePath[] {
+  const ranked = rankCertified(safe);
+  const uncovered = new Set(pages);
+  const chosen: CandidatePath[] = [];
+  while (uncovered.size > 0 && chosen.length < MAX_CERTIFIED_PATHS) {
+    let best: CandidatePath | null = null;
+    let bestGain = 0;
+    for (const c of ranked) {
+      if (chosen.includes(c)) continue;
+      const gain = [...uncovered].filter((u) => isCorrect(c, u)).length;
+      if (gain > bestGain) { best = c; bestGain = gain; }
+    }
+    if (!best) break;
+    chosen.push(best);
+    for (const u of [...uncovered]) if (isCorrect(best, u)) uncovered.delete(u);
+  }
+  if (uncovered.size > 0) return [];
+  const proven = (c: CandidatePath) => pages.filter((u) => isCorrect(c, u)).length;
+  return [...chosen].sort((a, b) => proven(b) - proven(a) || ranked.indexOf(a) - ranked.indexOf(b));
+}
 
 export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<FieldVerification> {
-  const { field, expected, captures } = input;
+  const { field, captures } = input;
+  // Only the pages this field is checked on take part: evaluation, cells, completeness.
+  const urls = checkedPages(Object.keys(captures), input.expected);
+  const expected = Object.fromEntries(urls.map((u) => [u, input.expected[u]!]));
   const candidates = dedupe(input.candidates).filter((c) => c.source !== 'xpath' || !Object.values(expected).some((e) => xpathContainsValue(c.path, e)));
-  const urls = Object.keys(captures);
   const capturedUrls = urls.filter((u) => captures[u] !== null);
 
-  // Evaluate every candidate on every captured URL.
+  // Evaluate every candidate on every captured, checked page.
   const evals = new Map<string, Record<string, Eval>>(); // pathId → url → eval
   for (const url of capturedUrls) {
     const capture = captures[url]!;
@@ -69,27 +106,41 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
     for (const c of candidates) {
       const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(capture, c.source, c.path);
       const raw = applyTransform(rawBase, c.transform);
-      const correct = raw !== null && raw !== undefined && raw !== '' && valuesEqual(field.type, raw, expected[url] ?? '', ctx);
+      const empty = raw === null || raw === undefined || raw === '';
+      const correct = !empty && valuesEqual(field.type, raw, expected[url] ?? '', ctx);
       if (!evals.has(pathId(c))) evals.set(pathId(c), {});
-      evals.get(pathId(c))![url] = { raw, correct };
+      evals.get(pathId(c))![url] = { raw, correct, empty };
     }
   }
+  const isCorrect = (c: CandidatePath, u: string) => evals.get(pathId(c))?.[u]?.correct === true;
 
   const complete = capturedUrls.length === urls.length;
-  const correctOnAllCaptured = candidates.filter((c) => capturedUrls.length > 0 && capturedUrls.every((u) => evals.get(pathId(c))?.[u]?.correct));
-  const correctEverywhere = complete ? correctOnAllCaptured : [];
-  const certified = rankCertified(correctEverywhere).slice(0, MAX_CERTIFIED_PATHS);
-  const primary = certified[0];
+  // Safe: on every captured page the field is checked on, correct or nothing.
+  // A path that resolves to a WRONG value anywhere is never certified: at
+  // scale paths are tried in order and the first value wins.
+  const safe = candidates.filter((c) => capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
+  const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
+  const oneLayout = complete ? rankCertified(correctOnAllCaptured).slice(0, MAX_CERTIFIED_PATHS) : [];
+  // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
+  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, isCorrect) : [];
+  const certified: CertifiedPath[] = oneLayout.length > 0
+    ? oneLayout
+    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => isCorrect(c, u)) }));
+  const thinEvidence = cover.length > 0 && certified.some((p) => p.provenOn?.length === 1);
   const rankedCorrectOnAllCaptured = rankCertified(correctOnAllCaptured);
+  // Without a certification, a page a safe path is correct on still reads as
+  // pass, so the customer sees what works and which page is the problem.
+  const rankedSafe = rankCertified(safe);
 
   const cells: Record<string, CellResult> = {};
   for (const url of urls) {
     const capture = captures[url];
     if (!capture) { cells[url] = { status: 'not_captured' }; continue; }
     const ctx = { pageUrl: capture.url };
-    if (primary) {
-      const raw = evals.get(pathId(primary))![url]!.raw;
-      cells[url] = { status: 'pass', found: String(raw), path: primary };
+    if (certified.length > 0) {
+      // Every checked page is covered; safety makes the first non-empty path the right one.
+      const winner = certified.find((p) => isCorrect(p, url))!;
+      cells[url] = { status: 'pass', found: String(evals.get(pathId(winner))![url]!.raw), path: winner };
       continue;
     }
     if (!complete && rankedCorrectOnAllCaptured.length > 0) {
@@ -109,6 +160,11 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
       else cells[url] = { status: 'fail', reason: 'different_value', found: String(here), ...(nearMisses.length ? { nearMisses } : {}) };
       continue;
     }
+    const safeHere = rankedSafe.find((c) => isCorrect(c, url));
+    if (complete && urls.length > VERIFY_URL_MIN && safeHere) {
+      cells[url] = { status: 'pass', found: String(evals.get(pathId(safeHere))![url]!.raw), path: safeHere };
+      continue;
+    }
     const correctHere = candidates.some((c) => evals.get(pathId(c))?.[url]?.correct);
     cells[url] = correctHere
       ? { status: 'fail', reason: 'ambiguous', ...(nearMisses.length ? { nearMisses } : {}) }
@@ -116,5 +172,10 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
   }
 
   const norms = new Set(Object.values(expected).map((e) => normalize(field.type, e)));
-  return { key: field.key, cells, certified, weakEvidence: norms.size === 1 && Object.keys(expected).length > 1, aiCalled: false, incomplete: !complete };
+  return {
+    key: field.key, cells, certified,
+    weakEvidence: norms.size === 1 && Object.keys(expected).length > 1,
+    aiCalled: false, incomplete: !complete,
+    ...(thinEvidence ? { thinEvidence: true } : {}),
+  };
 }

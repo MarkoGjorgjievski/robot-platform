@@ -17,7 +17,8 @@ export type VerificationSet = {
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
-export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform };
+/** `provenOn` is set only when a field needed more than one layout (spec 2026-09-17 §3): the proof pages this path was correct on. Absent on a one-layout result, so those stay byte-for-byte what they were. Ignored by extraction and by path identity. */
+export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform; provenOn?: string[] };
 
 export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch';
 export type CellResult =
@@ -29,7 +30,9 @@ export type FieldVerification = {
   key: string;
   cells: Record<string, CellResult>;   // url → result
   certified: CertifiedPath[];          // ranked, primary first; empty when failed
-  weakEvidence: boolean;               // all three expected values identical
+  weakEvidence: boolean;               // all checked expected values identical
+  /** Set (true) only when some certified path is proven on a single page: several nodes can hold the same value on one page, so one page is thinner evidence than three. Never blocks certification. */
+  thinEvidence?: boolean;
   aiCalled: boolean;
   incomplete: boolean;                 // true when any capture is null
   /** sha256 over this field's definition + the pages + its expected values; a result is current only while it matches (spec 4.4). Absent on rows written before phase 2. */
