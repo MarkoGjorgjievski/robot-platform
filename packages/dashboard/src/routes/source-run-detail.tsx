@@ -310,7 +310,7 @@ export default function SourceRunDetail() {
       )}
 
       {runIsTerminal && !probeGateShowing && !isBackfillRun && (
-        <RunMisses runId={runId} projectSlug={projectSlug} sourceSlug={sourceSlug} fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)} />
+        <RunMisses key={runId} runId={runId} projectSlug={projectSlug} sourceSlug={sourceSlug} fields={fields.filter((f) => f.name !== DETAIL_URL_FIELD)} />
       )}
 
       {runIsTerminal && !probeGateShowing && !isBackfillRun && (

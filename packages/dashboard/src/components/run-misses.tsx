@@ -18,7 +18,12 @@ export function RunMisses({ runId, projectSlug, sourceSlug, fields }: {
   const query = trpc.crawl.misses.useQuery({ runId });
   const [open, setOpen] = useState<string | null>(null);
   const data = query.data;
-  if (!data || !data.certified || data.fields.length === 0) return null;
+  // M6: gated on proofSheet, not certified — a fourth proof page uncertifies
+  // the website until the next verify passes, and if that verify then fails
+  // the customer is right back here needing to pick another product. The
+  // list must still be here: proofSheet only asks whether there is a schema
+  // + verification set to add pages to, which stays true either way.
+  if (!data || !data.proofSheet || data.fields.length === 0) return null;
   const labelOf = (name: string) => fields.find((f) => f.name === name)?.label ?? name;
 
   return (

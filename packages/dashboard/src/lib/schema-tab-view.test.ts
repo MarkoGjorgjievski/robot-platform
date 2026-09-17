@@ -110,7 +110,10 @@ describe('verifyButton', () => {
   it('is off while active or busy or incomplete, with a reason', () => {
     expect(verifyButton({ ...base, state: 'active' })).toMatchObject({ disabled: true, reason: 'Verifying' });
     expect(verifyButton({ ...base, busy: true })).toMatchObject({ disabled: true });
-    expect(verifyButton({ ...base, complete: false })).toMatchObject({ disabled: true, reason: 'Fill in every page and every cell first' });
+    // M7: this reason must not point at "the problems listed above" — that list
+    // is gated on `touched` (source-schema.tsx) and is not always on screen yet
+    // when this reason first shows (e.g. before the operator has touched anything).
+    expect(verifyButton({ ...base, complete: false })).toMatchObject({ disabled: true, reason: 'Fill in pages one to three, and at least one value on each extra page' });
   });
 });
 

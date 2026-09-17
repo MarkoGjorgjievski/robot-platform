@@ -97,7 +97,14 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
             <th className="w-[70px] px-2 py-1.5 font-semibold">Type</th>
             <th className="min-w-[240px] px-2 py-1.5 font-semibold">Where it is on this website</th>
             {state.urls.map((u, i) => (
-              <th key={i} className="px-2 py-1.5 text-left align-top font-semibold">
+              // I2: keyed by index AND url, not index alone. Removing a non-last
+              // page shifts every later page's url into an earlier index — keying
+              // on the index alone would let React reuse the SAME PageHeaderCell
+              // instance across that shift, carrying over its `open`/`draft` state
+              // for whatever page used to sit at that index. Including `u` forces a
+              // remount whenever the url at this slot actually changes, so a new
+              // page always starts that slot's popover closed and its draft fresh.
+              <th key={`${i}:${u}`} className="px-2 py-1.5 text-left align-top font-semibold">
                 <PageHeaderCell
                   index={i}
                   url={u}
