@@ -30,7 +30,7 @@ certified path bypasses the 2 s politeness lock) and
 pages differ in layout leaves cells empty on a verified website with no way to certify the second
 layout; the cheap increment is a grouped miss list with "use as proof page"). Both are drafts,
 not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back happy; a few
-non-urgent UX tweaks are still to be named.
+non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
