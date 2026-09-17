@@ -6,7 +6,7 @@ import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-s
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 import { StatusStrip } from '../components/status-strip';
-import { addPage, applyImportToRows, bindingProblems, canAddPage, emptyRow, emptyState, fromSource, isComplete, removePage, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
+import { addPage, applyImportToRows, bindingProblems, canAddPage, emptyRow, emptyState, fromSource, isComplete, planArrival, removePage, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, verificationState, type VerificationResults } from '../lib/verification-view';
 import { stripState, columnStates, stripSummary, thinEvidenceNote, verifyButton, typeFixSuggestion, type TimeEstimate } from '../lib/schema-tab-view';
 
@@ -106,6 +106,15 @@ export default function SourceSchema() {
     initialized.current = true;
   }, [source]);
 
+  // `active` (the table-locked state) has to be known before the arrival effect below
+  // can decide whether to touch the grid, so this computation — normally read further
+  // down alongside the rest of the strip's derived state — is pulled up here instead.
+  const status = statusQuery.data ?? null;
+  const results = (status?.results ?? null) as VerificationResults | null;
+  const vState = verificationState(status, { stallMs });
+  const strip = stripState({ verification: vState, results });
+  const active = strip === 'active';
+
   // Arrival from a run (spec 2026-09-17 §6): a run page can link here with
   // `?addPage=<url>&field=<key>` for a field that needs another proof page.
   // router.tsx imports this component, so the route object cannot be imported back here.
@@ -116,29 +125,38 @@ export default function SourceSchema() {
   // Guarded on `initialized.current` (set inside the seeding effect above) so this never
   // fires against the placeholder `emptyState()` grid the component starts with. That
   // effect's `setGrid` is what re-renders this component with `initialized.current`
-  // already true, so `grid.rows` — not the ref itself, which cannot be a dependency — is
-  // the trigger that lets this effect see the post-seed state and run exactly once
-  // (guarded by the `arrival` ref).
+  // already true, so `grid` changing reference — not the ref itself, which cannot be a
+  // dependency — is the trigger that lets this effect see the post-seed state.
+  //
+  // While `active` (table locked while verifying), the arrival is NOT consumed: the
+  // `arrival` ref stays false and `addPage` is never called, so a customer landing here
+  // mid-run cannot mutate a grid the UI is showing as locked and read-only. `active` is
+  // in the dependency array so the effect re-evaluates once the lock lifts and applies
+  // the arrival then, exactly once.
   useEffect(() => {
     if (!initialized.current || arrival.current || !search.addPage) return;
-    arrival.current = true;
-    if (!canAddPage(grid) && !grid.urls.includes(search.addPage)) {
-      setArrivalNote('This website already has six proof pages. Remove one to add this page.');
-      return;
+    const addPageUrl = search.addPage;
+    const plan = planArrival(grid, { addPage: addPageUrl, field: search.field, locked: active });
+    switch (plan.kind) {
+      case 'none':
+        return; // no addPage param — cannot happen here (guarded above), kept for exhaustiveness
+      case 'wait':
+        setArrivalNote(plan.note); // still locked: don't consume the arrival, retry once it lifts
+        return;
+      case 'refused':
+        arrival.current = true;
+        setArrivalNote(plan.note);
+        return;
+      case 'add':
+        arrival.current = true;
+        setGrid(plan.state);
+        setTouched(true);
+        setArrivalNote(plan.note);
+        if (plan.focus) setFocusCell(plan.focus);
+        return;
     }
-    const existingIndex = grid.urls.findIndex((u) => u.trim() === search.addPage!.trim());
-    const col = existingIndex >= 0 ? existingIndex : grid.urls.length; // addPage appends when not already present
-    setGrid((g) => addPage(g, search.addPage));
-    setTouched(true);
-    const rowIndex = grid.rows.findIndex((r) => r.key === search.field);
-    const name = rowIndex >= 0 ? grid.rows[rowIndex]!.name : undefined;
-    if (rowIndex >= 0) setFocusCell({ row: rowIndex, col });
-    setArrivalNote(name
-      ? `Added from a run: type what ${name} should be on this page, then verify.`
-      : 'Added from a run: type the expected value on this page, then verify.');
-  }, [search.addPage, search.field, grid.rows]);
+  }, [search.addPage, search.field, active, grid]);
 
-  const status = statusQuery.data ?? null;
   const savedGrid = source ? fromSource(source) : null;
 
   // `savedGrid` is null for a Source that predates this feature (never had a
@@ -149,10 +167,6 @@ export default function SourceSchema() {
   const contractEmpty = !Array.isArray(source?.schemaDefinition) || source.schemaDefinition.length === 0;
   const showProblems = touched && !contractEmpty && problems.length > 0;
 
-  const results = (status?.results ?? null) as VerificationResults | null;
-  const vState = verificationState(status, { stallMs });
-  const strip = stripState({ verification: vState, results });
-  const active = strip === 'active';
   const currentKeys = status?.currentKeys ?? [];
 
   // Fix 1+5: a cell must read as stale for the SAME reasons the strip's

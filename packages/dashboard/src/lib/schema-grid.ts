@@ -125,6 +125,38 @@ export function removePage(state: GridState, index: number): GridState {
   return { ...state, urls: state.urls.filter((_, i) => i !== index), rows: state.rows.map((r) => ({ ...r, expected: r.expected.filter((_, i) => i !== index) })) };
 }
 
+export type ArrivalPlan =
+  | { kind: 'none' }
+  | { kind: 'wait'; note: string }
+  | { kind: 'refused'; note: string }
+  | { kind: 'add'; state: GridState; note: string; focus: { row: number; col: number } | null };
+
+/**
+ * The pure decision behind arrival from a run (spec 2026-09-17 §6): a run page can link
+ * here with `?addPage=<url>&field=<key>` for a field that needs another proof page.
+ * `locked` is whatever makes the grid read-only elsewhere (e.g. a verification in
+ * progress) — while locked, the arrival must not touch the grid at all (it is not
+ * "consumed": callers should keep retrying until `locked` clears). `col`/`focus` are in
+ * the page-index coordinate system (0-based, matching `state.urls`), not the grid
+ * component's internal +3 ref-key offset for the fixed name/type/description columns.
+ */
+export function planArrival(state: GridState, args: { addPage?: string; field?: string; locked: boolean }): ArrivalPlan {
+  if (!args.addPage) return { kind: 'none' };
+  if (args.locked) return { kind: 'wait', note: 'A verification is running. This page will be added when it finishes.' };
+  if (!canAddPage(state) && !state.urls.includes(args.addPage)) {
+    return { kind: 'refused', note: 'This website already has six proof pages. Remove one to add this page.' };
+  }
+  const existingIndex = state.urls.findIndex((u) => u.trim() === args.addPage!.trim());
+  const col = existingIndex >= 0 ? existingIndex : state.urls.length; // addPage appends when not already present
+  const nextState = addPage(state, args.addPage);
+  const rowIndex = state.rows.findIndex((r) => r.key === args.field);
+  const name = rowIndex >= 0 ? state.rows[rowIndex]!.name : undefined;
+  const note = name
+    ? `Added from a run: type what ${name} should be on this page, then verify.`
+    : 'Added from a run: type the expected value on this page, then verify.';
+  return { kind: 'add', state: nextState, note, focus: rowIndex >= 0 ? { row: rowIndex, col } : null };
+}
+
 export function toBindingInput(state: GridState) {
   const urls = state.urls.map((u) => u.trim());
   const descriptions: Record<string, string> = {};
