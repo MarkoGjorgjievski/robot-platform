@@ -1,9 +1,12 @@
 // packages/api/src/routers/crawl-backfill-preview.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs, runItems, extractions, captures, sources, orgs, projects, datasets } from '@robot/db';
+import { db, runs, runItems, extractions, captures, sources, sourceVerifications, orgs, projects, datasets } from '@robot/db';
+import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
+import { sourceDefinitionHash } from '../verify/current-certification.js';
 
 const caller = createCallerFactory(appRouter)({ db });
 const SLUG = 'test-crawl-backfill-preview';
@@ -160,5 +163,95 @@ describe('crawl.backfillPreview on an unverified website', () => {
     const p = await caller.crawl.backfillPreview({ runId });
     expect(p.certified).toBe(false);
     expect(p.estCostUsd).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A CUSTOMER-SCHEMA website with a current certification (loadCurrentCertification's
+ * exact requirement, verify/current-certification.ts): a schemaDefinition +
+ * verificationSet (via createProjectWithSource's updateBinding call) and a
+ * completed, error-free source_verifications row whose one field's result
+ * carries a fieldHash matching the field as it stands now, a non-empty
+ * `certified` array, and cells that are all 'pass'. Mirrors
+ * current-certification.test.ts's `makeSchemaSource` + `currentPriceVerification`.
+ * Own cleanup (createProjectWithSource's), independent of this file's
+ * orgId-keyed afterEach.
+ */
+async function seedCertifiedRunWithGap() {
+  const urls = [
+    'https://test-cert-crawlmisses.example.com/p/1',
+    'https://test-cert-crawlmisses.example.com/p/2',
+    'https://test-cert-crawlmisses.example.com/p/3',
+  ];
+  const f = await createProjectWithSource(caller, {
+    tag: 'cert-crawlmisses',
+    urls,
+    fields: [{ name: 'Price', type: 'money', description: 'x' }],
+    expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
+  });
+  const source = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+  const fields = source!.schemaDefinition as SchemaDefinitionField[];
+  const set = source!.verificationSet as VerificationSet;
+  const priceKey = f.keys.Price!;
+  const certifiedPaths: CertifiedPath[] = [{ source: 'api', path: 'item.price', transform: 'identity' }];
+  const cells = Object.fromEntries(urls.map((u) => [u, { status: 'pass', found: '1', path: certifiedPaths[0] }]));
+
+  await db.insert(sourceVerifications).values({
+    sourceId: f.sourceId,
+    definitionHash: sourceDefinitionHash(source!)!,
+    completedAt: new Date(),
+    allPassed: true,
+    results: {
+      [priceKey]: {
+        key: priceKey, cells, certified: certifiedPaths, weakEvidence: false, aiCalled: false, incomplete: false,
+        fieldHash: fieldHash(fields[0]!, set),
+      },
+    },
+  });
+
+  // A completed run with a gap: one item fills `price`, one fails outright
+  // (misses every field) — same shape as `seedRunWithGapItems`, keyed on the
+  // certified source's own field key so coverage/misses see real gaps.
+  const [run] = await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed' }).returning();
+  const [capture] = await db.insert(captures).values({ sourceId: f.sourceId, runId: run!.id, url: urls[0]! }).returning();
+  const [extraction] = await db.insert(extractions).values({
+    sourceId: f.sourceId, captureId: capture!.id, runId: run!.id,
+    data: [{ [priceKey]: '1.00', _url: urls[0], _page_number: 1 }],
+  }).returning();
+  await db.insert(runItems).values({
+    runId: run!.id, kind: 'detail', url: urls[0]!, inputIndex: 0, status: 'done', extractionId: extraction!.id,
+  });
+  await db.insert(runItems).values({
+    runId: run!.id, kind: 'detail', url: urls[1]!, inputIndex: 0, status: 'failed', error: 'blocked',
+  });
+
+  return { runId: run!.id, priceKey, cleanup: f.cleanup };
+}
+
+describe('crawl.misses and crawl.backfillPreview on a certified website', () => {
+  it('crawl.misses reports certified: true and still groups the run\'s misses', async () => {
+    const { runId, priceKey, cleanup } = await seedCertifiedRunWithGap();
+    try {
+      const out = await caller.crawl.misses({ runId });
+      expect(out.certified).toBe(true);
+      const priceMisses = out.fields.find((fld) => fld.name === priceKey);
+      expect(priceMisses).toBeDefined();
+      expect(priceMisses!.count).toBe(1);
+      expect(priceMisses!.total).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('crawl.backfillPreview reports certified: true and prices the repair at $0, while still counting the gap page', async () => {
+    const { runId, cleanup } = await seedCertifiedRunWithGap();
+    try {
+      const p = await caller.crawl.backfillPreview({ runId });
+      expect(p.certified).toBe(true);
+      expect(p.estCostUsd).toBe(0);
+      expect(p.pages).toBeGreaterThan(0);
+    } finally {
+      await cleanup();
+    }
   });
 });
