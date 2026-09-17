@@ -130,6 +130,12 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
   const rankedCorrectOnAllCaptured = rankCertified(correctOnAllCaptured);
   // Without a certification, a page a safe path is correct on still reads as
   // pass, so the customer sees what works and which page is the problem.
+  // This yields to the twoOfThree analysis above: when a path correct on
+  // every OTHER page disagrees here, that disagreement is the diagnosis and
+  // must win — which is why this safeHere block sits after the twoOfThree
+  // block (spec property 3: the page where the majority path is wrong must
+  // fail loud with `different_value`, not read as a quiet pass from some
+  // other safe-but-unproven path).
   const rankedSafe = rankCertified(safe);
 
   const cells: Record<string, CellResult> = {};
