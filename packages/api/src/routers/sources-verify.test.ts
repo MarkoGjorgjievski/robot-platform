@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
-import { VERIFY_STALL_MS } from '@robot/scraper';
+import { VERIFY_STALL_MS, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -29,6 +29,13 @@ function urlsFor(tag: string): string[] {
     `https://test-verify-${tag}.example.com/p/2`,
     `https://test-verify-${tag}.example.com/p/3`,
   ];
+}
+
+/** The current per-field hash of a source's field, as the server computes it. */
+async function hashOf(sourceId: string, key: string): Promise<string> {
+  const src = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+  const def = (src!.schemaDefinition as SchemaDefinitionField[]).find((d) => d.key === key)!;
+  return fieldHash(def, src!.verificationSet as VerificationSet);
 }
 
 async function makeSchemaSource(tag: string) {
@@ -258,7 +265,7 @@ describe('sources.verifyEstimate re-verify pricing', () => {
     });
     try {
       const certifiedPath = { source: 'json-ld', path: '$.price', transform: 'identity' };
-      const certifiedFv = (key: string) => ({ key, cells: {}, certified: [certifiedPath], weakEvidence: false, aiCalled: false, incomplete: false });
+      const certifiedFv = async (key: string) => ({ key, cells: {}, certified: [certifiedPath], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: await hashOf(f.sourceId, key) });
       const uncertifiedFv = (key: string) => ({ key, cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false });
 
       // Both keys certified on the latest clean run: neither would reach AI.
@@ -266,7 +273,7 @@ describe('sources.verifyEstimate re-verify pricing', () => {
         sourceId: f.sourceId,
         definitionHash: 'x',
         completedAt: new Date(),
-        results: { [f.keys.Price!]: certifiedFv(f.keys.Price!), [f.keys.Title!]: certifiedFv(f.keys.Title!) },
+        results: { [f.keys.Price!]: await certifiedFv(f.keys.Price!), [f.keys.Title!]: await certifiedFv(f.keys.Title!) },
       });
       const bothCertified = await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!, f.keys.Title!] });
       expect(bothCertified.fields).toBe(2);
@@ -279,12 +286,52 @@ describe('sources.verifyEstimate re-verify pricing', () => {
         sourceId: f.sourceId,
         definitionHash: 'x',
         completedAt: new Date(),
-        results: { [f.keys.Price!]: certifiedFv(f.keys.Price!), [f.keys.Title!]: uncertifiedFv(f.keys.Title!) },
+        results: { [f.keys.Price!]: await certifiedFv(f.keys.Price!), [f.keys.Title!]: uncertifiedFv(f.keys.Title!) },
       });
       const oneUncertified = await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [f.keys.Price!, f.keys.Title!] });
       expect(oneUncertified.fields).toBe(2);
       expect(oneUncertified.aiFields).toBe(1);
       expect(oneUncertified.upperBoundUsd).toBe(oneUncertified.aiAvailable ? oneUncertified.perFieldUsd : 0);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('counts a field whose pages changed as AI-reachable, and only that field', async () => {
+    const tag = `est4-${Date.now()}`;
+    const urls = urlsFor(tag);
+    const f = await createProjectWithSource(caller, {
+      tag, urls,
+      fields: [{ name: 'Price', type: 'money', description: 'green number' }, { name: 'Title', type: 'text', description: 'heading' }],
+      expected: {
+        Price: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3' },
+        Title: { [urls[0]!]: 'a', [urls[1]!]: 'b', [urls[2]!]: 'c' },
+      },
+    });
+    try {
+      const path = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
+      const fv = async (key: string) => ({ key, cells: {}, certified: [path], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: await hashOf(f.sourceId, key) });
+      const price = f.keys.Price!; const title = f.keys.Title!;
+      await db.insert(sourceVerifications).values({
+        sourceId: f.sourceId, definitionHash: 'x', completedAt: new Date(),
+        results: { [price]: await fv(price), [title]: await fv(title) }, captures: {},
+      });
+      expect((await caller.sources.verifyEstimate({ sourceId: f.sourceId })).aiFields).toBe(0);
+
+      // A fourth proof page, checked for Price only (spec 2026-09-17 §4).
+      const page4 = `${new URL(urls[0]!).origin}/p/${tag}-4`;
+      await caller.sources.updateBinding({
+        sourceId: f.sourceId, urls: [...urls, page4],
+        descriptions: { [price]: 'green number', [title]: 'heading' },
+        expected: {
+          [price]: { [urls[0]!]: '1', [urls[1]!]: '2', [urls[2]!]: '3', [page4]: '4' },
+          [title]: { [urls[0]!]: 'a', [urls[1]!]: 'b', [urls[2]!]: 'c', [page4]: '' },
+        },
+      });
+      // Price has a certified path from pages 1–3, but page four may need AI: not free.
+      expect((await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [price] })).aiFields).toBe(1);
+      // Title is not checked on page four: its hash did not move.
+      expect((await caller.sources.verifyEstimate({ sourceId: f.sourceId, onlyKeys: [title] })).aiFields).toBe(0);
     } finally {
       await f.cleanup();
     }

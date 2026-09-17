@@ -10,7 +10,7 @@ export type SchemaDefinitionField = {
 };
 
 export type VerificationSet = {
-  urls: string[];                                   // exactly VERIFY_URL_COUNT
+  urls: string[];                                   // VERIFY_URL_MIN to VERIFY_URL_MAX proof pages
   expected: Record<string, Record<string, string>>; // fieldKey → url → as typed
   listing_url?: string;
 };

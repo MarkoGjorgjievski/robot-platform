@@ -1,15 +1,15 @@
 // A website's binding (spec 4.2): where each contract field is on this
-// website, the three proof pages, and the expected values. Name and type are
-// never accepted here; they come from the contract.
+// website, the three to six proof pages, and the expected values. Name and
+// type are never accepted here; they come from the contract.
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { VERIFY_URL_COUNT, normalize, validateExpected, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { VERIFY_URL_MIN, VERIFY_URL_MAX, normalize, validateExpected, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { httpUrl } from './http-url.js';
 import { bindingFor, type ContractField } from '../contract.js';
 
 export const bindingInput = z.object({
   sourceId: z.string().uuid(),
-  urls: z.array(httpUrl).length(VERIFY_URL_COUNT),
+  urls: z.array(httpUrl).min(VERIFY_URL_MIN).max(VERIFY_URL_MAX),
   listingUrl: httpUrl.optional(),
   descriptions: z.record(z.string(), z.string().trim().max(1000)),
   expected: z.record(z.string(), z.record(z.string(), z.string())),
@@ -28,11 +28,17 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
   for (const f of contract) {
     if (!(input.descriptions[f.key] ?? '').trim()) problems.push(`${f.name}: say where it is on this website`);
     const cells = input.expected[f.key] ?? {};
-    for (const url of input.urls) {
-      const err = validateExpected(f.type, cells[url] ?? '');
+    input.urls.forEach((url, i) => {
+      const value = cells[url] ?? '';
+      // Pages four to six: a blank cell means "not checked here" (spec 2026-09-17 §4).
+      if (i >= VERIFY_URL_MIN && value.trim() === '') return;
+      const err = validateExpected(f.type, value);
       if (err) problems.push(`${f.name} @ ${url}: ${err}`);
-    }
+    });
   }
+  input.urls.slice(VERIFY_URL_MIN).forEach((url) => {
+    if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '')) problems.push(`${url}: type at least one expected value on this page, or remove it`);
+  });
   return problems;
 }
 
