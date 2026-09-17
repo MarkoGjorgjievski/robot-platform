@@ -15,8 +15,6 @@ export type VerificationDeps = {
   cachedPaths?: (concept: string) => Promise<CertifiedPath[]>;
   onlyKeys?: string[];
   previous?: VerificationOutcome;
-  /** @deprecated unused since 2026-09-17: reuse is decided per field (`provenPagesStillPresent`). Kept so callers compile. */
-  previousUrls?: string[];
   captureOne?: (browser: IBrowser, url: string) => Promise<PageCapture>;
   onProgress?: (stage: string) => void;
 };
@@ -145,7 +143,14 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     if (result.certified.length === 0 && !result.incomplete && deps.agent) {
       deps.onProgress?.(`asking AI for ${field.key}`);
       const nearMisses = Object.fromEntries(Object.entries(result.cells).map(([u, c]) => [u, c.status === 'fail' ? c.nearMisses ?? [] : []]));
-      const proposals = await proposeWithAi({ field, expected, captures: caps, nearMisses }, deps.agent);
+      // I1: only the pages this field is actually checked on go to the model
+      // — a page blank for this field (allowed on pages four to six) is not
+      // this field's business, costs nothing to search, and just inflates
+      // the prompt and its cost.
+      const pages = checkedPages(req.verificationSet.urls, expected);
+      const checkedExpected = Object.fromEntries(pages.map((u) => [u, expected[u]!]));
+      const checkedCaps: Record<string, CaptureLike | null> = Object.fromEntries(pages.map((u) => [u, caps[u] ?? null]));
+      const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, deps.agent);
       aiCalls++;
       result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals] }, { evalXPaths });
       result.aiCalled = true;

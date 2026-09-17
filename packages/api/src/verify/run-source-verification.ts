@@ -111,7 +111,6 @@ export async function runSourceVerification(sourceId: string, verificationId: st
     const reuse: Record<string, PageCapture> = {};
     const reusedRefs = new Map<string, StoredCaptureRef>();
     let previous: VerificationOutcome | undefined;
-    let previousUrls: string[] | undefined;
     if (opts.onlyKeys) {
       const rows = await db.query.sourceVerifications.findMany({
         where: eq(sourceVerifications.sourceId, sourceId),
@@ -121,12 +120,6 @@ export async function runSourceVerification(sourceId: string, verificationId: st
       const last = rows.find((r) => r.id !== verificationId && r.completedAt !== null && r.errorMessage === null);
       if (last) {
         previous = { fields: last.results as VerificationOutcome['fields'], allPassed: last.allPassed, aiCalls: last.aiCalls };
-        // The urls this previous outcome was actually proven against. Taken
-        // from the stored captures map's own keys — which ARE `set.urls` as
-        // they stood when that row completed — rather than a new stored
-        // field, so the guard also protects every row written before this
-        // code existed. `_`-prefixed keys are reserved (`_stage`), never urls.
-        previousUrls = Object.keys(last.captures as Record<string, unknown>).filter((k) => !k.startsWith('_'));
         for (const [url, ref] of Object.entries(last.captures as Record<string, StoredCaptureRef>)) {
           if (!ref.captureId) continue;
           const c = await loadStoredCapture(ref);
@@ -145,7 +138,6 @@ export async function runSourceVerification(sourceId: string, verificationId: st
       captures: reuse,
       onlyKeys: opts.onlyKeys,
       previous,
-      previousUrls,
       cachedPaths: (concept) => lookupVerifiedPaths(hostname, 'detail', concept),
       onProgress,
     }));

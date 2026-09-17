@@ -40,9 +40,18 @@ export function buildProposePrompt(e: FallbackEvidence): string {
   lines.push(`FIELD: ${e.field.name} (key ${e.field.key}, type ${e.field.type})`);
   lines.push(`DESCRIPTION: ${e.field.description}`);
   lines.push('EXPECTED VALUE PER PAGE:');
-  for (const [url, v] of Object.entries(e.expected)) lines.push(`- ${url} → ${v}`);
+  for (const [url, v] of Object.entries(e.expected)) {
+    if (v.trim() === '') continue; // not checked on this page: nothing to tell the model
+    lines.push(`- ${url} → ${v}`);
+  }
   for (const [url, capture] of Object.entries(e.captures)) {
     if (!capture) continue;
+    // I1 robustness: this field is not checked on this page (blank expected
+    // value) — skip it rather than dump its evidence and search for ''.
+    // `run-verification.ts` already filters to checked pages before calling
+    // in, but this guard holds even if a future caller does not.
+    const expHere = e.expected[url] ?? '';
+    if (expHere.trim() === '') continue;
     lines.push(`\n=== PAGE ${url} ===`);
     const misses = e.nearMisses[url] ?? [];
     if (misses.length) lines.push(`Near-misses we found but which did not certify: ${misses.join(' | ')}`);

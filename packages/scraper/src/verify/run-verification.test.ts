@@ -96,6 +96,27 @@ describe('runVerification (shop-example, offline)', () => {
     }
   }, 60_000);
 
+  // I1: a field not checked on a page (blank expected value, allowed on
+  // pages four to six) must not be shown that page's evidence when the
+  // mechanical pass fails and the AI fallback is asked.
+  it('the AI fallback sees only the pages the field is checked on', async () => {
+    const stubborn = [{ key: 'sku', name: 'SKU', type: 'text' as const, description: 'item number', concept: 'sku' }];
+    const skuSet4: VerificationSet = {
+      urls: [...U, P4],
+      expected: { sku: { [U[0]!]: 'A1', [U[1]!]: 'B2', [U[2]!]: 'C3', [P4]: '' } }, // blank on P4: not checked there
+    };
+    const captures4 = { ...loadShopExample(), [P4]: loadVerifyFixture('shop-example', 'p4') };
+    let seenPrompt = '';
+    const agent = { proposePaths: async (prompt: string) => {
+      seenPrompt = prompt;
+      return [{ source: 'xpath' as const, path: '//*[@id="main"]/span[@class="sku"]/@data-sku', transform: 'identity' as const }];
+    } };
+    const run = await runVerification({ fields: stubborn, verificationSet: skuSet4 }, { browser, agent, captures: captures4 });
+    expect(run.outcome.aiCalls).toBe(1);
+    expect(seenPrompt).not.toContain(P4);
+    expect(seenPrompt).not.toMatch(/→\s*(\n|$)/); // no blank-value arrow line for any page
+  }, 60_000);
+
   it('a failing capture marks the column not_captured and records the error', async () => {
     const caps = loadShopExample();
     delete caps[U[2]!];
@@ -150,38 +171,6 @@ describe('runVerification (shop-example, offline)', () => {
     expect(second.outcome.fields.product_name).toEqual(first.outcome.fields.product_name);
     expect(second.outcome.allPassed).toBe(true);
   }, 60_000);
-
-  // Updated for spec 2026-09-17 (per-field pages): reuse used to be gated by
-  // comparing the WHOLE previous url list against the whole current one
-  // (`previousUrls`), so any url-list change — even one for an unrelated
-  // field — forced every field to re-run. That guard is now per field
-  // (`provenPagesStillPresent`, keyed off the field's own stored cells), and
-  // `previousUrls` is a deprecated no-op kept only so old callers compile.
-  // This test's `verificationSet.urls` never actually changes, so a
-  // mismatched `previousUrls` no longer disturbs reuse — the "a page a
-  // field WAS proven on is no longer a proof page" case (which must still
-  // force a re-run) is covered by the "still refuses to reuse..." test
-  // above, which changes `verificationSet.urls` itself.
-  it('previousUrls no longer participates in reuse: only the field\'s own proven pages do', async () => {
-    const first = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
-
-    // A previousUrls value that disagrees with reality is now inert: the
-    // actual verificationSet.urls is unchanged, so product_name's proven
-    // pages (U) are still all proof pages, and it is reused.
-    const movedUrls = [U[0]!, U[1]!, 'https://shop.example/p/somewhere-else'];
-    const guarded = await runVerification({ fields, verificationSet: set }, {
-      browser, agent: null, captures: loadShopExample(),
-      onlyKeys: ['price'], previous: first.outcome, previousUrls: movedUrls,
-    });
-    expect(guarded.outcome.fields.product_name).toBe(first.outcome.fields.product_name);
-
-    // Control: omitting previousUrls entirely behaves identically.
-    const withoutPreviousUrls = await runVerification({ fields, verificationSet: set }, {
-      browser, agent: null, captures: loadShopExample(),
-      onlyKeys: ['price'], previous: first.outcome,
-    });
-    expect(withoutPreviousUrls.outcome.fields.product_name).toBe(first.outcome.fields.product_name);
-  }, 90_000);
 
   it('cached verified paths are tried first and skip the search', async () => {
     let searched = false;
@@ -245,12 +234,12 @@ describe('runVerification per-field copy-forward', () => {
     const fresh: FieldVerification = { ...stale, fieldHash: fieldHash(title, set) };
 
     const deps = fakeDeps(set); // offline deps: captures resolve to blank pages, no agent — a re-run finds nothing
-    const a = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: stale }, allPassed: false, aiCalls: 0 }, previousUrls: set.urls });
+    const a = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: stale }, allPassed: false, aiCalls: 0 } });
     expect(a.outcome.fields.title.fieldHash).toBe(fieldHash(title, set)); // recomputed, not copied
     expect(a.outcome.fields.title.certified).toEqual([]);                // the stub finds nothing, proving it re-ran
     expect(a.outcome.fields.price.fieldHash).toBe(fieldHash(price, set));
 
-    const b = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: fresh }, allPassed: false, aiCalls: 0 }, previousUrls: set.urls });
+    const b = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: fresh }, allPassed: false, aiCalls: 0 } });
     expect(b.outcome.fields.title).toBe(fresh);                          // copied as-is
   });
 });
@@ -291,7 +280,7 @@ describe('runVerification — a fourth proof page for one field (spec 2026-09-17
     const before = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
     const run = await runVerification(
       { fields, verificationSet: set4 },
-      { browser, agent: null, captures: captures4(), onlyKeys: ['price'], previous: before.outcome, previousUrls: U },
+      { browser, agent: null, captures: captures4(), onlyKeys: ['price'], previous: before.outcome },
     );
     for (const key of ['product_name', 'in_stock', 'image', 'colors', 'rating']) {
       expect(run.outcome.fields[key]).toBe(before.outcome.fields[key]); // the same object: reused, not recomputed
@@ -304,7 +293,7 @@ describe('runVerification — a fourth proof page for one field (spec 2026-09-17
     const moved: VerificationSet = { urls: [U[0]!, U[1]!, P4], expected: Object.fromEntries(Object.entries(set.expected).map(([k, v]) => [k, { [U[0]!]: v[U[0]!]!, [U[1]!]: v[U[1]!]!, [P4]: k === 'price' ? '89.50' : 'x' }])) };
     const run = await runVerification(
       { fields, verificationSet: moved },
-      { browser, agent: null, captures: captures4(), onlyKeys: ['price'], previous: before.outcome, previousUrls: U },
+      { browser, agent: null, captures: captures4(), onlyKeys: ['price'], previous: before.outcome },
     );
     expect(run.outcome.fields.product_name).not.toBe(before.outcome.fields.product_name);
   }, 60_000);

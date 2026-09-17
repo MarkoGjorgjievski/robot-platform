@@ -20,6 +20,22 @@ describe('buildProposePrompt', () => {
   });
 });
 
+describe('buildProposePrompt — I1 robustness', () => {
+  it('skips a page whose expected value is blank instead of searching for the empty string', () => {
+    const p4 = 'https://s.example/4';
+    const withBlankPage = {
+      field,
+      expected: { 'https://s.example/1': '129.99', [p4]: '' }, // not checked on p4
+      captures: { 'https://s.example/1': cap('https://s.example/1'), [p4]: cap(p4) },
+      nearMisses: { 'https://s.example/1': ['$149.00'] },
+    };
+    const p = buildProposePrompt(withBlankPage);
+    expect(p).not.toContain(p4);
+    expect(p).not.toMatch(/→\s*(\n|$)/); // no blank-value "- url → " line
+    expect(p).toContain('https://s.example/1 → 129.99'); // the checked page is still there
+  });
+});
+
 describe('proposeWithAi', () => {
   it('returns proposals as candidate paths and reports the call', async () => {
     const agent = { proposePaths: async () => [{ source: 'api' as const, path: 'item.priceCents', transform: 'cents_to_units' as const }] };
