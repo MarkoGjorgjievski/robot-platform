@@ -93,7 +93,10 @@ export function rowsFromTable(table: string[][], urlCount: number): { rows: Grid
   const urlCols = Array.from({ length: urlCount }, (_, i) => header.findIndex((h) => h === `url ${i + 1}` || h === `url${i + 1}` || h === `expected ${i + 1}` || h === `value ${i + 1}`));
   const problems: string[] = [];
   for (const [label, col] of [['name', nameCol], ['type', typeCol], ['description', descCol]] as const) if (col === -1) problems.push(`Missing column: ${label}`);
-  urlCols.forEach((c, i) => { if (c === -1) problems.push(`Missing column: url ${i + 1}`); });
+  // Only url 1..URL_MIN are required — a website can carry up to six proof pages, but an
+  // ordinary file only ever has the three required columns. A missing url 4..6 column just
+  // leaves those cells blank (controller ruling 1, spec 2026-09-17 §6).
+  urlCols.forEach((c, i) => { if (c === -1 && i < URL_MIN) problems.push(`Missing column: url ${i + 1}`); });
   if (problems.length) return { rows: [], problems };
   const rows = table.slice(1).map((line) => {
     const base = emptyRow(urlCount);

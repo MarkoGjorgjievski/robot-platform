@@ -9,9 +9,9 @@ import type { ColumnState } from '../lib/schema-tab-view';
 const STATE_LABEL: Record<ColumnState, string> = { idle: '', queued: 'queued', capturing: 'capturing', captured: 'captured', not_captured: 'not captured' };
 
 /** A proof-page column header (spec 5.6): shortened path, page number, capture state, and a pencil that opens the URL popover with "find pages from a listing". */
-export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl: shot, disabled, onChange, onFindPages }: {
+export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl: shot, disabled, onChange, onFindPages, onRemove }: {
   index: number; url: string; state: ColumnState; blockedReason?: string; screenshotUrl?: string | null; disabled: boolean;
-  onChange: (url: string) => void; onFindPages: (listingUrl: string) => Promise<string[]>;
+  onChange: (url: string) => void; onFindPages: (listingUrl: string) => Promise<string[]>; onRemove?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(url);
@@ -75,6 +75,11 @@ export function PageHeaderCell({ index, url, state, blockedReason, screenshotUrl
             <button type="button" className="btn-quiet h-7 flex-shrink-0" disabled={finding || !listing.trim()} onClick={find}>{finding ? <Loader2 className="h-3 w-3 animate-spin" /> : null}Find pages</button>
           </div>
           {findError && <p className="mt-1 text-xs text-fail">{findError}</p>}
+          {onRemove && !disabled && (
+            <button type="button" className="btn-quiet mt-2" onClick={onRemove} aria-label={`Remove page ${index + 1}`}>
+              Remove this page
+            </button>
+          )}
           {candidates.length > 0 && (
             <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
               {candidates.map((c) => (

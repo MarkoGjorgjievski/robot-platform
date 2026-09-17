@@ -1,6 +1,6 @@
-import { useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from 'react';
 import { Loader2 } from 'lucide-react';
-import { URL_COUNT, applyPasteByName, parseBlock, validateExpectedClient, type GridState } from '../lib/schema-grid';
+import { URL_MIN, applyPasteByName, parseBlock, validateExpectedClient, type GridState } from '../lib/schema-grid';
 import { cellLine, type ColumnState } from '../lib/schema-tab-view';
 import { PageHeaderCell } from './page-header-cell';
 
@@ -16,11 +16,18 @@ type Props = {
   pending: boolean;
   onFindPages: (listingUrl: string) => Promise<string[]>;
   typeFix?: (rowId: string) => { suggested: 'url'; onApply: () => void; pending: boolean; error?: string } | null;
+  onAddPage?: () => void;
+  onRemovePage?: (index: number) => void;
+  /** A cell to focus once, e.g. the field a run arrived for on its new page (spec 2026-09-17 §6).
+   * `col` is a page index (0-based, matching `state.urls`) — this component's own +3 offset for
+   * the fixed name/type/description columns is an internal detail the caller shouldn't need. */
+  focusCell?: { row: number; col: number } | null;
 };
 
 // Field (0) and Type (1) are read-only display, never focusable — keyboard navigation
-// only ranges over the description column (2) and the page columns (3..COLS-1).
-const COLS = 3 + URL_COUNT;
+// only ranges over the description column (2) and the page columns (3..COLS-1). The
+// grid can carry three to six pages (spec 2026-09-17 §6), so COLS is computed per
+// render from the live page count rather than the fixed starting URL_COUNT.
 const NAV_MIN = 2;
 
 const RAIL: Record<'pass' | 'fail' | 'stale' | 'not_captured' | 'none', string> = {
@@ -40,10 +47,19 @@ const LINE_TEXT: Record<'pass' | 'fail' | 'stale' | 'not_captured' | 'none', str
   none: '', // no status, no line: the <p> is there to reserve the space, nothing more
 };
 
-export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures, readOnly, pending, onFindPages, typeFix }: Props) {
+export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures, readOnly, pending, onFindPages, typeFix, onAddPage, onRemovePage, focusCell }: Props) {
   const inputs = useRef(new Map<string, HTMLElement>());
   const reg = (r: number, c: number) => (el: HTMLElement | null) => { if (el) inputs.current.set(`${r},${c}`, el); else inputs.current.delete(`${r},${c}`); };
   const focus = (r: number, c: number) => inputs.current.get(`${r},${c}`)?.focus();
+  const COLS = 3 + state.urls.length;
+
+  // `focusCell` is set once by the caller (the run-arrival effect) and never changes
+  // again, so this fires exactly once — after the new column's <input> has mounted and
+  // registered itself via `reg`.
+  useEffect(() => {
+    if (focusCell) focus(focusCell.row, 3 + focusCell.col);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCell]);
 
   function onKey(e: KeyboardEvent, r: number, c: number) {
     const move: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], Enter: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], Tab: [0, e.shiftKey ? -1 : 1] };
@@ -74,7 +90,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
 
   return (
     <div className="overflow-x-auto">
-      <table className="sheet min-w-[1100px]">
+      <table className="sheet" style={{ minWidth: 560 + state.urls.length * 180 }}>
         <thead>
           <tr className="sheet-head sheet-row text-left">
             <th className="w-[110px] px-2 py-1.5 font-semibold">Field</th>
@@ -91,9 +107,15 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                   disabled={readOnly}
                   onChange={(url) => onChange({ ...state, urls: state.urls.map((x, j) => (j === i ? url : x)) })}
                   onFindPages={onFindPages}
+                  onRemove={i >= URL_MIN && onRemovePage ? () => onRemovePage(i) : undefined}
                 />
               </th>
             ))}
+            {onAddPage && !readOnly && (
+              <th className="w-[92px] px-2 py-1.5 text-left align-top font-normal">
+                <button type="button" className="btn-quiet" onClick={onAddPage} aria-label="Add a proof page">Add page</button>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -128,7 +150,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                 </td>
                 {row.expected.map((v, u) => {
                   const status = cellStatus?.(row.id, u) ?? null;
-                  const base = cellLine(status, v, fix?.suggested ?? null);
+                  const base = cellLine(status, v, fix?.suggested ?? null, u);
                   let tone = base.tone;
                   let text = base.text;
                   if (status?.weak) text = text ? `${text} · weak evidence: same value on every page` : 'weak evidence: same value on every page';
@@ -152,6 +174,7 @@ export function SchemaGrid({ state, onChange, cellStatus, columnStates, captures
                     </td>
                   );
                 })}
+                {onAddPage && !readOnly && <td />}
               </tr>
             );
           })}

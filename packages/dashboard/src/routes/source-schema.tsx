@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, Link } from '@tanstack/react-router';
+import { useParams, useNavigate, useSearch, Link } from '@tanstack/react-router';
 import { trpc } from '../lib/trpc';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 import { StatusStrip } from '../components/status-strip';
-import { applyImportToRows, bindingProblems, emptyRow, emptyState, fromSource, isComplete, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
+import { addPage, applyImportToRows, bindingProblems, canAddPage, emptyRow, emptyState, fromSource, isComplete, removePage, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, verificationState, type VerificationResults } from '../lib/verification-view';
-import { stripState, columnStates, stripSummary, verifyButton, typeFixSuggestion, type TimeEstimate } from '../lib/schema-tab-view';
+import { stripState, columnStates, stripSummary, thinEvidenceNote, verifyButton, typeFixSuggestion, type TimeEstimate } from '../lib/schema-tab-view';
 
 /**
  * The Schema tab (Task 15 brief) — what used to be Set-up. `fromSource`
@@ -91,7 +91,7 @@ export default function SourceSchema() {
     if (Array.isArray(source.schemaDefinition) && source.schemaDefinition.length > 0) {
       const fields = source.schemaDefinition as Array<{ key: string; name: string; type: GridState['rows'][number]['type']; description: string }>;
       setGrid({
-        urls: ['', '', ''],
+        urls: Array(URL_COUNT).fill(''),
         listingUrl: '',
         rows: fields.map((f) => ({ ...emptyRow(), key: f.key, name: f.name, type: f.type, description: f.description })),
       });
@@ -102,9 +102,41 @@ export default function SourceSchema() {
     // seed, so `emptyState()`'s dummy row must not linger - it would leak
     // validation problems for an empty name/description/cells that the
     // EmptyState branch below never shows a grid for anyway.
-    setGrid({ urls: ['', '', ''], listingUrl: '', rows: [] });
+    setGrid({ urls: Array(URL_COUNT).fill(''), listingUrl: '', rows: [] });
     initialized.current = true;
   }, [source]);
+
+  // Arrival from a run (spec 2026-09-17 §6): a run page can link here with
+  // `?addPage=<url>&field=<key>` for a field that needs another proof page.
+  // router.tsx imports this component, so the route object cannot be imported back here.
+  const search = useSearch({ strict: false }) as { addPage?: string; field?: string };
+  const arrival = useRef(false);
+  const [arrivalNote, setArrivalNote] = useState<string | null>(null);
+  const [focusCell, setFocusCell] = useState<{ row: number; col: number } | null>(null);
+  // Guarded on `initialized.current` (set inside the seeding effect above) so this never
+  // fires against the placeholder `emptyState()` grid the component starts with. That
+  // effect's `setGrid` is what re-renders this component with `initialized.current`
+  // already true, so `grid.rows` — not the ref itself, which cannot be a dependency — is
+  // the trigger that lets this effect see the post-seed state and run exactly once
+  // (guarded by the `arrival` ref).
+  useEffect(() => {
+    if (!initialized.current || arrival.current || !search.addPage) return;
+    arrival.current = true;
+    if (!canAddPage(grid) && !grid.urls.includes(search.addPage)) {
+      setArrivalNote('This website already has six proof pages. Remove one to add this page.');
+      return;
+    }
+    const existingIndex = grid.urls.findIndex((u) => u.trim() === search.addPage!.trim());
+    const col = existingIndex >= 0 ? existingIndex : grid.urls.length; // addPage appends when not already present
+    setGrid((g) => addPage(g, search.addPage));
+    setTouched(true);
+    const rowIndex = grid.rows.findIndex((r) => r.key === search.field);
+    const name = rowIndex >= 0 ? grid.rows[rowIndex]!.name : undefined;
+    if (rowIndex >= 0) setFocusCell({ row: rowIndex, col });
+    setArrivalNote(name
+      ? `Added from a run: type what ${name} should be on this page, then verify.`
+      : 'Added from a run: type the expected value on this page, then verify.');
+  }, [search.addPage, search.field, grid.rows]);
 
   const status = statusQuery.data ?? null;
   const savedGrid = source ? fromSource(source) : null;
@@ -174,7 +206,7 @@ export default function SourceSchema() {
 
   // The Verifying strip states two facts: that it is verifying, and roughly how
   // long that takes (spec 5.6). Until the estimate lands there is only the first.
-  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: URL_COUNT, currentKeys, failingKeys, staleKeys, estimate: active ? runEstimate : (estimate ?? null) });
+  const summary = stripSummary({ state: strip, fieldCount: keyed.length, pageCount: grid.urls.length, currentKeys, failingKeys, staleKeys, estimate: active ? runEstimate : (estimate ?? null) });
   const stage = active ? (status?.stage ?? 'starting') : strip === 'failed' ? (status?.errorMessage ?? null) : null;
   const tone = strip === 'stalled' ? 'warn' : strip === 'failed' ? 'error' : 'neutral';
   const lockNote = active ? 'table locked while verifying' : null;
@@ -273,6 +305,7 @@ export default function SourceSchema() {
             verify={{ label: verify.label, disabled: verify.disabled, reason: verify.reason, busy: verifyBusy, onClick: handleVerify, onDisabledClick: () => setTouched(true) }}
             extract={{ label: 'Go to Extract', disabled: !extractEnabled, reason: 'Unlocks when every cell is green', busy: false, onClick: () => navigate({ to: '/projects/$project/sources/$source/extract', params: { project: projectSlug, source: sourceSlug } }) }}
           />
+          {(() => { const t = thinEvidenceNote(results, grid.rows); return t ? <p className="mt-1 text-[12px] line-warn">{t}</p> : null; })()}
 
           {error && <ErrorBanner message={error} dismiss={() => setError(null)} />}
 
@@ -283,7 +316,7 @@ export default function SourceSchema() {
               fields are reported as skipped, not silently dropped.
             */}
             <SchemaImport
-              urlCount={URL_COUNT}
+              urlCount={grid.urls.length}
               onRows={(rows) => {
                 const r = applyImportToRows(grid.rows, rows);
                 updateGrid((g) => ({ ...g, rows: r.rows }));
@@ -297,6 +330,8 @@ export default function SourceSchema() {
             Field names and types come from the project. <Link to="/projects/$project" params={{ project: projectSlug }} className="underline-offset-2 hover:underline">Edit fields on the project page.</Link>
           </p>
 
+          {arrivalNote && <p className="label-soft">{arrivalNote}</p>}
+
           {/* The proof sheet sits on the paper: rules, not a box (spec 7). */}
           <SchemaGrid
             state={grid}
@@ -308,6 +343,9 @@ export default function SourceSchema() {
             pending={active}
             onFindPages={async (u) => (await findMutation.mutateAsync({ listingUrl: u })).urls}
             typeFix={typeFix}
+            onAddPage={canAddPage(grid) ? () => setGrid((g) => addPage(g)) : undefined}
+            onRemovePage={(i) => setGrid((g) => removePage(g, i))}
+            focusCell={focusCell}
           />
         </>
       )}

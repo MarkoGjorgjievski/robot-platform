@@ -48,8 +48,19 @@ const sourceDetailLayoutRoute = createRoute({
   path: '/projects/$project/sources/$source',
   component: SourceDetail,
 });
-// The bare source URL is the Schema tab, always (spec 5.6).
-const sourceSchemaRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: '/', component: SourceSchema });
+// The bare source URL is the Schema tab, always (spec 5.6). `addPage`/`field` are the
+// arrival params from a run (spec 2026-09-17 §6): a run page can link a customer
+// straight to a new proof page for a field that needs one, prefilled with the URL that
+// exposed it.
+const sourceSchemaRoute = createRoute({
+  getParentRoute: () => sourceDetailLayoutRoute,
+  path: '/',
+  component: SourceSchema,
+  validateSearch: (s: Record<string, unknown>) => ({
+    ...(typeof s.addPage === 'string' ? { addPage: s.addPage } : {}),
+    ...(typeof s.field === 'string' ? { field: s.field } : {}),
+  }),
+});
 // The Extract tab (phase 4): pages, sample, run.
 const sourceExtractRoute = createRoute({ getParentRoute: () => sourceDetailLayoutRoute, path: 'extract', component: SourceExtract });
 // Overview is retired — everything it showed now lives on the Schema and
