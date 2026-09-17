@@ -30,8 +30,23 @@ describe('computeMisses', () => {
   it('a confirmed-absent cell is not a miss', () => {
     expect(computeMisses(fields, [item(1, L1, { title: 'A', price: null }, ['price'])])).toEqual([]);
   });
-  it('a failed item (no row) misses every field', () => {
-    expect(computeMisses(fields, [item(1, L1, null)]).map((f) => f.name)).toEqual(['title', 'price']);
+  it('an item with no row (pending, running, or failed) contributes nothing: not a miss, and excluded from total', () => {
+    expect(computeMisses(fields, [item(1, L1, null)])).toEqual([]);
+  });
+  it('a capped run: items never extracted are not misses and do not count toward total (the live 10-of-28 case)', () => {
+    const extracted = Array.from({ length: 10 }, (_, i) => item(i, L1, { title: 'x', price: 'y' }));
+    const notYetExtracted = Array.from({ length: 18 }, (_, i) => item(10 + i, L1, null));
+    expect(computeMisses(fields, [...extracted, ...notYetExtracted])).toEqual([]);
+  });
+  it('a gap among extracted items counts and totals against the extracted count only', () => {
+    const filled = Array.from({ length: 8 }, (_, i) => item(i, L1, { title: 'x', price: 'y' }));
+    const gaps = Array.from({ length: 2 }, (_, i) => item(8 + i, L1, { title: 'x', price: null }));
+    const notYetExtracted = Array.from({ length: 18 }, (_, i) => item(10 + i, L1, null));
+    const out = computeMisses(fields, [...filled, ...gaps, ...notYetExtracted]);
+    expect(out).toEqual([{
+      name: 'price', count: 2, total: 10,
+      groups: [{ listingUrl: L1, count: 2, urls: ['https://s.example/p/8', 'https://s.example/p/9'] }],
+    }]);
   });
   it('products given directly form one group with a null listing', () => {
     expect(computeMisses(fields, [item(1, null, { title: 'A' })])[0]!.groups).toEqual([{ listingUrl: null, count: 1, urls: ['https://s.example/p/1'] }]);
