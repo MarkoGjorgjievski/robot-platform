@@ -14,7 +14,8 @@ import { effectiveSchema } from '../crawl/effective-schema.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { startExecution } from '../crawl/start-execution.js';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
-import { loadRunCoverage } from '../crawl/load-run-coverage.js';
+import { loadRunCoverage, loadRunMisses } from '../crawl/load-run-coverage.js';
+import { loadCurrentCertification } from '../verify/current-certification.js';
 import {
   classifyFields, deriveBackfillItems, planBackfillRun, EST_AI_COST_PER_PAGE_USD, type BackfillItemPlan,
 } from '../crawl/backfill.js';
@@ -406,6 +407,19 @@ export const crawlRouter = router({
     }),
 
   /**
+   * A run's empty cells by field and by listing (spec 2026-09-17 §5). Read-only.
+   * `certified` tells the run page whether "Use as proof page" applies: only a
+   * website with a verified schema has proof pages to add to.
+   */
+  misses: publicProcedure
+    .input(z.object({ runId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const { sourceId, fields } = await loadRunMisses(ctx.db, input.runId);
+      const certified = (await loadCurrentCertification(ctx.db, sourceId)) !== null;
+      return { certified, fields };
+    }),
+
+  /**
    * A read-only preview of what a backfill run against this run would do:
    * how many gap items it would re-fetch, an "up to" cost estimate (a
    * backfill item may resolve for free at a cheaper extraction tier — see
@@ -423,11 +437,18 @@ export const crawlRouter = router({
       const cov = await loadRunCoverage(ctx.db, input.runId);
       const targetNames = input.targetFields ?? cov.fields.filter((f) => f.missing > 0).map((f) => f.name);
       const items = deriveBackfillItems(cov.gapItems, targetNames);
+      // The run's source id is needed to check certification but is not part
+      // of `loadRunCoverage`'s (deliberately pure, coverage.ts) return shape
+      // — loaded the same way `misses` does, below.
+      const { sourceId } = await loadRunMisses(ctx.db, input.runId);
+      const certified = (await loadCurrentCertification(ctx.db, sourceId)) !== null;
       return {
         // One detail fetch per gap item — a page count and an item count are
         // the same number here, so only the page count is reported.
         pages: items.length,
-        estCostUsd: Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)),
+        // A certified website runs certified paths only; it never reaches the AI tiers the "up to" figure prices.
+        estCostUsd: certified ? 0 : Number((items.length * EST_AI_COST_PER_PAGE_USD).toFixed(2)),
+        certified,
         fields: classifyFields(cov.fields, targetNames),
       };
     }),
