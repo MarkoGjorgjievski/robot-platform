@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { checkPageHealth } from '@robot/browser';
-import type { IBrowser, PageCapture } from '@robot/browser';
+import type { IBrowser, PageCapture, ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
 import { certify, checkedPages, gatherCandidates, type CandidatePath, type CaptureLike } from './certify.js';
+import { buildVerificationReadyCheck } from './verification-ready.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
 import type { CertifiedPath, FieldVerification, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
@@ -15,12 +16,16 @@ export type VerificationDeps = {
   cachedPaths?: (concept: string) => Promise<CertifiedPath[]>;
   onlyKeys?: string[];
   previous?: VerificationOutcome;
-  captureOne?: (browser: IBrowser, url: string) => Promise<PageCapture>;
+  /** `ready` is the check built from this page's expected values (verification-ready.ts); a fake may ignore it. */
+  captureOne?: (browser: IBrowser, url: string, ready?: ReadyCheck) => Promise<PageCapture>;
   onProgress?: (stage: string) => void;
 };
 export type VerificationRun = { outcome: VerificationOutcome; captures: Record<string, PageCapture | null>; captureErrors: Record<string, string> };
 
-const defaultCapture = (browser: IBrowser, url: string) => browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
+// `load` plus a ready check, never `networkidle`: a site that holds a
+// connection open (Ikea) never goes idle and paid the full 60 s timeout on
+// every proof page. The check waits for the values typed on this page instead.
+const defaultCapture = (browser: IBrowser, url: string, ready?: ReadyCheck) => browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: true, ...(ready ? { ready } : {}) });
 
 /** Same host and path (trailing slash and fragment ignored; query ignored — many shops append tracking params). */
 function samePath(finalUrl: string, requested: string): boolean {
@@ -84,7 +89,8 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     if (deps.captures?.[url]) { captures[url] = deps.captures[url]!; continue; }
     deps.onProgress?.(`capturing ${i + 1}/${req.verificationSet.urls.length}`);
     try {
-      const c = await captureOne(deps.browser, url);
+      const expectedOnPage = Object.fromEntries(req.fields.map((f) => [f.key, req.verificationSet.expected[f.key]?.[url] ?? '']));
+      const c = await captureOne(deps.browser, url, buildVerificationReadyCheck(req.fields, expectedOnPage, url));
       // Spec §4.1: a capture that landed on a different path (category page,
       // block page) is not this product page. `PageCapture.url` is the FINAL
       // url — `PlaywrightBrowser.capture` sets it from `page.url()` after

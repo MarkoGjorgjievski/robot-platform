@@ -22,7 +22,7 @@ export type StructuredData = {
 export type CaptureTimings = {
   /** Navigation until the requested load state (or its fallback) was reached. */
   navigateMs: number;
-  /** Time spent in the ready check after navigation; null when none was given. */
+  /** Time spent polling the ready check (grace excluded); null when none was given. */
   readyMs: number | null;
   /**
    * 'ready': the check passed within its poll deadline. 'settled': it passed
@@ -31,6 +31,8 @@ export type CaptureTimings = {
    * that still misses is an honest miss. null: no ready check was given.
    */
   readyState: 'ready' | 'settled' | 'timeout' | null;
+  /** Time spent in the grace period after the ready check passed; absent or null when none was taken. */
+  graceMs?: number | null;
   /** Whole capture, navigation to return. */
   totalMs: number;
 };
@@ -67,6 +69,24 @@ export type ReadyCheck = {
   timeoutMs?: number;
   /** After the poll deadline, one bounded wait for networkidle before the final check. Default 10 000. */
   settleTimeoutMs?: number;
+  /**
+   * When to poll. 'after-navigation' (default): at once, before the popup and
+   * expand rounds; a certified run's values are there by then. 'after-expand':
+   * once those rounds have run, for a caller that reads the page as the capture
+   * will serialise it (verification: some values only exist in the DOM after a
+   * "show more" click, and polling before it would wait out the deadline for a
+   * value the capture is about to reveal).
+   */
+  when?: 'after-navigation' | 'after-expand';
+  /**
+   * Once the check has passed, hold the capture until no new response has
+   * arrived for this long. A value can show in the visible page a moment before
+   * the API response carrying it lands; capturing in that gap would hide the
+   * better source. Unset: no grace.
+   */
+  graceQuietMs?: number;
+  /** Upper bound on the grace period. Default 3 000. */
+  graceMaxMs?: number;
 };
 
 export type BrowserOptions = {

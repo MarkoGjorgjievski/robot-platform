@@ -8,3 +8,4 @@ export { buildXPathProbeScript, type XPathProbeResult, type DomHit, type DomNeed
 export * from './ai-fallback.js';
 export * from './run-verification.js';
 export * from './verified-extraction.js';
+export * from './verification-ready.js';
