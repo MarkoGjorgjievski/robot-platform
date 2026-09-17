@@ -4,7 +4,7 @@ import { URL_COUNT, applyPasteByName, parseBlock, validateExpectedClient, type G
 import { cellLine, type ColumnState } from '../lib/schema-tab-view';
 import { PageHeaderCell } from './page-header-cell';
 
-export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string };
+export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string; layout?: number };
 
 type Props = {
   state: GridState;

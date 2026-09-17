@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, it, test } from 'vitest';
 import {
   hintFor,
   cellStatusFor,
@@ -153,32 +153,36 @@ describe('isRowStale', () => {
   }
 
   test('no saved grid: never stale', () => {
-    const row = state().rows[0]!;
-    expect(isRowStale(row, null)).toBe(false);
+    const grid = state();
+    const row = grid.rows[0]!;
+    expect(isRowStale(row, grid, null)).toBe(false);
   });
 
   test('unchanged row: not stale', () => {
     const saved = state();
     const row = { ...saved.rows[0]! };
-    expect(isRowStale(row, saved)).toBe(false);
+    expect(isRowStale(row, saved, saved)).toBe(false);
   });
 
   test('changed description: stale', () => {
     const saved = state();
     const row = { ...saved.rows[0]!, description: 'a different description' };
-    expect(isRowStale(row, saved)).toBe(true);
+    const grid = { ...saved, rows: [row] };
+    expect(isRowStale(row, grid, saved)).toBe(true);
   });
 
   test('changed one expected value: stale', () => {
     const saved = state();
     const row = { ...saved.rows[0]!, expected: ['$99', '$20', '$30'] };
-    expect(isRowStale(row, saved)).toBe(true);
+    const grid = { ...saved, rows: [row] };
+    expect(isRowStale(row, grid, saved)).toBe(true);
   });
 
   test('brand-new row with no matching key: not stale', () => {
     const saved = state();
     const row = { ...emptyRow(), name: 'New field' };
-    expect(isRowStale(row, saved)).toBe(false);
+    const grid = { ...saved, rows: [row] };
+    expect(isRowStale(row, grid, saved)).toBe(false);
   });
 });
 
@@ -213,31 +217,40 @@ describe('reverifyKeys', () => {
     expect(reverifyKeys(results, current, saved)).toEqual(['qty', 'desc']);
   });
 
-  // The critical C1 follow-up: a URL edit touches no ROW, so the per-row
-  // staleness check sees nothing and used to hand back `[]` — which the
-  // server reads as "copy every previous field result", storing cells keyed
-  // by the OLD urls under the NEW definitionHash and unlocking Extract
-  // against pages nobody verified.
-  test('a changed product URL forces a full re-verify (undefined), not []', () => {
+  // Updated for spec 2026-09-17 §4: `reverifyKeys` no longer short-circuits to
+  // `undefined` merely because the url list changed (the `urlsChanged` guard is
+  // gone). A URL edit now surfaces through per-row staleness instead — `isRowStale`
+  // compares the row's `checkedCells`, which pair each page's url with its expected
+  // value, so a changed url shows up there directly. `source-schema.tsx`'s
+  // `reverifyCount` treats `undefined` and "every key" the same
+  // (`reverify === undefined ? keyed.length : reverify.length`), so this is
+  // behavior-preserving for that caller.
+  test('a changed product URL makes the checked row stale, returning every key (not undefined)', () => {
     const saved = grid([row('price')]);
     const current: GridState = { ...grid([row('price')]), urls: ['u1', 'u2', 'u3-EDITED'] };
     const results: VerificationResults = {
       price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
     };
-    // Everything green and no row edited: without the URL check this is `[]`.
+    // Everything green and no row edited: unchanged grid is still [].
     expect(reverifyKeys(results, grid([row('price')]), saved)).toEqual([]);
-    expect(reverifyKeys(results, current, saved)).toBeUndefined();
+    // The url change touches the row's checked pages, so it is stale.
+    expect(reverifyKeys(results, current, saved)).toEqual(['price']);
   });
 
-  test('a changed listing URL, or swapped URL order, forces a full re-verify', () => {
+  // The per-field hash this mirrors (spec 2026-09-17 §4) is keyed on the field's
+  // checked (url, expected) pairs only — never the listing URL, which is not part
+  // of any field's proof — so a listing-URL-only edit no longer forces a re-verify.
+  // A swapped page order still does: it changes which url pairs with which expected
+  // value for the row's checkedCells.
+  test('a swapped URL order makes the checked row stale; a listing-URL-only change does not', () => {
     const saved = grid([row('price')]);
     const results: VerificationResults = {
       price: { key: 'price', cells: {}, certified: [{}], weakEvidence: false, aiCalled: false, incomplete: false },
     };
     const listingChanged: GridState = { ...grid([row('price')]), listingUrl: 'https://shop.example/c' };
-    expect(reverifyKeys(results, listingChanged, saved)).toBeUndefined();
+    expect(reverifyKeys(results, listingChanged, saved)).toEqual([]);
     const swapped: GridState = { ...grid([row('price')]), urls: ['u2', 'u1', 'u3'] };
-    expect(reverifyKeys(results, swapped, saved)).toBeUndefined();
+    expect(reverifyKeys(results, swapped, saved)).toEqual(['price']);
   });
 
   test('URLs differing only by surrounding whitespace are not a change', () => {
@@ -275,5 +288,42 @@ describe('reverifyKeys', () => {
     };
     expect(reverifyKeys(results, current, saved, [])).toEqual(['price']);
     expect(reverifyKeys(results, current, saved, ['price'])).toEqual([]);
+  });
+});
+
+describe('staleness is per row, over the pages the row is checked on', () => {
+  const saved: GridState = {
+    urls: ['u1', 'u2', 'u3'], listingUrl: '',
+    rows: [
+      { id: 'a', key: 'title', name: 'Title', type: 'text', description: 'h', expected: ['A', 'B', 'C'] },
+      { id: 'b', key: 'price', name: 'Price', type: 'money', description: 'g', expected: ['1', '2', '3'] },
+    ],
+  };
+  const withPage4: GridState = { ...saved, urls: [...saved.urls, 'u4'], rows: [{ ...saved.rows[0]!, expected: ['A', 'B', 'C', ''] }, { ...saved.rows[1]!, expected: ['1', '2', '3', '89.50'] }] };
+  const results = { title: { cells: {}, certified: [{}], weakEvidence: false }, price: { cells: {}, certified: [{}], weakEvidence: false } } as never;
+
+  it('adding a page for price makes price stale and leaves title alone', () => {
+    expect(isRowStale(withPage4.rows[1]!, withPage4, saved)).toBe(true);
+    expect(isRowStale(withPage4.rows[0]!, withPage4, saved)).toBe(false);
+    expect(reverifyKeys(results, withPage4, saved, ['title', 'price'])).toEqual(['price']);
+  });
+  it('replacing one of the first three pages makes every row stale', () => {
+    const moved = { ...saved, urls: ['u1', 'uX', 'u3'] };
+    expect(reverifyKeys(results, moved, saved, ['title', 'price'])).toEqual(['title', 'price']);
+  });
+});
+
+describe('cellStatusFor — which layout proved a cell', () => {
+  const A = { source: 'api', path: 'item.priceCents', transform: 'cents_to_units' };
+  const B = { source: 'api', path: 'clearance.amount', transform: 'identity' };
+  const results = { price: { key: 'price', weakEvidence: false, certified: [{ ...A, provenOn: ['u1', 'u2', 'u3'] }, { ...B, provenOn: ['u4'] }], cells: {
+    u1: { status: 'pass', found: '1', path: { ...A, provenOn: ['u1', 'u2', 'u3'] } },
+    u4: { status: 'pass', found: '89.5', path: { ...B, provenOn: ['u4'] } },
+  } } } as never;
+  it('numbers the layout only when the field has more than one', () => {
+    expect(cellStatusFor(results, 'price', 'u1', false)).toMatchObject({ status: 'pass', layout: 1 });
+    expect(cellStatusFor(results, 'price', 'u4', false)).toMatchObject({ status: 'pass', layout: 2 });
+    const one = { price: { key: 'price', weakEvidence: false, certified: [A], cells: { u1: { status: 'pass', found: '1', path: A } } } } as never;
+    expect(cellStatusFor(one, 'price', 'u1', false)!.layout).toBeUndefined();
   });
 });

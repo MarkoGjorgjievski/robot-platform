@@ -133,7 +133,7 @@ export default function SourceSchema() {
   // The second check must not fire when there are no results at all — a
   // never-verified source has nothing stale.
   function cellIsStale(row: GridRow, urlIndex: number): boolean {
-    if (isRowStale(row, savedGrid)) return true;
+    if (isRowStale(row, grid, savedGrid)) return true;
     if (row.key && results && !currentKeys.includes(row.key) && results[row.key]) return true; // server no longer counts it current
     const saved = savedGrid?.urls[urlIndex];
     const now = grid.urls[urlIndex];

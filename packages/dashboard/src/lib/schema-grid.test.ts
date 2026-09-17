@@ -1,6 +1,7 @@
 import { describe, expect, it, test } from 'vitest';
 import {
   URL_COUNT,
+  URL_MAX,
   emptyRow,
   emptyState,
   validateExpectedClient,
@@ -15,6 +16,9 @@ import {
   shortUrl,
   fromSource,
   importProblems,
+  addPage,
+  removePage,
+  canAddPage,
   type GridState,
   type GridRow,
 } from './schema-grid';
@@ -228,7 +232,10 @@ describe('bindingProblems', () => {
   it('names the gaps by field name', () => {
     expect(bindingProblems({ ...ok, rows: [{ ...ok.rows[0]!, description: '' }] })).toContain('Price: say where it is on this website');
     expect(bindingProblems({ ...ok, rows: [{ ...ok.rows[0]!, expected: ['x', '2', '3'] }] })).toEqual(expect.arrayContaining([expect.stringContaining('Price @ https://s.example/1: Not a money amount')]));
-    expect(bindingProblems({ ...ok, urls: ['', ...ok.urls.slice(1)] })).toContain('All 3 product URLs are required');
+    // Message text changed under the three-to-six-page rule (spec 2026-09-17 §4): it
+    // no longer names a fixed count, since the floor is a constant (URL_MIN) but the
+    // grid itself can carry more pages.
+    expect(bindingProblems({ ...ok, urls: ['', ...ok.urls.slice(1)] })).toContain('Every proof page needs a URL');
   });
 });
 
@@ -305,5 +312,46 @@ describe('importProblems', () => {
 
   test('formats a non-Error thrown value', () => {
     expect(importProblems('nope')).toEqual(['Could not read the file: nope']);
+  });
+});
+
+describe('proof pages: three to six', () => {
+  const base = (): GridState => ({
+    urls: ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'], listingUrl: '',
+    rows: [
+      { id: 'a', key: 'title', name: 'Title', type: 'text', description: 'heading', expected: ['A', 'B', 'C'] },
+      { id: 'b', key: 'price', name: 'Price', type: 'money', description: 'green', expected: ['1', '2', '3'] },
+    ],
+  });
+  it('addPage appends a url and a blank cell on every row', () => {
+    const s = addPage(base(), 'https://s.example/4');
+    expect(s.urls).toHaveLength(4);
+    expect(s.rows.map((r) => r.expected)).toEqual([['A', 'B', 'C', ''], ['1', '2', '3', '']]);
+  });
+  it('addPage focuses an existing page instead of duplicating it, and stops at six', () => {
+    expect(addPage(base(), 'https://s.example/2').urls).toHaveLength(3);
+    let s = base();
+    for (let i = 4; i <= 9; i++) s = addPage(s, `https://s.example/${i}`);
+    expect(s.urls).toHaveLength(URL_MAX);
+    expect(canAddPage(s)).toBe(false);
+  });
+  it('removePage drops the column on every row, but never one of the first three', () => {
+    const s = addPage(base(), 'https://s.example/4');
+    expect(removePage(s, 3).rows[0]!.expected).toEqual(['A', 'B', 'C']);
+    expect(removePage(s, 1)).toBe(s);
+  });
+  it('a blank cell is a problem on pages one to three and fine on page four', () => {
+    const s = addPage(base(), 'https://s.example/4');
+    s.rows[1]!.expected[3] = '89.50';
+    expect(bindingProblems(s)).toEqual([]);
+    s.rows[0]!.expected[1] = '';
+    expect(bindingProblems(s)).toEqual([expect.stringContaining('Title @ https://s.example/2')]);
+  });
+  it('an extra page nobody typed on is a problem', () => {
+    expect(bindingProblems(addPage(base(), 'https://s.example/4'))).toEqual(['https://s.example/4: type at least one expected value on this page, or remove it']);
+  });
+  it('toBindingInput sends every page, blanks included', () => {
+    const s = addPage(base(), 'https://s.example/4');
+    expect(toBindingInput(s).expected.title).toEqual({ 'https://s.example/1': 'A', 'https://s.example/2': 'B', 'https://s.example/3': 'C', 'https://s.example/4': '' });
   });
 });

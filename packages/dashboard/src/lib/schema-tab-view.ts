@@ -71,13 +71,16 @@ export function stripSummary(args: { state: StripState; fieldCount: number; page
   }
 }
 
-/** The reserved second line of an expected cell. `typeFix` is the row's type-fix chip suggestion (spec 5.6): when a not_found cell's typed value looks like a link, the hint names the fix directly rather than the generic "check the value" copy. */
-export function cellLine(status: CellStatus | null, typed: string, typeFix?: 'url' | null): CellLine {
-  if (!status) return { tone: 'none', text: '' };
+/** The reserved second line of an expected cell. `typeFix` is the row's type-fix chip suggestion (spec 5.6): when a not_found cell's typed value looks like a link, the hint names the fix directly rather than the generic "check the value" copy. `pageIndex` is the cell's column (0-based): on pages four to six (index 3+) a blank, unverified cell reads as "not checked" rather than an empty reserved line (spec 2026-09-17 §4). */
+export function cellLine(status: CellStatus | null, typed: string, typeFix?: 'url' | null, pageIndex?: number): CellLine {
+  // Pages four to six: a blank cell is "not checked here", not an omission (spec 2026-09-17 §4).
+  if (!status) return { tone: 'none', text: typed.trim() === '' && (pageIndex ?? 0) >= 3 ? 'not checked' : '' };
   switch (status.status) {
-    case 'pass':
+    case 'pass': {
       if (status.found !== undefined && status.found !== typed) return { tone: 'pass', text: `page shows ${status.found}` };
-      return { tone: 'pass', text: status.pathSource ? `from ${status.pathSource}` : 'verified' };
+      const layout = status.layout && status.layout > 1 ? ` · layout ${status.layout}` : '';
+      return { tone: 'pass', text: (status.pathSource ? `from ${status.pathSource}` : 'verified') + layout };
+    }
     case 'fail':
       if (status.reason === 'not_found' && typeFix === 'url') return { tone: 'fail', text: 'Not found as text. It looks like a link: set type to url.' };
       return { tone: 'fail', text: status.hint ?? 'Not found on this page.' };
@@ -97,6 +100,12 @@ export function verifyButton(args: { state: StripState; firstRun: boolean; rever
   const n = `${reverifyCount} field${reverifyCount === 1 ? '' : 's'}`;
   const free = capturesFresh && (!aiAvailable || upperBoundUsd === 0);
   return { label: `Re-verify ${n} · ${free ? 'free' : cost}`, disabled: busy };
+}
+
+/** One line for the strip when a field's second layout rests on a single page (spec 2026-09-17 §3). */
+export function thinEvidenceNote(results: Record<string, { thinEvidence?: boolean }> | null | undefined, rows: Array<{ key?: string; name: string }>): string | null {
+  const names = rows.filter((r) => r.key && results?.[r.key]?.thinEvidence).map((r) => r.name);
+  return names.length ? `${names.join(', ')}: second layout proven on one page · add another page of that layout to be sure` : null;
 }
 
 const isHttpUrl = (s: string) => { try { return /^https?:$/.test(new URL(s.trim()).protocol); } catch { return false; } };
