@@ -3,7 +3,7 @@ import { PlaywrightBrowser } from '@robot/browser';
 import type { IBrowser } from '@robot/browser';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
 import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
-import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
+import { loadShopExample, SHOP_EXAMPLE_URLS as U, loadVerifyFixture, SHOP_EXAMPLE_P4 as P4 } from '../__fixtures__/verify/load.js';
 
 /** A capture with no signal: empty html, nothing intercepted or embedded. */
 const emptyCapture = (url: string) => ({
@@ -151,30 +151,36 @@ describe('runVerification (shop-example, offline)', () => {
     expect(second.outcome.allPassed).toBe(true);
   }, 60_000);
 
-  // Correction round, defence in depth for the C1 follow-up: a scoped
-  // re-verify must not copy forward results that were proven against
-  // DIFFERENT pages. The dashboard now forces a full re-verify when a URL
-  // changes, but the server must not depend on that.
-  it('ignores the previous outcome entirely when previousUrls differ from the set being verified', async () => {
+  // Updated for spec 2026-09-17 (per-field pages): reuse used to be gated by
+  // comparing the WHOLE previous url list against the whole current one
+  // (`previousUrls`), so any url-list change — even one for an unrelated
+  // field — forced every field to re-run. That guard is now per field
+  // (`provenPagesStillPresent`, keyed off the field's own stored cells), and
+  // `previousUrls` is a deprecated no-op kept only so old callers compile.
+  // This test's `verificationSet.urls` never actually changes, so a
+  // mismatched `previousUrls` no longer disturbs reuse — the "a page a
+  // field WAS proven on is no longer a proof page" case (which must still
+  // force a re-run) is covered by the "still refuses to reuse..." test
+  // above, which changes `verificationSet.urls` itself.
+  it('previousUrls no longer participates in reuse: only the field\'s own proven pages do', async () => {
     const first = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
 
-    // Same set, same onlyKeys, but the previous run was proven against a
-    // DIFFERENT third url — every field must re-run, not be copied.
+    // A previousUrls value that disagrees with reality is now inert: the
+    // actual verificationSet.urls is unchanged, so product_name's proven
+    // pages (U) are still all proof pages, and it is reused.
     const movedUrls = [U[0]!, U[1]!, 'https://shop.example/p/somewhere-else'];
     const guarded = await runVerification({ fields, verificationSet: set }, {
       browser, agent: null, captures: loadShopExample(),
       onlyKeys: ['price'], previous: first.outcome, previousUrls: movedUrls,
     });
-    // `product_name` was not in onlyKeys: without the guard it would BE the
-    // previous object. It must be a freshly computed one instead.
-    expect(guarded.outcome.fields.product_name).not.toBe(first.outcome.fields.product_name);
+    expect(guarded.outcome.fields.product_name).toBe(first.outcome.fields.product_name);
 
-    // Control: the identical call with matching previousUrls does copy it.
-    const copied = await runVerification({ fields, verificationSet: set }, {
+    // Control: omitting previousUrls entirely behaves identically.
+    const withoutPreviousUrls = await runVerification({ fields, verificationSet: set }, {
       browser, agent: null, captures: loadShopExample(),
-      onlyKeys: ['price'], previous: first.outcome, previousUrls: [...U],
+      onlyKeys: ['price'], previous: first.outcome,
     });
-    expect(copied.outcome.fields.product_name).toBe(first.outcome.fields.product_name);
+    expect(withoutPreviousUrls.outcome.fields.product_name).toBe(first.outcome.fields.product_name);
   }, 90_000);
 
   it('cached verified paths are tried first and skip the search', async () => {
@@ -246,5 +252,73 @@ describe('runVerification per-field copy-forward', () => {
 
     const b = await runVerification({ fields: [price, title], verificationSet: set }, { ...deps, onlyKeys: ['price'], previous: { fields: { title: fresh }, allPassed: false, aiCalls: 0 }, previousUrls: set.urls });
     expect(b.outcome.fields.title).toBe(fresh);                          // copied as-is
+  });
+});
+
+describe('runVerification — a fourth proof page for one field (spec 2026-09-17)', () => {
+  const blank = (key: keyof typeof set.expected) => ({ ...set.expected[key], [P4]: '' });
+  const set4: VerificationSet = {
+    urls: [...U, P4],
+    expected: {
+      product_name: blank('product_name'), in_stock: blank('in_stock'), image: blank('image'),
+      colors: blank('colors'), rating: blank('rating'),
+      price: { ...set.expected.price, [P4]: '89.50' },
+    },
+  };
+  const captures4 = () => ({ ...loadShopExample(), [P4]: loadVerifyFixture('shop-example', 'p4') });
+
+  it('certifies price across both layouts mechanically, and leaves the other fields exactly as they were', async () => {
+    const before = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
+    const run = await runVerification({ fields, verificationSet: set4 }, { browser, agent: null, captures: captures4() });
+    expect(run.outcome.allPassed).toBe(true);
+    expect(run.outcome.aiCalls).toBe(0);
+    const price = run.outcome.fields.price!;
+    expect(price.certified.length).toBeGreaterThanOrEqual(2);
+    expect(price.certified[0]!.provenOn).toEqual(U);
+    expect(price.certified.some((p) => p.provenOn?.length === 1 && p.provenOn[0] === P4)).toBe(true);
+    expect(price.cells[P4]).toMatchObject({ status: 'pass' });
+    expect(price.thinEvidence).toBe(true);
+    // The others are not checked on page 4: same cells, same paths, same hash.
+    for (const key of ['product_name', 'in_stock', 'image', 'colors', 'rating']) {
+      expect(run.outcome.fields[key]!.certified).toEqual(before.outcome.fields[key]!.certified);
+      expect(Object.keys(run.outcome.fields[key]!.cells)).toEqual(U);
+      expect(run.outcome.fields[key]!.fieldHash).toBe(before.outcome.fields[key]!.fieldHash);
+    }
+    expect(price.fieldHash).not.toBe(before.outcome.fields.price!.fieldHash);
+  }, 60_000);
+
+  it('a scoped re-verify of price reuses the other fields\' stored results even though the url list grew', async () => {
+    const before = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
+    const run = await runVerification(
+      { fields, verificationSet: set4 },
+      { browser, agent: null, captures: captures4(), onlyKeys: ['price'], previous: before.outcome, previousUrls: U },
+    );
+    for (const key of ['product_name', 'in_stock', 'image', 'colors', 'rating']) {
+      expect(run.outcome.fields[key]).toBe(before.outcome.fields[key]); // the same object: reused, not recomputed
+    }
+    expect(run.outcome.fields.price!.cells[P4]).toMatchObject({ status: 'pass' });
+  }, 60_000);
+
+  it('still refuses to reuse a stored result proven against a page that is no longer a proof page', async () => {
+    const before = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
+    const moved: VerificationSet = { urls: [U[0]!, U[1]!, P4], expected: Object.fromEntries(Object.entries(set.expected).map(([k, v]) => [k, { [U[0]!]: v[U[0]!]!, [U[1]!]: v[U[1]!]!, [P4]: k === 'price' ? '89.50' : 'x' }])) };
+    const run = await runVerification(
+      { fields, verificationSet: moved },
+      { browser, agent: null, captures: captures4(), onlyKeys: ['price'], previous: before.outcome, previousUrls: U },
+    );
+    expect(run.outcome.fields.product_name).not.toBe(before.outcome.fields.product_name);
+  }, 60_000);
+});
+
+describe('fieldHash — per-field pages', () => {
+  const f = fields[1]!; // price
+  it('is unchanged for a field with a value on every page (existing certifications stay current)', () => {
+    // Pinned literal: computed on main before this change. If this fails, every stored certification goes stale.
+    expect(fieldHash(f, set)).toBe('fed4a2b94eb6c4a43d1582e1d4536499b969e14147d7f3b13620165eaf1664f2');
+    expect(fieldHash(f, set)).toBe(fieldHash(f, { ...set, expected: { ...set.expected } }));
+    expect(fieldHash(fields[0]!, set)).toBe(fieldHash(fields[0]!, { urls: [...U, P4], expected: { ...set.expected, product_name: { ...set.expected.product_name, [P4]: '' } } }));
+  });
+  it('changes when the field gains a checked page', () => {
+    expect(fieldHash(f, set)).not.toBe(fieldHash(f, { urls: [...U, P4], expected: { ...set.expected, price: { ...set.expected.price, [P4]: '89.50' } } }));
   });
 });

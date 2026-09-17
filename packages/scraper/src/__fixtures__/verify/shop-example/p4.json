@@ -1,0 +1,30 @@
+{
+  "url": "https://shop.example/p/4",
+  "html": "<html><body><div id=\"main\"><h1>Widget D</h1><div class=\"clearance\"><span class=\"final\">$89.50</span></div><p class=\"stock\">In stock</p><img class=\"hero\" src=\"/img/d.jpg\" alt=\"Widget D photo\"><ul class=\"colors\"><li>Orange</li></ul><span class=\"rating\">4.1</span></div></body></html>",
+  "structuredData": {
+    "ldJson": [
+      { "@context": "https://schema.org", "@type": "Product", "name": "Widget D" }
+    ],
+    "nextData": null,
+    "initialState": null,
+    "meta": { "og:title": "Widget D" }
+  },
+  "interceptedRequests": [
+    {
+      "url": "https://shop.example/api/product/4",
+      "method": "GET",
+      "resourceType": "xhr",
+      "responseStatus": 200,
+      "responseHeaders": {},
+      "responseBody": "{}",
+      "contentType": "application/json",
+      "bodySize": 1,
+      "isJson": true,
+      "parsedJson": {
+        "item": { "name": "Widget D", "code": "SKU-D4", "images": ["https://shop.example/img/d.jpg"], "colors": ["Orange"], "rating": 4.1 },
+        "clearance": { "amount": 89.5 }
+      },
+      "timestamp": 0
+    }
+  ]
+}

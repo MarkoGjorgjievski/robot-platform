@@ -80,3 +80,23 @@ describe('runVerifiedExtraction (shop-example/p1, real Chromium)', () => {
     ]);
   }, 30_000);
 });
+
+describe('runVerifiedExtraction — two certified layouts, tried in order', () => {
+  const PRICE_TWO: VerifiedField = {
+    key: 'price', type: 'money', concept: 'price',
+    paths: [
+      { source: 'api', path: 'item.priceCents', transform: 'cents_to_units' },
+      { source: 'api', path: 'clearance.amount', transform: 'identity' },
+    ],
+  };
+  it('a layout-1 page yields the first path\'s value', async () => {
+    const r = await runVerifiedExtraction({ url: URL, fields: [PRICE_TWO] }, { browser, capture: loadVerifyFixture('shop-example', 'p1') });
+    expect(r.data.price).toBe(129.99);
+    expect(r.stats).toEqual([expect.objectContaining({ hit: true, path: PRICE_TWO.paths[0] })]);
+  }, 30_000);
+  it('a layout-2 page misses the first path honestly and yields the second', async () => {
+    const r = await runVerifiedExtraction({ url: 'https://shop.example/p/4', fields: [PRICE_TWO] }, { browser, capture: loadVerifyFixture('shop-example', 'p4') });
+    expect(r.data.price).toBe(89.5);
+    expect(r.stats.map((s) => s.hit)).toEqual([false, true]);
+  }, 30_000);
+});

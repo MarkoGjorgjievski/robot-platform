@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { checkPageHealth } from '@robot/browser';
 import type { IBrowser, PageCapture } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
-import { certify, gatherCandidates, type CandidatePath, type CaptureLike } from './certify.js';
+import { certify, checkedPages, gatherCandidates, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
 import type { CertifiedPath, FieldVerification, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
@@ -15,11 +15,7 @@ export type VerificationDeps = {
   cachedPaths?: (concept: string) => Promise<CertifiedPath[]>;
   onlyKeys?: string[];
   previous?: VerificationOutcome;
-  /**
-   * The urls the `previous` outcome was actually proven against. When given
-   * and different from `verificationSet.urls`, the `onlyKeys` copy path is
-   * ignored and every field re-runs — see `previousIsStale` below.
-   */
+  /** @deprecated unused since 2026-09-17: reuse is decided per field (`provenPagesStillPresent`). Kept so callers compile. */
   previousUrls?: string[];
   captureOne?: (browser: IBrowser, url: string) => Promise<PageCapture>;
   onProgress?: (stage: string) => void;
@@ -49,34 +45,37 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
   }));
 }
 
-/** Per-field hash (spec 4.4): the field's own definition, the pages, and only its expected cells. */
+/**
+ * Per-field hash (spec 4.4; per-field pages since 2026-09-17): the field's own
+ * definition, the pages IT is checked on, and its non-blank expected cells.
+ * A page added for another field does not move this hash. For a field with a
+ * value on every page the string is identical to the pre-2026-09-17 one, so
+ * stored certifications stay current.
+ */
 export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): string {
+  const expected = set.expected[field.key] ?? {};
+  const pages = checkedPages(set.urls, expected);
   return sha256(JSON.stringify({
     key: field.key,
     type: field.type,
     description: field.description,
     concept: field.concept,
-    urls: set.urls,
-    expected: Object.fromEntries(Object.entries(set.expected[field.key] ?? {}).sort()),
+    urls: pages,
+    expected: Object.fromEntries(Object.entries(expected).filter(([u]) => pages.includes(u)).sort()),
   }));
 }
 
 /**
- * Do the urls the `previous` outcome was proven against still match the ones
- * we are about to verify? A stored cell result is keyed by url, so once the
- * url set moves, NONE of the previous field results describe these pages —
- * copying them forward would store yesterday's evidence under today's
- * definition hash and unlock Extract against pages nobody verified.
- *
- * Order-sensitive on purpose. A pure reordering is arguably harmless (cells
- * are a map, not a list), but this is a defence-in-depth guard: erring
- * toward re-verifying costs one free mechanical pass, while erring the other
- * way costs correctness. Absent `previousUrls` (an older caller), the guard
- * never fires and behaviour is unchanged.
+ * May this field's stored result be carried forward? Its hash already covers
+ * the field's own pages and expected values; this is the defence-in-depth
+ * guard that used to compare whole url lists. A stored cell is keyed by url,
+ * so a result is reusable only while every page it was proven on is still a
+ * proof page. A page ADDED for another field does not disturb it; a page
+ * removed or replaced does. Erring toward re-verifying costs one free
+ * mechanical pass, erring the other way costs correctness.
  */
-function previousIsStale(previousUrls: string[] | undefined, urls: string[]): boolean {
-  if (!previousUrls) return false;
-  return previousUrls.length !== urls.length || previousUrls.some((u, i) => u !== urls[i]);
+function provenPagesStillPresent(prev: FieldVerification, urls: string[]): boolean {
+  return Object.keys(prev.cells).every((u) => urls.includes(u));
 }
 
 export async function runVerification(req: VerificationRequest, deps: VerificationDeps): Promise<VerificationRun> {
@@ -121,14 +120,10 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
   const fields: Record<string, FieldVerification> = {};
   let aiCalls = 0;
   deps.onProgress?.('searching');
-  // The dashboard already forces a full re-verify when the urls move
-  // (`reverifyKeys`), but a scoped re-verify that reuses results proven
-  // against DIFFERENT pages is wrong however the request got here.
-  const reuseAllowed = !previousIsStale(deps.previousUrls, req.verificationSet.urls);
   for (const field of req.fields) {
     const fh = fieldHash(field, req.verificationSet);
     const prev = deps.previous?.fields[field.key];
-    if (reuseAllowed && deps.onlyKeys && !deps.onlyKeys.includes(field.key) && prev && prev.fieldHash === fh) {
+    if (deps.onlyKeys && !deps.onlyKeys.includes(field.key) && prev && prev.fieldHash === fh && provenPagesStillPresent(prev, req.verificationSet.urls)) {
       fields[field.key] = prev;
       continue;
     }
