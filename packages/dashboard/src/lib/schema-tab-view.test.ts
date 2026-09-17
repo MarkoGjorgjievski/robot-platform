@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripState, columnStates, stripSummary, cellLine, verifyButton, typeFixSuggestion, roughTime } from './schema-tab-view';
+import { stripState, columnStates, stripSummary, cellLine, verifyButton, typeFixSuggestion, roughTime, thinEvidenceNote } from './schema-tab-view';
 
 describe('stripState', () => {
   it('maps verification state and results', () => {
@@ -127,3 +127,21 @@ describe('typeFixSuggestion', () => {
 function fv(passed: boolean) {
   return { key: 'k', cells: {}, certified: passed ? [{}] : [], weakEvidence: false, aiCalled: false, incomplete: false };
 }
+
+describe('extra proof pages', () => {
+  it('a blank cell on page four reads "not checked"; on page two it stays empty', () => {
+    expect(cellLine(null, '', null, 3)).toEqual({ tone: 'none', text: 'not checked' });
+    expect(cellLine(null, '  ', null, 3)).toEqual({ tone: 'none', text: 'not checked' });
+    expect(cellLine(null, '', null, 1)).toEqual({ tone: 'none', text: '' });
+    expect(cellLine(null, '89.50', null, 3)).toEqual({ tone: 'none', text: '' }); // typed, not verified yet
+  });
+  it('a pass on the second layout says so', () => {
+    expect(cellLine({ status: 'pass', found: '89.50', pathSource: 'API', layout: 2 }, '89.50')).toEqual({ tone: 'pass', text: 'from API · layout 2' });
+    expect(cellLine({ status: 'pass', found: '1', pathSource: 'API', layout: 1 }, '1')).toEqual({ tone: 'pass', text: 'from API' });
+  });
+  it('names the fields whose second layout is proven on one page', () => {
+    const results = { price: { thinEvidence: true }, title: {} } as never;
+    expect(thinEvidenceNote(results, [{ key: 'price', name: 'Price' }, { key: 'title', name: 'Title' }])).toBe('Price: second layout proven on one page · add another page of that layout to be sure');
+    expect(thinEvidenceNote({ title: {} } as never, [{ key: 'title', name: 'Title' }])).toBeNull();
+  });
+});

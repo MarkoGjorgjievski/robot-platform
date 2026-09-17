@@ -2,7 +2,10 @@ export const FIELD_TYPES = ['text', 'number', 'money', 'boolean', 'date', 'url',
 export type GridFieldType = (typeof FIELD_TYPES)[number];
 export type GridRow = { id: string; key?: string; name: string; type: GridFieldType; description: string; expected: string[] };
 export type GridState = { urls: string[]; listingUrl: string; rows: GridRow[] };
-export const URL_COUNT = 3;
+export const URL_MIN = 3;
+export const URL_MAX = 6;
+/** The number of proof pages a new grid starts with. */
+export const URL_COUNT = URL_MIN;
 const FIXED_COLS = 3; // name, type, description
 
 let seq = 0;
@@ -37,7 +40,7 @@ function setCell(row: GridRow, col: number, value: string): GridRow {
   if (col === 1) return { ...row, type: (FIELD_TYPES as readonly string[]).includes(value.trim().toLowerCase()) ? (value.trim().toLowerCase() as GridFieldType) : row.type };
   if (col === 2) return { ...row, description: value };
   const i = col - FIXED_COLS;
-  if (i < 0 || i >= URL_COUNT) return row;
+  if (i < 0 || i >= row.expected.length) return row;
   const expected = [...row.expected]; expected[i] = value;
   return { ...row, expected };
 }
@@ -63,7 +66,7 @@ export function applyPasteByName(state: GridState, at: { row: number; col: numbe
     // A pasted block has one width. Six columns means name, type, description, v1..v3;
     // five means the type column is absent. Decided by width, not by sniffing column
     // two, so a description that happens to read "url" or "date" cannot shift the row.
-    const hasType = block[0]!.length >= 2 + 1 + URL_COUNT;
+    const hasType = block[0]!.length >= 2 + 1 + state.urls.length;
     for (const line of block) {
       const i = names.get(line[0]!.trim().toLowerCase())!;
       const rest = line.slice(hasType ? 2 : 1);
@@ -100,6 +103,22 @@ export function rowsFromTable(table: string[][], urlCount: number): { rows: Grid
   return { rows, problems: [] };
 }
 
+export function canAddPage(state: GridState): boolean { return state.urls.length < URL_MAX; }
+
+/** Append a proof page (spec 2026-09-17 §6). A url already present is left alone; six is the cap. */
+export function addPage(state: GridState, url = ''): GridState {
+  const u = url.trim();
+  if (u !== '' && state.urls.some((x) => x.trim() === u)) return state;
+  if (!canAddPage(state)) return state;
+  return { ...state, urls: [...state.urls, u], rows: state.rows.map((r) => ({ ...r, expected: [...r.expected, ''] })) };
+}
+
+/** Remove an extra proof page. The first three are the floor and cannot be removed. */
+export function removePage(state: GridState, index: number): GridState {
+  if (index < URL_MIN || index >= state.urls.length) return state;
+  return { ...state, urls: state.urls.filter((_, i) => i !== index), rows: state.rows.map((r) => ({ ...r, expected: r.expected.filter((_, i) => i !== index) })) };
+}
+
 export function toBindingInput(state: GridState) {
   const urls = state.urls.map((u) => u.trim());
   const descriptions: Record<string, string> = {};
@@ -115,15 +134,22 @@ export function toBindingInput(state: GridState) {
 export function bindingProblems(state: GridState): string[] {
   const problems: string[] = [];
   const urls = state.urls.map((u) => u.trim());
-  if (urls.some((u) => u === '')) problems.push(`All ${URL_COUNT} product URLs are required`);
+  if (urls.some((u) => u === '')) problems.push('Every proof page needs a URL');
   const hosts = new Set<string>();
   for (const u of [...urls, state.listingUrl.trim()].filter(Boolean)) { try { hosts.add(new URL(u).hostname.toLowerCase()); } catch { problems.push(`Not a valid URL: ${u}`); } }
   if (hosts.size > 1) problems.push('All URLs must be on the same website');
   if (new Set(urls.map((u) => u.replace(/#.*$/, ''))).size !== urls.length) problems.push('URLs must be different pages');
   for (const r of state.rows) {
     if (r.description.trim() === '') problems.push(`${r.name}: say where it is on this website`);
-    r.expected.forEach((v, i) => { const err = validateExpectedClient(r.type, v); if (err) problems.push(`${r.name} @ ${urls[i] || `URL ${i + 1}`}: ${err}`); });
+    r.expected.forEach((v, i) => {
+      if (i >= URL_MIN && v.trim() === '') return; // pages four to six: blank means "not checked here"
+      const err = validateExpectedClient(r.type, v);
+      if (err) problems.push(`${r.name} @ ${urls[i] || `URL ${i + 1}`}: ${err}`);
+    });
   }
+  urls.forEach((u, i) => {
+    if (i >= URL_MIN && state.rows.length > 0 && state.rows.every((r) => (r.expected[i] ?? '').trim() === '')) problems.push(`${u || `URL ${i + 1}`}: type at least one expected value on this page, or remove it`);
+  });
   return problems;
 }
 

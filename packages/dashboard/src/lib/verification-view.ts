@@ -23,9 +23,16 @@ export type FieldVerification = {
   cells: Record<string, CellResult>; // url → result
   certified: unknown[]; // ranked paths; empty when the field never passed
   weakEvidence: boolean;
+  thinEvidence?: boolean;
   aiCalled: boolean;
   incomplete: boolean;
 };
+
+/** The identity fields a certified path needs, for matching a cell's proving path against
+ * the field's ranked `certified` list (M8's per-cell `layout` number) — plus the optional
+ * set of proof pages it was proven on (spec 2026-09-17 §3). `certified` stays `unknown[]`
+ * above since most callers never need its shape; this is only for that one comparison. */
+type CertifiedPathLike = { source: CertifiedSource; path: string; transform?: string; provenOn?: string[] };
 
 export type VerificationResults = Record<string, FieldVerification>;
 
@@ -82,7 +89,13 @@ export function cellStatusFor(
   if (!cell) return null;
 
   const weak = fv.weakEvidence || undefined;
-  if (cell.status === 'pass') return { status: 'pass', found: cell.found, weak, pathSource: pathSourceLabel(cell.path?.source) };
+  if (cell.status === 'pass') {
+    // Which certified path proved this page, 1-based, only when the field needed more than one layout.
+    const same = (a: CertifiedPathLike, b: CertifiedPathLike) => a.source === b.source && a.path === b.path && a.transform === b.transform;
+    const certified = fv.certified as CertifiedPathLike[];
+    const at = certified.length > 1 && cell.path ? certified.findIndex((p) => same(p, cell.path!)) : -1;
+    return { status: 'pass', found: cell.found, weak, pathSource: pathSourceLabel(cell.path?.source), ...(at >= 0 ? { layout: at + 1 } : {}) };
+  }
   if (cell.status === 'not_captured') return { status: 'not_captured', weak };
   return {
     status: 'fail',
@@ -136,14 +149,19 @@ export function verificationState(
   return 'active';
 }
 
+/** The (url, expected) pairs a row is actually checked on: blank cells on pages four to six
+ * are "not checked" and take no part (mirrors the server's `checkedPages` / `fieldHash`). */
+function checkedCells(row: GridRow, urls: string[]): Array<[string, string]> {
+  return urls.map((u, i) => [u.trim(), row.expected[i] ?? ''] as [string, string]).filter(([, v]) => v.trim() !== '');
+}
+
 /**
- * A row is stale (spec §4.6) when its name, type, description, or any
- * expected value differs from what was last saved — matched by `key`, since
- * that's what a verification result is keyed on. A row with no matching
- * saved row (freshly added, never saved) is never "stale": there is nothing
- * to have drifted from.
+ * Has this row drifted from what was last saved? Its definition, or the pages
+ * it is checked on, or a value on one of them. A page added for ANOTHER field
+ * leaves this row alone (spec 2026-09-17 §4); replacing one of the first three
+ * pages moves every row, since every row has a value there.
  */
-export function isRowStale(row: GridRow, saved: GridState | null): boolean {
+export function isRowStale(row: GridRow, grid: GridState, saved: GridState | null): boolean {
   if (!saved) return false;
   const savedRow = row.key ? saved.rows.find((r) => r.key === row.key) : undefined;
   if (!savedRow) return false;
@@ -151,23 +169,8 @@ export function isRowStale(row: GridRow, saved: GridState | null): boolean {
     row.name !== savedRow.name ||
     row.type !== savedRow.type ||
     row.description !== savedRow.description ||
-    row.expected.some((v, i) => v !== savedRow.expected[i])
+    JSON.stringify(checkedCells(row, grid.urls)) !== JSON.stringify(checkedCells(savedRow, saved.urls))
   );
-}
-
-/**
- * Do the verification URLs differ between the grid and its saved baseline?
- * Order-sensitive (URL 1 and URL 2 swapped IS a change — every stored cell
- * is keyed by url, and the expected-value columns are positional) and
- * trimmed, since that is exactly what `toBindingInput` sends to the server.
- */
-function urlsChanged(grid: GridState, saved: GridState): boolean {
-  const trim = (u: string) => u.trim();
-  const a = grid.urls.map(trim);
-  const b = saved.urls.map(trim);
-  if (a.length !== b.length) return true;
-  if (a.some((u, i) => u !== b[i])) return true;
-  return grid.listingUrl.trim() !== saved.listingUrl.trim();
 }
 
 /**
@@ -178,7 +181,8 @@ function urlsChanged(grid: GridState, saved: GridState): boolean {
  * stalled/crashed run left nothing to diff), so scoping down would be
  * meaningless. Otherwise: every row whose field never certified (never
  * verified at all, or its last run had no certified path), whose
- * definition/expected values drifted from the saved baseline, or — when
+ * definition/checked pages drifted from the saved baseline (`isRowStale`,
+ * which now covers a url change per row — see below), or — when
  * `currentKeys` is given — whose key the server no longer counts as current
  * (its stored `fieldHash` no longer matches the live definition, even
  * though its last result did certify) — a plain `[]` when nothing
@@ -186,14 +190,10 @@ function urlsChanged(grid: GridState, saved: GridState): boolean {
  * with no key (never saved) are skipped — nothing in `results` could ever
  * reference them.
  *
- * A CHANGED URL (or listing URL) also forces `undefined`. Every stored cell
- * result is keyed on the URL it was proven against, so when the set of URLs
- * moves, none of the previous results describe the pages we are about to
- * verify — but no ROW changed, so the per-row staleness check above sees
- * nothing and would hand back `[]`. Server-side `[]` is truthy, which means
- * "re-run none of them, copy them all": the copies (cells keyed by the OLD
- * urls) would be stored under the NEW definitionHash and Extract would
- * unlock against pages nobody verified.
+ * A changed URL is no longer handled here as a blanket `undefined` — the old
+ * `urlsChanged` short-circuit is gone. `isRowStale`'s `checkedCells` pairs
+ * each page's url with its expected value, so a moved or swapped url shows up
+ * as drift on every row checked against that page, same as any other edit.
  */
 export function reverifyKeys(
   results: VerificationResults | null | undefined,
@@ -202,12 +202,11 @@ export function reverifyKeys(
   currentKeys?: string[],
 ): string[] | undefined {
   if (!results || Object.keys(results).length === 0) return undefined;
-  if (savedGrid && urlsChanged(grid, savedGrid)) return undefined;
   const keys: string[] = [];
   for (const row of grid.rows) {
     if (!row.key) continue;
     const fv = results[row.key];
-    if (isRowStale(row, savedGrid) || !fv || fv.certified.length === 0 || (currentKeys && !currentKeys.includes(row.key))) keys.push(row.key);
+    if (isRowStale(row, grid, savedGrid) || !fv || fv.certified.length === 0 || (currentKeys && !currentKeys.includes(row.key))) keys.push(row.key);
   }
   return keys;
 }
