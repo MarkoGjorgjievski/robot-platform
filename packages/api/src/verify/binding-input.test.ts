@@ -85,6 +85,20 @@ describe('marks', () => {
     expect('marks' in prepareBinding({ ...ok, marks: { ghost: { [U[0]!]: mark } } }, contract).verificationSet).toBe(false);
     expect('marks' in prepareBinding(ok, contract).verificationSet).toBe(false);
   });
+  // A mark always carries its value (spec 2026-09-18 §3.5): Import values can rewrite a cell
+  // while a client is round-tripping the mark that was on the old one.
+  it('keeps a mark whose text still reads as the cell, drops one that does not', () => {
+    const kept = prepareBinding({ ...ok, marks: { price: { [U[0]!]: mark } } }, contract).verificationSet;
+    expect(kept.marks).toEqual({ price: { [U[0]!]: mark } }); // '$1' is the money cell '1'
+    const stale = { ...mark, text: '$2' };
+    expect('marks' in prepareBinding({ ...ok, marks: { price: { [U[0]!]: stale } } }, contract).verificationSet).toBe(false);
+    const withOther = prepareBinding({ ...ok, marks: { price: { [U[0]!]: stale, [U[1]!]: { ...mark, text: '$2' } } } }, contract).verificationSet;
+    expect(withOther.marks).toEqual({ price: { [U[1]!]: { ...mark, text: '$2' } } }); // page 2's cell IS '2'
+  });
+  it('keeps a mark with no text: an image or link carries its value in src/href', () => {
+    const imageMark = { ...mark, text: '' };
+    expect(prepareBinding({ ...ok, marks: { price: { [U[0]!]: imageMark } } }, contract).verificationSet.marks).toEqual({ price: { [U[0]!]: imageMark } });
+  });
   it('a mark on a blank cell is a problem', () => {
     const blank = { ...ok, urls: [...U, 'https://test.example.com/p/4'], marks: { price: { 'https://test.example.com/p/4': mark } } };
     expect(bindingProblems(blank, contract)).toContain(`Price @ https://test.example.com/p/4: a marked element needs its value`);
