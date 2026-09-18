@@ -31,6 +31,14 @@ describe('schema catalogue', () => {
       }
     }
   });
+  it('every type but product and custom has 12 to 20 entries', () => {
+    for (const t of SCHEMA_TYPES) {
+      if (t === 'product' || t === 'custom') continue;
+      const n = CATALOGUE[t].groups.flatMap((g) => g.entries).length;
+      expect(n).toBeGreaterThanOrEqual(12);
+      expect(n).toBeLessThanOrEqual(20);
+    }
+  });
   it('the live-check concepts are right: currency is currency, product id is sku, was price is regular_price', () => {
     expect(catalogueEntry('product', 'price_currency')?.concept).toBe('currency');
     expect(catalogueEntry('product', 'sku')?.concept).toBe('sku');
