@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import { checkPageHealth } from '@robot/browser';
 import type { IBrowser, PageCapture, ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
 import { certify, checkedPages, gatherCandidates, isVolatilePath, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
+import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
 import type { CertifiedPath, FieldVerification, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
@@ -26,15 +26,6 @@ export type VerificationRun = { outcome: VerificationOutcome; captures: Record<s
 // connection open (Ikea) never goes idle and paid the full 60 s timeout on
 // every proof page. The check waits for the values typed on this page instead.
 const defaultCapture = (browser: IBrowser, url: string, ready?: ReadyCheck) => browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: true, ...(ready ? { ready } : {}) });
-
-/** Same host and path (trailing slash and fragment ignored; query ignored — many shops append tracking params). */
-function samePath(finalUrl: string, requested: string): boolean {
-  try {
-    const a = new URL(finalUrl); const b = new URL(requested);
-    const norm = (p: string) => p.replace(/\/+$/, '') || '/';
-    return a.hostname.toLowerCase() === b.hostname.toLowerCase() && norm(a.pathname) === norm(b.pathname);
-  } catch { return false; }
-}
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -91,29 +82,8 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     try {
       const expectedOnPage = Object.fromEntries(req.fields.map((f) => [f.key, req.verificationSet.expected[f.key]?.[url] ?? '']));
       const c = await captureOne(deps.browser, url, buildVerificationReadyCheck(req.fields, expectedOnPage, url));
-      // Spec §4.1: a capture that landed on a different path (category page,
-      // block page) is not this product page. `PageCapture.url` is the FINAL
-      // url — `PlaywrightBrowser.capture` sets it from `page.url()` after
-      // navigation (playwright-browser.ts ~265) — so this comparison bites.
-      if (!samePath(c.url, url)) {
-        captures[url] = null;
-        captureErrors[url] = `redirected to ${c.url}`;
-        continue;
-      }
-      // I4: a block page, CAPTCHA interstitial or soft 404 served AT the
-      // requested path passes `samePath` and used to be handed to the
-      // certifier as if it were the product page — where every field then
-      // failed `not_found`, blaming the customer's expected values for a
-      // page we never actually got. The same `checkPageHealth` the extraction
-      // chain has always used says so plainly: `not_captured`, with the
-      // block's own reason, and the amber "could not be captured" banner the
-      // Schema screen already renders for a redirect.
-      const health = checkPageHealth(c.html, c.title, url);
-      if (!health.healthy) {
-        captures[url] = null;
-        captureErrors[url] = health.reason ?? 'page is not usable';
-        continue;
-      }
+      const problem = captureProblem(c, url);
+      if (problem) { captures[url] = null; captureErrors[url] = problem; continue; }
       captures[url] = c;
     } catch (err) { captures[url] = null; captureErrors[url] = err instanceof Error ? err.message : String(err); }
   }

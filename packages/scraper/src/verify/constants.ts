@@ -8,3 +8,4 @@ export const DRIFT_MIN_ROWS = 5;
 export const FIND_PRODUCT_PAGES_LIMIT = 10;
 /** An in-flight verification older than this is a crash leftover, not work in progress. */
 export const VERIFY_STALL_MS = 15 * 60 * 1000;
+export const PROOF_PAGE_MAX_TILES = 6; // 9,216 px: a product page's specs and reviews usually sit below the AI-cost cap of three
