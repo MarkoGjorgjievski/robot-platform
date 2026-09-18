@@ -53,6 +53,17 @@ describe('sources.updateBinding', () => {
     const row = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId) });
     expect((row?.schemaDefinition as Array<{ name: string; description: string }>)[0]).toMatchObject({ name: 'Cost', description: 'green!' });
   });
+  it('carries marks into verificationSet, and drops them when the save omits marks', async () => {
+    const { s } = await seeded();
+    const mark = { xpaths: ['//*[@id="p"]'], text: '$1', rect: { x: 0, y: 0, w: 1, h: 1 } };
+    await caller.sources.updateBinding({ sourceId: s.sourceId, urls: U, descriptions: { price: 'green' }, expected: { price: { [U[0]!]: '1', [U[1]!]: '2', [U[2]!]: '3' } }, marks: { price: { [U[0]!]: mark } } });
+    const withMark = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId) });
+    expect(withMark?.verificationSet).toMatchObject({ marks: { price: { [U[0]!]: mark } } });
+
+    await caller.sources.updateBinding({ sourceId: s.sourceId, urls: U, descriptions: { price: 'green' }, expected: { price: { [U[0]!]: '1', [U[1]!]: '2', [U[2]!]: '3' } } });
+    const withoutMark = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId) });
+    expect(withoutMark?.verificationSet).not.toHaveProperty('marks');
+  });
 });
 
 describe('sources.verificationStatus.currentKeys', () => {
