@@ -1,8 +1,12 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
-import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications, type Database } from '@robot/db';
-import { FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
+import {
+  FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
+  suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
+  type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
+} from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { planSource } from '../crawl/plan-source.js';
@@ -13,6 +17,8 @@ import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
+import { startProofPageCapture, loadProofPageCaptures, type ProofPageMeta } from '../verify/proof-page-capture.js';
+import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
 
@@ -739,6 +745,77 @@ export const sourcesRouter = router({
       });
 
       return describeListingPage(anchors, input.listingUrl, html);
+    }),
+
+  /** Start capturing one proof page for marking (spec 2026-09-18 §3.1). Poll `proofPageCapture`. */
+  captureProofPage: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), url: httpUrl }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true } });
+      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      return startProofPageCapture(input.sourceId, input.url);
+    }),
+
+  /** Where one proof-page capture has got to: the row the stepper polls while its screenshot is taken. */
+  proofPageCapture: publicProcedure
+    .input(z.object({ captureId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, url: true, metadata: true } });
+      const meta = row?.metadata as ProofPageMeta | undefined;
+      if (!row || !meta || meta.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
+      return {
+        url: meta.url, status: meta.status,
+        tiles: meta.status === 'captured' ? meta.tiles : [],
+        boxes: meta.status === 'captured' ? meta.boxes : [],
+        contentHeight: meta.status === 'captured' ? meta.contentHeight : 0,
+        ...(meta.status === 'failed' ? { error: meta.error } : {}),
+        ...(meta.status === 'captured' ? { capturedAt: meta.capturedAt } : {}),
+      };
+    }),
+
+  /** Pre-highlights for the mark screen (spec 2026-09-18 §3.3): pure over the stored capture, no browser, no model. */
+  suggestMarks: publicProcedure
+    .input(z.object({ captureId: z.string().uuid(), fieldKeys: z.array(z.string()).optional() }))
+    .query(async ({ ctx, input }) => {
+      const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, sourceId: true, metadata: true } });
+      const meta = row?.metadata as ProofPageMeta | undefined;
+      if (!row || !meta || meta.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
+      if (meta.status !== 'captured') throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This page is not captured yet' });
+      const capture = await readCaptureFile(row.id);
+      if (!capture) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This capture is no longer on disk; capture the page again' });
+      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, row.sourceId), columns: { id: true }, with: { dataset: { columns: { schema: true } } } });
+      const fields = bindingFor(contractFields(source?.dataset?.schema)).filter((f) => !input.fieldKeys || input.fieldKeys.includes(f.key));
+      return suggestMarks(capture, meta.boxes, fields);
+    }),
+
+  /** Page 1's paths run on the other proof pages (spec 2026-09-18 §3.4). Opens a browser for the offline DOM search and XPath probe only. */
+  transferMarks: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), fromUrl: httpUrl, toUrls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX) }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true, schemaDefinition: true, verificationSet: true } });
+      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
+      const fields = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
+      const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
+      const pages = await loadProofPageCaptures(input.sourceId, [input.fromUrl, ...input.toUrls]);
+      const from = pages[input.fromUrl];
+      if (!from) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first: it has no fresh capture' });
+      // A target without a fresh capture is simply not tried — it comes back null for every field.
+      const to = Object.fromEntries(input.toUrls.filter((u) => pages[u]).map((u) => [u, { capture: pages[u]!.capture, boxes: pages[u]!.meta.boxes }]));
+      const out: Record<string, Record<string, Transferred | null>> = Object.fromEntries(input.toUrls.map((u) => [u, {}]));
+      if (fields.length === 0) return out;
+      await withBrowserSession(async (browser) => {
+        const deps = {
+          evalXPaths: (html: string, xps: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xps)),
+          runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),
+        };
+        for (const field of fields) {
+          const expected = set.expected[field.key]?.[input.fromUrl] ?? '';
+          if (expected.trim() === '') { for (const u of input.toUrls) out[u]![field.key] = null; continue; }
+          const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark: set.marks?.[field.key]?.[input.fromUrl] }, to }, deps);
+          for (const u of input.toUrls) out[u]![field.key] = r[u] ?? null;
+        }
+      });
+      return out;
     }),
 
   /**
