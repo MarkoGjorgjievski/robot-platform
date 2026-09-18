@@ -41,4 +41,9 @@ describe('PlaywrightBrowser.capture with annotate', () => {
     const c = await browser.capture(`${baseUrl}/p/1`, { waitUntil: 'load', interceptNetworkRequests: false });
     expect('annotation' in c).toBe(false);
   });
+  // The tiles cover `tiles.length * TILE_HEIGHT`; without the document's own height nothing can say where the strip stops short.
+  it('reports the measured page height', async () => {
+    const c = await browser.capture(`${baseUrl}/p/1`, { waitUntil: 'load', interceptNetworkRequests: false });
+    expect(c.pageHeight).toBeGreaterThan(0);
+  });
 });

@@ -300,6 +300,7 @@ export class PlaywrightBrowser implements IBrowser {
         timestamp: Date.now(),
         structuredData,
         interceptedRequests: rankedRequests,
+        pageHeight,
         ...(annotation !== undefined ? { annotation } : {}),
         timings: {
           navigateMs,

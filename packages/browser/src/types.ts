@@ -49,6 +49,12 @@ export type PageCapture = {
   interceptedRequests: InterceptedRequest[];
   /** Absent only on captures built outside the browser (fixtures, replays). */
   timings?: CaptureTimings;
+  /**
+   * The document's scrollHeight in page pixels, measured right before the
+   * tiles — how much of it they cover is `tiles.length * TILE_HEIGHT`. Absent
+   * on captures built outside the browser (fixtures, replays).
+   */
+  pageHeight?: number;
   /** The `annotate` script's value, when one was given (box map for a proof page). */
   annotation?: unknown;
 };
