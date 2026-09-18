@@ -3,7 +3,7 @@
 // type are never accepted here; they come from the contract.
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { VERIFY_URL_MIN, VERIFY_URL_MAX, normalize, validateExpected, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { VERIFY_URL_MIN, VERIFY_URL_MAX, normalize, validateExpected, valuesEqual, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { httpUrl } from './http-url.js';
 import { bindingFor, type ContractField } from '../contract.js';
 
@@ -58,7 +58,16 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
   const expected: VerificationSet['expected'] = Object.fromEntries(contract.map((f) => [f.key, Object.fromEntries(input.urls.map((u) => [u, input.expected[f.key]?.[u] ?? '']))]));
   const marks: NonNullable<VerificationSet['marks']> = {};
   for (const f of contract) {
-    const perUrl = Object.fromEntries(input.urls.filter((u) => input.marks?.[f.key]?.[u]).map((u) => [u, input.marks![f.key]![u]!]));
+    // A mark always carries its value (spec 2026-09-18 §3.5): the proof sheet's Import values can
+    // rewrite a cell while a client is round-tripping the mark that was on the old one, and a mark
+    // pointing at the wrong element would then join certification's candidates. Image and link marks
+    // carry their value in `src`/`href`, not text, so there is nothing to compare and they are kept.
+    const current = (u: string) => {
+      const mark = input.marks?.[f.key]?.[u];
+      if (!mark) return false;
+      return mark.text.trim() === '' || valuesEqual(f.type, mark.text, expected[f.key]![u] ?? '', { pageUrl: u });
+    };
+    const perUrl = Object.fromEntries(input.urls.filter(current).map((u) => [u, input.marks![f.key]![u]!]));
     if (Object.keys(perUrl).length) marks[f.key] = perUrl;
   }
   return { fields, verificationSet: { urls: input.urls, expected, ...(input.listingUrl ? { listing_url: input.listingUrl } : {}), ...(Object.keys(marks).length ? { marks } : {}) } };
