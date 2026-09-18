@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { certify, checkedPages, rankCertified, type CaptureLike } from './certify.js';
+import { certify, checkedPages, gatherCandidates, rankCertified, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
-import type { SchemaDefinitionField } from './types.js';
+import type { DomHit } from './dom-scripts.js';
+import type { Mark, SchemaDefinitionField } from './types.js';
 
 const field = { key: 'price', name: 'Price', type: 'money' as const, description: 'green number', concept: 'price' };
 
@@ -256,6 +257,70 @@ describe('marks', () => {
     const evalXPaths = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, x === xp ? (html.match(/class="now">([^<]+)</)?.[1] ?? null) : null]));
     const r = await certify({ field: shopField, expected: exp, captures: caps, candidates: [{ source: 'xpath', path: xp, transform: 'identity' }] }, { evalXPaths });
     expect(r.certified).toContainEqual({ source: 'xpath', path: xp, transform: 'identity' });
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+});
+
+// The whole point of a mark (spec 2026-09-18 §3.5), end to end: gatherCandidates then certify over
+// the shop-example fixtures with their structured sources stripped, so XPaths are the only evidence.
+//
+// The price box holds `.was` and `.now` on pages 1 and 2 but only `.now` on page 3, so the DOM
+// search's positional hit is a different span per page: `span[2]` is the price on pages 1 and 2 and
+// nothing on page 3, `span[1]` is the price on page 3 and the crossed-out price on the other two.
+// Neither survives all three pages, page 1 carries the price twice (a "today only" line as well), and
+// so nothing certifies and every cell reads `ambiguous`. The click names the element, its
+// class-anchored XPath — one the DOM search never reported — is the only candidate left from page 1,
+// and the field certifies.
+describe('marks — a mark settles ambiguous (end to end)', () => {
+  const shopField: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'd', concept: 'price' };
+  const exp = { [U[0]!]: '129.99', [U[1]!]: '219.99', [U[2]!]: '149.00' };
+  const CLICKED = '//*[@id="main"]/div[@class="price-box"]/span[@class="now"]';
+  const SPAN2 = '//*[@id="main"]/div[@class="price-box"]/span[2]';
+  const SPAN1 = '//*[@id="main"]/div[@class="price-box"]/span[1]';
+  const PROMO = '//*[@id="main"]/p[@class="promo"]/span';
+  const PROMO_HTML = '<p class="promo">Today only: <span>$129.99</span></p>';
+  const mark: Mark = { xpaths: [CLICKED], text: '$129.99', rect: { x: 10, y: 20, w: 80, h: 24 } };
+
+  /** The fixtures with page 1's second price line added and every structured source stripped. */
+  const bare = (): Record<string, CaptureLike> => Object.fromEntries(Object.entries(loadShopExample()).map(([u, c]) => [u, {
+    url: c.url,
+    html: u === U[0] ? c.html.replace('<p class="stock">', `${PROMO_HTML}<p class="stock">`) : c.html,
+    structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
+    interceptedRequests: [],
+  }]));
+
+  // What each XPath selects in the fixture markup.
+  const boxSpans = (html: string) => [...html.matchAll(/<span class="(?:was|now)">([^<]+)</g)].map((m) => m[1]!);
+  const resolve = (html: string, xpath: string): string | null => {
+    if (xpath === CLICKED) return html.match(/class="now">([^<]+)</)?.[1] ?? null;
+    if (xpath === SPAN2) return boxSpans(html)[1] ?? null;
+    if (xpath === SPAN1) return boxSpans(html)[0] ?? null;
+    if (xpath === PROMO) return html.match(/class="promo">[^<]*<span>([^<]+)</)?.[1] ?? null;
+    return null;
+  };
+  const evalXPaths = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, resolve(html, x)]));
+  // A text search for the expected value finds exactly these — one xpath per hit, the positional one.
+  const hits = (pageUrl: string): DomHit[] => pageUrl === U[0]
+    ? [{ key: 'price', xpath: SPAN2, raw: '$129.99' }, { key: 'price', xpath: PROMO, raw: '$129.99' }]
+    : pageUrl === U[1] ? [{ key: 'price', xpath: SPAN2, raw: '$219.99' }] : [{ key: 'price', xpath: SPAN1, raw: '$149.00' }];
+
+  it('without a mark: nothing certifies and page 1 is ambiguous', async () => {
+    const captures = bare();
+    const { candidates } = await gatherCandidates(shopField, exp, captures, { runDomSearch: async (_h, _n, pageUrl) => hits(pageUrl) });
+    const r = await certify({ field: shopField, expected: exp, captures, candidates }, { evalXPaths });
+    expect(r.certified).toEqual([]);
+    expect(r.cells[U[0]!]).toMatchObject({ status: 'fail', reason: 'ambiguous' });
+  });
+
+  it('with the mark: page 1 is not searched, the field certifies on the clicked path and every cell passes', async () => {
+    const captures = bare();
+    const searched: string[] = [];
+    const runDomSearch = async (_h: string, _n: unknown, pageUrl: string) => { searched.push(pageUrl); return hits(pageUrl); };
+    const { candidates } = await gatherCandidates(shopField, exp, captures, { runDomSearch, marks: { [U[0]!]: mark } });
+    expect(searched).toEqual([U[1], U[2]]);
+    expect(candidates.map((c) => c.path)).not.toContain(PROMO);
+    const r = await certify({ field: shopField, expected: exp, captures, candidates }, { evalXPaths });
+    expect(r.certified).toEqual([{ source: 'xpath', path: CLICKED, transform: 'identity' }]);
     expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
   });
 });
