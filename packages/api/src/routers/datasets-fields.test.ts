@@ -6,6 +6,7 @@ import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { SCHEMA_TYPES } from '../schema-catalogue.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
 const caller = createCallerFactory(appRouter)({ db });
 const projectIds: string[] = [];
@@ -241,5 +242,35 @@ describe('datasets.catalogue', () => {
     const c = await caller.datasets.catalogue();
     expect(Object.keys(c).sort()).toEqual([...SCHEMA_TYPES].sort());
     expect(c.product.groups[0]!.entries[0]!.key).toBe('title');
+  });
+});
+
+describe('datasets.addField with a catalogue description and concept', () => {
+  it('stores both on the contract, uses the concept as given, and gives every website the description as its hint', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'catalogue-add', fields: [] });
+    try {
+      const r = await caller.datasets.addField({ datasetId: f.datasetId, name: 'Currency', type: 'text', description: 'The currency of the price', concept: 'currency' });
+      expect(r.concept).toBe('currency');
+      expect(r.description).toBe('The currency of the price');
+      const contract = await caller.datasets.getContract({ datasetId: f.datasetId });
+      expect(contract.find((c) => c.key === r.key)).toMatchObject({ concept: 'currency', description: 'The currency of the price' });
+      const src = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { schemaDefinition: true } });
+      expect((src!.schemaDefinition as Array<{ key: string; description: string; concept: string }>).find((d) => d.key === r.key)).toMatchObject({ description: 'The currency of the price', concept: 'currency' });
+    } finally { await f.cleanup(); }
+  });
+  it('a name with "price" in it keeps the given concept', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'catalogue-conc', fields: [] });
+    try {
+      const r = await caller.datasets.addField({ datasetId: f.datasetId, name: 'Price currency', type: 'text', concept: 'currency' });
+      expect(r.concept).toBe('currency');
+    } finally { await f.cleanup(); }
+  });
+  it('without them, behaves as before', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'catalogue-plain', fields: [] });
+    try {
+      const r = await caller.datasets.addField({ datasetId: f.datasetId, name: 'Price currency', type: 'text' });
+      expect(r.concept).toBe('price');
+      expect(r.description).toBe('');
+    } finally { await f.cleanup(); }
   });
 });

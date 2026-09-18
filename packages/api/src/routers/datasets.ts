@@ -226,21 +226,29 @@ export const datasetsRouter = router({
 
   /** Spec 4.3: add a field to the project's contract; every website gets it empty. */
   addField: publicProcedure
-    .input(z.object({ datasetId: z.string().uuid(), name: z.string().trim().min(1).max(100), type: z.enum(CUSTOMER_FIELD_TYPES) }))
+    .input(z.object({
+      datasetId: z.string().uuid(),
+      name: z.string().trim().min(1).max(100),
+      type: z.enum(CUSTOMER_FIELD_TYPES),
+      /** From the catalogue (spec 2026-09-18 §2.1): the website's default location hint, and what the field is in the engine's vocabulary. */
+      description: z.string().trim().max(1000).optional(),
+      concept: z.string().regex(/^[a-z][a-z0-9_]*$/).max(100).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDataset(ctx.db, input.datasetId);
       const schema = (Array.isArray(ds.schema) ? ds.schema : []) as Array<Record<string, unknown>>;
       const contract = contractFields(schema);
       assertNameFree(contract, input.name);
       const key = deriveKey(input.name, new Set(contract.map((f) => f.key)));
-      const concept = deriveConcept(input.name, input.type);
-      const field: ContractField = { key, name: input.name, type: input.type, concept };
+      const concept = input.concept ?? deriveConcept(input.name, input.type);
+      const description = input.description ?? '';
+      const field: ContractField = { key, name: input.name, type: input.type, concept, ...(description ? { description } : {}) };
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         await tx.update(datasets).set({ schema: [...schema, field], updatedAt: new Date() }).where(eq(datasets.id, ds.id));
         const locked = await lockSources(tx, ds.id);
-        return propagate(tx, locked, key, { add: { key, name: input.name, type: input.type, description: '', concept } });
+        return propagate(tx, locked, key, { add: { key, name: input.name, type: input.type, description, concept } });
       });
-      return { key, name: input.name, type: input.type, concept, affectedSourceIds };
+      return { key, name: input.name, type: input.type, concept, description, affectedSourceIds };
     }),
 
   renameField: publicProcedure

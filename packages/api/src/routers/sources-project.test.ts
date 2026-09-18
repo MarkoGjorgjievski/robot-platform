@@ -55,6 +55,13 @@ describe('sources.createInProject', () => {
   it('404s an unknown project', async () => {
     await expect(caller.sources.createInProject({ projectSlug: 'nope-nope', name: 'x', url: 'https://a.example/' })).rejects.toThrow(/not found/i);
   });
+  it('seeds a new website\'s binding with the contract field\'s description as its default hint', async () => {
+    const p = await freshProject();
+    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', description: 'The price the customer pays now' });
+    const r = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: 'https://a.example/' });
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, r.sourceId) });
+    expect((s?.schemaDefinition as Array<{ key: string; description: string }>).find((d) => d.key === f.key)?.description).toBe('The price the customer pays now');
+  });
 });
 
 describe('sources.rename', () => {
