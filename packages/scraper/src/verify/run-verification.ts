@@ -6,7 +6,7 @@ import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
-import type { CertifiedPath, FieldVerification, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
+import type { CertifiedPath, FieldVerification, Mark, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
 
 export type VerificationRequest = { fields: SchemaDefinitionField[]; verificationSet: VerificationSet };
 export type VerificationDeps = {
@@ -29,6 +29,13 @@ const defaultCapture = (browser: IBrowser, url: string, ready?: ReadyCheck) => b
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
+/** The hash-relevant part of a field's marks on the given pages: paths and text, never the rect (an element that moved but kept its path is the same mark). Undefined when there are none, so a set without marks hashes byte-for-byte as before. */
+function markDigest(marks: Record<string, Mark> | undefined, pages: string[]): Record<string, { xpaths: string[]; text: string }> | undefined {
+  if (!marks) return undefined;
+  const entries = pages.filter((u) => marks[u]).map((u) => [u, { xpaths: marks[u]!.xpaths, text: marks[u]!.text }] as const);
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
 /** Whole-definition hash, kept for history and the fast path. Excludes `name`: renaming is free (spec 4.3). */
 export function definitionHash(fields: SchemaDefinitionField[], set: VerificationSet): string {
   return sha256(JSON.stringify({
@@ -36,6 +43,7 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
     urls: set.urls,
     expected: Object.fromEntries(Object.keys(set.expected).sort().map((k) => [k, Object.fromEntries(Object.entries(set.expected[k]!).sort())])),
     listing_url: set.listing_url ?? null,
+    ...(set.marks && Object.keys(set.marks).length ? { marks: Object.fromEntries(Object.keys(set.marks).sort().map((k) => [k, markDigest(set.marks![k], set.urls)])) } : {}),
   }));
 }
 
@@ -49,6 +57,7 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
 export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): string {
   const expected = set.expected[field.key] ?? {};
   const pages = checkedPages(set.urls, expected);
+  const marks = markDigest(set.marks?.[field.key], pages);
   return sha256(JSON.stringify({
     key: field.key,
     type: field.type,
@@ -56,6 +65,7 @@ export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): s
     concept: field.concept,
     urls: pages,
     expected: Object.fromEntries(Object.entries(expected).filter(([u]) => pages.includes(u)).sort()),
+    ...(marks ? { marks } : {}),
   }));
 }
 
@@ -115,7 +125,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     }
     let candidates: CandidatePath[] = [];
     if (!result) {
-      const gathered = await gatherCandidates(field, expected, caps, { runDomSearch });
+      const gathered = await gatherCandidates(field, expected, caps, { runDomSearch, marks: req.verificationSet.marks?.[field.key] });
       candidates = [...cached, ...gathered.candidates];
       result = await certify({ field, expected, captures: caps, candidates }, { evalXPaths });
     }
