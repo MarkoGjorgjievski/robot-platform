@@ -17,7 +17,7 @@ import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
-import { startProofPageCapture, loadProofPageCaptures, type ProofPageMeta } from '../verify/proof-page-capture.js';
+import { startProofPageCapture, loadProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
@@ -761,19 +761,28 @@ export const sourcesRouter = router({
     .input(z.object({ captureId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, url: true, metadata: true } });
-      const meta = row?.metadata as ProofPageMeta | undefined;
-      if (!row || !meta || meta.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
+      const stored = row?.metadata as ProofPageMeta | undefined;
+      if (!row || !stored || stored.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
+      // A capture the api-server died in the middle of is reported as the failure it is, never as still running.
+      const meta = await resolveStalledProofPage(row.id, stored);
       return {
         url: meta.url, status: meta.status,
         tiles: meta.status === 'captured' ? meta.tiles : [],
         boxes: meta.status === 'captured' ? meta.boxes : [],
+        pageHeight: meta.status === 'captured' ? meta.pageHeight : 0,
+        capturedHeight: meta.status === 'captured' ? meta.capturedHeight : 0,
         contentHeight: meta.status === 'captured' ? meta.contentHeight : 0,
         ...(meta.status === 'failed' ? { error: meta.error } : {}),
         ...(meta.status === 'captured' ? { capturedAt: meta.capturedAt } : {}),
       };
     }),
 
-  /** Pre-highlights for the mark screen (spec 2026-09-18 §3.3): pure over the stored capture, no browser, no model. */
+  /**
+   * Pre-highlights for the mark screen (spec 2026-09-18 §3.3): pure over the
+   * stored capture, no browser, no model. `captureId` names the box map the
+   * suggestions' indices point into, so a screen holding a newer capture can
+   * tell the answer is stale instead of outlining the wrong element.
+   */
   suggestMarks: publicProcedure
     .input(z.object({ captureId: z.string().uuid(), fieldKeys: z.array(z.string()).optional() }))
     .query(async ({ ctx, input }) => {
@@ -785,10 +794,19 @@ export const sourcesRouter = router({
       if (!capture) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This capture is no longer on disk; capture the page again' });
       const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, row.sourceId), columns: { id: true }, with: { dataset: { columns: { schema: true } } } });
       const fields = bindingFor(contractFields(source?.dataset?.schema)).filter((f) => !input.fieldKeys || input.fieldKeys.includes(f.key));
-      return suggestMarks(capture, meta.boxes, fields);
+      return { captureId: row.id, fields: suggestMarks(capture, meta.boxes, fields) };
     }),
 
-  /** Page 1's paths run on the other proof pages (spec 2026-09-18 §3.4). Opens a browser for the offline DOM search and XPath probe only. */
+  /**
+   * Page 1's paths run on the other proof pages (spec 2026-09-18 §3.4). Opens
+   * a browser for the offline DOM search and XPath probe only — and only when
+   * there is something to carry and somewhere to carry it to.
+   *
+   * Per target url: `null` when that page has no fresh proof-page capture,
+   * otherwise the capture whose box map the `boxes` indices refer to and a
+   * result per field (`null` where nothing resolved, or where page 1 has no
+   * value to carry).
+   */
   transferMarks: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), fromUrl: httpUrl, toUrls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX) }))
     .mutation(async ({ ctx, input }) => {
@@ -799,20 +817,27 @@ export const sourcesRouter = router({
       const pages = await loadProofPageCaptures(input.sourceId, [input.fromUrl, ...input.toUrls]);
       const from = pages[input.fromUrl];
       if (!from) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first: it has no fresh capture' });
-      // A target without a fresh capture is simply not tried — it comes back null for every field.
+      // A target without a fresh capture is simply not tried — it comes back null, not an empty field map:
+      // an index into a box map we do not have would be a silent wrong outline.
       const to = Object.fromEntries(input.toUrls.filter((u) => pages[u]).map((u) => [u, { capture: pages[u]!.capture, boxes: pages[u]!.meta.boxes }]));
-      const out: Record<string, Record<string, Transferred | null>> = Object.fromEntries(input.toUrls.map((u) => [u, {}]));
-      if (fields.length === 0) return out;
+      const out: Record<string, { captureId: string; fields: Record<string, Transferred | null> } | null> =
+        Object.fromEntries(input.toUrls.map((u) => [u, pages[u] ? { captureId: pages[u]!.ref.captureId, fields: {} } : null]));
+      // A field with a blank page-1 value has nothing to carry; when that is every field, no browser is opened.
+      const carried = fields.filter((f) => (set.expected[f.key]?.[input.fromUrl] ?? '').trim() !== '');
+      for (const f of fields) {
+        if (carried.includes(f)) continue;
+        for (const u of input.toUrls) if (out[u]) out[u]!.fields[f.key] = null;
+      }
+      if (carried.length === 0 || Object.keys(to).length === 0) return out;
       await withBrowserSession(async (browser) => {
         const deps = {
           evalXPaths: (html: string, xps: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xps)),
           runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),
         };
-        for (const field of fields) {
-          const expected = set.expected[field.key]?.[input.fromUrl] ?? '';
-          if (expected.trim() === '') { for (const u of input.toUrls) out[u]![field.key] = null; continue; }
+        for (const field of carried) {
+          const expected = set.expected[field.key]![input.fromUrl]!;
           const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark: set.marks?.[field.key]?.[input.fromUrl] }, to }, deps);
-          for (const u of input.toUrls) out[u]![field.key] = r[u] ?? null;
+          for (const u of input.toUrls) if (out[u]) out[u]!.fields[field.key] = r[u] ?? null;
         }
       });
       return out;

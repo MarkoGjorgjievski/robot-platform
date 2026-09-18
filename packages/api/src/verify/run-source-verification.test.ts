@@ -246,7 +246,7 @@ describe('runSourceVerification', () => {
       const now = new Date().toISOString();
       const [seeded] = await db.insert(captures).values({
         sourceId, url: urls[0]!, html: '<html>seeded</html>',
-        metadata: { kind: 'proof-page', status: 'captured', url: urls[0], startedAt: now, capturedAt: now, tiles: ['/captures/seeded.png'], boxes: [], contentHeight: 0 },
+        metadata: { kind: 'proof-page', status: 'captured', url: urls[0], startedAt: now, capturedAt: now, tiles: ['/captures/seeded.png'], boxes: [], pageHeight: 0, capturedHeight: 0, contentHeight: 0 },
       }).returning({ id: captures.id });
       await writeCaptureFile(seeded!.id, fakeCapture(urls[0]!, '<html>seeded</html>'));
 

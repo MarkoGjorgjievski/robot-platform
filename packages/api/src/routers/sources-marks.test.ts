@@ -32,7 +32,7 @@ async function seedProofPage(sourceId: string, url: string, page: 'p1' | 'p2' | 
   const fixture = { ...SHOP_EXAMPLE[page], url };
   const boxes = boxesFromAnnotation(await browser.setContentEvaluate<unknown>(fixture.html, buildBoxMapScript()));
   const now = new Date().toISOString();
-  const [row] = await db.insert(captures).values({ sourceId, url, html: fixture.html, metadata: { kind: 'proof-page', status: 'captured', url, startedAt: now, capturedAt: now, tiles: ['/captures/x.png'], boxes, contentHeight: 900 } }).returning({ id: captures.id });
+  const [row] = await db.insert(captures).values({ sourceId, url, html: fixture.html, metadata: { kind: 'proof-page', status: 'captured', url, startedAt: now, capturedAt: now, tiles: ['/captures/x.png'], boxes, pageHeight: 900, capturedHeight: 900, contentHeight: 900 } }).returning({ id: captures.id });
   await writeCaptureFile(row!.id, fixture);
   return row!.id;
 }
@@ -57,9 +57,10 @@ describe('sources.suggestMarks', () => {
     try {
       const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1');
       const r = await caller.sources.suggestMarks({ captureId: id });
-      expect(r[f.keys.Price!]).toMatchObject({ value: '129.99', via: { source: 'json-ld', path: 'offers.price' } });
-      expect(r[f.keys.Price!]!.boxes).toHaveLength(1);
-      expect(r[f.keys.Title!]).toMatchObject({ value: 'Widget A' });
+      expect(r.captureId).toBe(id); // the box map these indices point into
+      expect(r.fields[f.keys.Price!]).toMatchObject({ value: '129.99', via: { source: 'json-ld', path: 'offers.price' } });
+      expect(r.fields[f.keys.Price!]!.boxes).toHaveLength(1);
+      expect(r.fields[f.keys.Title!]).toMatchObject({ value: 'Widget A' });
     } finally { await f.cleanup(); }
   });
 });
@@ -71,11 +72,22 @@ describe('sources.transferMarks', () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-tr', fields: [{ name: 'Price', type: 'money' }],
       expected: { Price: { 'https://test-marks-tr.example.com/p/1': '129.99', 'https://test-marks-tr.example.com/p/2': '219.99', 'https://test-marks-tr.example.com/p/3': '149.00' } } });
     try {
-      await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2'); await seedProofPage(f.sourceId, f.urls[2]!, 'p3');
+      await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); const id2 = await seedProofPage(f.sourceId, f.urls[1]!, 'p2'); await seedProofPage(f.sourceId, f.urls[2]!, 'p3');
       const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!, f.urls[2]!] });
-      expect(r[f.urls[1]!]![f.keys.Price!]!.value).toMatch(/219\.99/);
-      expect(r[f.urls[1]!]![f.keys.Price!]!.boxes).toHaveLength(1);
-      expect(r[f.urls[2]!]![f.keys.Price!]!.value).toMatch(/149/);
+      expect(r[f.urls[1]!]!.captureId).toBe(id2);
+      expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
+      expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.boxes).toHaveLength(1);
+      expect(r[f.urls[2]!]!.fields[f.keys.Price!]!.value).toMatch(/149/);
+    } finally { await f.cleanup(); }
+  });
+  it('a target with no fresh capture is null, and the other target still resolves', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-tr2', fields: [{ name: 'Price', type: 'money' }],
+      expected: { Price: { 'https://test-marks-tr2.example.com/p/1': '129.99', 'https://test-marks-tr2.example.com/p/2': '219.99', 'https://test-marks-tr2.example.com/p/3': '149.00' } } });
+    try {
+      await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2');
+      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!, f.urls[2]!] });
+      expect(r[f.urls[2]!]).toBeNull();
+      expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
     } finally { await f.cleanup(); }
   });
   it('PRECONDITION_FAILED when page 1 has no capture', async () => {
