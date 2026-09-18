@@ -28,6 +28,7 @@ type Caller = {
       listingUrl?: string;
       descriptions: Record<string, string>;
       expected: Record<string, Record<string, string>>;
+      marks?: Record<string, Record<string, { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } }>>;
     }): Promise<unknown>;
   };
 };
@@ -38,6 +39,7 @@ export async function createProjectWithSource(caller: Caller, opts: {
   urls?: string[];
   listingUrl?: string;
   expected?: Record<string, Record<string, string>>;
+  marks?: Record<string, Record<string, { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } }>>;
 }) {
   const host = `test-${opts.tag}.example.com`;
   const urls = opts.urls ?? [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
@@ -55,6 +57,7 @@ export async function createProjectWithSource(caller: Caller, opts: {
       ...(opts.listingUrl ? { listingUrl: opts.listingUrl } : {}),
       descriptions: Object.fromEntries(opts.fields.map((f) => [keys[f.name]!, f.description ?? `where ${f.name} is`])),
       expected: Object.fromEntries(Object.entries(opts.expected).map(([name, cells]) => [keys[name] ?? name, cells])),
+      ...(opts.marks ? { marks: Object.fromEntries(Object.entries(opts.marks).map(([name, cells]) => [keys[name] ?? name, cells])) } : {}),
     });
   }
   return {

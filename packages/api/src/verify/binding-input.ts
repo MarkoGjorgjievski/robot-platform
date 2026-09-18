@@ -7,12 +7,17 @@ import { VERIFY_URL_MIN, VERIFY_URL_MAX, normalize, validateExpected, type Schem
 import { httpUrl } from './http-url.js';
 import { bindingFor, type ContractField } from '../contract.js';
 
+const rect = z.object({ x: z.number().min(0), y: z.number().min(0), w: z.number().min(0), h: z.number().min(0) });
+export const markInput = z.object({ xpaths: z.array(z.string().max(2000)).min(1).max(3), text: z.string().max(2000), rect });
+
 export const bindingInput = z.object({
   sourceId: z.string().uuid(),
   urls: z.array(httpUrl).min(VERIFY_URL_MIN).max(VERIFY_URL_MAX),
   listingUrl: httpUrl.optional(),
   descriptions: z.record(z.string(), z.string().trim().max(1000)),
   expected: z.record(z.string(), z.record(z.string(), z.string())),
+  /** fieldKey → url → the element the customer clicked (spec 2026-09-18 §3.5). */
+  marks: z.record(z.string(), z.record(z.string(), markInput)).optional(),
 });
 export type BindingInput = z.infer<typeof bindingInput>;
 
@@ -35,6 +40,9 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
       const err = validateExpected(f.type, value);
       if (err) problems.push(`${f.name} @ ${url}: ${err}`);
     });
+    for (const url of input.urls) {
+      if (input.marks?.[f.key]?.[url] && (cells[url] ?? '').trim() === '') problems.push(`${f.name} @ ${url}: a marked element needs its value`);
+    }
   }
   input.urls.slice(VERIFY_URL_MIN).forEach((url) => {
     if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '')) problems.push(`${url}: type at least one expected value on this page, or remove it`);
@@ -48,5 +56,10 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
   if (problems.length > 0) throw new TRPCError({ code: 'BAD_REQUEST', message: problems.join('\n') });
   const fields = bindingFor(contract, Object.fromEntries(contract.map((f) => [f.key, (input.descriptions[f.key] ?? '').trim()])));
   const expected: VerificationSet['expected'] = Object.fromEntries(contract.map((f) => [f.key, Object.fromEntries(input.urls.map((u) => [u, input.expected[f.key]?.[u] ?? '']))]));
-  return { fields, verificationSet: { urls: input.urls, expected, ...(input.listingUrl ? { listing_url: input.listingUrl } : {}) } };
+  const marks: NonNullable<VerificationSet['marks']> = {};
+  for (const f of contract) {
+    const perUrl = Object.fromEntries(input.urls.filter((u) => input.marks?.[f.key]?.[u]).map((u) => [u, input.marks![f.key]![u]!]));
+    if (Object.keys(perUrl).length) marks[f.key] = perUrl;
+  }
+  return { fields, verificationSet: { urls: input.urls, expected, ...(input.listingUrl ? { listing_url: input.listingUrl } : {}), ...(Object.keys(marks).length ? { marks } : {}) } };
 }

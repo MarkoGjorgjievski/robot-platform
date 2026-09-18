@@ -74,3 +74,19 @@ describe('binding input — three to six proof pages (spec 2026-09-17 §4)', () 
     expect([2, 3, 6, 7].map(ok3)).toEqual([false, true, true, false]);
   });
 });
+
+describe('marks', () => {
+  const mark = { xpaths: ['//*[@id="p"]'], text: '$1', rect: { x: 0, y: 0, w: 1, h: 1 } };
+  it('are carried into the verification set for known fields and listed pages only', () => {
+    const { verificationSet } = prepareBinding({ ...ok, marks: { price: { [U[0]!]: mark, 'https://other.example/': mark }, ghost: { [U[0]!]: mark } } }, contract);
+    expect(verificationSet.marks).toEqual({ price: { [U[0]!]: mark } });
+  });
+  it('are omitted entirely when none apply', () => {
+    expect('marks' in prepareBinding({ ...ok, marks: { ghost: { [U[0]!]: mark } } }, contract).verificationSet).toBe(false);
+    expect('marks' in prepareBinding(ok, contract).verificationSet).toBe(false);
+  });
+  it('a mark on a blank cell is a problem', () => {
+    const blank = { ...ok, urls: [...U, 'https://test.example.com/p/4'], marks: { price: { 'https://test.example.com/p/4': mark } } };
+    expect(bindingProblems(blank, contract)).toContain(`Price @ https://test.example.com/p/4: a marked element needs its value`);
+  });
+});
