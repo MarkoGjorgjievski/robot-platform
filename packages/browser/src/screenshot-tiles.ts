@@ -6,11 +6,11 @@ export const MAX_TILES = 3;
 
 export type TileClip = { x: number; y: number; width: number; height: number };
 
-/** Slice a page of the given pixel height into legible, non-overlapping vertical tiles. */
-export function computeTileClips(pageHeight: number): TileClip[] {
+/** Slice a page of the given pixel height into legible, non-overlapping vertical tiles. `maxTiles` lets a proof-page capture go deeper than the AI-cost cap. */
+export function computeTileClips(pageHeight: number, maxTiles: number = MAX_TILES): TileClip[] {
   const h = Math.max(1, Math.floor(pageHeight) || 1);
   const clips: TileClip[] = [];
-  for (let i = 0; i < MAX_TILES; i++) {
+  for (let i = 0; i < maxTiles; i++) {
     const y = i * TILE_HEIGHT;
     if (y >= h) break;
     clips.push({ x: 0, y, width: TILE_WIDTH, height: Math.min(TILE_HEIGHT, h - y) });

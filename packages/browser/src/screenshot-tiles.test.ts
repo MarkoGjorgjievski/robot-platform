@@ -21,4 +21,9 @@ describe('computeTileClips', () => {
   it('handles zero/negative height as a single minimal tile', () => {
     expect(computeTileClips(0)).toEqual([{ x: 0, y: 0, width: 1280, height: 1 }]);
   });
+  it('takes a caller-chosen tile cap', () => {
+    expect(computeTileClips(TILE_HEIGHT * 10, 6)).toHaveLength(6);
+    expect(computeTileClips(TILE_HEIGHT * 2, 6)).toHaveLength(2);
+    expect(computeTileClips(TILE_HEIGHT * 10)).toHaveLength(MAX_TILES);
+  });
 });
