@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { certify, checkedPages, rankCertified, type CaptureLike } from './certify.js';
+import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
+import type { SchemaDefinitionField } from './types.js';
 
 const field = { key: 'price', name: 'Price', type: 'money' as const, description: 'green number', concept: 'price' };
 
@@ -240,5 +242,20 @@ describe('certify — a cover is not made of one-page paths', () => {
     const evalTwoLayouts = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, (x === LAYOUT_2.path) === html.includes(p4) ? '2-seat sofa' : null]));
     const r = await certify({ field: textField, expected: exp4, captures: caps4, candidates: [SHARED, LAYOUT_2] }, { evalXPaths: evalTwoLayouts });
     expect(r.certified.map((p) => p.path)).toEqual([SHARED.path, LAYOUT_2.path]);
+  });
+});
+
+// A mark (customer-clicked element) enters certify as an ordinary xpath candidate — gatherCandidates'
+// job, not certify's. This pins that once it arrives, it goes through the same door as any other path.
+describe('marks', () => {
+  it('a mark whose xpath is correct on every page certifies; its other-page evaluation is the ordinary one', async () => {
+    const caps = loadShopExample();
+    const shopField: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'd', concept: 'price' };
+    const exp = { [U[0]!]: '129.99', [U[1]!]: '219.99', [U[2]!]: '149.00' };
+    const xp = '//*[@id="main"]/div[@class="price-box"]/span[@class="now"]';
+    const evalXPaths = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, x === xp ? (html.match(/class="now">([^<]+)</)?.[1] ?? null) : null]));
+    const r = await certify({ field: shopField, expected: exp, captures: caps, candidates: [{ source: 'xpath', path: xp, transform: 'identity' }] }, { evalXPaths });
+    expect(r.certified).toContainEqual({ source: 'xpath', path: xp, transform: 'identity' });
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
   });
 });

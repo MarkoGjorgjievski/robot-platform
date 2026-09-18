@@ -4,7 +4,7 @@ import { normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
-import type { CellResult, CertifiedPath, FieldVerification, SchemaDefinitionField } from './types.js';
+import type { CellResult, CertifiedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
 
 export type CandidatePath = CertifiedPath;
 export type CaptureLike = Pick<PageCapture, 'url' | 'html' | 'structuredData' | 'interceptedRequests'>;
@@ -35,7 +35,7 @@ export async function gatherCandidates(
   field: SchemaDefinitionField,
   expected: Record<string, string>,
   captures: Record<string, CaptureLike | null>,
-  deps: { runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => Promise<DomHit[]> },
+  deps: { runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => Promise<DomHit[]>; marks?: Record<string, Mark> },
 ): Promise<{ candidates: CandidatePath[]; hitsByUrl: Record<string, number> }> {
   const candidates: CandidatePath[] = [];
   const hitsByUrl: Record<string, number> = {};
@@ -44,9 +44,18 @@ export async function gatherCandidates(
     const exp = expected[url] ?? '';
     if (exp.trim() === '') continue; // not checked here: nothing to search for
     const structured = searchStructured(capture, field.type, exp);
+    candidates.push(...structured.map((s) => ({ source: s.source, path: s.path, transform: s.transform })));
+    const mark = deps.marks?.[url];
+    if (mark) {
+      // The customer said which element it is: the mark's XPaths stand in for the DOM search's hits on
+      // this page, which is what settles `ambiguous` (spec 2026-09-18 §3.5). The mark still has to be
+      // correct or empty on every other checked page, like any candidate.
+      hitsByUrl[url] = structured.length + mark.xpaths.length;
+      candidates.push(...mark.xpaths.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'identity' as const })));
+      continue;
+    }
     const dom = await deps.runDomSearch(capture.html, [{ key: field.key, type: field.type, expected: exp }], capture.url);
     hitsByUrl[url] = structured.length + dom.length;
-    candidates.push(...structured.map((s) => ({ source: s.source, path: s.path, transform: s.transform })));
     candidates.push(...dom.map((h) => ({ source: 'xpath' as const, path: h.xpath, transform: 'identity' as const })));
   }
   return { candidates: dedupe(candidates), hitsByUrl };

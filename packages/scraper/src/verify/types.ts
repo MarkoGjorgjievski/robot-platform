@@ -9,10 +9,14 @@ export type SchemaDefinitionField = {
   concept: string;      // cache bridge
 };
 
+export type Mark = { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } };
+
 export type VerificationSet = {
   urls: string[];                                   // VERIFY_URL_MIN to VERIFY_URL_MAX proof pages
   expected: Record<string, Record<string, string>>; // fieldKey → url → as typed
   listing_url?: string;
+  /** fieldKey → url → the element the customer clicked for that cell (spec 2026-09-18 §3.5). Absent on sets written before marks existed. */
+  marks?: Record<string, Record<string, Mark>>;
 };
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';
