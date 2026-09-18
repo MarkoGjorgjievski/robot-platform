@@ -39,6 +39,7 @@ describe('proof-page capture job', () => {
       if (meta.status !== 'captured') return;
       expect(meta.tiles).toHaveLength(2);
       expect(meta.boxes).toEqual([box]);
+      expect(meta.contentHeight).toBe(10);
       expect(row!.screenshotPath).toBe(meta.tiles[0]);
       expect((await readCaptureFile(captureId))?.html).toContain('Widget');
       const loaded = await loadProofPageCaptures(f.sourceId, f.urls);

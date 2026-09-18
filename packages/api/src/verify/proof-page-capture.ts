@@ -13,7 +13,17 @@ import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef 
 
 export type ProofPageMeta =
   | { kind: 'proof-page'; status: 'capturing'; url: string; startedAt: string }
-  | { kind: 'proof-page'; status: 'captured'; url: string; startedAt: string; capturedAt: string; tiles: string[]; boxes: Box[]; pageHeight: number }
+  | {
+      kind: 'proof-page'; status: 'captured'; url: string; startedAt: string; capturedAt: string; tiles: string[]; boxes: Box[];
+      /**
+       * Bottom edge of the lowest mapped box, in page pixels; NOT the captured
+       * height — the tile PNGs carry that. The box map is cut at
+       * `BOX_MAP_LIMIT` in document order and skips `<body>` and empty
+       * elements, so on a long page this falls short of the strip actually
+       * captured.
+       */
+      contentHeight: number;
+    }
   | { kind: 'proof-page'; status: 'failed'; url: string; startedAt: string; error: string };
 
 type Session = typeof withBrowserSession;
@@ -39,8 +49,8 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     const { capture, boxes } = await session((browser) => captureProofPage(browser, row.url));
     const tiles = await persistTiles(capture.screenshotTiles);
     await writeCaptureFile(captureId, capture);
-    const pageHeight = boxes.reduce((h, b) => Math.max(h, b.rect.y + b.rect.h), 0);
-    const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes, pageHeight };
+    const contentHeight = boxes.reduce((h, b) => Math.max(h, b.rect.y + b.rect.h), 0);
+    const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes, contentHeight };
     await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
   } catch (err) {
     console.error(`[proof-page] capture ${captureId} failed:`, err);
