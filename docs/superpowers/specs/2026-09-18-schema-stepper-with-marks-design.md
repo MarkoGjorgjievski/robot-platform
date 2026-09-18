@@ -193,7 +193,11 @@ A mark is `{ xpaths: string[]; text: string; rect }` per field per page:
 `sources.updateBinding` gains `marks` (optional; existing callers untouched).
 `bindingProblems` keeps its rules: a mark always carries a value, so "type at
 least one expected value per page" still holds, and a mark on a blank cell is
-refused. The location hint (`descriptions[key]`) stays required by the API;
+refused. A save is the whole binding: a client that omits `marks` erases them,
+so the stepper and the proof sheet's Import values path both round-trip marks.
+A mark whose text no longer equals its cell's value (an import rewrote the
+cell) is dropped on save; image and link marks carry their value in `src`/
+`href`, not text, and are kept. The location hint (`descriptions[key]`) stays required by the API;
 the stepper sends the catalogue entry's description, or the field's name, since
 the mark screen has no input for it (amendment 2026-09-18, engine plan).
 
@@ -215,9 +219,19 @@ Verification reuses a stored proof-page capture that is younger than
 | Procedure | Purpose |
 |---|---|
 | `sources.captureProofPage({ sourceId, url })` → `{ captureId }` | start a background proof-page capture |
-| `sources.proofPageCapture({ captureId })` → `{ status, tiles: string[], boxes, error? }` | polled at 2 s, like `crawl.status` |
-| `sources.suggestMarks({ captureId, fieldKeys })` | §3.3, over the stored capture |
-| `sources.transferMarks({ sourceId, fromUrl, toUrls })` | §3.4, over stored captures |
+| `sources.proofPageCapture({ captureId })` → `{ url, status, tiles: string[], boxes, pageHeight, capturedHeight, contentHeight, error?, capturedAt? }` | polled at 2 s, like `crawl.status`; a `capturing` row older than `PROOF_PAGE_STALL_MS` (3 min) is closed as `failed` / `stalled` |
+| `sources.suggestMarks({ captureId, fieldKeys })` → `{ captureId, fields }` | §3.3, over the stored capture |
+| `sources.transferMarks({ sourceId, fromUrl, toUrls })` → per url `{ captureId, fields } \| null` | §3.4, over stored captures; `null` = that page has no fresh capture |
+
+Heights (amendment 2026-09-18, engine plan): `pageHeight` is the document's
+measured height; `capturedHeight` is how much of it the tiles cover (the viewer
+says "page cut at N px" when `pageHeight > capturedHeight`); `contentHeight`
+is the bottom edge of the lowest mapped box. Boxes below `capturedHeight` are
+dropped at capture time, so every index the API returns can be outlined.
+`pageHeight: 0` means unknown (a capture that did not report one), not an
+empty page; the viewer must not draw a cut for it. The
+`captureId` in a response names the box map its indices refer to; the screens
+must check it against the slot's capture before drawing.
 | `sources.updateBinding` + `marks` | §3.5 |
 | `datasets.catalogue({ type })` | the static catalogue |
 

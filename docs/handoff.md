@@ -64,11 +64,26 @@ verification reuses a fresh proof-page capture; `updateBinding` accepts `marks`
 (a mark on a blank cell is refused); the procedures `sources.captureProofPage`,
 `proofPageCapture`, `suggestMarks`, `transferMarks`.
 
-Two spec amendments made while executing: the API keeps requiring a location
-hint per field (the screens send the catalogue description or the field name),
-and `proofPageCapture` returns `contentHeight`, not `pageHeight` (spec §4 still
-says `pageHeight`; the box map is cut at 3,000 entries and skips body and
-footers, so it cannot promise the captured height; the tile PNGs carry that).
+Spec amendments made while executing (all written into the spec): the API
+keeps requiring a location hint per field (the screens send the catalogue
+description or the field name); `proofPageCapture` returns three heights —
+`pageHeight` (the document), `capturedHeight` (what the tiles cover; the viewer
+says "page cut at N px" when the page is longer) and `contentHeight` (the
+lowest box's bottom edge) — and boxes below the captured strip are dropped;
+`suggestMarks` and `transferMarks` answer with the `captureId` their box
+indices refer to, and a target page with no fresh capture comes back `null`;
+a `capturing` row older than three minutes is closed as `failed` / `stalled`;
+a mark whose text no longer equals its cell's value is dropped on save.
+**`updateBinding` is a whole-binding save**: a client that omits `marks`
+erases them, so the stepper and Import values must both round-trip marks.
+
+Known risk, parked with a ruling (whole-branch review, item 5): verification
+that reuses a proof-page capture skips its own ready check, which waits for
+the typed values; a proof-page capture waited only for stable text plus one
+structured source. A field the customer typed rather than marked can be
+absent from that capture and read `not_found` where a fresh capture would
+pass. Mitigation when it shows up: re-capture only the pages where a field is
+`not_found` on a reused capture.
 
 Live check, 2026-09-18, free (keyless api-server on :4100, nothing written to
 the Ikea binding): `docs/testing/2026-09-18-proof-page-capture-live.md`.
