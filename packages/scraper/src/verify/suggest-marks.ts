@@ -59,6 +59,11 @@ function tailMatches(path: string, tail: string): boolean {
   return p === tail || p.endsWith(`.${tail}`);
 }
 
+/** Segment count with array indices removed, for depth comparison — not identity. */
+function depthOf(path: string): number {
+  return path.replace(/\[\d+\]/g, '').split('.').length;
+}
+
 function valueText(raw: unknown): string | null {
   if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
   if (Array.isArray(raw)) { const parts = raw.map(valueText).filter((s): s is string => s !== null); return parts.length ? parts.join(', ') : null; }
@@ -78,8 +83,12 @@ export function suggestMarks(capture: CaptureLike, boxes: Box[], fields: SchemaD
     let found: Suggestion | null = null;
     for (const source of SOURCE_ORDER) {
       for (const tail of tails) {
-        const leaf = all.find((l) => l.source === source && tailMatches(l.path, tail) && normalize(field.type, l.raw, ctx) !== null);
-        if (!leaf) continue;
+        const matches = all.filter((l) => l.source === source && tailMatches(l.path, tail) && normalize(field.type, l.raw, ctx) !== null);
+        if (matches.length === 0) continue;
+        // Ikea 2026-09-18: a BreadcrumbList block can precede the Product block in ldJson, and both
+        // end in `name` — the breadcrumb's `itemListElement[0].name` must not beat the product's own
+        // `name`. Within one (source, tail), prefer the shallowest path; ties keep document order.
+        const leaf = matches.reduce((best, l) => (depthOf(l.path) < depthOf(best.path) ? l : best));
         const value = valueText(leaf.raw)!;
         const matching = boxes.map((b, i) => (valuesEqual(field.type, boxValue(b), value, ctx) ? i : -1)).filter((i) => i >= 0);
         found = { value, via: { source, path: leaf.path }, boxes: matching };
