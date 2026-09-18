@@ -44,7 +44,7 @@ export const CATALOGUE: Catalogue = {
       { name: 'Content', entries: [
         e('description', 'Description', 'text', 'The main product description', 'description'),
         e('bullet_points', 'Bullet points', 'text_list', 'The highlights or key features list', 'product_features'),
-        e('specifications', 'Specifications', 'text', 'The technical details or specification table', 'product_dimensions'),
+        e('specifications', 'Specifications', 'text', 'The technical details or specification table'),
       ] },
       { name: 'Media', entries: [
         e('main_image', 'Main image', 'image', 'The primary product photo', 'image_url'),
@@ -75,6 +75,9 @@ export const CATALOGUE: Catalogue = {
         e('badge', 'Badge', 'text', 'A label such as New, Sale or Bestseller'),
         e('in_stock', 'In stock', 'boolean', 'Whether the card says it can be bought', 'availability'),
         e('position', 'Position', 'number', 'The item\'s position in the listing'),
+        e('seller', 'Seller', 'text', 'The merchant or seller shown on the card', 'seller'),
+        e('delivery', 'Delivery', 'text', 'The delivery note on the card (free shipping, next day)', 'shipping_info'),
+        e('discount', 'Discount', 'text', 'The saving shown on the card, as an amount or a percentage', 'discount_amount'),
       ] },
     ],
   },
