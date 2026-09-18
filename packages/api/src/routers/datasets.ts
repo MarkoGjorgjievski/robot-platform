@@ -6,6 +6,7 @@ import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type 
 import { router, publicProcedure } from '../trpc';
 import { contractFields, type ContractField } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
+import { CATALOGUE } from '../schema-catalogue.js';
 
 /** One Dataset schema field. `origin` says WHERE the field is resolved; absent means 'detail'. */
 export const datasetSchemaFieldSchema = z.object({
@@ -112,6 +113,9 @@ export const datasetsRouter = router({
   getContract: publicProcedure
     .input(z.object({ datasetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => contractFields((await loadDataset(ctx.db, input.datasetId)).schema)),
+
+  /** The field catalogue for step 1 of the Schema tab (spec 2026-09-18 §2.1): static, all types at once. */
+  catalogue: publicProcedure.query(() => CATALOGUE),
 
   getBySlug: publicProcedure
     .input(
