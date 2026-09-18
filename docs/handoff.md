@@ -34,6 +34,59 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## Schema stepper, engine (2026-09-18)
+
+Spec: `docs/superpowers/specs/2026-09-18-schema-stepper-with-marks-design.md`
+(approved). Plan: `docs/superpowers/plans/2026-09-18-schema-stepper-engine.md`
+(spec §7 items 1 and 2; the screens, items 3 to 6, are separate plans still to
+write). Branch `feat/schema-stepper-engine`, eleven tasks, each reviewed;
+whole-branch review at the end. The idea: a customer marks a field by clicking
+it on a screenshot of a proof page instead of typing its value; the click gives
+the expected value plus the element's XPaths as one more candidate, and
+certification is otherwise unchanged. No model anywhere in the stepper
+(TypeSafe/Jev was considered and rejected for it, see spec §1).
+
+What landed, one line per task: `CaptureOptions.annotate` (a page script run
+once after the expand rounds, its value on `PageCapture.annotation`) and
+`maxTiles`; the box map (`box-map.ts`: every visible element with its own text,
+plus images and links, with the generator's XPaths and page-pixel rects);
+`buildProofPageReadyCheck` (stable text plus one structured source), the shared
+`captureProblem`, and `captureProofPage` (six tiles); `Mark` and
+`VerificationSet.marks`, folded into `fieldHash`/`definitionHash` (byte-identical
+without marks) and into `gatherCandidates` (a marked page takes the mark's
+XPaths instead of the DOM search); `suggestMarks` (JSON-LD → meta → API,
+shallowest path wins, boxes matched by `valuesEqual`); `transferMarks` (page 1's
+candidates tried on the other pages in certification's order, stable first);
+`capture-store.ts` and the proof-page capture job on the `captures` table
+(`metadata` is the `capturing`/`captured`/`failed` state machine, tiles as PNGs,
+`contentHeight` = bottom of the lowest box, NOT the captured height);
+verification reuses a fresh proof-page capture; `updateBinding` accepts `marks`
+(a mark on a blank cell is refused); the procedures `sources.captureProofPage`,
+`proofPageCapture`, `suggestMarks`, `transferMarks`.
+
+Two spec amendments made while executing: the API keeps requiring a location
+hint per field (the screens send the catalogue description or the field name),
+and `proofPageCapture` returns `contentHeight`, not `pageHeight` (spec §4 still
+says `pageHeight`; the box map is cut at 3,000 entries and skips body and
+footers, so it cannot promise the captured height; the tile PNGs carry that).
+
+Live check, 2026-09-18, free (keyless api-server on :4100, nothing written to
+the Ikea binding): `docs/testing/2026-09-18-proof-page-capture-live.md`.
+Captures 14.7 / 16.8 / 16.3 s per page, six tiles, 252 to 288 boxes.
+`suggestMarks` on page 1: price, total reviews and rating right with the
+element outlined (the price box checked by eye on the tile), title right
+after a same-day fix (the BreadcrumbList block's `name` had beaten the
+Product's), `price_currency` and `subtitle` wrong for reasons outside this
+plan, `product_id` and `product_details` none. `transferMarks` to pages 2 and
+3: 8 of 8 and 7 of 8 fields, 8.9 s. Follow-ups in that file: `deriveConcept`
+makes `price currency` a `price` and gives `product_id` no alias; the
+unknown-concept fallback matches API translation strings; a value spread over
+child elements gets no box.
+
+Next: the screens. Plan order per spec §7: catalogue and step 1, step 2 with
+background captures, step 3 (the mark screen), then the proof-sheet controls,
+arrivals and the smoke run.
+
 ## Second-layout proof pages (2026-09-17)
 
 Spec: `docs/superpowers/specs/2026-09-17-second-layout-proof-pages-design.md`.
