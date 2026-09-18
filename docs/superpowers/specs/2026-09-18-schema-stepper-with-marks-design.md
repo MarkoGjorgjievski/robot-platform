@@ -191,8 +191,11 @@ element as its mark. Nothing resolves: empty row.
 A mark is `{ xpaths: string[]; text: string; rect }` per field per page:
 `marks[key][url]` beside `expected[key][url]` on the binding.
 `sources.updateBinding` gains `marks` (optional; existing callers untouched).
-`bindingProblems` is unchanged: a mark always carries a value, so "type at least
-one expected value per page" still holds.
+`bindingProblems` keeps its rules: a mark always carries a value, so "type at
+least one expected value per page" still holds, and a mark on a blank cell is
+refused. The location hint (`descriptions[key]`) stays required by the API;
+the stepper sends the catalogue entry's description, or the field's name, since
+the mark screen has no input for it (amendment 2026-09-18, engine plan).
 
 `fieldHash` covers a mark's `xpaths` and `text`, not its `rect`, so a moved
 element with the same path stays current and a changed path goes stale like a
