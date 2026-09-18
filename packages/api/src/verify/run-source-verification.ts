@@ -5,15 +5,12 @@
 // still leave the row terminal (`completedAt` set).
 
 import { and, eq, isNull } from 'drizzle-orm';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { PageCapture } from '@robot/browser';
 import { SchemaAgent, snapshotUsage, diffUsage, estimateCostUsd } from '@robot/agent';
 import {
   runVerification,
   saveVerifiedPaths,
   lookupVerifiedPaths,
-  CAPTURE_REUSE_MAX_AGE_MS,
   type SchemaDefinitionField,
   type VerificationSet,
   type VerificationOutcome,
@@ -22,8 +19,9 @@ import {
 import { db, sources, sourceVerifications, captures } from '@robot/db';
 import type { Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
-import { persistScreenshot, getCapturesDir } from '../persist-screenshot.js';
+import { persistScreenshot } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
+import { loadStoredCapture, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -35,8 +33,6 @@ function stripAnsi(message: string): string {
   return message.replace(new RegExp('\u001b\[[0-9;]*m', 'g'), '');
 }
 
-type StoredCaptureRef = { captureId: string; capturedAt: string; screenshotUrl?: string; blockedReason?: string };
-
 async function storeCapture(sourceId: string, url: string, c: PageCapture): Promise<StoredCaptureRef> {
   const shot = c.screenshot.length > 0 ? await persistScreenshot(c.screenshot) : null;
   const [row] = await db.insert(captures).values({
@@ -46,28 +42,8 @@ async function storeCapture(sourceId: string, url: string, c: PageCapture): Prom
     screenshotPath: shot?.url ?? null,
     metadata: { kind: 'verification' },
   }).returning({ id: captures.id });
-  await mkdir(getCapturesDir(), { recursive: true });
-  await writeFile(
-    join(getCapturesDir(), `${row!.id}.capture.json`),
-    JSON.stringify({
-      url: c.url,
-      html: c.html,
-      structuredData: c.structuredData,
-      interceptedRequests: c.interceptedRequests.filter((r) => r.isJson && r.parsedJson !== null),
-    }),
-  );
+  await writeCaptureFile(row!.id, c);
   return { captureId: row!.id, capturedAt: new Date().toISOString(), ...(shot ? { screenshotUrl: shot.url } : {}) };
-}
-
-/** Null on any problem: a missing or unreadable file just means "capture again". */
-async function loadStoredCapture(ref: StoredCaptureRef): Promise<PageCapture | null> {
-  if (Date.now() - Date.parse(ref.capturedAt) > CAPTURE_REUSE_MAX_AGE_MS) return null;
-  try {
-    const raw = JSON.parse(await readFile(join(getCapturesDir(), `${ref.captureId}.capture.json`), 'utf-8'));
-    return { ...raw, markdown: '', title: '', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [] } as PageCapture;
-  } catch {
-    return null;
-  }
 }
 
 /**
