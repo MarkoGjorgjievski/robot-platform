@@ -5,6 +5,7 @@ import { fieldHash, type SchemaDefinitionField, type VerificationSet } from '@ro
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
+import { SCHEMA_TYPES } from '../schema-catalogue.js';
 
 const caller = createCallerFactory(appRouter)({ db });
 const projectIds: string[] = [];
@@ -232,5 +233,13 @@ describe('datasets.updateSchema keeps keys', () => {
     await expect(
       caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [] }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+});
+
+describe('datasets.catalogue', () => {
+  it('returns the catalogue', async () => {
+    const c = await caller.datasets.catalogue();
+    expect(Object.keys(c).sort()).toEqual([...SCHEMA_TYPES].sort());
+    expect(c.product.groups[0]!.entries[0]!.key).toBe('title');
   });
 });
