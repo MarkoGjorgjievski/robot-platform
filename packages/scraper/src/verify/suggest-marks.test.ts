@@ -32,4 +32,20 @@ describe('suggestMarks', () => {
   it('a field with an unknown concept falls back to its key as a path tail', () => {
     expect(suggestMarks(p1, boxes, [f('colors', 'text_list', 'colors')]).colors).toMatchObject({ via: { source: 'api', path: 'item.colors' } });
   });
+  it('a BreadcrumbList block before the Product block does not shadow the product name (Ikea 2026-09-18)', () => {
+    const capture = {
+      ...p1,
+      structuredData: {
+        ...p1.structuredData,
+        ldJson: [
+          { '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', name: 'Products' }] },
+          { '@type': 'Product', name: 'Widget A' },
+        ],
+        meta: {},
+      },
+      interceptedRequests: [],
+    };
+    const r = suggestMarks(capture, [], [f('title', 'text', 'product_name')]);
+    expect(r.title).toMatchObject({ value: 'Widget A', via: { source: 'json-ld', path: 'name' } });
+  });
 });
