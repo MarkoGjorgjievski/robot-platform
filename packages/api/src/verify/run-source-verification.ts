@@ -22,6 +22,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { persistScreenshot } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadStoredCapture, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
+import { loadProofPageCaptures } from './proof-page-capture.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -103,6 +104,13 @@ export async function runSourceVerification(sourceId: string, verificationId: st
         }
       }
     }
+
+    // Proof pages captured for marking (spec 2026-09-18 §3.5) are the same
+    // captures verification would take; use them while fresh. A previous
+    // verification's own captures, when reused above, stay in charge: the
+    // stored result was proven on those.
+    const proofPages = await loadProofPageCaptures(sourceId, set.urls.filter((u) => !reuse[u]));
+    for (const [url, p] of Object.entries(proofPages)) { reuse[url] = p.capture; reusedRefs.set(url, p.ref); }
 
     const before = snapshotUsage();
     const agent = process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;

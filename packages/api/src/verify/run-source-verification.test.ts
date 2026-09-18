@@ -9,6 +9,7 @@ import { createCallerFactory } from '../trpc.js';
 import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { runSourceVerification, writeStage } from './run-source-verification.js';
+import { writeCaptureFile } from './capture-store.js';
 
 // `runSourceVerification` never launches a real browser or calls
 // `@robot/scraper`'s `runVerification` for real — both are stubbed here, the
@@ -232,6 +233,42 @@ describe('runSourceVerification', () => {
 
       const capturesForUrl = await db.query.captures.findMany({ where: eq(captures.url, urls[0]!) });
       expect(capturesForUrl).toHaveLength(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('hands runVerification a fresh proof-page capture as a reused capture and writes its ref, creating no new captures row', async () => {
+    const { sourceId, urls, cleanup } = await makeSchemaSource('proofpage');
+    try {
+      // A proof page captured for marking, as proof-page-capture.ts stores it: a captures row with
+      // the state in metadata, and the capture file beside the screenshots.
+      const now = new Date().toISOString();
+      const [seeded] = await db.insert(captures).values({
+        sourceId, url: urls[0]!, html: '<html>seeded</html>',
+        metadata: { kind: 'proof-page', status: 'captured', url: urls[0], startedAt: now, capturedAt: now, tiles: ['/captures/seeded.png'], boxes: [], contentHeight: 0 },
+      }).returning({ id: captures.id });
+      await writeCaptureFile(seeded!.id, fakeCapture(urls[0]!, '<html>seeded</html>'));
+
+      const verificationId = await startVerificationRow(sourceId);
+      runVerificationMock.mockImplementation(async (_req: unknown, deps: { captures?: Record<string, PageCapture> }) => ({
+        outcome: { fields: {}, allPassed: false, aiCalls: 0 },
+        captures: { [urls[0]!]: deps.captures![urls[0]!]!, [urls[1]!]: fakeCapture(urls[1]!, '<html>2</html>'), [urls[2]!]: fakeCapture(urls[2]!, '<html>3</html>') },
+        captureErrors: {},
+      }));
+
+      await runSourceVerification(sourceId, verificationId);
+
+      const deps = runVerificationMock.mock.calls[0]![1] as { captures?: Record<string, PageCapture> };
+      expect(deps.captures?.[urls[0]!]?.html).toBe('<html>seeded</html>');
+      expect(deps.captures?.[urls[1]!]).toBeUndefined();
+
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      const refs = row!.captures as Record<string, { captureId: string; screenshotUrl?: string }>;
+      expect(refs[urls[0]!]).toMatchObject({ captureId: seeded!.id, screenshotUrl: '/captures/seeded.png' });
+      expect(refs[urls[1]!]!.captureId).not.toBe(seeded!.id);
+      const rowsForUrl0 = await db.query.captures.findMany({ where: eq(captures.url, urls[0]!) });
+      expect(rowsForUrl0).toHaveLength(1); // reused, not stored again
     } finally {
       await cleanup();
     }
