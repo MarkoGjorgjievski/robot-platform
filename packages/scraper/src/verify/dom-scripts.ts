@@ -118,8 +118,10 @@ export function isVolatileXPath(xpath: string): boolean {
  * which is right on that page and wrong on every other product. The proof
  * pages decide: a product-specific variant fails the other pages, a shared one
  * passes them all, and certify ranks the shorter one first when both do.
+ *
+ * Exported for box-map.ts, which stringifies it the same way.
  */
-function browserXPaths(el: Element): string[] {
+export function browserXPaths(el: Element): string[] {
   const MAX_XPATH_VARIANTS = 3;
   const step = (e: Element): string => {
     const tag = e.tagName.toLowerCase();
