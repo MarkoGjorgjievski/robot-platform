@@ -40,7 +40,7 @@ export default function ProjectHome() {
           <h2 className="name text-lg">Fields</h2>
           <p className="label-soft mt-0.5">The columns of your output.</p>
           <div className="mt-2">
-            {datasets[0] ? <ContractEditor datasetId={datasets[0].id} projectSlug={projectSlug} /> : <p className="text-sm text-gray-600">Loading…</p>}
+            {datasets[0] ? <ContractEditor datasetId={datasets[0].id} projectSlug={projectSlug} websiteCount={sources.length} /> : <p className="text-sm text-gray-600">Loading…</p>}
           </div>
         </section>
 
