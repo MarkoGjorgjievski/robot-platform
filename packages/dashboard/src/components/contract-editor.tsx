@@ -6,11 +6,13 @@ import { trpc } from '../lib/trpc';
 import { FIELD_TYPES, type GridFieldType } from '../lib/schema-grid';
 import { Dialog } from './dialog';
 import { InlineRename } from './inline-rename';
+import { FieldCatalogue, type CatalogueEntry } from './field-catalogue';
+import { addNote } from '../lib/schema-stepper-view';
 
 type Field = { key: string; name: string; type: string; concept?: string };
 
 /** The project's field list (spec 5.3): the columns of the output, edited in place. */
-export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; projectSlug: string }) {
+export function ContractEditor({ datasetId, projectSlug, websiteCount }: { datasetId: string; projectSlug: string; websiteCount: number }) {
   const utils = trpc.useUtils();
   const fieldsQuery = trpc.datasets.fieldStatus.useQuery({ datasetId });
   const contractQuery = trpc.datasets.getContract.useQuery({ datasetId });
@@ -24,6 +26,7 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
   const [newType, setNewType] = useState<GridFieldType>('text');
   const [deleting, setDeleting] = useState<Field | null>(null);
   const [pendingType, setPendingType] = useState<Record<string, GridFieldType>>({});
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   const fields = (contractQuery.data ?? []) as Field[];
   const status = fieldsQuery.data ?? {};
@@ -32,6 +35,13 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
     const name = newName.trim();
     if (!name) return;
     add.mutate({ datasetId, name, type: newType }, { onSuccess: () => { setNewName(''); setNewType('text'); } });
+  }
+
+  // From the catalogue: one mutation per chip click, carrying its
+  // description (default location hint) and concept (engine vocabulary).
+  function addFromCatalogue(en: CatalogueEntry) {
+    setPendingKey(en.key);
+    add.mutate({ datasetId, name: en.name, type: en.type as GridFieldType, description: en.description, concept: en.concept }, { onSettled: () => setPendingKey(null) });
   }
 
   return (
@@ -82,12 +92,18 @@ export function ContractEditor({ datasetId, projectSlug }: { datasetId: string; 
           <tr className="sheet-row h-8">
             <td className="py-1.5"><input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submitNew(); }} placeholder="field name" className="w-full rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 text-[13px] font-medium text-gray-900" aria-label="New field name" /></td>
             <td className="py-1.5"><select value={newType} onChange={(e) => setNewType(e.target.value as GridFieldType)} className="rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs">{FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></td>
-            <td className="py-1.5" colSpan={2}><button type="button" className="btn-quiet h-7" disabled={!newName.trim() || add.isPending} onClick={submitNew}>{add.isPending && <Loader2 className="h-3 w-3 animate-spin" />}Add field</button></td>
+            <td className="py-1.5" colSpan={2}><button type="button" aria-label="Add your own" className="btn-quiet h-7" disabled={!newName.trim() || add.isPending} onClick={submitNew}>{add.isPending && <Loader2 className="h-3 w-3 animate-spin" />}Add field</button></td>
           </tr>
         </tbody>
       </table>
       <p className="label-soft mt-2">Add a field here and every website gets a new column to verify. Renaming is free. A type locks once a website has verified it.</p>
       {lastError && <p className="mt-2 text-xs text-fail">{lastError} <button type="button" className="underline-offset-2 hover:underline" onClick={() => setLastError(null)}>Dismiss</button></p>}
+
+      <h4 className="name mt-6 text-base">Add from the catalogue</h4>
+      <p className="label-soft">Pick what this kind of page usually has. Each one becomes a field on every website in the project.</p>
+      <div className="mt-2">
+        <FieldCatalogue existingKeys={new Set(fields.map((f) => f.key))} onAdd={addFromCatalogue} pendingKey={pendingKey} note={addNote(websiteCount)} />
+      </div>
 
       <Dialog open={!!deleting} title={deleting ? `Delete ${deleting.name}?` : ''} onClose={() => { if (!del.isPending) setDeleting(null); }} preventClose={del.isPending}>
         {deleting && (
