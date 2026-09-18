@@ -232,8 +232,16 @@ export class PlaywrightBrowser implements IBrowser {
         await stage(`ready (after expand): ${ready.state}`);
       }
 
+      let annotation: unknown = undefined;
+      if (options.annotate) {
+        annotation = await page.evaluate(options.annotate).catch((err) => {
+          console.warn(`[browser] annotate script failed on ${url}: ${(err as Error).message.split('\n')[0]}`);
+          return undefined;
+        });
+      }
+
       const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      const clips = computeTileClips(pageHeight);
+      const clips = computeTileClips(pageHeight, options.maxTiles);
 
       const [html, title, structuredData] = await Promise.all([
         page.content(),
@@ -292,6 +300,7 @@ export class PlaywrightBrowser implements IBrowser {
         timestamp: Date.now(),
         structuredData,
         interceptedRequests: rankedRequests,
+        ...(annotation !== undefined ? { annotation } : {}),
         timings: {
           navigateMs,
           readyMs: ready?.ms ?? null,

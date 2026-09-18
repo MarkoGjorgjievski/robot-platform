@@ -49,6 +49,8 @@ export type PageCapture = {
   interceptedRequests: InterceptedRequest[];
   /** Absent only on captures built outside the browser (fixtures, replays). */
   timings?: CaptureTimings;
+  /** The `annotate` script's value, when one was given (box map for a proof page). */
+  annotation?: unknown;
 };
 
 /** What a ready check sees on each poll: the probe's result from the live page,
@@ -111,6 +113,15 @@ export type CaptureOptions = {
   timeout?: number;
   /** Poll the live page for the values the caller needs, right after navigation. Pair with `waitUntil: 'load'`. */
   ready?: ReadyCheck;
+  /**
+   * A self-invoking expression evaluated once in the live page after the popup
+   * and "show more" rounds, right before the screenshot, so what it sees is
+   * what the screenshot shows. Its value is `PageCapture.annotation`. A throw
+   * leaves `annotation` undefined; it never fails the capture.
+   */
+  annotate?: string;
+  /** How many screenshot tiles to take (default `MAX_TILES`). */
+  maxTiles?: number;
 };
 
 export interface IBrowser {
