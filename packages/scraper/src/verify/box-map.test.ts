@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
 import { buildBoxMapScript, boxesFromAnnotation, type Box } from './box-map.js';
 import { buildXPathProbeScript, type XPathProbeResult } from './dom-scripts.js';
+import { suggestMarks } from './suggest-marks.js';
+import { loadVerifyFixture } from '../__fixtures__/verify/load.js';
 
 const HTML = `<html><body>
 <div id="main">
@@ -64,5 +66,19 @@ describe('buildBoxMapScript', () => {
     expect(boxesFromAnnotation(undefined)).toEqual([]);
     expect(boxesFromAnnotation({ price: 1 })).toEqual([]);
     expect(boxesFromAnnotation([{ nope: true }])).toEqual([]);
+  });
+});
+
+describe('suggestMarks over a real box map', () => {
+  it('finds the shop-example price and title elements on p1', async () => {
+    const p1 = loadVerifyFixture('shop-example', 'p1');
+    const boxes = await boxMap(p1.html);
+    const r = suggestMarks(p1, boxes, [
+      { key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' },
+      { key: 'title', name: 'Title', type: 'text', description: '', concept: 'product_name' },
+    ]);
+    expect(r.price!.boxes.map((i) => boxes[i]!.text)).toEqual(['$129.99']);
+    expect(r.title!.boxes.map((i) => boxes[i]!.text)).toEqual(['Widget A']);
+    expect(boxes[r.price!.boxes[0]!]!.xpaths[0]).toBe('//*[@id="main"]/div[@class="price-box"]/span[@class="now"]');
   });
 });

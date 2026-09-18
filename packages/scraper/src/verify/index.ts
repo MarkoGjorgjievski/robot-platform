@@ -13,3 +13,4 @@ export * from './box-map.js';
 export * from './proof-page-ready.js';
 export * from './capture-check.js';
 export * from './proof-page-capture.js';
+export * from './suggest-marks.js';
