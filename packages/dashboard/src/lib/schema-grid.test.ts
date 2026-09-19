@@ -525,6 +525,19 @@ describe('reconcileRows', () => {
     expect(reconcileRows(rows, def)[1]!.expected).toHaveLength(5);
   });
 
+  // Name and type live on the project's contract, so step 1 owns them and a
+  // rename/retype there has to reach the grid. The description does not: it is
+  // this website's own location hint, which the contract only seeds a default
+  // for, so it survives a rename untouched.
+  it('a renamed, retyped key keeps its id, cells and description, and takes the new name and type', () => {
+    const rows = [{ ...emptyRow(), key: 'price', name: 'Price', type: 'money' as const, description: 'next to the buy button', expected: ['1', '2', '3'] }];
+    const def = [{ key: 'price', name: 'Ticket price', type: 'text' as const, description: 'The price the customer pays now' }];
+    const next = reconcileRows(rows, def);
+    expect(next[0]).toMatchObject({ name: 'Ticket price', type: 'text', description: 'next to the buy button' });
+    expect(next[0]!.id).toBe(rows[0]!.id);
+    expect(next[0]!.expected).toEqual(['1', '2', '3']);
+  });
+
   it('leaves a grid alone when the definition has not moved (same rows, same objects)', () => {
     const rows = [{ ...emptyRow(), key: 'price', name: 'Price', type: 'money' as const, description: 'd', expected: ['1', '2', '3'] }];
     const def = [{ key: 'price', name: 'Price', type: 'money' as const, description: 'd' }];
