@@ -169,9 +169,20 @@ export function planArrival(state: GridState, args: { addPage?: string; field?: 
 
 /**
  * The project's field list changed under an open tab (a field added from the
- * catalogue in step 1, or deleted): a row for every key the definition now has,
- * none for a key it no longer has, and every row the grid already had left
- * exactly as it was — same object, so its typed cells, id and width survive.
+ * catalogue in step 1, renamed, retyped or deleted): a row for every key the
+ * definition now has, none for a key it no longer has, and each surviving row
+ * carrying the definition's current name and type.
+ *
+ * What a matched row keeps is the point of the split: `id`, `key`, the expected
+ * cells and the `description`. Name and type belong to the project's contract,
+ * so step 1 is their source of truth and they are copied down. The description
+ * does NOT: it is this website's own location hint ("where it is on this
+ * website"), which the contract entry only ever seeds a default for — copying it
+ * down would throw away what the customer typed here every time someone renamed
+ * a field on the project.
+ *
+ * A row the definition did not move is returned as the SAME object, which is
+ * what lets the caller compare by identity and skip the state update entirely.
  *
  * Rows are returned in the definition's order, which is the order the contract
  * itself is in; a grid whose rows were already in that order therefore does not
@@ -184,7 +195,12 @@ export function planArrival(state: GridState, args: { addPage?: string; field?: 
 export function reconcileRows(rows: GridRow[], definition: Array<{ key: string; name: string; type: GridFieldType; description: string }>, width?: number): GridRow[] {
   const cells = width ?? rows[0]?.expected.length ?? URL_COUNT;
   const byKey = new Map(rows.filter((r) => r.key).map((r) => [r.key!, r]));
-  return definition.map((d) => byKey.get(d.key) ?? { ...emptyRow(cells), key: d.key, name: d.name, type: d.type, description: d.description });
+  return definition.map((d) => {
+    const existing = byKey.get(d.key);
+    if (!existing) return { ...emptyRow(cells), key: d.key, name: d.name, type: d.type, description: d.description };
+    if (existing.name === d.name && existing.type === d.type) return existing;
+    return { ...existing, name: d.name, type: d.type };
+  });
 }
 
 export function toBindingInput(state: GridState) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate, useSearch, Link } from '@tanstack/react-router';
+import { useParams, useNavigate, useSearch } from '@tanstack/react-router';
 import { trpc } from '../lib/trpc';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
 import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
@@ -131,12 +131,18 @@ export default function SourceSchema() {
   // until a reload.
   //
   // `reconcileRows` is the narrow answer: it appends a row for a key the grid
-  // does not have, drops the row for a key the project no longer has, and
-  // returns every other row as the SAME object, so typed cells survive. It
-  // returns the grid unchanged when the key list has not moved, which is what
-  // makes this safe to run on every `source` identity change (a poll's refetch
-  // hands back a fresh object each time) — an unchanged grid is returned as-is
-  // from the updater, so React bails out of the re-render.
+  // does not have, drops the row for a key the project no longer has, carries a
+  // renamed or retyped field's new name and type down onto its row, and returns
+  // every row it did not have to touch as the SAME object, so typed cells and
+  // this website's own location hints survive.
+  //
+  // Which is why the bail-out is by identity, not by comparing key lists: a
+  // rename moves no key at all, so a key-list guard would never let the new name
+  // through. Running the reconcile first and keeping `g` only when every row
+  // came back identical costs one pass over the rows and is what makes this safe
+  // to run on every `source` identity change (a poll's refetch hands back a
+  // fresh object each time) — an unchanged grid is returned as-is from the
+  // updater, so React bails out of the re-render.
   //
   // Gated on `seeded` for the same reason the arrival effect below is: before
   // the seeding effect's `setGrid` has been applied, `grid` is still the
@@ -152,9 +158,9 @@ export default function SourceSchema() {
     if (!seeded || !source) return;
     const definition = (Array.isArray(source.schemaDefinition) ? source.schemaDefinition : []) as Array<{ key: string; name: string; type: GridState['rows'][number]['type']; description: string }>;
     setGrid((g) => {
-      const have = JSON.stringify(g.rows.filter((r) => r.key).map((r) => r.key));
-      if (have === JSON.stringify(definition.map((f) => f.key)) && g.rows.every((r) => r.key)) return g;
-      return { ...g, rows: reconcileRows(g.rows, definition, g.urls.length) };
+      const next = reconcileRows(g.rows, definition, g.urls.length);
+      if (next.length === g.rows.length && next.every((r, i) => r === g.rows[i])) return g;
+      return { ...g, rows: next };
     });
   }, [source, seeded]);
 
@@ -375,7 +381,7 @@ export default function SourceSchema() {
       <Stepper
         steps={[
           { n: 1, title: 'Fields', detail: fieldCount ? `${fieldCount} field${fieldCount === 1 ? '' : 's'}` : 'none yet', state: s1 },
-          { n: 2, title: 'Pages and values', detail: 'until the mark screen lands', state: s2 },
+          { n: 2, title: 'Pages and values', detail: 'the pages and their values', state: s2 },
         ]}
       />
 
@@ -461,9 +467,9 @@ export default function SourceSchema() {
             {importIgnored.length > 0 && <p className="mt-1 text-xs text-warn">Not in this project, so skipped: {importIgnored.join(', ')}</p>}
           </div>
 
-          <p className="label-soft">
-            Field names and types come from the project. <Link to="/projects/$project" params={{ project: projectSlug }} className="underline-offset-2 hover:underline">Edit fields on the project page.</Link>
-          </p>
+          {/* Step 1 is directly above, so this no longer sends anyone to the
+              project page to do what the section overhead already does. */}
+          <p className="label-soft">Field names and types come from the project.</p>
 
           {arrivalNote && <p className="label-soft">{arrivalNote}</p>}
 
