@@ -20,6 +20,7 @@ import {
   removePage,
   canAddPage,
   planArrival,
+  reconcileRows,
   type GridState,
   type GridRow,
 } from './schema-grid';
@@ -496,5 +497,42 @@ describe('planArrival', () => {
   it('ready defaults to true when omitted, so existing callers/tests are unaffected', () => {
     const result = planArrival(base(), { addPage: 'https://s.example/4', field: 'price', locked: false });
     expect(result.kind).toBe('add');
+  });
+});
+
+describe('reconcileRows', () => {
+  it('appends rows for new keys, drops rows for removed keys, keeps existing cells', () => {
+    const rows = [{ ...emptyRow(), key: 'price', name: 'Price', type: 'money' as const, description: 'd', expected: ['1', '2', '3'] }];
+    const def = [
+      { key: 'price', name: 'Price', type: 'money' as const, description: 'd' },
+      { key: 'title', name: 'Title', type: 'text' as const, description: 'The product name' },
+    ];
+    const next = reconcileRows(rows, def);
+    expect(next.map((r) => r.key)).toEqual(['price', 'title']);
+    expect(next[0]!.expected).toEqual(['1', '2', '3']);
+    expect(next[1]).toMatchObject({ name: 'Title', type: 'text', description: 'The product name' });
+    expect(reconcileRows(next, [def[1]!]).map((r) => r.key)).toEqual(['title']);
+  });
+
+  it('a new row is as wide as the grid it joins, not as wide as a fresh one', () => {
+    const rows = [{ ...emptyRow(5), key: 'price', name: 'Price', type: 'money' as const, description: 'd', expected: ['1', '2', '3', '4', '5'] }];
+    const def = [
+      { key: 'price', name: 'Price', type: 'money' as const, description: 'd' },
+      { key: 'title', name: 'Title', type: 'text' as const, description: 'The product name' },
+    ];
+    expect(reconcileRows(rows, def, 5)[1]!.expected).toEqual(['', '', '', '', '']);
+    // Width inferred from the rows themselves when the caller does not say.
+    expect(reconcileRows(rows, def)[1]!.expected).toHaveLength(5);
+  });
+
+  it('leaves a grid alone when the definition has not moved (same rows, same objects)', () => {
+    const rows = [{ ...emptyRow(), key: 'price', name: 'Price', type: 'money' as const, description: 'd', expected: ['1', '2', '3'] }];
+    const def = [{ key: 'price', name: 'Price', type: 'money' as const, description: 'd' }];
+    expect(reconcileRows(rows, def)[0]).toBe(rows[0]);
+  });
+
+  it('an empty grid takes every key from the definition', () => {
+    const def = [{ key: 'title', name: 'Title', type: 'text' as const, description: 'h1' }];
+    expect(reconcileRows([], def).map((r) => r.key)).toEqual(['title']);
   });
 });
