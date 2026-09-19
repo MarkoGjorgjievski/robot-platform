@@ -102,6 +102,60 @@ Next: the screens. Plan order per spec §7: catalogue and step 1, step 2 with
 background captures, step 3 (the mark screen), then the proof-sheet controls,
 arrivals and the smoke run.
 
+## Schema stepper, step 1 (2026-09-19)
+
+Spec: `docs/superpowers/specs/2026-09-18-schema-stepper-with-marks-design.md`
+§2.1. Plan: `docs/superpowers/plans/2026-09-19-schema-stepper-step1-fields.md`.
+Branch `feat/schema-stepper-step1`, six tasks, each reviewed. The Schema tab is
+a stepper now: **1 · Fields** (the catalogue) and **2 · Pages and values**
+(today's proof sheet, standing in for spec §2.2 and §2.3 until they land).
+
+What landed, one line per task: `packages/api/src/schema-catalogue.ts` and
+`datasets.catalogue` — 20 to 30 entries per schema type, grouped, each carrying
+the engine `concept` so a catalogue field suggests and caches without
+`deriveConcept`'s name guessing; `datasets.addField` takes `description` and
+`concept`, and the description becomes every website's default location hint;
+`src/lib/schema-stepper-view.ts` (`stepOf`, `stepStates`, `sharedNote`,
+`addNote`) as pure decisions; `src/components/field-catalogue.tsx` — a schema
+type row with a 2px rail, then labelled rows of chips, a chip already in the
+contract reading "added" and disabled — wired into `ContractEditor`, so the
+project home's field list offers the same catalogue; `src/routes/source-schema.tsx`
+as the two-step stepper (`?step=fields|pages`, the grid as interim step 2) with
+`reconcileRows` carrying a field added, renamed, retyped or deleted in step 1
+down onto the grid's rows without losing typed cells; and this look-only
+browser check.
+
+Two amendments made while executing, recorded here rather than in the spec
+(spec §2.1 still describes the intent, not these details): `datasets.catalogue()` takes
+no input and returns every type in one object (the client picks; the list is a
+static module, so there is nothing to save by asking per type), and the
+proof sheet's "Edit fields on the project page" sentence is gone — step 1 sits
+directly above the grid, so the errand it sent the customer on no longer exists.
+
+The look-only browser check (`docs/testing/ui-check-schema-step1.mts`, five
+screenshots in `docs/testing/screens/`, 27 assertions, all green) found two
+things unit tests cannot see, both fixed:
+
+- **Adding the first field silently finished step 1.** The step is a search
+  param, and with no `?step` at all `stepOf` answers `pages` the moment the
+  project has a field — so the customer's own first chip faded the catalogue
+  they were still picking from to `done` and made "Next: pages" a no-op.
+  `source-schema.tsx` now pins `?step=fields` (replace) the first time the tab
+  opens on step 1 by itself; the Add website dialog already pinned it (§2.5).
+- **Wrapped chips did not line up.** The group label was the first item of the
+  same `flex-wrap` row, so on the project home's narrow left column a second
+  line of chips started under the label. The label is its own column now and
+  the chips wrap inside theirs.
+
+Left alone, for the redesign of step 2 to settle: the grid's "Where it is on
+this website" column is 240px, so the longest catalogue hint ("The product name
+as shown in the page heading") is clipped in its input.
+
+Next: **step 2 — pages with background captures** (spec §2.2): a listing URL
+that fills three proof-page slots, `sources.captureProofPage` running per slot
+in the background with a thumbnail, Swap and Try again, and Next enabled once
+every slot has a landed capture.
+
 ## Second-layout proof pages (2026-09-17)
 
 Spec: `docs/superpowers/specs/2026-09-17-second-layout-proof-pages-design.md`.
