@@ -58,6 +58,15 @@ names change every run, so they are gitignored — read them on disk, do not com
 | `settings.png` | The Settings tab, including the delete block |
 | `settings-delete.png` | Settings with the Delete website dialog open (never confirmed) |
 | `run-detail.png` | A run detail page: facts row, work list, probe gate, results sheet |
+| `schema-step1-empty.png` | Schema tab, step 1, a project with no fields: the catalogue and a dimmed step 2 |
+| `schema-step1-added.png` | Step 1 after three Product chips (Title, Price, Main image) were clicked |
+| `schema-step1-article.png` | Step 1 on the Article schema type — the chips swap, the field list does not |
+| `schema-step2-interim.png` | Step 2, the interim proof sheet, with each hint pre-filled from the catalogue |
+| `project-home-catalogue.png` | The project home's field list with the same catalogue under it |
+
+The last five come from `docs/testing/ui-check-schema-step1.mts` (1440×1000, full page; its
+header says how to run it). It creates its own throwaway project and website, walks step 1,
+and deletes the project again — it never touches a customer's real website.
 
 ## States with no current capture
 

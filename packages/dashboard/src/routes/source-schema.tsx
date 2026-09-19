@@ -238,6 +238,21 @@ export default function SourceSchema() {
   const contractEmpty = fieldCount === 0;
   const showProblems = touched && !contractEmpty && problems.length > 0;
 
+  // The open step lives in the url, and with no `?step` at all `stepOf` answers
+  // 'pages' the moment the project has one field. So a customer who opened this
+  // tab on step 1 (a project with no fields yet, arrived at from the websites
+  // list rather than through the Add website dialog, which already pins the
+  // step — spec 2026-09-18 §2.5) was moved off step 1 by their own first chip:
+  // the catalogue they were still picking from faded to `done` under their hands
+  // and "Next: pages" stopped meaning anything. Pinning the step the first time
+  // the tab opens on step 1 by itself makes that button the only thing that
+  // moves it on. `replace`, so it is not a history entry of its own, and the
+  // other params are carried through for the same reason `goto` carries them.
+  useEffect(() => {
+    if (!source || search.step || fieldCount > 0) return;
+    navigate({ to: '/projects/$project/sources/$source', params: { project: projectSlug, source: sourceSlug }, search: (s) => ({ ...s, step: 'fields' }), replace: true });
+  }, [source, search.step, fieldCount, navigate, projectSlug, sourceSlug]);
+
   const currentKeys = status?.currentKeys ?? [];
 
   // Fix 1+5: a cell must read as stale for the SAME reasons the strip's

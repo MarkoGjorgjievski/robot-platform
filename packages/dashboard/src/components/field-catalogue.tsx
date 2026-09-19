@@ -33,8 +33,13 @@ export function FieldCatalogue({ existingKeys, onAdd, pendingKey, note }: {
       </div>
       {current && current.groups.length === 0 && <p className="label-soft mt-3">No suggestions for a custom schema. Add your own fields below.</p>}
       {current?.groups.map((g) => (
-        <div key={g.name} className="mt-3 flex flex-wrap items-baseline gap-2">
+        // The group label is its own column and the chips wrap inside theirs:
+        // one flat `flex-wrap` row put the label in the flow, so on a narrow
+        // column (the project home's left half) a wrapped second line of chips
+        // started under the label instead of under the chips above it.
+        <div key={g.name} className="mt-3 flex items-baseline gap-2">
           <span className="label-soft w-24 flex-shrink-0">{g.name}</span>
+          <div className="flex min-w-0 flex-wrap items-baseline gap-2">
           {g.entries.map((en) => {
             const added = existingKeys.has(en.key);
             const pending = pendingKey === en.key;
@@ -48,6 +53,7 @@ export function FieldCatalogue({ existingKeys, onAdd, pendingKey, note }: {
               </button>
             );
           })}
+          </div>
         </div>
       ))}
       {note && <p className="label-soft mt-3">{note}</p>}
