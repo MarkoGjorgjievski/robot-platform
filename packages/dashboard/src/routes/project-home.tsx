@@ -28,6 +28,10 @@ export default function ProjectHome() {
   const { project } = statsQuery.data;
   const sources = sourcesQuery.data ?? [];
   const datasets = datasetsQuery.data ?? [];
+  // The project's field list length, read from the dataset already on the page.
+  // The output line below counts the same columns; the Add website dialog needs
+  // it to know which step of the new website's stepper to land on (spec §2.5).
+  const fieldCount = Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as Array<{ key?: unknown }>).filter((f) => typeof f.key === 'string').length : 0;
 
   return (
     <div>
@@ -56,7 +60,7 @@ export default function ProjectHome() {
             <div className="mt-6 border-t border-gray-200 pt-3">
               <p className="label-soft">Output</p>
               <p className="mt-0.5 text-sm">
-                <span className="font-mono">{Array.isArray(datasets[0]?.schema) ? (datasets[0]!.schema as Array<{ key?: unknown }>).filter((f) => typeof f.key === 'string').length : 0}</span> columns.{' '}
+                <span className="font-mono">{fieldCount}</span> columns.{' '}
                 <Link to="/projects/$project/output" params={{ project: projectSlug }} className="text-accent-700 underline-offset-2 hover:underline">Open</Link>
               </p>
             </div>
@@ -64,7 +68,7 @@ export default function ProjectHome() {
         </section>
       </div>
 
-      <AddWebsiteDialog open={adding} onClose={() => setAdding(false)} projectSlug={projectSlug} />
+      <AddWebsiteDialog open={adding} onClose={() => setAdding(false)} projectSlug={projectSlug} fieldCount={fieldCount} />
     </div>
   );
 }
@@ -100,7 +104,7 @@ function WebsiteRow({ projectSlug, source }: { projectSlug: string; source: { id
   );
 }
 
-function AddWebsiteDialog({ open, onClose, projectSlug }: { open: boolean; onClose: () => void; projectSlug: string }) {
+function AddWebsiteDialog({ open, onClose, projectSlug, fieldCount }: { open: boolean; onClose: () => void; projectSlug: string; fieldCount: number }) {
   const navigate = useNavigate();
   const utils = trpc.useUtils();
   const [url, setUrl] = useState('');
@@ -111,7 +115,10 @@ function AddWebsiteDialog({ open, onClose, projectSlug }: { open: boolean; onClo
       utils.sources.listByProject.invalidate({ orgSlug: DEFAULT_ORG_SLUG, projectSlug });
       utils.projects.list.invalidate();
       onClose();
-      navigate({ to: '/projects/$project/sources/$source', params: { project: r.projectSlug, source: r.sourceSlug } });
+      // Land on the step the new website actually needs (spec 2026-09-18 §2.5):
+      // its first field if the project has none yet, otherwise straight to the
+      // pages — the field list is shared, so a second website inherits it whole.
+      navigate({ to: '/projects/$project/sources/$source', params: { project: r.projectSlug, source: r.sourceSlug }, search: { step: fieldCount === 0 ? 'fields' : 'pages' } });
     },
   });
 
@@ -137,7 +144,7 @@ function AddWebsiteDialog({ open, onClose, projectSlug }: { open: boolean; onClo
           <input value={name} onChange={(e) => { setNameTouched(true); setName(e.target.value); }} className={fieldClass} placeholder="AbeBooks" />
         </label>
         <p className="mt-1 text-xs text-gray-600">Prefilled from the address. Change it to anything.</p>
-        <p className="mt-2 text-xs text-gray-600">Next you'll pick three product pages and fill in the expected values.</p>
+        <p className="mt-2 text-xs text-gray-600">{fieldCount === 0 ? "Next you'll add fields, then pick three product pages." : "Next you'll pick three product pages and fill in the expected values."}</p>
         {create.isError && <p className="mt-2 text-xs text-fail">{create.error.message}</p>}
         <div className="mt-4 flex justify-end gap-2">
           <button type="button" className="btn-quiet h-9" disabled={create.isPending} onClick={closeIfIdle}>Cancel</button>

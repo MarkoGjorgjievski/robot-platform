@@ -177,14 +177,46 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
   // a disabled `<input>` on the contract row — it checks for the field name
   // as text and the absence of any input carrying its value instead.
   it('a project and a website created through the new procedures render', async () => {
+    // No field is added through the API any more: the project starts empty, so
+    // the website's Schema tab opens on step 1 and the catalogue is what puts
+    // the field there — the walk below is the customer's own path (spec
+    // 2026-09-18 §2.1), not a fixture.
     const project = await client.projects.create.mutate({ name: `Smoke ${Date.now()}` });
     createdProjects.push(project.id);
-    await client.datasets.addField.mutate({ datasetId: project.datasetId, name: 'price', type: 'money' });
     const site = await client.sources.createInProject.mutate({ projectSlug: project.slug, name: 'Smoke site', url: 'https://smoke.example/' });
     created.push(site.sourceId);
 
     await checkRoute(`/projects/${project.slug}`);
     const route = `/projects/${project.slug}/sources/${site.sourceSlug}`;
+
+    // Step 1: the strip, the catalogue, and the field it adds. Done before
+    // `checkRoute` so everything after it sees a website that has a field.
+    const stepPage: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    try {
+      await stepPage.goto(DASHBOARD + route, { waitUntil: 'networkidle', timeout: 30_000 });
+      await stepPage.waitForTimeout(1500);
+      for (const [n, title] of [[1, 'Fields'], [2, 'Pages and values']] as const) {
+        expect(await stepPage.locator(`#extract-step-${n}`).getByText(title).count(), `${title} is missing`).toBeGreaterThan(0);
+      }
+      // Product is the catalogue's opening schema type.
+      expect(await stepPage.getByRole('tab', { name: 'Product' }).getAttribute('aria-selected'), 'Product is not the selected schema type').toBe('true');
+
+      // `exact` because the same group also offers "Price currency".
+      await stepPage.getByLabel('Add Price', { exact: true }).click();
+      // The field takes the catalogue's name, so the field list's row reads
+      // "Price". Scoped to the field list's own table because the catalogue
+      // underneath it has a group called Price too — an unscoped text match
+      // would pass on that alone, before any field existed.
+      await stepPage.locator('section[aria-labelledby="extract-step-1"] table.sheet').getByText('Price', { exact: true }).first().waitFor({ timeout: 15_000 });
+      await expect.poll(async () => stepPage.getByLabel('Price (added)', { exact: true }).isDisabled(), { timeout: 15_000 }).toBe(true);
+
+      await stepPage.getByRole('button', { name: 'Next: pages' }).click();
+      await expect.poll(() => new URL(stepPage.url()).searchParams.get('step'), { timeout: 10_000 }).toBe('pages');
+      expect(await stepPage.getByText('Where it is on this website').count(), 'step 2 did not open on the grid').toBeGreaterThan(0);
+    } finally {
+      await stepPage.close();
+    }
+
     await checkRoute(route);
     // The Extract tab on a website whose schema has never been verified: the
     // locked path, which is the one that renders with the most null data.
@@ -212,8 +244,12 @@ describe.skipIf(!ENABLED)('dashboard routes render', () => {
       }
       expect(await page.getByText('Where it is on this website').count(), 'the grid did not render').toBeGreaterThan(0);
       expect(await page.getByText('Smoke site').count(), 'the website name is not in the header').toBeGreaterThan(0);
-      expect(await page.locator('input[value="price"]').count(), 'the field name must not be an input').toBe(0);
-      expect(await page.getByText('price', { exact: true }).count(), 'the contract row is missing').toBeGreaterThan(0);
+      // The field came from the catalogue above, so it carries the catalogue's
+      // name. Scoped to step 2, the proof sheet: step 1 is still on screen
+      // (nothing disappears), and its catalogue has a "Price" group label.
+      const sheet = page.locator('section[aria-labelledby="extract-step-2"]');
+      expect(await sheet.locator('input[value="Price"]').count(), 'the field name must not be an input').toBe(0);
+      expect(await sheet.getByText('Price', { exact: true }).count(), 'the contract row is missing').toBeGreaterThan(0);
       expect(await page.getByRole('status').count(), 'the status strip is missing').toBeGreaterThan(0);
     } finally {
       await page.close();

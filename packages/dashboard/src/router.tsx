@@ -51,7 +51,9 @@ const sourceDetailLayoutRoute = createRoute({
 // The bare source URL is the Schema tab, always (spec 5.6). `addPage`/`field` are the
 // arrival params from a run (spec 2026-09-17 §6): a run page can link a customer
 // straight to a new proof page for a field that needs one, prefilled with the URL that
-// exposed it.
+// exposed it. `step` is which step of the Schema stepper is open (spec 2026-09-18 §2),
+// so a link can land on one; anything else is dropped, and the tab itself decides the
+// step from the field count when it is absent.
 const sourceSchemaRoute = createRoute({
   getParentRoute: () => sourceDetailLayoutRoute,
   path: '/',
@@ -59,6 +61,7 @@ const sourceSchemaRoute = createRoute({
   validateSearch: (s: Record<string, unknown>) => ({
     ...(typeof s.addPage === 'string' ? { addPage: s.addPage } : {}),
     ...(typeof s.field === 'string' ? { field: s.field } : {}),
+    ...(s.step === 'fields' || s.step === 'pages' ? { step: s.step } : {}),
   }),
 });
 // The Extract tab (phase 4): pages, sample, run.

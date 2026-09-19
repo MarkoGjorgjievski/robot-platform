@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearch, Link } from '@tanstack/react-router';
 import { trpc } from '../lib/trpc';
 import { DEFAULT_ORG_SLUG } from '../lib/constants';
-import { Spinner, ErrorBanner, NotFound, EmptyState } from '../components/page-states';
+import { Spinner, ErrorBanner, NotFound } from '../components/page-states';
 import { SchemaGrid, type CellStatus } from '../components/schema-grid';
 import { SchemaImport } from '../components/schema-import';
 import { StatusStrip } from '../components/status-strip';
-import { addPage, applyImportToRows, bindingProblems, canAddPage, emptyRow, emptyState, fromSource, isComplete, planArrival, removePage, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
+import { Stepper, Section } from '../components/stepper';
+import { ContractEditor } from '../components/contract-editor';
+import { addPage, applyImportToRows, bindingProblems, canAddPage, emptyRow, emptyState, fromSource, isComplete, planArrival, reconcileRows, removePage, toBindingInput, URL_COUNT, type GridRow, type GridState } from '../lib/schema-grid';
 import { cellStatusFor, isRowStale, reverifyKeys, verificationState, type VerificationResults } from '../lib/verification-view';
 import { stripState, columnStates, stripSummary, thinEvidenceNote, verifyButton, typeFixSuggestion, type TimeEstimate } from '../lib/schema-tab-view';
+import { stepOf, stepStates, sharedNote } from '../lib/schema-stepper-view';
 
 /**
  * The Schema tab (Task 15 brief) — what used to be Set-up. `fromSource`
@@ -18,6 +21,12 @@ import { stripState, columnStates, stripSummary, thinEvidenceNote, verifyButton,
  * verification run. Extract is gated on the LAST verification still being
  * current (schema hasn't changed since) and fully passing — enforced again
  * server-side by `crawl.plan`/`probeAndSample` (`requireCertification`).
+ *
+ * Since spec 2026-09-18 §2 the tab is a stepper: step 1 picks the project's
+ * fields (the catalogue, the same `datasets.*` mutations as the project home),
+ * step 2 is everything that was here before — the proof pages and their
+ * expected values. `?step=` says which one is open; with no fields there is
+ * only step 1 to be on, which is what `stepOf` enforces.
  */
 export default function SourceSchema() {
   const navigate = useNavigate();
@@ -114,6 +123,41 @@ export default function SourceSchema() {
     setSeeded(true);
   }, [source]);
 
+  // The project's field list can change while this tab is open — step 1 sits
+  // right above the grid now, and its catalogue adds a field to every website
+  // in the project. The seeding effect above will not run again (`initialized`
+  // is already true, and rightly so: a refetch must never clobber what the
+  // customer is mid-typing), so the grid would otherwise stay one field behind
+  // until a reload.
+  //
+  // `reconcileRows` is the narrow answer: it appends a row for a key the grid
+  // does not have, drops the row for a key the project no longer has, and
+  // returns every other row as the SAME object, so typed cells survive. It
+  // returns the grid unchanged when the key list has not moved, which is what
+  // makes this safe to run on every `source` identity change (a poll's refetch
+  // hands back a fresh object each time) — an unchanged grid is returned as-is
+  // from the updater, so React bails out of the re-render.
+  //
+  // Gated on `seeded` for the same reason the arrival effect below is: before
+  // the seeding effect's `setGrid` has been applied, `grid` is still the
+  // `emptyState()` placeholder, and reconciling that would replace the
+  // placeholder's unkeyed row with a fresh empty row per field — the seeding
+  // effect's job, one commit early and without the saved expected values.
+  // Not a customer edit, so it does not flip `touched`.
+  //
+  // Rows this drops are the ones whose key left the project, plus any row with
+  // no key at all; after seeding there are none of the latter (every seeded row
+  // carries its field's key, and import/paste only ever fill existing rows).
+  useEffect(() => {
+    if (!seeded || !source) return;
+    const definition = (Array.isArray(source.schemaDefinition) ? source.schemaDefinition : []) as Array<{ key: string; name: string; type: GridState['rows'][number]['type']; description: string }>;
+    setGrid((g) => {
+      const have = JSON.stringify(g.rows.filter((r) => r.key).map((r) => r.key));
+      if (have === JSON.stringify(definition.map((f) => f.key)) && g.rows.every((r) => r.key)) return g;
+      return { ...g, rows: reconcileRows(g.rows, definition, g.urls.length) };
+    });
+  }, [source, seeded]);
+
   // `active` (the table-locked state) has to be known before the arrival effect below
   // can decide whether to touch the grid, so this computation — normally read further
   // down alongside the rest of the strip's derived state — is pulled up here instead.
@@ -126,7 +170,7 @@ export default function SourceSchema() {
   // Arrival from a run (spec 2026-09-17 §6): a run page can link here with
   // `?addPage=<url>&field=<key>` for a field that needs another proof page.
   // router.tsx imports this component, so the route object cannot be imported back here.
-  const search = useSearch({ strict: false }) as { addPage?: string; field?: string };
+  const search = useSearch({ strict: false }) as { addPage?: string; field?: string; step?: string };
   const arrival = useRef(false);
   const [arrivalNote, setArrivalNote] = useState<string | null>(null);
   const [focusCell, setFocusCell] = useState<{ row: number; col: number } | null>(null);
@@ -184,7 +228,8 @@ export default function SourceSchema() {
   // fills in reads as dirty, not as already matching a saved state.
   const isDirty = JSON.stringify(toBindingInput(grid)) !== JSON.stringify(toBindingInput(savedGrid ?? emptyState()));
   const problems = bindingProblems(grid);
-  const contractEmpty = !Array.isArray(source?.schemaDefinition) || source.schemaDefinition.length === 0;
+  const fieldCount = Array.isArray(source?.schemaDefinition) ? source.schemaDefinition.length : 0;
+  const contractEmpty = fieldCount === 0;
   const showProblems = touched && !contractEmpty && problems.length > 0;
 
   const currentKeys = status?.currentKeys ?? [];
@@ -303,6 +348,19 @@ export default function SourceSchema() {
   // so the tab is only offered once there is something certified to run.
   const extractEnabled = !!(status?.current && status?.allPassed);
 
+  // The stepper (spec 2026-09-18 §2). `websiteCount` is how many websites share
+  // this project's field list — what step 1 says about a field it is about to
+  // add, and what turns its subtitle into "shared with n websites".
+  const websiteCount = (listQuery.data ?? []).length;
+  const step = stepOf(search, fieldCount);
+  const [s1, s2] = stepStates(step, fieldCount);
+  // The step is a search param, so moving between steps is a navigation, not a
+  // state change: it survives a reload and can be linked to (spec §2). The
+  // other params are carried through — an arrival's `addPage`/`field` must not
+  // be dropped by a step change that happens before it has been consumed.
+  const goto = (to: 'fields' | 'pages') =>
+    navigate({ to: '/projects/$project/sources/$source', params: { project: projectSlug, source: sourceSlug }, search: (s) => ({ ...s, step: to }) });
+
   function typeFix(rowId: string) {
     const row = grid.rows.find((r) => r.id === rowId);
     if (!row?.key || !source?.datasetId) return null;
@@ -313,23 +371,50 @@ export default function SourceSchema() {
   }
 
   return (
-    <div className="mt-6 space-y-4">
-      {showProblems && (
-        <div className="border-l-[3px] border-l-fail bg-fail-tint p-3 text-xs">
-          <ul className="list-inside list-disc text-fail">
-            {problems.map((p, i) => <li key={i}>{p}</li>)}
-          </ul>
-        </div>
-      )}
+    <div className="mt-6">
+      <Stepper
+        steps={[
+          { n: 1, title: 'Fields', detail: fieldCount ? `${fieldCount} field${fieldCount === 1 ? '' : 's'}` : 'none yet', state: s1 },
+          { n: 2, title: 'Pages and values', detail: 'until the mark screen lands', state: s2 },
+        ]}
+      />
 
-      {contractEmpty ? (
-        <EmptyState
-          title="No fields yet"
-          description="Add the fields you want on the project page. Every website in the project gets them."
-          action={<Link to="/projects/$project" params={{ project: projectSlug }} className="btn-primary h-9">Go to the project</Link>}
-        />
-      ) : (
-        <>
+      <Section
+        n={1}
+        title="Fields"
+        hint={sharedNote(websiteCount) ?? 'the columns of your output'}
+        state={s1}
+        onEdit={() => goto('fields')}
+      >
+        {source.datasetId ? (
+          <>
+            <ContractEditor datasetId={source.datasetId} projectSlug={projectSlug} websiteCount={websiteCount} />
+            <button type="button" className="btn-primary mt-4 h-9" disabled={fieldCount === 0} onClick={() => goto('pages')}>Next: pages</button>
+          </>
+        ) : (
+          // A website from before the project's field list existed. Nothing to
+          // edit here and nothing to edit it on, so say so rather than render
+          // an editor with no dataset behind it.
+          <p className="text-sm text-gray-600">This website has no project field list.</p>
+        )}
+      </Section>
+
+      <Section
+        n={2}
+        title="Pages and values"
+        hint="three product pages and what each field reads on them"
+        reason={fieldCount === 0 ? 'Add a field first' : undefined}
+        state={s2}
+      >
+        <div className="space-y-4">
+          {showProblems && (
+            <div className="border-l-[3px] border-l-fail bg-fail-tint p-3 text-xs">
+              <ul className="list-inside list-disc text-fail">
+                {problems.map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+            </div>
+          )}
+
           <StatusStrip
             summary={summary}
             stage={stage}
@@ -397,8 +482,8 @@ export default function SourceSchema() {
             onRemovePage={(i) => updateGrid((g) => removePage(g, i))}
             focusCell={focusCell}
           />
-        </>
-      )}
+        </div>
+      </Section>
     </div>
   );
 }

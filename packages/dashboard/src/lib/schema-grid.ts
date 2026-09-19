@@ -167,6 +167,26 @@ export function planArrival(state: GridState, args: { addPage?: string; field?: 
   return { kind: 'add', state: nextState, note, focus: rowIndex >= 0 ? { row: rowIndex, col } : null };
 }
 
+/**
+ * The project's field list changed under an open tab (a field added from the
+ * catalogue in step 1, or deleted): a row for every key the definition now has,
+ * none for a key it no longer has, and every row the grid already had left
+ * exactly as it was — same object, so its typed cells, id and width survive.
+ *
+ * Rows are returned in the definition's order, which is the order the contract
+ * itself is in; a grid whose rows were already in that order therefore does not
+ * shuffle. `width` is the grid's page count (`state.urls.length`): a new row has
+ * to be as wide as the grid it joins, or the invariant every row's
+ * `expected.length === state.urls.length` breaks on a grown grid (4-6 pages).
+ * It is inferred from the existing rows when the caller does not say, and falls
+ * back to a fresh grid's `URL_COUNT` for an empty one.
+ */
+export function reconcileRows(rows: GridRow[], definition: Array<{ key: string; name: string; type: GridFieldType; description: string }>, width?: number): GridRow[] {
+  const cells = width ?? rows[0]?.expected.length ?? URL_COUNT;
+  const byKey = new Map(rows.filter((r) => r.key).map((r) => [r.key!, r]));
+  return definition.map((d) => byKey.get(d.key) ?? { ...emptyRow(cells), key: d.key, name: d.name, type: d.type, description: d.description });
+}
+
 export function toBindingInput(state: GridState) {
   const urls = state.urls.map((u) => u.trim());
   const descriptions: Record<string, string> = {};
