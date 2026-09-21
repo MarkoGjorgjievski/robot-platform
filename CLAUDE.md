@@ -40,6 +40,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 - `pnpm dev:all` — start all three servers: api-server (:4000), the old dashboard (:3456) and the new app (:3000); neither UI is any use without the api-server
 - `pnpm dev:all:noai` — same as `dev:all`, but forces `ANTHROPIC_API_KEY` unset in the api-server process (`--env-mode=loose`, since turbo's default strict env mode otherwise swallows an ad-hoc `ANTHROPIC_API_KEY=` shell override). Use this to test the mechanical-only / AI-unavailable path
 - `pnpm --filter @robot/dashboard dev` — dashboard only, on :3456
+- `pnpm db:adopt-default -- --email <email>` — make that user the owner of the seeded `default` org, so an existing checkout's projects are visible after a first sign-in (sign-in never adopts anything itself)
 - `pnpm -r test` — the green gate (Tier 1 fixture replay + unit tests). Needs Postgres running
 - `pnpm test:judge` — calibrate the Tier 2 judge against known answers (live, paid)
 - `pnpm test:liveness` — do the corpus fixtures still match the pages their URLs serve? (live, free)
