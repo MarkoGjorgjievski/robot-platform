@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 import { Providers } from '../components/providers';
 import { getSession } from '../lib/session';
@@ -29,6 +29,15 @@ export const Route = createRootRoute({
 function RootDocument({ children }: { children: ReactNode }) {
   const { session } = Route.useRouteContext();
   const pref = session?.user.theme ?? 'dark';
+  // Frozen at the first render on purpose: `shellComponent` is a live client
+  // component, so a `router.invalidate()` after `auth.setTheme` re-renders it.
+  // If React kept owning `data-theme`, that re-render would patch the attribute
+  // back to the server's guess and undo the correct value `chooseTheme` just
+  // wrote — choosing "System" from Light on a light-preferring machine flipped
+  // the app to dark, because `serverTheme('system')` is `dark`. With the value
+  // frozen, `chooseTheme` and `THEME_BOOT_SCRIPT` are the only writers after
+  // the first paint.
+  const [rendered] = useState(() => serverTheme(pref));
 
   return (
     // `suppressHydrationWarning` is required, not cosmetic: for a `system`
@@ -38,7 +47,7 @@ function RootDocument({ children }: { children: ReactNode }) {
     // rendered against the one already in the DOM and warn on every light-mode
     // `system` load. The rewritten value is the correct one and React leaves it
     // alone; only the warning is suppressed, and only on this element.
-    <html lang="en" data-theme={serverTheme(pref)} suppressHydrationWarning>
+    <html lang="en" data-theme={rendered} suppressHydrationWarning>
       <head>
         <HeadContent />
         {/* Only `system` can be wrong on the server, and only then is a

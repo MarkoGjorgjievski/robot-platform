@@ -8,7 +8,13 @@ export type ProjectRow = {
   /** Websites, in customer wording (spec §4: no "source"). */
   sourceCount: number;
   fieldCount: number;
-  lastRun: { createdAt: Date; resultCount: number | null; status?: string | null } | null;
+  /**
+   * `completedAt` is part of the row, not decoration: `runDotState` reads it to
+   * tell a live run from one the api-server abandoned mid-flight, and
+   * `projects.list` returns it. Leaving it off the type made that branch look
+   * dead when it is the one that stops a dot pulsing forever.
+   */
+  lastRun: { createdAt: Date; resultCount: number | null; status?: string | null; completedAt?: Date | null } | null;
   createdAt: Date;
 };
 
