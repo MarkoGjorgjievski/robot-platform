@@ -45,6 +45,9 @@
   --color-line: var(--border);
   --color-line-hover: var(--border-hover);
   --color-text: var(--text);
+  /* `faint` is --muted: dividers, disabled states and placeholders. Never text
+     — it misses 4.5:1 on every surface in both themes, so `text-faint` is a
+     bug. Secondary text is `text-muted-foreground`. */
   --color-faint: var(--muted);
   --color-pass: var(--pass);
   --color-fail: var(--fail);
