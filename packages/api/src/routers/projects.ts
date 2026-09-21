@@ -1,11 +1,24 @@
 import { z } from 'zod';
-import { eq, sql, and, desc } from 'drizzle-orm';
+import { eq, sql, and, desc, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { projects, orgs, datasets, sources, runs } from '@robot/db';
-import { router, publicProcedure } from '../trpc';
+import { projects, datasets, sources, runs } from '@robot/db';
+import { router, publicProcedure, type Context } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
-import { loadCurrentCertification } from '../verify/current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency } from '../verify/current-certification.js';
+import { contractFields } from '../contract.js';
+
+/**
+ * The project by slug, inside the resolved org (spec 2026-09-21 §6 as restated:
+ * the procedures a rebuilt screen calls take the org from the session; the old
+ * dashboard still names it). Null when it is not there — callers decide between
+ * NOT_FOUND and a null answer.
+ * TODO(cut-over, spec 2026-09-21 §2): drop the `'default'` fallback with the old dashboard.
+ */
+async function findProjectInOrg(ctx: Context, projectSlug: string, orgSlug?: string) {
+  const org = await resolveOrg(ctx, orgSlug ?? 'default');
+  return ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, projectSlug)) });
+}
 
 export const projectsRouter = router({
   // TODO(cut-over, spec 2026-09-21 §2): the `orgSlug ?? 'default'` fallback exists only for the
@@ -99,50 +112,87 @@ export const projectsRouter = router({
     }),
 
   getBySlug: publicProcedure
-    .input(z.object({ orgSlug: z.string(), projectSlug: z.string() }))
+    .input(z.object({ projectSlug: z.string(), orgSlug: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
-        .select({ projectId: projects.id })
-        .from(projects)
-        .innerJoin(orgs, eq(projects.orgId, orgs.id))
-        .where(and(eq(orgs.slug, input.orgSlug), eq(projects.slug, input.projectSlug)))
-        .limit(1);
-
-      const row = rows[0];
-      if (!row) {
-        throw new Error(`Project not found: ${input.orgSlug}/${input.projectSlug}`);
+      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
+      if (!project) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Project not found: ${input.projectSlug}` });
       }
 
-      const project = await ctx.db.query.projects.findFirst({
-        where: eq(projects.id, row.projectId),
+      const full = await ctx.db.query.projects.findFirst({
+        where: eq(projects.id, project.id),
         with: {
           datasets: true,
         },
       });
 
-      if (!project) {
-        throw new Error(`Project not found: ${input.orgSlug}/${input.projectSlug}`);
+      if (!full) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Project not found: ${input.projectSlug}` });
       }
 
-      return project;
+      return full;
+    }),
+
+  /**
+   * The project home in one round trip (spec 2026-09-21 §5): the project, its
+   * contract, and every website with how many fields are verified on it and
+   * its last run. "Verified" is per-field currency — `loadFieldCurrency` — so
+   * a website that has certified 3 of 8 fields says so, rather than reading as
+   * unverified until every field is.
+   */
+  get: publicProcedure
+    .input(z.object({ projectSlug: z.string().min(1), orgSlug: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
+
+      const dataset = await ctx.db.query.datasets.findFirst({
+        where: eq(datasets.projectId, project.id),
+        orderBy: (d, { asc }) => [asc(d.createdAt)],
+        columns: { id: true, schema: true },
+      });
+      // `projects.create` always makes the dataset; a project without one is a
+      // legacy row, and the home reads as empty rather than failing.
+      const fields = dataset ? contractFields(dataset.schema) : [];
+
+      const siteRows = dataset
+        ? await ctx.db
+            .select({ id: sources.id, slug: sources.slug, name: sources.name, url: sources.urlTemplate })
+            .from(sources)
+            .where(eq(sources.datasetId, dataset.id))
+            .orderBy(sources.name)
+        : [];
+
+      const lastRuns = siteRows.length
+        ? await ctx.db
+            .selectDistinctOn([runs.sourceId], {
+              sourceId: runs.sourceId,
+              status: runs.status,
+              createdAt: runs.createdAt,
+              completedAt: runs.completedAt,
+              resultCount: runs.resultCount,
+            })
+            .from(runs)
+            .where(inArray(runs.sourceId, siteRows.map((s) => s.id)))
+            .orderBy(runs.sourceId, desc(runs.createdAt), desc(runs.id))
+        : [];
+      const lastRunBySource = new Map(lastRuns.map((r) => [r.sourceId!, { status: r.status, createdAt: r.createdAt, completedAt: r.completedAt, resultCount: r.resultCount }]));
+
+      const websites = await Promise.all(
+        siteRows.map(async (s) => ({
+          ...s,
+          verifiedFields: (await loadFieldCurrency(ctx.db, s.id)).currentKeys.length,
+          lastRun: lastRunBySource.get(s.id) ?? null,
+        })),
+      );
+
+      return { id: project.id, name: project.name, slug: project.slug, datasetId: dataset?.id ?? null, createdAt: project.createdAt, fields, websites };
     }),
 
   getWithStats: publicProcedure
-    .input(z.object({ orgSlug: z.string(), projectSlug: z.string() }))
+    .input(z.object({ projectSlug: z.string(), orgSlug: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
-        .select({ projectId: projects.id })
-        .from(projects)
-        .innerJoin(orgs, eq(projects.orgId, orgs.id))
-        .where(and(eq(orgs.slug, input.orgSlug), eq(projects.slug, input.projectSlug)))
-        .limit(1);
-
-      const row = rows[0];
-      if (!row) return null;
-
-      const project = await ctx.db.query.projects.findFirst({
-        where: eq(projects.id, row.projectId),
-      });
+      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
       if (!project) return null;
 
       const [datasetCount, sourceCount, runCount, lastRun] = await Promise.all([
