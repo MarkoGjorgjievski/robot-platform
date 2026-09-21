@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, users, memberships, sessions } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -73,5 +73,23 @@ describe('schema verification columns', () => {
   it('sources and runs carry the schema-verification columns', () => {
     expect(Object.keys(sources)).toEqual(expect.arrayContaining(['schemaDefinition', 'verificationSet', 'driftedFields']));
     expect(Object.keys(runs)).toContain('driftedFields');
+  });
+});
+
+describe('identity', () => {
+  it('a user, a membership and a session round-trip; the pair (user, org) is unique', async () => {
+    const [org] = await db.insert(orgs).values({ name: `Id ${Date.now()}`, slug: `id-${Date.now()}` }).returning();
+    const [user] = await db.insert(users).values({ email: `id-${Date.now()}@example.com`, name: 'Id', avatarColour: '#3ddc84' }).returning();
+    try {
+      await db.insert(memberships).values({ userId: user!.id, orgId: org!.id, role: 'owner' });
+      await expect(db.insert(memberships).values({ userId: user!.id, orgId: org!.id, role: 'member' })).rejects.toThrow();
+      const [s] = await db.insert(sessions).values({ token: 'tok-' + Date.now(), userId: user!.id, orgId: org!.id, expiresAt: new Date(Date.now() + 1000) }).returning();
+      expect(s!.userId).toBe(user!.id);
+      await db.update(orgs).set({ personal: true, ownerUserId: user!.id }).where(eq(orgs.id, org!.id));
+      expect((await db.query.orgs.findFirst({ where: eq(orgs.id, org!.id) }))!.personal).toBe(true);
+    } finally {
+      await db.delete(users).where(eq(users.id, user!.id));
+      await db.delete(orgs).where(eq(orgs.id, org!.id));
+    }
   });
 });

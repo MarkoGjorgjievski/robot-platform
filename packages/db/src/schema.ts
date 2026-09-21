@@ -9,6 +9,10 @@ export const orgs = pgTable('orgs', {
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull().unique(),
   description: text('description'),
+  // True for the auto-created personal org every user gets; false for a shared org.
+  personal: boolean('personal').notNull().default(false),
+  // Set for a personal org (its one owner); null for a shared org. Set null if that user is removed.
+  ownerUserId: uuid('owner_user_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -16,6 +20,57 @@ export const orgs = pgTable('orgs', {
 export const orgsRelations = relations(orgs, ({ many }) => ({
   extractors: many(extractors),
   projects: many(projects),
+  memberships: many(memberships),
+}));
+
+// ─── Identity (spec 2026-09-21 §2) ──────────────────────────────────────────
+// A user belongs to orgs through memberships; a session names the user and
+// the org they are currently working in. Sign-in is a stub for now (any
+// password), so there is no password column: the tables are shaped for real
+// auth later, not for this one.
+
+export const MEMBERSHIP_ROLES = ['owner', 'admin', 'member'] as const;
+export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
+export const USER_THEMES = ['dark', 'light', 'system'] as const;
+export type UserTheme = (typeof USER_THEMES)[number];
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  avatarColour: varchar('avatar_colour', { length: 7 }).notNull(),
+  theme: varchar('theme', { length: 10 }).notNull().default('dark'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const memberships = pgTable('memberships', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 10 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('memberships_user_org_idx').on(table.userId, table.orgId),
+  index('memberships_org_id_idx').on(table.orgId),
+]);
+
+export const sessions = pgTable('sessions', {
+  token: varchar('token', { length: 64 }).primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [index('sessions_user_id_idx').on(table.userId)]);
+
+export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships), sessions: many(sessions) }));
+export const membershipsRelations = relations(memberships, ({ one }) => ({
+  user: one(users, { fields: [memberships.userId], references: [users.id] }),
+  org: one(orgs, { fields: [memberships.orgId], references: [orgs.id] }),
+}));
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, { fields: [sessions.userId], references: [users.id] }),
+  org: one(orgs, { fields: [sessions.orgId], references: [orgs.id] }),
 }));
 
 // ─── Projects ───────────────────────────────────────────────────────────────
