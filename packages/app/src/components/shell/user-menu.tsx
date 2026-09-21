@@ -1,6 +1,6 @@
 import { useRouter, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { MoreHorizontal, UserRound, LogOut } from 'lucide-react';
+import { MoreHorizontal, SunMoon, UserRound, LogOut } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { resolveTheme, type Theme } from '../../lib/theme';
 import { trpc } from '../../lib/trpc';
@@ -74,7 +74,12 @@ export function UserMenu({ session }: { session: Session }) {
 
       <DropdownMenuContent align="start" side="top" sideOffset={6} className="w-[232px]">
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="text-base">Theme</DropdownMenuSubTrigger>
+          {/* The icon is here so the three labels start on one line: Account and
+              Sign out carry one, and a bare "Theme" sat 18 px to their left. */}
+          <DropdownMenuSubTrigger className="text-base">
+            <SunMoon className="size-3.5" />
+            Theme
+          </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-[148px]">
             <DropdownMenuRadioGroup
               value={session.user.theme}
