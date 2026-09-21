@@ -1,4 +1,5 @@
 import { useRouter, useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { MoreHorizontal, UserRound, LogOut } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { resolveTheme, type Theme } from '../../lib/theme';
@@ -28,7 +29,7 @@ const THEME_ITEMS: Array<{ value: Theme; label: string }> = [
 export function UserMenu({ session }: { session: Session }) {
   const router = useRouter();
   const navigate = useNavigate();
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
 
   const setTheme = trpc.auth.setTheme.useMutation({ onSuccess: () => router.invalidate() });
   const signOut = trpc.auth.signOut.useMutation();
@@ -44,9 +45,13 @@ export function UserMenu({ session }: { session: Session }) {
 
   async function onSignOut() {
     await signOut.mutateAsync();
-    // The cookie is gone; drop every cached answer that was scoped to it before
-    // the next screen can render with the last user's data.
-    utils.invalidate();
+    // `clear`, not `invalidate`. Invalidating marks the cached answers stale but
+    // leaves them in the cache, and the QueryClient lives in `Providers` — one
+    // per browser session, not one per user. Sign out, sign in as someone else
+    // in the same tab, and the projects table would render the previous
+    // account's rows from that cache until the refetch landed. Clearing throws
+    // the data away, so there is nothing of theirs left to paint.
+    queryClient.clear();
     await router.invalidate();
     await navigate({ to: '/login' });
   }

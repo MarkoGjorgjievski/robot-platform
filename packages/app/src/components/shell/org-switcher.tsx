@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronsUpDown, Plus } from 'lucide-react';
 import type { Session, SessionOrg } from '../../lib/session';
 import { trpc } from '../../lib/trpc';
@@ -31,15 +32,37 @@ const ROLE_LABEL: Record<SessionOrg['role'], string> = {
 
 export function OrgSwitcher({ session }: { session: Session }) {
   const router = useRouter();
-  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
 
   const current = session.currentOrg;
 
-  // Both mutations move the session's org on the server, so the router has to
-  // re-run its beforeLoad, and every cached query belongs to the old org.
+  /**
+   * Both mutations move the session's org on the server, so the router has to
+   * re-run its `beforeLoad` — and every cached answer belongs to the org we
+   * just left.
+   *
+   * `resetQueries`, and neither `invalidate` nor `removeQueries`:
+   *
+   * - invalidating marks a query stale but leaves its data in place, so the
+   *   table goes on rendering the organisation we just left until the refetch
+   *   lands.
+   * - removing drops the row, which fixes the ⌘K palette (its query is
+   *   `enabled` only while the palette is open, so it is inactive here) but
+   *   leaves the *mounted* table's observer holding its last result with
+   *   nothing to trigger a new fetch. Measured in the browser: after creating
+   *   an organisation the breadcrumb said the new one while the table still
+   *   listed the old one's project, indefinitely.
+   * - resetting does both: back to pending, and active queries refetch.
+   *
+   * It runs *before* the router invalidation, which is the only way the stale
+   * rows never reach the screen at all: `router.invalidate()` is a server
+   * round-trip and anything left in the cache is painted throughout it. The
+   * mutation has already committed the new org to the session row, so the
+   * refetch this starts is answered for the new organisation.
+   */
   async function afterOrgChange() {
-    await utils.invalidate();
+    void queryClient.resetQueries();
     await router.invalidate();
   }
 
@@ -125,7 +148,9 @@ function CreateOrgDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      {/* No close cross: this dialog has a Cancel, and two ways out of one
+          small form is one too many. */}
+      <DialogContent showCloseButton={false} className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle>Create organisation</DialogTitle>
           <DialogDescription>

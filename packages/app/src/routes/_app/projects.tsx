@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Page } from '../../components/page';
 import { RunDot } from '../../components/run-dot';
 import { Button } from '../../components/ui/button';
@@ -21,13 +21,22 @@ export const Route = createFileRoute('/_app/projects')({
   component: ProjectsPage,
 });
 
-/** Plan 2 gives a project its own page; until then the name is text, and says so. */
-const NAME_TITLE = 'Opens in plan 2';
-
 function ProjectsPage() {
+  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
+  // Plan 2 gives a project its own page; until then the name is plain text,
+  // with no tooltip — "opens in plan 2" is our word for our schedule, and it
+  // does not belong in a surface the customer reads.
   const projects = trpc.projects.list.useQuery();
   const rows = projectsView(projects.data ?? []);
+
+  // A refused query is not a failure to report, it is a session that ended:
+  // send them to sign in rather than leaving an error on a screen they are no
+  // longer entitled to.
+  const unauthorized = projects.error?.data?.code === 'UNAUTHORIZED';
+  useEffect(() => {
+    if (unauthorized) void navigate({ to: '/login' });
+  }, [unauthorized, navigate]);
 
   // An empty table head over nothing is furniture: when there is no project
   // yet, the panel holds one sentence and the way out of it, and nothing else.
@@ -79,9 +88,7 @@ function ProjectsPage() {
                     key={project.id}
                     className="border-b border-line transition-colors last:border-0 hover:bg-raised"
                   >
-                    <td className="max-w-0 truncate px-4 py-2.5">
-                      <span title={NAME_TITLE}>{project.name}</span>
-                    </td>
+                    <td className="max-w-0 truncate px-4 py-2.5">{project.name}</td>
                     <td className="px-3 py-2.5 text-right font-mono tabular-nums">{project.websites}</td>
                     <td className="px-3 py-2.5 text-right font-mono tabular-nums">{project.fields}</td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">
@@ -109,10 +116,19 @@ function ProjectsPage() {
           </div>
         ) : null}
 
-        {projects.isError ? (
-          <p role="alert" className="px-4 py-5 text-base text-fail">
-            The projects could not be loaded. Check that the api-server is running.
-          </p>
+        {/* No cause is named: from here a failure could be the network, the
+            api-server, the database or a bug, and telling someone to check a
+            server they may not run is a guess dressed as advice. Say what
+            happened and offer the one action that can change it. */}
+        {projects.isError && !unauthorized ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-5">
+            <p role="alert" className="text-base text-fail">
+              Could not load projects.
+            </p>
+            <Button variant="outline" onClick={() => void projects.refetch()} disabled={projects.isFetching}>
+              {projects.isFetching ? 'Retrying…' : 'Retry'}
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -164,7 +180,8 @@ function NewProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      {/* Cancel is the way out; the close cross would be a second one. */}
+      <DialogContent showCloseButton={false} className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
