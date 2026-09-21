@@ -1,14 +1,27 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, datasets, runs } from '@robot/db';
+import { db, projects, datasets, runs, orgs, users } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { loadSession } from '../auth/session.js';
 
 const caller = createCallerFactory(appRouter)({ db, session: null });
 const created: string[] = [];
 
 afterEach(async () => {
   for (const id of created.splice(0)) await db.delete(projects).where(eq(projects.id, id)); // datasets cascade
+});
+
+// Guards against adopting the seeded `default` org, same as auth.test.ts and
+// orgs.test.ts: keeps `users` non-empty for the two sign-ins below.
+const SENTINEL = `sentinel-projects-${Date.now()}@example.com`;
+
+beforeAll(async () => {
+  await db.insert(users).values({ email: SENTINEL, name: 'Sentinel', avatarColour: '#000000' });
+});
+
+afterAll(async () => {
+  await db.delete(users).where(eq(users.email, SENTINEL));
 });
 
 describe('projects.create', () => {
@@ -75,5 +88,39 @@ describe('projects.list stats', () => {
     const rowB = rows.find((r) => r.id === b.id)!;
     expect(rowA.lastRun?.resultCount).toBe(7);
     expect(rowB.lastRun?.resultCount).toBe(3);
+  });
+});
+
+describe('projects live in the session organisation', () => {
+  it("a project is invisible outside its org, and the old orgSlug-less caller still lists the default org", async () => {
+    const tag = Date.now();
+    const signIn = async (email: string) => {
+      const cookies: Record<string, string | null> = {};
+      const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
+      const r = await c.auth.signIn({ email, password: 'x' });
+      return { ...r, session: (await loadSession(db, cookies['robot_session']!))! };
+    };
+    const a = await signIn(`proj-a-${tag}@example.com`);
+    const b = await signIn(`proj-b-${tag}@example.com`);
+    try {
+      const callerA = createCallerFactory(appRouter)({ db, session: a.session });
+      const callerB = createCallerFactory(appRouter)({ db, session: b.session });
+      const p = await callerA.projects.create({ name: `Isolated ${tag}` });
+
+      const bList = await callerB.projects.list();
+      expect(bList.some((row) => row.id === p.id)).toBe(false);
+
+      await expect(callerB.projects.delete({ projectId: p.id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+      // The old dashboard's shape: no session, no orgSlug — falls back to `default`.
+      const legacy = await caller.projects.list({ orgSlug: 'default' });
+      expect(Array.isArray(legacy)).toBe(true);
+    } finally {
+      for (const r of [a, b]) {
+        await db.delete(projects).where(eq(projects.orgId, r.org.id));
+        await db.delete(orgs).where(eq(orgs.id, r.org.id));
+        await db.delete(users).where(eq(users.id, r.user.id));
+      }
+    }
   });
 });
