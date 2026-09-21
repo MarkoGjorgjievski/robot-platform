@@ -75,9 +75,11 @@ plan (spec §7, plan 6) deletes it together with `DEFAULT_ORG_SLUG`. Migration:
 **The incident (read before touching the dev database).** While executing an
 earlier task of this plan, an implementer signed in ad hoc against the dev
 database. Sign-in then *adopted* the seeded `default` org, and the cleanup that
-followed deleted that user — which cascaded to the org and took **every project
-with it**. The data was rebuilt from the cached certified paths at $0 (nothing
-paid was lost), but the rules changed:
+followed deleted **that org** — which cascades to everything under it and so
+took **every project with it**. (Deleting the user alone would not have done it:
+`orgs.owner_user_id` is `on delete set null`. It was the org row that went.) The
+data was rebuilt from the cached certified paths at $0 (nothing paid was lost),
+but the rules changed:
 
 - adoption of `default` is never automatic. It is the explicit script
   `pnpm db:adopt-default -- --email <email>` (`packages/db/src/scripts/adopt-default.ts`).
@@ -160,6 +162,11 @@ floating over it has no shadow to find.
 - a placeholder is `--secondary`, the same grey as its label, because `--muted`
   misses 4.5:1 on every surface. An empty field therefore reads a little like a
   filled one.
+- the focus ring is a 1 px outline in `--text` at 2 px offset, not the
+  `--border-hover` the plan asked for: `#333333` on `#0a0a0a` is all but
+  invisible, and a focus ring that cannot be seen is not one. It is crisp and has
+  no glow, so it stays inside the system's register — but it is brighter than the
+  plan intended and Marko should look at it.
 
 **Next: plan 2** — project home, fields, output (spec §5 rows 3 to 5).
 
