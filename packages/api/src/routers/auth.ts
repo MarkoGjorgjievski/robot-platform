@@ -23,15 +23,22 @@ export const authRouter = router({
     .input(z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       // Any password signs in for now (spec §9): the shape is here, the check is not.
-      const { user, org } = await ctx.db.transaction(async (tx) => {
+      // The membership is resolved inside the transaction and its role reused below,
+      // so the org a session lands on is always one the user is still a member of.
+      const { user, org, role } = await ctx.db.transaction(async (tx) => {
         const existing = await tx.query.users.findFirst({ where: eq(users.email, input.email) });
         if (existing) {
-          // Back to the org they last worked in, else the one they joined most recently.
+          // Back to the org they last worked in — but only while they are still a
+          // member of it; otherwise the org they joined most recently.
           const last = await tx.query.sessions.findFirst({ where: eq(sessions.userId, existing.id), orderBy: [desc(sessions.createdAt)] });
-          const orgId = last?.orgId ?? (await tx.query.memberships.findFirst({ where: eq(memberships.userId, existing.id), orderBy: [desc(memberships.createdAt)] }))?.orgId;
-          if (!orgId) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'This account has no organisation' });
-          const org = (await tx.query.orgs.findFirst({ where: eq(orgs.id, orgId) }))!;
-          return { user: existing, org };
+          const lastMembership = last
+            ? await tx.query.memberships.findFirst({ where: and(eq(memberships.userId, existing.id), eq(memberships.orgId, last.orgId)) })
+            : undefined;
+          const membership = lastMembership
+            ?? await tx.query.memberships.findFirst({ where: eq(memberships.userId, existing.id), orderBy: [desc(memberships.createdAt)] });
+          if (!membership) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'This account has no organisation' });
+          const org = (await tx.query.orgs.findFirst({ where: eq(orgs.id, membership.orgId) }))!;
+          return { user: existing, org, role: membership.role };
         }
         // Counted before the insert below: "no user exists yet" is the state this sign-in found.
         const [before] = await tx.select({ n: count() }).from(users);
@@ -39,20 +46,22 @@ export const authRouter = router({
         const name = nameFromEmail(input.email);
         const [created] = await tx.insert(users).values({ email: input.email, name, avatarColour: avatarColourFor(input.email) }).returning();
         const user = created!;
-        const slug = await uniqueSlug(slugify(name), async (s) => !!(await tx.query.orgs.findFirst({ where: eq(orgs.slug, s) })));
         let org;
         if (planFirstOrg({ userCount: Number(before!.n), hasDefault: !!seeded }) === 'adopt') {
-          [org] = await tx.update(orgs).set({ name, slug, personal: true, ownerUserId: user.id, updatedAt: new Date() }).where(eq(orgs.id, seeded!.id)).returning();
+          // The slug stays `default`: projects.create, the old dashboard's
+          // DEFAULT_ORG_SLUG and the `orgSlug` joins still look this org up by it,
+          // and they only go away with the cut-over plan.
+          [org] = await tx.update(orgs).set({ name, personal: true, ownerUserId: user.id, updatedAt: new Date() }).where(eq(orgs.id, seeded!.id)).returning();
         } else {
+          const slug = await uniqueSlug(slugify(name), async (s) => !!(await tx.query.orgs.findFirst({ where: eq(orgs.slug, s) })));
           [org] = await tx.insert(orgs).values({ name, slug, personal: true, ownerUserId: user.id }).returning();
         }
         await tx.insert(memberships).values({ userId: user.id, orgId: org!.id, role: 'owner' });
-        return { user, org: org! };
+        return { user, org: org!, role: 'owner' };
       });
       const token = mintToken();
       await ctx.db.insert(sessions).values({ token, userId: user.id, orgId: org.id, expiresAt: new Date(Date.now() + SESSION_MAX_AGE_S * 1000) });
       ctx.setCookie?.(SESSION_COOKIE, token, { maxAge: SESSION_MAX_AGE_S });
-      const role = (await ctx.db.query.memberships.findFirst({ where: and(eq(memberships.userId, user.id), eq(memberships.orgId, org.id)) }))!.role;
       return { user: { id: user.id, email: user.email, name: user.name, avatarColour: user.avatarColour, theme: user.theme }, org: orgOut(org, role) };
     }),
 
