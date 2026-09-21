@@ -47,6 +47,19 @@ async function lockSources(tx: Pick<Database, 'select'>, datasetId: string) {
     .for('update');
 }
 
+/** Re-reads the dataset's own row with a row lock, inside the caller's transaction, right
+ * before the `UPDATE datasets` that rewrites its schema, and hands back the schema as
+ * stored right now. `loadDataset`'s copy is read outside any transaction, so two
+ * overlapping `addField` calls — two chips clicked in a row, which the catalogue makes
+ * easy — both computed `[...schema, field]` from the same pre-transaction copy and the
+ * second commit erased the first one's field. Locking here makes the second call block
+ * until the first commits, then build its new schema (and re-derive its minted key and
+ * its duplicate-name refusal) from what is actually stored. */
+async function lockDatasetSchema(tx: Pick<Database, 'select'>, datasetId: string) {
+  const [row] = await tx.select({ schema: datasets.schema }).from(datasets).where(eq(datasets.id, datasetId)).for('update');
+  return (Array.isArray(row?.schema) ? row.schema : []) as Array<Record<string, unknown>>;
+}
+
 function assertNameFree(contract: ContractField[], name: string, exceptKey?: string) {
   const lower = name.trim().toLowerCase();
   if (contract.some((f) => f.key !== exceptKey && f.name.trim().toLowerCase() === lower)) {
@@ -235,31 +248,34 @@ export const datasetsRouter = router({
       concept: z.string().regex(/^[a-z][a-z0-9_]*$/).max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // `loadDataset` answers only "does this dataset exist"; the schema the new field is
+      // appended to — and the name check and minted key derived from it — come from the
+      // locked re-read inside the transaction.
       const ds = await loadDataset(ctx.db, input.datasetId);
-      const schema = (Array.isArray(ds.schema) ? ds.schema : []) as Array<Record<string, unknown>>;
-      const contract = contractFields(schema);
-      assertNameFree(contract, input.name);
-      const key = deriveKey(input.name, new Set(contract.map((f) => f.key)));
-      const concept = input.concept ?? deriveConcept(input.name, input.type);
-      const description = input.description ?? '';
-      const field: ContractField = { key, name: input.name, type: input.type, concept, ...(description ? { description } : {}) };
-      const affectedSourceIds = await ctx.db.transaction(async (tx) => {
+      return ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        const contract = contractFields(schema);
+        assertNameFree(contract, input.name);
+        const key = deriveKey(input.name, new Set(contract.map((f) => f.key)));
+        const concept = input.concept ?? deriveConcept(input.name, input.type);
+        const description = input.description ?? '';
+        const field: ContractField = { key, name: input.name, type: input.type, concept, ...(description ? { description } : {}) };
         await tx.update(datasets).set({ schema: [...schema, field], updatedAt: new Date() }).where(eq(datasets.id, ds.id));
         const locked = await lockSources(tx, ds.id);
-        return propagate(tx, locked, key, { add: { key, name: input.name, type: input.type, description, concept } });
+        const affectedSourceIds = await propagate(tx, locked, key, { add: { key, name: input.name, type: input.type, description, concept } });
+        return { key, name: input.name, type: input.type, concept, description, affectedSourceIds };
       });
-      return { key, name: input.name, type: input.type, concept, description, affectedSourceIds };
     }),
 
   renameField: publicProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), name: z.string().trim().min(1).max(100) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDataset(ctx.db, input.datasetId);
-      const schema = (Array.isArray(ds.schema) ? ds.schema : []) as Array<Record<string, unknown>>;
-      const contract = contractFields(schema);
-      if (!contract.some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
-      assertNameFree(contract, input.name, input.key);
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        const contract = contractFields(schema);
+        if (!contract.some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
+        assertNameFree(contract, input.name, input.key);
         await tx.update(datasets).set({ schema: schema.map((f) => (f.key === input.key ? { ...f, name: input.name } : f)), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, { name: input.name });
@@ -272,8 +288,6 @@ export const datasetsRouter = router({
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), type: z.enum(CUSTOMER_FIELD_TYPES) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDataset(ctx.db, input.datasetId);
-      const schema = (Array.isArray(ds.schema) ? ds.schema : []) as Array<Record<string, unknown>>;
-      if (!contractFields(schema).some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
       for (const s of ds.sources) {
         const { currentKeys } = await loadFieldCurrency(ctx.db, s.id);
         if (currentKeys.includes(input.key)) {
@@ -281,6 +295,8 @@ export const datasetsRouter = router({
         }
       }
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        if (!contractFields(schema).some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
         await tx.update(datasets).set({ schema: schema.map((f) => (f.key === input.key ? { ...f, type: input.type } : f)), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, { type: input.type });
@@ -292,9 +308,9 @@ export const datasetsRouter = router({
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDataset(ctx.db, input.datasetId);
-      const schema = (Array.isArray(ds.schema) ? ds.schema : []) as Array<Record<string, unknown>>;
-      if (!contractFields(schema).some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        if (!contractFields(schema).some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
         await tx.update(datasets).set({ schema: schema.filter((f) => f.key !== input.key), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, null);

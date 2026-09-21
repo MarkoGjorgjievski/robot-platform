@@ -41,6 +41,35 @@ describe('datasets.addField', () => {
     await expect(caller.datasets.addField({ datasetId: p.datasetId, name: 'price', type: 'text' })).rejects.toThrow(/already/i);
     await expect(caller.datasets.addField({ datasetId: p.datasetId, name: 'detail_url', type: 'url' })).rejects.toThrow(/reserved/i);
   });
+  // Two chips clicked in a row is step 1's own happy path. Both calls used to read the
+  // dataset schema outside their transaction and write `[...schema, field]`, so whichever
+  // committed second erased the other's field. Each contract mutation now re-reads the
+  // dataset row FOR UPDATE inside its transaction (`lockDatasetSchema`), so the second
+  // call waits for the first and appends to what is actually stored.
+  it('two concurrent adds both land, on the contract and on every website', async () => {
+    const p = await project();
+    const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'A', url: 'https://a.example/' });
+    await Promise.all([
+      caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' }),
+      caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' }),
+    ]);
+    const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
+    expect((ds!.schema as Array<{ key: string }>).map((f) => f.key).sort()).toEqual(['price', 'title']);
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, a.sourceId) });
+    expect((s!.schemaDefinition as SchemaDefinitionField[]).map((f) => f.key).sort()).toEqual(['price', 'title']);
+  });
+  it('two concurrent adds of the same name: one lands, the other is refused as a duplicate', async () => {
+    const p = await project();
+    const settled = await Promise.allSettled([
+      caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' }),
+      caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' }),
+    ]);
+    expect(settled.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const refused = settled.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(String(refused.reason)).toMatch(/already exists/i);
+    const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
+    expect(ds!.schema as unknown[]).toHaveLength(1);
+  });
   it('keeps legacy unkeyed entries in the dataset schema', async () => {
     const p = await project();
     await db.update(datasets).set({ schema: [{ name: 'legacy', type: 'text', origin: 'listing' }] }).where(eq(datasets.id, p.datasetId));

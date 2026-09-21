@@ -43,8 +43,14 @@ export function FieldCatalogue({ existingKeys, onAdd, pendingKey, note }: {
           {g.entries.map((en) => {
             const added = existingKeys.has(en.key);
             const pending = pendingKey === en.key;
+            // Every chip goes dead while ANY add is in flight, not just the pending
+            // one: two overlapping `addField` calls raced on the contract until the
+            // mutations took a row lock, and there is one `pendingKey` slot, so a
+            // second spinner had nowhere to show. One add at a time also keeps the
+            // chips honest — the second chip's "added" state only arrives with the
+            // refetch the first one triggers.
             return (
-              <button key={en.key} type="button" disabled={added || pending} title={en.description} aria-label={added ? `${en.name} (added)` : `Add ${en.name}`}
+              <button key={en.key} type="button" disabled={added || pendingKey !== null} title={en.description} aria-label={added ? `${en.name} (added)` : `Add ${en.name}`}
                 onClick={() => onAdd(en)}
                 className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${added ? 'border-gray-200 text-gray-600' : 'border-gray-300 text-gray-900 hover:border-accent-600'}`}>
                 {pending && <Loader2 className="h-3 w-3 animate-spin" />}
