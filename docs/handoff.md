@@ -67,9 +67,13 @@ untouched on :3456 until parity, then goes (spec §7).
 me / switchOrg / setTheme`; `orgs.create / rename / delete / members.*`;
 `resolveOrg(ctx, fallbackSlug)` in the customer procedures, which takes the org
 from `ctx.org` when a session exists and otherwise from the `orgSlug` input. That
-fallback — `orgSlug ?? 'default'` in `projects.list / create / delete` — is the
+fallback — `orgSlug ?? 'default'` in `projects.list / create / delete / rename` — is the
 **shim** that keeps `@robot/dashboard` working while both apps run; the cut-over
-plan (spec §7, plan 6) deletes it together with `DEFAULT_ORG_SLUG`. Migration:
+plan (spec §7, plan 6) deletes it together with `DEFAULT_ORG_SLUG`. Those four
+are the only procedures that resolve the org at all so far: `projects.getBySlug /
+getWithStats / listByOrg`, `sources.*`, `datasets.*` and `domains.*` still take
+the org straight from the caller's input and ignore the session, and each
+migrates to `resolveOrg` when its screen is rebuilt in plans 2–4. Migration:
 `packages/db/drizzle/0010_identity.sql`.
 
 **The incident (read before touching the dev database).** While executing an

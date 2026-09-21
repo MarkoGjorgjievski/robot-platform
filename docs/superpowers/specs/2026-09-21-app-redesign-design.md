@@ -131,7 +131,7 @@ and `/domains/*` redirects (dropped with the old package).
 | `auth.signIn / signOut / me / switchOrg` | session |
 | `orgs.create / rename / delete / members.list / members.setRole / members.remove` | org management |
 | context `ctx.user`, `ctx.org`; `requireSession`, `requireRole` | gating |
-| every customer procedure: org from `ctx.org` when a session exists, else `orgSlug` (shim) | isolation without breaking the old app |
+| customer procedures: org from `ctx.org` when a session exists, else `orgSlug` (shim). Cut-over target, not a done state: `projects.list/create/delete/rename` now; the rest migrate as each screen is rebuilt (plans 2–4); plan 6 drops the fallback | isolation without breaking the old app |
 | `runs.listByOrg`, `usage.byProject({ month })` | the two new screens |
 | migration: `users`, `memberships`, `sessions`; `orgs.personal`, `orgs.owner_user_id` | identity |
 
