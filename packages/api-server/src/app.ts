@@ -4,12 +4,19 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { trpcServer } from '@hono/trpc-server';
 import { appRouter } from '@robot/api/routers';
 import { loadRunExport } from '@robot/api/export';
+import { loadSession, SESSION_COOKIE } from '@robot/api/auth';
 import { db } from '@robot/db';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createExportRoutes } from './routes/export.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+/** `getCookie` from `hono/cookie` needs a Hono `Context`, which we have — but a tiny
+ * regex is simpler than pulling in the helper for one cookie. */
+function sessionTokenFrom(cookieHeader: string | undefined): string {
+  return new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`).exec(cookieHeader ?? '')?.[1] ?? '';
+}
 
 /** Collaborators a caller may override. Defaults are the production ones. */
 export type AppDeps = {
@@ -21,11 +28,11 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadExport = deps.loadRunExport ?? ((runId: string) => loadRunExport(db, runId));
   const app = new Hono();
 
-  // CORS — dashboard dev server runs on :3456
+  // CORS — the dashboard dev server (:3456) and the app shell (:3000)
   app.use(
     '*',
     cors({
-      origin: ['http://localhost:3456'],
+      origin: ['http://localhost:3456', 'http://localhost:3000'],
       credentials: true,
     })
   );
@@ -33,12 +40,23 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   // Health check
   app.get('/healthz', (c) => c.json({ status: 'ok' }));
 
-  // tRPC adapter — mounts every procedure under /trpc/<procedure-name>
+  // tRPC adapter — mounts every procedure under /trpc/<procedure-name>. Reads the
+  // session cookie in; hands procedures a way to set/clear it via Set-Cookie out.
   app.use(
     '/trpc/*',
     trpcServer({
       router: appRouter,
-      createContext: () => ({ db }),
+      createContext: async (_opts, c) => {
+        const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+        return {
+          db,
+          session: await loadSession(db, sessionTokenFrom(c.req.header('cookie'))),
+          setCookie: (name: string, value: string, { maxAge }: { maxAge: number }) =>
+            c.header('Set-Cookie', `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`, { append: true }),
+          clearCookie: (name: string) =>
+            c.header('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`, { append: true }),
+        };
+      },
     })
   );
 
