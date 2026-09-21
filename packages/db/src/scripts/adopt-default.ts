@@ -5,7 +5,7 @@
 // more, after an ad-hoc adoption + cleanup once cascaded every project in the
 // dev database. Idempotent: safe to run again.
 import { and, eq, ne } from 'drizzle-orm';
-import { db, orgs, users, memberships, projects, sessions } from '../index.js';
+import { db, orgs, users, memberships, projects, sessions, extractors } from '../index.js';
 import type { Database } from '../index.js';
 
 function nameFromEmail(email: string): string {
@@ -46,6 +46,12 @@ async function reasonToKeep(
 
   const project = await database.query.projects.findFirst({ where: eq(projects.orgId, org.id), columns: { id: true } });
   if (project) return 'it holds at least one project';
+
+  // `extractors` is org-scoped, not project-scoped, and cascades on an org
+  // delete: an org with no project can still own the domain-intelligence cache,
+  // which is the expensive thing in this database.
+  const extractor = await database.query.extractors.findFirst({ where: eq(extractors.orgId, org.id), columns: { id: true } });
+  if (extractor) return 'it holds cached extractors';
 
   const otherMember = await database.query.memberships.findFirst({
     where: and(eq(memberships.orgId, org.id), ne(memberships.userId, userId)),

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { db, orgs, users, memberships, projects, sessions } from '../index.js';
+import { db, orgs, users, memberships, projects, sessions, domains, extractors } from '../index.js';
 import { adoptOrg } from './adopt-default.js';
 
 /** A session row for a throwaway user, the way `signIn` would have minted it. */
@@ -24,9 +24,14 @@ describe('adoptOrg', () => {
       const membership1 = await db.query.memberships.findFirst({ where: and(eq(memberships.userId, user!.id), eq(memberships.orgId, org!.id)) });
       expect(membership1?.role).toBe('owner');
 
-      // Running it again is a no-op on the membership and stays personal/owned.
+      // Running it again is a no-op on the membership and stays personal/owned —
+      // and moves nothing and drops nothing, which is what idempotence means now
+      // that the script also touches sessions and other orgs.
       const r2 = await adoptOrg(db, { email, slug });
       expect(r2.membershipAction).toBe('unchanged');
+      expect(r2.sessionsMoved).toBe(0);
+      expect(r2.droppedOrgSlug).toBeNull();
+      expect(r2.keptOrgs).toEqual([]);
       const orgRow2 = await db.query.orgs.findFirst({ where: eq(orgs.id, org!.id) });
       expect(orgRow2?.personal).toBe(true);
       expect(orgRow2?.ownerUserId).toBe(user!.id);
@@ -131,6 +136,31 @@ describe('adoptOrg', () => {
     } finally {
       await db.delete(orgs).where(eq(orgs.id, other!.id));
       await db.delete(orgs).where(eq(orgs.id, target!.id));
+      await db.delete(users).where(eq(users.id, user!.id));
+    }
+  });
+
+  // `extractors` is org-scoped, so an org with no project can still own the
+  // domain-intelligence cache — the expensive thing in this database — and an
+  // org delete cascades to it.
+  it('keeps a personal org that holds cached extractors, and says why', async () => {
+    const tag = Date.now();
+    const email = `adopt-keep-extractor-${tag}@example.com`;
+    const [user] = await db.insert(users).values({ email, name: 'Cache', avatarColour: '#999999' }).returning();
+    const [target] = await db.insert(orgs).values({ name: 'Target', slug: `adopt-extractor-target-${tag}` }).returning();
+    const [other] = await db.insert(orgs).values({ name: 'Cache', slug: `adopt-extractor-other-${tag}`, personal: true, ownerUserId: user!.id }).returning();
+    await db.insert(memberships).values({ userId: user!.id, orgId: other!.id, role: 'owner' });
+    const [domain] = await db.insert(domains).values({ name: `adopt-extractor-${tag}.example` }).returning();
+    await db.insert(extractors).values({ orgId: other!.id, domainId: domain!.id, country: 'us', variant: 'default' });
+    try {
+      const r = await adoptOrg(db, { email, slug: target!.slug });
+      expect(r.droppedOrgSlug).toBeNull();
+      expect(r.keptOrgs).toEqual([{ slug: other!.slug, reason: 'it holds cached extractors' }]);
+      expect(await db.query.orgs.findFirst({ where: eq(orgs.id, other!.id) })).toBeDefined();
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, other!.id));
+      await db.delete(orgs).where(eq(orgs.id, target!.id));
+      await db.delete(domains).where(eq(domains.id, domain!.id));
       await db.delete(users).where(eq(users.id, user!.id));
     }
   });
