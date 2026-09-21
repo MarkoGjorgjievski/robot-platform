@@ -1,0 +1,210 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* shadcn's generated components carry `dark:` classes. Tailwind v4's default
+   `dark:` follows prefers-color-scheme; our theme is an attribute the server
+   renders, so point the variant at it or a light-theme user would get the dark
+   branch of every shadcn component. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------------------------------------------------------------------------
+   Self-hosted Geist. Variable files, so one request per family covers 100–900.
+   --------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/GeistVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMonoVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ---------------------------------------------------------------------------
+   Our tokens as Tailwind theme values. `inline` so the utilities resolve to the
+   var() and therefore follow `data-theme` at runtime rather than being frozen
+   at build time.
+   --------------------------------------------------------------------------- */
+
+@theme inline {
+  /* Our ramp. `secondary` and `muted` are deliberately NOT exposed under those
+     names: shadcn owns `--color-secondary` / `--color-muted` as *surfaces*
+     (bg-secondary, bg-muted) while our tokens of those names are *text*
+     colours. Secondary text is `text-muted-foreground` (shadcn's own name for
+     it, mapped below); the third, quietest grey is `text-faint`. */
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-line: var(--border);
+  --color-line-hover: var(--border-hover);
+  --color-text: var(--text);
+  --color-faint: var(--muted);
+  --color-pass: var(--pass);
+  --color-fail: var(--fail);
+  --color-warn: var(--warn);
+  --color-link: var(--link);
+
+  /* shadcn/ui's contract, mapped onto ours (spec §4: monochrome, chroma only
+     for state). The primary button is therefore white-on-black in dark and
+     black-on-white in light, with no accent hue anywhere. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-card: var(--panel);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--panel);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--text);
+  --color-primary-foreground: var(--bg);
+  --color-secondary: var(--raised);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--raised);
+  --color-muted-foreground: var(--secondary);
+  --color-accent: var(--raised);
+  --color-accent-foreground: var(--text);
+  --color-destructive: var(--fail);
+  --color-destructive-foreground: var(--bg);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--border-hover);
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* The type scale, in px rather than rem. Tailwind's default scale is relative
+     to the root size, and our root is 13px — which would make shadcn's `text-sm`
+     11.4px and turn every generated button label into the smallest text on the
+     screen. Pinned here, `text-base` is the spec's 13px body, `text-sm` its
+     12px secondary, `text-2xl` the 20px page title and `text-3xl` the 28px
+     headline figure. */
+  --text-xs: 11px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 12px;
+  --text-sm--line-height: 1.45;
+  --text-base: 13px;
+  --text-base--line-height: 1.5;
+  --text-lg: 15px;
+  --text-lg--line-height: 1.4;
+  --text-xl: 17px;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 20px;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 1.15;
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  ::selection {
+    background: var(--border-hover);
+    color: var(--text);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* One focus idiom for the whole app: a 1 px outline in the text colour.
+     Scoped away from form fields, which say it with their own border instead
+     (see components/ui/input.tsx) — a field wearing both reads as a glow, and
+     this system has no glows. */
+  :where(a, button, summary, [role="button"], [tabindex]):focus-visible {
+    outline: 1px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  /* Colour changes are the only thing that eases (spec §4). */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [data-hoverable] {
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      border-color 150ms ease;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion — one staggered fade-up per page load, and the running-run dot.
+   Nothing else moves.
+   --------------------------------------------------------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 200ms ease-out both;
+}
+
+.rise:nth-child(1) { animation-delay: 0ms; }
+.rise:nth-child(2) { animation-delay: 60ms; }
+.rise:nth-child(3) { animation-delay: 120ms; }
+.rise:nth-child(4) { animation-delay: 180ms; }
+.rise:nth-child(5) { animation-delay: 240ms; }
+.rise:nth-child(6) { animation-delay: 300ms; }
+.rise:nth-child(7) { animation-delay: 360ms; }
+.rise:nth-child(8) { animation-delay: 420ms; }
+
+@keyframes pulse-dot {
+  0% { opacity: 1; }
+  50% { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+
+.dot-running {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .dot-running {
+    animation: none;
+  }
+  * {
+    transition: none !important;
+  }
+}

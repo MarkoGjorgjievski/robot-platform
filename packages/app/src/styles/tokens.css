@@ -1,0 +1,36 @@
+/* The colour ramp, per theme, on the attribute the server renders.
+   Mirrored as data in src/lib/tokens.ts; tokens.test.ts asserts they match. */
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --panel: #111111;
+  --raised: #171717;
+  --border: #262626;
+  --border-hover: #333333;
+  --text: #ededed;
+  --secondary: #a1a1a1;
+  --muted: #666666;
+  --pass: #3ddc84;
+  --fail: #ff5c5c;
+  --warn: #f5a623;
+  --link: #52a8ff;
+  --shadow: none;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #fafafa;
+  --raised: #f4f4f4;
+  --border: #e5e5e5;
+  --border-hover: #d4d4d4;
+  --text: #171717;
+  --secondary: #666666;
+  --muted: #a1a1a1;
+  --pass: #0f7b3d;
+  --fail: #c62828;
+  --warn: #b26a00;
+  --link: #0b6bcb;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  color-scheme: light;
+}
