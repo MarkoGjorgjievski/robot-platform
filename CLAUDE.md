@@ -18,7 +18,8 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 | `@robot/browser` | Page capture, popup dismissal, network interception | Playwright |
 | `@robot/agent` | LLM orchestration — schema discovery, selectors, validation | Anthropic Claude, Ollama |
 | `@robot/scraper` | Pipeline, XPath executor, structured data extraction | Multi-source extraction chain |
-| `@robot/dashboard` | Web UI — extraction wizard, results browser | Vite + TanStack Router/Query SPA, Tailwind v4, Radix UI |
+| `@robot/app` | The customer app being rebuilt (spec `2026-09-21-app-redesign-design.md`) — login, org switcher, projects; :3000 | TanStack Start + Router/Query (SSR), Tailwind v4, shadcn/ui |
+| `@robot/dashboard` | The **old** web UI — extraction wizard, results browser; kept running until `@robot/app` reaches parity, then deleted | Vite + TanStack Router/Query SPA, Tailwind v4, Radix UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
 | `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
 | `@robot/api-server` | HTTP host — mounts the tRPC routers over HTTP, serves captures | Hono |
@@ -36,13 +37,14 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Commands
 
-- `pnpm dev:all` — start api-server (:4000) **and** dashboard (:3456); the dashboard is useless without the api-server
+- `pnpm dev:all` — start all three servers: api-server (:4000), the old dashboard (:3456) and the new app (:3000); neither UI is any use without the api-server
 - `pnpm dev:all:noai` — same as `dev:all`, but forces `ANTHROPIC_API_KEY` unset in the api-server process (`--env-mode=loose`, since turbo's default strict env mode otherwise swallows an ad-hoc `ANTHROPIC_API_KEY=` shell override). Use this to test the mechanical-only / AI-unavailable path
 - `pnpm --filter @robot/dashboard dev` — dashboard only, on :3456
 - `pnpm -r test` — the green gate (Tier 1 fixture replay + unit tests). Needs Postgres running
 - `pnpm test:judge` — calibrate the Tier 2 judge against known answers (live, paid)
 - `pnpm test:liveness` — do the corpus fixtures still match the pages their URLs serve? (live, free)
-- `pnpm test:ui` — dashboard route smoke tests; needs `pnpm dev:all` running (live, free)
+- `pnpm test:ui` — old dashboard route smoke tests; needs `pnpm dev:all` running (live, free)
+- `pnpm test:ui:app` — `@robot/app` route smoke: signs in through `/login` as a throwaway address, walks every screen in both themes, screenshots into `docs/testing/screens/app-*.png`; needs `pnpm dev:all` running (live, free)
 - `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser

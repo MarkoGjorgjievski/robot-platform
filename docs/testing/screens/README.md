@@ -4,8 +4,10 @@ One screenshot per screen state, for hand review (spec section 10). **Nothing he
 asserted on** — a screenshot cannot say whether a page is right, only show it to someone
 who can.
 
-Two things fill this directory:
+Three things fill this directory:
 
+- **The new app's smoke run** (`pnpm test:ui:app`) — `app-*.png`, one per screen per theme.
+  See its own section below.
 - **The smoke run.** `RUN_UI_SMOKE=1 pnpm --filter @robot/dashboard test` (or `pnpm test:ui`,
   with `pnpm dev:all` up) drives every route in spec 3.1 in a 1280×900 browser and writes a
   full-page screenshot per route. The file is the route path with each `/` turned into a `-`
@@ -20,6 +22,37 @@ A few screens therefore exist under two names: the smoke run's slug name and an 
 hand-captured name for the same route on richer data (`/projects/scratch` has no websites;
 `project-home.png` is Acne, which does). Both are kept — the slug ones prove the route still
 renders, the hand ones show the state worth looking at.
+
+## The new app (`@robot/app`, :3000) — `app-*.png`
+
+Written by `pnpm test:ui:app` (`packages/app/src/routes-smoke.test.ts`) with `pnpm dev:all`
+up: a 1440×900 browser signs in through `/login` as a throwaway address, then walks every
+screen of plan 1 once per theme, flipping the theme through the user menu in between. The
+file is `app-<route>-<theme>.png`; `/login` is captured signed out, before the sign-in, and
+is always dark (§4's open question — a signed-out visitor has no preference yet).
+
+Captures are taken with Playwright's `animations: 'disabled'`. Without it the page-load
+`.rise` (`opacity: 0`, `animation-fill-mode: both`) has not started in the frame the
+screenshot provokes, and the picture is a blank page.
+
+| File | Shows |
+|---|---|
+| `app-login.png` | `/login` signed out — the 360 px form, dark |
+| `app-projects-dark.png` / `-light.png` | `/projects` — the projects table, run dot, "New project" |
+| `app-runs-dark.png` / `-light.png` | `/runs` — the org-wide runs screen (placeholder until plan 4) |
+| `app-usage-dark.png` / `-light.png` | `/usage` — placeholder until plan 4 |
+| `app-settings-dark.png` / `-light.png` | `/settings` — org settings, placeholder until plan 4 |
+| `app-account-dark.png` / `-light.png` | `/account` — account settings, placeholder until plan 4 |
+
+The two `app-projects-*.png` committed for the plan-1 design review were retaken against the
+real dev database (the projects **Acne** and **Scratch**) after the `default`-org adoption, so
+they show data rather than a throwaway project's empty state. A later smoke run overwrites
+them with whatever that run's throwaway organisation holds — which is the empty state.
+
+`docs/testing/ui-check-app-shell.mts` is the look-only companion: the same walk with PASS/FAIL
+lines and the measurements spec §3/§4 can be held to (sidebar 240, body 13 px, title 20 px,
+row ≤ 40 px, nothing uppercased, nothing shadowed in dark, the running dot's animation). Its
+screenshots go to whatever directory it is given — a scratch directory, not this one.
 
 ## Captured by the smoke run
 
