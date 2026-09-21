@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import {
-  STATE_KEYS,
-  SURFACE_KEYS,
-  TEXT_COLOURS,
-  TEXT_CONTRAST_EXCEPTIONS,
-  THEMES,
-  contrastRatio,
-  type ThemeName,
-} from './tokens';
+import { STATE_KEYS, SURFACE_KEYS, TEXT_COLOURS, THEMES, contrastRatio, type ThemeName } from './tokens';
 
 const themeNames = Object.keys(THEMES) as ThemeName[];
 
@@ -25,36 +17,18 @@ describe('contrastRatio', () => {
 });
 
 /**
- * The contract: anything allowed to carry text is legible on every surface the
- * app paints, in both themes. Table rows raise to `raised` on hover, so that
- * surface counts as much as the background does.
- *
- * A pair may fall short only by being named in TEXT_CONTRAST_EXCEPTIONS, with
- * its measured ratio — which makes each shortfall a decision in the diff
- * rather than a silent regression.
+ * The contract, with no escape hatch: anything allowed to carry text is legible
+ * on every surface the app paints, in both themes. Table rows raise to `raised`
+ * on hover, so that surface counts as much as the background does.
  */
-const exceptionFor = (theme: ThemeName, colour: string, surface: string) =>
-  TEXT_CONTRAST_EXCEPTIONS.find((e) => e.theme === theme && e.colour === colour && e.surface === surface);
-
 describe.each(themeNames)('%s theme: every text colour on every surface', (name) => {
   const t = THEMES[name];
 
   for (const colour of TEXT_COLOURS) {
     for (const surface of SURFACE_KEYS) {
-      const known = exceptionFor(name, colour, surface);
-      const label = `${colour} on ${surface}`;
-
-      if (known) {
-        it(`${label} is a recorded shortfall, still at its documented ratio`, () => {
-          const ratio = contrastRatio(t[colour], t[surface]);
-          expect(ratio).toBeLessThan(4.5);
-          expect(ratio).toBeCloseTo(known.ratio, 2);
-        });
-      } else {
-        it(`${label} clears 4.5:1`, () => {
-          expect(contrastRatio(t[colour], t[surface])).toBeGreaterThanOrEqual(4.5);
-        });
-      }
+      it(`${colour} on ${surface} clears 4.5:1`, () => {
+        expect(contrastRatio(t[colour], t[surface])).toBeGreaterThanOrEqual(4.5);
+      });
     }
   }
 });
@@ -72,11 +46,6 @@ describe('the text-colour list', () => {
     }
   });
 
-  it('records no exception that has started passing', () => {
-    for (const e of TEXT_CONTRAST_EXCEPTIONS) {
-      expect(contrastRatio(THEMES[e.theme][e.colour], THEMES[e.theme][e.surface])).toBeLessThan(4.5);
-    }
-  });
 });
 
 describe.each(themeNames)('%s theme state colours', (name) => {

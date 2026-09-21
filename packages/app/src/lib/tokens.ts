@@ -59,7 +59,11 @@ export const THEMES: Record<ThemeName, Palette> = {
     muted: '#a1a1a1',
     pass: '#0f7b3d',
     fail: '#c62828',
-    warn: '#b26a00',
+    // Darkened from the spec's original #b26a00 on 2026-09-21: that amber only
+    // reached 4.24:1 on the light background and 3.85:1 on `raised`, so it
+    // could not be set as text. #a26000 is the lightest step on the same hue
+    // that clears 4.5:1 on all three light surfaces (4.99 / 4.78 / 4.54).
+    warn: '#a26000',
     link: '#0b6bcb',
   },
 };
@@ -84,27 +88,10 @@ export const TEXT_COLOURS = [
   'warn',
 ] as const satisfies ReadonlyArray<keyof Palette>;
 
-/**
- * The one pairing in `TEXT_COLOURS` that does not clear 4.5:1 today. Light
- * `warn` (#b26a00) is a spec decision, not a typo, so it is recorded here with
- * its measured ratio rather than quietly darkened: the colour is fixed by
- * `2026-09-21-app-redesign-design.md` §4 and changing it belongs in that spec.
- *
- * Consequence until it is decided: **do not set text in `warn` in the light
- * theme.** Amber is a dot, a rail or a badge border there. The test below keeps
- * this list honest in both directions — an entry that starts passing must be
- * deleted, and a new failure cannot be added without editing this list.
- */
-export const TEXT_CONTRAST_EXCEPTIONS: ReadonlyArray<{
-  theme: ThemeName;
-  colour: (typeof TEXT_COLOURS)[number];
-  surface: (typeof SURFACE_KEYS)[number];
-  ratio: number;
-}> = [
-  { theme: 'light', colour: 'warn', surface: 'bg', ratio: 4.24 },
-  { theme: 'light', colour: 'warn', surface: 'panel', ratio: 4.06 },
-  { theme: 'light', colour: 'warn', surface: 'raised', ratio: 3.85 },
-];
+// There are no exceptions: every colour in TEXT_COLOURS clears 4.5:1 against
+// every surface in SURFACE_KEYS, in both themes. tokens.test.ts asserts it flat,
+// with no escape hatch — a colour that cannot hold that bar does not belong in
+// the list.
 
 /** sRGB hex channel (0-255) -> linearized channel per WCAG 2.x. */
 function linearize(channel: number): number {
