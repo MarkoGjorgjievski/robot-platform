@@ -4,12 +4,20 @@
 // The rule the whole tab is built on: **nothing disappears**. A step that is
 // finished locks and keeps its content on screen behind an "Edit" button; a
 // step that is not reachable yet stays visible, dimmed, with the reason in
-// place of its usual subtitle. Only the *interactivity* changes — a section
-// that is done, locked or not yet reachable wraps its children in `<div inert>`
-// (React 19), so the content is still readable and still in the document, but
-// nothing inside it can be clicked, typed into, or tabbed to. "Behind an Edit
-// button" is meant literally: Edit sits in the heading row, outside the inert
-// div, so it is the one way back into a finished step.
+// place of its usual subtitle. Only the *interactivity* changes — a
+// locked/later section wraps its children in `<div inert>` (React 19), so the
+// content is still readable and still in the document, but nothing inside it
+// can be clicked, typed into, or tabbed to.
+//
+// A *finished* section stays interactive unless the caller asks for
+// `lockWhenDone`. This tab is why the default is the loose one: while a run is
+// in flight `stepStates` marks all three steps done, and step 3 — which has no
+// Edit button — is where the "Open the run" link lives, so locking a done
+// section by default would leave that link dead for the length of the run.
+// Where a finished step really is a step (the Schema tab's step 1, which has an
+// Edit button and a catalogue that writes to the project), `lockWhenDone` makes
+// "behind an Edit button" literal: Edit sits in the heading row, outside the
+// inert div, so it is the one way back in.
 //
 // Visually (spec 7): none of this is a box. The strip is three quiet cells
 // carrying a 2px rail under them — accent on the current step, ink on a
@@ -65,7 +73,9 @@ export function Stepper({ steps }: { steps: Step[] }) {
  * replaces it while the section is locked or not yet reachable, so the dimmed
  * section says *why* it is dimmed rather than leaving the operator to guess.
  * `onEdit` is offered only on a `done` section — that is the handle that
- * reopens it.
+ * reopens it. `lockWhenDone` says that a `done` section goes inert too, so it
+ * is read-only until that handle is pressed; without it a finished section
+ * keeps its controls live (see the header comment).
  *
  * The rule above the heading is what separates one section from the next, so
  * the first section (n === 1) draws none: there is nothing above it to be
@@ -78,6 +88,7 @@ export function Section({
   reason,
   state,
   onEdit,
+  lockWhenDone = false,
   children,
 }: {
   n: number;
@@ -87,6 +98,8 @@ export function Section({
   reason?: string;
   state: StepState;
   onEdit?: () => void;
+  /** Make a `done` section inert as well, so it is read-only until `onEdit`. */
+  lockWhenDone?: boolean;
   children: ReactNode;
 }) {
   const dimmed = state === 'locked' || state === 'later';
@@ -113,14 +126,16 @@ export function Section({
       {/* Children always render — a locked section keeps everything it knows on
           screen; `inert` is what takes the interactivity away. A finished
           section keeps its content too, quieted to 60% rather than boxed off
-          behind a grey background — and inert as well, so a step the customer
-          has moved past cannot be edited out from under the step they are on
-          until they say Edit.
+          behind a grey background — and inert as well when the caller asked for
+          `lockWhenDone`, so a step the customer has moved past cannot be edited
+          out from under the step they are on until they say Edit. Without it a
+          finished section keeps working: the Extract tab's step 3 is `done` for
+          the whole of a run and carries the link to it.
           The dimming lives here and not on the <section>, so the heading row
           above stays at full contrast: `reason` is the sentence that says why
           the section is dimmed, and fading it with the body composited it to
           2.06:1 — unreadable exactly where spec 6 requires a visible reason. */}
-      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''} ${dimmed ? 'opacity-50' : ''}`} inert={dimmed || state === 'done' || undefined}>
+      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''} ${dimmed ? 'opacity-50' : ''}`} inert={dimmed || (state === 'done' && lockWhenDone) || undefined}>
         {children}
       </div>
     </section>

@@ -414,6 +414,7 @@ export default function SourceSchema() {
         reason={active ? 'Fields are locked while verifying' : undefined}
         state={active ? 'locked' : s1}
         onEdit={() => goto('fields')}
+        lockWhenDone
       >
         {source.datasetId ? (
           <>
