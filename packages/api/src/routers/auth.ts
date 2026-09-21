@@ -1,15 +1,10 @@
 import { z } from 'zod';
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { memberships, orgs, sessions, users, USER_THEMES } from '@robot/db';
 import { router, publicProcedure, protectedProcedure } from '../trpc.js';
 import { slugify, uniqueSlug } from '../slug.js';
 import { SESSION_COOKIE, SESSION_MAX_AGE_S, avatarColourFor, mintToken } from '../auth/session.js';
-
-/** The first account ever adopts the seeded `default` org so existing projects stay visible; everyone after gets their own. */
-export function planFirstOrg(a: { userCount: number; hasDefault: boolean }): 'adopt' | 'create' {
-  return a.userCount === 0 && a.hasDefault ? 'adopt' : 'create';
-}
 
 function nameFromEmail(email: string): string {
   const local = email.split('@')[0] ?? 'user';
@@ -40,22 +35,13 @@ export const authRouter = router({
           const org = (await tx.query.orgs.findFirst({ where: eq(orgs.id, membership.orgId) }))!;
           return { user: existing, org, role: membership.role };
         }
-        // Counted before the insert below: "no user exists yet" is the state this sign-in found.
-        const [before] = await tx.select({ n: count() }).from(users);
-        const seeded = await tx.query.orgs.findFirst({ where: eq(orgs.slug, 'default') });
+        // A new user always gets a fresh personal org (spec §2, amended 2026-09-21):
+        // adoption of the seeded `default` org is an explicit script now, never automatic sign-in.
         const name = nameFromEmail(input.email);
         const [created] = await tx.insert(users).values({ email: input.email, name, avatarColour: avatarColourFor(input.email) }).returning();
         const user = created!;
-        let org;
-        if (planFirstOrg({ userCount: Number(before!.n), hasDefault: !!seeded }) === 'adopt') {
-          // The slug stays `default`: projects.create, the old dashboard's
-          // DEFAULT_ORG_SLUG and the `orgSlug` joins still look this org up by it,
-          // and they only go away with the cut-over plan.
-          [org] = await tx.update(orgs).set({ name, personal: true, ownerUserId: user.id, updatedAt: new Date() }).where(eq(orgs.id, seeded!.id)).returning();
-        } else {
-          const slug = await uniqueSlug(slugify(name), async (s) => !!(await tx.query.orgs.findFirst({ where: eq(orgs.slug, s) })));
-          [org] = await tx.insert(orgs).values({ name, slug, personal: true, ownerUserId: user.id }).returning();
-        }
+        const slug = await uniqueSlug(slugify(name), async (s) => !!(await tx.query.orgs.findFirst({ where: eq(orgs.slug, s) })));
+        const [org] = await tx.insert(orgs).values({ name, slug, personal: true, ownerUserId: user.id }).returning();
         await tx.insert(memberships).values({ userId: user.id, orgId: org!.id, role: 'owner' });
         return { user, org: org!, role: 'owner' };
       });
