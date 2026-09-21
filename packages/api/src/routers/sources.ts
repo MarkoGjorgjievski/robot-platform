@@ -9,6 +9,7 @@ import {
 } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
+import { resolveOrg } from '../auth/session.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
@@ -288,9 +289,19 @@ export const sourcesRouter = router({
       };
     }),
 
+  // TODO(cut-over, spec 2026-09-21 §2): the `orgSlug ?? 'default'` fallback exists only for the
+  // old dashboard, which still names the org explicitly. Once it is retired, drop the fallback.
   listByProject: publicProcedure
-    .input(z.object({ orgSlug: z.string(), projectSlug: z.string() }))
+    .input(z.object({ projectSlug: z.string(), orgSlug: z.string().optional() }))
     .query(async ({ ctx, input }) => {
+      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
+      const projectRow = await ctx.db.query.projects.findFirst({
+        where: and(eq(projects.orgId, org.id), eq(projects.slug, input.projectSlug)),
+        columns: { id: true },
+      });
+      // An unknown project must not read as "no websites" — a wrong URL should say so.
+      if (!projectRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
+
       const results = await ctx.db
         .select({
           id: sources.id,
@@ -337,11 +348,10 @@ export const sourcesRouter = router({
         .from(sources)
         .innerJoin(datasets, eq(sources.datasetId, datasets.id))
         .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .innerJoin(orgs, eq(projects.orgId, orgs.id))
         .leftJoin(domains, eq(sources.domainId, domains.id))
         .leftJoin(inputSets, eq(sources.inputSetId, inputSets.id))
         .where(and(
-          eq(orgs.slug, input.orgSlug),
+          eq(projects.orgId, org.id),
           eq(projects.slug, input.projectSlug),
         ))
         .orderBy(sources.name);
@@ -440,6 +450,8 @@ export const sourcesRouter = router({
    * `updateBinding` creates the input set the first time it has URLs to put
    * in it.
    */
+  // TODO(cut-over, spec 2026-09-21 §2): `resolveOrg(ctx, 'default')` falls back to the seeded
+  // `default` org for the old dashboard's session-less callers. Once it is retired, drop the fallback.
   createInProject: publicProcedure
     .input(z.object({
       projectSlug: z.string().min(1),
@@ -447,8 +459,9 @@ export const sourcesRouter = router({
       url: httpUrl,
     }))
     .mutation(async ({ ctx, input }) => {
+      const org = await resolveOrg(ctx, 'default');
       const project = await ctx.db.query.projects.findFirst({
-        where: eq(projects.slug, input.projectSlug),
+        where: and(eq(projects.orgId, org.id), eq(projects.slug, input.projectSlug)),
         with: { datasets: { orderBy: (d, { asc }) => [asc(d.createdAt)], limit: 1, columns: { id: true, schema: true } } },
       });
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
