@@ -11,8 +11,12 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        // Brought onto this system's rules at its first use (task 5 left the
+        // unused variants as generated): no `shadow-xs` — the spec has no
+        // shadow in dark — and no translucent border-colour wash. A hairline
+        // that brightens, and a raised fill on hover.
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border border-line bg-transparent hover:border-line-hover hover:bg-raised",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:

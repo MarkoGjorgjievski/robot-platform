@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createFileRoute, redirect, useNavigate, useRouter } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -16,6 +17,7 @@ export const Route = createFileRoute('/login')({
 function LoginPage() {
   const router = useRouter();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +29,11 @@ function LoginPage() {
     setError(null);
     try {
       await signIn.mutateAsync({ email, password });
+      // Belt and braces with sign-out's own `clear`: whoever was signed in
+      // before, nothing of theirs is left in the cache this tab shares. A
+      // crashed sign-out, or arriving here with an expired cookie, must not
+      // leave the next account looking at the last one's rows.
+      queryClient.clear();
       // The session lives in a cookie the root route reads on the server, so the
       // router has to re-run its beforeLoad before we move.
       await router.invalidate();
