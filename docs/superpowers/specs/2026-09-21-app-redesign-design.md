@@ -40,10 +40,12 @@ and vercel.com — a dark, monochrome tech console.
   it takes today (the shim keeps the old dashboard working); a project outside
   the resolved org is `NOT_FOUND`. `requireSession` throws `UNAUTHORIZED`
   without a session; the app redirects to `/login`.
-- **First sign-in adopts the seeded org**: when no user exists yet, the signing-in
-  user becomes `owner` of the existing `default` org (renamed to the user's
-  personal org, `personal = true`) instead of getting a fresh one, so existing
-  projects stay visible. Every later new user gets a fresh personal org.
+- **Adopting the seeded org is an explicit script, never automatic** (amended
+  2026-09-21 after an agent's ad-hoc sign-in adopted and cascade-deleted
+  `default` with every project in it): `pnpm db:adopt-default -- --email
+  <email>` makes that user the `owner` of the existing `default` org and marks
+  it personal, keeping its slug, so existing projects stay visible. `signIn`
+  always creates a fresh personal org for a new user.
 - **Roles**, for now: `member` cannot rename or delete the org or manage
   members; `admin` can manage members but not delete; `owner` can do
   everything. Everyone in an org can do everything to its projects.
