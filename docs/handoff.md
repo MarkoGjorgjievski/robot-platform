@@ -111,7 +111,7 @@ a stepper now: **1 · Fields** (the catalogue) and **2 · Pages and values**
 (today's proof sheet, standing in for spec §2.2 and §2.3 until they land).
 
 What landed, one line per task: `packages/api/src/schema-catalogue.ts` and
-`datasets.catalogue` — 20 to 30 entries per schema type, grouped, each carrying
+`datasets.catalogue` — 24 for Product, 12 to 20 for the others, grouped, each carrying
 the engine `concept` so a catalogue field suggests and caches without
 `deriveConcept`'s name guessing; `datasets.addField` takes `description` and
 `concept`, and the description becomes every website's default location hint;
@@ -125,12 +125,25 @@ as the two-step stepper (`?step=fields|pages`, the grid as interim step 2) with
 down onto the grid's rows without losing typed cells; and this look-only
 browser check.
 
-Two amendments made while executing, recorded here rather than in the spec
+From the whole-branch review, also landed: `datasets.addField`, `renameField`,
+`retypeField` and `deleteField` re-read the dataset row `FOR UPDATE` inside
+their own transaction and compute the new schema from that (two chips clicked
+in a row used to lose one field — both calls appended to the same
+pre-transaction copy), with concurrent-add tests; step 1 renders `locked`
+("Fields are locked while verifying") for the length of a run, because a field
+added mid-run makes the paid run not-current the moment it ends; and a `done`
+section is `inert`, so a finished step is read-only until Edit.
+
+Three amendments made while executing, recorded here rather than in the spec
 (spec §2.1 still describes the intent, not these details): `datasets.catalogue()` takes
 no input and returns every type in one object (the client picks; the list is a
-static module, so there is nothing to save by asking per type), and the
+static module, so there is nothing to save by asking per type); the
 proof sheet's "Edit fields on the project page" sentence is gone — step 1 sits
-directly above the grid, so the errand it sent the customer on no longer exists.
+directly above the grid, so the errand it sent the customer on no longer exists;
+and §2.1's "20 to 30 entries per type" was relaxed to 12 to 20 for every type
+but Product — a listing card or an event page simply has fewer fields worth
+suggesting, and padding the list to 20 would mean inventing them. A test in
+`schema-catalogue.test.ts` enforces both ranges.
 
 The look-only browser check (`docs/testing/ui-check-schema-step1.mts`, five
 screenshots in `docs/testing/screens/`, 27 assertions, all green) found two

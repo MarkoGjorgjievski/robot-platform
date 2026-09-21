@@ -33,7 +33,10 @@ export const CATALOGUE: Catalogue = {
         e('price', 'Price', 'money', 'The price the customer pays now', 'price'),
         e('was_price', 'Was price', 'money', 'The crossed-out or previous price', 'regular_price'),
         e('price_currency', 'Price currency', 'text', 'The currency of the price (code or symbol)', 'currency'),
-        e('discount', 'Discount', 'text', 'The saving shown next to the price, as an amount or a percentage', 'discount_amount'),
+        // No `discount_amount`: the description says amount OR percentage, and the
+        // domain cache is never overwritten, so a concept guessed wrong here persists.
+        // Its own key is the honest one until the page says which it is.
+        e('discount', 'Discount', 'text', 'The saving shown next to the price, as an amount or a percentage'),
         e('unit_price', 'Unit price', 'money', 'The price per unit of measure (per kg, per litre)'),
       ] },
       { name: 'Availability', entries: [
@@ -77,7 +80,7 @@ export const CATALOGUE: Catalogue = {
         e('position', 'Position', 'number', 'The item\'s position in the listing'),
         e('seller', 'Seller', 'text', 'The merchant or seller shown on the card', 'seller'),
         e('delivery', 'Delivery', 'text', 'The delivery note on the card (free shipping, next day)', 'shipping_info'),
-        e('discount', 'Discount', 'text', 'The saving shown on the card, as an amount or a percentage', 'discount_amount'),
+        e('discount', 'Discount', 'text', 'The saving shown on the card, as an amount or a percentage'), // own key, as in product
       ] },
     ],
   },
