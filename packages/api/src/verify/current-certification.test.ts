@@ -8,7 +8,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { loadCurrentCertification, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
 
 const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db });
+const caller = createCaller({ db, session: null });
 
 async function makeSchemaSource(tag: string) {
   const urls = [

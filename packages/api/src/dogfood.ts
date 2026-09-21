@@ -21,7 +21,7 @@ const { judgeFieldExtraction, judgeVariantArray, JudgeUnavailableError, snapshot
 type JudgeVerdict = Awaited<ReturnType<typeof judgeFieldExtraction>>;
 const { liveCorpus } = await import('@robot/scraper');
 
-const caller = scraperRouter.createCaller({ db });
+const caller = scraperRouter.createCaller({ db, session: null });
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) { console.error('ANTHROPIC_API_KEY required'); process.exit(1); }

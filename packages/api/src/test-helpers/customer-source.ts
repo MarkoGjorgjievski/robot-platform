@@ -11,7 +11,7 @@ import type { CustomerFieldType } from '@robot/scraper';
 // named without a reference to .../unstable-core-do-not-import-*.mjs" —
 // TS2742, since `declaration: true` is on repo-wide). This narrow, hand-written
 // structural type only names the handful of procedures this helper actually
-// calls; every real caller (`createCallerFactory(appRouter)({ db })`) is
+// calls; every real caller (`createCallerFactory(appRouter)({ db, session: null })`) is
 // structurally assignable to it.
 type Caller = {
   projects: {

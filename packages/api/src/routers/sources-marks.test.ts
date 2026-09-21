@@ -18,7 +18,7 @@ vi.mock('../verify/proof-page-capture.js', async (importOriginal) => {
   return { ...real, runProofPageCapture: runMock, startProofPageCapture: (s: string, u: string) => real.startProofPageCapture(s, u, { fire: false }) };
 });
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 let dir: string;
 let browser: PlaywrightBrowser;
 beforeAll(async () => {

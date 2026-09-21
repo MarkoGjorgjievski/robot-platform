@@ -8,7 +8,7 @@ import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const SLUG = 'test-crawl-backfill-preview';
 let orgId: string | null = null;
 

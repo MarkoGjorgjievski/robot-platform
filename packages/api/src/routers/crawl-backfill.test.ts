@@ -26,7 +26,7 @@ vi.mock('../crawl/repair-sweep.js', async (importOriginal) => {
   return { ...actual, runRepairSweep: runRepairSweepMock };
 });
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const SLUG = 'test-crawl-backfill';
 let orgId: string | null = null;
 

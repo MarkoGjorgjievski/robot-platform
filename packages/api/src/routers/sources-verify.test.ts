@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db });
+const caller = createCaller({ db, session: null });
 
 function urlsFor(tag: string): string[] {
   return [

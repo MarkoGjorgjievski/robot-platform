@@ -5,7 +5,7 @@ import { db, runs, runItems, extractions, captures, sources, orgs, projects, dat
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const SLUG = 'test-crawl-coverage';
 let orgId: string | null = null;
 

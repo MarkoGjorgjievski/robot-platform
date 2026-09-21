@@ -8,7 +8,7 @@ import { appRouter } from './index.js';
 import { loadRunExport } from '../export/load-run-export.js';
 
 const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db });
+const caller = createCaller({ db, session: null });
 
 function expectZodValidationError(err: unknown) {
   if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);

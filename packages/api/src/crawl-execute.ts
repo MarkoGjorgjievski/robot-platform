@@ -17,7 +17,7 @@ if (!runId) {
   process.exit(1);
 }
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 
 const before = await caller.crawl.status({ runId });
 console.log(`\nRun ${runId} — ${before.status}`);
