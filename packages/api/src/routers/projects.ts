@@ -7,6 +7,10 @@ import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
 import { loadCurrentCertification, loadFieldCurrency } from '../verify/current-certification.js';
 import { contractFields } from '../contract.js';
+import { loadProjectExport } from '../export/load-project-export.js';
+
+/** How many rows the Output screen renders. The file behind the download has them all. */
+const OUTPUT_ROW_CAP = 500;
 
 /**
  * The project by slug, inside the resolved org (spec 2026-09-21 §6 as restated:
@@ -187,6 +191,16 @@ export const projectsRouter = router({
       );
 
       return { id: project.id, name: project.name, slug: project.slug, datasetId: dataset?.id ?? null, createdAt: project.createdAt, fields, websites };
+    }),
+
+  /** The Output screen (spec 2026-09-21 §5): the project export, capped for the browser. The file has everything. */
+  output: publicProcedure
+    .input(z.object({ projectSlug: z.string().min(1), orgSlug: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
+      const x = (await loadProjectExport(ctx.db, project.id))!;
+      return { ...x, rows: x.rows.slice(0, OUTPUT_ROW_CAP) };
     }),
 
   getWithStats: publicProcedure

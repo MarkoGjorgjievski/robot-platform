@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { trpcServer } from '@hono/trpc-server';
 import { appRouter } from '@robot/api/routers';
-import { loadRunExport } from '@robot/api/export';
+import { loadRunExport, loadProjectExport } from '@robot/api/export';
 import { loadSession, SESSION_COOKIE } from '@robot/api/auth';
 import { db } from '@robot/db';
 import { join } from 'node:path';
@@ -22,10 +22,12 @@ function sessionTokenFrom(cookieHeader: string | undefined): string {
 export type AppDeps = {
   /** Injectable so export route tests run without Postgres. */
   loadRunExport: (runId: string) => ReturnType<typeof loadRunExport>;
+  loadProjectExport: (projectId: string) => ReturnType<typeof loadProjectExport>;
 };
 
 export function createApp(deps: Partial<AppDeps> = {}) {
   const loadExport = deps.loadRunExport ?? ((runId: string) => loadRunExport(db, runId));
+  const loadProject = deps.loadProjectExport ?? ((projectId: string) => loadProjectExport(db, projectId));
   const app = new Hono();
 
   // CORS — the dashboard dev server (:3456) and the app shell (:3000)
@@ -60,8 +62,8 @@ export function createApp(deps: Partial<AppDeps> = {}) {
     })
   );
 
-  // Data export — CSV/JSON downloads of a run's rows
-  app.route('/export', createExportRoutes({ loadRunExport: loadExport }));
+  // Data export — CSV/JSON downloads of a run's rows, or of a whole project's
+  app.route('/export', createExportRoutes({ loadRunExport: loadExport, loadProjectExport: loadProject }));
 
   // Static screenshots — served from packages/api-server/public/captures/
   // Path is computed relative to the compiled output's location.
