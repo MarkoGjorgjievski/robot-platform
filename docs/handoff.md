@@ -173,6 +173,19 @@ floating over it has no shadow to find.
   no glow, so it stays inside the system's register — but it is brighter than the
   plan intended and Marko should look at it.
 
+**Deferred by the final review** (each named for the plan that owns it): plan 2 —
+the `QueryClient` keyed on session identity; the org filter on `projects.list`'s
+source and run queries (today they scan every org's rows, then keep only the
+org's own project ids); a scroll affordance on mobile tables; multiple
+`Set-Cookie` in one tRPC batch untested. Plan 4 — sessions are never pruned; a
+failed `setTheme` is silent; `data-theme` is frozen at page load, so signing out
+of a light account and into a dark one in the same tab keeps light until a full
+reload (re-key the freeze on the user id); a second owner can never be demoted
+or removed (`orgs.setRole/remove` refuse every owner). Plan 6 —
+`@robot/api/test-helpers/identity` is a public export of a test-only module
+(it imports vitest); the sign-ins in `orgs.test.ts` and `projects.test.ts` sit
+outside their `try`, unlike `auth.test.ts`.
+
 **Next: plan 2** — project home, fields, output (spec §5 rows 3 to 5).
 
 ## Schema stepper, engine (2026-09-18)
