@@ -3,10 +3,11 @@ import { eq, sql, and } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { datasets, projects, orgs, sources, type Database } from '@robot/db';
 import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { router, publicProcedure } from '../trpc';
+import { router, publicProcedure, type Context } from '../trpc';
 import { contractFields, type ContractField } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { CATALOGUE } from '../schema-catalogue.js';
+import { resolveOrg } from '../auth/session.js';
 
 /** One Dataset schema field. `origin` says WHERE the field is resolved; absent means 'detail'. */
 export const datasetSchemaFieldSchema = z.object({
@@ -29,6 +30,21 @@ async function loadDataset(db: Database, datasetId: string) {
     with: { sources: { columns: { id: true, slug: true, name: true, schemaDefinition: true, verificationSet: true } } },
   });
   if (!ds) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${datasetId} not found` });
+  return ds;
+}
+
+/**
+ * `loadDataset`, inside the resolved org (spec 2026-09-21 §6 as restated). A
+ * dataset whose project belongs to another org is NOT_FOUND — the same word as
+ * for one that does not exist, so a guessed id learns nothing.
+ * TODO(cut-over, spec 2026-09-21 §2): the `'default'` fallback exists only for the
+ * old dashboard, which calls these with no session; drop it when it is retired.
+ */
+async function loadDatasetInOrg(ctx: Context, datasetId: string) {
+  const org = await resolveOrg(ctx, 'default');
+  const ds = await loadDataset(ctx.db, datasetId);
+  const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, ds.projectId), columns: { orgId: true } });
+  if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${datasetId} not found` });
   return ds;
 }
 
@@ -125,7 +141,7 @@ export const datasetsRouter = router({
   /** The project's contract (spec 4.1): the dataset schema's keyed fields, for the project home editor. */
   getContract: publicProcedure
     .input(z.object({ datasetId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => contractFields((await loadDataset(ctx.db, input.datasetId)).schema)),
+    .query(async ({ ctx, input }) => contractFields((await loadDatasetInOrg(ctx, input.datasetId)).schema)),
 
   /** The field catalogue for step 1 of the Schema tab (spec 2026-09-18 §2.1): static, all types at once. */
   catalogue: publicProcedure.query(() => CATALOGUE),
@@ -248,10 +264,10 @@ export const datasetsRouter = router({
       concept: z.string().regex(/^[a-z][a-z0-9_]*$/).max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // `loadDataset` answers only "does this dataset exist"; the schema the new field is
-      // appended to — and the name check and minted key derived from it — come from the
-      // locked re-read inside the transaction.
-      const ds = await loadDataset(ctx.db, input.datasetId);
+      // `loadDatasetInOrg` answers only "does this dataset exist, in this org"; the schema
+      // the new field is appended to — and the name check and minted key derived from it —
+      // come from the locked re-read inside the transaction.
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
       return ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
         const contract = contractFields(schema);
@@ -270,7 +286,7 @@ export const datasetsRouter = router({
   renameField: publicProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), name: z.string().trim().min(1).max(100) }))
     .mutation(async ({ ctx, input }) => {
-      const ds = await loadDataset(ctx.db, input.datasetId);
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
         const contract = contractFields(schema);
@@ -287,7 +303,7 @@ export const datasetsRouter = router({
   retypeField: publicProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), type: z.enum(CUSTOMER_FIELD_TYPES) }))
     .mutation(async ({ ctx, input }) => {
-      const ds = await loadDataset(ctx.db, input.datasetId);
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
       for (const s of ds.sources) {
         const { currentKeys } = await loadFieldCurrency(ctx.db, s.id);
         if (currentKeys.includes(input.key)) {
@@ -307,7 +323,7 @@ export const datasetsRouter = router({
   deleteField: publicProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      const ds = await loadDataset(ctx.db, input.datasetId);
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
         if (!contractFields(schema).some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
@@ -322,7 +338,7 @@ export const datasetsRouter = router({
   fieldStatus: publicProcedure
     .input(z.object({ datasetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const ds = await loadDataset(ctx.db, input.datasetId);
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
       const contract = contractFields(ds.schema);
       const perSource = await Promise.all(ds.sources.map(async (s) => ({ s, currentKeys: new Set((await loadFieldCurrency(ctx.db, s.id)).currentKeys) })));
       const out: Record<string, { verified: number; total: number; websites: Array<{ sourceId: string; slug: string; name: string; verified: boolean }> }> = {};
