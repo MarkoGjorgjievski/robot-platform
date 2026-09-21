@@ -43,6 +43,11 @@ export const projectsRouter = router({
           projectId: datasets.projectId,
           createdAt: runs.createdAt,
           resultCount: runs.resultCount,
+          // The run status dot is the app's one carried signal (spec 2026-09-21 §4):
+          // without the status every project's last run renders grey, which is the
+          // one thing the dot exists not to do.
+          status: runs.status,
+          completedAt: runs.completedAt,
         })
         .from(runs)
         .innerJoin(sources, eq(runs.sourceId, sources.id))
@@ -57,9 +62,9 @@ export const projectsRouter = router({
         if (cert) verifiedByProject.set(s.projectId, (verifiedByProject.get(s.projectId) ?? 0) + 1);
       }
 
-      const lastRunByProject = new Map<string, { createdAt: Date; resultCount: number | null }>();
+      const lastRunByProject = new Map<string, { createdAt: Date; resultCount: number | null; status: string; completedAt: Date | null }>();
       for (const r of lastRuns) {
-        lastRunByProject.set(r.projectId, { createdAt: r.createdAt, resultCount: r.resultCount });
+        lastRunByProject.set(r.projectId, { createdAt: r.createdAt, resultCount: r.resultCount, status: r.status, completedAt: r.completedAt });
       }
 
       return base.map((p) => ({

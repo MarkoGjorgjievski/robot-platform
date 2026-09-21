@@ -61,7 +61,11 @@
   --color-foreground: var(--text);
   --color-card: var(--panel);
   --color-card-foreground: var(--text);
-  --color-popover: var(--panel);
+  /* Popovers are `raised`, not `panel`: a dropdown opened from the sidebar —
+     which is itself `panel` — was invisible against it, reading as a smudge
+     with a hairline round it. One step up the ramp is the whole separation
+     this system needs. */
+  --color-popover: var(--raised);
   --color-popover-foreground: var(--text);
   --color-primary: var(--text);
   --color-primary-foreground: var(--bg);
@@ -69,7 +73,12 @@
   --color-secondary-foreground: var(--text);
   --color-muted: var(--raised);
   --color-muted-foreground: var(--secondary);
-  --color-accent: var(--raised);
+  /* The hover/selected fill inside menus and the command palette. It cannot be
+     `raised` any more: popovers are raised now, and an item highlight the same
+     colour as the surface it sits on is no highlight at all. One step further
+     up the ramp — the border grey — is the only step left, and it reads as a
+     fill rather than a wash. */
+  --color-accent: var(--border);
   --color-accent-foreground: var(--text);
   --color-destructive: var(--fail);
   --color-destructive-foreground: var(--bg);
@@ -101,6 +110,13 @@
   --text-3xl: 28px;
   --text-3xl--line-height: 1.15;
 
+  /* NOTE for whoever reads a spacing utility here: Tailwind's spacing scale is
+     `--spacing` (0.25rem) × n, and our root is 13px — so `p-4` is 13px, not 16,
+     and every spacing, size and height utility in this package is 0.8125× its
+     nominal value (shadcn's `h-9` button is 29px). The shell was designed at
+     that density on purpose. Pinning `--spacing: 4px` would be defensible, but
+     it re-sizes every control and every gap already tuned against screenshots,
+     so it is a deliberate change with a re-tune, not a tidy-up. */
   --radius: 6px;
   --radius-sm: 4px;
   --radius-md: 6px;

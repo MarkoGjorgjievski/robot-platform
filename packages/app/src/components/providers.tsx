@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { trpc, createTrpcClient } from '../lib/trpc';
+import { TooltipProvider } from './ui/tooltip';
 
 /**
  * Both clients are created inside the component, not at module scope: on the
@@ -15,7 +16,12 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        {/* Radix requires one provider above every tooltip; 400 ms so a pointer
+            crossing the run dots on its way somewhere else does not flash five
+            of them. */}
+        <TooltipProvider delayDuration={400}>{children}</TooltipProvider>
+      </QueryClientProvider>
     </trpc.Provider>
   );
 }
