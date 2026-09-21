@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./routers": "./src/routers/index.ts",
     "./export": "./src/export/index.ts",
-    "./auth": "./src/auth/session.ts"
+    "./auth": "./src/auth/session.ts",
+    "./test-helpers/identity": "./src/test-helpers/identity.ts"
   },
   "scripts": {
     "test": "vitest",
