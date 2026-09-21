@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { db, orgs, users, memberships } from '../index.js';
+import { db, orgs, users, memberships, projects, sessions } from '../index.js';
 import { adoptOrg } from './adopt-default.js';
+
+/** A session row for a throwaway user, the way `signIn` would have minted it. */
+async function addSession(userId: string, orgId: string, token: string) {
+  await db.insert(sessions).values({ token, userId, orgId, expiresAt: new Date(Date.now() + 60_000) });
+}
 
 describe('adoptOrg', () => {
   it('makes a throwaway org personal, owned by a throwaway user, with an owner membership — and is idempotent', async () => {
@@ -77,6 +82,87 @@ describe('adoptOrg', () => {
       expect(r.name).toBe(`No-args-${tag}`); // capitalised local part of the email
     } finally {
       await db.delete(orgs).where(eq(orgs.id, org!.id));
+      await db.delete(users).where(eq(users.id, user!.id));
+    }
+  });
+
+  // The two rulings of 2026-09-21: an open session must follow the user to the
+  // adopted org, and the empty personal org `signIn` minted seconds earlier
+  // must not be left in the switcher next to it under the same name.
+  it('moves the user\'s sessions to the adopted org and drops the empty personal org sign-in created', async () => {
+    const tag = Date.now();
+    const email = `adopt-move-${tag}@example.com`;
+    const [user] = await db.insert(users).values({ email, name: 'Mover', avatarColour: '#555555' }).returning();
+    const [target] = await db.insert(orgs).values({ name: 'Target', slug: `adopt-move-target-${tag}` }).returning();
+    // What `signIn` would have made: a personal org owned by this user, empty.
+    const [auto] = await db.insert(orgs).values({ name: 'Mover', slug: `adopt-move-auto-${tag}`, personal: true, ownerUserId: user!.id }).returning();
+    await db.insert(memberships).values({ userId: user!.id, orgId: auto!.id, role: 'owner' });
+    await addSession(user!.id, auto!.id, `adopt-move-${tag}`);
+    try {
+      const r = await adoptOrg(db, { email, slug: target!.slug });
+
+      expect(r.sessionsMoved).toBe(1);
+      const session = await db.query.sessions.findFirst({ where: eq(sessions.token, `adopt-move-${tag}`) });
+      expect(session?.orgId).toBe(target!.id);
+
+      expect(r.droppedOrgSlug).toBe(auto!.slug);
+      expect(r.keptOrgs).toEqual([]);
+      expect(await db.query.orgs.findFirst({ where: eq(orgs.id, auto!.id) })).toBeUndefined();
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, auto!.id));
+      await db.delete(orgs).where(eq(orgs.id, target!.id));
+      await db.delete(users).where(eq(users.id, user!.id));
+    }
+  });
+
+  it('keeps a personal org that holds a project, and says why', async () => {
+    const tag = Date.now();
+    const email = `adopt-keep-project-${tag}@example.com`;
+    const [user] = await db.insert(users).values({ email, name: 'Keeper', avatarColour: '#666666' }).returning();
+    const [target] = await db.insert(orgs).values({ name: 'Target', slug: `adopt-keep-target-${tag}` }).returning();
+    const [other] = await db.insert(orgs).values({ name: 'Keeper', slug: `adopt-keep-other-${tag}`, personal: true, ownerUserId: user!.id }).returning();
+    await db.insert(memberships).values({ userId: user!.id, orgId: other!.id, role: 'owner' });
+    await db.insert(projects).values({ orgId: other!.id, name: 'Kept work', slug: `kept-work-${tag}` });
+    try {
+      const r = await adoptOrg(db, { email, slug: target!.slug });
+      expect(r.droppedOrgSlug).toBeNull();
+      expect(r.keptOrgs).toEqual([{ slug: other!.slug, reason: 'it holds at least one project' }]);
+      expect(await db.query.orgs.findFirst({ where: eq(orgs.id, other!.id) })).toBeDefined();
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, other!.id));
+      await db.delete(orgs).where(eq(orgs.id, target!.id));
+      await db.delete(users).where(eq(users.id, user!.id));
+    }
+  });
+
+  it('keeps a personal org someone else is also a member of, and a shared org the user owns', async () => {
+    const tag = Date.now();
+    const email = `adopt-keep-shared-${tag}@example.com`;
+    const [user] = await db.insert(users).values({ email, name: 'Owner', avatarColour: '#777777' }).returning();
+    const [guest] = await db.insert(users).values({ email: `adopt-guest-${tag}@example.com`, name: 'Guest', avatarColour: '#888888' }).returning();
+    const [target] = await db.insert(orgs).values({ name: 'Target', slug: `adopt-shared-target-${tag}` }).returning();
+    const [withGuest] = await db.insert(orgs).values({ name: 'Owner', slug: `adopt-shared-guest-${tag}`, personal: true, ownerUserId: user!.id }).returning();
+    const [team] = await db.insert(orgs).values({ name: 'Team', slug: `adopt-shared-team-${tag}`, personal: false, ownerUserId: user!.id }).returning();
+    await db.insert(memberships).values([
+      { userId: user!.id, orgId: withGuest!.id, role: 'owner' },
+      { userId: guest!.id, orgId: withGuest!.id, role: 'member' },
+      { userId: user!.id, orgId: team!.id, role: 'owner' },
+    ]);
+    try {
+      const r = await adoptOrg(db, { email, slug: target!.slug });
+      expect(r.droppedOrgSlug).toBeNull();
+      expect([...r.keptOrgs].sort((a, b) => a.slug.localeCompare(b.slug))).toEqual(
+        [
+          { slug: withGuest!.slug, reason: 'someone else is a member of it' },
+          { slug: team!.slug, reason: 'it is a shared organisation, not a personal one' },
+        ].sort((a, b) => a.slug.localeCompare(b.slug)),
+      );
+      for (const kept of [withGuest!, team!]) {
+        expect(await db.query.orgs.findFirst({ where: eq(orgs.id, kept.id) })).toBeDefined();
+      }
+    } finally {
+      for (const org of [withGuest!, team!, target!]) await db.delete(orgs).where(eq(orgs.id, org.id));
+      await db.delete(users).where(eq(users.id, guest!.id));
       await db.delete(users).where(eq(users.id, user!.id));
     }
   });
