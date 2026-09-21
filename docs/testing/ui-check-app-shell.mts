@@ -19,7 +19,11 @@ import { chromium, type Page } from 'playwright';
 const out = process.argv[2] ?? '.';
 const EMAIL = process.argv[3] ?? `smoke-${Date.now()}@example.com`;
 const APP = 'http://localhost:3000';
+const API = 'http://localhost:4000';
 const ROUTES = ['/projects', '/runs', '/usage', '/settings', '/account'] as const;
+
+type Preference = 'dark' | 'light' | 'system';
+const PREFERENCE_LABEL: Record<Preference, string> = { dark: 'Dark', light: 'Light', system: 'System' };
 
 let failed = 0;
 const check = (name: string, ok: boolean, detail = '') => {
@@ -74,14 +78,28 @@ async function signIn() {
   await p.waitForURL(`${APP}/projects`, { timeout: 30_000 });
 }
 
-/** User menu → Theme → the radio item, then wait for the server to agree (a reload proves it). */
-async function setTheme(theme: 'dark' | 'light') {
+/** The stored preference (`dark | light | system`), which is not the same as the rendered theme. */
+async function storedPreference(): Promise<Preference> {
+  const cookies = await ctx.cookies(API);
+  const cookie = cookies.filter((c) => c.name === 'robot_session').map((c) => `${c.name}=${c.value}`).join('; ');
+  const res = await fetch(`${API}/trpc/auth.me`, { headers: { cookie } });
+  const body = (await res.json()) as { result?: { data?: { json?: { user?: { theme?: Preference } } } } };
+  return body.result?.data?.json?.user?.theme ?? 'dark';
+}
+
+/** User menu → Theme → one of the three radio items. */
+async function choosePreference(pref: Preference) {
   await p.locator('aside button').filter({ hasText: EMAIL }).first().click();
   await p.getByRole('menuitem', { name: 'Theme' }).click();
   const saved = p.waitForResponse((r) => r.url().includes('auth.setTheme'), { timeout: 15_000 }).catch(() => null);
-  await p.getByRole('menuitemradio', { name: theme === 'dark' ? 'Dark' : 'Light' }).click();
+  await p.getByRole('menuitemradio', { name: PREFERENCE_LABEL[pref] }).click();
   await saved;
   await p.keyboard.press('Escape');
+}
+
+/** Choose a theme and wait for the server to agree — a reload is what proves it. */
+async function setTheme(theme: 'dark' | 'light') {
+  await choosePreference(theme);
   for (let i = 0; i < 20; i++) {
     await p.reload({ waitUntil: 'networkidle' });
     if ((await p.evaluate(() => document.documentElement.dataset.theme)) === theme) return true;
@@ -110,6 +128,15 @@ const shadowedElements = (page: Page) =>
   );
 
 await signIn();
+
+// The walk below switches the theme twice, which is a write to this account's
+// user row. Given a real address that is somebody's actual preference, so it is
+// read here and put back in the `finally` at the bottom: the check must leave
+// the account exactly as it found it.
+const originalPreference = await storedPreference();
+console.log(`stored theme preference on arrival: ${originalPreference}`);
+
+try {
 
 // ── The walk, once per theme ────────────────────────────────────────────────
 for (const theme of ['dark', 'light'] as const) {
@@ -256,6 +283,17 @@ console.log('\n── signed out ──');
   await p2.goto(`${APP}/projects`, { waitUntil: 'networkidle' });
   check('a signed-out visitor is sent back to /login', new URL(p2.url()).pathname === '/login', p2.url());
   await ctx2.close();
+}
+
+} finally {
+  // Put the preference back, whatever happened above.
+  const now = await storedPreference().catch(() => null);
+  if (now !== null && now !== originalPreference) {
+    await choosePreference(originalPreference).catch((err) => console.error('could not restore the theme preference:', err));
+    console.log(`theme preference restored: ${now} -> ${await storedPreference().catch(() => '?')}`);
+  } else {
+    console.log(`theme preference unchanged: ${originalPreference}`);
+  }
 }
 
 await b.close();
