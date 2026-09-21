@@ -66,6 +66,12 @@ function LoginPage() {
               autoComplete="email"
               autoFocus
               required
+              // `role="alert"` reads the message out when it appears, but never
+              // ties it to a field: a screen reader arriving at the email input
+              // afterwards would announce nothing. The description is only
+              // claimed while there is one, so the field has no dangling
+              // reference in the ordinary case.
+              aria-describedby={error ? 'sign-in-error' : undefined}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -87,7 +93,7 @@ function LoginPage() {
           </div>
 
           {error ? (
-            <p role="alert" className="mt-4 text-sm text-fail">
+            <p id="sign-in-error" role="alert" className="mt-4 text-sm text-fail">
               {error}
             </p>
           ) : null}

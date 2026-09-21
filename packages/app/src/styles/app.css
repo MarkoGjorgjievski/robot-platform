@@ -226,4 +226,16 @@
   * {
     transition: none !important;
   }
+  /* Radix/shadcn surfaces animate through utility classes (`animate-in`,
+     `zoom-in-95`, `slide-in-from-*`) rather than the two keyframes above, so
+     the sweep is what actually silences the dialog, the dropdown, the sheet
+     and the command palette. Near-zero rather than `none`: an animation that
+     never runs never fires `animationend`, and Radix waits on it to unmount. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
