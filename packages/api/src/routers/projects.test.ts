@@ -91,6 +91,15 @@ describe('projects.list stats', () => {
   });
 });
 
+describe('projects.delete', () => {
+  it('a session-less caller can delete a project it created session-lessly (mirrors the old dashboard smoke cleanup)', async () => {
+    const p = await caller.projects.create({ name: `SmokeCleanup ${Date.now()}` });
+    const r = await caller.projects.delete({ projectId: p.id });
+    expect(r.deleted).toBe(true);
+    expect(await db.query.projects.findFirst({ where: eq(projects.id, p.id) })).toBeUndefined();
+  });
+});
+
 describe('projects live in the session organisation', () => {
   it("a project is invisible outside its org, and the old orgSlug-less caller still lists the default org", async () => {
     const tag = Date.now();
