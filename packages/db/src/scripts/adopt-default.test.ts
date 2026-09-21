@@ -1,12 +1,33 @@
 import { describe, it, expect } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db, orgs, users, memberships, projects, sessions, domains, extractors } from '../index.js';
-import { adoptOrg } from './adopt-default.js';
+import { adoptOrg, reasonToKeep } from './adopt-default.js';
+import type { Database } from '../index.js';
 
 /** A session row for a throwaway user, the way `signIn` would have minted it. */
 async function addSession(userId: string, orgId: string, token: string) {
   await db.insert(sessions).values({ token, userId, orgId, expiresAt: new Date(Date.now() + 60_000) });
 }
+
+// The first guard between this script and a repeat of the 2026-09-21 incident,
+// and the only one with no assertion behind it until now. `default` is refused
+// on the slug alone, before any query — so the proof needs no database at all,
+// and a `database` that would throw if touched is what proves it.
+describe('reasonToKeep', () => {
+  const unusable = new Proxy({} as Database, {
+    get() {
+      throw new Error('reasonToKeep queried the database before refusing the "default" slug');
+    },
+  });
+
+  it('refuses an org slugged "default" without touching the database', async () => {
+    expect(await reasonToKeep(unusable, { id: 'any', slug: 'default', personal: true }, 'any-user')).toBe('its slug is "default"');
+  });
+
+  it('refuses a shared org without touching the database either', async () => {
+    expect(await reasonToKeep(unusable, { id: 'any', slug: 'a-team', personal: false }, 'any-user')).toBe('it is a shared organisation, not a personal one');
+  });
+});
 
 describe('adoptOrg', () => {
   it('makes a throwaway org personal, owned by a throwaway user, with an owner membership — and is idempotent', async () => {
@@ -30,7 +51,7 @@ describe('adoptOrg', () => {
       const r2 = await adoptOrg(db, { email, slug });
       expect(r2.membershipAction).toBe('unchanged');
       expect(r2.sessionsMoved).toBe(0);
-      expect(r2.droppedOrgSlug).toBeNull();
+      expect(r2.droppedOrgSlugs).toEqual([]);
       expect(r2.keptOrgs).toEqual([]);
       const orgRow2 = await db.query.orgs.findFirst({ where: eq(orgs.id, org!.id) });
       expect(orgRow2?.personal).toBe(true);
@@ -110,7 +131,7 @@ describe('adoptOrg', () => {
       const session = await db.query.sessions.findFirst({ where: eq(sessions.token, `adopt-move-${tag}`) });
       expect(session?.orgId).toBe(target!.id);
 
-      expect(r.droppedOrgSlug).toBe(auto!.slug);
+      expect(r.droppedOrgSlugs).toEqual([auto!.slug]);
       expect(r.keptOrgs).toEqual([]);
       expect(await db.query.orgs.findFirst({ where: eq(orgs.id, auto!.id) })).toBeUndefined();
     } finally {
@@ -130,7 +151,7 @@ describe('adoptOrg', () => {
     await db.insert(projects).values({ orgId: other!.id, name: 'Kept work', slug: `kept-work-${tag}` });
     try {
       const r = await adoptOrg(db, { email, slug: target!.slug });
-      expect(r.droppedOrgSlug).toBeNull();
+      expect(r.droppedOrgSlugs).toEqual([]);
       expect(r.keptOrgs).toEqual([{ slug: other!.slug, reason: 'it holds at least one project' }]);
       expect(await db.query.orgs.findFirst({ where: eq(orgs.id, other!.id) })).toBeDefined();
     } finally {
@@ -154,7 +175,7 @@ describe('adoptOrg', () => {
     await db.insert(extractors).values({ orgId: other!.id, domainId: domain!.id, country: 'us', variant: 'default' });
     try {
       const r = await adoptOrg(db, { email, slug: target!.slug });
-      expect(r.droppedOrgSlug).toBeNull();
+      expect(r.droppedOrgSlugs).toEqual([]);
       expect(r.keptOrgs).toEqual([{ slug: other!.slug, reason: 'it holds cached extractors' }]);
       expect(await db.query.orgs.findFirst({ where: eq(orgs.id, other!.id) })).toBeDefined();
     } finally {
@@ -180,7 +201,7 @@ describe('adoptOrg', () => {
     ]);
     try {
       const r = await adoptOrg(db, { email, slug: target!.slug });
-      expect(r.droppedOrgSlug).toBeNull();
+      expect(r.droppedOrgSlugs).toEqual([]);
       expect([...r.keptOrgs].sort((a, b) => a.slug.localeCompare(b.slug))).toEqual(
         [
           { slug: withGuest!.slug, reason: 'someone else is a member of it' },

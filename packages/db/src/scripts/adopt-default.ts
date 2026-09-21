@@ -23,8 +23,13 @@ export type AdoptOrgResult = {
   membershipAction: 'created' | 'upgraded' | 'unchanged';
   /** Sessions of this user repointed at the adopted org, so an open browser lands on the projects. */
   sessionsMoved: number;
-  /** The empty personal org `signIn` had auto-created, if it was safe to drop. */
-  droppedOrgSlug: string | null;
+  /**
+   * Every org dropped, not just the last one: the loop walks all of this
+   * user's other owned orgs, and a silently dropped org is the exact class of
+   * event this script exists to make visible. Usually the one empty personal
+   * shell `signIn` auto-created, often none.
+   */
+  droppedOrgSlugs: string[];
   /** Every other personal org of this user that was left alone, and why. */
   keptOrgs: { slug: string; reason: string }[];
 };
@@ -35,8 +40,12 @@ export type AdoptOrgResult = {
  * only when it is provably the empty personal shell `signIn` minted seconds
  * ago, because an org delete cascades to everything under it. (Ownership by
  * this user is the caller's query, so it is not re-checked here.)
+ *
+ * The two cheap refusals come first and answer without a query, so the
+ * `default` guard holds even against a caller with no working database.
+ * Exported for that test.
  */
-async function reasonToKeep(
+export async function reasonToKeep(
   database: Database,
   org: { id: string; slug: string; personal: boolean },
   userId: string,
@@ -103,7 +112,7 @@ export async function adoptOrg(database: Database, opts: AdoptOrgOptions): Promi
     where: and(eq(orgs.ownerUserId, user.id), ne(orgs.id, org.id)),
     columns: { id: true, slug: true, personal: true },
   });
-  let droppedOrgSlug: string | null = null;
+  const droppedOrgSlugs: string[] = [];
   const keptOrgs: { slug: string; reason: string }[] = [];
   for (const candidate of candidates) {
     const reason = await reasonToKeep(database, candidate, user.id);
@@ -112,10 +121,10 @@ export async function adoptOrg(database: Database, opts: AdoptOrgOptions): Promi
       continue;
     }
     await database.delete(orgs).where(eq(orgs.id, candidate.id));
-    droppedOrgSlug = candidate.slug;
+    droppedOrgSlugs.push(candidate.slug);
   }
 
-  return { orgId: org.id, slug, name, userId: user.id, email, membershipAction, sessionsMoved: moved.length, droppedOrgSlug, keptOrgs };
+  return { orgId: org.id, slug, name, userId: user.id, email, membershipAction, sessionsMoved: moved.length, droppedOrgSlugs, keptOrgs };
 }
 
 function parseArgs(argv: string[]): { email?: string; slug?: string; name?: string } {
@@ -141,7 +150,8 @@ if (isMain) {
       console.log(`org "${r.slug}" (${r.orgId}) is now personal, owned by ${r.email} (${r.userId}), named "${r.name}"`);
       console.log(`membership: ${r.membershipAction}`);
       console.log(`sessions moved to this org: ${r.sessionsMoved}`);
-      console.log(r.droppedOrgSlug ? `dropped the empty personal org "${r.droppedOrgSlug}"` : 'dropped no other org');
+      if (r.droppedOrgSlugs.length === 0) console.log('dropped no other org');
+      for (const dropped of r.droppedOrgSlugs) console.log(`dropped the empty personal org "${dropped}"`);
       for (const kept of r.keptOrgs) console.log(`kept "${kept.slug}": ${kept.reason}`);
       process.exit(0);
     })
