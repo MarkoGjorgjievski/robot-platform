@@ -4,10 +4,12 @@
 // The rule the whole tab is built on: **nothing disappears**. A step that is
 // finished locks and keeps its content on screen behind an "Edit" button; a
 // step that is not reachable yet stays visible, dimmed, with the reason in
-// place of its usual subtitle. Only the *interactivity* changes — a
-// locked/later section wraps its children in `<div inert>` (React 19), so the
-// content is still readable and still in the document, but nothing inside it
-// can be clicked, typed into, or tabbed to.
+// place of its usual subtitle. Only the *interactivity* changes — a section
+// that is done, locked or not yet reachable wraps its children in `<div inert>`
+// (React 19), so the content is still readable and still in the document, but
+// nothing inside it can be clicked, typed into, or tabbed to. "Behind an Edit
+// button" is meant literally: Edit sits in the heading row, outside the inert
+// div, so it is the one way back into a finished step.
 //
 // Visually (spec 7): none of this is a box. The strip is three quiet cells
 // carrying a 2px rail under them — accent on the current step, ink on a
@@ -111,12 +113,14 @@ export function Section({
       {/* Children always render — a locked section keeps everything it knows on
           screen; `inert` is what takes the interactivity away. A finished
           section keeps its content too, quieted to 60% rather than boxed off
-          behind a grey background.
+          behind a grey background — and inert as well, so a step the customer
+          has moved past cannot be edited out from under the step they are on
+          until they say Edit.
           The dimming lives here and not on the <section>, so the heading row
           above stays at full contrast: `reason` is the sentence that says why
           the section is dimmed, and fading it with the body composited it to
           2.06:1 — unreadable exactly where spec 6 requires a visible reason. */}
-      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''} ${dimmed ? 'opacity-50' : ''}`} inert={dimmed || undefined}>
+      <div className={`mt-3 ${state === 'done' ? 'opacity-60' : ''} ${dimmed ? 'opacity-50' : ''}`} inert={dimmed || state === 'done' || undefined}>
         {children}
       </div>
     </section>

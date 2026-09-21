@@ -400,11 +400,19 @@ export default function SourceSchema() {
         ]}
       />
 
+      {/* Step 1 is locked for the length of a run, whatever `stepStates` says the
+          step is: a field added mid-run is a field the run never looked at, so the
+          certification it is paying for is not current the moment it ends. The strip
+          above keeps step 1's computed state — where the customer is has not changed,
+          only what they can touch — and the reason says why the catalogue is dead.
+          The API-level refusal (an addField while any website of the dataset verifies)
+          is step 2's follow-up. */}
       <Section
         n={1}
         title="Fields"
         hint={sharedNote(websiteCount) ?? 'the columns of your output'}
-        state={s1}
+        reason={active ? 'Fields are locked while verifying' : undefined}
+        state={active ? 'locked' : s1}
         onEdit={() => goto('fields')}
       >
         {source.datasetId ? (
