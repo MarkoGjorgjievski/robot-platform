@@ -81,7 +81,7 @@ work quietly. Monochrome; chroma only where it carries state.
   `#a1a1a1`, muted `#666666`. Light theme is the inverse ramp (`#ffffff`,
   `#fafafa`, `#f4f4f4`, `#e5e5e5` / `#d4d4d4`, `#171717`, `#666666`,
   `#a1a1a1`). State: pass `#3ddc84` (dark) / `#0f7b3d` (light), fail
-  `#ff5c5c` / `#c62828`, warn `#f5a623` / `#b26a00`, link `#52a8ff` / `#0b6bcb`.
+  `#ff5c5c` / `#c62828`, warn `#f5a623` / `#a26000`, link `#52a8ff` / `#0b6bcb`.
   State colour appears as a dot, a 2 px rail or a badge, never a background
   wash. Every text-on-surface pair holds ≥ 4.5:1 (asserted in a token test).
 - **Surfaces**: 1 px-bordered panels, 6 px radius, no shadow in dark (the
