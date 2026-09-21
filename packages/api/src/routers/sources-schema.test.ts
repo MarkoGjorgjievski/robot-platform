@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db });
+const caller = createCaller({ db, session: null });
 
 function expectZodValidationError(err: unknown): asserts err is TRPCError {
   if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);

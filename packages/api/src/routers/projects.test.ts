@@ -4,7 +4,7 @@ import { db, projects, datasets, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const created: string[] = [];
 
 afterEach(async () => {

@@ -1,4 +1,5 @@
 import { router } from '../trpc';
+import { authRouter } from './auth.js';
 import { projectsRouter } from './projects';
 import { datasetsRouter } from './datasets';
 import { sourcesRouter } from './sources';
@@ -8,6 +9,7 @@ import { crawlRouter } from './crawl';
 import { scraperRouter } from './scraper';
 
 export const appRouter = router({
+  auth: authRouter,
   projects: projectsRouter,
   datasets: datasetsRouter,
   sources: sourcesRouter,

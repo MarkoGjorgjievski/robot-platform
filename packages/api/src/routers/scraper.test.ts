@@ -19,7 +19,7 @@ async function expectZodValidationError(promise: Promise<unknown>): Promise<void
 }
 
 describe('scraperRouter', () => {
-  const caller = createCaller({ db });
+  const caller = createCaller({ db, session: null });
 
   describe('analyze input validation', () => {
     it('rejects empty input', async () => {
@@ -91,7 +91,7 @@ describe('scraper.setRowSelector', () => {
     );
   });
 
-  const caller = createCaller({ db });
+  const caller = createCaller({ db, session: null });
 
   it('upserts a human row selector for a new domain', async () => {
     await caller.scraper.setRowSelector({ domain: DOMAIN, pageType: PAGE_TYPE, rowXpath: '//div[@data-x]' });

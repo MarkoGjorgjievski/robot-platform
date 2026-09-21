@@ -8,7 +8,7 @@ import { loadFieldCurrency } from '../verify/current-certification.js';
 import { SCHEMA_TYPES } from '../schema-catalogue.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const projectIds: string[] = [];
 afterEach(async () => {
   for (const id of projectIds.splice(0)) {

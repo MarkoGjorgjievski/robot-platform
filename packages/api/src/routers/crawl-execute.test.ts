@@ -24,7 +24,7 @@ vi.mock('../crawl/start-execution.js', async (importOriginal) => {
   return { ...actual, startExecution: startExecutionMock };
 });
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const SLUG = 'test-crawl-execute';
 let orgId: string | null = null;
 

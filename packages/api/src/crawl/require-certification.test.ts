@@ -15,7 +15,7 @@ import { requireCertification } from './require-certification.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
 
 const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db });
+const caller = createCaller({ db, session: null });
 
 async function makeSchemaSource(tag: string) {
   const urls = [

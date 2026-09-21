@@ -40,7 +40,7 @@ vi.mock('../crawl/mark-extracting.js', async (importOriginal) => {
   return { ...actual, markRunExtracting: markRunExtractingMock };
 });
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const SLUG = 'test-crawl-probe';
 let orgId: string | null = null;
 

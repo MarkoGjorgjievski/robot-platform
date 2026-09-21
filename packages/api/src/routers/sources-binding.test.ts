@@ -4,7 +4,7 @@ import { db, projects, sources, inputSets, sourceVerifications } from '@robot/db
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const projectIds: string[] = [];
 afterEach(async () => {
   for (const id of projectIds.splice(0)) {

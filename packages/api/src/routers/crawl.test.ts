@@ -29,7 +29,7 @@ vi.mock('@robot/browser', async (importOriginal) => {
 });
 
 const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db });
+const caller = createCaller({ db, session: null });
 
 const CRAWL_TEST_SLUG_PREFIX = 'test-crawl-';
 

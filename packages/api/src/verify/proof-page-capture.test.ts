@@ -11,7 +11,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
 import { readCaptureFile } from './capture-store.js';
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 let dir: string;
 beforeAll(async () => { dir = await mkdtemp(join(tmpdir(), 'captures-')); process.env.CAPTURES_DIR = dir; });
 afterAll(async () => { delete process.env.CAPTURES_DIR; await rm(dir, { recursive: true, force: true }); });

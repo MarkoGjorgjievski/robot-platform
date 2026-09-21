@@ -35,7 +35,7 @@ console.log(`\nPlanning ${source.name} (${source.slug})`);
 console.log(`  mode:   ${source.listingMode}`);
 console.log(`  budget: ${JSON.stringify(source.budget)}\n`);
 
-const caller = createCallerFactory(appRouter)({ db });
+const caller = createCallerFactory(appRouter)({ db, session: null });
 const startedAt = Date.now();
 const result = await caller.crawl.plan({ sourceId: source.id });
 const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
