@@ -9,6 +9,21 @@ import { deleteOwnOrg } from '../test-helpers/identity.js';
 const caller = createCallerFactory(appRouter)({ db, session: null });
 const created: string[] = [];
 
+/** Signs a throwaway user in through `auth.signIn`, which mints them their own personal org. */
+async function signIn(email: string) {
+  const cookies: Record<string, string | null> = {};
+  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
+  const r = await c.auth.signIn({ email, password: 'x' });
+  return { ...r, session: (await loadSession(db, cookies['robot_session']!))! };
+}
+
+/** Everything this file created for a throwaway identity, in cascade-safe order. Never touches org `default`. */
+async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
+  await db.delete(projects).where(eq(projects.orgId, r.org.id));
+  await deleteOwnOrg(r.org.id);
+  await db.delete(users).where(eq(users.id, r.user.id));
+}
+
 afterEach(async () => {
   for (const id of created.splice(0)) await db.delete(projects).where(eq(projects.id, id)); // datasets cascade
 });
@@ -83,21 +98,22 @@ describe('projects.list stats', () => {
 describe('projects.delete', () => {
   it('a session-less caller can delete a project it created session-lessly (mirrors the old dashboard smoke cleanup)', async () => {
     const p = await caller.projects.create({ name: `SmokeCleanup ${Date.now()}` });
-    const r = await caller.projects.delete({ projectId: p.id });
-    expect(r.deleted).toBe(true);
-    expect(await db.query.projects.findFirst({ where: eq(projects.id, p.id) })).toBeUndefined();
+    // The project is real, and it lives in the seeded `default` org: if the
+    // assertion below throws, the `finally` is what stops an orphaned
+    // `SmokeCleanup …` being left in the user's own org.
+    try {
+      const r = await caller.projects.delete({ projectId: p.id });
+      expect(r.deleted).toBe(true);
+      expect(await db.query.projects.findFirst({ where: eq(projects.id, p.id) })).toBeUndefined();
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p.id));
+    }
   });
 });
 
 describe('projects live in the session organisation', () => {
   it("a project is invisible outside its org, and the old orgSlug-less caller still lists the default org", async () => {
     const tag = Date.now();
-    const signIn = async (email: string) => {
-      const cookies: Record<string, string | null> = {};
-      const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-      const r = await c.auth.signIn({ email, password: 'x' });
-      return { ...r, session: (await loadSession(db, cookies['robot_session']!))! };
-    };
     const a = await signIn(`proj-a-${tag}@example.com`);
     const b = await signIn(`proj-b-${tag}@example.com`);
     try {
@@ -114,11 +130,28 @@ describe('projects live in the session organisation', () => {
       const legacy = await caller.projects.list({ orgSlug: 'default' });
       expect(Array.isArray(legacy)).toBe(true);
     } finally {
-      for (const r of [a, b]) {
-        await db.delete(projects).where(eq(projects.orgId, r.org.id));
-        await deleteOwnOrg(r.org.id);
-        await db.delete(users).where(eq(users.id, r.user.id));
-      }
+      for (const r of [a, b]) await dropIdentity(r);
+    }
+  });
+
+  // `rename` is the other write in the set, and until this branch it took a
+  // bare `projectId` and updated it with no org check in either direction.
+  it('a project in another org is NOT_FOUND on rename, and keeps its name', async () => {
+    const tag = Date.now();
+    const a = await signIn(`rename-a-${tag}@example.com`);
+    const b = await signIn(`rename-b-${tag}@example.com`);
+    try {
+      const callerA = createCallerFactory(appRouter)({ db, session: a.session });
+      const callerB = createCallerFactory(appRouter)({ db, session: b.session });
+      const p = await callerA.projects.create({ name: `Not Yours ${tag}` });
+
+      await expect(callerB.projects.rename({ projectId: p.id, name: 'Mine now' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect((await db.query.projects.findFirst({ where: eq(projects.id, p.id) }))?.name).toBe(`Not Yours ${tag}`);
+
+      // The owner still renames it, so the guard has not simply closed the door.
+      expect((await callerA.projects.rename({ projectId: p.id, name: `Renamed ${tag}` })).name).toBe(`Renamed ${tag}`);
+    } finally {
+      for (const r of [a, b]) await dropIdentity(r);
     }
   });
 });
