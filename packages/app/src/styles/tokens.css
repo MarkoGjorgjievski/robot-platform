@@ -33,7 +33,7 @@
   --muted: #a1a1a1; /* dividers, disabled, placeholders — never text */
   --pass: #0f7b3d;
   --fail: #c62828;
-  --warn: #b26a00;
+  --warn: #a26000;
   --link: #0b6bcb;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
   color-scheme: light;
