@@ -14,6 +14,7 @@
     "db:migrate": "pnpm --filter @robot/db exec drizzle-kit migrate",
     "db:seed": "pnpm --filter @robot/db run seed:scratch",
     "db:lift-contracts": "pnpm --filter @robot/db run lift:contracts",
+    "db:adopt-default": "pnpm --filter @robot/db run adopt:default --",
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {

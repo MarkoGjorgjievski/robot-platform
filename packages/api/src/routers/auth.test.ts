@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { and, desc, eq } from 'drizzle-orm';
 import { db, users, orgs, memberships, sessions } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
-import { planFirstOrg } from './auth.js';
 import { loadSession, mintToken } from '../auth/session.js';
+import { deleteOwnOrg } from '../test-helpers/identity.js';
 
 function callerWith(session: Awaited<ReturnType<typeof loadSession>> = null) {
   const cookies: Record<string, string | null> = {};
@@ -12,28 +12,7 @@ function callerWith(session: Awaited<ReturnType<typeof loadSession>> = null) {
   return { caller, cookies };
 }
 
-// The shared dev database still has no user, so the first sign-in here would
-// adopt the seeded `default` org (and the cleanup below would then delete it,
-// taking its projects with it). A throwaway user keeps `users` non-empty for
-// the duration of this file, so every sign-in takes the `create` branch; the
-// live adoption is proven by hand in Task 7 on an untouched database.
-const SENTINEL = `sentinel-${Date.now()}@example.com`;
-
-beforeAll(async () => {
-  await db.insert(users).values({ email: SENTINEL, name: 'Sentinel', avatarColour: '#000000' });
-});
-
-afterAll(async () => {
-  await db.delete(users).where(eq(users.email, SENTINEL));
-});
-
 describe('auth', () => {
-  it('adopts default only when no user exists', () => {
-    expect(planFirstOrg({ userCount: 0, hasDefault: true })).toBe('adopt');
-    expect(planFirstOrg({ userCount: 1, hasDefault: true })).toBe('create');
-    expect(planFirstOrg({ userCount: 0, hasDefault: false })).toBe('create');
-  });
-
   it('a new user signs in with any password, gets a personal org and a session cookie', async () => {
     const email = `new-${Date.now()}@example.com`;
     const { caller, cookies } = callerWith();
@@ -52,7 +31,7 @@ describe('auth', () => {
       await callerWith(s).caller.auth.signOut();
       expect(await loadSession(db, token)).toBeNull();
     } finally {
-      await db.delete(orgs).where(eq(orgs.id, r.org.id));
+      await deleteOwnOrg(r.org.id);
       await db.delete(users).where(eq(users.id, r.user.id));
     }
   });
@@ -71,7 +50,7 @@ describe('auth', () => {
       await db.insert(memberships).values({ userId: a.user.id, orgId: b.org.id, role: 'member' });
       expect((await callerWith(sa).caller.auth.switchOrg({ orgId: b.org.id })).currentOrg.id).toBe(b.org.id);
     } finally {
-      for (const r of [a, b]) { await db.delete(orgs).where(eq(orgs.id, r.org.id)); await db.delete(users).where(eq(users.id, r.user.id)); }
+      for (const r of [a, b]) { await deleteOwnOrg(r.org.id); await db.delete(users).where(eq(users.id, r.user.id)); }
     }
   });
 
@@ -92,8 +71,8 @@ describe('auth', () => {
       expect(s!.org.id).toBe(a.org.id);
       expect((await callerWith(s).caller.auth.me()).currentOrg.id).toBe(a.org.id);
     } finally {
-      await db.delete(orgs).where(eq(orgs.id, other!.id));
-      await db.delete(orgs).where(eq(orgs.id, a.org.id));
+      await deleteOwnOrg(other!.id);
+      await deleteOwnOrg(a.org.id);
       await db.delete(users).where(eq(users.id, a.user.id));
     }
   });

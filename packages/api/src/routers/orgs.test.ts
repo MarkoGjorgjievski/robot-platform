@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { eq, and } from 'drizzle-orm';
 import { db, users, orgs, memberships, projects } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
+import { deleteOwnOrg } from '../test-helpers/identity.js';
 
 function callerWith(session: Awaited<ReturnType<typeof loadSession>> = null) {
   const cookies: Record<string, string | null> = {};
@@ -17,18 +18,6 @@ async function signIn(email: string) {
   const session = (await loadSession(db, cookies['robot_session']!))!;
   return { ...r, session };
 }
-
-// Same guard as auth.test.ts: keeps `users` non-empty so no sign-in here ever
-// adopts the seeded `default` org (whose deletion would cascade real projects).
-const SENTINEL = `sentinel-orgs-${Date.now()}@example.com`;
-
-beforeAll(async () => {
-  await db.insert(users).values({ email: SENTINEL, name: 'Sentinel', avatarColour: '#000000' });
-});
-
-afterAll(async () => {
-  await db.delete(users).where(eq(users.email, SENTINEL));
-});
 
 describe('orgs', () => {
   it('governs a shared org by role, and cascades on delete', async () => {
@@ -80,9 +69,9 @@ describe('orgs', () => {
       expect(aPersonal.org.personal).toBe(true);
       await expect(callerWith(aPersonal).caller.orgs.delete()).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
     } finally {
-      if (teamId) await db.delete(orgs).where(eq(orgs.id, teamId));
+      if (teamId) await deleteOwnOrg(teamId);
       for (const r of [a, b]) {
-        await db.delete(orgs).where(eq(orgs.id, r.org.id));
+        await deleteOwnOrg(r.org.id);
         await db.delete(users).where(eq(users.id, r.user.id));
       }
     }
@@ -110,9 +99,9 @@ describe('orgs', () => {
       await callerWith(aSession).caller.orgs.members.remove({ userId: b.user.id });
       expect(await db.query.memberships.findFirst({ where: and(eq(memberships.userId, b.user.id), eq(memberships.orgId, team.id)) })).toBeUndefined();
     } finally {
-      if (teamId) await db.delete(orgs).where(eq(orgs.id, teamId));
+      if (teamId) await deleteOwnOrg(teamId);
       for (const r of [a, b]) {
-        await db.delete(orgs).where(eq(orgs.id, r.org.id));
+        await deleteOwnOrg(r.org.id);
         await db.delete(users).where(eq(users.id, r.user.id));
       }
     }

@@ -1,27 +1,16 @@
-import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, datasets, runs, orgs, users } from '@robot/db';
+import { db, projects, datasets, runs, users } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
+import { deleteOwnOrg } from '../test-helpers/identity.js';
 
 const caller = createCallerFactory(appRouter)({ db, session: null });
 const created: string[] = [];
 
 afterEach(async () => {
   for (const id of created.splice(0)) await db.delete(projects).where(eq(projects.id, id)); // datasets cascade
-});
-
-// Guards against adopting the seeded `default` org, same as auth.test.ts and
-// orgs.test.ts: keeps `users` non-empty for the two sign-ins below.
-const SENTINEL = `sentinel-projects-${Date.now()}@example.com`;
-
-beforeAll(async () => {
-  await db.insert(users).values({ email: SENTINEL, name: 'Sentinel', avatarColour: '#000000' });
-});
-
-afterAll(async () => {
-  await db.delete(users).where(eq(users.email, SENTINEL));
 });
 
 describe('projects.create', () => {
@@ -127,7 +116,7 @@ describe('projects live in the session organisation', () => {
     } finally {
       for (const r of [a, b]) {
         await db.delete(projects).where(eq(projects.orgId, r.org.id));
-        await db.delete(orgs).where(eq(orgs.id, r.org.id));
+        await deleteOwnOrg(r.org.id);
         await db.delete(users).where(eq(users.id, r.user.id));
       }
     }
