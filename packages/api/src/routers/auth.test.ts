@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { db, users, orgs, memberships } from '@robot/db';
+import { and, desc, eq } from 'drizzle-orm';
+import { db, users, orgs, memberships, sessions } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { planFirstOrg } from './auth.js';
-import { loadSession } from '../auth/session.js';
+import { loadSession, mintToken } from '../auth/session.js';
 
 function callerWith(session: Awaited<ReturnType<typeof loadSession>> = null) {
   const cookies: Record<string, string | null> = {};
@@ -72,6 +72,29 @@ describe('auth', () => {
       expect((await callerWith(sa).caller.auth.switchOrg({ orgId: b.org.id })).currentOrg.id).toBe(b.org.id);
     } finally {
       for (const r of [a, b]) { await db.delete(orgs).where(eq(orgs.id, r.org.id)); await db.delete(users).where(eq(users.id, r.user.id)); }
+    }
+  });
+
+  it('skips the last session org once the membership behind it is gone', async () => {
+    const tag = Date.now();
+    const a = await callerWith().caller.auth.signIn({ email: `stale-${tag}@example.com`, password: 'x' });
+    const [other] = await db.insert(orgs).values({ name: `Other ${tag}`, slug: `other-${tag}` }).returning();
+    try {
+      // A worked in `other` last, then lost their place in it.
+      await db.insert(memberships).values({ userId: a.user.id, orgId: other!.id, role: 'member' });
+      await db.insert(sessions).values({ token: mintToken(), userId: a.user.id, orgId: other!.id, expiresAt: new Date(Date.now() + 60_000) });
+      await db.delete(memberships).where(and(eq(memberships.userId, a.user.id), eq(memberships.orgId, other!.id)));
+      const newest = await db.query.sessions.findFirst({ where: eq(sessions.userId, a.user.id), orderBy: [desc(sessions.createdAt)] });
+      expect(newest!.orgId).toBe(other!.id);   // the stale session really is the one sign-in would reach for
+      const again = callerWith();
+      await again.caller.auth.signIn({ email: a.user.email, password: 'x' });
+      const s = await loadSession(db, again.cookies['robot_session']!);
+      expect(s!.org.id).toBe(a.org.id);
+      expect((await callerWith(s).caller.auth.me()).currentOrg.id).toBe(a.org.id);
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, other!.id));
+      await db.delete(orgs).where(eq(orgs.id, a.org.id));
+      await db.delete(users).where(eq(users.id, a.user.id));
     }
   });
 });
