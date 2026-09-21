@@ -4,63 +4,71 @@ import { TRPCError } from '@trpc/server';
 import { projects, orgs, datasets, sources, runs } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
+import { resolveOrg } from '../auth/session.js';
 import { loadCurrentCertification } from '../verify/current-certification.js';
 
 export const projectsRouter = router({
-  list: publicProcedure.query(async ({ ctx }) => {
-    const base = await ctx.db
-      .select({
-        id: projects.id,
-        orgId: projects.orgId,
-        name: projects.name,
-        slug: projects.slug,
-        description: projects.description,
-        createdAt: projects.createdAt,
-        updatedAt: projects.updatedAt,
-        datasetCount: sql<number>`count(${datasets.id})::int`,
-        fieldCount: sql<number>`coalesce(sum((select count(*) from jsonb_array_elements(case when jsonb_typeof(${datasets.schema}) = 'array' then ${datasets.schema} else '[]'::jsonb end) e where e ? 'key')), 0)::int`,
-      })
-      .from(projects)
-      .leftJoin(datasets, eq(projects.id, datasets.projectId))
-      .groupBy(projects.id)
-      .orderBy(projects.name);
+  // TODO(cut-over, spec 2026-09-21 §2): the `orgSlug ?? 'default'` fallback exists only for the
+  // old dashboard, which calls this with no input at all. Once it is retired, drop the fallback
+  // and let a session-less, orgSlug-less call fail UNAUTHORIZED like every other org-scoped route.
+  list: publicProcedure
+    .input(z.object({ orgSlug: z.string().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const org = await resolveOrg(ctx, input?.orgSlug ?? 'default');
+      const base = await ctx.db
+        .select({
+          id: projects.id,
+          orgId: projects.orgId,
+          name: projects.name,
+          slug: projects.slug,
+          description: projects.description,
+          createdAt: projects.createdAt,
+          updatedAt: projects.updatedAt,
+          datasetCount: sql<number>`count(${datasets.id})::int`,
+          fieldCount: sql<number>`coalesce(sum((select count(*) from jsonb_array_elements(case when jsonb_typeof(${datasets.schema}) = 'array' then ${datasets.schema} else '[]'::jsonb end) e where e ? 'key')), 0)::int`,
+        })
+        .from(projects)
+        .leftJoin(datasets, eq(projects.id, datasets.projectId))
+        .where(eq(projects.orgId, org.id))
+        .groupBy(projects.id)
+        .orderBy(projects.name);
 
-    const sourceRows = await ctx.db
-      .select({ projectId: datasets.projectId, id: sources.id })
-      .from(sources)
-      .innerJoin(datasets, eq(sources.datasetId, datasets.id));
+      const sourceRows = await ctx.db
+        .select({ projectId: datasets.projectId, id: sources.id })
+        .from(sources)
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id));
 
-    const lastRuns = await ctx.db
-      .selectDistinctOn([datasets.projectId], {
-        projectId: datasets.projectId,
-        createdAt: runs.createdAt,
-        resultCount: runs.resultCount,
-      })
-      .from(runs)
-      .innerJoin(sources, eq(runs.sourceId, sources.id))
-      .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-      .orderBy(datasets.projectId, desc(runs.createdAt), desc(runs.id));
+      const lastRuns = await ctx.db
+        .selectDistinctOn([datasets.projectId], {
+          projectId: datasets.projectId,
+          createdAt: runs.createdAt,
+          resultCount: runs.resultCount,
+        })
+        .from(runs)
+        .innerJoin(sources, eq(runs.sourceId, sources.id))
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .orderBy(datasets.projectId, desc(runs.createdAt), desc(runs.id));
 
-    const verifiedByProject = new Map<string, number>();
-    const countByProject = new Map<string, number>();
-    for (const s of sourceRows) {
-      countByProject.set(s.projectId, (countByProject.get(s.projectId) ?? 0) + 1);
-      const cert = await loadCurrentCertification(ctx.db, s.id);
-      if (cert) verifiedByProject.set(s.projectId, (verifiedByProject.get(s.projectId) ?? 0) + 1);
-    }
+      const verifiedByProject = new Map<string, number>();
+      const countByProject = new Map<string, number>();
+      for (const s of sourceRows) {
+        countByProject.set(s.projectId, (countByProject.get(s.projectId) ?? 0) + 1);
+        const cert = await loadCurrentCertification(ctx.db, s.id);
+        if (cert) verifiedByProject.set(s.projectId, (verifiedByProject.get(s.projectId) ?? 0) + 1);
+      }
 
-    const lastRunByProject = new Map<string, { createdAt: Date; resultCount: number | null }>();
-    for (const r of lastRuns) {
-      lastRunByProject.set(r.projectId, { createdAt: r.createdAt, resultCount: r.resultCount });
-    }
+      const lastRunByProject = new Map<string, { createdAt: Date; resultCount: number | null }>();
+      for (const r of lastRuns) {
+        lastRunByProject.set(r.projectId, { createdAt: r.createdAt, resultCount: r.resultCount });
+      }
 
-    return base.map((p) => ({
-      ...p,
-      sourceCount: countByProject.get(p.id) ?? 0,
-      verifiedSourceCount: verifiedByProject.get(p.id) ?? 0,
-      lastRun: lastRunByProject.get(p.id) ?? null,
-    }));
-  }),
+      return base.map((p) => ({
+        ...p,
+        sourceCount: countByProject.get(p.id) ?? 0,
+        verifiedSourceCount: verifiedByProject.get(p.id) ?? 0,
+        lastRun: lastRunByProject.get(p.id) ?? null,
+      }));
+    }),
 
   listByOrg: publicProcedure
     .input(z.object({ orgId: z.string().uuid() }))
@@ -176,13 +184,12 @@ export const projectsRouter = router({
   /**
    * The customer names the project (spec 2, 5.2). It gets one dataset named
    * after it: the project's field list and output table (spec 4.1). Lives
-   * under the single default org until auth arrives.
+   * in the session's org — see the TODO on `list` above for the `default` shim.
    */
   create: publicProcedure
-    .input(z.object({ name: z.string().trim().min(1).max(255), description: z.string().trim().max(2000).optional() }))
+    .input(z.object({ name: z.string().trim().min(1).max(255), description: z.string().trim().max(2000).optional(), orgSlug: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await ctx.db.query.orgs.findFirst({ where: eq(orgs.slug, 'default') });
-      if (!org) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No default org. Run `pnpm db:seed` first.' });
+      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
 
       const slug = await uniqueSlug(slugify(input.name), async (s) =>
         !!(await ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, s)), columns: { id: true } })),
@@ -216,10 +223,15 @@ export const projectsRouter = router({
   /**
    * Test and cleanup use only for now: cascades datasets, sources and runs,
    * and bypasses the confirmed-source refusal that `sources.delete` enforces.
+   * No `orgSlug` shim here — a project outside the resolved org is NOT_FOUND,
+   * same as if it never existed, rather than deletable by anyone who knows its id.
    */
   delete: publicProcedure
     .input(z.object({ projectId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      const org = await resolveOrg(ctx);
+      const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
+      if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       const rows = await ctx.db.delete(projects).where(eq(projects.id, input.projectId)).returning({ id: projects.id });
       return { deleted: rows.length > 0 };
     }),
