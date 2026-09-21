@@ -31,7 +31,14 @@ function RootDocument({ children }: { children: ReactNode }) {
   const pref = session?.user.theme ?? 'dark';
 
   return (
-    <html lang="en" data-theme={serverTheme(pref)}>
+    // `suppressHydrationWarning` is required, not cosmetic: for a `system`
+    // preference the server has to guess (it renders `dark`) and the boot
+    // script below rewrites `data-theme` to the real OS answer before paint —
+    // which is before hydration. React would otherwise compare the attribute it
+    // rendered against the one already in the DOM and warn on every light-mode
+    // `system` load. The rewritten value is the correct one and React leaves it
+    // alone; only the warning is suppressed, and only on this element.
+    <html lang="en" data-theme={serverTheme(pref)} suppressHydrationWarning>
       <head>
         <HeadContent />
         {/* Only `system` can be wrong on the server, and only then is a

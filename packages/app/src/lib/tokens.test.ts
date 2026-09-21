@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { STATE_KEYS, THEMES, contrastRatio, type ThemeName } from './tokens';
+import {
+  STATE_KEYS,
+  SURFACE_KEYS,
+  TEXT_COLOURS,
+  TEXT_CONTRAST_EXCEPTIONS,
+  THEMES,
+  contrastRatio,
+  type ThemeName,
+} from './tokens';
 
 const themeNames = Object.keys(THEMES) as ThemeName[];
 
@@ -16,25 +24,63 @@ describe('contrastRatio', () => {
   });
 });
 
-describe.each(themeNames)('%s theme contrast', (name) => {
+/**
+ * The contract: anything allowed to carry text is legible on every surface the
+ * app paints, in both themes. Table rows raise to `raised` on hover, so that
+ * surface counts as much as the background does.
+ *
+ * A pair may fall short only by being named in TEXT_CONTRAST_EXCEPTIONS, with
+ * its measured ratio — which makes each shortfall a decision in the diff
+ * rather than a silent regression.
+ */
+const exceptionFor = (theme: ThemeName, colour: string, surface: string) =>
+  TEXT_CONTRAST_EXCEPTIONS.find((e) => e.theme === theme && e.colour === colour && e.surface === surface);
+
+describe.each(themeNames)('%s theme: every text colour on every surface', (name) => {
   const t = THEMES[name];
 
-  it('body text on the background clears 4.5:1', () => {
-    expect(contrastRatio(t.text, t.bg)).toBeGreaterThanOrEqual(4.5);
+  for (const colour of TEXT_COLOURS) {
+    for (const surface of SURFACE_KEYS) {
+      const known = exceptionFor(name, colour, surface);
+      const label = `${colour} on ${surface}`;
+
+      if (known) {
+        it(`${label} is a recorded shortfall, still at its documented ratio`, () => {
+          const ratio = contrastRatio(t[colour], t[surface]);
+          expect(ratio).toBeLessThan(4.5);
+          expect(ratio).toBeCloseTo(known.ratio, 2);
+        });
+      } else {
+        it(`${label} clears 4.5:1`, () => {
+          expect(contrastRatio(t[colour], t[surface])).toBeGreaterThanOrEqual(4.5);
+        });
+      }
+    }
+  }
+});
+
+describe('the text-colour list', () => {
+  it('excludes muted, which is a divider/disabled/placeholder colour, not text', () => {
+    expect(TEXT_COLOURS).not.toContain('muted');
   });
 
-  it('secondary text on a panel clears 4.5:1', () => {
-    expect(contrastRatio(t.secondary, t.panel)).toBeGreaterThanOrEqual(4.5);
+  it('is right to exclude it: muted misses 4.5:1 on every surface, in both themes', () => {
+    for (const name of themeNames) {
+      for (const surface of SURFACE_KEYS) {
+        expect(contrastRatio(THEMES[name].muted, THEMES[name][surface])).toBeLessThan(4.5);
+      }
+    }
   });
 
-  it('secondary text on the raised surface clears 4.5:1', () => {
-    // Table rows raise to `raised` on hover; secondary text must survive it.
-    expect(contrastRatio(t.secondary, t.raised)).toBeGreaterThanOrEqual(4.5);
+  it('records no exception that has started passing', () => {
+    for (const e of TEXT_CONTRAST_EXCEPTIONS) {
+      expect(contrastRatio(THEMES[e.theme][e.colour], THEMES[e.theme][e.surface])).toBeLessThan(4.5);
+    }
   });
+});
 
-  it('links on the background clear 4.5:1', () => {
-    expect(contrastRatio(t.link, t.bg)).toBeGreaterThanOrEqual(4.5);
-  });
+describe.each(themeNames)('%s theme state colours', (name) => {
+  const t = THEMES[name];
 
   it.each(STATE_KEYS)('the %s state colour clears 3:1 on the background', (key) => {
     // Dots, 2 px rails and badge borders — non-text, so 3:1 is the bar.

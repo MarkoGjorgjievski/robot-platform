@@ -40,7 +40,9 @@ function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-6">
       {/* 360 px, but never wider than the phone it is on. */}
       <div className="rise w-full max-w-[360px]">
-        <p className="mb-5 font-mono text-sm text-faint">robot platform</p>
+        {/* `secondary`, not `muted`: the quietest colour that is still legible
+            (muted is 3.45:1 on the dark background — see lib/tokens.ts). */}
+        <p className="mb-5 font-mono text-sm text-muted-foreground">robot platform</p>
 
         <form
           onSubmit={onSubmit}

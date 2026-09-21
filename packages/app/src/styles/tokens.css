@@ -1,5 +1,9 @@
 /* The colour ramp, per theme, on the attribute the server renders.
-   Mirrored as data in src/lib/tokens.ts; tokens.test.ts asserts they match. */
+   Mirrored as data in src/lib/tokens.ts; tokens.test.ts asserts they match.
+
+   --muted IS NOT A TEXT COLOUR. It reaches 3.45:1 on the dark background and
+   2.58:1 on the light one; it is for dividers, disabled states and
+   placeholders. The quietest legible text in this system is --secondary. */
 
 :root[data-theme="dark"] {
   --bg: #0a0a0a;
@@ -9,7 +13,7 @@
   --border-hover: #333333;
   --text: #ededed;
   --secondary: #a1a1a1;
-  --muted: #666666;
+  --muted: #666666; /* dividers, disabled, placeholders — never text */
   --pass: #3ddc84;
   --fail: #ff5c5c;
   --warn: #f5a623;
@@ -26,7 +30,7 @@
   --border-hover: #d4d4d4;
   --text: #171717;
   --secondary: #666666;
-  --muted: #a1a1a1;
+  --muted: #a1a1a1; /* dividers, disabled, placeholders — never text */
   --pass: #0f7b3d;
   --fail: #c62828;
   --warn: #b26a00;
