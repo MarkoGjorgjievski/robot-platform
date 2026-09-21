@@ -34,6 +34,135 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## App redesign, plan 1: the shell (2026-09-21)
+
+Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` (approved in
+conversation). Plan and task briefs: `.superpowers/sdd/2026-09-21-app-redesign-plan1-shell/`.
+Branch `feat/app-redesign-shell`, base `4a4b0ac`. The warm-paper proof-sheet look
+was rejected outright on 2026-09-21; the customer surface is being rebuilt as a
+dark, monochrome tech console (AI Studio / Vercel register) in a new package,
+with an organisation and user model under it. `@robot/dashboard` keeps running
+untouched on :3456 until parity, then goes (spec §7).
+
+**What landed, one line per task** (`git log --oneline 4a4b0ac..HEAD`):
+
+| Commit | What |
+|---|---|
+| `94f8e8a` | `users`, `memberships`, `sessions`; `orgs.personal` and `orgs.owner_user_id` |
+| `ea98f12` | sessions, the `auth` router, and the `orgSlug` shim that keeps the old dashboard working |
+| `b16ee4a` | adoption keeps the `default` slug; sign-in picks an org the user still belongs to |
+| `ccd5d9a` | `orgs` router with roles; projects live in the session's organisation |
+| `2c481e8` | `projects.delete` keeps the session-less default-org fallback |
+| `6d915eb` | the `robot_session` cookie in and out of `@robot/api-server`; CORS for :3000 |
+| `d187573`, `be8a2d9` | sign-in never adopts `default`; adoption becomes an explicit script (see *the incident*) |
+| `6f9791d` | `@robot/app`: TanStack Start, tokens, themes, Geist, the tRPC client, `/login` |
+| `c866c33` | `--muted` is never a text colour; the theme-boot hydration warning suppressed |
+| `dd81020`, `fa19367` | light `warn` becomes `#a26000`, so every text colour clears 4.5:1 |
+| `6ada990` | the shell — sidebar, org switcher, user menu, ⌘K, the projects table, the RunDot |
+| `5bcb5e5` | a signed-out account's data never reaches the next one (`queryClient.clear()`) |
+| `575f681` | `adopt-default` moves the user's sessions and drops the empty auto-created org |
+| this task | the app smoke, the look-only check, the screenshot set, these docs |
+
+**API changes** (all additive, `packages/api/src/routers/`): `auth.signIn / signOut /
+me / switchOrg / setTheme`; `orgs.create / rename / delete / members.*`;
+`resolveOrg(ctx, fallbackSlug)` in the customer procedures, which takes the org
+from `ctx.org` when a session exists and otherwise from the `orgSlug` input. That
+fallback — `orgSlug ?? 'default'` in `projects.list / create / delete` — is the
+**shim** that keeps `@robot/dashboard` working while both apps run; the cut-over
+plan (spec §7, plan 6) deletes it together with `DEFAULT_ORG_SLUG`. Migration:
+`packages/db/drizzle/0010_identity.sql`.
+
+**The incident (read before touching the dev database).** While executing an
+earlier task of this plan, an implementer signed in ad hoc against the dev
+database. Sign-in then *adopted* the seeded `default` org, and the cleanup that
+followed deleted that user — which cascaded to the org and took **every project
+with it**. The data was rebuilt from the cached certified paths at $0 (nothing
+paid was lost), but the rules changed:
+
+- adoption of `default` is never automatic. It is the explicit script
+  `pnpm db:adopt-default -- --email <email>` (`packages/db/src/scripts/adopt-default.ts`).
+- no implementer runs sign-ins, deletes or cleanup scripts against the dev
+  database. Browser sign-ins through `/login` with a throwaway
+  `smoke-<timestamp>@example.com` address only; an org is never deleted, and the
+  org whose slug is `default` is never touched.
+- backups live in `C:\Users\Marko\Documents\projects\robot-platform-backups\`
+  (`pg_dump` before any identity work).
+
+**Spec amendments made while executing** (all written into the spec): adoption is
+a script, §2; light `warn` is `#a26000`, §4; `--muted` is a divider/placeholder
+colour and never a text colour. Two rulings were added to the adopt script on
+2026-09-21: after adoption every session of that user is repointed at the adopted
+org (so an open browser lands on the projects, not on an empty org), and the
+personal org `signIn` auto-created seconds earlier is dropped — but only when it
+is provably the empty shell (slug not `default`, personal, owned by that user, no
+project, no other member). Otherwise it is kept and the script says why.
+
+**The first sign-in on the dev database, done 2026-09-21** (the one live proof of
+the adoption path):
+
+```
+browser, /login, markodjordjievski@gmail.com  -> user created + empty personal
+                                                 org "Markodjordjievski"; /projects empty
+
+pnpm db:adopt-default -- --email markodjordjievski@gmail.com
+  org "default" (c812f66e…) is now personal, owned by markodjordjievski@gmail.com, named "Markodjordjievski"
+  membership: created
+  sessions moved to this org: 1
+  dropped the empty personal org "markodjordjievski"
+
+select slug, name, personal, owner_user_id from orgs
+  default | Markodjordjievski | t | ccf03067-23e7-4557-877b-1d3a231b960b
+  (plus the throwaway smoke-* orgs)
+
+browser again: switcher lists exactly one organisation ("Markodjordjievski", Owner);
+the projects table lists Acne (1 website, 8 fields) and Scratch;
+auth.me -> currentOrg { slug: "default", name: "Markodjordjievski", personal: true, role: "owner" }
+```
+
+**How to run.** `pnpm dev:all` now starts **three** servers: api-server :4000,
+the old dashboard :3456 and the new app :3000. `pnpm test:ui:app` is the app's
+Playwright smoke (needs all three up; signs in through `/login` as a throwaway
+address, walks every screen in both themes, creates and deletes one project).
+The look-only check is
+`cp docs/testing/ui-check-app-shell.mts packages/browser/src/__ui-check.mts && cd packages/browser && pnpm exec tsx src/__ui-check.mts <outDir> [email]`
+— with an email it measures that account's data instead of an empty throwaway org.
+
+**The screenshot set for Marko's review** (`docs/testing/screens/`, 1440×900,
+full page): `app-login.png`, and `app-projects`, `app-runs`, `app-usage`,
+`app-settings`, `app-account` each as `-dark.png` and `-light.png`. The two
+`app-projects-*` were retaken against the real database, so they show Acne and
+Scratch rather than an empty throwaway org.
+
+**What the look-only check measured, and what it fixed.** Measured on the real
+data, dark: sidebar 240 px, body 13 px, page title 20 px/600, tallest table row
+37.00 px, uppercase elements 0, shadowed elements 0 (also with the dialog and its
+overlay open), running dot `pulse-dot 1.6s` at 8 px. Three things the screenshots
+changed: `app-login.png` was a **blank page** because a headless browser starts
+the page-load `.rise` animation only on the frame the screenshot itself provokes,
+so the capture froze the `opacity: 0` keyframe — every capture now passes
+`animations: 'disabled'`; the user menu's **Theme** item sat 18 px left of
+*Account* and *Sign out* because it alone had no icon, and now has one; and the
+shadow rule is now also asked with the dialog open, since a page with nothing
+floating over it has no shadow to find.
+
+**Open decisions for the design review:**
+
+- a signed-out `/login` is always dark, because a visitor has no stored
+  preference and the OS one is not read there. Confirm with Marko, or read
+  `prefers-color-scheme` on that one screen.
+- the `QueryClient` lives in `Providers`, one per browser session, and three
+  exits remember to clear it. Keying it on the session identity
+  (`<Providers key={session?.user.id}>`) makes that structural — worth doing in
+  plan 2, when a screen caches more than one list.
+- the org switcher truncates a long organisation name because the "Personal"
+  badge and the chevron take fixed width ("Markodjordjiev…"). Spec §3 asks for
+  the tag, so it stands until Marko says otherwise.
+- a placeholder is `--secondary`, the same grey as its label, because `--muted`
+  misses 4.5:1 on every surface. An empty field therefore reads a little like a
+  filled one.
+
+**Next: plan 2** — project home, fields, output (spec §5 rows 3 to 5).
+
 ## Schema stepper, engine (2026-09-18)
 
 Spec: `docs/superpowers/specs/2026-09-18-schema-stepper-with-marks-design.md`
