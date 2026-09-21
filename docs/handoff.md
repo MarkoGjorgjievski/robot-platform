@@ -97,7 +97,8 @@ colour and never a text colour. Two rulings were added to the adopt script on
 org (so an open browser lands on the projects, not on an empty org), and the
 personal org `signIn` auto-created seconds earlier is dropped — but only when it
 is provably the empty shell (slug not `default`, personal, owned by that user, no
-project, no other member). Otherwise it is kept and the script says why.
+project, no cached extractors — those are org-scoped and would cascade — and no
+other member). Otherwise it is kept and the script says why.
 
 **The first sign-in on the dev database, done 2026-09-21** (the one live proof of
 the adoption path):
