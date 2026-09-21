@@ -106,4 +106,41 @@ describe('orgs', () => {
       }
     }
   });
+
+  // `orgs.ts:53`: an admin may set every role but `owner` — granting a
+  // co-owner is the owner's alone. It is the one role rule with no test.
+  it('an admin cannot grant owner; the owner can', async () => {
+    const tag = Date.now();
+    const a = await signIn(`orgs-grant-owner-${tag}@example.com`);
+    const b = await signIn(`orgs-grant-admin-${tag}@example.com`);
+    const c = await signIn(`orgs-grant-member-${tag}@example.com`);
+    let teamId: string | undefined;
+    try {
+      const team = await callerWith(a.session).caller.orgs.create({ name: `Grants ${tag}` });
+      teamId = team.id;
+      const aSession = (await loadSession(db, a.session.token))!;
+      await db.insert(memberships).values([
+        { userId: b.user.id, orgId: team.id, role: 'admin' },
+        { userId: c.user.id, orgId: team.id, role: 'member' },
+      ]);
+      await callerWith(b.session).caller.auth.switchOrg({ orgId: team.id });
+      const bSession = (await loadSession(db, b.session.token))!;
+      expect(bSession.role).toBe('admin');
+
+      await expect(callerWith(bSession).caller.orgs.members.setRole({ userId: c.user.id, role: 'owner' }))
+        .rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect((await db.query.memberships.findFirst({ where: and(eq(memberships.userId, c.user.id), eq(memberships.orgId, team.id)) }))?.role).toBe('member');
+
+      // The same call from the owner goes through — the refusal is about who
+      // asked, not about the role being ungrantable.
+      await callerWith(aSession).caller.orgs.members.setRole({ userId: c.user.id, role: 'owner' });
+      expect((await db.query.memberships.findFirst({ where: and(eq(memberships.userId, c.user.id), eq(memberships.orgId, team.id)) }))?.role).toBe('owner');
+    } finally {
+      if (teamId) await deleteOwnOrg(teamId);
+      for (const r of [a, b, c]) {
+        await deleteOwnOrg(r.org.id);
+        await db.delete(users).where(eq(users.id, r.user.id));
+      }
+    }
+  });
 });

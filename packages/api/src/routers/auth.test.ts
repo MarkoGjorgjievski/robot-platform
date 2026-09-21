@@ -12,6 +12,9 @@ function callerWith(session: Awaited<ReturnType<typeof loadSession>> = null) {
   return { caller, cookies };
 }
 
+/** What a sign-in hands back: the user row and the personal org minted with it. */
+type Identity = Awaited<ReturnType<ReturnType<typeof callerWith>['caller']['auth']['signIn']>>;
+
 describe('auth', () => {
   it('a new user signs in with any password, gets a personal org and a session cookie', async () => {
     const email = `new-${Date.now()}@example.com`;
@@ -39,9 +42,13 @@ describe('auth', () => {
   it('me and switchOrg refuse without a session; switchOrg refuses a non-member', async () => {
     const { caller } = callerWith();
     await expect(caller.auth.me()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-    const a = await callerWith().caller.auth.signIn({ email: `a-${Date.now()}@example.com`, password: 'x' });
-    const b = await callerWith().caller.auth.signIn({ email: `b-${Date.now()}@example.com`, password: 'x' });
+    // Both sign-ins are inside the `try`: each mints a user and a personal org,
+    // so a failure creating `b` must not leak `a`'s pair into the dev database.
+    let a: Identity | undefined;
+    let b: Identity | undefined;
     try {
+      a = await callerWith().caller.auth.signIn({ email: `a-${Date.now()}@example.com`, password: 'x' });
+      b = await callerWith().caller.auth.signIn({ email: `b-${Date.now()}@example.com`, password: 'x' });
       const again = callerWith();
       await again.caller.auth.signIn({ email: a.user.email, password: 'x' });   // an existing user: a new session, no new org
       const sa = await loadSession(db, again.cookies['robot_session']!);
@@ -50,7 +57,11 @@ describe('auth', () => {
       await db.insert(memberships).values({ userId: a.user.id, orgId: b.org.id, role: 'member' });
       expect((await callerWith(sa).caller.auth.switchOrg({ orgId: b.org.id })).currentOrg.id).toBe(b.org.id);
     } finally {
-      for (const r of [a, b]) { await deleteOwnOrg(r.org.id); await db.delete(users).where(eq(users.id, r.user.id)); }
+      for (const r of [a, b]) {
+        if (!r) continue;   // the sign-in that would have made it never ran
+        await deleteOwnOrg(r.org.id);
+        await db.delete(users).where(eq(users.id, r.user.id));
+      }
     }
   });
 
