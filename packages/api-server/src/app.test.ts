@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, users, orgs } from '@robot/db';
+import { db, users } from '@robot/db';
+import { deleteOwnOrg } from '@robot/api/test-helpers/identity';
 import { createApp } from './app.js';
 
 describe('api-server app', () => {
@@ -44,22 +45,16 @@ describe('api-server app', () => {
   });
 });
 
-// The shared dev database can have zero users; the first sign-in there would
-// adopt the seeded `default` org (and cleanup below would then delete it,
-// taking its projects with it). A throwaway sentinel user, mirroring
-// packages/api/src/routers/auth.test.ts, keeps `users` non-empty for the
-// duration of this file so every sign-in below takes the `create` branch.
+// Every sign-in below mints its own throwaway user and personal org, and the
+// cleanups delete exactly those. `deleteOwnOrg` is the guard that makes a
+// mistake here unrepresentable: it refuses to delete the org slugged
+// `default`, whose delete would cascade every real project in the shared dev
+// database. (An earlier sentinel user stood here to keep `users` non-empty,
+// back when the first sign-in ever adopted `default`. Sign-in has not adopted
+// anything since d187573 — adoption is `pnpm db:adopt-default` — so the
+// sentinel guarded nothing and is gone.)
 describe.skipIf(!process.env.DATABASE_URL)('session cookie', () => {
   const app = createApp();
-  const SENTINEL = `sentinel-api-server-${Date.now()}@example.com`;
-
-  beforeAll(async () => {
-    await db.insert(users).values({ email: SENTINEL, name: 'Sentinel', avatarColour: '#000000' });
-  });
-
-  afterAll(async () => {
-    await db.delete(users).where(eq(users.email, SENTINEL));
-  });
 
   it('POST /trpc/auth.signIn sets an HttpOnly session cookie', async () => {
     const email = `cookie-signin-${Date.now()}@example.com`;
@@ -76,7 +71,7 @@ describe.skipIf(!process.env.DATABASE_URL)('session cookie', () => {
       expect(setCookie).toContain('HttpOnly');
     } finally {
       const body = await res.json();
-      await db.delete(orgs).where(eq(orgs.id, body.result.data.json.org.id));
+      await deleteOwnOrg(body.result.data.json.org.id);
       await db.delete(users).where(eq(users.id, body.result.data.json.user.id));
     }
   });
@@ -104,7 +99,7 @@ describe.skipIf(!process.env.DATABASE_URL)('session cookie', () => {
       const withoutCookie = await app.fetch(new Request('http://localhost/trpc/auth.me'));
       expect(withoutCookie.status).toBe(401);
     } finally {
-      await db.delete(orgs).where(eq(orgs.id, org.id));
+      await deleteOwnOrg(org.id);
       await db.delete(users).where(eq(users.id, user.id));
     }
   });
