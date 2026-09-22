@@ -82,6 +82,11 @@ function SchemaTab() {
   // nobody has touched; this flips on the first edit, and on a click at the
   // disabled Verify button.
   const [touched, setTouched] = useState(false);
+  // Which button is spinning. `updateBinding.isPending` cannot answer that on
+  // its own: Verify saves through the same mutation, and for the window before
+  // `verify` is called `verifyMutation.isPending` is still false — so the Save
+  // button would spin for a run it did not start.
+  const [savingOnly, setSavingOnly] = useState(false);
   const [importIgnored, setImportIgnored] = useState<string[]>([]);
   const initialized = useRef(false);
   // A state twin of `initialized`: the arrival effect must never plan against
@@ -308,18 +313,36 @@ function SchemaTab() {
     };
   }
 
-  /** Save the pages and values without spending anything. */
+  /**
+   * Save the pages and values without spending anything.
+   *
+   * It invalidates everything a verify does, and for the same reason: a
+   * field's `fieldHash` covers its description, the pages it is checked on and
+   * its expected values, and `verificationStatus` recomputes `currentKeys` per
+   * request. So a save on a verified website makes the server stop counting
+   * those fields current — while the strip, which only polls during a run,
+   * would go on saying "n of n fields verified" with Go to Extract live until
+   * something else happened to refetch. `projects.get` is in the set because
+   * the project page's per-website verified badge reads the same currency.
+   */
   async function handleSave() {
     if (!source) return;
     setError(null);
+    setSavingOnly(true);
     try {
       const saved = await updateBinding.mutateAsync({ sourceId: source.id, ...toBindingInput(grid) });
       const refreshed = fromSource(saved);
       if (refreshed) setGrid(refreshed);
-      await utils.sources.get.invalidate({ projectSlug, sourceSlug: siteSlug });
-      await utils.sources.verifyEstimate.invalidate({ sourceId: source.id });
+      await Promise.all([
+        utils.sources.get.invalidate({ projectSlug, sourceSlug: siteSlug }),
+        utils.projects.get.invalidate(),
+        utils.sources.verifyEstimate.invalidate({ sourceId: source.id }),
+        utils.sources.verificationStatus.invalidate({ sourceId: source.id }),
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingOnly(false);
     }
   }
 
@@ -425,7 +448,7 @@ function SchemaTab() {
             save={{
               label: 'Save pages and values',
               ...saveButton({ dirty, problems, active, busy }),
-              busy: updateBinding.isPending && !verifyMutation.isPending,
+              busy: savingOnly,
               onClick: () => {
                 setTouched(true);
                 void handleSave();

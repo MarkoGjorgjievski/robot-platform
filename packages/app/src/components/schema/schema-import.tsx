@@ -1,6 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
 import { Upload } from 'lucide-react';
-import readXlsxFile from 'read-excel-file';
 import { Button } from '../ui/button';
 import { parseCsv } from '../../lib/site/csv';
 import { importProblems, rowsFromTable, type GridRow } from '../../lib/site/schema-grid';
@@ -10,6 +9,10 @@ import { importProblems, rowsFromTable, type GridRow } from '../../lib/site/sche
  * through `read-excel-file` (its default entry point is the browser build — the
  * Node one is a separate `read-excel-file/node` export — so nothing server-side
  * reaches the bundle).
+ *
+ * The XLSX reader is imported where it is used, not at the top of the file: it
+ * is 76 KB of unzip-and-parse that most customers never ask for, and behind the
+ * click it costs nothing to open this screen.
  *
  * Either way the raw cells land in `rowsFromTable`, which does the header
  * mapping, and the tab fills existing rows by field name: an import cannot add
@@ -33,9 +36,12 @@ export function SchemaImport({
 
     let table: string[][];
     try {
-      table = file.name.toLowerCase().endsWith('.xlsx')
-        ? (await readXlsxFile(file)).map((row) => row.map((c) => (c === null || c === undefined ? '' : String(c))))
-        : parseCsv(await file.text());
+      if (file.name.toLowerCase().endsWith('.xlsx')) {
+        const readXlsxFile = (await import('read-excel-file')).default;
+        table = (await readXlsxFile(file)).map((row) => row.map((c) => (c === null || c === undefined ? '' : String(c))));
+      } else {
+        table = parseCsv(await file.text());
+      }
     } catch (err) {
       setProblems(importProblems(err));
       return;
