@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@robot/api": "workspace:*",
+    "@robot/scraper": "workspace:*",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^25.3.3",
     "@types/react": "^19.0.0",
