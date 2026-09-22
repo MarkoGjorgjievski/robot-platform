@@ -28,7 +28,11 @@ export function Page({
   return (
     <main className="mx-auto w-full max-w-[1200px] px-5 pb-16 md:px-8">
       <div className="rise flex min-h-[72px] flex-wrap items-center justify-between gap-3 py-5">
-        <h1 className="text-2xl font-semibold tracking-[-0.011em]">{title}</h1>
+        {/* `min-w-0`: a flex item's minimum is its content, so a title that is
+            a long unbroken name would set this row's width and push the page
+            sideways rather than shrinking. What the title does with the room it
+            is given — wrap, truncate — is the title's own business. */}
+        <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.011em]">{title}</h1>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>
       {children}

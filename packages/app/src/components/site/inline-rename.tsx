@@ -36,6 +36,10 @@ export function InlineRename({ sourceId, name }: { sourceId: string; name: strin
   }, [name]);
 
   async function commit() {
+    // Cleared first, not just before the call: leaving the field at all — with
+    // Escape, or having put the old name back — is the customer answering the
+    // message, and a refusal of text that is no longer there is a lie.
+    setError(null);
     if (escaped.current) {
       escaped.current = false;
       setDraft(name);
@@ -46,7 +50,6 @@ export function InlineRename({ sourceId, name }: { sourceId: string; name: strin
       setDraft(name);
       return;
     }
-    setError(null);
     try {
       await rename.mutateAsync({ sourceId, name: next });
       // The name is on this page, on the project's websites table and on the
@@ -67,10 +70,16 @@ export function InlineRename({ sourceId, name }: { sourceId: string; name: strin
     // Everything here is phrasing content: it lives inside the page's `h1`.
     // `-ml-2` cancels the input's own padding, so at rest the name starts on
     // the page's left edge like every other title.
-    <span className="-ml-2 inline-grid max-w-full align-bottom">
+    //
+    // `min-w-0` here and `overflow-hidden` on the sizer are what keep a long
+    // name from widening the page on a phone: a grid track's automatic minimum
+    // is its items' min-content, which for the sizer would be the longest word
+    // in the name. With overflow hidden that minimum is zero, so the track
+    // stops at the room the title row actually has and the input ellipsises.
+    <span className="-ml-2 inline-grid max-w-full min-w-0 align-bottom">
       <span
         aria-hidden
-        className="invisible col-start-1 row-start-1 border border-transparent px-2 whitespace-pre"
+        className="invisible col-start-1 row-start-1 min-w-0 overflow-hidden border border-transparent px-2 text-2xl font-semibold tracking-[-0.011em] whitespace-pre"
       >
         {draft || name || ' '}
       </span>
@@ -90,7 +99,10 @@ export function InlineRename({ sourceId, name }: { sourceId: string; name: strin
             e.currentTarget.blur();
           }
         }}
-        className="col-start-1 row-start-1 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-2xl font-semibold tracking-[-0.011em] text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg"
+        // `text-ellipsis`: an input that is narrower than its value shows the
+        // ellipsis at rest and the caret's end of the text once it is focused,
+        // which is exactly the behaviour a truncated title wants.
+        className="col-start-1 row-start-1 w-full min-w-0 overflow-hidden rounded-md border border-transparent bg-transparent px-2 text-2xl font-semibold tracking-[-0.011em] text-ellipsis text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg"
       />
       {error ? (
         // A `span`, not a `p`: the `h1` above permits phrasing content only.
