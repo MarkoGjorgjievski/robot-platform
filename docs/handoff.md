@@ -34,6 +34,173 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## App redesign, plan 2: the project (2026-09-21)
+
+Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` §5 rows 3 to 5.
+Plan and task briefs: `.superpowers/sdd/2026-09-21-app-redesign-plan2-project/`
+(one report per task, with the deviations and the browser evidence). Branch
+`feat/app-redesign-project`, base `main` at `886dc4d`. A project now has its own
+three screens in `@robot/app`: the websites it collects from, the fields it
+collects, and the output.
+
+**What landed, one line per task** (`git log --oneline 886dc4d..HEAD`):
+
+| Commit | What |
+|---|---|
+| `9d8f9d3` | `projects.get`; `projects.getBySlug/getWithStats` and `sources.listByProject/createInProject` take the org from the session |
+| `4fdcbbb` | the six contract procedures (`datasets.getContract / addField / renameField / retypeField / deleteField / fieldStatus`) take the org from the session |
+| `2db81d2` | `projects.output` and `GET /export/projects/<uuid>.<csv\|json>` |
+| `3e56fcc` | a customer column named `Website` exports as `Website (field)`, so the merged column never eats it |
+| `46b251c` | the project routes: `$project` layout, the org / project breadcrumb, the sidebar's project section, the `/projects` name cell as a link |
+| `206a646` | the project home: websites table (name + host, Verified, Last run, Rows) and the Add website dialog |
+| `71a4ea2`, `2c1df79` | the Fields screen: the contract edited in place beside the catalogue's chip wall |
+| `dffbfad` | the Output screen: every website's latest rows under one header, and the file |
+| this task | the project smoke, the look-only check against Acne, the screenshot set, these docs |
+
+**API changes** (all additive, no procedure removed, the old dashboard untouched):
+`projects.get` (the one query the breadcrumb, the sidebar section, the home and
+Fields share — `{ id, name, slug, datasetId, createdAt, fields[], websites[] }`,
+each website carrying `verifiedFields` and its `lastRun`), `projects.output`
+(the merged sheet, rows capped at 500 with the true `rowCount`), and
+`loadProjectExport` behind `GET /export/projects/:file`. Eleven procedures moved
+off the caller's `orgSlug` onto `resolveOrg(ctx, …)`. **Still shim-only** — they
+take the org straight from the caller's input and ignore the session, and each
+migrates when its screen is rebuilt: `projects.listByOrg`;
+`datasets.listByProject / getBySlug / create / updateSchema`; everything in
+`sources.*` except `listByProject` and `createInProject`; all of `domains.*`;
+all of `runs.*` (neither `runs.ts` nor `domains.ts` calls `resolveOrg` at all
+yet). The `orgSlug ?? 'default'` fallback itself goes at cut-over (spec §7,
+plan 6), together with `DEFAULT_ORG_SLUG`.
+
+**What the old Output screen had that was not rebuilt.** `@robot/dashboard`'s
+Output page let a customer see, per field, where a value came from and choose
+between candidate paths — the field-origin / candidate editor. Plan 2's Output
+is the sheet and the file, nothing else. Whether that editor comes back at all
+is **an open decision for cut-over**: it is an operator's tool wearing a
+customer's clothes, and `/ops/domains` may be its real home.
+
+**The export route is unauthenticated by project UUID**, exactly like the run
+export it copies. Anyone holding the id can fetch the file without a session.
+Recorded, not fixed: plan 6 puts both routes behind the session.
+
+**What the look-only check found, and what it fixed.** One real defect, on every
+locked row of Acne's Fields screen: the type read **"Mon", "Te", "Numb"**. The
+tooltip wrapper around a certified field's disabled select was an `inline-block`,
+and a shrink-to-fit box cannot measure a `w-fit` flex child whose own max-width
+is a percentage — Chromium sized the wrapper 13 px narrower than the trigger
+wanted, and the trigger's own `max-w-full` then clamped the value to that wrong
+width. Measured with a DOM probe (wrapper 58.19 px vs trigger 71.19 px) and four
+candidate fixes tried in the live page before one was written. The wrapper is now
+a `block` that fills the cell, so the trigger is free to hug its value as it does
+on an unlocked row; the focus ring moves onto the trigger with it, written out as
+`outline: 1px solid var(--text)` because the trigger's own `outline-none` has
+already set the outline *style* to none and a width alone draws nothing. Nothing
+else in either theme needed changing.
+
+**Everything else the check measured, on Acne, both themes:** breadcrumb
+"Markodjordjievski / Acne"; the sidebar's project section listing Ikea with its
+dot; "All 8 verified" with a rail whose `border-left-color` equals the `pass`
+token resolved in that theme (`rgb(61,220,132)` dark, `rgb(15,123,61)` light);
+eight field rows, every "Verified on" reading "1 of 1 website" and every type
+select disabled; body 13 px, title 20 px/600, zero uppercased elements, zero
+shadows in dark, on each of the three screens; no console or page errors
+anywhere. The file: `projects.output` puts `Website` first (9 columns), and
+`GET /export/projects/<uuid>.csv` answers 200 with
+`content-disposition: attachment; filename="acne-2026-09-22.csv"`.
+
+**Output has never been seen with rows in it.** `select count(*) from runs` on
+the dev database is **0** — an Extract has never been clicked, which the plan-1
+handoff already lists as the next work. So Acne's Output shows its empty state,
+its two downloads are disabled buttons, and the populated layout has only ever
+been checked against a mocked `projects.output` (task 7's report). The check
+says so in its own output rather than passing a test that proves nothing, and it
+verifies the file through the API instead. **First Extract run: capture
+`app-project-output-acne-*.png` again.**
+
+**The screenshot set** (`docs/testing/screens/`, 1440×900, full page):
+`app-project-{home,fields,output}-{dark,light}.png` from the smoke run — a brand
+new project, one website, one field, no rows — and
+`app-project-{home,fields,output}-acne-{dark,light}.png` from the look-only
+check, which is the set worth reviewing: a fully verified project is a state no
+throwaway project can reach. The check also **retakes `app-projects-{dark,light}.png`**,
+because every smoke run overwrites those with a throwaway organisation's empty
+table; run it after the smoke, not before. `app-login.png` and the four
+placeholder pairs are restored with `git checkout --` when a smoke run has
+touched them, which is what this task did.
+
+**How to run.** `pnpm test:ui:app` is the app smoke (needs `pnpm dev:all`): it
+signs in as a throwaway `smoke-<timestamp>@example.com`, creates a project, adds
+`https://www.example.com/` through the Add website dialog, clicks one catalogue
+chip, walks the three project screens in both themes and deletes its project
+again (the cascade takes the website and the field). The look-only check is
+`cp docs/testing/ui-check-app-project.mts packages/browser/src/__ui-check.mts && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address>`
+— read-only against a real account, `--project <slug>` for something other than
+Acne (its expectations live in one `EXPECTED` object at the top).
+
+**Design deviations tasks 5 to 7 made, and why** (all visible in the captures):
+
+- **The Verified rail is on the label, not on the cell** (task 5). A cell-height
+  `border-l-2` in every row stacks into one unbroken vertical line down the
+  middle of the table — a column divider that changes colour, which is the
+  "state as a wash" §4 forbids. It is now a ~20 px tick beside the label.
+- **A missing project is not red** (tasks 5 to 7). "This project does not exist
+  in <org>." is a wrong address, not a failure; red stays for things that broke.
+  It keeps `role="alert"`.
+- **`nameRefusal`** (task 6): a duplicate field name is reported in the
+  customer's own words ("There is already a field called price.") for the inline
+  rename as well as the dialog. Everything else stays cause-neutral.
+- **The locked type select keeps full contrast** (task 6): `disabled:opacity-50`
+  over a 13 px label goes under 4.5:1, and the type is data the customer still
+  has to read. Only the chevron dims; what goes away is the affordance.
+- **The Fields screen reads its contract from `useProject()`**, not from
+  `datasets.getContract` (task 6) — one cache key feeds the breadcrumb, the
+  sidebar, the home and this screen. `getContract` is never mounted.
+- **Output's empty state is one sentence with no summary bar** (task 7): the bar
+  above it would have said "No rows yet" a second time.
+- **Output's scroll container is capped in height from `md`** (task 7): a
+  `sticky` head inside a box that scrolls only sideways does nothing, and a
+  page-length horizontal container parks its scrollbar under row 500. The cap is
+  a hand-measured `calc(100svh-190px)`; if the header or title row changes
+  height, that literal has to follow.
+
+**Gotchas worth knowing:**
+
+- `shadcn add select` wrote to a literal `packages/app/~/components/ui/`
+  directory (the `~` alias is not a path) and added a bogus `cn` package to
+  `dependencies`. Both were cleaned up by hand. Check the diff after any
+  `shadcn add` in this repo — the same family as the existing relative-import note.
+- Chromium counts a grid item's `min-width` floor into the *document's* scroll
+  area even when the item scrolls internally: the Fields screen scrolled 126 px
+  sideways on a phone until the table panel got `overflow-x-clip` (`clip`, not
+  `hidden` — `hidden` makes it a scrollport and takes the sticky head with it).
+  Any future screen that puts one of these tables in a grid will hit it.
+- A `<span tabIndex={0}>` wrapped around a control to carry a tooltip must not
+  shrink-wrap it (see the type-select defect above).
+
+**Open decisions for the design review:**
+
+- **The red rail on "Not verified".** A website that has simply not been verified
+  yet wears the same `fail` colour as one that went wrong. It is the first thing
+  on a new project's home (`app-project-home-dark.png`) and it reads as an error
+  on a project that has done nothing wrong. A fourth, quieter state may be right.
+- **Two lit rows in the sidebar.** Inside a project, "Projects" stays lit in the
+  org-wide nav while "Websites" is lit in the project section — TanStack's prefix
+  matching, and arguably right (you *are* in the Projects area). Plan 1's review
+  left it; it is more visible now that the project section exists.
+- **The field-origin / candidate editor** (above) — rebuilt, moved to `/ops`, or
+  dropped.
+- Two "Add your own" buttons can be on screen at once on Fields (the title action
+  and the Custom tab's). Both are `outline`, so neither competes as a primary,
+  but the project home deliberately hides its title action when the empty state
+  carries the same button.
+- Still open from plan 1 and untouched here: no scroll affordance on mobile
+  tables, and the `QueryClient` is not keyed on session identity.
+
+**Next: plan 3 — the website.** Schema step 1, Extract, Runs, the run detail and
+Settings. Website rows on the project home and the website lines in the sidebar
+become links then; they are deliberately plain text until they have somewhere to
+go.
+
 ## App redesign, plan 1: the shell (2026-09-21)
 
 Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` (approved in
