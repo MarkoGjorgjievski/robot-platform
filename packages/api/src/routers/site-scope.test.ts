@@ -59,6 +59,8 @@ describe('website and run procedures are scoped to the session org', () => {
         ['sources.verify', () => bc.sources.verify({ sourceId })],
         ['sources.confirm', () => bc.sources.confirm({ sourceId })],
         ['sources.delete', () => bc.sources.delete({ sourceId })],
+        ['sources.captureProofPage', () => bc.sources.captureProofPage({ sourceId, url: `${HOST}/` })],
+        ['sources.transferMarks', () => bc.sources.transferMarks({ sourceId, fromUrl: PROOF[0]!, toUrls: [PROOF[1]!] })],
         ['runs.getWithDetails', () => bc.runs.getWithDetails({ id: runId })],
         ['runs.listBySource', () => bc.runs.listBySource({ sourceId })],
         ['crawl.plan', () => bc.crawl.plan({ sourceId, probe: true })],
@@ -83,6 +85,15 @@ describe('website and run procedures are scoped to the session org', () => {
       expect(got.project.slug).toBe(p.slug);
       expect(got.listingMode).toBe('listing_to_detail');
       expect(got.confirmedAt).toBeNull();
+      // A website whose Extract tab has saved pages owns its budget, seeded
+      // all/all — the non-null branch of the `budgetIsUnchosen` rule.
+      expect(got.budget).toEqual({ max_items: 'all', max_pages: 'all', mode: 'all' });
+
+      // A website nobody has set pages on has no budget: the column's `{}`
+      // default must not be handed out as a budget object.
+      const fresh = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Fresh shop', url: `${HOST}/f` });
+      const freshGot = await a.caller.sources.get({ projectSlug: p.slug, sourceSlug: fresh.sourceSlug });
+      expect(freshGot.budget).toBeNull();
     } finally {
       if (a) await dropIdentity(a);
       if (b) await dropIdentity(b);
