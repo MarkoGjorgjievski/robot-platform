@@ -48,9 +48,19 @@ export function ExecuteControls({
     onSuccess: () => {
       void utils.crawl.invalidate();
       void utils.runs.invalidate();
+      // `projects.get` too: the project page's websites table has a last-run
+      // cell and a run dot per website, and this is the moment both change.
+      void utils.projects.get.invalidate();
     },
   });
-  const cancel = trpc.crawl.cancel.useMutation({ onSuccess: () => void utils.crawl.invalidate() });
+  const cancel = trpc.crawl.cancel.useMutation({
+    onSuccess: () => {
+      void utils.crawl.invalidate();
+      // `projects.get` too: the project page's websites table has a last-run
+      // cell and a run dot per website, and this is the moment both change.
+      void utils.projects.get.invalidate();
+    },
+  });
 
   const data = statusQuery.data;
   const active = data ? isRunActive(data.status) : false;
@@ -66,6 +76,9 @@ export function ExecuteControls({
     if (wasActive.current && !active) {
       void utils.runs.invalidate();
       void utils.crawl.invalidate();
+      // `projects.get` too: the project page's websites table has a last-run
+      // cell and a run dot per website, and this is the moment both change.
+      void utils.projects.get.invalidate();
     }
     wasActive.current = active;
   }, [active, utils]);
