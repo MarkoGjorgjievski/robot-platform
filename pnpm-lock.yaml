@@ -164,6 +164,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
+      read-excel-file:
+        specifier: ^5.8.0
+        version: 5.8.8
       sonner:
         specifier: ^2.0.8
         version: 2.0.8(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
