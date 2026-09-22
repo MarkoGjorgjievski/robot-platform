@@ -138,10 +138,11 @@ and deletes the project again — it never touches a customer's real website.
 
 ## States with no current capture
 
-- **The new app's Output sheet with rows in it.** No website in this database has ever
-  completed an extraction (`select count(*) from runs` is 0), so both Output captures — the
-  smoke run's and Acne's — show the empty state. The populated layout has only ever been seen
-  against a mocked `projects.output` (task 7). Capture it the first time an Extract is run.
+- **The new app's Output sheet with rows in it.** No project website in this database has
+  ever completed an extraction — the only two rows in `runs` are August newegg runs on
+  `sources` that predate datasets, so they belong to no project — and both Output captures,
+  the smoke run's and Acne's, show the empty state. The populated layout has only ever been
+  seen against a mocked `projects.output` (task 7). Capture it the first time an Extract runs.
 - **Schema tab mid-verification** (the strip counting down, cells shimmering). The file that
   claimed to be it, `schema-tab-verifying.png`, showed the retired visual system — cool grey
   paper, IBM Plex Sans, the old wordmark, and an "Overview" tab that no longer exists — so it

@@ -319,7 +319,7 @@ for (const theme of ['dark', 'light'] as const) {
     );
     csvUrl = links.find((href) => href.endsWith('.csv')) ?? csvUrl;
   } else {
-    // No website in this database has ever completed a run — an Extract has
+    // No website in this project has ever completed a run — an Extract has
     // never been clicked — so the empty state is this screen's true state, and
     // the sheet cannot be checked without spending money. What can be checked
     // is that the screen is honest about it: one sentence, and two downloads
