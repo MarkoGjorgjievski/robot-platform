@@ -70,7 +70,13 @@ migrates when its screen is rebuilt: `projects.listByOrg`;
 `sources.*` except `listByProject` and `createInProject`; all of `domains.*`;
 all of `runs.*` (neither `runs.ts` nor `domains.ts` calls `resolveOrg` at all
 yet). The `orgSlug ?? 'default'` fallback itself goes at cut-over (spec §7,
-plan 6), together with `DEFAULT_ORG_SLUG`.
+plan 6), together with `DEFAULT_ORG_SLUG`. One consequence until then: the
+app's `useUnauthorizedRedirect` hook (every project screen and `/projects`)
+is dormant, because a session-less call falls to `default` and answers
+`NOT_FOUND` rather than `UNAUTHORIZED` — an expired session on a project
+screen reads "This project does not exist in <org>" with a working way out
+("All projects" hits the route gate and lands on `/login`). The wording
+corrects itself the day the shim goes.
 
 **What the old Output screen had that was not rebuilt.** `@robot/dashboard`'s
 Output page let a customer see, per field, where a value came from and choose
