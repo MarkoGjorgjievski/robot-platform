@@ -378,11 +378,21 @@ export const sourcesRouter = router({
       const s = hit.source;
       let hostname = '';
       try { hostname = s.urlTemplate ? new URL(s.urlTemplate).hostname : ''; } catch { hostname = ''; }
+      // `budget` is `notNull().default({})`, so the column never reads null and
+      // `{}` would be handed out cast to a shape it does not have. A budget
+      // nobody chose is reported as the `null` the type promises — decided by
+      // the same `budgetIsUnchosen` rule the Extract tab's setters apply, from
+      // the same signal (`parameters.inputMode`: once the tab has owned this
+      // website's input, even 40/3 is the customer's choice and stays).
+      const parameters = (s.parameters ?? {}) as Record<string, unknown>;
+      const inputMode = typeof parameters.inputMode === 'string' ? parameters.inputMode : undefined;
       return {
         id: s.id, slug: s.slug, name: s.name, url: s.urlTemplate, hostname, datasetId: s.datasetId,
         listingMode: s.listingMode as 'listing_to_detail' | 'detail' | null, confirmedAt: s.confirmedAt, isActive: s.isActive,
-        budget: (s.budget ?? null) as { max_items: number | 'all'; max_pages: number | 'all'; mode?: 'all' | 'first_n' } | null,
-        parameters: (s.parameters ?? {}) as Record<string, unknown>,
+        budget: budgetIsUnchosen(s.budget, inputMode)
+          ? null
+          : (s.budget as { max_items: number | 'all'; max_pages: number | 'all'; mode?: 'all' | 'first_n' }),
+        parameters,
         schemaDefinition: s.schemaDefinition, verificationSet: s.verificationSet, driftedFields: s.driftedFields as string[] | null,
         project, fields: contractFields(hit.datasetSchema), createdAt: s.createdAt,
       };
@@ -799,6 +809,7 @@ export const sourcesRouter = router({
   captureProofPage: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true } });
       if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       return startProofPageCapture(input.sourceId, input.url);
@@ -858,6 +869,7 @@ export const sourcesRouter = router({
   transferMarks: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), fromUrl: httpUrl, toUrls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX) }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true, schemaDefinition: true, verificationSet: true } });
       if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       const fields = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
