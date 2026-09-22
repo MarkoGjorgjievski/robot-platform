@@ -73,9 +73,10 @@ export function CommandMenu({
                   <CommandItem
                     key={project.id}
                     value={`project ${project.name}`}
-                    // Plan 2 gives projects their own page; until it lands the
-                    // list is where a project is looked at.
-                    onSelect={() => go('/projects')}
+                    onSelect={() => {
+                      onOpenChange(false);
+                      void navigate({ to: '/projects/$project', params: { project: project.slug } });
+                    }}
                     className="text-base"
                   >
                     <span className="min-w-0 flex-1 truncate">{project.name}</span>

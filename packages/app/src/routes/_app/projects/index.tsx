@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { Page } from '../../components/page';
-import { RunDot } from '../../components/run-dot';
-import { Button } from '../../components/ui/button';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Page } from '../../../components/page';
+import { RunDot } from '../../../components/run-dot';
+import { Button } from '../../../components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -10,23 +10,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../components/ui/dialog';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Skeleton } from '../../components/ui/skeleton';
-import { projectsView } from '../../lib/projects-view';
-import { trpc } from '../../lib/trpc';
+} from '../../../components/ui/dialog';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Skeleton } from '../../../components/ui/skeleton';
+import { projectsView } from '../../../lib/projects-view';
+import { trpc } from '../../../lib/trpc';
 
-export const Route = createFileRoute('/_app/projects')({
+export const Route = createFileRoute('/_app/projects/')({
   component: ProjectsPage,
 });
 
 function ProjectsPage() {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
-  // Plan 2 gives a project its own page; until then the name is plain text,
-  // with no tooltip — "opens in plan 2" is our word for our schedule, and it
-  // does not belong in a surface the customer reads.
   const projects = trpc.projects.list.useQuery();
   const rows = projectsView(projects.data ?? []);
 
@@ -88,7 +85,18 @@ function ProjectsPage() {
                     key={project.id}
                     className="border-b border-line transition-colors last:border-0 hover:bg-raised"
                   >
-                    <td className="max-w-0 truncate px-4 py-2.5">{project.name}</td>
+                    {/* The name is the row's one link. A row that navigates on
+                        any click swallows text selection, so clicking the
+                        numbers does nothing. */}
+                    <td className="max-w-0 truncate px-4 py-2.5">
+                      <Link
+                        to="/projects/$project"
+                        params={{ project: project.slug }}
+                        className="text-text underline-offset-4 hover:underline"
+                      >
+                        {project.name}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2.5 text-right font-mono tabular-nums">{project.websites}</td>
                     <td className="px-3 py-2.5 text-right font-mono tabular-nums">{project.fields}</td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap">

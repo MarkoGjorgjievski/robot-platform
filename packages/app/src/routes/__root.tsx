@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router';
 import { Providers } from '../components/providers';
+import { Toaster } from '../components/ui/sonner';
 import { getSession } from '../lib/session';
 import { THEME_BOOT_SCRIPT, serverTheme } from '../lib/theme';
 import appCss from '../styles/app.css?url';
@@ -56,6 +57,9 @@ function RootDocument({ children }: { children: ReactNode }) {
       </head>
       <body>
         <Providers>{children}</Providers>
+        {/* One toaster for the whole app, mounted beside the outlet rather than
+            inside a screen, so a toast survives the navigation that raised it. */}
+        <Toaster />
         <Scripts />
       </body>
     </html>
