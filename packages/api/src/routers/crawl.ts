@@ -7,6 +7,7 @@ import { TRPCError } from '@trpc/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, runs, runItems, sources } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
 import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
@@ -49,6 +50,7 @@ export const crawlRouter = router({
       probe: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       // A probe is the cheap, pre-commitment sanity check — gating it would
       // block the very step that lets an operator discover the schema needs
       // verifying in the first place. A full plan (probe: false) spends real
@@ -75,6 +77,7 @@ export const crawlRouter = router({
   probeAndSample: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       await requireCertification(ctx.db, input.sourceId);
       // Finding 3 (final-review-findings.md): the duplicate-probe guard below
       // did not exist — the "Probe & sample" button reappears on every mount
@@ -207,6 +210,7 @@ export const crawlRouter = router({
   items: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       const rows = await ctx.db.query.runItems.findMany({
         where: eq(runItems.runId, input.runId),
         columns: {
@@ -250,6 +254,7 @@ export const crawlRouter = router({
   status: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       const run = await ctx.db.query.runs.findFirst({
         where: eq(runs.id, input.runId),
         columns: { id: true, status: true, resultCount: true, errorMessage: true },
@@ -276,6 +281,7 @@ export const crawlRouter = router({
   cancel: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       const run = await ctx.db.query.runs.findFirst({
         where: eq(runs.id, input.runId), columns: { id: true, status: true },
       });
@@ -308,6 +314,7 @@ export const crawlRouter = router({
       limit: z.number().int().positive().max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       const run = await ctx.db.query.runs.findFirst({
         where: eq(runs.id, input.runId),
         with: {
@@ -403,6 +410,7 @@ export const crawlRouter = router({
   coverage: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       return loadRunCoverage(ctx.db, input.runId);
     }),
 
@@ -423,6 +431,7 @@ export const crawlRouter = router({
   misses: publicProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       const { sourceId, fields } = await loadRunMisses(ctx.db, input.runId);
       const certified = (await loadCurrentCertification(ctx.db, sourceId)) !== null;
       const src = await ctx.db.query.sources.findFirst({
@@ -448,6 +457,7 @@ export const crawlRouter = router({
       targetFields: z.array(z.string().min(1)).optional(),
     }))
     .query(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       const cov = await loadRunCoverage(ctx.db, input.runId);
       const targetNames = input.targetFields ?? cov.fields.filter((f) => f.missing > 0).map((f) => f.name);
       const items = deriveBackfillItems(cov.gapItems, targetNames);
@@ -488,6 +498,7 @@ export const crawlRouter = router({
       deadFieldStrategy: z.enum(['repair_sweep', 'full_focus']).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.runId);
       // Guard 1: mirrors `execute`'s own run+source guard (crawl.ts:297-298)
       // — a backfill needs the same source `execute` would.
       const parent = await ctx.db.query.runs.findFirst({

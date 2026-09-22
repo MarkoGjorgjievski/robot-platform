@@ -10,6 +10,7 @@ import {
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
+import { sourceInOrg } from '../auth/scope.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
@@ -359,6 +360,34 @@ export const sourcesRouter = router({
       return results;
     }),
 
+  /** The website loader for its page (spec 2026-09-21 §5): the row, its project and the contract, in one round trip. */
+  get: publicProcedure
+    .input(z.object({ projectSlug: z.string().min(1), sourceSlug: z.string().min(1), orgSlug: z.string().optional() }))
+    .query(async ({ ctx, input }) => {
+      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
+      const project = await ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, input.projectSlug)), columns: { id: true, name: true, slug: true } });
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
+      const row = await ctx.db
+        .select({ source: sources, datasetSchema: datasets.schema })
+        .from(sources)
+        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+        .where(and(eq(datasets.projectId, project.id), eq(sources.slug, input.sourceSlug)))
+        .limit(1);
+      const hit = row[0];
+      if (!hit) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceSlug} not found` });
+      const s = hit.source;
+      let hostname = '';
+      try { hostname = s.urlTemplate ? new URL(s.urlTemplate).hostname : ''; } catch { hostname = ''; }
+      return {
+        id: s.id, slug: s.slug, name: s.name, url: s.urlTemplate, hostname, datasetId: s.datasetId,
+        listingMode: s.listingMode as 'listing_to_detail' | 'detail' | null, confirmedAt: s.confirmedAt, isActive: s.isActive,
+        budget: (s.budget ?? null) as { max_items: number | 'all'; max_pages: number | 'all'; mode?: 'all' | 'first_n' } | null,
+        parameters: (s.parameters ?? {}) as Record<string, unknown>,
+        schemaDefinition: s.schemaDefinition, verificationSet: s.verificationSet, driftedFields: s.driftedFields as string[] | null,
+        project, fields: contractFields(hit.datasetSchema), createdAt: s.createdAt,
+      };
+    }),
+
   create: publicProcedure
     .input(
       z.object({
@@ -402,6 +431,7 @@ export const sourcesRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.id);
       const { id, ...rest } = input;
 
       // Re-review residual #1 (fix-wave-report.md): `...rest` applied
@@ -500,6 +530,7 @@ export const sourcesRouter = router({
   rename: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), name: z.string().trim().min(1).max(255) }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const [row] = await ctx.db
         .update(sources)
         .set({ name: input.name, updatedAt: new Date() })
@@ -523,6 +554,7 @@ export const sourcesRouter = router({
   setListingPages: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(50) }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const { rows } = await ctx.db.transaction((tx) =>
         setInputPages(tx, input.sourceId, {
           urls: input.urls,
@@ -549,6 +581,7 @@ export const sourcesRouter = router({
   setProductUrls: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(5000) }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const { rows, skipped } = await ctx.db.transaction((tx) =>
         setInputPages(tx, input.sourceId, {
           urls: input.urls,
@@ -580,6 +613,7 @@ export const sourcesRouter = router({
   inputRows: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
         columns: { id: true },
@@ -613,6 +647,7 @@ export const sourcesRouter = router({
   updateBinding: publicProcedure
     .input(bindingInput)
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const { sourceId, ...binding } = input;
 
       const source = await ctx.db.query.sources.findFirst({
@@ -873,6 +908,7 @@ export const sourcesRouter = router({
   confirm: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       await requireCertification(ctx.db, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
@@ -915,6 +951,7 @@ export const sourcesRouter = router({
   delete: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
         columns: { id: true, inputSetId: true, confirmedAt: true },
@@ -946,6 +983,7 @@ export const sourcesRouter = router({
   verifyEstimate: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
     .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
         columns: { schemaDefinition: true, verificationSet: true },
@@ -1018,6 +1056,7 @@ export const sourcesRouter = router({
   verify: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
     .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
         columns: { id: true, schemaDefinition: true, verificationSet: true },
@@ -1069,6 +1108,7 @@ export const sourcesRouter = router({
   verificationStatus: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const row = await ctx.db.query.sourceVerifications.findFirst({
         where: eq(sourceVerifications.sourceId, input.sourceId),
         orderBy: [desc(sourceVerifications.startedAt)],
