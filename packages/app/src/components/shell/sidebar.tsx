@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { Activity, FolderKanban, Gauge, Menu, Search, Settings } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { OrgSwitcher } from './org-switcher';
+import { ProjectSection } from './project-section';
 import { UserMenu } from './user-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '../ui/sheet';
 
@@ -32,22 +33,29 @@ export function SidebarBody({ session, onSearch, onNavigate }: SidebarProps) {
         <OrgSwitcher session={session} />
       </div>
 
-      <nav className="flex flex-1 flex-col gap-px p-2">
-        {NAV.map(({ to, label, Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            onClick={onNavigate}
-            // Only colour moves on hover. The active item keeps the raised chip;
-            // giving hover a chip too would make every item look selected.
-            className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-base text-muted-foreground hover:text-text"
-            activeProps={{ className: 'bg-raised font-medium text-text!' }}
-          >
-            <Icon className="size-4 shrink-0" />
-            {label}
-          </Link>
-        ))}
-      </nav>
+      {/* Nav and project section scroll together, so a project with many
+          websites stays inside the rail rather than pushing the bottom block
+          off screen. */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <nav className="flex flex-col gap-px p-2">
+          {NAV.map(({ to, label, Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              onClick={onNavigate}
+              // Only colour moves on hover. The active item keeps the raised chip;
+              // giving hover a chip too would make every item look selected.
+              className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-base text-muted-foreground hover:text-text"
+              activeProps={{ className: 'bg-raised font-medium text-text!' }}
+            >
+              <Icon className="size-4 shrink-0" />
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        <ProjectSection onNavigate={onNavigate} />
+      </div>
 
       <div className="flex flex-col gap-1 border-t border-line p-2">
         <button
