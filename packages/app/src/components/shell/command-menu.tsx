@@ -74,11 +74,11 @@ export function CommandMenu({
           for them — a dialog without them logs an accessibility error. */}
       <DialogContent showCloseButton={false} className="overflow-hidden p-0 sm:max-w-[520px]">
         <DialogTitle className="sr-only">Search</DialogTitle>
-        <DialogDescription className="sr-only">Search projects and pages.</DialogDescription>
+        <DialogDescription className="sr-only">Search projects, websites and pages.</DialogDescription>
         {/* Transparent, so the dialog's own panel is the single surface here
             rather than a raised block inside a panel. */}
         <Command loop className="bg-transparent">
-          <CommandInput placeholder="Search projects and pages…" />
+          <CommandInput placeholder="Search projects, websites and pages…" />
           <CommandList className="max-h-[320px] px-1 pb-1">
             <CommandEmpty className="py-8 text-base text-muted-foreground">Nothing matches that.</CommandEmpty>
 
@@ -109,8 +109,11 @@ export function CommandMenu({
                   <CommandItem
                     key={website.id}
                     // The host is in the value as well as on screen: two
-                    // websites in a project can differ only by subdomain.
-                    value={`website ${website.name} ${website.hostname}`}
+                    // websites in a project can differ only by subdomain. A
+                    // website whose address never parsed has none, and cmdk
+                    // matches on this string — a trailing space in it would
+                    // make the item unfindable by its own name.
+                    value={`website ${website.name}${website.hostname ? ` ${website.hostname}` : ''}`}
                     onSelect={() => {
                       onOpenChange(false);
                       void navigate({
@@ -121,9 +124,13 @@ export function CommandMenu({
                     className="text-base"
                   >
                     <span className="min-w-0 flex-1 truncate">{website.name}</span>
-                    <span className="shrink-0 font-mono text-sm text-muted-foreground">
-                      {website.hostname}
-                    </span>
+                    {/* Guarded like the table's: a website whose address never
+                        parsed would otherwise put an empty mono box on the row. */}
+                    {website.hostname ? (
+                      <span className="shrink-0 font-mono text-sm text-muted-foreground">
+                        {website.hostname}
+                      </span>
+                    ) : null}
                   </CommandItem>
                 ))}
               </CommandGroup>

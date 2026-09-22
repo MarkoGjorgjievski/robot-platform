@@ -42,7 +42,12 @@ export function SiteHeader({
       // is, said once, quietly, in the mono the rest of the app uses for hosts.
       actions={
         website?.hostname ? (
-          <span className="font-mono text-sm text-muted-foreground">{website.hostname}</span>
+          // `block` so `truncate` applies at all (overflow does nothing on an
+          // inline box), and a max-width so a long host caps its own min-content
+          // contribution instead of widening the title row on a phone.
+          <span className="block max-w-[40vw] truncate font-mono text-sm text-muted-foreground">
+            {website.hostname}
+          </span>
         ) : undefined
       }
     >
