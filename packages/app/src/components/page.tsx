@@ -17,7 +17,9 @@ export function Page({
   /**
    * A node, not a string: a screen whose title is the thing it is loading (a
    * project's name) puts a `Skeleton` here while the query is in flight, rather
-   * than flashing a blank `h1` and then reflowing the row under it.
+   * than flashing a blank `h1` and then reflowing the row under it. It goes in
+   * an `h1`, which permits phrasing content only — so a `Skeleton` here is
+   * `as="span"`, not the default `div`.
    */
   title: ReactNode;
   actions?: ReactNode;

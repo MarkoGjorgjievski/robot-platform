@@ -7,6 +7,7 @@ import { FieldsTable } from '../../../../components/fields/fields-table';
 import { Button } from '../../../../components/ui/button';
 import { fieldsView } from '../../../../lib/fields-view';
 import { trpc } from '../../../../lib/trpc';
+import { useUnauthorizedRedirect } from '../../../../lib/use-unauthorized-redirect';
 import { useProject } from '../$project';
 
 export const Route = createFileRoute('/_app/projects/$project/fields')({ component: FieldsScreen });
@@ -25,6 +26,9 @@ function FieldsScreen() {
   const { session } = useRouteContext({ from: '/_app' });
   const project = useProject();
   const [adding, setAdding] = useState(false);
+  // An ended session is a trip to /login, not a Retry button that can only fail
+  // again; nothing is drawn while that navigation is in flight.
+  const unauthorized = useUnauthorizedRedirect(project);
 
   const datasetId = project.data?.datasetId ?? null;
   const websiteCount = project.data?.websites.length ?? 0;
@@ -39,6 +43,8 @@ function FieldsScreen() {
   // failed: one is a wrong address, the other is something to retry.
   const missing = project.error?.data?.code === 'NOT_FOUND';
   const empty = !!project.data && fields.length === 0;
+
+  if (unauthorized) return null;
 
   return (
     <Page

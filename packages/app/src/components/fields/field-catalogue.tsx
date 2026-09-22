@@ -67,6 +67,8 @@ export function FieldCatalogue({
         // `projects.list` carries the project's field count, so /projects would
         // show the old number for the rest of its 30 s staleTime.
         utils.projects.list.invalidate(),
+        // The Output header is the contract's field names.
+        utils.projects.output.invalidate(),
       ]);
       // The project-wide consequence is the news, when there is one.
       toast(addNote(websiteCount) ?? 'Field added');

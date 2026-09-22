@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
+import { Link, createFileRoute } from '@tanstack/react-router';
 import { Page } from '../../../components/page';
 import { RunDot } from '../../../components/run-dot';
 import { Button } from '../../../components/ui/button';
@@ -16,24 +16,20 @@ import { Label } from '../../../components/ui/label';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { projectsView } from '../../../lib/projects-view';
 import { trpc } from '../../../lib/trpc';
+import { useUnauthorizedRedirect } from '../../../lib/use-unauthorized-redirect';
 
 export const Route = createFileRoute('/_app/projects/')({
   component: ProjectsPage,
 });
 
 function ProjectsPage() {
-  const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const projects = trpc.projects.list.useQuery();
   const rows = projectsView(projects.data ?? []);
 
-  // A refused query is not a failure to report, it is a session that ended:
-  // send them to sign in rather than leaving an error on a screen they are no
-  // longer entitled to.
-  const unauthorized = projects.error?.data?.code === 'UNAUTHORIZED';
-  useEffect(() => {
-    if (unauthorized) void navigate({ to: '/login' });
-  }, [unauthorized, navigate]);
+  // An ended session is a trip to /login, not an error panel — the same
+  // judgement on every screen, from one hook (lib/use-unauthorized-redirect).
+  const unauthorized = useUnauthorizedRedirect(projects);
 
   // An empty table head over nothing is furniture: when there is no project
   // yet, the panel holds one sentence and the way out of it, and nothing else.

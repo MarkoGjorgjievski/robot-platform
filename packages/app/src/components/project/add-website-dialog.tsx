@@ -64,6 +64,8 @@ export function AddWebsiteDialog({
       await create.mutateAsync({ projectSlug, name: name.trim(), url: url.trim() });
       await utils.projects.get.invalidate({ projectSlug });
       await utils.projects.list.invalidate();
+      // The Output screen's summary line counts the project's websites.
+      await utils.projects.output.invalidate({ projectSlug });
       change(false);
     } catch {
       setError('That website could not be added. Try again.');
