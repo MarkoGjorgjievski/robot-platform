@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, projects, users, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
