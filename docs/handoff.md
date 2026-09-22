@@ -108,9 +108,12 @@ anywhere. The file: `projects.output` puts `Website` first (9 columns), and
 `GET /export/projects/<uuid>.csv` answers 200 with
 `content-disposition: attachment; filename="acne-2026-09-22.csv"`.
 
-**Output has never been seen with rows in it.** `select count(*) from runs` on
-the dev database is **0** — an Extract has never been clicked, which the plan-1
-handoff already lists as the next work. So Acne's Output shows its empty state,
+**Output has never been seen with rows in it.** No project on the dev database
+has a run: the only two rows in `runs` are completed newegg runs from
+2026-08-26 whose `sources` predate datasets (`dataset_id` is null), so they
+belong to no project and no Output can show them. An Extract has never been
+clicked on a project website, which the plan-1 handoff already lists as the next
+work. So Acne's Output shows its empty state,
 its two downloads are disabled buttons, and the populated layout has only ever
 been checked against a mocked `projects.output` (task 7's report). The check
 says so in its own output rather than passing a test that proves nothing, and it
