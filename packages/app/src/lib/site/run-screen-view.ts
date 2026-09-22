@@ -1,6 +1,8 @@
 import { relativeTime } from '../projects-view';
 import { runDotLabel, runDotState, type RunDotStatus } from '../run-dot-view';
 import { durationLabel } from '../runs-view';
+import { fillBadge, type FieldCoverage } from './coverage-view';
+import type { ProbeEvidence } from './probe-evidence';
 
 /**
  * The run page's own copy, kept out of the screen so it can be read and tested
@@ -102,4 +104,65 @@ export function resultsNote(shown: number, total: number): string | null {
 export function workListNote(shown: number, total: number): string | null {
   if (shown >= total) return null;
   return `Showing the first ${shown.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} pages.`;
+}
+
+/**
+ * The sample gate's four facts, in the same `RunFact` grammar the run's own
+ * facts use — `probeEvidence` answers what a probe run walked and found, and
+ * this is that answer said in the customer's words.
+ *
+ * "Products", not "items": the word for a detail page in this app is a product
+ * (spec §6), and `itemsFound` is the engine's own name for the same number.
+ */
+export function probeFacts(evidence: ProbeEvidence): RunFact[] {
+  return [
+    { label: 'Pages walked', value: evidence.pagesWalked.toLocaleString('en-US') },
+    { label: 'Products found', value: evidence.itemsFound.toLocaleString('en-US') },
+    { label: 'Pagination', value: evidence.paginationNote },
+    { label: 'Warnings', value: evidence.warningsCount.toLocaleString('en-US') },
+  ];
+}
+
+/**
+ * One option in the repair bar's field picker: the customer's name for the
+ * field, and how much of its column came back.
+ *
+ * The fill count is `fillBadge`'s, so a field with nothing missing carries no
+ * number at all — but such a field is never offered here in the first place,
+ * which is exactly why the badge is allowed to be absent rather than "40/40".
+ */
+export function gapFieldOption(cov: FieldCoverage | undefined, displayName: string): string {
+  const badge = fillBadge(cov);
+  return badge ? `${displayName} · ${badge} filled` : displayName;
+}
+
+/** What a picked field leaves empty, stated before anything is selected. */
+export function missingRowsLine(count: number, displayName: string): string {
+  const noun = count === 1 ? 'row' : 'rows';
+  return `${count.toLocaleString('en-US')} ${noun} missing ${displayName}`;
+}
+
+/**
+ * The tick that arms the one spender in the repair bar. It names the count
+ * because it IS the choice — there are no per-row ticks, so this box is the
+ * whole selection, and a bare "Select all" would leave the number of pages
+ * about to be fetched to be read off a different line.
+ */
+export function selectAllLabel(count: number): string {
+  const noun = count === 1 ? 'row' : 'rows';
+  return `Select all ${count.toLocaleString('en-US')} ${noun}`;
+}
+
+/** A field's fill, as the repair checklist prints it. */
+export function fillLabel(fill: number): string {
+  return `${Math.round(fill * 100)}% filled`;
+}
+
+/**
+ * `FieldClassification`'s verdict in words. "dead" is the engine's own name for
+ * a cached path that has stopped answering; what the customer needs to read is
+ * what that means for the field in front of them.
+ */
+export function classificationLabel(classification: 'healthy' | 'dead'): string {
+  return classification === 'dead' ? 'path looks broken' : 'path looks fine';
 }

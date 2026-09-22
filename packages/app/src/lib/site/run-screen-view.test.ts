@@ -1,12 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import {
+  classificationLabel,
+  fillLabel,
+  gapFieldOption,
   isRunId,
+  missingRowsLine,
+  probeFacts,
   reExtractedLabel,
   repairNote,
   resultsNote,
   resultsSummary,
   runFacts,
   runStatusLine,
+  selectAllLabel,
   shortRunId,
   workListNote,
 } from './run-screen-view';
@@ -131,5 +137,67 @@ describe('workListNote', () => {
   it('says what is on the screen, with no download to point at', () => {
     expect(workListNote(200, 512)).toBe('Showing the first 200 of 512 pages.');
     expect(workListNote(200, 200)).toBe(null);
+  });
+});
+
+describe('probeFacts', () => {
+  it('reads the sample evidence in the customer\'s words', () => {
+    expect(probeFacts({ pagesWalked: 3, itemsFound: 1204, warningsCount: 0, paginationNote: 'link: next' })).toEqual([
+      { label: 'Pages walked', value: '3' },
+      { label: 'Products found', value: '1,204' },
+      { label: 'Pagination', value: 'link: next' },
+      { label: 'Warnings', value: '0' },
+    ]);
+  });
+
+  it('carries the honest fallback through rather than inventing one', () => {
+    expect(probeFacts({ pagesWalked: 1, itemsFound: 0, warningsCount: 2, paginationNote: 'not reported' })[2])
+      .toEqual({ label: 'Pagination', value: 'not reported' });
+  });
+});
+
+describe('gapFieldOption', () => {
+  const cov = (over: Partial<{ filled: number; missing: number; confirmedAbsent: number; total: number }> = {}) => ({
+    name: 'price', filled: 36, missing: 4, confirmedAbsent: 0, total: 40, ...over,
+  });
+
+  it('names the field and how much of its column came back', () => {
+    expect(gapFieldOption(cov(), 'Price')).toBe('Price · 36/40 filled');
+  });
+
+  it('is the name alone when there is no gap to badge', () => {
+    expect(gapFieldOption(cov({ filled: 40, missing: 0 }), 'Price')).toBe('Price');
+    expect(gapFieldOption(undefined, 'Price')).toBe('Price');
+  });
+});
+
+describe('missingRowsLine', () => {
+  it('counts its own noun', () => {
+    expect(missingRowsLine(1, 'Price')).toBe('1 row missing Price');
+    expect(missingRowsLine(1204, 'Price')).toBe('1,204 rows missing Price');
+    expect(missingRowsLine(0, 'Price')).toBe('0 rows missing Price');
+  });
+});
+
+describe('selectAllLabel', () => {
+  it('names the count, because the tick is the whole selection', () => {
+    expect(selectAllLabel(1)).toBe('Select all 1 row');
+    expect(selectAllLabel(12)).toBe('Select all 12 rows');
+  });
+});
+
+describe('fillLabel', () => {
+  it('rounds to whole percent', () => {
+    expect(fillLabel(0.9)).toBe('90% filled');
+    expect(fillLabel(0.125)).toBe('13% filled');
+    expect(fillLabel(0)).toBe('0% filled');
+    expect(fillLabel(1)).toBe('100% filled');
+  });
+});
+
+describe('classificationLabel', () => {
+  it('says what the verdict means for the field', () => {
+    expect(classificationLabel('dead')).toBe('path looks broken');
+    expect(classificationLabel('healthy')).toBe('path looks fine');
   });
 });
