@@ -23,8 +23,11 @@
 // only check that sees that screen as a real account.
 //
 // The PASS/FAIL lines below are written against **Acne**: 8 fields, one website
-// (Ikea), every field certified, one completed run. Run it against another
-// project and the expectations to change are collected in `EXPECTED`.
+// (Ikea), every field certified. What it does *not* have is a completed run, so
+// the Output walk branches on `projects.output`'s `rowCount`: with rows it
+// measures the sheet and the two download links, and with none it asserts the
+// empty state and the two disabled buttons. Run it against another project and
+// the expectations to change are collected in `EXPECTED`.
 //
 // Needs the api-server (:4000) and the app (:3000) already running. Do not start
 // or stop the user's dev servers.
@@ -228,6 +231,14 @@ let csvUrl: string | null = null;
 
 try {
 
+// The sheet's shape, from the same query the Output screen runs, read once
+// before the walk: `rowCount` is the data, and the data is what the Output
+// check branches on — a project with no completed run has an empty state to
+// prove, not a table. Counting `thead th` would only ask the screen to agree
+// with itself.
+const out = await readOutput();
+console.log(`projects.output: ${out.fields.length} columns, ${out.rowCount} rows`);
+
 for (const theme of ['dark', 'light'] as const) {
   console.log(`\n── ${theme} ──`);
   check(`theme switches to ${theme} and the server renders it`, await setTheme(theme));
@@ -307,7 +318,7 @@ for (const theme of ['dark', 'light'] as const) {
   );
   const shape = /\/export\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(csv|json)$/;
 
-  if (columns > 0) {
+  if (out.rowCount > 0) {
     const firstColumn = norm(await p.locator('thead th').first().innerText());
     check('the first column is Website', firstColumn === 'Website', firstColumn);
     check('the sheet has rows', outputRows > 0, `${outputRows} rows`);
@@ -322,11 +333,12 @@ for (const theme of ['dark', 'light'] as const) {
     // No website in this project has ever completed a run — an Extract has
     // never been clicked — so the empty state is this screen's true state, and
     // the sheet cannot be checked without spending money. What can be checked
-    // is that the screen is honest about it: one sentence, and two downloads
-    // that are buttons rather than links to an empty file. The column order and
-    // the file itself are asked of the API below instead.
+    // is that the screen is honest about it: one sentence, no table, and two
+    // downloads that are buttons rather than links to an empty file. The column
+    // order and the file itself are asked of the API below instead.
     const body = norm(await p.locator('main').innerText());
     check('output shows its empty state', body.includes('No rows yet'), body.slice(0, 120));
+    check('the sheet is not drawn over nothing', columns === 0 && outputRows === 0, `${columns} columns, ${outputRows} rows`);
     const disabled = await p.locator('main button:disabled').count();
     check('the downloads are disabled, with no file behind them', links.length === 0 && disabled === 2, `${links.length} link(s), ${disabled} disabled button(s)`);
     measure('output', 'SKIP — no completed run in this database, so there is no sheet to measure');
@@ -355,8 +367,7 @@ for (const theme of ['dark', 'light'] as const) {
 console.log('\n── the download ──');
 {
   // With no run, the Output screen offers no link — so the project's own id and
-  // its column order come from `projects.output`, the query the screen runs.
-  const out = await readOutput();
+  // its column order come from `projects.output`, read before the walk.
   check('the first column of the file is Website', out.fields[0] === 'Website', out.fields.slice(0, 4).join(', '));
   measure('projects.output', `${out.fields.length} columns, ${out.rowCount} rows, project ${out.project.id}`);
 
@@ -380,14 +391,23 @@ console.log('\n── the download ──');
 } finally {
   // Put the preference back, whatever happened above.
   const now = await storedPreference().catch(() => null);
-  if (now !== null && now !== originalPreference) {
+  if (now === null) {
+    // The API did not answer, so this check cannot say what the account's
+    // preference is now — and it has been writing to it. Saying "unchanged"
+    // here would be a claim about somebody's real row that nothing has
+    // verified; a lying log is worse than no log.
+    console.error(
+      `theme preference COULD NOT BE VERIFIED OR RESTORED: auth.me is unreachable. It was ${originalPreference} on arrival; this check has since set it, so it may be dark or light now. Set it back by hand.`,
+    );
+  } else if (now !== originalPreference) {
     await choosePreference(originalPreference).catch((err) => console.error('could not restore the theme preference:', err));
     console.log(`theme preference restored: ${now} -> ${await storedPreference().catch(() => '?')}`);
   } else {
     console.log(`theme preference unchanged: ${originalPreference}`);
   }
+  // Inside the `finally`: a throw above would otherwise leak a chromium process.
+  await b.close();
 }
 
-await b.close();
 console.log(failed === 0 ? '\nALL CHECKS PASSED' : `\n${failed} CHECK(S) FAILED`);
 process.exit(failed === 0 ? 0 : 1);
