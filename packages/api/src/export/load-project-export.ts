@@ -19,6 +19,17 @@ export type ProjectExport = {
 
 export const WEBSITE_COLUMN = 'Website';
 
+/**
+ * The merged sheet injects a `Website` column, so a customer column of the same
+ * name — a contract field or a raw key a website produced — would be overwritten
+ * by it and would show up twice in the header. The synthetic column always wins;
+ * the customer's own column is exported under `Website (field)` rather than
+ * dropped. Used for both the header and the row keys so the two stay in step.
+ */
+export function exportColumnName(name: string): string {
+  return name === WEBSITE_COLUMN ? `${WEBSITE_COLUMN} (field)` : name;
+}
+
 export async function loadProjectExport(db: typeof Database, projectId: string): Promise<ProjectExport | null> {
   const project = await db.query.projects.findFirst({ where: eq(projects.id, projectId), columns: { id: true, name: true, slug: true } });
   if (!project) return null;
@@ -28,7 +39,7 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
     orderBy: (d, { asc }) => [asc(d.createdAt)],
     columns: { id: true, schema: true },
   });
-  const contractNames = dataset ? contractFields(dataset.schema).map((f) => f.name) : [];
+  const contractNames = dataset ? contractFields(dataset.schema).map((f) => exportColumnName(f.name)) : [];
 
   const sites = dataset
     ? await db.select({ id: sources.id, name: sources.name, slug: sources.slug }).from(sources).where(eq(sources.datasetId, dataset.id)).orderBy(sources.name)
@@ -52,8 +63,17 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
     const run = latestBySource.get(site.id);
     const runExport = run ? await loadRunExport(db, run.id) : null;
     const siteRows = runExport?.rows ?? [];
-    for (const r of siteRows) rows.push({ [WEBSITE_COLUMN]: site.name, ...r });
-    for (const f of runExport?.fields ?? []) if (!contractNames.includes(f) && !extras.includes(f)) extras.push(f);
+    for (const r of siteRows) {
+      // `exportColumnName` has already moved any customer `Website` key out of
+      // the way, so nothing below can overwrite the synthetic column.
+      const out: Record<string, unknown> = { [WEBSITE_COLUMN]: site.name };
+      for (const [k, v] of Object.entries(r)) out[exportColumnName(k)] = v;
+      rows.push(out);
+    }
+    for (const raw of runExport?.fields ?? []) {
+      const f = exportColumnName(raw);
+      if (!contractNames.includes(f) && !extras.includes(f)) extras.push(f);
+    }
     websites.push({ id: site.id, name: site.name, slug: site.slug, runId: run?.id ?? null, completedAt: run?.completedAt?.toISOString() ?? null, rowCount: siteRows.length });
   }
 
