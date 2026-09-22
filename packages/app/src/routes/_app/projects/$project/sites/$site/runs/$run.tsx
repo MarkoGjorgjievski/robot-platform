@@ -44,7 +44,9 @@ import { useSite } from '../../$site';
  * gaps are still closing under it, a sample's only actionable control is its own
  * gate, and a repair run's rows are deliberately partial, so a coverage report
  * over them would read every other field as dead; `crawl.misses` under the same
- * gate; and `crawl.backfillPreview` only once the repair panel is opened.
+ * settled/non-sample/non-repair gate but without the `rows > 0` clause (it is
+ * mounted on `repairable` alone); and `crawl.backfillPreview` only once the
+ * repair panel is opened.
  */
 export const Route = createFileRoute('/_app/projects/$project/sites/$site/runs/$run')({
   component: RunScreen,

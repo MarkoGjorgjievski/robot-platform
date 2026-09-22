@@ -220,15 +220,19 @@ export function BackfillPanel({
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
-                disabled={backfill.isPending || nothingChecked}
+                disabled={backfill.isPending || nothingChecked || !checkedPreview.data}
                 onClick={() => input && backfill.mutate({ runId, ...input })}
               >
                 {backfill.isPending ? <Loader2 className="animate-spin" /> : null}
                 Run backfill
               </Button>
-              {/* Every disabled control says why, within a line of it. */}
+              {/* Every disabled control says why, within a line of it — including
+                  the moment the cost line above hasn't arrived yet, so the button
+                  is never live before the spend it triggers is on screen. */}
               {nothingChecked ? (
                 <span className="text-base text-muted-foreground">Tick at least one field to repair</span>
+              ) : !checkedPreview.data ? (
+                <span className="text-base text-muted-foreground">Estimating…</span>
               ) : null}
             </div>
 
