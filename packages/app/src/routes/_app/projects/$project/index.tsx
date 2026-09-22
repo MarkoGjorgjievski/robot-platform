@@ -90,7 +90,7 @@ function ProjectHome() {
           <Button onClick={() => setAdding(true)}>Add website</Button>
         </div>
       ) : (
-        <WebsitesTable websites={websites} loading={project.isPending} />
+        <WebsitesTable projectSlug={slug} websites={websites} loading={project.isPending} />
       )}
 
       {/* Every row would say "No fields yet" — said once, under the table, with

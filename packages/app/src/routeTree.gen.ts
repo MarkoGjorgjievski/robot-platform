@@ -21,6 +21,12 @@ import { Route as AppProjectsProjectRouteImport } from './routes/_app/projects/$
 import { Route as AppProjectsProjectIndexRouteImport } from './routes/_app/projects/$project/index'
 import { Route as AppProjectsProjectFieldsRouteImport } from './routes/_app/projects/$project/fields'
 import { Route as AppProjectsProjectOutputRouteImport } from './routes/_app/projects/$project/output'
+import { Route as AppProjectsProjectSitesSiteRouteImport } from './routes/_app/projects/$project/sites/$site'
+import { Route as AppProjectsProjectSitesSiteIndexRouteImport } from './routes/_app/projects/$project/sites/$site/index'
+import { Route as AppProjectsProjectSitesSiteExtractRouteImport } from './routes/_app/projects/$project/sites/$site/extract'
+import { Route as AppProjectsProjectSitesSiteSettingsRouteImport } from './routes/_app/projects/$project/sites/$site/settings'
+import { Route as AppProjectsProjectSitesSiteRunsIndexRouteImport } from './routes/_app/projects/$project/sites/$site/runs/index'
+import { Route as AppProjectsProjectSitesSiteRunsRunRouteImport } from './routes/_app/projects/$project/sites/$site/runs/$run'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -83,6 +89,42 @@ const AppProjectsProjectOutputRoute =
     path: '/output',
     getParentRoute: () => AppProjectsProjectRoute,
   } as any)
+const AppProjectsProjectSitesSiteRoute =
+  AppProjectsProjectSitesSiteRouteImport.update({
+    id: '/sites/$site',
+    path: '/sites/$site',
+    getParentRoute: () => AppProjectsProjectRoute,
+  } as any)
+const AppProjectsProjectSitesSiteIndexRoute =
+  AppProjectsProjectSitesSiteIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppProjectsProjectSitesSiteRoute,
+  } as any)
+const AppProjectsProjectSitesSiteExtractRoute =
+  AppProjectsProjectSitesSiteExtractRouteImport.update({
+    id: '/extract',
+    path: '/extract',
+    getParentRoute: () => AppProjectsProjectSitesSiteRoute,
+  } as any)
+const AppProjectsProjectSitesSiteSettingsRoute =
+  AppProjectsProjectSitesSiteSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppProjectsProjectSitesSiteRoute,
+  } as any)
+const AppProjectsProjectSitesSiteRunsIndexRoute =
+  AppProjectsProjectSitesSiteRunsIndexRouteImport.update({
+    id: '/runs/',
+    path: '/runs/',
+    getParentRoute: () => AppProjectsProjectSitesSiteRoute,
+  } as any)
+const AppProjectsProjectSitesSiteRunsRunRoute =
+  AppProjectsProjectSitesSiteRunsRunRouteImport.update({
+    id: '/runs/$run',
+    path: '/runs/$run',
+    getParentRoute: () => AppProjectsProjectSitesSiteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,6 +138,12 @@ export interface FileRoutesByFullPath {
   '/projects/$project/fields': typeof AppProjectsProjectFieldsRoute
   '/projects/$project/output': typeof AppProjectsProjectOutputRoute
   '/projects/$project/': typeof AppProjectsProjectIndexRoute
+  '/projects/$project/sites/$site': typeof AppProjectsProjectSitesSiteRouteWithChildren
+  '/projects/$project/sites/$site/extract': typeof AppProjectsProjectSitesSiteExtractRoute
+  '/projects/$project/sites/$site/settings': typeof AppProjectsProjectSitesSiteSettingsRoute
+  '/projects/$project/sites/$site/': typeof AppProjectsProjectSitesSiteIndexRoute
+  '/projects/$project/sites/$site/runs/$run': typeof AppProjectsProjectSitesSiteRunsRunRoute
+  '/projects/$project/sites/$site/runs/': typeof AppProjectsProjectSitesSiteRunsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -108,6 +156,11 @@ export interface FileRoutesByTo {
   '/projects/$project/fields': typeof AppProjectsProjectFieldsRoute
   '/projects/$project/output': typeof AppProjectsProjectOutputRoute
   '/projects/$project': typeof AppProjectsProjectIndexRoute
+  '/projects/$project/sites/$site/extract': typeof AppProjectsProjectSitesSiteExtractRoute
+  '/projects/$project/sites/$site/settings': typeof AppProjectsProjectSitesSiteSettingsRoute
+  '/projects/$project/sites/$site': typeof AppProjectsProjectSitesSiteIndexRoute
+  '/projects/$project/sites/$site/runs/$run': typeof AppProjectsProjectSitesSiteRunsRunRoute
+  '/projects/$project/sites/$site/runs': typeof AppProjectsProjectSitesSiteRunsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -123,6 +176,12 @@ export interface FileRoutesById {
   '/_app/projects/$project/fields': typeof AppProjectsProjectFieldsRoute
   '/_app/projects/$project/output': typeof AppProjectsProjectOutputRoute
   '/_app/projects/$project/': typeof AppProjectsProjectIndexRoute
+  '/_app/projects/$project/sites/$site': typeof AppProjectsProjectSitesSiteRouteWithChildren
+  '/_app/projects/$project/sites/$site/extract': typeof AppProjectsProjectSitesSiteExtractRoute
+  '/_app/projects/$project/sites/$site/settings': typeof AppProjectsProjectSitesSiteSettingsRoute
+  '/_app/projects/$project/sites/$site/': typeof AppProjectsProjectSitesSiteIndexRoute
+  '/_app/projects/$project/sites/$site/runs/$run': typeof AppProjectsProjectSitesSiteRunsRunRoute
+  '/_app/projects/$project/sites/$site/runs/': typeof AppProjectsProjectSitesSiteRunsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -138,6 +197,12 @@ export interface FileRouteTypes {
     | '/projects/$project/fields'
     | '/projects/$project/output'
     | '/projects/$project/'
+    | '/projects/$project/sites/$site'
+    | '/projects/$project/sites/$site/extract'
+    | '/projects/$project/sites/$site/settings'
+    | '/projects/$project/sites/$site/'
+    | '/projects/$project/sites/$site/runs/$run'
+    | '/projects/$project/sites/$site/runs/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,6 +215,11 @@ export interface FileRouteTypes {
     | '/projects/$project/fields'
     | '/projects/$project/output'
     | '/projects/$project'
+    | '/projects/$project/sites/$site/extract'
+    | '/projects/$project/sites/$site/settings'
+    | '/projects/$project/sites/$site'
+    | '/projects/$project/sites/$site/runs/$run'
+    | '/projects/$project/sites/$site/runs'
   id:
     | '__root__'
     | '/'
@@ -164,6 +234,12 @@ export interface FileRouteTypes {
     | '/_app/projects/$project/fields'
     | '/_app/projects/$project/output'
     | '/_app/projects/$project/'
+    | '/_app/projects/$project/sites/$site'
+    | '/_app/projects/$project/sites/$site/extract'
+    | '/_app/projects/$project/sites/$site/settings'
+    | '/_app/projects/$project/sites/$site/'
+    | '/_app/projects/$project/sites/$site/runs/$run'
+    | '/_app/projects/$project/sites/$site/runs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -258,19 +334,91 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsProjectOutputRouteImport
       parentRoute: typeof AppProjectsProjectRoute
     }
+    '/_app/projects/$project/sites/$site': {
+      id: '/_app/projects/$project/sites/$site'
+      path: '/sites/$site'
+      fullPath: '/projects/$project/sites/$site'
+      preLoaderRoute: typeof AppProjectsProjectSitesSiteRouteImport
+      parentRoute: typeof AppProjectsProjectRoute
+    }
+    '/_app/projects/$project/sites/$site/': {
+      id: '/_app/projects/$project/sites/$site/'
+      path: '/'
+      fullPath: '/projects/$project/sites/$site/'
+      preLoaderRoute: typeof AppProjectsProjectSitesSiteIndexRouteImport
+      parentRoute: typeof AppProjectsProjectSitesSiteRoute
+    }
+    '/_app/projects/$project/sites/$site/extract': {
+      id: '/_app/projects/$project/sites/$site/extract'
+      path: '/extract'
+      fullPath: '/projects/$project/sites/$site/extract'
+      preLoaderRoute: typeof AppProjectsProjectSitesSiteExtractRouteImport
+      parentRoute: typeof AppProjectsProjectSitesSiteRoute
+    }
+    '/_app/projects/$project/sites/$site/settings': {
+      id: '/_app/projects/$project/sites/$site/settings'
+      path: '/settings'
+      fullPath: '/projects/$project/sites/$site/settings'
+      preLoaderRoute: typeof AppProjectsProjectSitesSiteSettingsRouteImport
+      parentRoute: typeof AppProjectsProjectSitesSiteRoute
+    }
+    '/_app/projects/$project/sites/$site/runs/': {
+      id: '/_app/projects/$project/sites/$site/runs/'
+      path: '/runs'
+      fullPath: '/projects/$project/sites/$site/runs/'
+      preLoaderRoute: typeof AppProjectsProjectSitesSiteRunsIndexRouteImport
+      parentRoute: typeof AppProjectsProjectSitesSiteRoute
+    }
+    '/_app/projects/$project/sites/$site/runs/$run': {
+      id: '/_app/projects/$project/sites/$site/runs/$run'
+      path: '/runs/$run'
+      fullPath: '/projects/$project/sites/$site/runs/$run'
+      preLoaderRoute: typeof AppProjectsProjectSitesSiteRunsRunRouteImport
+      parentRoute: typeof AppProjectsProjectSitesSiteRoute
+    }
   }
 }
+
+interface AppProjectsProjectSitesSiteRouteChildren {
+  AppProjectsProjectSitesSiteExtractRoute: typeof AppProjectsProjectSitesSiteExtractRoute
+  AppProjectsProjectSitesSiteSettingsRoute: typeof AppProjectsProjectSitesSiteSettingsRoute
+  AppProjectsProjectSitesSiteIndexRoute: typeof AppProjectsProjectSitesSiteIndexRoute
+  AppProjectsProjectSitesSiteRunsRunRoute: typeof AppProjectsProjectSitesSiteRunsRunRoute
+  AppProjectsProjectSitesSiteRunsIndexRoute: typeof AppProjectsProjectSitesSiteRunsIndexRoute
+}
+
+const AppProjectsProjectSitesSiteRouteChildren: AppProjectsProjectSitesSiteRouteChildren =
+  {
+    AppProjectsProjectSitesSiteExtractRoute:
+      AppProjectsProjectSitesSiteExtractRoute,
+    AppProjectsProjectSitesSiteSettingsRoute:
+      AppProjectsProjectSitesSiteSettingsRoute,
+    AppProjectsProjectSitesSiteIndexRoute:
+      AppProjectsProjectSitesSiteIndexRoute,
+    AppProjectsProjectSitesSiteRunsRunRoute:
+      AppProjectsProjectSitesSiteRunsRunRoute,
+    AppProjectsProjectSitesSiteRunsIndexRoute:
+      AppProjectsProjectSitesSiteRunsIndexRoute,
+  }
+
+const AppProjectsProjectSitesSiteRouteWithChildren =
+  AppProjectsProjectSitesSiteRoute._addFileChildren(
+    AppProjectsProjectSitesSiteRouteChildren,
+  )
 
 interface AppProjectsProjectRouteChildren {
   AppProjectsProjectFieldsRoute: typeof AppProjectsProjectFieldsRoute
   AppProjectsProjectOutputRoute: typeof AppProjectsProjectOutputRoute
   AppProjectsProjectIndexRoute: typeof AppProjectsProjectIndexRoute
+  AppProjectsProjectSitesSiteRoute: typeof AppProjectsProjectSitesSiteRouteWithChildren
 }
 
 const AppProjectsProjectRouteChildren: AppProjectsProjectRouteChildren = {
   AppProjectsProjectFieldsRoute: AppProjectsProjectFieldsRoute,
   AppProjectsProjectOutputRoute: AppProjectsProjectOutputRoute,
   AppProjectsProjectIndexRoute: AppProjectsProjectIndexRoute,
+  AppProjectsProjectSitesSiteRoute:
+    AppProjectsProjectSitesSiteRouteWithChildren,
 }
 
 const AppProjectsProjectRouteWithChildren =

@@ -5,6 +5,7 @@ import { useProjectSlug } from '../components/shell/project-section';
 import { Sidebar, SidebarSheet } from '../components/shell/sidebar';
 import { crumbs } from '../lib/project-nav-view';
 import { trpc } from '../lib/trpc';
+import { useSiteSlugs } from './_app/projects/$project/sites/$site';
 
 /**
  * Everything behind the sign-in: the sidebar, the header, and one of the
@@ -47,13 +48,23 @@ function AppLayout() {
 
 /**
  * Where you are (spec §3): the organisation, then the project once you are in
- * one. The project's name comes from the same `projects.get` query the screen
- * and the sidebar run, so the crumb costs no extra round trip.
+ * one, then the website once you are in one of those. Both names come from the
+ * same queries the screen and the sidebar run, so the crumb costs no extra
+ * round trip.
  */
 function Breadcrumb({ org }: { org: string }) {
   const slug = useProjectSlug();
+  const { site: siteSlug } = useSiteSlugs();
   const project = trpc.projects.get.useQuery({ projectSlug: slug! }, { enabled: !!slug });
-  const items = crumbs(org, project.data ? { name: project.data.name, slug: project.data.slug } : null);
+  const site = trpc.sources.get.useQuery(
+    { projectSlug: slug!, sourceSlug: siteSlug! },
+    { enabled: !!slug && !!siteSlug },
+  );
+  const items = crumbs(
+    org,
+    project.data ? { name: project.data.name, slug: project.data.slug } : null,
+    site.data ? { name: site.data.name, slug: site.data.slug } : null,
+  );
 
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">

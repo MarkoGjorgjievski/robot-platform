@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Activity, FolderKanban, Gauge, Settings, UserRound } from 'lucide-react';
 import { projectsView } from '../../lib/projects-view';
+import { websitesView } from '../../lib/websites-view';
 import { trpc } from '../../lib/trpc';
+import { useProjectSlug } from './project-section';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../ui/dialog';
 import {
   Command,
@@ -48,6 +50,19 @@ export function CommandMenu({
   const projects = trpc.projects.list.useQuery(undefined, { enabled: open });
   const rows = projectsView(projects.data ?? []);
 
+  // Inside a project, its websites too — the thing a customer jumps between all
+  // day. Outside one there is no such list to offer, and offering every website
+  // in the org would make the palette a search over data it has not loaded.
+  // Same cache key as the sidebar's, so in a project this costs no round trip.
+  const projectSlug = useProjectSlug();
+  const project = trpc.projects.get.useQuery(
+    { projectSlug: projectSlug! },
+    { enabled: open && !!projectSlug },
+  );
+  // Sorted and formatted by the same function the project's table uses, so the
+  // palette lists them in the order the customer just read them in.
+  const websites = websitesView(project.data?.websites ?? [], 0);
+
   function go(to: (typeof PAGES)[number]['to']) {
     onOpenChange(false);
     void navigate({ to });
@@ -82,6 +97,32 @@ export function CommandMenu({
                     <span className="min-w-0 flex-1 truncate">{project.name}</span>
                     <span className="shrink-0 font-mono text-sm text-muted-foreground">
                       {project.countsLabel}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
+
+            {projectSlug && websites.length > 0 ? (
+              <CommandGroup heading="Websites">
+                {websites.map((website) => (
+                  <CommandItem
+                    key={website.id}
+                    // The host is in the value as well as on screen: two
+                    // websites in a project can differ only by subdomain.
+                    value={`website ${website.name} ${website.hostname}`}
+                    onSelect={() => {
+                      onOpenChange(false);
+                      void navigate({
+                        to: '/projects/$project/sites/$site',
+                        params: { project: projectSlug, site: website.slug },
+                      });
+                    }}
+                    className="text-base"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{website.name}</span>
+                    <span className="shrink-0 font-mono text-sm text-muted-foreground">
+                      {website.hostname}
                     </span>
                   </CommandItem>
                 ))}
