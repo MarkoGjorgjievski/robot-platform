@@ -72,6 +72,15 @@ function RunScreen() {
   );
   // The project's contract: `key` is what a result row is keyed by, `name` is
   // the plain-language heading. The same pair the Extract tab's sample uses.
+  //
+  // The contract is the ONLY source of columns here. The dashboard's run page
+  // read a website's legacy `selectorsJson.fields` first and fell back to the
+  // contract — that list is written by nothing any more (the `sources.analyze`
+  // procedure that wrote it was removed in 2026-09) and is empty for every
+  // verification-era website, which is what made the fallback necessary in the
+  // first place. Dropping it is deliberate, and it takes the synthetic
+  // `detail_url` column with it: that field only ever round-tripped out of the
+  // legacy list, and the server's own effective schema already filters it out.
   const columns = useMemo(
     () => (site.data?.fields ?? []).map((f) => ({ key: f.key, name: f.name })),
     [site.data],
@@ -186,13 +195,32 @@ function RunScreen() {
 
       <WorkList items={items.data?.items ?? []} counts={items.data?.counts ?? EMPTY_COUNTS} />
 
-      <ResultsTable
-        columns={columns}
-        rows={rows}
-        absentByUrl={absentByUrl}
-        summary={resultsSummary(rowCount, extraction?.confidence ?? null)}
-        note={resultsNote(rows.length, rowCount)}
-      />
+      {/* The sheet's columns are the project's contract, and until `sources.get`
+          lands there is no contract to draw one from. An empty column list is
+          not an empty project: rendering the table with it would print "No
+          fields in this project yet", which is a claim, where the truth is that
+          nobody has answered yet. The shape of the panel, then — not a head of
+          invented columns that would be swapped a moment later. */}
+      {site.isPending ? (
+        <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
+          <div className="border-b border-line px-4 py-2.5">
+            <Skeleton className="h-3.5 w-52 bg-raised" />
+          </div>
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="border-b border-line px-4 py-2.5 last:border-0">
+              <Skeleton className="h-3.5 w-full max-w-[420px] bg-raised" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <ResultsTable
+          columns={columns}
+          rows={rows}
+          absentByUrl={absentByUrl}
+          summary={resultsSummary(rowCount, extraction?.confidence ?? null)}
+          note={resultsNote(rows.length, rowCount)}
+        />
+      )}
     </>
   );
 }
