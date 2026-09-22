@@ -199,7 +199,10 @@ export const projectsRouter = router({
     .query(async ({ ctx, input }) => {
       const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
-      const x = (await loadProjectExport(ctx.db, project.id))!;
+      // Narrow, but real: the project was found a line ago, and one deleted in
+      // between should still read as gone rather than as a server fault.
+      const x = await loadProjectExport(ctx.db, project.id);
+      if (!x) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
       return { ...x, rows: x.rows.slice(0, OUTPUT_ROW_CAP) };
     }),
 
