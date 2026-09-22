@@ -272,9 +272,29 @@ function FieldRow({
         {field.retypeLocked ? (
           <Tooltip>
             {/* A disabled button fires no pointer events, so the tooltip hangs
-                off a wrapper that can be reached by pointer and by keyboard. */}
+                off a wrapper that can be reached by pointer and by keyboard.
+
+                `block`, not `inline-block`: a shrink-to-fit box cannot measure a
+                `w-fit` flex child whose own max-width is a percentage —
+                Chromium sized this wrapper 13 px narrower than the trigger
+                wanted and the trigger's `max-w-full` then clamped the value to
+                it, so every locked row read "Mon", "Te", "Numb". Filling the
+                cell instead leaves the trigger free to hug its value, which is
+                what it does on an unlocked row.
+
+                The ring then has to move with it: app.css draws the app's one
+                focus idiom on anything focusable, which here is this box, and a
+                ring spanning the whole column when the control inside is 71 px
+                wide would read as the cell being focused rather than the type.
+                So the box waives it and hands the same outline to the trigger —
+                written out rather than as `outline-1`, because the trigger's own
+                `outline-none` has already set the outline *style* to none and a
+                width alone draws nothing. */}
             <TooltipTrigger asChild>
-              <span tabIndex={0} className="inline-block rounded-md outline-none focus-visible:outline-1 focus-visible:outline-text">
+              <span
+                tabIndex={0}
+                className="block outline-none focus-visible:[&>[data-slot=select-trigger]]:[outline:1px_solid_var(--text)] focus-visible:[&>[data-slot=select-trigger]]:[outline-offset:2px]"
+              >
                 {typeSelect}
               </span>
             </TooltipTrigger>

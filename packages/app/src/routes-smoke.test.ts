@@ -12,13 +12,20 @@
 // once per theme, flipping the theme through the user menu in between. The
 // screenshots it leaves in `docs/testing/screens/` are the set Marko reviews.
 //
+// Plan 2's three screens live inside a project, and a project with nothing in it
+// shows three empty states — so the run builds one first: a project through the
+// New project dialog, a website through Add website, a field from the catalogue.
+// Every one of those is the customer's own gesture in a real browser, which is
+// also the only honest way to prove the mutations reach the API.
+//
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
 //   pnpm test:ui:app
 //
 // The throwaway user and its personal org are left behind deliberately: this
 // run has no right to delete an org, and a user row costs nothing. The project
-// it creates it does delete, over tRPC with its own session cookie.
+// it creates it does delete, over tRPC with its own session cookie — and that
+// delete cascades to the website and the field list under it.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
@@ -35,6 +42,51 @@ const API = process.env.API_URL ?? 'http://localhost:4000';
 
 /** Every screen of plan 1. Each is a route a signed-in customer can reach from the sidebar. */
 const ROUTES = ['/projects', '/runs', '/usage', '/settings', '/account'] as const;
+
+/** The website this run adds. `example.com` exists to be used like this, and nothing ever fetches it. */
+const WEBSITE_URL = 'https://www.example.com/';
+const WEBSITE_HOST = 'www.example.com';
+/** What `siteNameFromUrl` derives from that address — the dialog's prefill. */
+const WEBSITE_NAME = 'Example';
+/** The catalogue chip this run clicks, on the Product tab it opens on. */
+const FIELD_NAME = 'Price';
+
+/**
+ * Plan 2's three screens, each with the one thing that proves it is the real
+ * screen and not an empty shell: the website that was just added, the field that
+ * was just picked, and the empty sheet a project with no run has.
+ */
+const PROJECT_SCREENS = [
+  {
+    name: 'home',
+    route: '',
+    assert: async () => {
+      expect(
+        await page.locator('tbody tr').filter({ hasText: WEBSITE_HOST }).count(),
+        'the project home has no row for the website this run added',
+      ).toBe(1);
+    },
+  },
+  {
+    name: 'fields',
+    route: '/fields',
+    assert: async () => {
+      expect(
+        await page.getByRole('textbox', { name: `Name of ${FIELD_NAME}` }).count(),
+        'the Fields screen has no row for the field this run added',
+      ).toBe(1);
+    },
+  },
+  {
+    name: 'output',
+    route: '/output',
+    assert: async () => {
+      // Nothing has run, and running anything costs money: the empty state is
+      // the only honest state this screen can be in here.
+      expect(await page.locator('main').innerText(), 'Output is not in its empty state').toContain('No rows yet');
+    },
+  },
+] as const;
 
 const THEMES = ['dark', 'light'] as const;
 type Theme = (typeof THEMES)[number];
@@ -67,6 +119,8 @@ let context: BrowserContext;
 let page: Page;
 /** The project this run creates through the dialog; deleted in `afterAll`. */
 let projectId: string | null = null;
+/** The same project's slug — what the plan 2 screens are addressed by. */
+let projectSlug: string | null = null;
 
 /**
  * A tRPC client carrying this run's session cookie, so the cleanup deletes the
@@ -238,11 +292,85 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await page.getByRole('cell', { name, exact: true }).waitFor({ timeout: 20_000 });
     expect(problems, `creating a project logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
 
-    // The id for the cleanup, read back through the same session that made it.
+    // The id for the cleanup and the slug for the screens below, read back
+    // through the same session that made it.
     const rows = await apiAs(await sessionCookie(context)).projects.list.query();
-    projectId = rows.find((r) => r.name === name)?.id ?? null;
+    const row = rows.find((r) => r.name === name);
+    projectId = row?.id ?? null;
+    projectSlug = row?.slug ?? null;
     expect(projectId, 'the new project is not in projects.list').not.toBeNull();
+    expect(projectSlug, 'the new project has no slug').not.toBeNull();
   }, 120_000);
+
+  it('a website added through the dialog appears on the project home', async () => {
+    expect(projectSlug, 'there is no project to add a website to').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+
+    // `example.com` on purpose: it is the one address that exists to be used in
+    // a test, and nothing here ever fetches it — the row is made from the URL.
+    // The trigger and the dialog's submit share the name "Add website", so the
+    // submit is asked for inside the dialog.
+    await page.getByRole('button', { name: 'Add website' }).first().click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Address').fill(WEBSITE_URL);
+    // The name is derived from the address, so the prefill is what proves the
+    // form is live before anything is submitted.
+    await expect.poll(() => dialog.getByLabel('Name').inputValue(), { timeout: 10_000 }).toBe(WEBSITE_NAME);
+    await dialog.getByRole('button', { name: 'Add website' }).click();
+
+    await page.locator('tbody tr').filter({ hasText: WEBSITE_HOST }).first().waitFor({ timeout: 20_000 });
+    expect(problems, `adding a website logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 120_000);
+
+  it('a field picked from the catalogue appears in the list', async () => {
+    expect(projectSlug, 'there is no project to add a field to').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/fields`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+
+    // A chip carries its type beside its name, so the accessible name is
+    // "Price Money" — which is also what tells it apart from "Was price" and
+    // "Unit price".
+    await page.getByRole('button', { name: `${FIELD_NAME} Money`, exact: true }).click();
+    await page.getByRole('textbox', { name: `Name of ${FIELD_NAME}` }).waitFor({ timeout: 20_000 });
+    expect(problems, `adding a field logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 120_000);
+
+  for (const theme of THEMES) {
+    it(`every project screen renders in the ${theme} theme`, async () => {
+      expect(projectSlug, 'there is no project to walk').not.toBeNull();
+      const base = `${APP}/projects/${projectSlug}`;
+      await page.goto(base, { waitUntil: 'networkidle', timeout: 30_000 });
+      await waitForHydration(page, 'aside');
+      await chooseTheme(page, theme);
+
+      for (const screen of PROJECT_SCREENS) {
+        problems.length = 0;
+        const response = await page.goto(base + screen.route, { waitUntil: 'networkidle', timeout: 30_000 });
+        expect(response?.ok(), `${screen.route || '/'} returned HTTP ${response?.status()}`).toBe(true);
+
+        // Queries resolve after first paint; give them a moment to fail if they will.
+        await page.waitForTimeout(1200);
+
+        expect(
+          await page.evaluate(() => document.documentElement.dataset.theme),
+          `${screen.name} is not in the ${theme} theme`,
+        ).toBe(theme);
+        expect(await page.locator('h1').count(), `${screen.name} has no page title`).toBeGreaterThan(0);
+        // The project's own section of the sidebar: its name, its three links.
+        expect(
+          await page.locator('aside').getByRole('link', { name: 'Fields' }).count(),
+          `${screen.name} lost the sidebar's project section`,
+        ).toBe(1);
+        await screen.assert();
+        expect(problems, `${screen.name} logged errors in ${theme}:\n  ${problems.join('\n  ')}`).toEqual([]);
+
+        await shoot(page, `app-project-${screen.name}-${theme}.png`);
+      }
+    }, 180_000);
+  }
 
   it('signing out closes the door: /projects goes back to /login', async () => {
     // Its own context, so the cookie this run cleans up with stays alive:

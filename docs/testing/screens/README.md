@@ -31,6 +31,11 @@ screen of plan 1 once per theme, flipping the theme through the user menu in bet
 file is `app-<route>-<theme>.png`; `/login` is captured signed out, before the sign-in, and
 is always dark (§4's open question — a signed-out visitor has no preference yet).
 
+For plan 2 the same run builds a project of its own — a project, a website
+(`https://www.example.com/`) and one catalogue field, each through the dialog a customer
+uses — and walks its three screens in both themes as `app-project-<screen>-<theme>.png`.
+Those show a *new* project: one unverified website, one field, no rows.
+
 Captures are taken with Playwright's `animations: 'disabled'`. Without it the page-load
 `.rise` (`opacity: 0`, `animation-fill-mode: both`) has not started in the frame the
 screenshot provokes, and the picture is a blank page.
@@ -43,16 +48,46 @@ screenshot provokes, and the picture is a blank page.
 | `app-usage-dark.png` / `-light.png` | `/usage` — placeholder until plan 4 |
 | `app-settings-dark.png` / `-light.png` | `/settings` — org settings, placeholder until plan 4 |
 | `app-account-dark.png` / `-light.png` | `/account` — account settings, placeholder until plan 4 |
+| `app-project-home-dark.png` / `-light.png` | a new project's home — one website, not verified, no run |
+| `app-project-fields-dark.png` / `-light.png` | Fields on a new project — one field beside the catalogue |
+| `app-project-output-dark.png` / `-light.png` | Output on a project with no run — the empty state, downloads off |
 
 The two `app-projects-*.png` committed for the plan-1 design review were retaken against the
 real dev database (the projects **Acne** and **Scratch**) after the `default`-org adoption, so
-they show data rather than a throwaway project's empty state. A later smoke run overwrites
-them with whatever that run's throwaway organisation holds — which is the empty state.
+they show data rather than a throwaway project's empty state. A smoke run overwrites them with
+whatever that run's throwaway organisation holds — which is the empty state — so
+`ui-check-app-project.mts` (below) retakes them as the real account on its way past. **Run the
+look-only check after the smoke, not before**, or the committed pair shows a smoke run's
+furniture. The same is true of `app-login.png` and the four placeholder pairs, which no check
+retakes: restore them with `git checkout --` if a smoke run has changed them.
 
 `docs/testing/ui-check-app-shell.mts` is the look-only companion: the same walk with PASS/FAIL
 lines and the measurements spec §3/§4 can be held to (sidebar 240, body 13 px, title 20 px,
 row ≤ 40 px, nothing uppercased, nothing shadowed in dark, the running dot's animation). Its
 screenshots go to whatever directory it is given — a scratch directory, not this one.
+
+### The project screens on real data — `app-project-*-acne-*.png`
+
+`docs/testing/ui-check-app-project.mts` is plan 2's look-only check: given
+`--email <address>` it signs in as that account and walks **Acne** read-only — it clicks no
+chip, submits no dialog, renames nothing, deletes nothing — printing PASS/FAIL lines for the
+breadcrumb, the sidebar's project section, the Verified rail's colour against the pass token,
+the eight fields and their locked types, the Output state and the CSV's headers, plus the
+shell measurements on each screen. Its six captures are the ones worth reviewing: a project
+that is fully verified is a state no throwaway project can reach.
+
+| File | Shows |
+|---|---|
+| `app-project-home-acne-dark.png` / `-light.png` | Acne's home — Ikea, "All 8 verified" with the green rail |
+| `app-project-fields-acne-dark.png` / `-light.png` | Acne's eight fields, every type locked, beside the catalogue |
+| `app-project-output-acne-dark.png` / `-light.png` | Acne's Output — still the empty state: no run has ever been made |
+
+How to run it:
+
+```
+cp docs/testing/ui-check-app-project.mts packages/browser/src/__ui-check.mts \
+  && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address> ; rm src/__ui-check.mts
+```
 
 ## Captured by the smoke run
 
@@ -103,6 +138,10 @@ and deletes the project again — it never touches a customer's real website.
 
 ## States with no current capture
 
+- **The new app's Output sheet with rows in it.** No website in this database has ever
+  completed an extraction (`select count(*) from runs` is 0), so both Output captures — the
+  smoke run's and Acne's — show the empty state. The populated layout has only ever been seen
+  against a mocked `projects.output` (task 7). Capture it the first time an Extract is run.
 - **Schema tab mid-verification** (the strip counting down, cells shimmering). The file that
   claimed to be it, `schema-tab-verifying.png`, showed the retired visual system — cool grey
   paper, IBM Plex Sans, the old wordmark, and an "Overview" tab that no longer exists — so it
