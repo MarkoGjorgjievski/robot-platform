@@ -3,11 +3,16 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '../../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../../components/ui/skeleton';
+import { BackfillPanel } from '../../../../../../../components/runs/backfill-panel';
+import { CoverageBar } from '../../../../../../../components/runs/coverage-bar';
 import { ExecuteControls } from '../../../../../../../components/runs/execute-controls';
+import { ProbeGate } from '../../../../../../../components/runs/probe-gate';
 import { ResultsTable } from '../../../../../../../components/runs/results-table';
 import { RunFacts } from '../../../../../../../components/runs/run-facts';
 import { RunHeader } from '../../../../../../../components/runs/run-header';
+import { RunMisses } from '../../../../../../../components/runs/run-misses';
 import { WorkList } from '../../../../../../../components/runs/work-list';
+import { isRunActive } from '../../../../../../../lib/site/run-progress';
 import {
   isRunId,
   resultsNote,
@@ -33,8 +38,13 @@ import { useSite } from '../../$site';
  * while the run is active and invalidates everything else on the falling edge
  * into "settled" — one poll for the screen, not one per panel.
  *
- * The misses, the coverage bar, the repair panel and the sample-confirm gate are
- * Task 8; their mount points are marked below.
+ * Three more free reads sit behind gates rather than running on every visit:
+ * `crawl.coverage` (the repair bar and the repair panel) only on a settled,
+ * non-sample, non-repair extraction that actually produced rows — a moving run's
+ * gaps are still closing under it, a sample's only actionable control is its own
+ * gate, and a repair run's rows are deliberately partial, so a coverage report
+ * over them would read every other field as dead; `crawl.misses` under the same
+ * gate; and `crawl.backfillPreview` only once the repair panel is opened.
  */
 export const Route = createFileRoute('/_app/projects/$project/sites/$site/runs/$run')({
   component: RunScreen,
@@ -84,6 +94,30 @@ function RunScreen() {
   const columns = useMemo(
     () => (site.data?.fields ?? []).map((f) => ({ key: f.key, name: f.name })),
     [site.data],
+  );
+
+  // Derived before the early returns, not after: the coverage query's `enabled`
+  // reads all three, and a hook cannot live below a `return`.
+  const inputLabel = detail.data?.run.inputLabel ?? null;
+  // A sample run whose website has not been confirmed yet: the confirm gate is
+  // the only actionable control on that page, so every run control is
+  // suppressed — see `runControls`' own doc comment.
+  const probeUnconfirmed = inputLabel === 'probe' && !detail.data?.source?.confirmedAt;
+  // A repair run's own rows are deliberately partial — only its target fields
+  // were ever asked for — which changes what its controls may offer.
+  const isBackfill = inputLabel === 'backfill';
+  const runIsTerminal = detail.data ? !isRunActive(detail.data.run.status) : false;
+  // The one gate the repair surfaces share. Read the screen's doc comment for
+  // why each clause is here.
+  const repairable = runIsTerminal && !probeUnconfirmed && !isBackfill;
+
+  const coverage = trpc.crawl.coverage.useQuery(
+    { runId },
+    { enabled: valid && repairable && rows.length > 0 },
+  );
+  const gapByUrl = useMemo(
+    () => new Map((coverage.data?.gapItems ?? []).map((g) => [g.url, g] as const)),
+    [coverage.data],
   );
 
   if (unauthorized) return null;
@@ -139,14 +173,39 @@ function RunScreen() {
   }
 
   const { run, source, capture, extraction, backfillRuns } = detail.data;
-  // A sample run whose website has not been confirmed yet: the confirm gate
-  // (Task 8) is the only actionable control on that page, so every run control
-  // is suppressed — see `runControls`' own doc comment.
-  const probeUnconfirmed = run.inputLabel === 'probe' && !source?.confirmedAt;
-  // A repair run's own rows are deliberately partial — only its target fields
-  // were ever asked for — which changes what its controls may offer.
-  const isBackfill = run.inputLabel === 'backfill';
   const rowCount = extraction?.rowCount ?? 0;
+
+  // The screen's ONE results sheet. The sample gate owns it while it is showing
+  // — the customer is being asked to judge those rows, so they belong under the
+  // evidence and above the question — and it is withheld from its usual place
+  // at the bottom for exactly as long. One instance, relocated, never two.
+  //
+  // The sheet's columns are the project's contract, and until `sources.get`
+  // lands there is no contract to draw one from. An empty column list is not an
+  // empty project: rendering the table with it would print "No fields in this
+  // project yet", which is a claim, where the truth is that nobody has answered
+  // yet. The shape of the panel, then — not a head of invented columns that
+  // would be swapped a moment later.
+  const resultsSheet = site.isPending ? (
+    <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
+      <div className="border-b border-line px-4 py-2.5">
+        <Skeleton className="h-3.5 w-52 bg-raised" />
+      </div>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="border-b border-line px-4 py-2.5 last:border-0">
+          <Skeleton className="h-3.5 w-full max-w-[420px] bg-raised" />
+        </div>
+      ))}
+    </div>
+  ) : (
+    <ResultsTable
+      columns={columns}
+      rows={rows}
+      absentByUrl={absentByUrl}
+      summary={resultsSummary(rowCount, extraction?.confidence ?? null)}
+      note={resultsNote(rows.length, rowCount)}
+    />
+  );
 
   return (
     <>
@@ -187,40 +246,59 @@ function RunScreen() {
 
       <ExecuteControls runId={runId} probeUnconfirmed={probeUnconfirmed} backfill={isBackfill} />
 
-      {/* Task 8: CoverageBar */}
-      {/* Task 8: RunMisses */}
-      {/* Task 8: BackfillPanel */}
-      {/* Task 8: ProbeGate — it takes the sample rows, so the sheet below moves
-          inside it while the gate is showing */}
+      {/* Each panel is keyed by its own name AND the run: the route component is
+          reused when only the run param changes, so a panel's own state — a
+          picked field, a tick, an open repair preview — would otherwise survive a
+          navigation to a different extraction and act on it. The name is not
+          decoration: these four are siblings, and `key={runId}` alone would be
+          the same key four times over. */}
+      {repairable && coverage.data ? (
+        <CoverageBar
+          key={`bar-${runId}`}
+          runId={runId}
+          project={projectSlug}
+          site={siteSlug}
+          rows={rows}
+          coverage={coverage.data.fields}
+          gapByUrl={gapByUrl}
+          columns={columns}
+        />
+      ) : null}
+
+      {repairable ? (
+        <RunMisses key={`misses-${runId}`} runId={runId} project={projectSlug} site={siteSlug} columns={columns} />
+      ) : null}
+
+      {repairable && coverage.data ? (
+        <BackfillPanel
+          key={`repair-${runId}`}
+          runId={runId}
+          project={projectSlug}
+          site={siteSlug}
+          gappyFieldNames={coverage.data.fields.filter((f) => f.missing > 0).map((f) => f.name)}
+          columns={columns}
+        />
+      ) : null}
+
+      {probeUnconfirmed ? (
+        <ProbeGate
+          key={`gate-${runId}`}
+          project={projectSlug}
+          site={siteSlug}
+          sourceId={source?.id ?? null}
+          runStatus={run.status}
+          runErrorMessage={run.errorMessage}
+          logs={run.logs}
+          counts={items.data?.counts ?? null}
+          items={items.data?.items ?? []}
+          itemsError={items.isError}
+          sampleRows={resultsSheet}
+        />
+      ) : null}
 
       <WorkList items={items.data?.items ?? []} counts={items.data?.counts ?? EMPTY_COUNTS} />
 
-      {/* The sheet's columns are the project's contract, and until `sources.get`
-          lands there is no contract to draw one from. An empty column list is
-          not an empty project: rendering the table with it would print "No
-          fields in this project yet", which is a claim, where the truth is that
-          nobody has answered yet. The shape of the panel, then — not a head of
-          invented columns that would be swapped a moment later. */}
-      {site.isPending ? (
-        <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
-          <div className="border-b border-line px-4 py-2.5">
-            <Skeleton className="h-3.5 w-52 bg-raised" />
-          </div>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="border-b border-line px-4 py-2.5 last:border-0">
-              <Skeleton className="h-3.5 w-full max-w-[420px] bg-raised" />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <ResultsTable
-          columns={columns}
-          rows={rows}
-          absentByUrl={absentByUrl}
-          summary={resultsSummary(rowCount, extraction?.confidence ?? null)}
-          note={resultsNote(rows.length, rowCount)}
-        />
-      )}
+      {probeUnconfirmed ? null : resultsSheet}
     </>
   );
 }
