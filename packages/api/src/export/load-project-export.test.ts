@@ -7,6 +7,14 @@ import { loadProjectExport, projectExportFilename } from './load-project-export.
 
 const caller = createCallerFactory(appRouter)({ db, session: null });
 
+/** One run with one extraction holding `rows`, dated `createdAt`. */
+async function seedRun(sourceId: string, rows: Record<string, unknown>[], createdAt: Date, status = 'completed') {
+  const [r] = await db.insert(runs).values({ sourceId, status, createdAt, startedAt: createdAt, completedAt: status === 'completed' ? createdAt : null, resultCount: rows.length }).returning({ id: runs.id });
+  const [c] = await db.insert(captures).values({ sourceId, runId: r!.id, url: 'https://x.example.com/', html: '<html></html>' }).returning({ id: captures.id });
+  await db.insert(extractions).values({ sourceId, captureId: c!.id, runId: r!.id, data: rows, rowCount: rows.length });
+  return r!.id;
+}
+
 describe('loadProjectExport', () => {
   it('returns null for an unknown project', async () => {
     expect(await loadProjectExport(db, '00000000-0000-0000-0000-000000000000')).toBeNull();
@@ -21,18 +29,12 @@ describe('loadProjectExport', () => {
       const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
       const b = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Beta', url: 'https://beta.example.com/' });
 
-      async function run(sourceId: string, rows: Record<string, unknown>[], createdAt: Date, status = 'completed') {
-        const [r] = await db.insert(runs).values({ sourceId, status, createdAt, startedAt: createdAt, completedAt: status === 'completed' ? createdAt : null, resultCount: rows.length }).returning({ id: runs.id });
-        const [c] = await db.insert(captures).values({ sourceId, runId: r!.id, url: 'https://x.example.com/', html: '<html></html>' }).returning({ id: captures.id });
-        await db.insert(extractions).values({ sourceId, captureId: c!.id, runId: r!.id, data: rows, rowCount: rows.length });
-        return r!.id;
-      }
       const old = new Date('2026-09-01T00:00:00Z');
       const newer = new Date('2026-09-02T00:00:00Z');
-      await run(a.sourceId, [{ [title.key]: 'Old', [price.key]: '1' }], old);
-      const latestA = await run(a.sourceId, [{ [title.key]: 'Chair', [price.key]: '10', _url: 'https://alpha.example.com/chair' }], newer);
-      await run(b.sourceId, [{ [title.key]: 'Never', [price.key]: '0' }], newer, 'failed'); // not completed: ignored
-      const latestB = await run(b.sourceId, [{ [title.key]: 'Table', [price.key]: '20' }], old);
+      await seedRun(a.sourceId, [{ [title.key]: 'Old', [price.key]: '1' }], old);
+      const latestA = await seedRun(a.sourceId, [{ [title.key]: 'Chair', [price.key]: '10', _url: 'https://alpha.example.com/chair' }], newer);
+      await seedRun(b.sourceId, [{ [title.key]: 'Never', [price.key]: '0' }], newer, 'failed'); // not completed: ignored
+      const latestB = await seedRun(b.sourceId, [{ [title.key]: 'Table', [price.key]: '20' }], old);
 
       const x = (await loadProjectExport(db, p.id))!;
       expect(x.project.slug).toBe(p.slug);
@@ -47,6 +49,41 @@ describe('loadProjectExport', () => {
         { id: b.sourceId, name: 'Beta', slug: b.sourceSlug, runId: latestB, completedAt: old.toISOString(), rowCount: 1 },
       ]);
       expect(projectExportFilename(x, 'csv')).toBe(`${p.slug}-${x.generatedAt.slice(0, 10)}.csv`);
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p.id));
+    }
+  });
+
+  it('exports a customer column named "Website" as "Website (field)" so the merged column wins', async () => {
+    const p = await caller.projects.create({ name: `Export collide ${Date.now()}` });
+    try {
+      const website = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Website', type: 'text' });
+      const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
+      const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
+      await seedRun(a.sourceId, [{ [website.key]: 'acme.example.com', [price.key]: '9' }], new Date('2026-09-01T00:00:00Z'));
+
+      const x = (await loadProjectExport(db, p.id))!;
+      expect(x.fields).toEqual(['Website', 'Website (field)', 'Price']);
+      expect(x.rows).toEqual([{ Website: 'Alpha', 'Website (field)': 'acme.example.com', Price: '9' }]);
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p.id));
+    }
+  });
+
+  it('renames a raw extra key named "Website" too, listing it once', async () => {
+    // No contract yet when the website is created, so its rows are exported raw:
+    // "Website" arrives as an extra column rather than a contract one.
+    const p = await caller.projects.create({ name: `Export extra ${Date.now()}` });
+    try {
+      const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
+      await seedRun(a.sourceId, [{ Website: 'acme.example.com', Title: 'Chair' }], new Date('2026-09-01T00:00:00Z'));
+
+      const x = (await loadProjectExport(db, p.id))!;
+      // Extras keep the order the run export derived them in, which for raw rows
+      // is jsonb's own key order (shorter key first) — the point here is that the
+      // renamed column appears exactly once, after the synthetic one.
+      expect(x.fields).toEqual(['Website', 'Title', 'Website (field)']);
+      expect(x.rows).toEqual([{ Website: 'Alpha', 'Website (field)': 'acme.example.com', Title: 'Chair' }]);
     } finally {
       await db.delete(projects).where(eq(projects.id, p.id));
     }
