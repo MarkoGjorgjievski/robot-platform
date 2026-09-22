@@ -12,6 +12,16 @@ export const API_URL: string =
 export const trpc = createTRPCReact<AppRouter>();
 
 /**
+ * The file, not the screen: the api-server serves the export as a real HTTP
+ * download (`/export/projects/<uuid>.csv`), so the download control is an
+ * ordinary `<a href download>` rather than something this app assembles in
+ * memory. Unauthenticated by UUID today; plan 6 puts it behind the session.
+ */
+export function exportUrl(kind: 'projects' | 'runs', id: string, format: 'csv' | 'json'): string {
+  return `${API_URL}/export/${kind}/${id}.${format}`;
+}
+
+/**
  * One client per request on the server, one per browser session on the client —
  * hence a factory rather than a module-level singleton.
  *
