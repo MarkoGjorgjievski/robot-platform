@@ -14,7 +14,12 @@ export function Page({
   actions,
   children,
 }: {
-  title: string;
+  /**
+   * A node, not a string: a screen whose title is the thing it is loading (a
+   * project's name) puts a `Skeleton` here while the query is in flight, rather
+   * than flashing a blank `h1` and then reflowing the row under it.
+   */
+  title: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
 }) {
