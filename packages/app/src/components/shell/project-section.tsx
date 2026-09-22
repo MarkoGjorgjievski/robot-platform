@@ -42,13 +42,24 @@ export function ProjectSection({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
       {/* The websites, one line each with the run dot — the "is anything running" glance (spec §4).
-          Plain rows until plan 3 gives a website its page. */}
+          Each line is the way into that website, lit on its whole subtree: a run
+          page is still that website, and an unlit sidebar there would read as
+          having left the project. */}
       {project.data.websites.length > 0 ? (
         <ul className="mt-1 border-t border-line pt-1">
           {project.data.websites.map((w) => (
-            <li key={w.id} className="flex items-center gap-2.5 px-2 py-1 text-sm text-muted-foreground">
-              <RunDot status={runDotState(w.lastRun)} />
-              <span className="truncate">{w.name}</span>
+            <li key={w.id}>
+              <Link
+                to="/projects/$project/sites/$site"
+                params={{ project: slug, site: w.slug }}
+                activeOptions={{ exact: false }}
+                onClick={onNavigate}
+                className="flex items-center gap-2.5 rounded-[6px] px-2 py-1 text-sm text-muted-foreground hover:text-text"
+                activeProps={{ className: 'bg-raised font-medium text-text!' }}
+              >
+                <RunDot status={runDotState(w.lastRun)} />
+                <span className="truncate">{w.name}</span>
+              </Link>
             </li>
           ))}
         </ul>

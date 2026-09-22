@@ -20,10 +20,29 @@ export const PROJECT_NAV: readonly ProjectNavItem[] = [
  */
 export type Crumb =
   | { label: string; to?: undefined; params?: undefined }
-  | { label: string; to: '/projects/$project'; params: { project: string } };
+  | { label: string; to: '/projects/$project'; params: { project: string } }
+  | { label: string; to: '/projects/$project/sites/$site'; params: { project: string; site: string } };
 
-export function crumbs(org: string, project: { name: string; slug: string } | null): Crumb[] {
+/**
+ * Where you are: the organisation, the project once you are in one, and the
+ * website once you are in one of those. The website's crumb links to its Schema
+ * tab — the tab you arrive on — so clicking it from a run page is a way back up
+ * rather than a no-op.
+ */
+export function crumbs(
+  org: string,
+  project: { name: string; slug: string } | null,
+  site?: { name: string; slug: string } | null,
+): Crumb[] {
   const out: Crumb[] = [{ label: org }];
-  if (project) out.push({ label: project.name, to: '/projects/$project', params: { project: project.slug } });
+  if (!project) return out;
+  out.push({ label: project.name, to: '/projects/$project', params: { project: project.slug } });
+  if (site) {
+    out.push({
+      label: site.name,
+      to: '/projects/$project/sites/$site',
+      params: { project: project.slug, site: site.slug },
+    });
+  }
   return out;
 }

@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { RunDot } from '../run-dot';
 import { Skeleton } from '../ui/skeleton';
 import type { VerifiedState, WebsiteView } from '../../lib/websites-view';
@@ -6,8 +7,9 @@ import type { VerifiedState, WebsiteView } from '../../lib/websites-view';
  * The project home's table: one row per website, with how far its verification
  * has got, its last run and what that run produced.
  *
- * Rows are plain text, not links — plan 3 is what gives a website its own page,
- * and a row that looks clickable before then is a promise the app cannot keep.
+ * The name is the link into the website; the rest of the row is data about it.
+ * A whole-row link would swallow the hostname and the counts into one enormous
+ * target and give a screen reader four unrelated phrases as its name.
  */
 
 /**
@@ -22,7 +24,15 @@ const RAIL: Record<VerifiedState, string> = {
   'no-fields': 'border-line',
 };
 
-export function WebsitesTable({ websites, loading }: { websites: WebsiteView[]; loading: boolean }) {
+export function WebsitesTable({
+  projectSlug,
+  websites,
+  loading,
+}: {
+  projectSlug: string;
+  websites: WebsiteView[];
+  loading: boolean;
+}) {
   return (
     <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
       {/* Below `md` the table keeps its real width and the container scrolls
@@ -61,7 +71,16 @@ export function WebsitesTable({ websites, loading }: { websites: WebsiteView[]; 
                   className="border-b border-line transition-colors last:border-0 hover:bg-raised"
                 >
                   <td className="max-w-0 px-4 py-2.5">
-                    <div className="truncate text-text">{site.name}</div>
+                    {/* Underlined on hover only: at rest the column is a list of
+                        names, and four blue-ish rules down a table would make
+                        the link the loudest thing in it. */}
+                    <Link
+                      to="/projects/$project/sites/$site"
+                      params={{ project: projectSlug, site: site.slug }}
+                      className="block truncate text-text underline-offset-4 hover:underline"
+                    >
+                      {site.name}
+                    </Link>
                     {/* The address, quiet and in mono under the name: two
                         websites in a project can differ only by subdomain. */}
                     {site.hostname ? (
