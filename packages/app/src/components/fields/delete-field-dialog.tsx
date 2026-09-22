@@ -45,7 +45,12 @@ export function DeleteFieldDialog({
     setError(null);
     try {
       await remove.mutateAsync({ datasetId, key: shown.key });
-      await Promise.all([utils.projects.get.invalidate(), utils.datasets.fieldStatus.invalidate({ datasetId })]);
+      await Promise.all([
+        utils.projects.get.invalidate(),
+        utils.datasets.fieldStatus.invalidate({ datasetId }),
+        // `projects.list` carries the project's field count.
+        utils.projects.list.invalidate(),
+      ]);
       onOpenChange(false);
     } catch {
       setError('That field could not be deleted. Try again.');

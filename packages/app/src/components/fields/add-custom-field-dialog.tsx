@@ -51,7 +51,12 @@ export function AddCustomFieldDialog({
     setError(null);
     try {
       await add.mutateAsync({ datasetId, name: name.trim(), type });
-      await Promise.all([utils.projects.get.invalidate(), utils.datasets.fieldStatus.invalidate({ datasetId })]);
+      await Promise.all([
+        utils.projects.get.invalidate(),
+        utils.datasets.fieldStatus.invalidate({ datasetId }),
+        // `projects.list` carries the project's field count.
+        utils.projects.list.invalidate(),
+      ]);
       change(false);
     } catch (err) {
       setError(nameRefusal(err, name.trim()) ?? 'That field could not be added. Try again.');

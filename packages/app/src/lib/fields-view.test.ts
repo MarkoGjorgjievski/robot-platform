@@ -28,6 +28,11 @@ describe('fields view', () => {
     expect(fieldsView(contract, undefined, 0)[0]).toMatchObject({ verifiedLabel: '—', retypeLocked: false });
   });
 
+  it('counts one website in the singular', () => {
+    const one = { price: { verified: 1, total: 1, websites: [{ sourceId: 'a', slug: 'a', name: 'Alpha', verified: true }] } };
+    expect(fieldsView(contract, one, 1)[0]!.verifiedLabel).toBe('1 of 1 website');
+  });
+
   it('notes', () => {
     expect(sharedNote(1)).toBeNull();
     expect(sharedNote(3)).toBe('Shared with 3 websites');

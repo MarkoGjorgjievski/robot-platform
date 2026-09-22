@@ -38,6 +38,8 @@ export type FieldView = {
   verifiedOn: string[];
 };
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
 export function fieldsView(
   contract: readonly ContractRow[],
   status: Record<string, FieldStatusRow> | undefined,
@@ -52,15 +54,15 @@ export function fieldsView(
       name: f.name,
       type: f.type,
       typeLabel: TYPE_LABELS[f.type],
-      verifiedLabel: websiteCount === 0 ? '—' : verified === 0 ? 'Not yet' : `${verified} of ${websiteCount} websites`,
+      // A project with one website reaches "1 of 1 website", so the noun is
+      // counted here too — the same `plural` the notes below use.
+      verifiedLabel: websiteCount === 0 ? '—' : verified === 0 ? 'Not yet' : `${verified} of ${plural(websiteCount, 'website')}`,
       // A verified field cannot change type (the API refuses); before status loads nothing is locked, and the API is the backstop.
       retypeLocked: verified > 0,
       verifiedOn,
     };
   });
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export function sharedNote(websiteCount: number): string | null {
   return websiteCount > 1 ? `Shared with ${plural(websiteCount, 'website')}` : null;

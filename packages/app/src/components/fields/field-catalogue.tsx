@@ -61,7 +61,13 @@ export function FieldCatalogue({
         description: entry.description,
         concept: entry.concept,
       });
-      await Promise.all([utils.projects.get.invalidate(), utils.datasets.fieldStatus.invalidate({ datasetId })]);
+      await Promise.all([
+        utils.projects.get.invalidate(),
+        utils.datasets.fieldStatus.invalidate({ datasetId }),
+        // `projects.list` carries the project's field count, so /projects would
+        // show the old number for the rest of its 30 s staleTime.
+        utils.projects.list.invalidate(),
+      ]);
       // The project-wide consequence is the news, when there is one.
       toast(addNote(websiteCount) ?? 'Field added');
     } catch (err) {

@@ -260,7 +260,11 @@ function FieldRow({
               e.currentTarget.blur();
             }
           }}
-          className="-mx-2 h-7 w-full rounded-md border border-transparent bg-transparent px-2 font-medium text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg group-hover/row:border-line"
+          // `text-[16px]` below `md`, as `ui/input.tsx` pins it and for the same
+          // reason: anything under 16 px makes iOS Safari zoom the page on
+          // focus, and this field lives inside the below-`md` scroll container,
+          // where a zoom would leave the customer mid-table sideways.
+          className="-mx-2 h-7 w-full rounded-md border border-transparent bg-transparent px-2 text-[16px] font-medium text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg group-hover/row:border-line md:text-base"
         />
       </td>
 
