@@ -59,9 +59,10 @@ function Breadcrumb({ org }: { org: string }) {
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
       {items.map((c, i) => (
         <span key={i} className="flex min-w-0 items-center gap-2">
-          {/* The separator is a glyph, not text: the divider grey is right for
-              it, and it is hidden from the screen reader either way. */}
-          {i > 0 ? <span aria-hidden className="text-faint">/</span> : null}
+          {/* Hidden from the screen reader, so it costs nothing there — but it
+              is still text on screen, and `text-faint` is the one token the
+              theme's own comment calls a bug for that (styles/app.css). */}
+          {i > 0 ? <span aria-hidden className="text-muted-foreground">/</span> : null}
           {c.to ? (
             <Link to={c.to} params={c.params} className="truncate hover:text-text">
               {c.label}

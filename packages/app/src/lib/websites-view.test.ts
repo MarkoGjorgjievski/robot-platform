@@ -13,6 +13,8 @@ describe('verifiedLabel', () => {
     expect(verifiedLabel(3, 8)).toEqual({ label: '3 of 8 verified', state: 'partial' });
     expect(verifiedLabel(8, 8)).toEqual({ label: 'All 8 verified', state: 'all' });
     expect(verifiedLabel(1, 1)).toEqual({ label: 'All 1 verified', state: 'all' });
+    // A deleted field whose certification row survives: clamped, never "9 of 8".
+    expect(verifiedLabel(9, 8)).toEqual({ label: 'All 8 verified', state: 'all' });
   });
 });
 

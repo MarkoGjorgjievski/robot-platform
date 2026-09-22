@@ -218,6 +218,22 @@
   animation: pulse-dot 1.6s ease-in-out infinite;
 }
 
+/* ---------------------------------------------------------------------------
+   Sonner's one hard-coded surface.
+   --------------------------------------------------------------------------- */
+
+/* sonner 2.0.8 writes `box-shadow: 0 4px 12px rgba(0,0,0,.1)` on
+   `[data-sonner-toast][data-styled='true']` and exposes no variable for it, so
+   the toast was the one thing in the app casting a shadow in dark (spec §4).
+   A utility class on the toast cannot win — it is one class against two
+   attributes — and sonner injects its stylesheet at runtime, after ours, so a
+   tie would lose too. Doubling the attribute takes it past both, and then the
+   toast wears `--shadow` like every other panel: none in dark, `0 1px 2px` in
+   light. */
+[data-sonner-toast][data-sonner-toast][data-styled="true"] {
+  box-shadow: var(--shadow);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise,
   .dot-running {

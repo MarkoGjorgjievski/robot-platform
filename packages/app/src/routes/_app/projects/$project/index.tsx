@@ -6,6 +6,7 @@ import { WebsitesTable } from '../../../../components/project/websites-table';
 import { Button } from '../../../../components/ui/button';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { websitesView } from '../../../../lib/websites-view';
+import { useUnauthorizedRedirect } from '../../../../lib/use-unauthorized-redirect';
 import { useProject } from '../$project';
 
 export const Route = createFileRoute('/_app/projects/$project/')({ component: ProjectHome });
@@ -20,6 +21,9 @@ function ProjectHome() {
   const { session } = useRouteContext({ from: '/_app' });
   const project = useProject();
   const [adding, setAdding] = useState(false);
+  // An ended session is a trip to /login, not a Retry button that can only fail
+  // again; nothing is drawn while that navigation is in flight.
+  const unauthorized = useUnauthorizedRedirect(project);
 
   const fieldCount = project.data?.fields.length ?? 0;
   const websites = websitesView(project.data?.websites ?? [], fieldCount);
@@ -28,13 +32,18 @@ function ProjectHome() {
   // failed: one is a wrong address, the other is something to retry.
   const missing = project.error?.data?.code === 'NOT_FOUND';
 
+  if (unauthorized) return null;
+
   return (
     <Page
       // The title is the thing being loaded, so it waits as a bar rather than
       // as a blank line that reflows the page under it when the name arrives.
       title={
         project.data?.name ??
-        (project.isError ? 'Project' : <Skeleton className="h-[20px] w-[180px] bg-raised" />)
+        (project.isError ? 'Project' : (
+          // A `span`: the title's `h1` permits phrasing content only.
+          <Skeleton as="span" className="inline-block h-[20px] w-[180px] bg-raised" />
+        ))
       }
       // One "Add website" on screen at a time: while the empty state carries
       // the button, a second identical primary in the title row is a tell.

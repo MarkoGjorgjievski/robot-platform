@@ -56,6 +56,8 @@ export function AddCustomFieldDialog({
         utils.datasets.fieldStatus.invalidate({ datasetId }),
         // `projects.list` carries the project's field count.
         utils.projects.list.invalidate(),
+        // The Output header is the contract's field names.
+        utils.projects.output.invalidate(),
       ]);
       change(false);
     } catch (err) {

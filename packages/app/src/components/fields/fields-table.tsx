@@ -52,10 +52,15 @@ export function FieldsTable({
   /**
    * A field belongs to the project, not to a website, so every change here has
    * to reach `projects.get` (the contract this screen reads, the project home's
-   * field count and the sidebar) and `fieldStatus` (the Verified on column).
+   * field count and the sidebar), `fieldStatus` (the Verified on column) and
+   * `projects.output`, whose header is the contract's field names.
    */
   async function refresh() {
-    await Promise.all([utils.projects.get.invalidate(), utils.datasets.fieldStatus.invalidate({ datasetId })]);
+    await Promise.all([
+      utils.projects.get.invalidate(),
+      utils.datasets.fieldStatus.invalidate({ datasetId }),
+      utils.projects.output.invalidate(),
+    ]);
   }
 
   const note = sharedNote(websiteCount);

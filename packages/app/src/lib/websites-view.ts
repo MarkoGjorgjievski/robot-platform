@@ -34,10 +34,14 @@ export type WebsiteView = {
  * verified" would blame the website for the contract being empty.
  */
 export function verifiedLabel(verified: number, total: number): { label: string; state: VerifiedState } {
+  // A field deleted from the contract can leave its certification row behind,
+  // which would print "9 of 8 verified". The contract is the truth about how
+  // many there are, so the count is clamped to it.
+  const v = Math.min(verified, total);
   if (total === 0) return { label: 'No fields yet', state: 'no-fields' };
-  if (verified === 0) return { label: 'Not verified', state: 'none' };
-  if (verified === total) return { label: `All ${total} verified`, state: 'all' };
-  return { label: `${verified} of ${total} verified`, state: 'partial' };
+  if (v === 0) return { label: 'Not verified', state: 'none' };
+  if (v === total) return { label: `All ${total} verified`, state: 'all' };
+  return { label: `${v} of ${total} verified`, state: 'partial' };
 }
 
 /** Sorted by name and formatted for the table. Pure: the rows handed in are never touched. */

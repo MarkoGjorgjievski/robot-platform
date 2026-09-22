@@ -50,6 +50,8 @@ export function DeleteFieldDialog({
         utils.datasets.fieldStatus.invalidate({ datasetId }),
         // `projects.list` carries the project's field count.
         utils.projects.list.invalidate(),
+        // The Output header is the contract's field names.
+        utils.projects.output.invalidate(),
       ]);
       onOpenChange(false);
     } catch {

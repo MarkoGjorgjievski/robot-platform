@@ -4,6 +4,7 @@ import { OutputTable } from '../../../../components/output/output-table';
 import { Button, buttonVariants } from '../../../../components/ui/button';
 import { outputView } from '../../../../lib/output-view';
 import { exportUrl, trpc } from '../../../../lib/trpc';
+import { useUnauthorizedRedirect } from '../../../../lib/use-unauthorized-redirect';
 
 export const Route = createFileRoute('/_app/projects/$project/output')({ component: OutputScreen });
 
@@ -18,6 +19,9 @@ function OutputScreen() {
   const { project: slug } = Route.useParams();
   const { session } = useRouteContext({ from: '/_app' });
   const output = trpc.projects.output.useQuery({ projectSlug: slug });
+  // An ended session is a trip to /login, not a Retry button that can only fail
+  // again; nothing is drawn while that navigation is in flight.
+  const unauthorized = useUnauthorizedRedirect(output);
 
   const view = outputView({
     fields: output.data?.fields ?? [],
@@ -31,6 +35,8 @@ function OutputScreen() {
   // The file is the api-server's, by the project's id — so there is nothing to
   // download until the query has said which project, and whether it has rows.
   const file = output.data && output.data.rowCount > 0 ? output.data.project.id : null;
+
+  if (unauthorized) return null;
 
   return (
     <Page
