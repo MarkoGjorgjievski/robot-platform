@@ -9,6 +9,14 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // Brought onto this system's rules at its first use (the Delete field
+        // confirm). No token change was needed — `--color-destructive` is
+        // `--fail` and `--color-destructive-foreground` is `--bg` (styles/app.css)
+        // — so the pair is `#0a0a0a` on `#ff5c5c` in dark (6.5:1) and `#ffffff`
+        // on `#c62828` in light (5.6:1), both over 4.5:1, and both still over it
+        // at the 90 % hover blend (5.5:1 / 4.9:1). Written per theme through the
+        // tokens rather than as a literal, so it follows `data-theme`. The
+        // generator's `shadow-xs` is dropped, as on every other variant.
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         // Brought onto this system's rules at its first use (task 5 left the
