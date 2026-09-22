@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { eq, desc, asc, sql } from 'drizzle-orm';
 import { runs, captures, extractions } from '@robot/db';
 import { router, publicProcedure } from '../trpc';
+import { runInOrg, sourceInOrg } from '../auth/scope.js';
 
 const VIEW_ROW_CAP = 500;
 
@@ -9,6 +10,7 @@ export const runsRouter = router({
   getWithDetails: publicProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await runInOrg(ctx, input.id);
       const run = await ctx.db.query.runs.findFirst({
         where: eq(runs.id, input.id),
         with: {
@@ -131,6 +133,7 @@ export const runsRouter = router({
   listBySource: publicProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
       const results = await ctx.db.query.runs.findMany({
         where: eq(runs.sourceId, input.sourceId),
         columns: {
