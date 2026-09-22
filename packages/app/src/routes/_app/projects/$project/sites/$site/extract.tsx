@@ -28,6 +28,7 @@ import {
   extractGate,
   hostOf,
   isProbeMoving,
+  pagesAreSaved,
   runProgressLine,
   sampleGate,
   saveNote,
@@ -219,20 +220,10 @@ function ExtractTab() {
   );
 
   const running = startedRunId !== null;
-  /**
-   * Are the pages on screen the pages that are actually stored?
-   *
-   * Saved, not merely typed: `inputMode` is the marker `setListingPages`/
-   * `setProductUrls` write, so a website whose input set predates this tab
-   * starts at step 1 with its rows already in the box, rather than claiming
-   * pages it never confirmed.
-   *
-   * `savedMode === mode` is the other half, and it is what stops a real misfire:
-   * flipping the segmented control to the other shape without saving left this
-   * true, so Run stayed unlocked and Extract planned against the input still
-   * stored for the mode just navigated away from.
-   */
-  const pagesSaved = savedUrls.length > 0 && savedMode !== null && savedMode === mode;
+  // Are the pages on screen the pages that are actually stored? All three halves
+  // of that question — and why a reopened section 1 answers no — are in
+  // `pagesAreSaved`, with its tests.
+  const pagesSaved = pagesAreSaved({ savedCount: savedUrls.length, savedMode, mode, editing });
   const states = withEditing(stepStates({ schemaGreen: green, mode, pagesSaved, sampleRun, running }), editing);
 
   const verificationSet = (source?.verificationSet ?? null) as { urls?: string[] } | null;
@@ -241,8 +232,10 @@ function ExtractTab() {
   const proofUrlsRaw = verificationSet?.urls;
   const proofUrls = useMemo(() => proofUrlsRaw ?? [], [proofUrlsRaw]);
   const host = hostOf(proofUrls[0] ?? source?.url);
-  // One pass over every pasted line, not one per render: at the 5,000-URL
-  // ceiling this is 5,000 `new URL()` calls, and only `total` is used here.
+  // One pass over every pasted line for the whole screen. At the 5,000-URL
+  // ceiling each pass is 5,000 `new URL()` calls, and the tab and the Pages
+  // section used to make one each — two per keystroke — for the same answer.
+  // Counted here, where the text lives, and handed down.
   const productCounts = useMemo(
     () => productUrlCounts(productText.split('\n'), proofUrls, host),
     [productText, proofUrls, host],
@@ -368,9 +361,12 @@ function ExtractTab() {
           : (await planMutation.mutateAsync({ sourceId: source.id, probe: false })).runId;
       await executeMutation.mutateAsync({ runId });
       setStartedRunId(runId);
+      // `projects.get` too: the project page's websites table has a last-run
+      // cell and a run dot per website, and this is the moment both change.
       await Promise.all([
         utils.sources.get.invalidate({ projectSlug, sourceSlug: siteSlug }),
         utils.runs.listBySource.invalidate({ sourceId: source.id }),
+        utils.projects.get.invalidate(),
       ]);
     } catch (err) {
       setError(message(err));
@@ -452,8 +448,7 @@ function ExtractTab() {
             onCheck={(url) => void runCheck(url)}
             productText={productText}
             onProductText={setProductText}
-            proofUrls={proofUrls}
-            host={host}
+            counts={productCounts}
             onImportCsv={(file) => void handleImportCsv(file)}
             onSave={() => void handleSave()}
             saving={savingPages}

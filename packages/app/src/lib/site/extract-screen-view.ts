@@ -80,6 +80,38 @@ export function isProbeMoving(status: string): boolean {
 }
 
 /**
+ * Are the pages on screen the pages that are actually stored?
+ *
+ * Saved, not merely typed: `savedMode` is the `inputMode` marker
+ * `setListingPages`/`setProductUrls` write, so a website whose input set
+ * predates this tab starts at step 1 with its rows already in the box rather
+ * than claiming pages it never confirmed.
+ *
+ * `savedMode === mode` is the second half, and it stops a real misfire:
+ * flipping the segmented control to the other shape without saving left this
+ * true, so Run stayed unlocked and Extract planned against the input still
+ * stored for the mode just navigated away from.
+ *
+ * `editing === null` is the third, and it is the same misfire through the other
+ * door. "Edit pages" reopens section 1 with the stored pages in the box; paste
+ * different ones and, without this, every gate below still read "saved" — so
+ * Extract stayed live and would have spent a real crawl on the input set the
+ * screen was no longer showing. A reopened section has nothing saved *for what
+ * is on screen* until Save is pressed again, which is exactly what the two
+ * gates then say. (Section 1 is the only one that reopens, so any non-null
+ * `editing` means these pages are in flight.)
+ */
+export function pagesAreSaved(args: {
+  savedCount: number;
+  savedMode: ExtractMode | null;
+  mode: ExtractMode | null;
+  editing: number | null;
+}): boolean {
+  const { savedCount, savedMode, mode, editing } = args;
+  return savedCount > 0 && savedMode !== null && savedMode === mode && editing === null;
+}
+
+/**
  * Why Extract cannot be pressed, in the order a customer meets the reasons.
  * `null` means it can. Every one of these is rendered beside the button — a
  * disabled control with no visible reason is the thing spec §6 forbids.

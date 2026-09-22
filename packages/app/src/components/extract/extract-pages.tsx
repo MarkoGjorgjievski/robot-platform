@@ -1,8 +1,8 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { Loader2, Upload } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
-import { listingCheckLabel, productUrlCounts, type ExtractMode } from '../../lib/site/extract-view';
+import { listingCheckLabel, type ExtractMode } from '../../lib/site/extract-view';
 import { productCountsSentence } from '../../lib/site/extract-screen-view';
 import { parseUrlLines } from '../../lib/site/parse-url-lines';
 
@@ -53,8 +53,7 @@ export function ExtractPages({
   onCheck,
   productText,
   onProductText,
-  proofUrls,
-  host,
+  counts,
   onImportCsv,
   onSave,
   saving,
@@ -68,8 +67,8 @@ export function ExtractPages({
   onCheck: (url: string) => void;
   productText: string;
   onProductText: (t: string) => void;
-  proofUrls: string[];
-  host: string | null;
+  /** `productUrlCounts` over the box's lines — counted once by the tab, which also needs it. */
+  counts: { total: number; proof: number; offHost: number };
   onImportCsv: (file: File) => void;
   onSave: () => void;
   saving: boolean;
@@ -98,15 +97,6 @@ export function ExtractPages({
     // place instead of hunting for which line was dropped.
     setDraft(invalid.join('\n'));
   }
-
-  // Memoised: this walks every pasted line with a `new URL()`, and at the
-  // 5,000-URL ceiling an unmemoised call is 5,000 constructions on every render
-  // — of which a keystroke in the box causes one.
-  const productLines = useMemo(() => productText.split('\n'), [productText]);
-  const counts = useMemo(
-    () => productUrlCounts(productLines, proofUrls, host),
-    [productLines, proofUrls, host],
-  );
 
   const empty = mode === 'detail' ? counts.total === 0 : listing.length === 0;
   const saveLabel = mode === 'detail' ? 'Save URLs' : 'Save pages';

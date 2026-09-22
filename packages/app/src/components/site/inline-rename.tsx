@@ -76,7 +76,16 @@ export function InlineRename({ sourceId, name }: { sourceId: string; name: strin
     // is its items' min-content, which for the sizer would be the longest word
     // in the name. With overflow hidden that minimum is zero, so the track
     // stops at the room the title row actually has and the input ellipsises.
-    <span className="-ml-2 inline-grid max-w-full min-w-0 align-bottom">
+    //
+    // `max-w-[calc(100%+0.5rem)]`, not `max-w-full`: the `-ml-2` above pulls
+    // this box 8 px left so the name starts on the page's left edge, which
+    // means the room it actually has is the `h1`'s width PLUS that 8 px. Capped
+    // at `100%` it was 8 px short of its own content, the grid column was
+    // clamped to the smaller figure, and `text-ellipsis` then ate whole
+    // characters — "Example" rendered "Exam…" on a page with half a screen of
+    // free space beside it. The cap still exists, so a long name truncates and
+    // nothing widens the page.
+    <span className="-ml-2 inline-grid max-w-[calc(100%+0.5rem)] min-w-0 align-bottom">
       <span
         aria-hidden
         className="invisible col-start-1 row-start-1 min-w-0 overflow-hidden border border-transparent px-2 text-2xl font-semibold tracking-[-0.011em] whitespace-pre"

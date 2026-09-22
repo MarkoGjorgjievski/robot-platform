@@ -9,6 +9,7 @@ import {
   extractGate,
   hostOf,
   isProbeMoving,
+  pagesAreSaved,
   parseRunWarnings,
   productCountsSentence,
   runProgressLine,
@@ -94,6 +95,43 @@ describe('isProbeMoving', () => {
     expect(isProbeMoving('completed')).toBe(false);
     expect(isProbeMoving('partial')).toBe(false);
     expect(isProbeMoving('failed')).toBe(false);
+  });
+});
+
+describe('pagesAreSaved', () => {
+  const saved = { savedCount: 3, savedMode: 'listing' as const, mode: 'listing' as const, editing: null };
+
+  it('is true for a stored input set the screen is showing', () => {
+    expect(pagesAreSaved(saved)).toBe(true);
+  });
+
+  it('is false before anything was ever saved through this tab', () => {
+    expect(pagesAreSaved({ ...saved, savedCount: 0 })).toBe(false);
+    // An input set that predates the tab has rows but no `inputMode` marker, so
+    // it starts at step 1 rather than claiming pages it never confirmed.
+    expect(pagesAreSaved({ ...saved, savedMode: null })).toBe(false);
+  });
+
+  it('is false the moment the segmented control moves to the other shape', () => {
+    // Nothing is saved *for that shape*, and Extract would otherwise plan
+    // against the input still stored for the one just navigated away from.
+    expect(pagesAreSaved({ ...saved, mode: 'detail' })).toBe(false);
+  });
+
+  it('is false while "Edit pages" has section 1 reopened', () => {
+    // The same misfire through the other door: with different pages pasted into
+    // a reopened section, a "saved" here would leave Extract live and spend a
+    // real crawl on the input set the screen is no longer showing.
+    expect(pagesAreSaved({ ...saved, editing: 1 })).toBe(false);
+  });
+
+  it('is what both gates then read, so neither offers a step the pages cannot back', () => {
+    const editing = { ...saved, editing: 1 };
+    const green = true;
+    expect(sampleGate({ green, pagesSaved: pagesAreSaved(editing) })).toBe('Save your pages first');
+    expect(extractGate({ green, pagesSaved: pagesAreSaved(editing), mode: 'listing', sampleDone: true })).toBe(
+      'Save your pages first',
+    );
   });
 });
 
