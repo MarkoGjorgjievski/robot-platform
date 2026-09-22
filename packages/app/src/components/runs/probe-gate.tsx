@@ -58,9 +58,18 @@ export function ProbeGate({
   sampleRows: ReactNode;
 }) {
   const navigate = useNavigate();
+  const utils = trpc.useUtils();
   const [showDiagnosis, setShowDiagnosis] = useState(false);
   const confirm = trpc.sources.confirm.useMutation({
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
+      // Mirrors the Extract tab's own `confirmMutation`: the Runs tab must list
+      // the run this just created, and the Extract tab branches on the website's
+      // cached `confirmedAt`, so both caches have to catch up before we leave.
+      await Promise.all([
+        utils.sources.get.invalidate({ projectSlug: project, sourceSlug: site }),
+        sourceId ? utils.runs.listBySource.invalidate({ sourceId }) : Promise.resolve(),
+        utils.projects.get.invalidate(),
+      ]);
       void navigate({
         to: '/projects/$project/sites/$site/runs/$run',
         params: { project, site, run: result.runId },
