@@ -33,7 +33,13 @@ export type SettingsSite = {
  */
 export function SettingsRows({ site }: { site: SettingsSite }) {
   const utils = trpc.useUtils();
-  const update = trpc.sources.update.useMutation();
+  // One mutation per row, not one shared: a shared instance's `isPending`
+  // disables all three rows together the moment any one of them saves, with
+  // no way to say which — and no reason to show for the other two, since
+  // nothing about them is actually in flight.
+  const modeUpdate = trpc.sources.update.useMutation();
+  const budgetUpdate = trpc.sources.update.useMutation();
+  const activeUpdate = trpc.sources.update.useMutation();
 
   const locked = !!site.confirmedAt;
   const lockNote = modeLockNote(site.confirmedAt);
@@ -42,7 +48,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
   async function setListingMode(mode: 'listing_to_detail' | 'detail') {
     setModeError(null);
     try {
-      await update.mutateAsync({ id: site.id, listingMode: mode });
+      await modeUpdate.mutateAsync({ id: site.id, listingMode: mode });
       await Promise.all([utils.sources.get.invalidate(), utils.projects.get.invalidate()]);
     } catch (e) {
       // The Select is already disabled with `lockNote` for the ordinary case;
@@ -70,7 +76,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
   async function saveBudget() {
     setBudgetError(null);
     try {
-      await update.mutateAsync({ id: site.id, budget: budgetFromForm(items, pages) });
+      await budgetUpdate.mutateAsync({ id: site.id, budget: budgetFromForm(items, pages) });
       setBudgetDirty(false);
       await Promise.all([utils.sources.get.invalidate(), utils.projects.get.invalidate()]);
     } catch {
@@ -82,7 +88,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
   async function toggleActive() {
     setActiveError(null);
     try {
-      await update.mutateAsync({ id: site.id, isActive: !site.isActive });
+      await activeUpdate.mutateAsync({ id: site.id, isActive: !site.isActive });
       await Promise.all([utils.sources.get.invalidate(), utils.projects.get.invalidate()]);
     } catch {
       setActiveError('That could not be saved.');
@@ -92,7 +98,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
   return (
     <dl className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
       <Row label="Name">
-        <InlineRename sourceId={site.id} name={site.name} ariaLabel="Name" />
+        <InlineRename sourceId={site.id} name={site.name} ariaLabel="Name" size="row" />
       </Row>
 
       <Row label="Address">
@@ -104,7 +110,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
           <Select
             value={site.listingMode ?? undefined}
             onValueChange={(v) => void setListingMode(v as 'listing_to_detail' | 'detail')}
-            disabled={locked || update.isPending}
+            disabled={locked || modeUpdate.isPending}
           >
             <SelectTrigger size="sm" aria-label="Listing mode" className="w-[176px]">
               <SelectValue placeholder={listingModeLabel(null)} />
@@ -187,9 +193,16 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
           <p className="text-sm text-muted-foreground">{budgetSummary({ max_items: items, max_pages: pages })}</p>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button size="sm" variant="outline" onClick={() => void saveBudget()} disabled={update.isPending}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void saveBudget()}
+              disabled={!budgetDirty || budgetUpdate.isPending}
+            >
               Save budget
             </Button>
+            {/* Every disabled control says why, within a line of it. */}
+            {!budgetDirty ? <span className="text-sm text-muted-foreground">No changes to save</span> : null}
             {budgetError ? (
               <span role="alert" className="text-sm text-fail">
                 {budgetError}
@@ -207,7 +220,7 @@ export function SettingsRows({ site }: { site: SettingsSite }) {
             size="sm"
             aria-pressed={site.isActive}
             onClick={() => void toggleActive()}
-            disabled={update.isPending}
+            disabled={activeUpdate.isPending}
           >
             <span
               aria-hidden
