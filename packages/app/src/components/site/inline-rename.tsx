@@ -15,7 +15,19 @@ import { trpc } from '../../lib/trpc';
  * the right of the same row, and an input stretched between them would put a
  * focus border round half the page.
  */
-export function InlineRename({ sourceId, name }: { sourceId: string; name: string }) {
+export function InlineRename({
+  sourceId,
+  name,
+  // The Settings tab's Name row embeds this same editor beside the page
+  // title's own copy of it (spec: "the same InlineRename"), so the two need
+  // distinct accessible names — otherwise a screen reader, or a test, cannot
+  // tell them apart. The title keeps its long-standing label by default.
+  ariaLabel = 'Website name',
+}: {
+  sourceId: string;
+  name: string;
+  ariaLabel?: string;
+}) {
   const utils = trpc.useUtils();
   const rename = trpc.sources.rename.useMutation();
 
@@ -98,7 +110,7 @@ export function InlineRename({ sourceId, name }: { sourceId: string; name: strin
         ref={input}
         size={1}
         value={draft}
-        aria-label="Website name"
+        aria-label={ariaLabel}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => void commit()}
         onKeyDown={(e) => {
