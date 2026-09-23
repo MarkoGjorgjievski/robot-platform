@@ -15,6 +15,19 @@ import { trpc } from '../../lib/trpc';
  * the right of the same row, and an input stretched between them would put a
  * focus border round half the page.
  */
+/**
+ * `'title'` is the page header's long-standing look (20 px, well over the size
+ * below which iOS Safari zooms on focus — no floor needed). `'row'` is the
+ * Settings tab's Name row: the same 13 px/12 px body this system's other rows
+ * read at, with the Fields table's own `text-[16px] … md:text-base` floor
+ * below `md` for the same iOS-zoom reason — a definition-list row is exactly
+ * as narrow on a phone as a table cell is.
+ */
+const SIZE: Record<'title' | 'row', string> = {
+  title: 'text-2xl font-semibold tracking-[-0.011em]',
+  row: 'text-[16px] font-medium md:text-base',
+};
+
 export function InlineRename({
   sourceId,
   name,
@@ -23,11 +36,14 @@ export function InlineRename({
   // distinct accessible names — otherwise a screen reader, or a test, cannot
   // tell them apart. The title keeps its long-standing label by default.
   ariaLabel = 'Website name',
+  size = 'title',
 }: {
   sourceId: string;
   name: string;
   ariaLabel?: string;
+  size?: 'title' | 'row';
 }) {
+  const sizeClass = SIZE[size];
   const utils = trpc.useUtils();
   const rename = trpc.sources.rename.useMutation();
 
@@ -100,12 +116,13 @@ export function InlineRename({
     <span className="-ml-2 inline-grid max-w-[calc(100%+0.5rem)] min-w-0 align-bottom">
       <span
         aria-hidden
-        className="invisible col-start-1 row-start-1 min-w-0 overflow-hidden border border-transparent px-2 text-2xl font-semibold tracking-[-0.011em] whitespace-pre"
+        className={`invisible col-start-1 row-start-1 min-w-0 overflow-hidden border border-transparent px-2 whitespace-pre ${sizeClass}`}
       >
         {draft || name || ' '}
       </span>
-      {/* No 16 px floor needed here, unlike the Fields table: the page title is
-          20 px, well over the size below which iOS Safari zooms on focus. */}
+      {/* `'title'` needs no 16 px floor: the page title is 20 px, well over the
+          size below which iOS Safari zooms on focus. `'row'` carries its own
+          floor in `SIZE.row` instead, the same one the Fields table uses. */}
       <input
         ref={input}
         size={1}
@@ -123,7 +140,7 @@ export function InlineRename({
         // `text-ellipsis`: an input that is narrower than its value shows the
         // ellipsis at rest and the caret's end of the text once it is focused,
         // which is exactly the behaviour a truncated title wants.
-        className="col-start-1 row-start-1 w-full min-w-0 overflow-hidden rounded-md border border-transparent bg-transparent px-2 text-2xl font-semibold tracking-[-0.011em] text-ellipsis text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg"
+        className={`col-start-1 row-start-1 w-full min-w-0 overflow-hidden rounded-md border border-transparent bg-transparent px-2 text-ellipsis text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg ${sizeClass}`}
       />
       {error ? (
         // A `span`, not a `p`: the `h1` above permits phrasing content only.
