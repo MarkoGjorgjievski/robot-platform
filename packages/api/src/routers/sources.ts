@@ -46,18 +46,27 @@ const LISTING_DEFAULT_BUDGET = { max_items: 40, max_pages: 3, mode: 'first_n' } 
  *
  * But `budgetFromForm` produces a byte-identical object when a customer
  * deliberately picks 40 products across 3 pages, and value-matching alone
- * cannot tell those two apart. `inputMode` can: it is set the first time the
- * Extract tab saves pages, and the Extract tab is the only thing that ever
- * writes a chosen budget. So the automatic starter is only ever recognised
- * while the tab has never owned this Source's input — after that, 40/3 is the
- * customer's, and stays. `budgetToForm(raw, { legacy })` in the dashboard's
- * `lib/extract-view.ts` applies the same rule from the same signal.
+ * cannot tell those two apart. Two markers in `parameters` can:
+ *
+ * - `inputMode` is set the first time the Extract tab saves pages. While the
+ *   tab has never owned this Source's input, a stored 40/3 can only be the
+ *   automatic starter; after that it is the customer's, and stays.
+ * - `budgetChosen` is set by `sources.update` whenever a budget is written
+ *   through it — the Settings tab's budget row (task 9) is a second writer of
+ *   budgets that does not touch the input set, so it sets no `inputMode` and
+ *   would otherwise have its 40/3 read back as the starter nobody chose and
+ *   handed out as `null`.
+ *
+ * `budgetToForm(raw, { legacy })` in the app's `lib/site/extract-view.ts`
+ * applies the same rule from the `inputMode` signal.
  */
-function budgetIsUnchosen(budget: unknown, priorInputMode: string | undefined): boolean {
+function budgetIsUnchosen(budget: unknown, priorParameters: Record<string, unknown> | null | undefined): boolean {
   if (typeof budget !== 'object' || budget === null) return true;
   const b = budget as Record<string, unknown>;
   if (Object.keys(b).length === 0) return true;
-  if (priorInputMode !== undefined) return false;
+  const p = priorParameters ?? {};
+  if (typeof p.inputMode === 'string') return false;
+  if (p.budgetChosen === true) return false;
   return (
     Object.keys(b).length === 3 &&
     b.max_items === LISTING_DEFAULT_BUDGET.max_items &&
@@ -158,11 +167,11 @@ async function setInputPages(
   const rows = accepted.map((url) => ({ url }));
   const priorParameters = (source.parameters as Record<string, unknown> | null) ?? {};
   const parameters = { ...priorParameters, inputMode: opts.inputMode };
-  // The mode as it was BEFORE this write — read in the same transaction as the
-  // budget it is judging. Once the Extract tab has owned the input even once,
-  // the stored budget is the customer's and is never reseeded.
-  const priorInputMode = typeof priorParameters.inputMode === 'string' ? priorParameters.inputMode : undefined;
-  const budgetPatch = opts.seedBudget && budgetIsUnchosen(source.budget, priorInputMode) ? { budget: opts.seedBudget } : {};
+  // The markers as they were BEFORE this write — read in the same transaction
+  // as the budget they are judging. Once the Extract tab has owned the input
+  // even once, or the Settings tab has saved a budget, the stored budget is the
+  // customer's and is never reseeded.
+  const budgetPatch = opts.seedBudget && budgetIsUnchosen(source.budget, priorParameters) ? { budget: opts.seedBudget } : {};
 
   if (source.inputSetId) {
     await tx.update(inputSets).set({ rows, updatedAt: new Date() }).where(eq(inputSets.id, source.inputSetId));
@@ -361,6 +370,8 @@ export const sourcesRouter = router({
     }),
 
   /** The website loader for its page (spec 2026-09-21 §5): the row, its project and the contract, in one round trip. */
+  // TODO(cut-over, spec 2026-09-21 §2): `input.orgSlug ?? 'default'` falls back to the seeded
+  // `default` org for the old dashboard's session-less callers. Once it is retired, drop the fallback.
   get: publicProcedure
     .input(z.object({ projectSlug: z.string().min(1), sourceSlug: z.string().min(1), orgSlug: z.string().optional() }))
     .query(async ({ ctx, input }) => {
@@ -382,14 +393,14 @@ export const sourcesRouter = router({
       // `{}` would be handed out cast to a shape it does not have. A budget
       // nobody chose is reported as the `null` the type promises — decided by
       // the same `budgetIsUnchosen` rule the Extract tab's setters apply, from
-      // the same signal (`parameters.inputMode`: once the tab has owned this
-      // website's input, even 40/3 is the customer's choice and stays).
+      // the same signals (`parameters.inputMode` / `parameters.budgetChosen`:
+      // once the tab has owned this website's input, or a budget has been saved
+      // through `sources.update`, even 40/3 is the customer's choice and stays).
       const parameters = (s.parameters ?? {}) as Record<string, unknown>;
-      const inputMode = typeof parameters.inputMode === 'string' ? parameters.inputMode : undefined;
       return {
         id: s.id, slug: s.slug, name: s.name, url: s.urlTemplate, hostname, datasetId: s.datasetId,
         listingMode: s.listingMode as 'listing_to_detail' | 'detail' | null, confirmedAt: s.confirmedAt, isActive: s.isActive,
-        budget: budgetIsUnchosen(s.budget, inputMode)
+        budget: budgetIsUnchosen(s.budget, parameters)
           ? null
           : (s.budget as { max_items: number | 'all'; max_pages: number | 'all'; mode?: 'all' | 'first_n' }),
         parameters,
@@ -467,9 +478,23 @@ export const sourcesRouter = router({
         }
       }
 
+      // A budget written through here is a budget the customer chose, and it
+      // has to say so in the row: this is the Settings tab's budget row, which
+      // never touches the input set and so sets no `parameters.inputMode`.
+      // Without the marker `budgetIsUnchosen` reads a saved 40/3 back as the
+      // old flow's automatic starter and `sources.get` hands out `null` — the
+      // Settings row then resets itself to all/all and the customer's Save
+      // looks like it did nothing. Merged in SQL (`||` on jsonb) rather than
+      // read-modify-written in JS, so every other key survives a concurrent
+      // writer of `parameters` (`setInputPages`) instead of racing it.
+      const parametersPatch =
+        input.budget !== undefined
+          ? { parameters: sql`${sources.parameters} || '{"budgetChosen":true}'::jsonb` }
+          : {};
+
       const [source] = await ctx.db
         .update(sources)
-        .set({ ...rest, updatedAt: new Date() })
+        .set({ ...rest, ...parametersPatch, updatedAt: new Date() })
         .where(eq(sources.id, id))
         .returning();
 
@@ -809,9 +834,14 @@ export const sourcesRouter = router({
   captureProofPage: publicProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl }))
     .mutation(async ({ ctx, input }) => {
+      // The guard is the existence check for every caller that has a session:
+      // it NOT_FOUNDs an id that names no source as readily as one in another
+      // org, so the select that used to stand here was a second round trip for
+      // an answer already in hand. (A session-less caller — the old dashboard,
+      // which has no screen that reaches this — now hits the captures foreign
+      // key instead of NOT_FOUND on an id that names nothing. Goes away with
+      // the shim.)
       await sourceInOrg(ctx, input.sourceId);
-      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true } });
-      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
       return startProofPageCapture(input.sourceId, input.url);
     }),
 
