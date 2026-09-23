@@ -89,6 +89,10 @@ const MODE_LABEL: Record<string, string> = {
  *   layout query all four tabs and the breadcrumb share). `auth.me` is listed
  *   for completeness — today it is fetched by the app's server function, so it
  *   never shows up as a browser request.
+ * - `projects.list`: the `/projects` landing page, which sign-in lands on
+ *   before this check navigates to the website (`routes/_app/projects/index.tsx`
+ *   — the command palette asks for it too, but only once opened, which this
+ *   check never does). Observed on the first real run, 2026-09-23.
  * - Schema (`index.tsx`): `sources.verifyEstimate`, `sources.verificationStatus`.
  *   Step 1 is a panel over data already loaded and asks for nothing of its own.
  * - Extract (`extract.tsx`): `sources.verificationStatus`, `sources.inputRows`,
@@ -107,6 +111,7 @@ const ALLOWED = [
   'auth.signIn',
   'auth.setTheme',
   'projects.get',
+  'projects.list',
   'sources.get',
   'sources.verifyEstimate',
   'sources.verificationStatus',

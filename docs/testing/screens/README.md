@@ -125,9 +125,11 @@ a state no throwaway website can reach.
 | `app-site-runs-acne-dark.png` / `-light.png` | Runs — still the empty state: nothing has ever been extracted here |
 | `app-site-settings-acne-dark.png` / `-light.png` | Settings on a real website — listing mode, the all/all budget, the Danger zone |
 
-The two `app-site-schema-step1-acne-*.png` rows are the walk's newest stop and are **not in
-the repository yet**: the fix wave that added them to the check did not run it against the
-real account. The next run of the command below takes them along with the other eight.
+The two `app-site-schema-step1-acne-*.png` are the walk's newest stop, taken on the first
+run after the fix wave added them (2026-09-23). That run also confirmed the allow-list: the
+only call it caught that the routes had not predicted was `projects.list`, from the
+`/projects` page sign-in lands on — the inverted check working as intended on its first
+outing.
 
 Two things this set cannot show, for the same reason plan 2's Output cannot: **the Runs
 table with rows in it and the run detail page have never been seen with real data.** No
