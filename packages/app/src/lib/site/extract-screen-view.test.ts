@@ -3,6 +3,7 @@ import {
   MAX_LISTING_PAGES,
   MAX_PRODUCT_URLS,
   appendUrls,
+  budgetIsLegacy,
   completeRowCount,
   csvUrlCells,
   emptyCellCounts,
@@ -20,6 +21,7 @@ import {
   tooManyMessage,
   withEditing,
 } from './extract-screen-view';
+import { budgetFromForm, budgetNeedsSave, budgetToForm } from './extract-view';
 import type { RunCounts } from './run-progress';
 import type { StepState } from './extract-view';
 
@@ -123,6 +125,35 @@ describe('storedMode', () => {
   it('keeps the gates shut for a listing website with no page saved yet', () => {
     const mode = storedMode({ inputMode: undefined, listingMode: 'listing_to_detail', savedCount: 0 });
     expect(pagesAreSaved({ savedCount: 0, savedMode: mode, mode: 'listing', editing: null })).toBe(false);
+  });
+});
+
+describe('budgetIsLegacy', () => {
+  const STARTER = { max_items: 40, max_pages: 3, mode: 'first_n' } as const;
+
+  it('is true only while neither marker is on the row', () => {
+    expect(budgetIsLegacy({ inputMode: null, budgetChosen: undefined })).toBe(true);
+    expect(budgetIsLegacy({ inputMode: 'listing', budgetChosen: undefined })).toBe(false);
+    expect(budgetIsLegacy({ inputMode: null, budgetChosen: true })).toBe(false);
+    // Anything but `true` is not the marker: `sources.update` writes the
+    // boolean, and a stray falsy value must not certify a budget.
+    expect(budgetIsLegacy({ inputMode: null, budgetChosen: false })).toBe(true);
+  });
+
+  it('keeps a 40/3 saved on the Settings tab, and asks for no rewrite of it', () => {
+    // The seam Important 2 lived in: Settings writes the budget through
+    // `sources.update`, which sets `budgetChosen` and no `inputMode`. The
+    // Extract tab used to seed all/all from that row and then write all/all
+    // back over the customer's 40 on the next Extract click.
+    const legacy = budgetIsLegacy({ inputMode: null, budgetChosen: true });
+    const form = budgetToForm(STARTER, { legacy });
+    expect(form).toEqual({ items: 40, pages: 3 });
+    expect(budgetNeedsSave(STARTER, budgetFromForm(form.items, form.pages))).toBe(false);
+  });
+
+  it('still reads the old flow\'s own 40/3 as nobody\'s choice', () => {
+    const legacy = budgetIsLegacy({ inputMode: null, budgetChosen: undefined });
+    expect(budgetToForm(STARTER, { legacy })).toEqual({ items: 'all', pages: 'all' });
   });
 });
 

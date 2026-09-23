@@ -110,6 +110,31 @@ export function storedMode(args: {
 }
 
 /**
+ * Is a stored budget old enough that exactly 40 products / 3 pages can only be
+ * the pre-Extract-tab flow's automatic starter, rather than a choice?
+ *
+ * This is the `legacy` argument of `budgetToForm`, and it exists because
+ * `budgetFromForm(40, 3)` produces an object byte-identical to that starter.
+ * Two markers on the website's `parameters` say a human is behind the numbers,
+ * and it takes both being absent to call a budget legacy:
+ *
+ * - `inputMode` — the Extract tab has saved this website's pages at least once,
+ *   so every budget it holds came through this screen.
+ * - `budgetChosen` — a budget was written through `sources.update`. The
+ *   Settings tab's budget row is that writer, and it never touches the input
+ *   set, so it sets no `inputMode`. Without reading this marker the Extract tab
+ *   went on showing all/all for a 40/3 saved on Settings and then wrote all/all
+ *   over it on the next Extract — the run collecting everything instead of the
+ *   40 that were asked for.
+ *
+ * The server decides the same question from the same two markers
+ * (`budgetIsUnchosen` in packages/api/src/routers/sources.ts).
+ */
+export function budgetIsLegacy(args: { inputMode: ExtractMode | null | undefined; budgetChosen: unknown }): boolean {
+  return !args.inputMode && args.budgetChosen !== true;
+}
+
+/**
  * Are the pages on screen the pages that are actually stored?
  *
  * Saved, not merely typed: `savedMode` is what `storedMode` answers, so a

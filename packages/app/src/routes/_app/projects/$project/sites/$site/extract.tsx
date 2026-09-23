@@ -24,6 +24,7 @@ import {
 } from '../../../../../../lib/site/extract-view';
 import {
   appendUrls,
+  budgetIsLegacy,
   csvUrlCells,
   extractGate,
   hostOf,
@@ -126,7 +127,7 @@ function ExtractTab() {
   const planMutation = trpc.crawl.plan.useMutation();
   const executeMutation = trpc.crawl.execute.useMutation();
 
-  const parameters = (source?.parameters ?? null) as { inputMode?: ExtractMode } | null;
+  const parameters = (source?.parameters ?? null) as { inputMode?: ExtractMode; budgetChosen?: boolean } | null;
   const savedMode = parameters?.inputMode ?? null;
   const savedUrls = useMemo(() => rowsQuery.data?.urls ?? [], [rowsQuery.data]);
   // What is stored, read the same way in both places that care: the segmented
@@ -153,10 +154,12 @@ function ExtractTab() {
     setChecks(Object.fromEntries(savedUrls.map((url) => [url, { saved: true as const }])));
     setListing(initialMode === 'listing' ? savedUrls : []);
     setProductText(initialMode === 'detail' ? savedUrls.join('\n') : '');
-    // `legacy`: no `inputMode` marker means the Extract tab has never saved this
-    // website's pages, so a stored 40/3 can only be the old flow's own starter
-    // rather than a choice. See `budgetToForm`.
-    setBudget(budgetToForm(source.budget, { legacy: savedMode === null }));
+    // `legacy`: neither marker is on the row, so a stored 40/3 can only be the
+    // old flow's own starter rather than a choice. `budgetChosen` is the half
+    // that matters here — a budget saved on the Settings tab sets no
+    // `inputMode`, and without it this seeded all/all over the customer's 40/3
+    // and `handleExtract` then wrote all/all back. See `budgetIsLegacy`.
+    setBudget(budgetToForm(source.budget, { legacy: budgetIsLegacy({ inputMode: savedMode, budgetChosen: parameters?.budgetChosen }) }));
     setEditing(null);
     setNote(null);
     setStartedRunId(null);
