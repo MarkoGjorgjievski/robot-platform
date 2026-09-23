@@ -36,6 +36,13 @@ For plan 2 the same run builds a project of its own — a project, a website
 uses — and walks its three screens in both themes as `app-project-<screen>-<theme>.png`.
 Those show a *new* project: one unverified website, one field, no rows.
 
+For plan 3 it then fills that website in the way a customer does — three product pages
+typed into their popovers, a hint, an expected value per page — and clicks **Save pages and
+values**, which is free. It never clicks Verify, Sample, Extract or Check: every one of
+those launches a browser or a model. So `app-site-<tab>-<theme>.png` shows a website that
+is set up and not yet verified — a filled grid, a locked Extract tab, an empty Runs tab and
+the settings rows.
+
 Captures are taken with Playwright's `animations: 'disabled'`. Without it the page-load
 `.rise` (`opacity: 0`, `animation-fill-mode: both`) has not started in the frame the
 screenshot provokes, and the picture is a blank page.
@@ -51,6 +58,10 @@ screenshot provokes, and the picture is a blank page.
 | `app-project-home-dark.png` / `-light.png` | a new project's home — one website, not verified, no run |
 | `app-project-fields-dark.png` / `-light.png` | Fields on a new project — one field beside the catalogue |
 | `app-project-output-dark.png` / `-light.png` | Output on a project with no run — the empty state, downloads off |
+| `app-site-schema-dark.png` / `-light.png` | a website's Schema tab, step 2 — one field, three typed pages, saved, not verified |
+| `app-site-extract-dark.png` / `-light.png` | Extract on an unverified website — the locked strip, the three sections out of reach |
+| `app-site-runs-dark.png` / `-light.png` | Runs with nothing extracted — the empty state |
+| `app-site-settings-dark.png` / `-light.png` | Settings — name, address, listing mode, budget, Active, the Danger zone |
 
 The two `app-projects-*.png` committed for the plan-1 design review were retaken against the
 real dev database (the projects **Acne** and **Scratch**) after the `default`-org adoption, so
@@ -86,6 +97,46 @@ How to run it:
 
 ```
 cp docs/testing/ui-check-app-project.mts packages/browser/src/__ui-check.mts \
+  && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address> ; rm src/__ui-check.mts
+```
+
+### The website screens on real data — `app-site-*-acne-*.png`
+
+`docs/testing/ui-check-app-site.mts` is plan 3's look-only check: given `--email <address>`
+it signs in as that account and walks **Acne / Ikea** read-only — it clicks no Verify /
+Sample / Extract / Check / Save / Delete, opens no popover and types nothing. That claim is
+enforced rather than promised: every tRPC request the page makes is watched, and a mutation
+these four tabs can fire fails the run. It prints PASS/FAIL lines for the breadcrumb, the
+strip's "8 of 8 fields verified", the 8 × 3 grid with every cell's rail compared against the
+resolved `pass` token, the Verify button's label, the Extract link, the Extract tab's three
+strip cells, the Runs branch and the Settings rows against what `sources.get` returns, plus
+the shell measurements on each tab. `--project <slug>` and `--site <slug>` point it
+somewhere else; the expectations live in one `EXPECTED` object at the top.
+
+Its eight captures are the set worth reviewing: a website where every field is certified is
+a state no throwaway website can reach.
+
+| File | Shows |
+|---|---|
+| `app-site-schema-acne-dark.png` / `-light.png` | Ikea's Schema tab — 8 fields × 3 pages, 24 green cells, "Everything is verified" |
+| `app-site-extract-acne-dark.png` / `-light.png` | Extract unlocked — the saved listing page, Sample current, Run waiting on it |
+| `app-site-runs-acne-dark.png` / `-light.png` | Runs — still the empty state: nothing has ever been extracted here |
+| `app-site-settings-acne-dark.png` / `-light.png` | Settings on a real website — listing mode, the all/all budget, the Danger zone |
+
+Two things this set cannot show, for the same reason plan 2's Output cannot: **the Runs
+table with rows in it and the run detail page have never been seen with real data.** No
+website in this database has ever been extracted, so the check says SKIP rather than passing
+a test that proves nothing, and every state of `components/runs/*` was proven against
+fixtures (tasks 7 and 8). Capture them the first time an Extract runs.
+
+The Verify button on a fully verified website reads **"Everything is verified"**, disabled —
+`verifyButton`'s `reverifyCount === 0` branch. "Re-verify n fields · …" only appears once a
+page, a value or a hint has changed, which is a state this check must not create.
+
+How to run it:
+
+```
+cp docs/testing/ui-check-app-site.mts packages/browser/src/__ui-check.mts \
   && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address> ; rm src/__ui-check.mts
 ```
 
@@ -138,6 +189,12 @@ and deletes the project again — it never touches a customer's real website.
 
 ## States with no current capture
 
+- **The new app's Runs table with rows in it, and its run detail page.** Same cause as the
+  Output sheet below: nothing in this database has ever been extracted, so both the smoke
+  and the Acne check photograph the empty state. Every populated state of the run page —
+  the facts, the controls, the work list, the results sheet, the misses list, the repair
+  panel, the sample gate — was built and proven against client-side fixtures (tasks 7 and
+  8). Capture them the first time an Extract runs.
 - **The new app's Output sheet with rows in it.** No project website in this database has
   ever completed an extraction — the only two rows in `runs` are August newegg runs on
   `sources` that predate datasets, so they belong to no project — and both Output captures,

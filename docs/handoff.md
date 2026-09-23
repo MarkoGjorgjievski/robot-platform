@@ -34,6 +34,233 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## App redesign, plan 3: the website (2026-09-22)
+
+Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` §5 rows 6 to 9.
+Plan and task briefs: `.superpowers/sdd/2026-09-22-app-redesign-plan3-website/`
+(one report per task, with the deviations, the rulings and the browser
+evidence). Branch `feat/app-redesign-website`, base `main` at `9d974cf`. A
+website now has its own page in `@robot/app` with four tabs — Schema, Extract,
+Runs, Settings — and a run of its own has a page under Runs.
+
+**What landed, one line per task** (`git log --oneline 9d974cf..HEAD`; the second
+sha of a pair is that task's fix round):
+
+| Commit | What |
+|---|---|
+| `d6a870e`, `77dd40e` | `sources.get`, and every per-website and per-run procedure takes the org from the session |
+| `a480d4f`, `cc9adfc` | a website has a page, four tabs and a link from everywhere |
+| `ff72965` | the Schema and Extract view logic, ported from `@robot/dashboard` with its tests |
+| `6dda861`, `38180f5` | the Schema tab — the stepper strip and the grid, restyled |
+| `44eb193`, `a0adab2` | the Extract tab — pages, sample, run |
+| `5eb586b` | the Runs tab — extraction history, newest first |
+| `3edbf42`, `0afafc6` | the run page — header, facts, controls, work list, results |
+| `2461038`, `a6ba824` | the run page — empty cells, repair, the sample gate |
+| `b4cd6a5`, `c6ad241` | the Settings tab — rename, listing mode, budget, delete |
+| this task | the website smoke, the look-only check against Acne / Ikea, the screenshot set, these docs |
+
+**No implementer clicked Verify, Re-verify, Sample, Extract or Check on any
+website, at any point in this plan.** Every screen that only exists after a
+verification or a run was proven either against a stubbed tRPC response in the
+browser (task 4's results grid, tasks 7 and 8's whole run page) or, at the end,
+read-only against Acne / Ikea, which was already verified. Nothing was spent.
+
+**API changes.** One new procedure, `sources.get` — the single query the
+breadcrumb, the header, all four tabs and the run page share
+(`{ id, slug, name, url, hostname, datasetId, listingMode, confirmedAt, isActive,
+budget, parameters, schemaDefinition, verificationSet, driftedFields, project,
+fields, createdAt }`). It is scoped org → project → dataset → source, so it needs
+no guard: a website in another org is unreachable because the project lookup is
+already org-scoped. Two new helpers in `packages/api/src/auth/scope.ts`,
+`sourceInOrg` and `runInOrg`, are now the **first statement of 25 handlers** —
+before any read, any write, any `requireCertification` and any browser or model
+call, so a wrong-org caller spends nothing:
+
+- `sources` (13): `rename`, `update`, `setListingPages`, `setProductUrls`,
+  `updateBinding`, `inputRows`, `verifyEstimate`, `verify`, `verificationStatus`,
+  `confirm`, `delete`, `captureProofPage`, `transferMarks`.
+- `runs` (2): `getWithDetails`, `listBySource`.
+- `crawl` (10): `plan`, `probeAndSample`, `items`, `status`, `cancel`, `execute`,
+  `coverage`, `misses`, `backfillPreview`, `backfill`.
+
+**Still shim-only or unscoped, and why** (each migrates when its screen is
+rebuilt): `sources.getBySlug / listByDataset / create`; `datasets.listByProject /
+getBySlug / create / updateSchema`; all of `domains.*`; all of `scraper.*`.
+Three more are unscoped for a reason rather than an omission:
+`sources.findProductPages` and `sources.checkListingPage` are addressed by a URL
+and name no website, so there is nothing to scope; `sources.proofPageCapture` and
+`sources.suggestMarks` are addressed by a `captureId` and need a capture → source
+→ org hop, ledgered to plan 5 with the mark screen. And `crawl.plan`'s
+`probe: true` branch is org-scoped but deliberately **not** certification-gated —
+the probe is the cheap step that tells you the schema needs verifying.
+
+**Rulings this plan made, all deliberate:**
+
+- **The session-less guards stay unscoped.** The brief's `sourceInOrg` opened with
+  `resolveOrg(ctx, 'default')`, pinning a caller with no session to the seeded
+  org. These procedures are addressed **by id alone** — unlike `projects.*` or
+  `sources.get`, they carry no `orgSlug` to fall back on — so that would have
+  locked the old dashboard, the CLIs and seven session-less test files out of
+  everything outside `default` (measured: 12 failures in `runs.test.ts` alone).
+  The guard returns early when `ctx.session` is null. The early return and the
+  `| null` in the return type both go at cut-over, with the old dashboard.
+- **Step 1 of the Schema tab is a read-only list plus "Edit fields".** A field
+  belongs to the project, not to one of its websites, so the surface that owns it
+  is one link away (spec 2026-09-18 §2.1). The website owns only the hints, the
+  pages and the expected values.
+- **The grid lost its tinted cells for 2 px rails** (spec §4). State is a rail
+  beside the value and the colour of the second line, never a wash behind it — a
+  grid of tinted cells reads as a website that has gone wrong. One exception the
+  spec itself names: "changed since verified" is grey, because a stale result is
+  not a problem, and a whole grid of amber sentences after one edit says
+  otherwise. The rail still carries the state.
+- **A "Save pages and values" button sits beside Verify.** The old screen could
+  only save by verifying, which is the one control that costs money. Saving is
+  free; its disabled reason is `saveButton`'s, and it invalidates exactly what a
+  verify does — a save on a verified website makes the server stop counting the
+  edited fields current, and without the same invalidation set the strip would
+  have gone on saying "n of n verified" with Go to Extract live on a binding the
+  server would refuse.
+- **Re-extracting a repair is all-or-none.** The old page selected rows in the
+  results sheet and filtered by clicking a column head; the new coverage bar has
+  one select-all tick in front of the spender instead, with "Tick the rows first"
+  beside the button until it is set. A customer who wants 3 of 12 rows cannot say
+  so here. The explicit tick in front of a spend is the better gate; per-row
+  selection would mean giving `results-table.tsx` a selection model. Worth a
+  second opinion.
+- **The Settings Name row is a 13 px row, not a 20 px title.** `InlineRename`
+  took an optional `size` (`'title'` default, `'row'` for the settings list) and
+  an optional `ariaLabel`, because two controls with the accessible name "Website
+  name" on one page is a real defect — a screen reader cannot tell the page title
+  from the settings row.
+- **`runs/index.tsx`, not `runs.tsx`.** In TanStack's file routing a `runs.tsx`
+  beside a `runs/` directory is the *parent* of `runs/$run.tsx`, so the Runs table
+  would sit above every run's detail. The URLs and the route literals are
+  unchanged.
+
+**What the look-only check found, and what it fixed.** Two things, both caught by
+looking at Acne / Ikea rather than by any test:
+
+1. **The Extract tab contradicted itself on every real website.** Section 1
+   showed Ikea's listing page labelled *saved*, and two lines below it the strip
+   and the Extract button both said "Save your pages first". `pagesAreSaved`
+   demanded `parameters.inputMode`, the marker this tab writes the first time it
+   saves — and no website on this machine has one, because they all predate the
+   tab. What the old flow *did* write is the `listingMode` column, with the rows
+   in `inputRows`; together they say the same thing. A new `storedMode` in
+   `lib/site/extract-screen-view.ts` (4 tests) reads both, and the segmented
+   control's starting position and the gates under it now come from one value
+   instead of agreeing by coincidence. Ikea's Extract tab now reads Pages ✓ /
+   Sample current / Run "Sample first", which is the truth.
+2. **The grid cut its hints and values mid-word with no sign.** "The currency of
+   the price (code or symb" read as the sentence somebody wrote. The grid's
+   inputs are fixed-width in a `table-fixed` table, and an `<input>` clips at the
+   box edge rather than ellipsising unless told to: `overflow-hidden
+   text-ellipsis` on the shared field class plus a `title` per input, the same
+   idiom the Field cell and the second line already use. Chromium draws the
+   ellipsis only while the input is unfocused, which is right — a focused one
+   scrolls to the caret.
+
+Both checks also park the pointer in a corner before every screenshot: Playwright
+keeps the virtual mouse wherever the last click left it, which after a navigation
+is the middle of the grid, and the captures were photographing one arbitrary row
+wearing its hover hairlines.
+
+**Everything else the check measured, on Acne / Ikea, both themes:** breadcrumb
+"Markodjordjievski / Acne / Ikea"; the strip reading "8 of 8 fields verified";
+8 field rows × 3 page columns, and all **24 cells** with a `border-left-color`
+equal to the `pass` token resolved in that theme (`rgb(61,220,132)` dark,
+`rgb(15,123,61)` light); the second lines the engine actually wrote ("page shows
+RM349", "from api", "from json-ld", "from page", one "weak evidence: same value
+on every page"); the Verify button reading **"Everything is verified"**, disabled,
+and not clicked; Go to Extract as a live link; the Extract tab unlocked with three
+strip cells and nothing `inert`; Settings' name, address, listing mode, budget and
+lock state each compared against what `sources.get` returns rather than against
+the screen itself; body 13 px, title 20 px/600, four tabs, zero uppercased
+elements, zero non-inset shadows in dark, on each of the four tabs; no console or
+page error anywhere. The check watches every tRPC request the page makes and
+fails if a mutation these tabs can fire appears: the only procedures called were
+`auth.signIn`, `auth.setTheme` (restored), `projects.get`, `projects.list`,
+`runs.listBySource`, `sources.get`, `sources.inputRows`,
+`sources.verificationStatus` and `sources.verifyEstimate`.
+
+**The Runs table and the run page have never met real data.** No website in this
+database has ever been extracted — `runs.listBySource` answers `[]` for Ikea — so
+both the smoke and the Acne check photograph the empty state, and every populated
+state of the run page (facts, controls, work list, results sheet, misses, the
+repair panel, the sample gate) was proven against client-side fixtures in tasks 7
+and 8. The check says SKIP rather than passing a test that proves nothing.
+**First Extract run: capture `app-site-runs-acne-*.png` again, and the run page
+for the first time.**
+
+**The screenshot set** (`docs/testing/screens/`, 1440×900, full page):
+`app-site-{schema,extract,runs,settings}-{dark,light}.png` from the smoke run — a
+website that is set up and not yet verified: a filled grid, a locked Extract tab,
+an empty Runs tab — and
+`app-site-{schema,extract,runs,settings}-acne-{dark,light}.png` from the
+look-only check, which is the set worth reviewing. Run order matters, as in plan
+2: the smoke first, then `ui-check-app-project.mts` (it retakes
+`app-projects-{dark,light}.png`, which every smoke run overwrites with a throwaway
+organisation's table), then `ui-check-app-site.mts`. `app-login.png` and the four
+placeholder pairs are restored with `git checkout --` when a smoke run has touched
+them, which is what this task did.
+
+**How to run.** `pnpm test:ui:app` is the app smoke (needs `pnpm dev:all`), now 13
+tests: on top of plan 1 and 2's walk it types three product pages into their
+popovers on the Schema tab, fills the hint and one expected value per page, clicks
+**Save pages and values** (free — `updateBinding` writes rows and nothing else),
+reloads to prove the server kept them, walks the four tabs in both themes and
+round-trips a rename on Settings. The look-only check is
+`cp docs/testing/ui-check-app-site.mts packages/browser/src/__ui-check.mts && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address>`
+— `--project <slug>` and `--site <slug>` point it elsewhere; its expectations live
+in one `EXPECTED` object at the top.
+
+**Gotchas worth knowing:**
+
+- `shadcn add popover progress checkbox radio-group` did it again, twice: a
+  literal `packages/app/~/components/ui/` directory and a bogus `cn` package in
+  `dependencies`. Both cleaned by hand each time. Check the diff after any
+  `shadcn add` in this repo.
+- **`table-fixed` is load-bearing on the schema grid.** A clamped sentence in an
+  auto-layout table contributes its whole string as the column's min-content
+  width, so one red "This page shows 99.00…" stretched its page column across the
+  screen and crushed Field, Type and the hint to three characters each.
+- **A sticky table head under `border-collapse` uses an inset box-shadow** as its
+  border stand-in, so any "nothing casts a shadow in dark" assertion has to
+  exclude `inset`.
+- **Four sibling panels keyed by `runId` is one key four times.** React said so on
+  every populated run render; each panel carries its own prefix now.
+- `updateBinding` is still called without `marks`, which erases them — inherited
+  from the old screen (the API's whole-binding-save ruling). It belongs to
+  whichever plan builds the mark screen.
+
+**Open decisions for the design review:**
+
+- **The all-or-none repair selection** (above) — the coverage bar's single tick
+  versus per-row checkboxes in the results sheet.
+- **The paste/import fast path was kept** on the Schema tab: Import CSV or XLSX
+  fills rows by field name, and a tab-separated paste into any cell spreads across
+  the grid. It is the one thing on these screens that is not obvious from looking,
+  and it is worth deciding whether it earns its place or belongs behind the
+  import button alone.
+- **Six pages on a laptop.** The page column is 210 px, so a six-page website's
+  table floors at 1736 px and the panel scrolls sideways from about a 1750 px
+  viewport down. Intended (the container scrolls, the document does not), but it
+  is a lot of scrolling.
+- **The strip shows one reason at a time** — verify's, then save's, then
+  Extract's. On a website that is finished it reads "Nothing has changed since the
+  last verification" while Save is also off for its own reason. Right, or one line
+  per control?
+- Still open from plans 1 and 2 and untouched here: the red rail on "Not
+  verified", two lit rows in the sidebar, the field-origin / candidate editor's
+  future, no scroll affordance on mobile tables, and the `QueryClient` not keyed
+  on session identity.
+
+**Next: plan 4** — the org-wide screens `/runs`, `/usage`, `/settings` and
+`/account`, which are still `ComingLater` placeholders. **Then plan 5** — the
+stepper's steps 2 and 3 and the mark screen, which is also where
+`sources.proofPageCapture` and `sources.suggestMarks` get their guard.
+
 ## App redesign, plan 2: the project (2026-09-21)
 
 Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` §5 rows 3 to 5.

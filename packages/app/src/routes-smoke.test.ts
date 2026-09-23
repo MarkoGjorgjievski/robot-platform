@@ -18,6 +18,14 @@
 // Every one of those is the customer's own gesture in a real browser, which is
 // also the only honest way to prove the mutations reach the API.
 //
+// Plan 3's four screens live inside that website. The run fills in its Schema
+// tab the way a customer does — three product pages typed into their popovers,
+// a hint, an expected value per page — and clicks **Save pages and values**,
+// which is free. It never clicks Verify, Sample, Extract or Check: every one of
+// those launches a browser or a model, and a test that spends money is a test
+// nobody runs. So Extract is photographed locked, Runs empty, and Settings is
+// proven by a rename that goes to the server and comes back.
+//
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
 //   pnpm test:ui:app
@@ -50,6 +58,17 @@ const WEBSITE_HOST = 'www.example.com';
 const WEBSITE_NAME = 'Example';
 /** The catalogue chip this run clicks, on the Product tab it opens on. */
 const FIELD_NAME = 'Price';
+
+/**
+ * The three proof pages the Schema tab is filled in with. Same host as the
+ * website, different paths, and nothing ever fetches them: `updateBinding` only
+ * stores what is typed. `URL_MIN` is 3, so all three need a value.
+ */
+const PAGE_URLS = ['https://www.example.com/p/1', 'https://www.example.com/p/2', 'https://www.example.com/p/3'] as const;
+/** `Price` is a Money field, so the expected values have to parse as amounts. */
+const PAGE_VALUES = ['10.00', '20.00', '30.00'] as const;
+/** The "where it is on this website" hint, which `bindingProblems` also requires. */
+const FIELD_HINT = 'the price next to the buy button';
 
 /**
  * Plan 2's three screens, each with the one thing that proves it is the real
@@ -88,6 +107,77 @@ const PROJECT_SCREENS = [
   },
 ] as const;
 
+/**
+ * Plan 3's four website screens. Each carries the one thing that proves it is
+ * the real screen: the grid with this run's own pages in it, the locked strip a
+ * website that has never verified must show, the empty run list, and the
+ * settings rows.
+ *
+ * Nothing here clicks a control that spends: the Verify button is read for its
+ * label and left alone, and Sample / Extract / Check are never reached at all
+ * (the Extract tab is inert while the schema is not green, which is the state
+ * this run is honestly in).
+ */
+const SITE_SCREENS = [
+  {
+    name: 'schema',
+    route: '',
+    assert: async () => {
+      // Step 2 is where `stepOf` lands once the project has a field, so this is
+      // the grid — one row for the field, one column per proof page.
+      expect(await page.locator('tbody tr').count(), 'the grid has no row for the field').toBe(1);
+      for (const [i, url] of PAGE_URLS.entries()) {
+        expect(
+          await page.getByRole('textbox', { name: `${FIELD_NAME} on page ${i + 1}` }).inputValue(),
+          `page ${i + 1} lost its expected value`,
+        ).toBe(PAGE_VALUES[i]);
+        expect(await page.locator('thead').innerText(), `page ${i + 1}'s column head is missing`).toContain(new URL(url).pathname);
+      }
+      // Saved a moment ago and untouched since: the button says so rather than
+      // offering a save that would write the same rows again.
+      const save = page.getByRole('button', { name: 'Save pages and values' });
+      expect(await save.isDisabled(), 'Save pages and values is live on an unchanged grid').toBe(true);
+      expect(await page.locator('main').innerText(), 'the strip does not say why Save is off').toContain(
+        'Nothing has changed since the last save',
+      );
+      // Read, never pressed — a verification is the one thing on this screen
+      // that costs money.
+      expect(await page.getByRole('button', { name: /^Verify/ }).count(), 'the Verify button is missing').toBe(1);
+    },
+  },
+  {
+    name: 'extract',
+    route: '/extract',
+    assert: async () => {
+      // Nothing has been verified, so this is the tab's true state.
+      const main = await page.locator('main').innerText();
+      expect(main, 'the Extract tab is not locked on an unverified website').toContain('Extraction is locked');
+      expect(main, 'the locked strip offers no way back to the Schema tab').toContain('Go to the Schema tab');
+      expect(await page.locator('main [inert]').count(), 'the locked sections are still reachable').toBeGreaterThan(0);
+    },
+  },
+  {
+    name: 'runs',
+    route: '/runs',
+    assert: async () => {
+      // A run can only exist if something spent money, and nothing here has.
+      expect(await page.locator('main').innerText(), 'Runs is not in its empty state').toContain('No extractions yet');
+      expect(await page.locator('main table').count(), 'a table is drawn over no runs').toBe(0);
+    },
+  },
+  {
+    name: 'settings',
+    route: '/settings',
+    assert: async () => {
+      expect(
+        await page.getByRole('textbox', { name: 'Name', exact: true }).inputValue(),
+        'the Name row does not hold the website name',
+      ).toBe(WEBSITE_NAME);
+      expect(await page.getByRole('button', { name: 'Delete website' }).count(), 'the Danger zone has no delete').toBe(1);
+    },
+  },
+] as const;
+
 const THEMES = ['dark', 'light'] as const;
 type Theme = (typeof THEMES)[number];
 
@@ -105,9 +195,16 @@ const SCREENS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
  * the animation's *from* keyframe: a completely empty page. Disabling
  * fast-forwards finite animations to their end and freezes the pulsing dot,
  * which also makes every capture byte-stable.
+ *
+ * The pointer is parked in the bottom-right corner first, for the same
+ * stability: Playwright keeps the virtual mouse wherever the last click left it
+ * — the theme menu — and a row or a button under it would be photographed
+ * wearing its hover state.
  */
-const shoot = (p: Page, file: string) =>
-  p.screenshot({ path: path.join(SCREENS, file), fullPage: true, animations: 'disabled' });
+const shoot = async (p: Page, file: string) => {
+  await p.mouse.move(1435, 895);
+  await p.screenshot({ path: path.join(SCREENS, file), fullPage: true, animations: 'disabled' });
+};
 
 /** `/projects` -> `projects`. */
 const screenSlug = (route: string) => route.replace(/^\//, '').replaceAll('/', '-');
@@ -121,6 +218,8 @@ let page: Page;
 let projectId: string | null = null;
 /** The same project's slug — what the plan 2 screens are addressed by. */
 let projectSlug: string | null = null;
+/** The website added through the dialog — what the plan 3 screens are addressed by. */
+let websiteSlug: string | null = null;
 
 /**
  * A tRPC client carrying this run's session cookie, so the cleanup deletes the
@@ -322,6 +421,12 @@ describe.skipIf(!ENABLED)('app shell', () => {
 
     await page.locator('tbody tr').filter({ hasText: WEBSITE_HOST }).first().waitFor({ timeout: 20_000 });
     expect(problems, `adding a website logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+
+    // The slug the plan 3 screens are addressed by, read back through the same
+    // session that made it rather than derived from the name by hand.
+    const project = await apiAs(await sessionCookie(context)).projects.get.query({ projectSlug: projectSlug! });
+    websiteSlug = project.websites.find((w) => w.name === WEBSITE_NAME)?.slug ?? null;
+    expect(websiteSlug, 'the new website is not in projects.get').not.toBeNull();
   }, 120_000);
 
   it('a field picked from the catalogue appears in the list', async () => {
@@ -371,6 +476,142 @@ describe.skipIf(!ENABLED)('app shell', () => {
       }
     }, 180_000);
   }
+
+  it("the Schema tab's step 1 shows the project's fields and sends edits to the project", async () => {
+    expect(websiteSlug, 'there is no website to open').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}?step=fields`, {
+      waitUntil: 'networkidle',
+      timeout: 30_000,
+    });
+    await waitForHydration(page, 'main');
+    await page.waitForTimeout(1200);
+
+    // Step 1 is a list, not a form: a field belongs to the project, so the one
+    // control here is the way to the surface that owns it.
+    const main = await page.locator('main').innerText();
+    expect(main, 'step 1 does not list the project\'s field').toContain(FIELD_NAME);
+    expect(main, 'step 1 offers no way to the project\'s Fields screen').toContain('Edit fields');
+    // The list is the panel's only content: one line per field, and nothing in
+    // it can be typed into. (The one input `main` does hold is the website's own
+    // name, in the title row the layout owns.)
+    expect(await page.locator('main ul li').count(), 'step 1 does not list one line per field').toBe(1);
+    expect(await page.locator('main ul input, main ul button').count(), 'step 1 offers an editable field').toBe(0);
+    expect(problems, `step 1 logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 120_000);
+
+  it('three pages and their values save from the Schema tab', async () => {
+    expect(websiteSlug, 'there is no website to fill in').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}?step=pages`, {
+      waitUntil: 'networkidle',
+      timeout: 30_000,
+    });
+    await waitForHydration(page, 'main');
+
+    // Each proof page is typed into its own popover, the way a customer types
+    // it: the pencil in the column head, the URL, "Use this page".
+    for (const [i, url] of PAGE_URLS.entries()) {
+      await page.getByRole('button', { name: `Edit page ${i + 1}` }).click();
+      // Addressed by `data-slot` rather than by role: the popover carries two
+      // inputs (this page's URL and the listing finder's), and the first is the
+      // one the pencil opened for.
+      const popover = page.locator('[data-slot="popover-content"]');
+      await popover.locator('input').first().fill(url);
+      await popover.getByRole('button', { name: 'Use this page' }).click();
+      await expect
+        .poll(() => page.locator('thead').innerText(), { timeout: 10_000 })
+        .toContain(new URL(url).pathname);
+    }
+
+    // `bindingProblems` wants the hint as well as the three values; without it
+    // Save stays off and says so.
+    await page.getByRole('textbox', { name: `Where ${FIELD_NAME} is on this website` }).fill(FIELD_HINT);
+    for (const [i, value] of PAGE_VALUES.entries()) {
+      await page.getByRole('textbox', { name: `${FIELD_NAME} on page ${i + 1}` }).fill(value);
+    }
+
+    // Free: `updateBinding` writes rows and nothing else. Verify — the button
+    // beside it — is the one that spends, and this run never touches it.
+    const save = page.getByRole('button', { name: 'Save pages and values' });
+    await expect.poll(() => save.isEnabled(), { timeout: 10_000 }).toBe(true);
+    await save.click();
+    await expect.poll(() => save.isDisabled(), { timeout: 20_000 }).toBe(true);
+
+    // The reload is the proof: what comes back is what the server stored.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+    for (const [i, value] of PAGE_VALUES.entries()) {
+      expect(
+        await page.getByRole('textbox', { name: `${FIELD_NAME} on page ${i + 1}` }).inputValue(),
+        `page ${i + 1}'s value did not survive the reload`,
+      ).toBe(value);
+    }
+    expect(problems, `saving pages and values logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 180_000);
+
+  for (const theme of THEMES) {
+    it(`every website screen renders in the ${theme} theme`, async () => {
+      expect(websiteSlug, 'there is no website to walk').not.toBeNull();
+      const base = `${APP}/projects/${projectSlug}/sites/${websiteSlug}`;
+      await page.goto(base, { waitUntil: 'networkidle', timeout: 30_000 });
+      await waitForHydration(page, 'aside');
+      await chooseTheme(page, theme);
+
+      for (const screen of SITE_SCREENS) {
+        problems.length = 0;
+        const response = await page.goto(base + screen.route, { waitUntil: 'networkidle', timeout: 30_000 });
+        expect(response?.ok(), `${screen.route || '/'} returned HTTP ${response?.status()}`).toBe(true);
+
+        // Queries resolve after first paint; give them a moment to fail if they will.
+        await page.waitForTimeout(1500);
+
+        expect(
+          await page.evaluate(() => document.documentElement.dataset.theme),
+          `${screen.name} is not in the ${theme} theme`,
+        ).toBe(theme);
+        // The layout owns the title and the strip, so every tab has both.
+        expect(await page.locator('h1').count(), `${screen.name} has no page title`).toBeGreaterThan(0);
+        expect(
+          await page.locator('nav[aria-label="Website"] a').count(),
+          `${screen.name} lost the website's tab strip`,
+        ).toBe(4);
+        await screen.assert();
+        expect(problems, `${screen.name} logged errors in ${theme}:\n  ${problems.join('\n  ')}`).toEqual([]);
+
+        await shoot(page, `app-site-${screen.name}-${theme}.png`);
+      }
+    }, 240_000);
+  }
+
+  it('a rename on the Settings tab reaches the server and comes back', async () => {
+    expect(websiteSlug, 'there is no website to rename').not.toBeNull();
+    const renamed = `${WEBSITE_NAME} renamed`;
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}/settings`, {
+      waitUntil: 'networkidle',
+      timeout: 30_000,
+    });
+    await waitForHydration(page, 'main');
+
+    // `InlineRename` commits on blur, and the title in the header reads the same
+    // query — so the header agreeing is the round trip, not an optimistic echo.
+    const nameRow = page.getByRole('textbox', { name: 'Name', exact: true });
+    await nameRow.fill(renamed);
+    await nameRow.blur();
+    await expect.poll(() => page.locator('h1 input').inputValue(), { timeout: 20_000 }).toBe(renamed);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+    expect(await page.locator('h1 input').inputValue(), 'the rename did not survive the reload').toBe(renamed);
+
+    // Back to the name the screens above are captured under.
+    const again = page.getByRole('textbox', { name: 'Name', exact: true });
+    await again.fill(WEBSITE_NAME);
+    await again.blur();
+    await expect.poll(() => page.locator('h1 input').inputValue(), { timeout: 20_000 }).toBe(WEBSITE_NAME);
+    expect(problems, `renaming logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 120_000);
 
   it('signing out closes the door: /projects goes back to /login', async () => {
     // Its own context, so the cookie this run cleans up with stays alive:
