@@ -67,7 +67,10 @@ export function runsView(rows: readonly RunRow[], now: Date = new Date()): RunVi
         statusLabel: statusLabel(state, row.inputLabel),
         startedLabel: relativeTime(row.startedAt ?? row.createdAt, now),
         durationLabel: durationLabel(row.startedAt, row.completedAt),
-        rowsLabel: count == null ? null : `${count.toLocaleString('en-US')} ${count === 1 ? 'row' : 'rows'}`,
+        // Unformatted, like `websitesView`'s row count: the same run's rows
+        // read `1240` on the project home and would otherwise read `1,240`
+        // here, on the two tables a customer moves between.
+        rowsLabel: count == null ? null : `${count} ${count === 1 ? 'row' : 'rows'}`,
         error: row.errorMessage,
       };
     });

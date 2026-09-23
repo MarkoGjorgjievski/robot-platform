@@ -25,6 +25,7 @@ export function DeleteWebsiteDialog({
   open,
   onOpenChange,
   projectSlug,
+  sourceSlug,
   sourceId,
   name,
   confirmedAt,
@@ -33,6 +34,7 @@ export function DeleteWebsiteDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectSlug: string;
+  sourceSlug: string;
   sourceId: string;
   name: string;
   confirmedAt: Date | null;
@@ -50,7 +52,17 @@ export function DeleteWebsiteDialog({
       // The project home's websites table and its row count both read
       // `projects.get`/`projects.list` — this website has to be gone from both
       // before the customer lands back there.
-      await Promise.all([utils.projects.get.invalidate(), utils.projects.list.invalidate()]);
+      // This website's own `sources.get` entry goes too: it outlives the row it
+      // describes, and with `staleTime: 30_000` a Back within half a minute
+      // would render the deleted website's header and tabs from cache before
+      // the refetch 404s. `reset` drops the data rather than marking it stale,
+      // so what comes back is the layout's loading state and then its
+      // not-found screen.
+      await Promise.all([
+        utils.projects.get.invalidate(),
+        utils.projects.list.invalidate(),
+        utils.sources.get.reset({ projectSlug, sourceSlug }),
+      ]);
       onOpenChange(false);
       void navigate({ to: '/projects/$project', params: { project: projectSlug } });
     } catch (e) {
