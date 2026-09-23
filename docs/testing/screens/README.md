@@ -105,23 +105,29 @@ cp docs/testing/ui-check-app-project.mts packages/browser/src/__ui-check.mts \
 `docs/testing/ui-check-app-site.mts` is plan 3's look-only check: given `--email <address>`
 it signs in as that account and walks **Acne / Ikea** read-only — it clicks no Verify /
 Sample / Extract / Check / Save / Delete, opens no popover and types nothing. That claim is
-enforced rather than promised: every tRPC request the page makes is watched, and a mutation
-these four tabs can fire fails the run. It prints PASS/FAIL lines for the breadcrumb, the
+enforced rather than promised: every tRPC request the page makes is watched against an
+allow-list of the reads these screens issue on load, and anything else — a mutation, or a
+read a new tab adds — fails the run and is printed. It prints PASS/FAIL lines for the breadcrumb, the
 strip's "8 of 8 fields verified", the 8 × 3 grid with every cell's rail compared against the
 resolved `pass` token, the Verify button's label, the Extract link, the Extract tab's three
 strip cells, the Runs branch and the Settings rows against what `sources.get` returns, plus
 the shell measurements on each tab. `--project <slug>` and `--site <slug>` point it
 somewhere else; the expectations live in one `EXPECTED` object at the top.
 
-Its eight captures are the set worth reviewing: a website where every field is certified is
+Its ten captures are the set worth reviewing: a website where every field is certified is
 a state no throwaway website can reach.
 
 | File | Shows |
 |---|---|
 | `app-site-schema-acne-dark.png` / `-light.png` | Ikea's Schema tab — 8 fields × 3 pages, 24 green cells, "Everything is verified" |
+| `app-site-schema-step1-acne-dark.png` / `-light.png` | the same tab at `?step=fields` — step 1's field list over the stepper strip |
 | `app-site-extract-acne-dark.png` / `-light.png` | Extract unlocked — the saved listing page, Sample current, Run waiting on it |
 | `app-site-runs-acne-dark.png` / `-light.png` | Runs — still the empty state: nothing has ever been extracted here |
 | `app-site-settings-acne-dark.png` / `-light.png` | Settings on a real website — listing mode, the all/all budget, the Danger zone |
+
+The two `app-site-schema-step1-acne-*.png` rows are the walk's newest stop and are **not in
+the repository yet**: the fix wave that added them to the check did not run it against the
+real account. The next run of the command below takes them along with the other eight.
 
 Two things this set cannot show, for the same reason plan 2's Output cannot: **the Runs
 table with rows in it and the run detail page have never been seen with real data.** No

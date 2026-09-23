@@ -12,9 +12,9 @@
 //
 // That claim is enforced rather than asserted: every tRPC request the page makes
 // is watched, the procedure names are collected (batched calls are split on the
-// comma), and a name from `FORBIDDEN` — every mutation these four tabs can fire
-// — fails the run. The names actually seen are printed at the end, so the
-// evidence is in the output and not in this comment.
+// comma), and anything outside `ALLOWED` — the reads these screens issue on
+// load, plus the sign-in and the theme — fails the run. The names actually seen
+// are printed, so the evidence is in the output and not in this comment.
 //
 // Run from packages/browser so `playwright` resolves:
 //   cp docs/testing/ui-check-app-site.mts packages/browser/src/__ui-check.mts \
@@ -22,8 +22,8 @@
 //
 // Options: `--email <address>` (required — this check is about somebody's real
 // data), `--project <slug>` (default `acne`) and `--site <slug>` (default
-// `ikea`). The eight captures Marko reviews go to
-// `docs/testing/screens/app-site-{schema,extract,runs,settings}-<project>-<theme>.png`,
+// `ikea`). The ten captures Marko reviews go to
+// `docs/testing/screens/app-site-{schema,schema-step1,extract,runs,settings}-<project>-<theme>.png`,
 // resolved from packages/browser; `SCREENS_DIR` overrides that.
 //
 // The PASS/FAIL lines below are written against **Acne / Ikea**: 8 fields, three
@@ -79,29 +79,42 @@ const MODE_LABEL: Record<string, string> = {
 };
 
 /**
- * Every mutation the four website tabs can fire. Seeing any of these in a
- * request is this check having written something, which it must not do.
- * `auth.setTheme` is deliberately absent: it is the one write, and it is undone.
+ * Everything this walk is allowed to ask the server for — an allow-list, not a
+ * list of forbidden mutations, so the failure mode is "fails until somebody
+ * looks" rather than "silently misses the mutation added last month".
+ *
+ * Derived from what the four tabs actually call on load, read off the routes:
+ *
+ * - the shell: `projects.get` (breadcrumb + sidebar) and `sources.get` (the
+ *   layout query all four tabs and the breadcrumb share). `auth.me` is listed
+ *   for completeness — today it is fetched by the app's server function, so it
+ *   never shows up as a browser request.
+ * - Schema (`index.tsx`): `sources.verifyEstimate`, `sources.verificationStatus`.
+ *   Step 1 is a panel over data already loaded and asks for nothing of its own.
+ * - Extract (`extract.tsx`): `sources.verificationStatus`, `sources.inputRows`,
+ *   `runs.listBySource`, and — only on a website that has a probe to show —
+ *   `crawl.status`, `crawl.items`, `runs.getWithDetails` behind `ExtractSample`.
+ * - Runs (`runs/index.tsx`) and Settings (`settings.tsx`): `runs.listBySource`.
+ *
+ * The two writes are here by name rather than by exception: `auth.signIn`,
+ * which is how the check gets in, and `auth.setTheme`, which is the one write
+ * to the account and is restored in the `finally`. Anything else — any of the
+ * mutations these tabs can fire, or a read a new tab adds — fails the run and
+ * is printed.
  */
-const FORBIDDEN = [
-  'sources.rename',
-  'sources.update',
-  'sources.updateBinding',
-  'sources.setListingPages',
-  'sources.setProductUrls',
-  'sources.delete',
-  'sources.verify',
-  'sources.confirm',
-  'sources.checkListingPage',
-  'sources.findProductPages',
-  'sources.captureProofPage',
-  'sources.transferMarks',
-  'datasets.retypeField',
-  'crawl.plan',
-  'crawl.probeAndSample',
-  'crawl.execute',
-  'crawl.cancel',
-  'crawl.backfill',
+const ALLOWED = [
+  'auth.me',
+  'auth.signIn',
+  'auth.setTheme',
+  'projects.get',
+  'sources.get',
+  'sources.verifyEstimate',
+  'sources.verificationStatus',
+  'sources.inputRows',
+  'runs.listBySource',
+  'runs.getWithDetails',
+  'crawl.status',
+  'crawl.items',
 ];
 
 type Preference = 'dark' | 'light' | 'system';
@@ -378,6 +391,25 @@ for (const theme of ['dark', 'light'] as const) {
   check('schema logs nothing', errors.length === 0, errors.join(' | '));
   await shoot(SCREENS, `app-site-schema-${PROJECT}-${theme}.png`);
 
+  // ── Schema, step 1 ────────────────────────────────────────────────────────
+  // The stepper's first step is a whole screen of the design review with no
+  // capture otherwise: `?step=fields` is in the URL by design (index.tsx:37 —
+  // "which step is open lives in the URL"), the panel it opens is a read of
+  // fields already loaded, and nothing on it is clicked here.
+  errors = [];
+  const step1 = await p.goto(`${BASE}?step=fields`, { waitUntil: 'networkidle' });
+  await p.waitForTimeout(1500);
+  check('schema step 1 renders', !!step1?.ok() && (await p.locator('h1').count()) > 0, `HTTP ${step1?.status()}`);
+  const step1Body = norm(await p.locator('main').innerText());
+  check(
+    `step 1 lists the ${EXPECTED.fieldCount} fields and offers Edit fields`,
+    step1Body.includes(`${EXPECTED.fieldCount} fields`) && step1Body.includes('Edit fields'),
+    step1Body.slice(0, 120),
+  );
+  check('and the grid is not on screen', (await p.locator('tbody tr').count()) === 0);
+  check('schema step 1 logs nothing', errors.length === 0, errors.join(' | '));
+  await shoot(SCREENS, `app-site-schema-step1-${PROJECT}-${theme}.png`);
+
   // ── Extract ───────────────────────────────────────────────────────────────
   errors = [];
   const extract = await p.goto(`${BASE}/extract`, { waitUntil: 'networkidle' });
@@ -469,16 +501,20 @@ for (const theme of ['dark', 'light'] as const) {
   await shoot(SCREENS, `app-site-settings-${PROJECT}-${theme}.png`);
 }
 
-// ── What this check actually asked the server for ───────────────────────────
-console.log('\n── the calls this check made ──');
-{
-  const wrote = called.filter((name) => FORBIDDEN.includes(name));
-  check('nothing on this website was written', wrote.length === 0, wrote.join(', '));
-  measure('procedures called', called.sort().join(', '));
-  measure('the one write', 'auth.setTheme, restored below');
-}
-
 } finally {
+  // ── What this check actually asked the server for ─────────────────────────
+  // In the `finally`, not above it: this is the check's own safety assertion,
+  // and an assertion whose job is to prove nothing was written is worth the
+  // most on the run that threw half way through. Skipping it there would leave
+  // the one path where something unexpected happened with no evidence at all.
+  console.log('\n── the calls this check made ──');
+  {
+    const unexpected = called.filter((name) => !ALLOWED.includes(name));
+    check('nothing outside the reads this check expects', unexpected.length === 0, unexpected.join(', '));
+    measure('procedures called', [...called].sort().join(', '));
+    measure('the one write', 'auth.setTheme, restored below');
+  }
+
   // Put the preference back, whatever happened above.
   const now = await storedPreference().catch(() => null);
   if (now === null) {
