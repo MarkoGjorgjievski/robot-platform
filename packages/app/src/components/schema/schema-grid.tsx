@@ -143,9 +143,17 @@ export function SchemaGrid({
   // as everywhere else — anything smaller makes iOS Safari zoom on focus, and
   // this one lives inside a horizontal scroller.
   //
+  // `text-ellipsis` because the columns are fixed and the strings are not: on a
+  // real website the hints and the values both overrun, and an input clips at
+  // the box edge mid-word with nothing to say it did — "The currency of the
+  // price (code or symbol" reads as the sentence somebody wrote. The ellipsis
+  // is the sign, and the `title` on each input is the rest of the string.
+  // Chromium draws it only while the input is not focused, which is exactly
+  // right: a focused one scrolls to the caret instead.
+  //
   // While a run is in flight the affordances go and the text stays: a read-only
   // field that still lights up on hover is offering something it will not do.
-  const field = `-mx-2 h-7 w-full min-w-0 rounded-md border border-transparent bg-transparent px-2 text-[16px] text-text outline-none placeholder:text-muted-foreground md:text-base ${
+  const field = `-mx-2 h-7 w-full min-w-0 overflow-hidden rounded-md border border-transparent bg-transparent px-2 text-[16px] text-ellipsis text-text outline-none placeholder:text-muted-foreground md:text-base ${
     readOnly ? 'cursor-default' : 'hover:border-line-hover focus:border-text focus:bg-bg group-hover/row:border-line'
   }`;
 
@@ -236,6 +244,7 @@ export function SchemaGrid({
                         readOnly={readOnly}
                         aria-readonly={readOnly || undefined}
                         aria-label={`Where ${row.name} is on this website`}
+                        title={row.description || undefined}
                         value={row.description}
                         onChange={(e) => setDescription(r, e.target.value)}
                         onKeyDown={(e) => onKey(e, r, 2)}
@@ -277,6 +286,7 @@ export function SchemaGrid({
                               readOnly={readOnly}
                               aria-readonly={readOnly || undefined}
                               aria-label={`${row.name} on page ${u + 1}`}
+                              title={value || undefined}
                               value={value}
                               onChange={(e) => setExpected(r, u, e.target.value)}
                               onKeyDown={(e) => onKey(e, r, 3 + u)}

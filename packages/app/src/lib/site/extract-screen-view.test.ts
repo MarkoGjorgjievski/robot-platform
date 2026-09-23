@@ -15,6 +15,7 @@ import {
   runProgressLine,
   sampleGate,
   saveNote,
+  storedMode,
   stripCells,
   tooManyMessage,
   withEditing,
@@ -98,6 +99,33 @@ describe('isProbeMoving', () => {
   });
 });
 
+describe('storedMode', () => {
+  it('takes this tab\'s own marker when there is one', () => {
+    expect(storedMode({ inputMode: 'detail', listingMode: 'listing_to_detail', savedCount: 2 })).toBe('detail');
+  });
+
+  it('reads a website that predates the tab off its listing mode', () => {
+    // The defect this exists for: Acne / Ikea has one saved listing page and no
+    // marker, and read "Save your pages first" two lines under a row labelled
+    // "saved".
+    expect(storedMode({ inputMode: undefined, listingMode: 'listing_to_detail', savedCount: 1 })).toBe('listing');
+    expect(storedMode({ inputMode: undefined, listingMode: 'detail', savedCount: 2 })).toBe('detail');
+  });
+
+  it('answers null when a shape was chosen but nothing was stored under it', () => {
+    // `detail` with no rows has stored nothing and has no listing page standing
+    // in for the choice either. (`listing_to_detail` still answers 'listing':
+    // `pagesAreSaved`'s own `savedCount > 0` is what holds the gates shut.)
+    expect(storedMode({ inputMode: undefined, listingMode: 'detail', savedCount: 0 })).toBeNull();
+    expect(storedMode({ inputMode: null, listingMode: null, savedCount: 3 })).toBeNull();
+  });
+
+  it('keeps the gates shut for a listing website with no page saved yet', () => {
+    const mode = storedMode({ inputMode: undefined, listingMode: 'listing_to_detail', savedCount: 0 });
+    expect(pagesAreSaved({ savedCount: 0, savedMode: mode, mode: 'listing', editing: null })).toBe(false);
+  });
+});
+
 describe('pagesAreSaved', () => {
   const saved = { savedCount: 3, savedMode: 'listing' as const, mode: 'listing' as const, editing: null };
 
@@ -105,10 +133,10 @@ describe('pagesAreSaved', () => {
     expect(pagesAreSaved(saved)).toBe(true);
   });
 
-  it('is false before anything was ever saved through this tab', () => {
+  it('is false before anything was ever saved', () => {
     expect(pagesAreSaved({ ...saved, savedCount: 0 })).toBe(false);
-    // An input set that predates the tab has rows but no `inputMode` marker, so
-    // it starts at step 1 rather than claiming pages it never confirmed.
+    // `savedMode` is `storedMode`'s answer, so `null` here means nothing is
+    // stored at all — not merely that this tab was not the one to store it.
     expect(pagesAreSaved({ ...saved, savedMode: null })).toBe(false);
   });
 

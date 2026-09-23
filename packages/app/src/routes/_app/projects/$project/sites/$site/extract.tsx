@@ -32,6 +32,7 @@ import {
   runProgressLine,
   sampleGate,
   saveNote,
+  storedMode,
   stripCells,
   tooManyMessage,
   withEditing,
@@ -128,6 +129,12 @@ function ExtractTab() {
   const parameters = (source?.parameters ?? null) as { inputMode?: ExtractMode } | null;
   const savedMode = parameters?.inputMode ?? null;
   const savedUrls = useMemo(() => rowsQuery.data?.urls ?? [], [rowsQuery.data]);
+  // What is stored, read the same way in both places that care: the segmented
+  // control's starting position and the gates under it. Before this was one
+  // value, a website whose pages predate this tab (no `inputMode` marker) saw
+  // its listing page labelled "saved" and, two lines below, "Save your pages
+  // first".
+  const stored = storedMode({ inputMode: savedMode, listingMode: source?.listingMode ?? null, savedCount: savedUrls.length });
 
   // Seeded once per website, from saved data: after that the local state is
   // what the customer is editing, and a background refetch (the invalidation
@@ -138,13 +145,7 @@ function ExtractTab() {
   useEffect(() => {
     if (!source || !rowsQuery.data) return;
     if (seeded.current === source.id) return;
-    const initialMode: ExtractMode | null =
-      savedMode ??
-      (source.listingMode === 'listing_to_detail'
-        ? 'listing'
-        : source.listingMode === 'detail' && savedUrls.length > 0
-          ? 'detail'
-          : null);
+    const initialMode = stored;
     setMode(initialMode);
     // Saved pages arrive unchecked, and stay that way until someone asks: the
     // check is a real page load on the api-server, and opening a tab must not
@@ -160,7 +161,7 @@ function ExtractTab() {
     setNote(null);
     setStartedRunId(null);
     seeded.current = source.id;
-  }, [source, rowsQuery.data, savedMode, savedUrls]);
+  }, [source, rowsQuery.data, savedMode, stored, savedUrls]);
 
   async function runCheck(url: string) {
     setChecks((prev) => ({ ...prev, [url]: null })); // null renders as "checking…"
@@ -223,7 +224,7 @@ function ExtractTab() {
   // Are the pages on screen the pages that are actually stored? All three halves
   // of that question — and why a reopened section 1 answers no — are in
   // `pagesAreSaved`, with its tests.
-  const pagesSaved = pagesAreSaved({ savedCount: savedUrls.length, savedMode, mode, editing });
+  const pagesSaved = pagesAreSaved({ savedCount: savedUrls.length, savedMode: stored, mode, editing });
   const states = withEditing(stepStates({ schemaGreen: green, mode, pagesSaved, sampleRun, running }), editing);
 
   const verificationSet = (source?.verificationSet ?? null) as { urls?: string[] } | null;

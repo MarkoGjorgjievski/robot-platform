@@ -80,12 +80,41 @@ export function isProbeMoving(status: string): boolean {
 }
 
 /**
+ * Which shape the *stored* pages are in — `null` when nothing is stored.
+ *
+ * `parameters.inputMode` is this tab's own marker, written the first time it
+ * saves. On its own it is not enough: a website set up before this tab existed
+ * — which is every website on this machine today — has no marker at all, and
+ * reading the marker alone said "nothing is saved" about a website whose
+ * listing page was sitting right above the sentence, labelled *saved*
+ * (found on Acne / Ikea by the look-only check, 2026-09-23).
+ *
+ * What the old flow did write is the `listingMode` column, and the rows are in
+ * `inputRows`; together they say the same thing the marker would have. This is
+ * the same fallback the tab already used to seed the segmented control, so the
+ * control and the gates below it now agree by construction instead of by
+ * coincidence.
+ */
+export function storedMode(args: {
+  inputMode: ExtractMode | null | undefined;
+  listingMode: 'listing_to_detail' | 'detail' | null;
+  savedCount: number;
+}): ExtractMode | null {
+  const { inputMode, listingMode, savedCount } = args;
+  if (inputMode) return inputMode;
+  if (listingMode === 'listing_to_detail') return 'listing';
+  // A `detail` website with no rows has chosen a shape but stored nothing, and
+  // there is no listing page standing in for the choice either.
+  if (listingMode === 'detail' && savedCount > 0) return 'detail';
+  return null;
+}
+
+/**
  * Are the pages on screen the pages that are actually stored?
  *
- * Saved, not merely typed: `savedMode` is the `inputMode` marker
- * `setListingPages`/`setProductUrls` write, so a website whose input set
- * predates this tab starts at step 1 with its rows already in the box rather
- * than claiming pages it never confirmed.
+ * Saved, not merely typed: `savedMode` is what `storedMode` answers, so a
+ * website with nothing stored starts at step 1 with an empty box rather than
+ * claiming pages it never confirmed.
  *
  * `savedMode === mode` is the second half, and it stops a real misfire:
  * flipping the segmented control to the other shape without saving left this
