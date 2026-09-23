@@ -87,13 +87,13 @@ export function StatusStrip({
     '';
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`rise rounded-[6px] border border-line border-l-2 bg-panel px-4 py-3 [box-shadow:var(--shadow)] ${rail}`}
-    >
+    <div className={`rise rounded-[6px] border border-line border-l-2 bg-panel px-4 py-3 [box-shadow:var(--shadow)] ${rail}`}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1">
+        {/* The live region is this column, not the strip: the summary and the
+            stage are what change as a verification runs, and a screen reader
+            announcing them should not read the three button labels and the
+            reason line out again with every update. */}
+        <div role="status" aria-live="polite" className="min-w-0 flex-1">
           <p className="truncate text-base font-medium" title={summary}>
             {summary}
           </p>

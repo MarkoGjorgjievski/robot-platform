@@ -100,4 +100,11 @@ describe('runsView', () => {
     const [v] = runsView([row({ id: 'r', resultCount: 1 })], NOW);
     expect(v!.rowsLabel).toBe('1 row');
   });
+
+  // Unseparated, the same way `websitesView` writes it: past a thousand the two
+  // tables showed the same run's rows as `1,240` here and `1240` there.
+  it('past a thousand, no separator — the project home writes it the same way', () => {
+    const [v] = runsView([row({ id: 'r', resultCount: 1240 })], NOW);
+    expect(v!.rowsLabel).toBe('1240 rows');
+  });
 });

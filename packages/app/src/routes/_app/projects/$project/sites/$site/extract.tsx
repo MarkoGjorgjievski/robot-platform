@@ -321,9 +321,13 @@ function ExtractTab() {
       await probeMutation.mutateAsync({ sourceId: source.id });
       // `sources.get` too: a probe's plan writes to the website's row, and the
       // header above reads it from the same cache this tab does.
+      // `projects.get` too: the project page's websites table has a last-run
+      // cell and a run dot per website, and a probe IS that website's newest
+      // run the moment it is created.
       await Promise.all([
         utils.runs.listBySource.invalidate({ sourceId: source.id }),
         utils.sources.get.invalidate({ projectSlug, sourceSlug: siteSlug }),
+        utils.projects.get.invalidate(),
       ]);
     } catch (err) {
       setError(message(err));

@@ -79,6 +79,7 @@ function SettingsTab() {
         open={deleting}
         onOpenChange={setDeleting}
         projectSlug={projectSlug}
+        sourceSlug={siteSlug}
         sourceId={source.id}
         name={source.name}
         confirmedAt={source.confirmedAt}

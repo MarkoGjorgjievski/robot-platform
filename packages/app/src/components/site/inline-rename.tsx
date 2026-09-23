@@ -106,10 +106,11 @@ export function InlineRename({
     // stops at the room the title row actually has and the input ellipsises.
     //
     // `max-w-[calc(100%+0.5rem)]`, not `max-w-full`: the `-ml-2` above pulls
-    // this box 8 px left so the name starts on the page's left edge, which
-    // means the room it actually has is the `h1`'s width PLUS that 8 px. Capped
-    // at `100%` it was 8 px short of its own content, the grid column was
-    // clamped to the smaller figure, and `text-ellipsis` then ate whole
+    // this box half a rem left so the name starts on the page's left edge,
+    // which means the room it actually has is the `h1`'s width PLUS that half
+    // rem — 6.5 px against this app's 13 px root, not the 8 px a 16 px root
+    // would give. Capped at `100%` it was that much short of its own content,
+    // the grid column was clamped to the smaller figure, and `text-ellipsis` ate whole
     // characters — "Example" rendered "Exam…" on a page with half a screen of
     // free space beside it. The cap still exists, so a long name truncates and
     // nothing widens the page.
