@@ -94,6 +94,17 @@ describe('website and run procedures are scoped to the session org', () => {
       const fresh = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Fresh shop', url: `${HOST}/f` });
       const freshGot = await a.caller.sources.get({ projectSlug: p.slug, sourceSlug: fresh.sourceSlug });
       expect(freshGot.budget).toBeNull();
+
+      // ...but a budget saved through `sources.update` — the Settings tab's
+      // budget row, which never touches the input set and so sets no
+      // `parameters.inputMode` — is a choice, and comes back even when it is
+      // exactly the old flow's automatic 40/3 starter. Without the
+      // `parameters.budgetChosen` marker this read `null`, the Settings row
+      // reset itself to all/all, and the next Extract wrote all over it.
+      const chosen = { max_items: 40, max_pages: 3, mode: 'first_n' as const };
+      await a.caller.sources.update({ id: fresh.sourceId, budget: chosen });
+      const chosenGot = await a.caller.sources.get({ projectSlug: p.slug, sourceSlug: fresh.sourceSlug });
+      expect(chosenGot.budget).toEqual(chosen);
     } finally {
       if (a) await dropIdentity(a);
       if (b) await dropIdentity(b);
