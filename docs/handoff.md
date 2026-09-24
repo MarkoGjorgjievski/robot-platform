@@ -34,6 +34,114 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## App redesign, plan 4: the organisation (2026-09-24)
+
+Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` §5, the
+organisation-wide screens, and §6 for the two new procedures. Plan and task
+briefs: `.superpowers/sdd/2026-09-24-app-redesign-plan4-org/` (one report per
+task). Branch `feat/app-redesign-org`, base `main` at `50bc08a`. The
+organisation now has four screens of its own in `@robot/app` — Runs, Usage,
+Settings, Account — reachable from the sidebar beside a project's own.
+
+**What landed, one line per task** (`git log --oneline 50bc08a..HEAD`; the
+second sha of a pair is that task's fix round):
+
+| Commit | What |
+|---|---|
+| `caa4158` | a run records what its model calls cost — `runs.cost_usd`, migration `0011_run_cost`, `addRunCost`/`costSince` in `packages/api/src/crawl/record-run-cost.ts`, wired into `plan-source.ts` and `start-execution.ts` (Task 1) |
+| `2583b14` | `runs.listByOrg`, `usage.byProject`, `auth.updateName`; `orgs.delete` now returns `{ ok, nextOrg }` after moving the caller's session to their personal org (Task 2) |
+| `576db38` | the organisation's Runs page (Task 3) |
+| `13a2ed2`, `11229ac` | the Usage page, then its fix — `usageScreenState` keeps loading/empty/error/table mutually exclusive (Task 4) |
+| `6389a33`, `3b519d5` | the Settings page, then its fix — `refusalMessage(e, fallback)` in `lib/org-settings-view.ts`; the name draft's `dirty` flag cleared only after `router.invalidate()` (Task 5) |
+| `f71e67e` | the Account page — `lib/apply-theme.ts` shared with the user menu; `ComingLater` deleted (Task 6) |
+| this task | the organisation screens' real assertions in the smoke, the look-only check against a real organisation, the screenshot set, these docs (Task 7) |
+
+**No implementer signed in as `markodjordjievski@gmail.com` or touched org
+`default`, org `mar`, or the projects Acne / Scratch / Competitor prices.**
+Every browser check in this plan — the smoke's throwaway `smoke-*@example.com`
+and the look-only check's throwaway `check-*@example.com` — created and
+changed only its own throwaway organisation and account. The look-only check
+is run against Marko's real organisation by the controller, after this task,
+the same way plan 3's Acne / Ikea pass was.
+
+**API changes.** `runs.listByOrg` (session-only — every run in the caller's
+organisation, newest first, joined back to its project and website) and
+`usage.byProject({ month })` (per-project spend and pages captured for a UTC
+month, spend being `source_verifications.cost_usd` plus the new
+`runs.cost_usd`, a quiet `$0.00` row for every project with nothing spent).
+`auth.updateName` for the account's own name. `orgs.delete` returns
+`{ ok, nextOrg }`, having already moved the caller's session to their
+personal org, so a customer who deletes the organisation they are looking at
+is never left pointed at a session with nowhere to go. `runs.cost_usd` is
+written in two places — planning and execution — as an increment
+(`addRunCost`), because a resumed run is paid for more than once and neither
+phase may clobber the other's figure.
+
+**Rulings this plan made, all deliberate:**
+
+- **The four screens' browser checks touched only throwaway organisations and
+  accounts.** Nothing in this task's own runs read or wrote Marko's real
+  data; the real-account pass is the controller's, after the fact.
+- **Usage's loading / empty / error / table exclusivity beat the plan's own
+  step code.** `usageScreenState` (Task 4) is stricter than what the plan
+  brief spelled out, and it is what shipped: one state on screen at a time,
+  never a confident `$0.00` next to an error banner.
+- **A failed mutation shows the API's own words only for its deliberate
+  refusals** — `FORBIDDEN`, `PRECONDITION_FAILED`, `NOT_FOUND` — and a generic
+  sentence for everything else, so an `INTERNAL_SERVER_ERROR` or a raw network
+  failure never reaches the customer as if it were an explained refusal.
+- **`MembersTable` keeps its `Member[]` cast.** `memberships.role` is a
+  `varchar`, not a pgEnum, so tRPC infers `string` for `orgs.members.list`
+  rather than the three-value `Role` union the API in fact only ever writes.
+  The durable fix is `$type<Role>()` on the column; a follow-up, not done
+  here.
+- **A run's cost is measured with the same process-global usage counter a
+  verification's cost is** (`snapshotUsage()` / `diffUsage()` in
+  `@robot/agent`), which carries the same limitation the verification figure
+  already has: two paid things in flight on the same process at once would
+  blur into each other's totals. Acceptable for now — nothing in this
+  codebase runs two paid things concurrently on purpose — but not a design
+  that scales past one worker.
+
+**Still shim-only or unscoped, unchanged from plan 3's list:**
+`sources.getBySlug / listByDataset / create`; `datasets.listByProject /
+getBySlug / create / updateSchema`; all of `domains.*`; all of `scraper.*`.
+`sources.findProductPages` and `sources.checkListingPage` are addressed by a
+URL and name no website, so there is nothing to scope; `sources.proofPageCapture`
+and `sources.suggestMarks` are addressed by a `captureId` and need a capture →
+source → org hop, still ledgered to plan 5 with the mark screen; `crawl.plan`'s
+`probe: true` branch is org-scoped but deliberately not certification-gated.
+
+**Deferred minors worth doing cheaply, not done here:** an unused
+`memberships` import in `org-screens.test.ts`; `bySource` in `usage.ts` is
+misnamed — it is really `inOrgAndMonth`; `runs.tsx` still renders stale rows
+beside its error banner on a failed refetch (Usage got the exclusive-state
+helper in this plan, Runs did not — align it); `usage-total`'s secondary line
+has no loading skeleton; `usage-view.test.ts` lacks the `isError && rowCount >
+0` case; **a run's cost is recorded (`runs.cost_usd`) but not yet shown on the
+run page** — the run facts panel could carry it, a one-line follow-up.
+
+**The screenshot set** (`docs/testing/screens/`, 1440×900, full page):
+`app-{runs,usage,settings,account}-{dark,light}.png` from the smoke run — a
+throwaway personal organisation with one project, no run, no spend, one
+member (the throwaway itself) — and `app-org-{runs,usage,settings,account}-
+{dark,light}.png` from the look-only check, run against Marko's real
+organisation by the controller after this task, which is the set worth
+reviewing.
+
+**How to run.** `pnpm test:ui:app` now also asserts the four organisation
+screens and round-trips a rename on `/account` and `/settings` (needs
+`pnpm dev:all`). The look-only check is
+`cp docs/testing/ui-check-app-org.mts packages/browser/src/__ui-check.mts && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address>`
+— run it only against a throwaway address unless you are the controller
+checking Marko's own organisation.
+
+**Open decision for the design review:** a members table with no way to add a
+member — an "add an existing user by email" row is ~20 lines when wanted;
+invitations by email remain outside the design (spec §9).
+
+**Next.** Plan 5: the stepper's steps 2–3. Then plan 6: cut-over.
+
 ## App redesign, plan 3: the website (2026-09-22)
 
 Spec: `docs/superpowers/specs/2026-09-21-app-redesign-design.md` §5 rows 6 to 9.

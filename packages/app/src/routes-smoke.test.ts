@@ -178,6 +178,47 @@ const SITE_SCREENS = [
   },
 ] as const;
 
+/**
+ * Plan 4's four organisation screens, each with the one thing that proves it
+ * is the real screen: the runs empty state (nothing has run, and running
+ * costs money), the Usage total at $0.00 with the throwaway's project in the
+ * table, the personal organisation's name in the Settings field with the
+ * delete refused for the right reason, and the account's own email.
+ */
+const ORG_SCREENS = [
+  {
+    route: '/runs',
+    assert: async () => {
+      expect(await page.locator('main').innerText(), '/runs is not in its empty state').toContain('No runs yet');
+    },
+  },
+  {
+    route: '/usage',
+    assert: async () => {
+      expect(await page.getByTestId('usage-total').innerText(), 'the Usage total is not $0.00').toBe('$0.00');
+      expect(await page.locator('tbody tr').filter({ hasText: PROJECT_NAME }).count(), 'Usage has no row for this run’s project').toBe(1);
+    },
+  },
+  {
+    route: '/settings',
+    assert: async () => {
+      expect(await page.getByLabel('Name').inputValue(), 'the organisation name field is not prefilled').not.toBe('');
+      expect(await page.locator('tbody tr').count(), 'the members table should hold exactly the throwaway').toBe(1);
+      expect(await page.locator('tbody').innerText()).toContain('you');
+      const del = page.getByRole('button', { name: 'Delete organisation' });
+      expect(await del.isDisabled(), 'Delete organisation is live on a personal organisation').toBe(true);
+      expect(await page.locator('main').innerText()).toContain('Your personal organisation cannot be deleted');
+    },
+  },
+  {
+    route: '/account',
+    assert: async () => {
+      expect(await page.locator('main').innerText(), '/account does not show the signed-in email').toContain(EMAIL);
+      expect(await page.getByRole('radio', { name: /Dark/ }).count()).toBe(1);
+    },
+  },
+] as const;
+
 const THEMES = ['dark', 'light'] as const;
 type Theme = (typeof THEMES)[number];
 
@@ -210,6 +251,8 @@ const shoot = async (p: Page, file: string) => {
 const screenSlug = (route: string) => route.replace(/^\//, '').replaceAll('/', '-');
 
 const EMAIL = `smoke-${Date.now()}@example.com`;
+/** The project this run creates through the dialog — also `ORG_SCREENS`' proof row on `/usage`. */
+const PROJECT_NAME = `Smoke ${Date.now()}`;
 
 let browser: Browser;
 let context: BrowserContext;
@@ -349,6 +392,33 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ENABLED)('app shell', () => {
+  it('a project created through the dialog appears in the table', async () => {
+    problems.length = 0;
+    await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+
+    // From the empty state or from the header — whichever "New project" is on
+    // screen; the page deliberately never shows both.
+    await page.getByRole('button', { name: 'New project' }).first().click();
+    await page.getByLabel('Name').fill(PROJECT_NAME);
+    await page.getByRole('button', { name: 'Create project' }).click();
+
+    await page.getByRole('cell', { name: PROJECT_NAME, exact: true }).waitFor({ timeout: 20_000 });
+    expect(problems, `creating a project logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+
+    // The id for the cleanup and the slug for the screens below, read back
+    // through the same session that made it.
+    const rows = await apiAs(await sessionCookie(context)).projects.list.query();
+    const row = rows.find((r) => r.name === PROJECT_NAME);
+    projectId = row?.id ?? null;
+    projectSlug = row?.slug ?? null;
+    expect(projectId, 'the new project is not in projects.list').not.toBeNull();
+    expect(projectSlug, 'the new project has no slug').not.toBeNull();
+  }, 120_000);
+
+  // Below here, `ORG_SCREENS`' `/usage` assertion needs `PROJECT_NAME` in
+  // `projects.list` — hence this loop runs after the project above is made,
+  // not before it.
   for (const theme of THEMES) {
     it(`every screen renders in the ${theme} theme`, async () => {
       await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
@@ -371,35 +441,13 @@ describe.skipIf(!ENABLED)('app shell', () => {
         expect(body.length, `${route} rendered an empty page`).toBeGreaterThan(20);
         expect(problems, `${route} logged errors in ${theme}:\n  ${problems.join('\n  ')}`).toEqual([]);
 
+        const screen = ORG_SCREENS.find((s) => s.route === route);
+        if (screen) await screen.assert();
+
         await shoot(page, `app-${screenSlug(route)}-${theme}.png`);
       }
     }, 180_000);
   }
-
-  it('a project created through the dialog appears in the table', async () => {
-    const name = `Smoke ${Date.now()}`;
-    problems.length = 0;
-    await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
-    await waitForHydration(page, 'main');
-
-    // From the empty state or from the header — whichever "New project" is on
-    // screen; the page deliberately never shows both.
-    await page.getByRole('button', { name: 'New project' }).first().click();
-    await page.getByLabel('Name').fill(name);
-    await page.getByRole('button', { name: 'Create project' }).click();
-
-    await page.getByRole('cell', { name, exact: true }).waitFor({ timeout: 20_000 });
-    expect(problems, `creating a project logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
-
-    // The id for the cleanup and the slug for the screens below, read back
-    // through the same session that made it.
-    const rows = await apiAs(await sessionCookie(context)).projects.list.query();
-    const row = rows.find((r) => r.name === name);
-    projectId = row?.id ?? null;
-    projectSlug = row?.slug ?? null;
-    expect(projectId, 'the new project is not in projects.list').not.toBeNull();
-    expect(projectSlug, 'the new project has no slug').not.toBeNull();
-  }, 120_000);
 
   it('a website added through the dialog appears on the project home', async () => {
     expect(projectSlug, 'there is no project to add a website to').not.toBeNull();
@@ -612,6 +660,28 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.locator('h1 input').inputValue(), { timeout: 20_000 }).toBe(WEBSITE_NAME);
     expect(problems, `renaming logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 120_000);
+
+  it('renaming the account reaches the server and the sidebar', async () => {
+    await page.goto(`${APP}/account`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'aside');
+    const name = `Smoke ${Date.now()}`;
+    await page.getByLabel('Name').fill(name);
+    await page.getByRole('button', { name: 'Save name' }).click();
+    await expect.poll(() => page.locator('aside').innerText(), { timeout: 10_000 }).toContain(name);
+    const cookie = await sessionCookie(context);
+    expect((await apiAs(cookie!).auth.me.query()).user.name).toBe(name);
+  });
+
+  it('renaming the organisation reaches the server and the breadcrumb', async () => {
+    await page.goto(`${APP}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'aside');
+    const name = `Smoke org ${Date.now()}`;
+    await page.getByLabel('Name').fill(name);
+    await page.getByRole('button', { name: 'Save name' }).click();
+    await expect.poll(() => page.locator('header nav').innerText(), { timeout: 10_000 }).toContain(name);
+    const cookie = await sessionCookie(context);
+    expect((await apiAs(cookie!).auth.me.query()).currentOrg.name).toBe(name);
+  });
 
   it('signing out closes the door: /projects goes back to /login', async () => {
     // Its own context, so the cookie this run cleans up with stays alive:
