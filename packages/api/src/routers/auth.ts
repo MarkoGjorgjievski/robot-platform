@@ -83,4 +83,11 @@ export const authRouter = router({
       await ctx.db.update(users).set({ theme: input.theme, updatedAt: new Date() }).where(eq(users.id, ctx.session.user.id));
       return { theme: input.theme };
     }),
+
+  updateName: protectedProcedure
+    .input(z.object({ name: z.string().trim().min(1).max(255) }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db.update(users).set({ name: input.name, updatedAt: new Date() }).where(eq(users.id, ctx.session.user.id));
+      return { name: input.name };
+    }),
 });

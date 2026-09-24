@@ -60,8 +60,8 @@ describe('orgs', () => {
       expect(await db.query.orgs.findFirst({ where: eq(orgs.id, team.id) })).toBeUndefined();
       expect(await db.query.projects.findFirst({ where: eq(projects.id, project.id) })).toBeUndefined();
 
-      // Deleting the team org cascaded A's session (it pointed at the team),
-      // so A signs in again to land back on their personal org.
+      // Deleting the team org moved A's session to their personal org first
+      // (orgs.ts); signing in again just proves a fresh session lands there too.
       const again = callerWith();
       await again.caller.auth.signIn({ email: a.user.email, password: 'x' });
       const aPersonal = (await loadSession(db, again.cookies['robot_session']!))!;

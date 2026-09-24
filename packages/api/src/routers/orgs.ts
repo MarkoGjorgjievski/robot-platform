@@ -31,10 +31,22 @@ export const orgsRouter = router({
   delete: protectedProcedure.mutation(async ({ ctx }) => {
     requireRole(ctx.session, ['owner']);
     if (ctx.session.org.personal) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'A personal organisation cannot be deleted' });
-    // Projects, datasets, websites and runs cascade from the org row (schema.ts); the session row cascades too,
-    // so the caller is signed out of this org and the app sends them to another one they belong to.
-    await ctx.db.delete(orgs).where(eq(orgs.id, ctx.session.org.id));
-    return { ok: true as const };
+    // The caller's session would cascade away with the org row and sign them
+    // out — of everything, for deleting one team. Their personal organisation
+    // always exists (signIn creates it and nothing deletes it), so the session
+    // moves there first; the other members' sessions on this org do cascade,
+    // and the app sends them to /login, which is the honest outcome for them.
+    const personal = await ctx.db.query.orgs.findFirst({
+      where: and(eq(orgs.ownerUserId, ctx.session.user.id), eq(orgs.personal, true)),
+      columns: { id: true, slug: true, name: true },
+    });
+    if (!personal) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'This account has no personal organisation' });
+    await ctx.db.transaction(async (tx) => {
+      await tx.update(sessions).set({ orgId: personal.id }).where(eq(sessions.token, ctx.session.token));
+      // Projects, datasets, websites and runs cascade from the org row (schema.ts).
+      await tx.delete(orgs).where(eq(orgs.id, ctx.session.org.id));
+    });
+    return { ok: true as const, nextOrg: personal };
   }),
 
   members: router({
