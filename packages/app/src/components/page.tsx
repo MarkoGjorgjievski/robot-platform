@@ -39,15 +39,3 @@ export function Page({
     </main>
   );
 }
-
-/**
- * A screen that exists so the nav is real, and says so rather than pretending.
- *
- * Without a title it is the body alone: a tab inside a layout that already owns
- * the page's title row and tab strip would otherwise open a second `Page`, and
- * with it a second `main` landmark inside the first.
- */
-export function ComingLater({ title }: { title?: string }) {
-  const body = <p className="rise text-base text-muted-foreground">Coming in a later plan.</p>;
-  return title ? <Page title={title}>{body}</Page> : body;
-}

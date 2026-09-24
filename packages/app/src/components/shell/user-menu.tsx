@@ -2,7 +2,8 @@ import { useRouter, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { MoreHorizontal, SunMoon, UserRound, LogOut } from 'lucide-react';
 import type { Session } from '../../lib/session';
-import { resolveTheme, type Theme } from '../../lib/theme';
+import type { Theme } from '../../lib/theme';
+import { applyThemeNow } from '../../lib/apply-theme';
 import { trpc } from '../../lib/trpc';
 import { AvatarSquare } from './avatar';
 import {
@@ -35,11 +36,7 @@ export function UserMenu({ session }: { session: Session }) {
   const signOut = trpc.auth.signOut.useMutation();
 
   function chooseTheme(theme: Theme) {
-    // The attribute flips first: the preference is a round-trip to :4000 and a
-    // theme switch that waits for the network reads as a broken click.
-    const prefersDark =
-      typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.dataset.theme = resolveTheme(theme, prefersDark);
+    applyThemeNow(theme);
     setTheme.mutate({ theme });
   }
 
