@@ -45,7 +45,7 @@ function SettingsPage() {
         open={deleting}
         onOpenChange={setDeleting}
         orgName={org.name}
-        projectCount={projects.data?.length ?? 0}
+        projectCount={projects.isSuccess ? projects.data.length : null}
       />
     </Page>
   );
