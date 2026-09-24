@@ -33,6 +33,7 @@ function UsagePage() {
       <div className="space-y-4">
         {state !== 'error' ? (
           <UsageTotal
+            month={month}
             spendUsd={usage.data?.total.spendUsd ?? 0}
             pagesCaptured={usage.data?.total.pagesCaptured ?? 0}
             loading={state === 'loading'}

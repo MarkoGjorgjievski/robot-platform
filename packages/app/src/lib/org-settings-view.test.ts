@@ -45,6 +45,10 @@ describe('roles on the Settings page (spec §2)', () => {
     expect(deleteSummary(1)).toBe('Its 1 project, with every website, run and row in it, is deleted. Its members lose access.');
     expect(deleteSummary(3)).toBe('Its 3 projects, with every website, run and row in them, are deleted. Its members lose access.');
   });
+
+  it('says every project, unqualified, while the count is not known yet', () => {
+    expect(deleteSummary(null)).toBe('Every project in it, with every website, run and row, is deleted. Its members lose access.');
+  });
 });
 
 describe('refusalMessage', () => {

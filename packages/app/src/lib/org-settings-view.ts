@@ -46,7 +46,8 @@ export function deleteNote({ role, personal }: { role: Role; personal: boolean }
   return null;
 }
 
-export function deleteSummary(projectCount: number): string {
+export function deleteSummary(projectCount: number | null): string {
+  if (projectCount === null) return 'Every project in it, with every website, run and row, is deleted. Its members lose access.';
   if (projectCount === 0) return 'It has no projects. Its members lose access.';
   if (projectCount === 1) return 'Its 1 project, with every website, run and row in it, is deleted. Its members lose access.';
   return `Its ${projectCount} projects, with every website, run and row in them, are deleted. Its members lose access.`;

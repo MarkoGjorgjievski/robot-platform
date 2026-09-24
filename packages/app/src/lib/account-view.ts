@@ -4,7 +4,7 @@ import type { Theme } from './theme';
 export function nameProblem(name: string): string | null {
   const trimmed = name.trim();
   if (trimmed === '') return 'Enter a name';
-  if (trimmed.length > 255) return 'Keep it under 255 characters';
+  if (trimmed.length > 255) return 'Keep it to 255 characters or fewer';
   return null;
 }
 

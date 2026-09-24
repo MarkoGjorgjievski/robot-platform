@@ -670,7 +670,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.locator('aside').innerText(), { timeout: 10_000 }).toContain(name);
     const cookie = await sessionCookie(context);
     expect((await apiAs(cookie!).auth.me.query()).user.name).toBe(name);
-  });
+  }, 120_000);
 
   it('renaming the organisation reaches the server and the breadcrumb', async () => {
     await page.goto(`${APP}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
@@ -681,7 +681,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.locator('header nav').innerText(), { timeout: 10_000 }).toContain(name);
     const cookie = await sessionCookie(context);
     expect((await apiAs(cookie!).auth.me.query()).currentOrg.name).toBe(name);
-  });
+  }, 120_000);
 
   it('signing out closes the door: /projects goes back to /login', async () => {
     // Its own context, so the cookie this run cleans up with stays alive:

@@ -8,7 +8,7 @@ describe('nameProblem', () => {
     expect(nameProblem('')).toBe('Enter a name');
     expect(nameProblem('   ')).toBe('Enter a name');
     expect(nameProblem('a'.repeat(255))).toBeNull();
-    expect(nameProblem('a'.repeat(256))).toBe('Keep it under 255 characters');
+    expect(nameProblem('a'.repeat(256))).toBe('Keep it to 255 characters or fewer');
   });
 });
 

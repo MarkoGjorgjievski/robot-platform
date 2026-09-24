@@ -24,7 +24,7 @@ export function DeleteOrgDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orgName: string;
-  projectCount: number;
+  projectCount: number | null;
 }) {
   const router = useRouter();
   const navigate = useNavigate();
@@ -39,8 +39,8 @@ export function DeleteOrgDialog({
     try {
       await remove.mutateAsync();
       onOpenChange(false);
-      // Everything cached belongs to the organisation that no longer exists.
-      queryClient.clear();
+      // Reset, not `clear()`: a mounted observer would otherwise keep holding its last result with nothing to trigger a refetch (org-switcher.tsx's `afterOrgChange` comment).
+      void queryClient.resetQueries();
       await router.invalidate();
       await navigate({ to: '/projects' });
     } catch (e) {
