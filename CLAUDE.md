@@ -18,7 +18,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 | `@robot/browser` | Page capture, popup dismissal, network interception | Playwright |
 | `@robot/agent` | LLM orchestration — schema discovery, selectors, validation | Anthropic Claude, Ollama |
 | `@robot/scraper` | Pipeline, XPath executor, structured data extraction | Multi-source extraction chain |
-| `@robot/app` | The customer app being rebuilt (spec `2026-09-21-app-redesign-design.md`) — login, org switcher, projects, and a project's websites, Fields and Output; :3000 | TanStack Start + Router/Query (SSR), Tailwind v4, shadcn/ui |
+| `@robot/app` | The customer app being rebuilt (spec `2026-09-21-app-redesign-design.md`) — login, org switcher, projects, and a project's websites, Fields and Output, a website's Schema / Extract / Runs / Settings, and the organisation's Runs, Usage, Settings and Account; :3000 | TanStack Start + Router/Query (SSR), Tailwind v4, shadcn/ui |
 | `@robot/dashboard` | The **old** web UI — extraction wizard, results browser; kept running until `@robot/app` reaches parity, then deleted | Vite + TanStack Router/Query SPA, Tailwind v4, Radix UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
 | `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |

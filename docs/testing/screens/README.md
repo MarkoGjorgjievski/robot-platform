@@ -51,10 +51,10 @@ screenshot provokes, and the picture is a blank page.
 |---|---|
 | `app-login.png` | `/login` signed out — the 360 px form, dark |
 | `app-projects-dark.png` / `-light.png` | `/projects` — the projects table, run dot, "New project" |
-| `app-runs-dark.png` / `-light.png` | `/runs` — the org-wide runs screen (placeholder until plan 4) |
-| `app-usage-dark.png` / `-light.png` | `/usage` — placeholder until plan 4 |
-| `app-settings-dark.png` / `-light.png` | `/settings` — org settings, placeholder until plan 4 |
-| `app-account-dark.png` / `-light.png` | `/account` — account settings, placeholder until plan 4 |
+| `app-runs-dark.png` / `-light.png` | `/runs` — the org-wide runs screen, empty (nothing has run) |
+| `app-usage-dark.png` / `-light.png` | `/usage` — the org's spend this month at $0.00, one row for the throwaway's project |
+| `app-settings-dark.png` / `-light.png` | `/settings` — the personal organisation's name, its one member marked "you", Delete organisation refused |
+| `app-account-dark.png` / `-light.png` | `/account` — the signed-in throwaway's name and email, the checked theme |
 | `app-project-home-dark.png` / `-light.png` | a new project's home — one website, not verified, no run |
 | `app-project-fields-dark.png` / `-light.png` | Fields on a new project — one field beside the catalogue |
 | `app-project-output-dark.png` / `-light.png` | Output on a project with no run — the empty state, downloads off |
@@ -145,6 +145,38 @@ How to run it:
 
 ```
 cp docs/testing/ui-check-app-site.mts packages/browser/src/__ui-check.mts \
+  && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address> ; rm src/__ui-check.mts
+```
+
+### The organisation screens on real data — `app-org-*.png`
+
+`docs/testing/ui-check-app-org.mts` is plan 4's look-only check: given `--email <address>` it
+signs in as that account and walks its own organisation's `/runs`, `/usage`, `/settings` and
+`/account`, read-only — it clicks no Save, Remove or Delete organisation, and opens no dialog.
+As with the site check, that claim is enforced rather than promised: every tRPC request is
+watched against a seven-name allow-list (`auth.me`, `auth.signIn`, `auth.setTheme`,
+`projects.list`, `runs.listByOrg`, `usage.byProject`, `orgs.members.list`), and anything else —
+in particular `orgs.rename`, `orgs.delete`, `orgs.members.setRole`, `orgs.members.remove` or
+`auth.updateName` — fails the run.
+
+Unlike the site check there is no fixed `EXPECTED` object: an organisation's members, spend and
+runs are whichever account is given, not a designed-for state, so every screen is compared
+against what the API itself returns (`auth.me`, `orgs.members.list`, `runs.listByOrg`,
+`usage.byProject`) rather than against numbers written into the script. `/runs` is the one
+branch that matters: an organisation with nothing ever run says SKIP rather than passing a test
+that proves nothing, the same shape as the Runs branch of `ui-check-app-site.mts`.
+
+| File | Shows |
+|---|---|
+| `app-org-runs-dark.png` / `-light.png` | `/runs` on a real account |
+| `app-org-usage-dark.png` / `-light.png` | `/usage` on a real account — real spend, real projects |
+| `app-org-settings-dark.png` / `-light.png` | `/settings` — the real organisation's name and members |
+| `app-org-account-dark.png` / `-light.png` | `/account` — the real account's name, email and theme |
+
+How to run it:
+
+```
+cp docs/testing/ui-check-app-org.mts packages/browser/src/__ui-check.mts \
   && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address> ; rm src/__ui-check.mts
 ```
 
