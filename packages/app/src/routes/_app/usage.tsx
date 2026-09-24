@@ -4,7 +4,7 @@ import { Page } from '../../components/page';
 import { MonthStepper } from '../../components/usage/month-stepper';
 import { UsageTable } from '../../components/usage/usage-table';
 import { UsageTotal } from '../../components/usage/usage-total';
-import { monthKey, shiftMonth, usageView } from '../../lib/usage-view';
+import { monthKey, shiftMonth, usageScreenState, usageView } from '../../lib/usage-view';
 import { trpc } from '../../lib/trpc';
 import { useUnauthorizedRedirect } from '../../lib/use-unauthorized-redirect';
 
@@ -19,7 +19,11 @@ function UsagePage() {
   const rows = usageView(usage.data?.projects ?? []);
   const unauthorized = useUnauthorizedRedirect(usage);
 
-  const empty = !usage.isPending && !usage.isError && rows.length === 0;
+  // One of the three states at a time (Global Constraints): a failed query
+  // gets the error line and nothing else — no confident $0.00, no
+  // header-only table sitting above "Usage could not be loaded."
+  const state = usageScreenState({ isPending: usage.isPending, isError: usage.isError, rowCount: rows.length });
+  const showTable = state === 'loading' || state === 'table';
 
   return (
     <Page
@@ -27,13 +31,15 @@ function UsagePage() {
       actions={<MonthStepper month={month} isCurrent={month === current} onChange={(d) => setMonth((m) => shiftMonth(m, d))} />}
     >
       <div className="space-y-4">
-        <UsageTotal
-          spendUsd={usage.data?.total.spendUsd ?? 0}
-          pagesCaptured={usage.data?.total.pagesCaptured ?? 0}
-          loading={usage.isPending}
-        />
+        {state !== 'error' ? (
+          <UsageTotal
+            spendUsd={usage.data?.total.spendUsd ?? 0}
+            pagesCaptured={usage.data?.total.pagesCaptured ?? 0}
+            loading={state === 'loading'}
+          />
+        ) : null}
 
-        {empty ? (
+        {state === 'empty' ? (
           <div className="rise rounded-[6px] border border-line bg-panel px-4 py-10 text-center [box-shadow:var(--shadow)]">
             <p className="text-base text-muted-foreground">
               No projects yet —{' '}
@@ -43,11 +49,11 @@ function UsagePage() {
               and its spend will show here.
             </p>
           </div>
-        ) : (
-          <UsageTable rows={rows} loading={usage.isPending} />
-        )}
+        ) : null}
 
-        {usage.isError && !unauthorized ? (
+        {showTable ? <UsageTable rows={rows} loading={state === 'loading'} /> : null}
+
+        {state === 'error' && !unauthorized ? (
           <p role="alert" className="rise text-base text-fail">
             Usage could not be loaded. Try again.
           </p>
