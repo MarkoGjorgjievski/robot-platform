@@ -6,7 +6,7 @@
 // launching a browser.
 
 import { eq } from 'drizzle-orm';
-import { SchemaAgent } from '@robot/agent';
+import { SchemaAgent, snapshotUsage } from '@robot/agent';
 import { type OriginField, type SchemaDefinitionField } from '@robot/scraper';
 import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
@@ -21,6 +21,7 @@ import { executeRun, type ExecuteDeps } from './execute-run.js';
 import { extractItem } from './extract-item.js';
 import { flagDrift } from './drift.js';
 import { safeErrorMessage } from './plan-source.js';
+import { addRunCost, costSince } from './record-run-cost.js';
 
 /**
  * The one decision `startExecution` wires into `executeRun`'s `onDone`:
@@ -133,6 +134,9 @@ export async function startExecution(
   limit?: number,
   opts?: { mergeToParent?: boolean },
 ): Promise<void> {
+  // Snapshotted outside the try: the cost of a run that failed part-way is
+  // still money the customer spent, and Usage must show it.
+  const before = snapshotUsage();
   try {
     // `withBrowserSession` owns launch-and-always-close, including the case
     // where `launch()` itself throws part-way. The hand-rolled
@@ -182,6 +186,15 @@ export async function startExecution(
       // stuck at 'extracting', which is the honest state, and a restart or a
       // fixed DB lets a re-issued execute resume it.
       console.error(`[crawl] failed to record failure status for run ${runId}:`, recoveryErr);
+    }
+  } finally {
+    try {
+      await addRunCost(db, runId, costSince(before));
+    } catch (costErr) {
+      // A cost that could not be written is a gap in Usage, not a broken run;
+      // and this must not become the unhandled rejection the comment above
+      // this function exists to prevent.
+      console.error(`[crawl] failed to record cost for run ${runId}:`, costErr);
     }
   }
 }

@@ -7,13 +7,14 @@
 
 import { TRPCError } from '@trpc/server';
 import { eq, sql } from 'drizzle-orm';
-import { SchemaAgent } from '@robot/agent';
+import { SchemaAgent, snapshotUsage } from '@robot/agent';
 import { planRun, type PlannedItem, type PlanInputReport } from '@robot/scraper';
 import { runs, runItems, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { PROBE_BUDGET } from './probe.js';
 import { effectiveSchema } from './effective-schema.js';
+import { addRunCost, costSince } from './record-run-cost.js';
 
 /** Warnings + errors as one free-text block, or null when planning was clean. */
 export function formatPlanLog(
@@ -101,6 +102,7 @@ export async function planSource(
     // where a URL template or source name is not.
     inputLabel: probe ? 'probe' : (source.urlTemplate ?? source.name).slice(0, 200),
   }).returning({ id: runs.id });
+  const before = snapshotUsage();
 
   // From here on, the run row exists: every exit path (including a launch
   // failure) must land it in a terminal status, and the browser — whether
@@ -218,5 +220,13 @@ export async function planSource(
       .set({ status: 'failed', errorMessage: safeErrorMessage(err), completedAt: new Date() })
       .where(eq(runs.id, run!.id));
     throw err;
+  } finally {
+    // The planning walk's own model calls (pagination detection, the
+    // catalogue judge) are this run's money too; execution adds its own later.
+    try {
+      await addRunCost(db, run!.id, costSince(before));
+    } catch (costErr) {
+      console.error(`[crawl] failed to record planning cost for run ${run!.id}:`, costErr);
+    }
   }
 }
