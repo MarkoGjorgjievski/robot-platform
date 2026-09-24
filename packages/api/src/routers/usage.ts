@@ -16,6 +16,9 @@ export function monthBounds(month: string): { start: Date; end: Date } {
  * the verification's start) plus `runs.cost_usd` (by the run's creation);
  * pages are `captures` rows (by creation). Every project in the org is listed,
  * a quiet one at zero — the table is the org's projects, not its receipts.
+ * A run with no website (`source_id = null`) and a sandbox source with no
+ * dataset contribute nothing here, the same rule `runs.listByOrg` documents
+ * for itself.
  */
 export const usageRouter = router({
   byProject: protectedProcedure
@@ -30,7 +33,7 @@ export const usageRouter = router({
       const list = await ctx.db.select({ id: projects.id, name: projects.name, slug: projects.slug })
         .from(projects).where(eq(projects.orgId, orgId));
 
-      const bySource = (extra: ReturnType<typeof and>) => and(eq(projects.orgId, orgId), extra);
+      const inOrgAndMonth = (extra: ReturnType<typeof and>) => and(eq(projects.orgId, orgId), extra);
 
       const verificationSpend = await ctx.db
         .select({ projectId: projects.id, usd: sql<string>`coalesce(sum(${sourceVerifications.costUsd}), 0)` })
@@ -38,7 +41,7 @@ export const usageRouter = router({
         .innerJoin(sources, eq(sourceVerifications.sourceId, sources.id))
         .innerJoin(datasets, eq(sources.datasetId, datasets.id))
         .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .where(bySource(inMonth(sourceVerifications.startedAt)))
+        .where(inOrgAndMonth(inMonth(sourceVerifications.startedAt)))
         .groupBy(projects.id);
 
       const runSpend = await ctx.db
@@ -47,7 +50,7 @@ export const usageRouter = router({
         .innerJoin(sources, eq(runs.sourceId, sources.id))
         .innerJoin(datasets, eq(sources.datasetId, datasets.id))
         .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .where(bySource(inMonth(runs.createdAt)))
+        .where(inOrgAndMonth(inMonth(runs.createdAt)))
         .groupBy(projects.id);
 
       const pages = await ctx.db
@@ -56,7 +59,7 @@ export const usageRouter = router({
         .innerJoin(sources, eq(captures.sourceId, sources.id))
         .innerJoin(datasets, eq(sources.datasetId, datasets.id))
         .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .where(bySource(inMonth(captures.createdAt)))
+        .where(inOrgAndMonth(inMonth(captures.createdAt)))
         .groupBy(projects.id);
 
       const spend = new Map<string, number>();

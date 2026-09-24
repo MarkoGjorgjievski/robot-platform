@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { memberships, orgs, sessions, users, MEMBERSHIP_ROLES } from '@robot/db';
 import { router, protectedProcedure, requireRole } from '../trpc.js';
@@ -38,6 +38,8 @@ export const orgsRouter = router({
     // and the app sends them to /login, which is the honest outcome for them.
     const personal = await ctx.db.query.orgs.findFirst({
       where: and(eq(orgs.ownerUserId, ctx.session.user.id), eq(orgs.personal, true)),
+      // A user can own two personal orgs (adopt-default.ts leaves an existing one alone) — the oldest wins.
+      orderBy: [asc(orgs.createdAt)],
       columns: { id: true, slug: true, name: true },
     });
     if (!personal) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'This account has no personal organisation' });
