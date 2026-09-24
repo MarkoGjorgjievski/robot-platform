@@ -41,3 +41,25 @@ export type UsageRowView = UsageRow & { spendLabel: string; pagesLabel: string }
 export function usageView(rows: readonly UsageRow[]): UsageRowView[] {
   return rows.map((r) => ({ ...r, spendLabel: usdLabel(r.spendUsd), pagesLabel: pagesLabel(r.pagesCaptured) }));
 }
+
+export type UsageScreenState = 'loading' | 'empty' | 'error' | 'table';
+
+/**
+ * One state at a time (Global Constraints: loading / empty / error are
+ * mutually exclusive). Error wins over pending — a query's `status` is one
+ * of `pending` | `error` | `success`, never two — so this is really "which
+ * of the three terminal cases, else loading", not a priority fight.
+ */
+export function usageScreenState({
+  isPending,
+  isError,
+  rowCount,
+}: {
+  isPending: boolean;
+  isError: boolean;
+  rowCount: number;
+}): UsageScreenState {
+  if (isError) return 'error';
+  if (isPending) return 'loading';
+  return rowCount === 0 ? 'empty' : 'table';
+}

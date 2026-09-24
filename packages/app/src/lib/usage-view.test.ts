@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { monthKey, shiftMonth, monthLabel, usdLabel, pagesLabel, usageView } from './usage-view';
+import { monthKey, shiftMonth, monthLabel, usdLabel, pagesLabel, usageView, usageScreenState } from './usage-view';
 
 describe('months', () => {
   it('keys a date by its UTC month', () => {
@@ -43,5 +43,22 @@ describe('usageView', () => {
       { id: 'b', name: 'Quiet', slug: 'quiet', spendUsd: 0, pagesCaptured: 0 },
     ]);
     expect(rows.map((r) => [r.name, r.spendLabel, r.pagesLabel])).toEqual([['Busy', '$0.05', '2 pages'], ['Quiet', '$0.00', '0 pages']]);
+  });
+});
+
+describe('usageScreenState', () => {
+  it('is loading while the query is pending, whatever the row count', () => {
+    expect(usageScreenState({ isPending: true, isError: false, rowCount: 0 })).toBe('loading');
+    expect(usageScreenState({ isPending: true, isError: false, rowCount: 3 })).toBe('loading');
+  });
+  it('is error on a failed query, even one that still carries a pending flag', () => {
+    expect(usageScreenState({ isPending: false, isError: true, rowCount: 0 })).toBe('error');
+    expect(usageScreenState({ isPending: true, isError: true, rowCount: 0 })).toBe('error');
+  });
+  it('is empty once settled with no rows', () => {
+    expect(usageScreenState({ isPending: false, isError: false, rowCount: 0 })).toBe('empty');
+  });
+  it('is table once settled with rows', () => {
+    expect(usageScreenState({ isPending: false, isError: false, rowCount: 1 })).toBe('table');
   });
 });
