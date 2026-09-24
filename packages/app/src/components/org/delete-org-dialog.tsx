@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { deleteSummary } from '../../lib/org-settings-view';
+import { deleteSummary, refusalMessage } from '../../lib/org-settings-view';
 import { trpc } from '../../lib/trpc';
 
 /**
@@ -44,8 +44,7 @@ export function DeleteOrgDialog({
       await router.invalidate();
       await navigate({ to: '/projects' });
     } catch (e) {
-      const err = e as { message?: string };
-      setError(err.message ?? 'The organisation could not be deleted. Try again.');
+      setError(refusalMessage(e, 'The organisation could not be deleted. Try again.'));
     }
   }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { roleLabel, renameNote, roleOptions, roleNote, removeNote, deleteNote, deleteSummary } from './org-settings-view';
+import { roleLabel, renameNote, roleOptions, roleNote, removeNote, deleteNote, deleteSummary, refusalMessage } from './org-settings-view';
 
 describe('roles on the Settings page (spec §2)', () => {
   it('labels roles in sentence case', () => {
@@ -44,5 +44,35 @@ describe('roles on the Settings page (spec §2)', () => {
     expect(deleteSummary(0)).toBe('It has no projects. Its members lose access.');
     expect(deleteSummary(1)).toBe('Its 1 project, with every website, run and row in it, is deleted. Its members lose access.');
     expect(deleteSummary(3)).toBe('Its 3 projects, with every website, run and row in them, are deleted. Its members lose access.');
+  });
+});
+
+describe('refusalMessage', () => {
+  it("shows the API's own words for one of orgs.ts's deliberate refusals", () => {
+    expect(refusalMessage({ data: { code: 'FORBIDDEN' }, message: 'You cannot remove yourself' }, 'fallback')).toBe(
+      'You cannot remove yourself',
+    );
+    expect(
+      refusalMessage({ data: { code: 'PRECONDITION_FAILED' }, message: 'A personal organisation cannot be deleted' }, 'fallback'),
+    ).toBe('A personal organisation cannot be deleted');
+    expect(
+      refusalMessage({ data: { code: 'NOT_FOUND' }, message: 'Not a member of this organisation' }, 'fallback'),
+    ).toBe('Not a member of this organisation');
+  });
+
+  it('falls back on a code that is not one of the three refusals', () => {
+    expect(
+      refusalMessage({ data: { code: 'INTERNAL_SERVER_ERROR' }, message: 'This account has no personal organisation' }, 'fallback'),
+    ).toBe('fallback');
+  });
+
+  it('falls back on an error that is not a tRPC-shaped object', () => {
+    expect(refusalMessage('network error', 'fallback')).toBe('fallback');
+    expect(refusalMessage(null, 'fallback')).toBe('fallback');
+    expect(refusalMessage(undefined, 'fallback')).toBe('fallback');
+  });
+
+  it('falls back on a refusal that carries no message', () => {
+    expect(refusalMessage({ data: { code: 'FORBIDDEN' } }, 'fallback')).toBe('fallback');
   });
 });

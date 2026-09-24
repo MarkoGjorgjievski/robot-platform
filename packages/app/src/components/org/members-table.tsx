@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Skeleton } from '../ui/skeleton';
 import { RemoveMemberDialog } from './remove-member-dialog';
-import { roleLabel, roleNote, roleOptions, removeNote, type Role } from '../../lib/org-settings-view';
+import { refusalMessage, roleLabel, roleNote, roleOptions, removeNote, type Role } from '../../lib/org-settings-view';
 import { trpc } from '../../lib/trpc';
 
 type Member = { userId: string; email: string; name: string; avatarColour: string; role: Role };
@@ -27,8 +27,7 @@ export function MembersTable({ callerRole, callerUserId }: { callerRole: Role; c
       await setRole.mutateAsync({ userId: member.userId, role });
       await utils.orgs.members.list.invalidate();
     } catch (e) {
-      const err = e as { message?: string };
-      setError(err.message ?? 'That role could not be saved. Try again.');
+      setError(refusalMessage(e, 'That role could not be saved. Try again.'));
     }
   }
 

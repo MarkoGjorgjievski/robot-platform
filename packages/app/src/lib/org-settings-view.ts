@@ -51,3 +51,21 @@ export function deleteSummary(projectCount: number): string {
   if (projectCount === 1) return 'Its 1 project, with every website, run and row in it, is deleted. Its members lose access.';
   return `Its ${projectCount} projects, with every website, run and row in them, are deleted. Its members lose access.`;
 }
+
+/** The codes `orgs.ts` throws on purpose — a refusal, not a failure. */
+const REFUSAL_CODES = new Set(['FORBIDDEN', 'PRECONDITION_FAILED', 'NOT_FOUND']);
+
+/**
+ * What to show for a failed mutation on this page (same grammar as
+ * `delete-website-dialog.tsx`'s `deleteNote`-driven catch): the API's own
+ * words for one of its deliberate refusals — a role race, a personal
+ * organisation, a member already gone — and the component's generic sentence
+ * for everything else, so an `INTERNAL_SERVER_ERROR` or a network failure's
+ * raw text never reaches the customer.
+ */
+export function refusalMessage(e: unknown, fallback: string): string {
+  if (typeof e !== 'object' || e === null) return fallback;
+  const err = e as { data?: { code?: string }; message?: string };
+  if (err.data?.code && REFUSAL_CODES.has(err.data.code) && err.message) return err.message;
+  return fallback;
+}

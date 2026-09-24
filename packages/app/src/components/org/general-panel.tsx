@@ -3,7 +3,7 @@ import { useRouter } from '@tanstack/react-router';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { renameNote, type Role } from '../../lib/org-settings-view';
+import { refusalMessage, renameNote, type Role } from '../../lib/org-settings-view';
 import { trpc } from '../../lib/trpc';
 
 /**
@@ -33,11 +33,16 @@ export function GeneralPanel({ name, role }: { name: string; role: Role }) {
     setError(null);
     try {
       await rename.mutateAsync({ name: trimmed });
-      setDirty(false);
       // The switcher and the breadcrumb read the session; re-run its loader.
+      // `dirty` has to stay true across this await: `name` (the route
+      // context's prop) is still the OLD name until this resolves, and the
+      // effect above adopts `name` the moment `dirty` goes false — clearing
+      // it before the invalidate would snap the input back to the old name
+      // for the length of the round trip.
       await router.invalidate();
-    } catch {
-      setError('The name could not be saved. Try again.');
+      setDirty(false);
+    } catch (e) {
+      setError(refusalMessage(e, 'The name could not be saved. Try again.'));
     }
   }
 
