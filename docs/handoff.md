@@ -112,14 +112,23 @@ and `sources.suggestMarks` are addressed by a `captureId` and need a capture →
 source → org hop, still ledgered to plan 5 with the mark screen; `crawl.plan`'s
 `probe: true` branch is org-scoped but deliberately not certification-gated.
 
-**Deferred minors worth doing cheaply, not done here:** an unused
-`memberships` import in `org-screens.test.ts`; `bySource` in `usage.ts` is
-misnamed — it is really `inOrgAndMonth`; `runs.tsx` still renders stale rows
-beside its error banner on a failed refetch (Usage got the exclusive-state
-helper in this plan, Runs did not — align it); `usage-total`'s secondary line
-has no loading skeleton; `usage-view.test.ts` lacks the `isError && rowCount >
-0` case; **a run's cost is recorded (`runs.cost_usd`) but not yet shown on the
-run page** — the run facts panel could carry it, a one-line follow-up.
+**Deferred minors worth doing cheaply, not done here:** `usage-total`'s
+secondary line has no loading skeleton; **a run's cost is recorded
+(`runs.cost_usd`) but not yet shown on the run page** — the run facts panel
+could carry it, a one-line follow-up. From the final review of this plan
+(`.superpowers/sdd/2026-09-24-app-redesign-plan4-org/final-review.md`):
+one shared `screenState` for `/runs` and `/usage` that keeps rows on screen
+through a failed refetch and adds the error banner alongside them, instead of
+`runs.tsx`'s own stale-rows-beside-the-banner gap — the missing
+`isError && rowCount > 0` test lands with it; `costSince` should warn on
+`unpricedModels`, and `run-source-verification.ts` should call it instead of
+inlining the expression; `runs.listByOrg` caps at 100 with no note on screen;
+`refusalMessage` belongs in `lib/refusal.ts`, not `org-settings-view`; the
+members table's actions column `w-[104px]` squeezes the owner's "cannot be
+removed" reason to three lines; the org-wide runs table has never been
+rendered with a row in a browser — the throwaway has no runs and the real
+organisation's check SKIPs — a component test asserting the row shape, or a
+look-check once a run exists, would close that gap.
 
 **The screenshot set** (`docs/testing/screens/`, 1440×900, full page):
 `app-{runs,usage,settings,account}-{dark,light}.png` from the smoke run — a
