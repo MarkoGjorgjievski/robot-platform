@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { refusalMessage } from '../../lib/org-settings-view';
 import { trpc } from '../../lib/trpc';
 
 export function RemoveMemberDialog({
@@ -25,9 +26,9 @@ export function RemoveMemberDialog({
     } catch (e) {
       // The table already shows the reason before the click; a refusal here
       // is a race (a role changed between load and confirm), so the API's own
-      // words are the right ones.
-      const err = e as { message?: string };
-      setError(err.message ?? 'That member could not be removed. Try again.');
+      // words are the right ones — but only for one of its deliberate
+      // refusals, never for an internal error or a dropped connection.
+      setError(refusalMessage(e, 'That member could not be removed. Try again.'));
     }
   }
 
