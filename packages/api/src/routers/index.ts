@@ -8,6 +8,7 @@ import { domainsRouter } from './domains';
 import { runsRouter } from './runs';
 import { crawlRouter } from './crawl';
 import { scraperRouter } from './scraper';
+import { usageRouter } from './usage.js';
 
 export const appRouter = router({
   auth: authRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   runs: runsRouter,
   crawl: crawlRouter,
   scraper: scraperRouter,
+  usage: usageRouter,
 });
 
 export type AppRouter = typeof appRouter;

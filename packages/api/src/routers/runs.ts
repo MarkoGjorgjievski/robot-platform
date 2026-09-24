@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { eq, desc, asc, sql } from 'drizzle-orm';
-import { runs, captures, extractions } from '@robot/db';
-import { router, publicProcedure } from '../trpc';
+import { runs, captures, extractions, datasets, projects, sources } from '@robot/db';
+import { router, publicProcedure, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 
 const VIEW_ROW_CAP = 500;
@@ -146,4 +146,35 @@ export const runsRouter = router({
       });
       return results;
     }),
+
+  /**
+   * Every run in the session's organisation, newest first (spec 2026-09-21
+   * §5, the org-wide Runs page). Session-only — the old dashboard has no such
+   * screen, so there is no `orgSlug` to shim. Scoped through the run's
+   * website → project → org in one join; a run with no website (a legacy row)
+   * belongs to nobody and is not listed, as `runInOrg` also rules.
+   */
+  listByOrg: protectedProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        id: runs.id, status: runs.status, inputLabel: runs.inputLabel,
+        startedAt: runs.startedAt, completedAt: runs.completedAt, resultCount: runs.resultCount,
+        errorMessage: runs.errorMessage, createdAt: runs.createdAt, costUsd: runs.costUsd,
+        projectName: projects.name, projectSlug: projects.slug,
+        websiteName: sources.name, websiteSlug: sources.slug,
+      })
+      .from(runs)
+      .innerJoin(sources, eq(runs.sourceId, sources.id))
+      .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+      .innerJoin(projects, eq(datasets.projectId, projects.id))
+      .where(eq(projects.orgId, ctx.session.org.id))
+      .orderBy(desc(runs.createdAt))
+      .limit(100);
+    return rows.map(({ projectName, projectSlug, websiteName, websiteSlug, costUsd, ...run }) => ({
+      ...run,
+      costUsd: Number(costUsd),
+      project: { name: projectName, slug: projectSlug },
+      website: { name: websiteName, slug: websiteSlug },
+    }));
+  }),
 });
