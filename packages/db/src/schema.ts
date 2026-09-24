@@ -442,6 +442,14 @@ export const runs = pgTable('runs', {
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   resultCount: integer('result_count'),
+  // What this run's model calls cost, in USD, summed over both of its phases
+  // (planning in plan-source.ts, execution in start-execution.ts) the way
+  // source_verifications.cost_usd is measured for a Verify: the process-wide
+  // usage counter (@robot/agent usage.ts) snapshotted before and after the
+  // browser session. Two paid things in flight at once attribute each other's
+  // tokens to whichever finishes — the same limit the verification figure has.
+  // Usage (spec 2026-09-21 §5) adds this and the verification figure up.
+  costUsd: numeric('cost_usd', { precision: 10, scale: 4 }).notNull().default('0'),
   results: jsonb('results'),
   html: text('html'),
   logs: text('logs'),
