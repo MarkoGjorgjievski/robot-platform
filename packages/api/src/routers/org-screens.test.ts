@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, users, runs, captures, sourceVerifications, memberships } from '@robot/db';
+import { db, projects, users, runs, captures, sourceVerifications } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
