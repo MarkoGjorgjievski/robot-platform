@@ -36,6 +36,15 @@ describe('targetAt', () => {
   it('still widens when the innermost box is not the one overlaid', () => {
     expect(targetAt(boxes, new Set([1]), 130, 125, true)).toBe(1);
   });
+  it('a labelled rectangle wins over the elements inside it, without Alt too', () => {
+    // A price rectangle whose currency sign is its own inner element: a click
+    // on the "$" is a click on the rectangle (spec §2.3, "clicking any rectangle reopens its popover").
+    expect(targetAt(boxes, new Set([1]), 130, 125, false)).toBe(1);
+    // The innermost of two overlaid rectangles under the point.
+    expect(targetAt(boxes, new Set([0, 1]), 130, 125, false)).toBe(1);
+    // Outside every rectangle, the plain innermost box as before.
+    expect(targetAt(boxes, new Set([1]), 700, 700, false)).toBe(0);
+  });
   it('is null off every box, overlaid or not', () => {
     expect(targetAt(boxes, new Set([0, 1, 2]), 2000, 10, true)).toBeNull();
   });
