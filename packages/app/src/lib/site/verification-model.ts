@@ -1,0 +1,300 @@
+// The Verification tab's pure model (spec 2026-09-25 §2.3-2.5, §3): product
+// cards, the customer's answers, suggestions, the per-field battery segments,
+// the Verify verdict badge, and the Verify gate. No UI, no tRPC — the route
+// hands this module capture data and answers and reads back what to draw.
+
+import { FIELD_TYPES, type FieldType } from '../fields-view';
+
+export { FIELD_TYPES };
+export type { FieldType };
+
+export const PRODUCTS_MIN = 3, PRODUCTS_MAX = 6;
+
+export type Field = { key: string; name: string; type: FieldType; description: string };
+export type Mark = { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } };
+export type Card = { url: string; title: string; image?: string };
+/** A customer's answer for one field on one product: `mark` null means typed. */
+export type Answer = { value: string; mark: Mark | null };
+export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>> };
+export type Box = { xpaths: string[]; text: string; rect: Mark['rect']; tag: string; kind: 'text' | 'image' | 'link'; src?: string; href?: string };
+export type Suggestion = { captureId: string; value: string; boxes: number[]; origin: 'page-data' | 'from-product' };
+/** key → url → suggestion (client-side only; never saved). */
+export type Suggestions = Record<string, Record<string, Suggestion>>;
+export type Segment = 'empty' | 'suggested' | 'answered' | 'failed';
+export type Badge = { kind: 'verified' } | { kind: 'fails'; product: number } | { kind: 'changed' } | { kind: 'checking' } | null;
+
+type VerificationResultsLike = Record<string, { certified: unknown[]; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured' }> }>;
+
+/** What `boardFrom` reads back — mirrors `@robot/scraper`'s `VerificationSet`
+ * (not imported: that module graph reaches Playwright/the database/the
+ * Anthropic SDK, none of which may enter a browser bundle). */
+type StoredVerificationSet = {
+  urls: string[];
+  expected: Record<string, Record<string, string>>;
+  listing_url?: string;
+  marks?: Record<string, Record<string, Mark>>;
+  cards?: Card[];
+};
+
+export function emptyBoard(): Board {
+  return { listingUrl: '', cards: [], descriptions: {}, answers: {} };
+}
+
+export function boardFrom(source: { schemaDefinition: unknown; verificationSet: unknown }): Board {
+  const def = (source.schemaDefinition as Field[] | null) ?? [];
+  const descriptions: Record<string, string> = {};
+  for (const f of def) descriptions[f.key] = f.description;
+
+  const set = source.verificationSet as StoredVerificationSet | null;
+  if (!set) return { ...emptyBoard(), descriptions };
+
+  const cardByUrl = new Map((set.cards ?? []).map((c) => [c.url, c] as const));
+  const cards: Card[] = set.urls.map((url) => {
+    const found = cardByUrl.get(url);
+    if (found) return found;
+    let title = url;
+    try { title = new URL(url).pathname; } catch { /* not a parseable URL; keep it as-is */ }
+    return { url, title };
+  });
+
+  const answers: Board['answers'] = {};
+  for (const [key, byUrl] of Object.entries(set.expected ?? {})) {
+    const kept: Record<string, Answer> = {};
+    for (const [url, value] of Object.entries(byUrl)) {
+      if (value.trim() === '') continue;
+      kept[url] = { value, mark: set.marks?.[key]?.[url] ?? null };
+    }
+    if (Object.keys(kept).length > 0) answers[key] = kept;
+  }
+
+  return { listingUrl: set.listing_url ?? '', cards, descriptions, answers };
+}
+
+export function toBindingInput(
+  board: Board,
+  fields: Field[],
+): { urls: string[]; listingUrl?: string; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>; marks?: Record<string, Record<string, Mark>>; cards: Card[]; draft: true } {
+  const urls = board.cards.map((c) => c.url.trim());
+  const descriptions: Record<string, string> = {};
+  const expected: Record<string, Record<string, string>> = {};
+  const marks: Record<string, Record<string, Mark>> = {};
+
+  for (const f of fields) {
+    descriptions[f.key] = board.descriptions[f.key] ?? f.description;
+    const byUrl: Record<string, string> = {};
+    const markByUrl: Record<string, Mark> = {};
+    board.cards.forEach((card, i) => {
+      const a = board.answers[f.key]?.[card.url];
+      byUrl[urls[i]!] = a?.value ?? '';
+      if (a?.mark) markByUrl[urls[i]!] = a.mark;
+    });
+    expected[f.key] = byUrl;
+    if (Object.keys(markByUrl).length > 0) marks[f.key] = markByUrl;
+  }
+
+  return {
+    urls,
+    ...(board.listingUrl.trim() ? { listingUrl: board.listingUrl.trim() } : {}),
+    descriptions,
+    expected,
+    ...(Object.keys(marks).length > 0 ? { marks } : {}),
+    cards: board.cards,
+    draft: true,
+  };
+}
+
+/** ≥ 3 cards, every url non-blank, distinct, one host. */
+export function canSave(board: Board): boolean {
+  if (board.cards.length < PRODUCTS_MIN) return false;
+  const hosts = new Set<string>();
+  const stripped = new Set<string>();
+  for (const c of board.cards) {
+    const u = c.url.trim();
+    if (u === '') return false;
+    let parsed: URL;
+    try { parsed = new URL(u); } catch { return false; }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    hosts.add(parsed.hostname.toLowerCase());
+    stripped.add(u.replace(/#.*$/, ''));
+  }
+  if (hosts.size > 1) return false;
+  if (stripped.size !== board.cards.length) return false;
+  return true;
+}
+
+/** Drops answers for urls no longer present. */
+export function setCards(board: Board, cards: Card[]): Board {
+  const urls = new Set(cards.map((c) => c.url));
+  const answers: Board['answers'] = {};
+  for (const [key, byUrl] of Object.entries(board.answers)) {
+    const kept = Object.fromEntries(Object.entries(byUrl).filter(([url]) => urls.has(url)));
+    if (Object.keys(kept).length > 0) answers[key] = kept;
+  }
+  return { ...board, cards, answers };
+}
+
+export function dropCard(board: Board, index: number): Board {
+  return setCards(board, board.cards.filter((_, i) => i !== index));
+}
+
+/** Sets or (`a === null`) clears an answer, immutably. */
+export function answer(board: Board, key: string, url: string, a: Answer | null): Board {
+  const byUrl = { ...(board.answers[key] ?? {}) };
+  if (a === null) delete byUrl[url]; else byUrl[url] = a;
+  const answers = { ...board.answers };
+  if (Object.keys(byUrl).length === 0) delete answers[key]; else answers[key] = byUrl;
+  return { ...board, answers };
+}
+
+export function setDescription(board: Board, key: string, text: string): Board {
+  return { ...board, descriptions: { ...board.descriptions, [key]: text } };
+}
+
+export function valueFromBox(box: Box, type: FieldType): { value: string; mark: Mark | null } | { error: string } {
+  let value: string;
+  if (type === 'image') {
+    if (box.kind !== 'image' || !box.src) return { error: 'This element is not an image' };
+    value = box.src;
+  } else if (type === 'url') {
+    if (box.kind !== 'link' || !box.href) return { error: 'This element is not a link' };
+    value = box.href;
+  } else {
+    const t = box.text.trim();
+    if (t === '') return { error: 'This element has no text' };
+    value = t;
+  }
+  const mark: Mark | null = box.xpaths.length ? { xpaths: box.xpaths.slice(0, 3), text: type === 'image' || type === 'url' ? '' : box.text, rect: box.rect } : null;
+  return { value, mark };
+}
+
+/** Fields that fit the element first, then fields already answered here, then the rest; stable within groups by field order. */
+export function fieldsFor(box: Box, fields: Field[], board: Board, url: string): Array<{ field: Field; fits: boolean; answered: boolean }> {
+  const rows = fields.map((field) => {
+    const r = valueFromBox(box, field.type);
+    const fits = !('error' in r) && validateValue(field.type, r.value) === null;
+    const answered = !!board.answers[field.key]?.[url];
+    return { field, fits, answered };
+  });
+  const rank = (r: { fits: boolean; answered: boolean }) => (r.fits && !r.answered ? 0 : r.fits && r.answered ? 1 : 2);
+  return rows
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i)
+    .map(({ r }) => r);
+}
+
+export function mergeSuggestions(
+  prev: Suggestions,
+  incoming: Record<string, { value: string; boxes: number[] } | null>,
+  url: string,
+  captureId: string,
+  origin: Suggestion['origin'],
+  board: Board,
+): Suggestions {
+  let next = prev;
+  for (const [key, val] of Object.entries(incoming)) {
+    if (!val) continue;
+    if (board.answers[key]?.[url]) continue;
+    const byUrl = { ...(next[key] ?? {}), [url]: { captureId, value: val.value, boxes: val.boxes, origin } };
+    next = { ...next, [key]: byUrl };
+  }
+  return next;
+}
+
+/** Drops answered cells and stale capture ids. */
+export function liveSuggestions(s: Suggestions, board: Board, captureIds: Record<string, string | null>): Suggestions {
+  const result: Suggestions = {};
+  for (const [key, byUrl] of Object.entries(s)) {
+    const kept: Record<string, Suggestion> = {};
+    for (const [url, sug] of Object.entries(byUrl)) {
+      if (board.answers[key]?.[url]) continue;
+      if (captureIds[url] !== sug.captureId) continue;
+      kept[url] = sug;
+    }
+    if (Object.keys(kept).length > 0) result[key] = kept;
+  }
+  return result;
+}
+
+export function segment(board: Board, s: Suggestions, key: string, url: string, verdict: { failed: boolean }): Segment {
+  if (verdict.failed) return 'failed';
+  if (board.answers[key]?.[url]) return 'answered';
+  if (s[key]?.[url]) return 'suggested';
+  return 'empty';
+}
+
+export function badge(args: { key: string; results: VerificationResultsLike | null; currentKeys: string[]; running: boolean; cards: Card[] }): Badge {
+  if (args.running) return { kind: 'checking' };
+  const fv = args.results?.[args.key];
+  if (!fv) return null;
+  if (!args.currentKeys.includes(args.key)) return { kind: 'changed' };
+  if (fv.certified.length > 0) return { kind: 'verified' };
+  for (let i = 0; i < args.cards.length; i++) {
+    const cell = fv.cells[args.cards[i]!.url];
+    if (cell?.status === 'fail') return { kind: 'fails', product: i + 1 };
+  }
+  return null;
+}
+
+export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok: true } | { ok: false; reason: string } {
+  if (board.cards.length < PRODUCTS_MIN) return { ok: false, reason: 'Add at least three products' };
+  for (let i = 0; i < board.cards.length; i++) {
+    const url = board.cards[i]!.url;
+    const n = i + 1;
+    if (i < PRODUCTS_MIN) {
+      for (const f of fields) {
+        const a = board.answers[f.key]?.[url];
+        if (!a) return { ok: false, reason: `${f.name} still needs product ${n}` };
+        const err = validateValue(f.type, a.value);
+        if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}` };
+      }
+    } else {
+      const anyAnswered = fields.some((f) => board.answers[f.key]?.[url]);
+      if (!anyAnswered) return { ok: false, reason: `Product ${n} needs at least one field, or drop it` };
+      for (const f of fields) {
+        const a = board.answers[f.key]?.[url];
+        if (!a) {
+          if (s[f.key]?.[url]) return { ok: false, reason: `${f.name} has a suggestion to confirm on product ${n}` };
+          continue;
+        }
+        const err = validateValue(f.type, a.value);
+        if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}` };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/** Fields not current, or everything on a first run (no results yet). */
+export function reverifyScope(fields: Field[], results: VerificationResultsLike | null, currentKeys: string[]): string[] | undefined {
+  if (!results || Object.keys(results).length === 0) return undefined;
+  return fields.filter((f) => !currentKeys.includes(f.key) || (results[f.key]?.certified.length ?? 0) === 0).map((f) => f.key);
+}
+
+// Copied (unchanged) from `./schema-grid`'s `validateExpectedClient`/`shortUrl`
+// rather than moved: the old Schema route still imports schema-grid.ts until a
+// later task deletes it.
+const TRUE = ['true', 'yes', 'y', '1', 'in stock', 'instock', 'available', 'in-stock'];
+const FALSE = ['false', 'no', 'n', '0', 'out of stock', 'outofstock', 'unavailable', 'sold out'];
+const TYPE_LABEL: Record<FieldType, string> = { text: 'text', number: 'a number', money: 'a money amount', boolean: 'yes/no (or in stock/out of stock)', date: 'a date', url: 'a URL', image: 'an image URL', text_list: 'a comma-separated list' };
+
+export function validateValue(type: FieldType, text: string): string | null {
+  const t = text.trim();
+  if (t === '') return 'Expected value is required';
+  const ok = (() => {
+    switch (type) {
+      case 'text': case 'text_list': return true;
+      case 'number': case 'money': return /\d/.test(t) && /^[^\d]*[-+]?[\d.,]+[^\d]*$/.test(t.replace(/[A-Za-z$€£¥₹\s]/g, ''));
+      case 'boolean': return TRUE.includes(t.toLowerCase()) || FALSE.includes(t.toLowerCase());
+      case 'date': return /^\d{4}-\d{2}-\d{2}$/.test(t) || !Number.isNaN(Date.parse(t));
+      case 'url': case 'image': try { return /^https?:$/.test(new URL(t).protocol); } catch { return false; }
+    }
+  })();
+  return ok ? null : `Not ${TYPE_LABEL[type]}`;
+}
+
+export function shortUrl(url: string): string {
+  let p: string;
+  try { const u = new URL(url); p = u.pathname + (u.search ? '?…' : ''); } catch { p = url; }
+  if (p.length <= 28) return p;
+  return `${p.slice(0, 13)}…${p.slice(-14)}`;
+}
