@@ -103,7 +103,24 @@ export function toBindingInput(
   };
 }
 
-/** ≥ 3 cards, every url non-blank, distinct, one host. */
+/**
+ * Why the listing cannot be saved with these products, or null. The server
+ * counts the listing's host in its same-website rule even for a draft
+ * (binding-input.ts), so a listing elsewhere would fail every autosave.
+ */
+function listingProblem(board: Board, productHost: string | null): string | null {
+  const l = board.listingUrl.trim();
+  if (l === '') return null;
+  let parsed: URL;
+  try { parsed = new URL(l); } catch { return 'Paste the full listing address, starting with https://'; }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Paste the full listing address, starting with https://';
+  if (productHost !== null && parsed.hostname.toLowerCase() !== productHost) return LISTING_ELSEWHERE;
+  return null;
+}
+
+export const LISTING_ELSEWHERE = 'The listing must be on the same website as the products';
+
+/** ≥ 3 cards, every url non-blank, distinct, one host — the listing's included. */
 export function canSave(board: Board): boolean {
   if (board.cards.length < PRODUCTS_MIN) return false;
   const hosts = new Set<string>();
@@ -119,6 +136,7 @@ export function canSave(board: Board): boolean {
   }
   if (hosts.size > 1) return false;
   if (stripped.size !== board.cards.length) return false;
+  if (listingProblem(board, [...hosts][0] ?? null)) return false;
   return true;
 }
 
@@ -143,7 +161,7 @@ export function productsProblem(board: Board): string | null {
     pages.add(page);
   }
   if (hosts.size > 1) return 'All products must be on the same website';
-  return null;
+  return listingProblem(board, [...hosts][0] ?? null);
 }
 
 /** Drops answers for urls no longer present. */
@@ -281,8 +299,18 @@ export function badge(args: { key: string; results: VerificationResultsLike | nu
   return null;
 }
 
-export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok: true } | { ok: false; reason: string } {
+/**
+ * `field` names the field a reason is about when the fix lives on its row
+ * (the descriptor), so the route can open that row.
+ */
+export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok: true } | { ok: false; reason: string; field?: string } {
   if (board.cards.length < PRODUCTS_MIN) return { ok: false, reason: 'Add at least three products' };
+  // The server refuses a non-draft save with a blank descriptor (bindingProblems),
+  // and a custom field with no catalogue entry starts with none. Reported before
+  // the product gaps: it is the one the customer cannot find on the screenshot.
+  for (const f of fields) {
+    if (!(board.descriptions[f.key] ?? f.description ?? '').trim()) return { ok: false, reason: `Say where ${f.name} is on this website`, field: f.key };
+  }
   for (let i = 0; i < board.cards.length; i++) {
     const url = board.cards[i]!.url;
     const n = i + 1;

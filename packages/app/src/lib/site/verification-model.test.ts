@@ -167,6 +167,39 @@ describe('the Verify gate', () => {
   });
 });
 
+describe('the Verify gate: descriptors (final review I1)', () => {
+  it('refuses a field with no descriptor before any product gap, naming the field', () => {
+    const custom: Field[] = [...FIELDS, { key: 'sku', name: 'SKU', type: 'text', description: '' }];
+    let b = full();
+    for (const u of U) b = answer(b, 'sku', u, { value: 'A1', mark: null });
+    expect(verifyGate(b, custom, {})).toEqual({ ok: false, reason: 'Say where SKU is on this website', field: 'sku' });
+    // Before the product gaps, so the reason is the one to act on.
+    expect(verifyGate(board(), custom, {})).toEqual({ ok: false, reason: 'Say where SKU is on this website', field: 'sku' });
+    // Whitespace is not a descriptor; the board's own text wins over the catalogue's.
+    expect(verifyGate({ ...b, descriptions: { ...b.descriptions, sku: '   ' } }, custom, {})).toMatchObject({ ok: false, field: 'sku' });
+    expect(verifyGate({ ...b, descriptions: { ...b.descriptions, sku: 'under the title' } }, custom, {})).toEqual({ ok: true });
+    expect(verifyGate({ ...b, descriptions: { ...b.descriptions, title: '' } }, custom, {})).toMatchObject({ ok: false, reason: 'Say where Title is on this website' });
+  });
+});
+
+describe('the listing is on the products’ website (final review I4)', () => {
+  it('does not save, and says why, when the listing is on another website', () => {
+    const b = { ...board(), listingUrl: 'https://other.example/c/all' };
+    expect(canSave(b)).toBe(false);
+    expect(productsProblem(b)).toBe('The listing must be on the same website as the products');
+  });
+  it('saves with a listing on the same website, and with none', () => {
+    expect(canSave({ ...board(), listingUrl: 'https://S.example/c/all' })).toBe(true);
+    expect(productsProblem({ ...board(), listingUrl: 'https://S.example/c/all' })).toBeNull();
+    expect(canSave({ ...board(), listingUrl: '  ' })).toBe(true);
+  });
+  it('a listing that is not an address blocks the save too, with a reason', () => {
+    const b = { ...board(), listingUrl: 'not a url' };
+    expect(canSave(b)).toBe(false);
+    expect(productsProblem(b)).not.toBeNull();
+  });
+});
+
 describe('small things', () => {
   it('scopes a re-verify to fields not current, and to everything on a first run', () => {
     expect(reverifyScope(FIELDS, null, [])).toBeUndefined();
