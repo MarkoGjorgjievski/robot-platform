@@ -71,23 +71,24 @@ export function useProofCaptures(
   function start(url: string) {
     if (!sourceId) return;
     startingRef.current.add(url);
-    captureMutation.mutate(
-      { sourceId, url },
-      {
-        onSuccess: (data) => {
-          startingRef.current.delete(url);
-          setStarted((prev) => ({ ...prev, [url]: data.captureId }));
-          setStartErrors((prev) => {
-            if (!(url in prev)) return prev;
-            const next = { ...prev };
-            delete next[url];
-            return next;
-          });
-        },
-        onError: (err) => {
-          startingRef.current.delete(url);
-          setStartErrors((prev) => ({ ...prev, [url]: err.message }));
-        },
+    // `mutateAsync`, not `mutate` with per-call callbacks: one mutation
+    // observer reports only its LATEST call to those callbacks, so starting
+    // three products at once would record only the third capture's id and
+    // leave the other two on "taking screenshot…" until a reload.
+    captureMutation.mutateAsync({ sourceId, url }).then(
+      (data) => {
+        startingRef.current.delete(url);
+        setStarted((prev) => ({ ...prev, [url]: data.captureId }));
+        setStartErrors((prev) => {
+          if (!(url in prev)) return prev;
+          const next = { ...prev };
+          delete next[url];
+          return next;
+        });
+      },
+      (err: unknown) => {
+        startingRef.current.delete(url);
+        setStartErrors((prev) => ({ ...prev, [url]: err instanceof Error ? err.message : String(err) }));
       },
     );
   }
