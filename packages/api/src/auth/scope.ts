@@ -13,7 +13,7 @@
 // type — when the old dashboard is retired.
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { sources, datasets, projects, runs } from '@robot/db';
+import { sources, datasets, projects, runs, captures } from '@robot/db';
 import type { Context } from '../trpc.js';
 
 const notFound = (what: string, id: string) => new TRPCError({ code: 'NOT_FOUND', message: `${what} ${id} not found` });
@@ -44,4 +44,13 @@ export async function runInOrg(ctx: Pick<Context, 'db' | 'session'>, runId: stri
   if (!run || !run.sourceId) throw notFound('Run', runId);
   await sourceInOrg(ctx, run.sourceId);
   return run;
+}
+
+/** A proof-page capture is reached through its website. Addressed by id alone, so a session-less caller passes until cut-over, as with `sourceInOrg`. */
+export async function captureInOrg(ctx: Pick<Context, 'db' | 'session'>, captureId: string) {
+  if (!ctx.session) return null;
+  const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, captureId), columns: { id: true, sourceId: true } });
+  if (!row || !row.sourceId) throw notFound('Page capture', captureId);
+  await sourceInOrg(ctx, row.sourceId);
+  return { id: row.id, sourceId: row.sourceId };
 }

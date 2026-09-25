@@ -10,16 +10,16 @@ import {
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
-import { sourceInOrg } from '../auth/scope.js';
+import { sourceInOrg, captureInOrg } from '../auth/scope.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
-import { bindingInput, prepareBinding, host } from '../verify/binding-input.js';
+import { bindingInput, prepareBinding, host, markInput } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
-import { startProofPageCapture, loadProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
+import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
@@ -849,6 +849,7 @@ export const sourcesRouter = router({
   proofPageCapture: publicProcedure
     .input(z.object({ captureId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      await captureInOrg(ctx, input.captureId);
       const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, url: true, metadata: true } });
       const stored = row?.metadata as ProofPageMeta | undefined;
       if (!row || !stored || stored.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
@@ -866,6 +867,14 @@ export const sourcesRouter = router({
       };
     }),
 
+  /** Where each product's capture stands, newest per URL: how a reloaded Verification tab finds the captures it already started. */
+  proofPageCaptures: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX) }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      return latestProofPageCaptures(input.sourceId, input.urls);
+    }),
+
   /**
    * Pre-highlights for the mark screen (spec 2026-09-18 §3.3): pure over the
    * stored capture, no browser, no model. `captureId` names the box map the
@@ -875,6 +884,7 @@ export const sourcesRouter = router({
   suggestMarks: publicProcedure
     .input(z.object({ captureId: z.string().uuid(), fieldKeys: z.array(z.string()).optional() }))
     .query(async ({ ctx, input }) => {
+      await captureInOrg(ctx, input.captureId);
       const row = await ctx.db.query.captures.findFirst({ where: eq(captures.id, input.captureId), columns: { id: true, sourceId: true, metadata: true } });
       const meta = row?.metadata as ProofPageMeta | undefined;
       if (!row || !meta || meta.kind !== 'proof-page') throw new TRPCError({ code: 'NOT_FOUND', message: `Proof-page capture ${input.captureId} not found` });
@@ -897,13 +907,24 @@ export const sourcesRouter = router({
    * value to carry).
    */
   transferMarks: publicProcedure
-    .input(z.object({ sourceId: z.string().uuid(), fromUrl: httpUrl, toUrls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX) }))
+    .input(z.object({
+      sourceId: z.string().uuid(),
+      fromUrl: httpUrl,
+      toUrls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX),
+      from: z.record(z.string(), z.object({ value: z.string(), mark: markInput.optional() })).optional(),
+      fieldKeys: z.array(z.string()).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true, schemaDefinition: true, verificationSet: true } });
       if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
-      const fields = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
+      const allFields = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
+      const fields = input.fieldKeys ? allFields.filter((f) => input.fieldKeys!.includes(f.key)) : allFields;
       const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
+      // The Verification tab saves drafts, but a tick transfers before its save lands, so it sends the answer on screen.
+      const pageOne = (key: string) => input.from
+        ? { value: input.from[key]?.value ?? '', mark: input.from[key]?.mark }
+        : { value: set.expected[key]?.[input.fromUrl] ?? '', mark: set.marks?.[key]?.[input.fromUrl] };
       const pages = await loadProofPageCaptures(input.sourceId, [input.fromUrl, ...input.toUrls]);
       const from = pages[input.fromUrl];
       if (!from) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first: it has no fresh capture' });
@@ -913,7 +934,7 @@ export const sourcesRouter = router({
       const out: Record<string, { captureId: string; fields: Record<string, Transferred | null> } | null> =
         Object.fromEntries(input.toUrls.map((u) => [u, pages[u] ? { captureId: pages[u]!.ref.captureId, fields: {} } : null]));
       // A field with a blank page-1 value has nothing to carry; when that is every field, no browser is opened.
-      const carried = fields.filter((f) => (set.expected[f.key]?.[input.fromUrl] ?? '').trim() !== '');
+      const carried = fields.filter((f) => pageOne(f.key).value.trim() !== '');
       for (const f of fields) {
         if (carried.includes(f)) continue;
         for (const u of input.toUrls) if (out[u]) out[u]!.fields[f.key] = null;
@@ -925,8 +946,8 @@ export const sourcesRouter = router({
           runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),
         };
         for (const field of carried) {
-          const expected = set.expected[field.key]![input.fromUrl]!;
-          const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark: set.marks?.[field.key]?.[input.fromUrl] }, to }, deps);
+          const { value: expected, mark } = pageOne(field.key);
+          const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark }, to }, deps);
           for (const u of input.toUrls) if (out[u]) out[u]!.fields[field.key] = r[u] ?? null;
         }
       });

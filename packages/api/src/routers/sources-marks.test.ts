@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { PlaywrightBrowser } from '@robot/browser';
 import { createCallerFactory } from '../trpc.js';
@@ -94,6 +95,51 @@ describe('sources.transferMarks', () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-tr0', fields: [{ name: 'Price', type: 'money' }] });
     try {
       await expect(caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!] })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+    } finally { await f.cleanup(); }
+  });
+});
+
+describe('sources.proofPageCaptures', () => {
+  it('answers the newest capture per url and null for one never captured', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-list', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await seedProofPage(f.sourceId, f.urls[0]!, 'p1');
+      const newer = await seedProofPage(f.sourceId, f.urls[0]!, 'p1');
+      const { captureId: capturing } = await caller.sources.captureProofPage({ sourceId: f.sourceId, url: f.urls[1]! });
+      const r = await caller.sources.proofPageCaptures({ sourceId: f.sourceId, urls: [f.urls[0]!, f.urls[1]!, f.urls[2]!] });
+      expect(r[f.urls[0]!]).toEqual({ captureId: newer, status: 'captured' });
+      expect(r[f.urls[1]!]).toEqual({ captureId: capturing, status: 'capturing' });
+      expect(r[f.urls[2]!]).toBeNull();
+    } finally { await f.cleanup(); }
+  });
+
+  it('treats a captured page older than the reuse window as missing', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-old', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1');
+      const row = await db.query.captures.findFirst({ where: eq(captures.id, id) });
+      const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+      await db.update(captures).set({ metadata: { ...(row!.metadata as object), capturedAt: old } }).where(eq(captures.id, id));
+      expect((await caller.sources.proofPageCaptures({ sourceId: f.sourceId, urls: [f.urls[0]!] }))[f.urls[0]!]).toBeNull();
+    } finally { await f.cleanup(); }
+  });
+});
+
+describe('sources.transferMarks from the values on screen', () => {
+  it('carries the value the client sends, not the saved one, and only the fields asked for', async () => {
+    // Page 1's saved price is a value page 1 does not show: only the override can find anything.
+    const f = await createProjectWithSource(caller, { tag: 'marks-from', fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }],
+      expected: {
+        Price: { 'https://test-marks-from.example.com/p/1': '999.00', 'https://test-marks-from.example.com/p/2': '219.99', 'https://test-marks-from.example.com/p/3': '149.00' },
+        Title: { 'https://test-marks-from.example.com/p/1': 'Widget A', 'https://test-marks-from.example.com/p/2': 'Widget B', 'https://test-marks-from.example.com/p/3': 'Widget C' },
+      } });
+    try {
+      await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2'); await seedProofPage(f.sourceId, f.urls[2]!, 'p3');
+      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99' } }, fieldKeys: [f.keys.Price!] });
+      expect(r[f.urls[1]!]!.fields[f.keys.Price!]!.value).toMatch(/219\.99/);
+      expect(r[f.urls[1]!]!.fields).not.toHaveProperty(f.keys.Title!);
+      const saved = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], fieldKeys: [f.keys.Price!] });
+      expect(saved[f.urls[1]!]!.fields[f.keys.Price!]).toBeNull();
     } finally { await f.cleanup(); }
   });
 });
