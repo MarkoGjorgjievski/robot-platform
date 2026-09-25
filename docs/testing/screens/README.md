@@ -116,7 +116,7 @@ cp docs/testing/ui-check-app-project.mts packages/browser/src/__ui-check.mts \
 
 `docs/testing/ui-check-app-verification.mts` (plan 5) runs the tab end to end on Ikea as a
 throwaway `check-*@example.com`, against a keyless api-server on :4100 and an app on :3100,
-Verify included — it refuses to click unless the button reads "mechanical only" / "free".
+Verify included — it refuses to click unless the button reads "free".
 Numbers and findings: `docs/testing/2026-09-25-verification-live.md`.
 
 | File | Shows |

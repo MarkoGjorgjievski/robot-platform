@@ -71,7 +71,8 @@ are gone from `@robot/app` (`@robot/dashboard` is untouched).
 one read-only SQL query (Ikea's stored field names and listing URL). Every
 browser check used a throwaway `smoke-*@` / `check-*@example.com` and deleted
 its own project. Verify was clicked once per live run, only on the keyless
-:4100 api-server, after the check asserted "mechanical only".
+:4100 api-server, after the check asserted "mechanical only" (the label now
+reads "free"; see the fix wave below).
 
 **Rulings this plan made:**
 
@@ -94,11 +95,6 @@ its own project. Verify was clicked once per live run, only on the keyless
 
 **Deviations from the spec:**
 
-- The Verify label reads `Verify · mechanical only` on a keyless server and
-  `Verify · up to $X` with a key — `verifyButton`'s wording from plan 3 — not
-  the spec's illustrative `Verify 8 fields · free`. A re-verify of certified
-  paths does read "· free". The live check accepts either "free" or
-  "mechanical only" and refuses anything with a "$".
 - A page-data value ticked from the row is saved as a typed answer (value, no
   mark), as Type it is; the engine certifies it from the page data.
 - The smoke's website is named "0": that is what the Add website dialog derives
@@ -136,12 +132,6 @@ seen live and is the commonest on Ikea. Fixed on the way, each with a test:
   — the cache is per domain, not per organisation. Harmless here (Ikea's real
   paths, enrich-only), but a live check that verifies a domain Marko also uses
   touches his cache.
-- A tick whose save has not finished when the page is navigated away (tab
-  close, reload, typed URL) is lost: the autosave waits 600 ms and then sends,
-  and nothing flushes it on `pagehide`. Seen once in the smoke, when a failing
-  step navigated away about a second after a tick (inferred from the website
-  walk that followed, which found Title unticked); a customer closing the tab
-  straight after a tick would lose it the same way.
 - "found in n places" gives no hint which place is right (SKU on Ikea).
 - Engine/listing quality from Task 8's walk: books.toscrape's sidebar
   categories read as products; `suggestMarks` offered a breadcrumb as a second
@@ -168,12 +158,38 @@ screenshot of any proof page with none fresh) and **has not been run** — it is
 the controller's, against Marko's account. The screenshot set and what each
 shows: `docs/testing/screens/README.md`.
 
+**The final review's fix wave** (report: `.superpowers/sdd/2026-09-25-app-redesign-plan5-verification-tab/final-fix-report.md`):
+
+- The Verify label follows spec §2.4: `Verify 8 fields · free` /
+  `Verify 8 fields · up to $X`, `Re-verify n fields · free | up to $X`; "free"
+  whenever there is no AI or the upper bound is $0 ("mechanical only" is gone;
+  the smoke and the live check match "free").
+- The Verify gate asks for a missing descriptor first ("Say where SKU is on
+  this website") and opens that field's row — a custom field with no
+  catalogue description used to leave Verify enabled and always refused.
+- A listing on another website than the products is refused under the listing
+  input (the server counts its host even for an autosave, so every save used
+  to fail silently); `canSave` / `productsProblem` count it too.
+- A tick is not lost to leaving the page: the autosave flushes on `pagehide`
+  and when the page is hidden, and asks before unloading while a save is
+  waiting or running. A page-wide board store (`lib/site/board-store.ts`)
+  keeps the latest pushed board and the save in flight, so leaving the tab and
+  coming straight back waits for that save and never seeds from a stale cache;
+  a landed save writes its record into `sources.get`'s cache.
+- A refused save names the server's reason in the sidebar's save line.
+- A suggestion is tickable by its own value, and keeps the element as its mark
+  only when the element shows that value by the engine's comparison
+  (`@robot/scraper/normalize`, a new browser-safe export).
+- Product cards keep their screenshots while the capture lookup refetches.
+- A product-page capture's stall clock starts when it gets a browser slot, and
+  a capture still queued in this process is never reported stalled.
+
 **Open decisions:**
 
-- The Verify label's wording: keep plan 3's "mechanical only" / "up to $X", or
-  the spec's "free"?
-- Flush the autosave on `pagehide` (a `keepalive` request), so a tick is never
-  lost to a closed tab?
+- The `pagehide` flush is an ordinary request (tRPC has no `keepalive`); a
+  browser may cancel it on a closed tab. The `beforeunload` prompt covers a
+  close or reload while a save is pending; a `keepalive` path would cover the
+  rest.
 - Whether live checks may verify a domain Marko also has, given the shared
   domain cache.
 
