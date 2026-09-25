@@ -4,6 +4,7 @@
 // (a reload never redoes a capture in flight or landed), and polls each
 // known capture id until it stops `capturing`. Pure hook — no UI.
 import { useEffect, useRef, useState } from 'react';
+import { keepPreviousData } from '@tanstack/react-query';
 import { trpc, API_URL } from '../trpc';
 import type { Box } from './verification-model';
 
@@ -51,7 +52,10 @@ export function useProofCaptures(
   // reference from the caller on every render.
   const urlsKey = urls.join('\n');
 
-  const lookup = trpc.sources.proofPageCaptures.useQuery({ sourceId: sourceId ?? '', urls }, { enabled });
+  // Keyed on the whole url list: without the previous answer held while the
+  // new one loads, every card would flicker back to "taking screenshot…"
+  // whenever one card changes (final review M3).
+  const lookup = trpc.sources.proofPageCaptures.useQuery({ sourceId: sourceId ?? '', urls }, { enabled, placeholderData: keepPreviousData });
 
   // Captures this hook itself started this session, by url. Takes priority
   // over `lookup` so a retry's fresh id is never shadowed by the stale one
@@ -94,7 +98,9 @@ export function useProofCaptures(
   }
 
   useEffect(() => {
-    if (!sourceId || !lookup.data) return;
+    // Placeholder data is the previous url list's answer: a new url is not in
+    // it, and starting a capture on that basis could duplicate a stored one.
+    if (!sourceId || !lookup.data || lookup.isPlaceholderData) return;
     for (const url of urls) {
       if (started[url]) continue;
       if (lookup.data[url]) continue;
