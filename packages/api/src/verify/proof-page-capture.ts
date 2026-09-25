@@ -10,6 +10,10 @@ import { captureProofPage, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scr
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
+import { createLimiter } from './limiter.js';
+
+/** At most three product-page captures run at once — a real browser tab each, so a burst of "mark this page" clicks does not pile up unbounded Chromium processes. */
+const captureSlots = createLimiter(3);
 
 export type ProofPageMeta =
   | { kind: 'proof-page'; status: 'capturing'; url: string; startedAt: string }
@@ -38,7 +42,7 @@ export type ProofPageCaptureRecord = { ref: StoredCaptureRef; capture: PageCaptu
 export async function startProofPageCapture(sourceId: string, url: string, opts: { session?: Session; fire?: boolean } = {}): Promise<{ captureId: string }> {
   const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url, startedAt: new Date().toISOString() };
   const [row] = await db.insert(captures).values({ sourceId, url, metadata: meta }).returning({ id: captures.id });
-  if (opts.fire ?? true) void runProofPageCapture(row!.id, opts.session);
+  if (opts.fire ?? true) void captureSlots(() => runProofPageCapture(row!.id, opts.session));
   return { captureId: row!.id };
 }
 
@@ -120,6 +124,28 @@ export async function loadProofPageCaptures(sourceId: string, urls: string[]): P
     const capture = await readCaptureFile(r.id);
     if (!capture) continue;
     out[r.url] = { ref: { captureId: r.id, capturedAt: m.capturedAt, ...(m.tiles[0] ? { screenshotUrl: m.tiles[0] } : {}) }, capture, meta: m };
+  }
+  return out;
+}
+
+export type ProofPageCaptureState = { captureId: string; status: 'capturing' | 'captured' | 'failed'; error?: string };
+
+/** The newest proof-page capture per URL in whatever state — what a reloaded screen resumes from. Stalled rows are closed on the way; a captured one past the reuse window reads as missing, so the screen re-captures. */
+export async function latestProofPageCaptures(sourceId: string, urls: string[]): Promise<Record<string, ProofPageCaptureState | null>> {
+  const out: Record<string, ProofPageCaptureState | null> = Object.fromEntries(urls.map((u) => [u, null]));
+  const rows = await db.query.captures.findMany({
+    where: and(eq(captures.sourceId, sourceId), inArray(captures.url, urls)),
+    orderBy: [desc(captures.createdAt)],
+    columns: { id: true, url: true, metadata: true },
+  });
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const m = r.metadata as ProofPageMeta | null;
+    if (!m || m.kind !== 'proof-page' || seen.has(r.url)) continue;
+    seen.add(r.url);
+    const meta = await resolveStalledProofPage(r.id, m);
+    if (meta.status === 'captured' && Date.now() - Date.parse(meta.capturedAt) > CAPTURE_REUSE_MAX_AGE_MS) continue;
+    out[r.url] = { captureId: r.id, status: meta.status, ...(meta.status === 'failed' ? { error: meta.error } : {}) };
   }
   return out;
 }

@@ -2,13 +2,20 @@
 // (spec 2026-09-21 §6): a website or run in another org is NOT_FOUND, the same
 // word as one that does not exist. The session-less shim the old dashboard
 // still uses is exercised at the bottom.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, projects, users, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
 import { deleteOwnOrg } from '../test-helpers/identity.js';
+
+// `captureProofPage` fires a real browser un-awaited; stub the job so this file never launches one.
+const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../verify/proof-page-capture.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../verify/proof-page-capture.js')>();
+  return { ...real, runProofPageCapture: runMock, startProofPageCapture: (s: string, u: string) => real.startProofPageCapture(s, u, { fire: false }) };
+});
 
 const tag = `site-scope-${Date.now()}`;
 const HOST = 'https://a.example.com';
@@ -44,6 +51,7 @@ describe('website and run procedures are scoped to the session org', () => {
       await a.caller.sources.setListingPages({ sourceId, urls: [`${HOST}/l`] });
       const [run] = await db.insert(runs).values({ sourceId, status: 'completed', completedAt: new Date(), resultCount: 1 }).returning({ id: runs.id });
       const runId = run!.id;
+      const { captureId } = await a.caller.sources.captureProofPage({ sourceId, url: `${HOST}/p/1` });
 
       const bc = b.caller;
       const calls: Array<[string, () => Promise<unknown>]> = [
@@ -60,6 +68,9 @@ describe('website and run procedures are scoped to the session org', () => {
         ['sources.confirm', () => bc.sources.confirm({ sourceId })],
         ['sources.delete', () => bc.sources.delete({ sourceId })],
         ['sources.captureProofPage', () => bc.sources.captureProofPage({ sourceId, url: `${HOST}/` })],
+        ['sources.proofPageCapture', () => bc.sources.proofPageCapture({ captureId })],
+        ['sources.suggestMarks', () => bc.sources.suggestMarks({ captureId })],
+        ['sources.proofPageCaptures', () => bc.sources.proofPageCaptures({ sourceId, urls: [`${HOST}/p/1`] })],
         ['sources.transferMarks', () => bc.sources.transferMarks({ sourceId, fromUrl: PROOF[0]!, toUrls: [PROOF[1]!] })],
         ['runs.getWithDetails', () => bc.runs.getWithDetails({ id: runId })],
         ['runs.listBySource', () => bc.runs.listBySource({ sourceId })],
