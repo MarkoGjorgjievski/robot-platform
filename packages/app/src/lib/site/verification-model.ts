@@ -320,8 +320,9 @@ export function reverifyScope(fields: Field[], results: VerificationResultsLike 
 // Schema tab's `validateExpectedClient`/`shortUrl` (task 4, app redesign
 // plan 5) rather than moved, since the old Schema route kept importing that
 // module until task 9 deleted it.
-const TRUE = ['true', 'yes', 'y', '1', 'in stock', 'instock', 'available', 'in-stock'];
-const FALSE = ['false', 'no', 'n', '0', 'out of stock', 'outofstock', 'unavailable', 'sold out'];
+// The engine's words (`@robot/scraper`'s normalize.ts), schema.org's availability URLs included.
+const TRUE = ['true', 'yes', 'y', '1', 'in stock', 'instock', 'available', 'in-stock', 'https://schema.org/instock', 'http://schema.org/instock'];
+const FALSE = ['false', 'no', 'n', '0', 'out of stock', 'outofstock', 'unavailable', 'sold out', 'https://schema.org/outofstock', 'http://schema.org/outofstock'];
 const TYPE_LABEL: Record<FieldType, string> = { text: 'text', number: 'a number', money: 'a money amount', boolean: 'yes/no (or in stock/out of stock)', date: 'a date', url: 'a URL', image: 'an image URL', text_list: 'a comma-separated list' };
 
 export function validateValue(type: FieldType, text: string): string | null {
