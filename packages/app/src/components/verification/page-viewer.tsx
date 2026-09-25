@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import type { Box } from '../../lib/site/verification-model';
-import { targetAt, toPage } from '../../lib/site/page-viewer-view';
+import { labelBelow, targetAt, toPage } from '../../lib/site/page-viewer-view';
 
 export type Overlay = { box: number; label: string; tone: 'answered' | 'suggested' | 'failed'; key: string };
 
@@ -145,7 +145,11 @@ export function PageViewer({
                 if (!box) return null;
                 return (
                   <div key={o.key} className={`pointer-events-none absolute ${TONE_OUTLINE[o.tone]}`} style={rectStyle(box.rect)}>
-                    <span className="absolute top-0 left-0 -translate-y-full border border-current bg-panel px-1 text-sm whitespace-nowrap">
+                    <span
+                      className={`absolute left-0 border border-current bg-panel px-1 text-sm whitespace-nowrap ${
+                        labelBelow(box.rect.y * scale) ? 'top-full' : 'top-0 -translate-y-full'
+                      }`}
+                    >
                       {o.tone === 'suggested' ? `${o.label}?` : o.label}
                     </span>
                   </div>

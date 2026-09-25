@@ -57,3 +57,16 @@ export function targetAt(boxes: Box[], overlaid: ReadonlySet<number>, x: number,
   const wider = enclosing(boxes, i);
   return wider !== null ? wider : i;
 }
+
+/** How tall a rectangle's label is drawn, in screen pixels (one `text-sm` line with its border). */
+export const LABEL_HEIGHT = 20;
+
+/**
+ * Whether a rectangle's label goes under its top edge rather than above it:
+ * above is where it reads best, but a rectangle whose top sits within one
+ * label height of the frame's top (a page's own heading, typically) would
+ * have its label cut off by the scrolling frame. `top` is in screen pixels.
+ */
+export function labelBelow(top: number): boolean {
+  return top < LABEL_HEIGHT;
+}
