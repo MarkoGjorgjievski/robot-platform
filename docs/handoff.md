@@ -41,7 +41,7 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 Spec: `docs/superpowers/specs/2026-09-25-verification-tab-design.md` (supersedes
 the stepper's flow in `2026-09-18-schema-stepper-with-marks-design.md`; its
 engine stands). Plan: `docs/superpowers/plans/2026-09-25-app-redesign-plan5-verification-tab.md`;
-briefs, reports and the ledger: `.superpowers/sdd/2026-09-25-app-redesign-plan5-verification-tab/`.
+the per-task briefs, reports and ledger were scratch and are deleted; `git log` is the record.
 Branch `feat/app-verification-tab`, base `main` at `a420222`. A website's first
 tab is now **Verification**, at the website's root URL: paste a listing, get
 three product cards, look at each product's screenshot, point at a value and
@@ -140,7 +140,7 @@ seen live and is the commonest on Ikea. Fixed on the way, each with a test:
   honest, but the tab keeps the document scrolled ~90 px after a click on the
   screenshot, which is why the smoke's three state pairs are viewport shots.
 
-**Deferred minors** (the ledger has them all): `dispose()` / `push` after
+**Deferred minors:** `dispose()` / `push` after
 dispose in the saver; `verifyGate` does not check `canSave`, and `canSave` does
 not cap at six; the badge shows nothing for a field that failed with only
 `not_captured` cells; `toBindingInput` trims urls but not the cards'; Try again
@@ -158,7 +158,7 @@ screenshot of any proof page with none fresh) and **has not been run** — it is
 the controller's, against Marko's account. The screenshot set and what each
 shows: `docs/testing/screens/README.md`.
 
-**The final review's fix wave** (report: `.superpowers/sdd/2026-09-25-app-redesign-plan5-verification-tab/final-fix-report.md`):
+**The final review's fix wave:**
 
 - The Verify label follows spec §2.4: `Verify 8 fields · free` /
   `Verify 8 fields · up to $X`, `Re-verify n fields · free | up to $X`; "free"
@@ -183,6 +183,21 @@ shows: `docs/testing/screens/README.md`.
 - Product cards keep their screenshots while the capture lookup refetches.
 - A product-page capture's stall clock starts when it gets a browser slot, and
   a capture still queued in this process is never reported stalled.
+
+**Left from the final re-review (real, narrow, deferred):**
+
+- An unconfirmed board-store entry never expires: after a save the server
+  refused, every return to that website in the same page session seeds the
+  local board and saves it again, over a teammate's newer save fetched
+  meanwhile. Fix: compare the entry's push time with the server's
+  `updatedAt`, or clear it when a refusal is final.
+- The stall resolver reads a capture row before checking whether its job is
+  still queued; a capture that waited over three minutes and takes its slot in
+  between can be written `failed` / `stalled` (its own `captured` write puts
+  it right, but the card may have stopped polling). Fix: a conditional update
+  on the old `startedAt`.
+- `beforeunload` does not prompt while the saver is in its error state; an
+  incomplete re-verify reads a bare "Re-verify" with no count or price.
 
 **Open decisions:**
 
