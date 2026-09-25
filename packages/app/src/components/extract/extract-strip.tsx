@@ -3,17 +3,13 @@ import { Link } from '@tanstack/react-router';
 import type { StripCell } from '../../lib/site/extract-screen-view';
 
 /**
- * The Extract tab's three steps, side by side above the sections (spec §5.7).
- * The same cell as the Schema tab's strip (`components/schema/stepper-strip.tsx`)
- * — 1 px border in every state, the current one wearing the text colour, a check
- * beside a finished number, monochrome throughout — with one difference that is
- * not cosmetic: these cells are not links.
- *
- * On the Schema tab a cell is the way into its step, because the two steps are
- * two panels and only one is on screen. Here all three sections are on the page
- * at once, one under the other, so there is nowhere for a cell to go: it is a
- * status, and a link that scrolled you 200 px would be a control pretending to
- * be navigation.
+ * The Extract tab's three steps, side by side above the sections (spec §5.7):
+ * 1 px border in every state, the current one wearing the text colour, a check
+ * beside a finished number, monochrome throughout. Unlike the old (now
+ * deleted) Schema tab's equivalent strip, these cells are not links — all
+ * three sections are on the page at once, one under the other, so there is
+ * nowhere for a cell to go: it is a status, and a link that scrolled you
+ * 200 px would be a control pretending to be navigation.
  */
 export function ExtractStrip({ cells }: { cells: [StripCell, StripCell, StripCell] }) {
   return (

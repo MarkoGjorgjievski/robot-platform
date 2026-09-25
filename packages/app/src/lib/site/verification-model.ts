@@ -299,9 +299,10 @@ export function reverifyScope(fields: Field[], results: VerificationResultsLike 
   return fields.filter((f) => !currentKeys.includes(f.key) || (results[f.key]?.certified.length ?? 0) === 0).map((f) => f.key);
 }
 
-// Copied (unchanged) from `./schema-grid`'s `validateExpectedClient`/`shortUrl`
-// rather than moved: the old Schema route still imports schema-grid.ts until a
-// later task deletes it.
+// validateValue/shortUrl below were copied (unchanged) from the deleted
+// Schema tab's `validateExpectedClient`/`shortUrl` (task 4, app redesign
+// plan 5) rather than moved, since the old Schema route kept importing that
+// module until task 9 deleted it.
 const TRUE = ['true', 'yes', 'y', '1', 'in stock', 'instock', 'available', 'in-stock'];
 const FALSE = ['false', 'no', 'n', '0', 'out of stock', 'outofstock', 'unavailable', 'sold out'];
 const TYPE_LABEL: Record<FieldType, string> = { text: 'text', number: 'a number', money: 'a money amount', boolean: 'yes/no (or in stock/out of stock)', date: 'a date', url: 'a URL', image: 'an image URL', text_list: 'a comma-separated list' };

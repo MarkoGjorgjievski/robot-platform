@@ -26,8 +26,8 @@ const EMPTY_CAPTURE: Pick<ProofCapture, 'tiles' | 'boxes' | 'pageHeight' | 'capt
 
 /**
  * A tile's stored path is relative (`/captures/…png`); the api-server, not
- * this app, serves it. Copied from the old `components/schema/page-header-
- * cell.tsx`'s `screenshotHref` — that file is deleted in a later task.
+ * this app, serves it. Copied from the old (now deleted) Schema tab's
+ * `page-header-cell.tsx`'s `screenshotHref`.
  */
 export function tileHref(path: string | null | undefined): string | null {
   if (!path) return null;

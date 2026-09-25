@@ -1,4 +1,4 @@
-// Pure view-model helpers for the Schema screen's verification surface
+// Pure view-model helpers for the Verification tab's verification surface
 // (Task 15 brief). Kept dependency-free from tRPC/React so they are trivial
 // to unit test: the route component casts the jsonb-typed `results`/
 // `captures` fields it gets back from `sources.verificationStatus` into the
@@ -6,16 +6,7 @@
 // directly since the dashboard has no dependency on `@robot/scraper`) and
 // hands them to these functions.
 
-import type { GridRow, GridState } from './schema-grid';
-
-/**
- * The `cellStatus` shape a `SchemaGrid` cell needs, for one (field, url) pair.
- * Ported from the dashboard's `components/schema-grid.tsx` (task-3-brief.md,
- * 2026-09-22 app redesign plan 3): the app's Schema grid component does not
- * exist yet (task 4 builds it fresh, not copied), so this pure lib module —
- * the type's only consumer today — now owns the type instead of importing it
- * from a not-yet-existing component. Task 4 should import it from here.
- */
+/** The status of one (field, url) verification cell, for cellStatusFor's callers. */
 export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string; layout?: number };
 
 export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch';
@@ -77,7 +68,7 @@ function pathSourceLabel(source: CertifiedSource | undefined): string | undefine
 }
 
 /**
- * The `cellStatus` shape a `SchemaGrid` cell needs, for one (field, url) pair.
+ * The `CellStatus` for one (field, url) pair.
  * `stale` wins over everything else — a row whose definition or expected
  * value has changed since the last save makes its old verification result
  * meaningless, whether that old result was a pass or a fail. `fieldType` is
@@ -156,66 +147,4 @@ export function verificationState(
     if (age !== null && age > stallMs) return 'stalled';
   }
   return 'active';
-}
-
-/** The (url, expected) pairs a row is actually checked on: blank cells on pages four to six
- * are "not checked" and take no part (mirrors the server's `checkedPages` / `fieldHash`). */
-function checkedCells(row: GridRow, urls: string[]): Array<[string, string]> {
-  return urls.map((u, i) => [u.trim(), row.expected[i] ?? ''] as [string, string]).filter(([, v]) => v.trim() !== '');
-}
-
-/**
- * Has this row drifted from what was last saved? Its definition, or the pages
- * it is checked on, or a value on one of them. A page added for ANOTHER field
- * leaves this row alone (spec 2026-09-17 §4); replacing one of the first three
- * pages moves every row, since every row has a value there.
- */
-export function isRowStale(row: GridRow, grid: GridState, saved: GridState | null): boolean {
-  if (!saved) return false;
-  const savedRow = row.key ? saved.rows.find((r) => r.key === row.key) : undefined;
-  if (!savedRow) return false;
-  return (
-    row.name !== savedRow.name ||
-    row.type !== savedRow.type ||
-    row.description !== savedRow.description ||
-    JSON.stringify(checkedCells(row, grid.urls)) !== JSON.stringify(checkedCells(savedRow, saved.urls))
-  );
-}
-
-/**
- * Which field keys a re-verify should scope to, given the previous
- * verification's `results` and the (post-save) grid vs. its pre-edit
- * baseline. `undefined` means "verify everything" — either there's no prior
- * run to compare against, or that prior run's `results` are empty (a
- * stalled/crashed run left nothing to diff), so scoping down would be
- * meaningless. Otherwise: every row whose field never certified (never
- * verified at all, or its last run had no certified path), whose
- * definition/checked pages drifted from the saved baseline (`isRowStale`,
- * which now covers a url change per row — see below), or — when
- * `currentKeys` is given — whose key the server no longer counts as current
- * (its stored `fieldHash` no longer matches the live definition, even
- * though its last result did certify) — a plain `[]` when nothing
- * qualifies (everything's already green, unchanged, and current). Rows
- * with no key (never saved) are skipped — nothing in `results` could ever
- * reference them.
- *
- * A changed URL is no longer handled here as a blanket `undefined` — the old
- * `urlsChanged` short-circuit is gone. `isRowStale`'s `checkedCells` pairs
- * each page's url with its expected value, so a moved or swapped url shows up
- * as drift on every row checked against that page, same as any other edit.
- */
-export function reverifyKeys(
-  results: VerificationResults | null | undefined,
-  grid: GridState,
-  savedGrid: GridState | null,
-  currentKeys?: string[],
-): string[] | undefined {
-  if (!results || Object.keys(results).length === 0) return undefined;
-  const keys: string[] = [];
-  for (const row of grid.rows) {
-    if (!row.key) continue;
-    const fv = results[row.key];
-    if (isRowStale(row, grid, savedGrid) || !fv || fv.certified.length === 0 || (currentKeys && !currentKeys.includes(row.key))) keys.push(row.key);
-  }
-  return keys;
 }
