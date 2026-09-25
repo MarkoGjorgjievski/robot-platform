@@ -1,7 +1,7 @@
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { FieldRow } from './field-row';
-import { Button } from '../ui/button';
-import { buttonVariants } from '../ui/button';
+import { Button, buttonVariants } from '../ui/button';
 import { cn } from '../../lib/utils';
 import type { Badge, Field, Segment } from '../../lib/site/verification-model';
 
@@ -49,7 +49,7 @@ export function FieldsSidebar({
   rows: FieldsSidebarRow[];
   verify: { label: string; disabled: boolean; reason?: string; busy: boolean; onClick: () => void };
   saveState: 'idle' | 'pending' | 'saving' | 'error';
-  extract: { enabled: boolean; href: string };
+  extract: { enabled: boolean; project: string; site: string };
   /** Where a running Verify is, e.g. "checking product 2 of 3". `null` when nothing is running. */
   stage: string | null;
 }) {
@@ -99,10 +99,14 @@ export function FieldsSidebar({
         {stage ? <p className="text-sm text-muted-foreground">{stage}</p> : null}
 
         {extract.enabled ? (
-          <a href={extract.href} className={cn(buttonVariants({ size: 'sm' }), 'w-full')}>
+          <Link
+            to="/projects/$project/sites/$site/extract"
+            params={{ project: extract.project, site: extract.site }}
+            className={cn(buttonVariants({ size: 'sm' }), 'w-full')}
+          >
             Go to Extract
             <ArrowRight />
-          </a>
+          </Link>
         ) : (
           <div>
             <Button size="sm" variant="outline" disabled className="w-full">
