@@ -18,12 +18,19 @@
 // Every one of those is the customer's own gesture in a real browser, which is
 // also the only honest way to prove the mutations reach the API.
 //
-// Plan 3's four screens live inside that website. The run fills in its Schema
-// tab the way a customer does — three product pages typed into their popovers,
-// a hint, an expected value per page — and clicks **Save pages and values**,
-// which is free. It never clicks Verify, Sample, Extract or Check: every one of
-// those launches a browser or a model, and a test that spends money is a test
-// nobody runs. So Extract is photographed locked, Runs empty, and Settings is
+// Plan 3's four screens live inside that website, and plan 5 made its first
+// tab the Verification tab: find products from a listing, look at each one's
+// screenshot, point at a value and name it. That tab needs real pages, so this
+// run serves its own — a `node:http` server on 127.0.0.1 with a listing and
+// the three shop-example product pages (with their JSON-LD) — and adds the
+// website on that address, so nothing here touches the outside network. It
+// pastes the listing, waits for the three screenshots, ticks one page-data
+// suggestion, clicks one element and names it, ticks what that carries to the
+// other two products, and reloads to find every answer still there. All of
+// that is free: captures, suggestions and transfers use no model. It never
+// clicks Verify, Sample, Extract or Check: every one of those can spend, and a
+// test that spends money is a test nobody runs. So the Verify button is read
+// for its label, Extract is photographed locked, Runs empty, and Settings is
 // proven by a rename that goes to the server and comes back.
 //
 // Needs the api-server and the app up, so it is opt-in:
@@ -40,9 +47,14 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import { mkdirSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppRouter } from '@robot/api/routers';
+// By relative path: the shop-example pages are a test helper of `@robot/api`,
+// not part of its public surface.
+import { SHOP_EXAMPLE } from '../../api/src/test-helpers/shop-example';
 
 const ENABLED = process.env.RUN_UI_SMOKE === '1';
 const APP = process.env.APP_URL ?? 'http://localhost:3000';
@@ -51,24 +63,71 @@ const API = process.env.API_URL ?? 'http://localhost:4000';
 /** Every screen of plan 1. Each is a route a signed-in customer can reach from the sidebar. */
 const ROUTES = ['/projects', '/runs', '/usage', '/settings', '/account'] as const;
 
-/** The website this run adds. `example.com` exists to be used like this, and nothing ever fetches it. */
-const WEBSITE_URL = 'https://www.example.com/';
-const WEBSITE_HOST = 'www.example.com';
-/** What `siteNameFromUrl` derives from that address — the dialog's prefill. */
-const WEBSITE_NAME = 'Example';
-/** The catalogue chip this run clicks, on the Product tab it opens on. */
-const FIELD_NAME = 'Price';
+/**
+ * The shop this run serves itself (see `serveShop`), on a port the OS picks —
+ * so the website's address is only known once `beforeAll` has run. Its
+ * products are on the same host, which is what the same-website rule wants.
+ */
+let shop: Server | null = null;
+let SHOP = '';
+/** The website's address: the local shop's root. */
+const websiteUrl = () => `${SHOP}/`;
+const WEBSITE_HOST = '127.0.0.1';
+/** What `siteNameFromUrl` derives from `http://127.0.0.1:<port>/` — the dialog's prefill. Not pretty; it is what a customer would see. */
+const WEBSITE_NAME = '0';
+/** The catalogue chips this run clicks, on the Product tab it opens on: name and the type the chip shows beside it. */
+const FIELDS = [
+  { name: 'Title', type: 'Text' },
+  { name: 'Price', type: 'Money' },
+] as const;
+
+/** The three products the listing links to, in its order: `SHOP_EXAMPLE`'s pages and their headings. */
+const PRODUCTS = [
+  { path: '/p/1', page: SHOP_EXAMPLE.p1, title: 'Widget A', price: '$129.99' },
+  { path: '/p/2', page: SHOP_EXAMPLE.p2, title: 'Widget B', price: '$219.99' },
+  { path: '/p/3', page: SHOP_EXAMPLE.p3, title: 'Widget C', price: '$149.00' },
+] as const;
+
+/** A 1×1 transparent PNG: every image the shop serves. */
+const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
 /**
- * The three proof pages the Schema tab is filled in with. Same host as the
- * website, different paths, and nothing ever fetches them: `updateBinding` only
- * stores what is typed. `URL_MIN` is 3, so all three need a value.
+ * The listing: three product cards (a photo and the product's name in a link)
+ * and one link that is not a product, which the listing heuristic must leave
+ * out. The product pages are `SHOP_EXAMPLE`'s html with its JSON-LD put back
+ * where a shop keeps it, in the head — the page data `suggestMarks` reads.
  */
-const PAGE_URLS = ['https://www.example.com/p/1', 'https://www.example.com/p/2', 'https://www.example.com/p/3'] as const;
-/** `Price` is a Money field, so the expected values have to parse as amounts. */
-const PAGE_VALUES = ['10.00', '20.00', '30.00'] as const;
-/** The "where it is on this website" hint, which `bindingProblems` also requires. */
-const FIELD_HINT = 'the price next to the buy button';
+function shopPage(pathname: string): { type: string; body: string | Buffer } | null {
+  if (pathname === '/' || pathname === '/about') {
+    return { type: 'text/html', body: '<html><head><title>Widget shop</title></head><body><h1>Widget shop</h1></body></html>' };
+  }
+  if (pathname === '/l') {
+    const cards = PRODUCTS.map((p, i) => `<li><a href="${p.path}"><img src="/i/${i + 1}.png" alt=""><span>${p.title}</span></a></li>`).join('');
+    return {
+      type: 'text/html',
+      body: `<html><head><title>All widgets</title></head><body><h1>All widgets</h1><ul class="grid">${cards}</ul><a href="/about">About the shop</a></body></html>`,
+    };
+  }
+  if (/^\/(i|img)\/[\w.-]+$/.test(pathname)) return { type: 'image/png', body: PIXEL };
+  const product = PRODUCTS.find((p) => p.path === pathname);
+  if (!product) return null;
+  const ld = product.page.structuredData.ldJson.map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join('');
+  return { type: 'text/html', body: product.page.html.replace('<html>', `<html><head><title>${product.title}</title>${ld}</head>`) };
+}
+
+function serveShop(): Promise<{ server: Server; origin: string }> {
+  const server = createServer((req, res) => {
+    const found = shopPage(new URL(req.url ?? '/', 'http://x').pathname);
+    if (!found) {
+      res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
+      return;
+    }
+    res.writeHead(200, { 'content-type': found.type }).end(found.body);
+  });
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
+  });
+}
 
 /**
  * Plan 2's three screens, each with the one thing that proves it is the real
@@ -90,10 +149,12 @@ const PROJECT_SCREENS = [
     name: 'fields',
     route: '/fields',
     assert: async () => {
-      expect(
-        await page.getByRole('textbox', { name: `Name of ${FIELD_NAME}` }).count(),
-        'the Fields screen has no row for the field this run added',
-      ).toBe(1);
+      for (const f of FIELDS) {
+        expect(
+          await page.getByRole('textbox', { name: `Name of ${f.name}` }).count(),
+          `the Fields screen has no row for ${f.name}, which this run added`,
+        ).toBe(1);
+      }
     },
   },
   {
@@ -108,41 +169,30 @@ const PROJECT_SCREENS = [
 ] as const;
 
 /**
- * Plan 3's four website screens. Each carries the one thing that proves it is
- * the real screen: the grid with this run's own pages in it, the locked strip a
- * website that has never verified must show, the empty run list, and the
- * settings rows.
+ * Plan 3's four website screens, the first of them plan 5's Verification tab.
+ * Each carries the one thing that proves it is the real screen: this run's
+ * three products with every answer confirmed, the locked strip a website that
+ * has never verified must show, the empty run list, and the settings rows.
  *
  * Nothing here clicks a control that spends: the Verify button is read for its
  * label and left alone, and Sample / Extract / Check are never reached at all
- * (the Extract tab is inert while the schema is not green, which is the state
- * this run is honestly in).
+ * (the Extract tab is inert while nothing is verified, which is the state this
+ * run is honestly in).
  */
 const SITE_SCREENS = [
   {
-    name: 'schema',
+    name: 'verification',
     route: '',
     assert: async () => {
-      // Step 2 is where `stepOf` lands once the project has a field, so this is
-      // the grid — one row for the field, one column per proof page.
-      expect(await page.locator('tbody tr').count(), 'the grid has no row for the field').toBe(1);
-      for (const [i, url] of PAGE_URLS.entries()) {
-        expect(
-          await page.getByRole('textbox', { name: `${FIELD_NAME} on page ${i + 1}` }).inputValue(),
-          `page ${i + 1} lost its expected value`,
-        ).toBe(PAGE_VALUES[i]);
-        expect(await page.locator('thead').innerText(), `page ${i + 1}'s column head is missing`).toContain(new URL(url).pathname);
+      for (const p of PRODUCTS) {
+        expect(await page.getByRole('button', { name: new RegExp(p.title) }).count(), `the card for ${p.title} is missing`).toBe(1);
       }
-      // Saved a moment ago and untouched since: the button says so rather than
-      // offering a save that would write the same rows again.
-      const save = page.getByRole('button', { name: 'Save pages and values' });
-      expect(await save.isDisabled(), 'Save pages and values is live on an unchanged grid').toBe(true);
-      expect(await page.locator('main').innerText(), 'the strip does not say why Save is off').toContain(
-        'Nothing has changed since the last save',
-      );
+      for (const f of FIELDS) {
+        expect(await batteryLabel(f.name), `${f.name} lost an answer`).toBe(`${f.name}: 3 of 3 confirmed`);
+      }
       // Read, never pressed — a verification is the one thing on this screen
-      // that costs money.
-      expect(await page.getByRole('button', { name: /^Verify/ }).count(), 'the Verify button is missing').toBe(1);
+      // that can cost money.
+      expect(await verifyButtonOf(page).count(), 'the Verify button is missing').toBe(1);
     },
   },
   {
@@ -242,9 +292,9 @@ const SCREENS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.
  * — the theme menu — and a row or a button under it would be photographed
  * wearing its hover state.
  */
-const shoot = async (p: Page, file: string) => {
+const shoot = async (p: Page, file: string, fullPage = true) => {
   await p.mouse.move(1435, 895);
-  await p.screenshot({ path: path.join(SCREENS, file), fullPage: true, animations: 'disabled' });
+  await p.screenshot({ path: path.join(SCREENS, file), fullPage, animations: 'disabled' });
 };
 
 /** `/projects` -> `projects`. */
@@ -355,8 +405,73 @@ async function chooseTheme(p: Page, theme: Theme) {
     .toBe(theme);
 }
 
+/**
+ * Flip the theme through the user menu *without* reloading: the menu flips
+ * `data-theme` on the spot, so a screen whose state lives only in the page —
+ * suggestions carried from another product are never saved — can be
+ * photographed in both themes without losing what is on it.
+ */
+async function flipThemeInPlace(p: Page, theme: Theme) {
+  await p.locator('aside button').filter({ hasText: EMAIL }).first().click();
+  await p.getByRole('menuitem', { name: 'Theme' }).click();
+  const saved = p.waitForResponse((r) => r.url().includes('auth.setTheme'), { timeout: 15_000 }).catch(() => null);
+  await p.getByRole('menuitemradio', { name: theme === 'dark' ? 'Dark' : 'Light' }).click();
+  await saved;
+  await p.keyboard.press('Escape');
+  await expect.poll(() => p.evaluate(() => document.documentElement.dataset.theme), { timeout: 10_000 }).toBe(theme);
+}
+
+/** A Verification tab state in both themes, the current one first; leaves the page in the theme it found. */
+async function shootBothThemes(p: Page, name: string) {
+  const current = (await p.evaluate(() => document.documentElement.dataset.theme)) as Theme;
+  const other: Theme = current === 'dark' ? 'light' : 'dark';
+  // The viewport, not the full page: after a click on the screenshot the
+  // document stays scrolled a little (something puts it back after a
+  // scrollTo), and a full-page capture of a scrolled document draws the
+  // sticky sidebar and breadcrumb at the scroll offset, over the title. The
+  // 1440×900 viewport holds the grid, the top of the screenshot and the
+  // whole sidebar.
+  await shoot(p, `app-site-verification-${name}-${current}.png`, false);
+  await flipThemeInPlace(p, other);
+  await shoot(p, `app-site-verification-${name}-${other}.png`, false);
+  await flipThemeInPlace(p, current);
+}
+
+/** A field's battery, as its accessible summary: "Price: 1 of 3 confirmed, 2 suggested". */
+const batteryLabel = (name: string) => page.locator(`[role="img"][aria-label^="${name}: "]`).getAttribute('aria-label');
+
+/** The one button on the Verification tab that can spend. Found to be read, never clicked. */
+const verifyButtonOf = (p: Page) => p.getByRole('button', { name: /^Verify/ });
+
+/**
+ * Tick a suggestion for `name` on the product on screen, wherever the tab
+ * offers it: an orange rectangle on the screenshot (its label reads
+ * "Price?"), or — when no element on the page shows the value — the row's own
+ * "page data" / "from another product" line.
+ *
+ * The rectangle is clicked by the mouse at its centre, not through the label:
+ * the drawn rectangles ignore the pointer and the layer over the screenshot
+ * decides what a click hit, exactly as it does for a customer.
+ */
+async function confirmSuggestion(p: Page, name: string) {
+  const label = p.locator('span', { hasText: new RegExp(`^${name}\\?$`) });
+  const row = p.getByRole('button', { name: `Confirm ${name} from the page data` });
+  await expect.poll(async () => (await label.count()) + (await row.count()), { timeout: 30_000, message: `no ${name} suggestion on this product` }).toBeGreaterThan(0);
+  if ((await label.count()) > 0) {
+    const box = await label.first().locator('..').boundingBox();
+    if (!box) throw new Error(`the ${name} suggestion has no box on screen`);
+    await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await p.getByRole('button', { name: `Confirm ${name}`, exact: true }).click();
+  } else {
+    await row.click();
+  }
+}
+
 beforeAll(async () => {
   if (!ENABLED) return;
+  const served = await serveShop();
+  shop = served.server;
+  SHOP = served.origin;
   for (const [label, url] of [['app', APP], ['api-server', `${API}/healthz`]] as const) {
     const res = await fetch(url).catch(() => null);
     if (!res?.ok) {
@@ -389,6 +504,9 @@ afterAll(async () => {
     }
   }
   await browser?.close();
+  // The api-server's capture browser may still hold a keep-alive connection.
+  shop?.closeAllConnections();
+  await new Promise<void>((resolve) => (shop ? shop.close(() => resolve()) : resolve()));
 });
 
 describe.skipIf(!ENABLED)('app shell', () => {
@@ -449,35 +567,47 @@ describe.skipIf(!ENABLED)('app shell', () => {
     }, 180_000);
   }
 
-  it('a website added through the dialog appears on the project home', async () => {
+  it('a website added through the dialog lands on its Verification tab and appears on the project home', async () => {
     expect(projectSlug, 'there is no project to add a website to').not.toBeNull();
     problems.length = 0;
     await page.goto(`${APP}/projects/${projectSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
     await waitForHydration(page, 'main');
 
-    // `example.com` on purpose: it is the one address that exists to be used in
-    // a test, and nothing here ever fetches it — the row is made from the URL.
-    // The trigger and the dialog's submit share the name "Add website", so the
-    // submit is asked for inside the dialog.
+    // The address is this run's own shop, so the Verification tab below has
+    // real pages to capture. The trigger and the dialog's submit share the
+    // name "Add website", so the submit is asked for inside the dialog.
     await page.getByRole('button', { name: 'Add website' }).first().click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByLabel('Address').fill(WEBSITE_URL);
+    await dialog.getByLabel('Address').fill(websiteUrl());
     // The name is derived from the address, so the prefill is what proves the
     // form is live before anything is submitted.
     await expect.poll(() => dialog.getByLabel('Name').inputValue(), { timeout: 10_000 }).toBe(WEBSITE_NAME);
     await dialog.getByRole('button', { name: 'Add website' }).click();
 
-    await page.locator('tbody tr').filter({ hasText: WEBSITE_HOST }).first().waitFor({ timeout: 20_000 });
-    expect(problems, `adding a website logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+    // Add website lands on the new website's Verification tab (spec
+    // 2026-09-25 §2.6) — and the project has no fields yet, so the tab says
+    // that and offers the way to the Fields page, and nothing else.
+    await page.waitForURL(new RegExp(`/projects/${projectSlug}/sites/[^/?]+$`), { timeout: 20_000 });
+    // The link, not the sentence: the project home says "no fields yet" too,
+    // and it is still on screen for a moment after the URL has changed.
+    await page.getByRole('link', { name: 'Add fields' }).waitFor({ timeout: 20_000 });
+    expect(await page.locator('main').innerText(), 'the tab does not say why it is empty').toContain('This project has no fields yet');
+    expect(await page.getByRole('textbox', { name: 'Listing page' }).count(), 'the listing bar is on a tab with no fields').toBe(0);
 
-    // The slug the plan 3 screens are addressed by, read back through the same
-    // session that made it rather than derived from the name by hand.
+    // The slug the website screens are addressed by, read back through the
+    // same session that made it rather than derived from the name by hand.
     const project = await apiAs(await sessionCookie(context)).projects.get.query({ projectSlug: projectSlug! });
     websiteSlug = project.websites.find((w) => w.name === WEBSITE_NAME)?.slug ?? null;
     expect(websiteSlug, 'the new website is not in projects.get').not.toBeNull();
+    expect(new URL(page.url()).pathname, 'Add website landed somewhere else').toBe(`/projects/${projectSlug}/sites/${websiteSlug}`);
+
+    // And the project home lists it.
+    await page.goto(`${APP}/projects/${projectSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.locator('tbody tr').filter({ hasText: WEBSITE_HOST }).first().waitFor({ timeout: 20_000 });
+    expect(problems, `adding a website logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 120_000);
 
-  it('a field picked from the catalogue appears in the list', async () => {
+  it('fields picked from the catalogue appear in the list', async () => {
     expect(projectSlug, 'there is no project to add a field to').not.toBeNull();
     problems.length = 0;
     await page.goto(`${APP}/projects/${projectSlug}/fields`, { waitUntil: 'networkidle', timeout: 30_000 });
@@ -486,9 +616,11 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // A chip carries its type beside its name, so the accessible name is
     // "Price Money" — which is also what tells it apart from "Was price" and
     // "Unit price".
-    await page.getByRole('button', { name: `${FIELD_NAME} Money`, exact: true }).click();
-    await page.getByRole('textbox', { name: `Name of ${FIELD_NAME}` }).waitFor({ timeout: 20_000 });
-    expect(problems, `adding a field logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+    for (const f of FIELDS) {
+      await page.getByRole('button', { name: `${f.name} ${f.type}`, exact: true }).click();
+      await page.getByRole('textbox', { name: `Name of ${f.name}` }).waitFor({ timeout: 20_000 });
+    }
+    expect(problems, `adding fields logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 120_000);
 
   for (const theme of THEMES) {
@@ -525,78 +657,146 @@ describe.skipIf(!ENABLED)('app shell', () => {
     }, 180_000);
   }
 
-  it("the Schema tab's step 1 shows the project's fields and sends edits to the project", async () => {
-    expect(websiteSlug, 'there is no website to open').not.toBeNull();
+  it('a website is verified-ready from its Verification tab', async () => {
+    expect(websiteSlug, 'there is no website to set up').not.toBeNull();
     problems.length = 0;
-    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}?step=fields`, {
-      waitUntil: 'networkidle',
-      timeout: 30_000,
-    });
-    await waitForHydration(page, 'main');
-    await page.waitForTimeout(1200);
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const productUrls = PRODUCTS.map((p) => `${SHOP}${p.path}`);
 
-    // Step 1 is a list, not a form: a field belongs to the project, so the one
-    // control here is the way to the surface that owns it.
-    const main = await page.locator('main').innerText();
-    expect(main, 'step 1 does not list the project\'s field').toContain(FIELD_NAME);
-    expect(main, 'step 1 offers no way to the project\'s Fields screen').toContain('Edit fields');
-    // The list is the panel's only content: one line per field, and nothing in
-    // it can be typed into. (The one input `main` does hold is the website's own
-    // name, in the title row the layout owns.)
-    expect(await page.locator('main ul li').count(), 'step 1 does not list one line per field').toBe(1);
-    expect(await page.locator('main ul input, main ul button').count(), 'step 1 offers an editable field').toBe(0);
-    expect(problems, `step 1 logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
-  }, 120_000);
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    // No product yet: the listing bar, and the line that says what to do.
+    await expect.poll(() => page.locator('main').innerText(), { timeout: 20_000 }).toContain('Find products from a listing page');
+    await shootBothThemes(page, 'empty');
 
-  it('three pages and their values save from the Schema tab', async () => {
-    expect(websiteSlug, 'there is no website to fill in').not.toBeNull();
-    problems.length = 0;
-    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}?step=pages`, {
-      waitUntil: 'networkidle',
-      timeout: 30_000,
-    });
-    await waitForHydration(page, 'main');
+    // 1. The listing: one page load, three product cards named by the
+    // listing's own link text — and not the "About the shop" link.
+    await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/l`);
+    await page.getByRole('button', { name: 'Find products' }).click();
+    await expect.poll(() => page.locator('main').innerText(), { timeout: 60_000 }).toContain('3 products found');
+    const card = (title: string) => page.getByRole('button', { name: new RegExp(`^${title}`) });
+    for (const p of PRODUCTS) {
+      expect(await card(p.title).count(), `no card reads "${p.title}"`).toBe(1);
+    }
+    expect(await page.getByRole('button', { name: /^About the shop/ }).count(), 'the About link became a product').toBe(0);
 
-    // Each proof page is typed into its own popover, the way a customer types
-    // it: the pencil in the column head, the URL, "Use this page".
-    for (const [i, url] of PAGE_URLS.entries()) {
-      await page.getByRole('button', { name: `Edit page ${i + 1}` }).click();
-      // Addressed by `data-slot` rather than by role: the popover carries two
-      // inputs (this page's URL and the listing finder's), and the first is the
-      // one the pencil opened for.
-      const popover = page.locator('[data-slot="popover-content"]');
-      await popover.locator('input').first().fill(url);
-      await popover.getByRole('button', { name: 'Use this page' }).click();
-      await expect
-        .poll(() => page.locator('thead').innerText(), { timeout: 10_000 })
-        .toContain(new URL(url).pathname);
+    // 2. Every product's screenshot is taken in the background, at most three at once.
+    await expect
+      .poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 90_000, interval: 1000 })
+      .toBe(3);
+
+    // 3. Product 1 is open, and its page data put the title on the heading: an
+    // orange "Title?" on the screenshot. Tick it.
+    await page.locator('span', { hasText: /^Title\?$/ }).first().waitFor({ timeout: 30_000 });
+    await confirmSuggestion(page, 'Title');
+    await expect.poll(() => page.getByRole('button', { name: 'Title on product 1: confirmed' }).count(), { timeout: 10_000 }).toBe(1);
+
+    // 4. Point at the price on the screenshot and name it. Where the element
+    // is comes from the capture's own box map, read through the same session;
+    // the click lands where the viewer draws that box (its rect × the scale
+    // the screenshot is shown at, from the frame's top left corner).
+    const captures = await api.sources.proofPageCaptures.query({ sourceId: site.id, urls: [productUrls[0]!] });
+    const captureId = captures[productUrls[0]!]?.captureId;
+    expect(captureId, 'product 1 has no capture').toBeTruthy();
+    const capture = await api.sources.proofPageCapture.query({ captureId: captureId! });
+    const priceBoxes = capture.boxes.filter((b) => b.text.trim() === PRODUCTS[0].price);
+    expect(priceBoxes.length, `no element on product 1 reads ${PRODUCTS[0].price}`).toBeGreaterThan(0);
+    const price = priceBoxes.sort((a, b) => a.rect.w * a.rect.h - b.rect.w * b.rect.h)[0]!.rect;
+    // Measured afresh for every click: opening and closing a popover moves
+    // focus, and the page may scroll under the pointer with it.
+    const clickPrice = async () => {
+      const shot = page.locator('img[alt="Screenshot of this product"]');
+      await shot.scrollIntoViewIfNeeded();
+      const scale = await shot.evaluate((img: HTMLImageElement) => img.getBoundingClientRect().width / img.naturalWidth);
+      const frame = await shot.boundingBox();
+      if (!frame) throw new Error('the screenshot is not on screen');
+      await page.mouse.click(frame.x + (price.x + price.w / 2) * scale, frame.y + (price.y + price.h / 2) * scale);
+    };
+    await clickPrice();
+    const popover = page.locator('[data-slot="popover-content"]');
+    await popover.waitFor({ timeout: 10_000 });
+    // The shop's JSON-LD carries the price, so page data may already have
+    // outlined this element as "Price?". Reject that suggestion (×) and click
+    // the element again: this step is the customer pointing at a value
+    // nobody suggested and naming it from the dropdown.
+    const reject = popover.getByRole('button', { name: 'Reject suggestion' });
+    if ((await reject.count()) > 0) {
+      await reject.click();
+      await popover.waitFor({ state: 'detached', timeout: 10_000 });
+      await expect.poll(() => page.locator('span', { hasText: /^Price\?$/ }).count(), { timeout: 10_000 }).toBe(0);
+      await clickPrice();
+      await popover.waitFor({ timeout: 10_000 });
+      expect(await reject.count(), 'the rejected suggestion came back').toBe(0);
+    }
+    expect(await popover.innerText(), 'the popover does not show the value it read').toContain(PRODUCTS[0].price);
+    // A money value lists the money field first; pick Price if it is not already chosen.
+    const fieldPicker = popover.getByRole('combobox');
+    if (!(await fieldPicker.innerText()).includes('Price')) {
+      await fieldPicker.click();
+      await page.getByRole('option', { name: /^Price/ }).click();
+    }
+    await popover.getByRole('button', { name: 'Confirm Price', exact: true }).click();
+
+    // 5. The tick is carried to the other two products as a suggestion.
+    await expect.poll(() => batteryLabel('Price'), { timeout: 20_000 }).toBe('Price: 1 of 3 confirmed, 2 suggested');
+    await shootBothThemes(page, 'marking');
+
+    for (const p of PRODUCTS.slice(1)) {
+      await card(p.title).click();
+      await expect.poll(() => card(p.title).getAttribute('aria-pressed'), { timeout: 10_000 }).toBe('true');
+      for (const f of FIELDS) await confirmSuggestion(page, f.name);
+    }
+    for (const f of FIELDS) {
+      await expect.poll(() => batteryLabel(f.name), { timeout: 10_000 }).toBe(`${f.name}: 3 of 3 confirmed`);
     }
 
-    // `bindingProblems` wants the hint as well as the three values; without it
-    // Save stays off and says so.
-    await page.getByRole('textbox', { name: `Where ${FIELD_NAME} is on this website` }).fill(FIELD_HINT);
-    for (const [i, value] of PAGE_VALUES.entries()) {
-      await page.getByRole('textbox', { name: `${FIELD_NAME} on page ${i + 1}` }).fill(value);
-    }
+    // 6. Every answer autosaves: the line under Verify says so, and the server
+    // has all six before the reload that proves it.
+    await expect
+      .poll(
+        async () => {
+          const s = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+          const expected = (s.verificationSet as { expected?: Record<string, Record<string, string>> } | null)?.expected ?? {};
+          return FIELDS.every((f) => {
+            const key = f.name.toLowerCase();
+            return productUrls.every((u) => (expected[key]?.[u] ?? '').trim() !== '');
+          });
+        },
+        { timeout: 20_000, interval: 500 },
+      )
+      .toBe(true);
+    await expect.poll(() => page.getByText('saved', { exact: true }).count(), { timeout: 10_000 }).toBe(1);
 
-    // Free: `updateBinding` writes rows and nothing else. Verify — the button
-    // beside it — is the one that spends, and this run never touches it.
-    const save = page.getByRole('button', { name: 'Save pages and values' });
-    await expect.poll(() => save.isEnabled(), { timeout: 10_000 }).toBe(true);
-    await save.click();
-    await expect.poll(() => save.isDisabled(), { timeout: 20_000 }).toBe(true);
-
-    // The reload is the proof: what comes back is what the server stored.
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForTimeout(1200);
-    for (const [i, value] of PAGE_VALUES.entries()) {
-      expect(
-        await page.getByRole('textbox', { name: `${FIELD_NAME} on page ${i + 1}` }).inputValue(),
-        `page ${i + 1}'s value did not survive the reload`,
-      ).toBe(value);
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    for (const f of FIELDS) {
+      await expect.poll(() => batteryLabel(f.name), { timeout: 20_000 }).toBe(`${f.name}: 3 of 3 confirmed`);
+      for (let i = 1; i <= 3; i++) {
+        expect(
+          await page.getByRole('button', { name: `${f.name} on product ${i}: confirmed` }).count(),
+          `${f.name} on product ${i} did not survive the reload`,
+        ).toBe(1);
+      }
     }
-    expect(problems, `saving pages and values logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
-  }, 180_000);
+    // Ready to verify, and priced before the click — which this run never makes.
+    const verify = verifyButtonOf(page);
+    await expect.poll(() => verify.isEnabled(), { timeout: 20_000 }).toBe(true);
+    expect(await verify.innerText(), 'the Verify button does not say what it costs').toMatch(/· (free|mechanical only|up to \$\d)/);
+    await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000 }).toBe(3);
+    await shootBothThemes(page, 'ready');
+
+    // 7. What the server stored: Price's mark on product 1, and the cards
+    // with the listing's titles, so the grid comes back without the listing.
+    const stored = (await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).verificationSet as {
+      marks?: Record<string, Record<string, unknown>>;
+      cards?: Array<{ url: string; title: string }>;
+    } | null;
+    expect(stored?.marks?.price?.[productUrls[0]!], 'Price on product 1 was saved without its mark').toBeTruthy();
+    expect(stored?.cards?.map((c) => c.title), 'the cards were not saved with their titles').toEqual(PRODUCTS.map((p) => p.title));
+
+    expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 300_000);
 
   for (const theme of THEMES) {
     it(`every website screen renders in the ${theme} theme`, async () => {
