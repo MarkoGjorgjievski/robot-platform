@@ -31,17 +31,26 @@ screen of plan 1 once per theme, flipping the theme through the user menu in bet
 file is `app-<route>-<theme>.png`; `/login` is captured signed out, before the sign-in, and
 is always dark (§4's open question — a signed-out visitor has no preference yet).
 
-For plan 2 the same run builds a project of its own — a project, a website
-(`https://www.example.com/`) and one catalogue field, each through the dialog a customer
-uses — and walks its three screens in both themes as `app-project-<screen>-<theme>.png`.
-Those show a *new* project: one unverified website, one field, no rows.
+For plan 2 the same run builds a project of its own — a project, a website and two
+catalogue fields (Title, Price), each through the dialog a customer uses — and walks its
+three screens in both themes as `app-project-<screen>-<theme>.png`. Those show a *new*
+project: one unverified website, two fields, no rows. Since plan 5 (2026-09-25) the website
+is the run's own shop: a `node:http` server on `127.0.0.1` serving a listing and the three
+shop-example product pages with their JSON-LD, so the Verification tab has real pages to
+capture without touching the outside network. Its address is `http://127.0.0.1:<port>/`,
+and the name the Add website dialog derives from that is "0" — which is what the website is
+called in every capture below.
 
-For plan 3 it then fills that website in the way a customer does — three product pages
-typed into their popovers, a hint, an expected value per page — and clicks **Save pages and
-values**, which is free. It never clicks Verify, Sample, Extract or Check: every one of
-those launches a browser or a model. So `app-site-<tab>-<theme>.png` shows a website that
-is set up and not yet verified — a filled grid, a locked Extract tab, an empty Runs tab and
-the settings rows.
+For plans 3 and 5 it then sets that website up the way a customer does, on its Verification
+tab: pastes the listing, waits for the three screenshots, ticks the Title suggestion, rejects
+the Price suggestion and clicks the price on the screenshot instead, ticks what is carried
+to the other two products, and reloads. All of it is free (captures, page data and transfers
+use no model). It never clicks Verify, Sample, Extract or Check. So `app-site-<tab>-<theme>.png`
+shows a website that is ready to verify and not yet verified — every answer green, a locked
+Extract tab, an empty Runs tab and the settings rows — and `app-site-verification-<state>-<theme>.png`
+shows the tab on its way there. The three state pairs are the viewport (1440×900), not the full
+page: after a click on the screenshot the document stays scrolled a little, and a full-page
+capture of a scrolled document draws the sticky sidebar and breadcrumb over the title.
 
 Captures are taken with Playwright's `animations: 'disabled'`. Without it the page-load
 `.rise` (`opacity: 0`, `animation-fill-mode: both`) has not started in the frame the
@@ -55,10 +64,13 @@ screenshot provokes, and the picture is a blank page.
 | `app-usage-dark.png` / `-light.png` | `/usage` — the org's spend this month at $0.00, one row for the throwaway's project |
 | `app-settings-dark.png` / `-light.png` | `/settings` — the personal organisation's name, its one member marked "you", Delete organisation refused |
 | `app-account-dark.png` / `-light.png` | `/account` — the signed-in throwaway's name and email, the checked theme |
-| `app-project-home-dark.png` / `-light.png` | a new project's home — one website, not verified, no run |
-| `app-project-fields-dark.png` / `-light.png` | Fields on a new project — one field beside the catalogue |
+| `app-project-home-dark.png` / `-light.png` | a new project's home — one website ("0", on 127.0.0.1), not verified, no run |
+| `app-project-fields-dark.png` / `-light.png` | Fields on a new project — Title and Price beside the catalogue |
 | `app-project-output-dark.png` / `-light.png` | Output on a project with no run — the empty state, downloads off |
-| `app-site-schema-dark.png` / `-light.png` | a website's Schema tab, step 2 — one field, three typed pages, saved, not verified |
+| `app-site-verification-empty-dark.png` / `-light.png` | the Verification tab before anything — the listing bar, "Find products from a listing page…", Verify off with "Add at least three products" (viewport) |
+| `app-site-verification-marking-dark.png` / `-light.png` | mid-way — three products ready, Title and Price ticked on product 1, both carried to products 2 and 3 as orange ("Price: 1 of 3 confirmed, 2 suggested") (viewport) |
+| `app-site-verification-ready-dark.png` / `-light.png` | after the reload — every segment green, "saved", Verify enabled and priced, not clicked (viewport) |
+| `app-site-verification-dark.png` / `-light.png` | the same tab as the website walk's first stop (full page) |
 | `app-site-extract-dark.png` / `-light.png` | Extract on an unverified website — the locked strip, the three sections out of reach |
 | `app-site-runs-dark.png` / `-light.png` | Runs with nothing extracted — the empty state |
 | `app-site-settings-dark.png` / `-light.png` | Settings — name, address, listing mode, budget, Active, the Danger zone |
@@ -100,6 +112,18 @@ cp docs/testing/ui-check-app-project.mts packages/browser/src/__ui-check.mts \
   && cd packages/browser && pnpm exec tsx src/__ui-check.mts --email <address> ; rm src/__ui-check.mts
 ```
 
+### The Verification tab live on Ikea — `app-site-verification-ikea-*.png`
+
+`docs/testing/ui-check-app-verification.mts` (plan 5) runs the tab end to end on Ikea as a
+throwaway `check-*@example.com`, against a keyless api-server on :4100 and an app on :3100,
+Verify included — it refuses to click unless the button reads "mechanical only" / "free".
+Numbers and findings: `docs/testing/2026-09-25-verification-live.md`.
+
+| File | Shows |
+|---|---|
+| `app-site-verification-ikea-marking-dark.png` / `-light.png` | Ikea, eight fields, product 1 all ticked, products 2 and 3 orange (full page) |
+| `app-site-verification-ikea-verified-dark.png` / `-light.png` | after a mechanical Verify — 8 of 8 verified, Go to Extract live (full page) |
+
 ### The website screens on real data — `app-site-*-acne-*.png`
 
 `docs/testing/ui-check-app-site.mts` is plan 3's look-only check: given `--email <address>`
@@ -114,13 +138,20 @@ strip cells, the Runs branch and the Settings rows against what `sources.get` re
 the shell measurements on each tab. `--project <slug>` and `--site <slug>` point it
 somewhere else; the expectations live in one `EXPECTED` object at the top.
 
-Its ten captures are the set worth reviewing: a website where every field is certified is
-a state no throwaway website can reach.
+Its captures are the set worth reviewing: a website where every field is certified is
+a state no throwaway website can reach. **Plan 5 rewrote its first stop** for the
+Verification tab — full batteries, a "verified" badge on every row, "Everything is verified",
+Go to Extract live — and dropped the grid and step 1; the new walk writes
+`app-site-verification-acne-{dark,light}.png` and has **not been run yet** (it is run
+against Marko's account by the controller, never by an implementer). Opening the
+Verification tab takes a free screenshot of any proof page with none fresh
+(`sources.captureProofPage`), so the allow-list names that call and the check is read-only
+but for captures.
 
 | File | Shows |
 |---|---|
-| `app-site-schema-acne-dark.png` / `-light.png` | Ikea's Schema tab — 8 fields × 3 pages, 24 green cells, "Everything is verified" |
-| `app-site-schema-step1-acne-dark.png` / `-light.png` | the same tab at `?step=fields` — step 1's field list over the stepper strip |
+| `app-site-schema-acne-dark.png` / `-light.png` | **retired** — Ikea's old Schema tab, 8 fields × 3 pages, 24 green cells (the grid is gone since plan 5; kept until the check is rerun) |
+| `app-site-schema-step1-acne-dark.png` / `-light.png` | **retired** — the old stepper's step 1 |
 | `app-site-extract-acne-dark.png` / `-light.png` | Extract unlocked — the saved listing page, Sample current, Run waiting on it |
 | `app-site-runs-acne-dark.png` / `-light.png` | Runs — still the empty state: nothing has ever been extracted here |
 | `app-site-settings-acne-dark.png` / `-light.png` | Settings on a real website — listing mode, the all/all budget, the Danger zone |
