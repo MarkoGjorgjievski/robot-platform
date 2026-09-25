@@ -18,6 +18,7 @@ import {
   fieldsFor,
   liveSuggestions,
   mergeSuggestions,
+  pointable,
   reverifyScope,
   segment,
   setCards,
@@ -428,8 +429,7 @@ function VerificationBody({ source }: { source: SiteData }) {
       }
       const s = live[f.key]?.[selectedUrl];
       if (!s) continue;
-      for (const i of s.boxes) {
-        if (!boxes[i]) continue;
+      for (const i of pointable(boxes, s.boxes)) {
         const key = `s|${f.key}|${i}`;
         list.push({ box: i, label: f.name, tone: 'suggested', key });
         info.set(key, { fieldKey: f.key, kind: 'suggestion' });
@@ -636,7 +636,10 @@ function VerificationBody({ source }: { source: SiteData }) {
     const s = selectedUrl ? live[f.key]?.[selectedUrl] : undefined;
     if (!s) return undefined;
     const url = selectedUrl;
-    if (s.boxes.length === 0) {
+    // Only elements big enough to click count: a suggestion on nothing but a
+    // 1×1 anchor is offered here, like a value no element shows.
+    const places = pointable(boxes, s.boxes).length;
+    if (places === 0) {
       return {
         text: s.origin === 'page-data' ? 'page data' : 'from another product',
         value: s.value,
@@ -649,8 +652,8 @@ function VerificationBody({ source }: { source: SiteData }) {
         onReject: () => rejectSuggestion(f.key, url),
       };
     }
-    if (s.boxes.length > 1) {
-      return { text: `found in ${s.boxes.length} places — click the right one`, onReject: () => rejectSuggestion(f.key, url) };
+    if (places > 1) {
+      return { text: `found in ${places} places — click the right one`, onReject: () => rejectSuggestion(f.key, url) };
     }
     return undefined;
   }

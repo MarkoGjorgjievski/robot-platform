@@ -225,6 +225,23 @@ export function mergeSuggestions(
 }
 
 /** Drops answered cells and stale capture ids. */
+/** An element narrower or shorter than this (page px) cannot be pointed at on the screenshot. */
+export const MIN_BOX_SIDE = 4;
+
+/**
+ * The suggestion's elements a customer can actually click: those big enough
+ * to point at, in order. A suggestion left with none is offered on the
+ * field's row instead, like a page-data value no element shows — a label on
+ * the screenshot over a 1×1 anchor is a rectangle nobody can open (seen on
+ * Ikea, plan 5's live run).
+ */
+export function pointable(boxes: Box[], indices: number[]): number[] {
+  return indices.filter((i) => {
+    const b = boxes[i];
+    return !!b && b.rect.w >= MIN_BOX_SIDE && b.rect.h >= MIN_BOX_SIDE;
+  });
+}
+
 export function liveSuggestions(s: Suggestions, board: Board, captureIds: Record<string, string | null>): Suggestions {
   const result: Suggestions = {};
   for (const [key, byUrl] of Object.entries(s)) {

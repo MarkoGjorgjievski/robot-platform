@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  answer, badge, boardFrom, canSave, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
+  answer, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
 } from './verification-model';
 
@@ -99,6 +99,24 @@ describe('suggestions', () => {
     expect(liveSuggestions(s, b, { [U[0]!]: 'cap-2' }).price?.[U[0]!]).toBeUndefined();
     s = mergeSuggestions(s, { price: null }, U[0]!, 'cap-1', 'page-data', b);
     expect(s.price![U[0]!]).toBeDefined(); // a null answer adds nothing and removes nothing
+  });
+});
+
+describe('pointable', () => {
+  // Found in the plan 5 live run on Ikea: Product URL was suggested on an
+  // anchor whose box is 1×1 — a label on the screenshot with nothing under it
+  // a customer could click.
+  const boxes = [
+    box({ rect: { x: 0, y: 0, w: 1, h: 1 } }),
+    box({ rect: { x: 10, y: 10, w: 80, h: 20 } }),
+    box({ rect: { x: 0, y: 40, w: MIN_BOX_SIDE, h: MIN_BOX_SIDE } }),
+    box({ rect: { x: 0, y: 60, w: 300, h: MIN_BOX_SIDE - 1 } }),
+  ];
+  it('keeps the elements big enough to click, in order', () => {
+    expect(pointable(boxes, [0, 1, 2, 3])).toEqual([1, 2]);
+  });
+  it('drops an index the box map does not have', () => {
+    expect(pointable(boxes, [1, 9])).toEqual([1]);
   });
 });
 
