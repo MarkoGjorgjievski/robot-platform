@@ -28,3 +28,19 @@ export function enclosing(boxes: Box[], i: number): number | null {
 export function toPage(clientX: number, clientY: number, f: { left: number; top: number; scale: number }) {
   return { x: (clientX - f.left) / f.scale, y: (clientY - f.top) / f.scale };
 }
+
+/**
+ * The box index a pointer currently targets: the innermost box under it,
+ * widened once to its enclosing box when `alt` is held — except when the
+ * innermost box already carries its own overlay (a labelled rectangle),
+ * which always wins. Without this, an Alt-held click on a suggestion or
+ * answer would resolve to its parent and land on `onPick` instead of the
+ * rectangle's own `onOverlay`. Used for both the hover outline and click
+ * routing, so what's outlined is always what a click there hits.
+ */
+export function targetAt(boxes: Box[], overlaid: ReadonlySet<number>, x: number, y: number, alt: boolean): number | null {
+  const i = boxAt(boxes, x, y);
+  if (i === null || overlaid.has(i) || !alt) return i;
+  const wider = enclosing(boxes, i);
+  return wider !== null ? wider : i;
+}
