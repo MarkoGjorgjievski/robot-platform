@@ -33,12 +33,19 @@ describe('roughTime', () => {
 });
 
 describe('verifyButton', () => {
-  const base = { state: 'editing' as const, firstRun: true, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false };
-  it('first run shows the upper bound or mechanical only', () => {
-    expect(verifyButton(base)).toEqual({ label: 'Verify · up to $0.25', disabled: false });
-    expect(verifyButton({ ...base, aiAvailable: false })).toEqual({ label: 'Verify · mechanical only', disabled: false });
+  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false };
+  it('first run names the field count and the price: free, or the upper bound (spec §2.4)', () => {
+    expect(verifyButton(base)).toEqual({ label: 'Verify 8 fields · up to $0.25', disabled: false });
+    expect(verifyButton({ ...base, aiAvailable: false })).toEqual({ label: 'Verify 8 fields · free', disabled: false });
+    expect(verifyButton({ ...base, upperBoundUsd: 0 })).toEqual({ label: 'Verify 8 fields · free', disabled: false });
+    expect(verifyButton({ ...base, fieldCount: 1, aiAvailable: false })).toEqual({ label: 'Verify 1 field · free', disabled: false });
+    expect(verifyButton({ ...base, complete: false, aiAvailable: false })).toMatchObject({ label: 'Verify 8 fields · free', disabled: true });
   });
-  it('re-verify is free with fresh captures and no AI need, else priced', () => {
+  it('never says "mechanical only"', () => {
+    expect(verifyButton({ ...base, aiAvailable: false }).label).not.toMatch(/mechanical/);
+  });
+  it('re-verify is free with no AI need, else priced', () => {
+    expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 3, capturesFresh: false, aiAvailable: false })).toEqual({ label: 'Re-verify 3 fields · free', disabled: false });
     expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 2, capturesFresh: true, upperBoundUsd: 0 })).toEqual({ label: 'Re-verify 2 fields · free', disabled: false });
     expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 1, capturesFresh: true, upperBoundUsd: 0.05 })).toEqual({ label: 'Re-verify 1 field · up to $0.05', disabled: false });
     expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 0, capturesFresh: true, upperBoundUsd: 0 })).toEqual({ label: 'Everything is verified', disabled: true, reason: 'Nothing has changed since the last verification' });

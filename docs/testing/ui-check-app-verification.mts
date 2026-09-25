@@ -2,13 +2,13 @@
 // shop: Ikea, end to end, as a throwaway identity — find products from a
 // listing, let every screenshot land, confirm every suggestion, mark what is
 // left by clicking, and press Verify — against an api-server with NO Anthropic
-// key, so Verify is mechanical only and costs nothing.
+// key, so Verify reads "free" and costs nothing.
 //
 // **It spends nothing by construction.** Captures, suggestions and transfers
 // never use a model. Verify is the one control that can, and this check
 // (1) refuses to run against an api-server whose `verifyEstimate` says AI is
 // available, and (2) reads the Verify button before clicking it and aborts
-// unless it reads "free" / "mechanical only" with no dollar amount in it.
+// unless it reads "free" with no dollar amount in it.
 //
 // It never signs in as a real person and never reads a real project: it signs
 // up `check-<timestamp>@example.com`, builds its own project, and deletes that
@@ -439,7 +439,7 @@ try {
   await until('the last save', async () => (await p.getByText('saved', { exact: true }).count()) === 1, 15_000, 300);
   const reason = await reasonOf();
   measure('Verify reads', `${label}${reason ? ` — ${reason}` : ''}`);
-  const free = /free|mechanical only/.test(label) && !label.includes('$');
+  const free = /· free$/.test(label) && !label.includes('$');
   check('the Verify button says it is free', free, label);
   if (!free) throw new Error(`Verify does not read free ("${label}"); not clicking it`);
 

@@ -584,6 +584,7 @@ function VerificationBody({ source }: { source: SiteData }) {
   const button = verifyButton({
     state: strip,
     firstRun,
+    fieldCount: fields.length,
     reverifyCount: scope?.length ?? fields.length,
     capturesFresh: !!estimate?.capturesFresh,
     aiAvailable: !!estimate?.aiAvailable,

@@ -29,10 +29,20 @@ export function roughTime(estimate: TimeEstimate): string {
   return `about ${Math.ceil(seconds / 60)} min`;
 }
 
-/** Verify/Re-verify button label + enabled flag. */
-export function verifyButton(args: { state: StripState; firstRun: boolean; reverifyCount: number; capturesFresh: boolean; aiAvailable: boolean; upperBoundUsd: number; complete: boolean; busy: boolean }): { label: string; disabled: boolean; reason?: string } {
-  const { state, firstRun, reverifyCount, capturesFresh, aiAvailable, upperBoundUsd, complete, busy } = args;
-  const cost = aiAvailable ? `up to $${upperBoundUsd.toFixed(2)}` : 'mechanical only';
+const fieldsWord = (n: number) => `${n} field${n === 1 ? '' : 's'}`;
+
+/**
+ * Verify/Re-verify button label + enabled flag (spec 2026-09-25 §2.4):
+ * `Verify 8 fields · free` / `Verify 8 fields · up to $X`, and the re-verify
+ * form `Re-verify n fields · free | up to $X`. "Free" is about money: with no
+ * AI, or no field that could reach it, a run spends nothing. Stale captures
+ * cost time (see `roughTime`), never money, so they do not make it priced.
+ * `capturesFresh` stays in the arguments for callers that pass the estimate whole.
+ */
+export function verifyButton(args: { state: StripState; firstRun: boolean; fieldCount: number; reverifyCount: number; capturesFresh: boolean; aiAvailable: boolean; upperBoundUsd: number; complete: boolean; busy: boolean }): { label: string; disabled: boolean; reason?: string } {
+  const { state, firstRun, fieldCount, reverifyCount, aiAvailable, upperBoundUsd, complete, busy } = args;
+  const cost = !aiAvailable || upperBoundUsd === 0 ? 'free' : `up to $${upperBoundUsd.toFixed(2)}`;
+  const first = `Verify ${fieldsWord(fieldCount)} · ${cost}`;
   if (state === 'active') return { label: firstRun ? 'Verify' : 'Re-verify', disabled: true, reason: 'Verifying' };
   // M7: "Fix the problems listed above first" would only be honest if the problems
   // list were always on screen at this point, but it is gated on `touched`
@@ -41,10 +51,8 @@ export function verifyButton(args: { state: StripState; firstRun: boolean; rever
   // instead of pointing at a list that may not be showing yet: pages four to six
   // may be blank (spec 2026-09-17 — extra pages can go unchecked), but one to
   // three and every cell on them are still required.
-  if (!complete) return { label: firstRun ? `Verify · ${cost}` : 'Re-verify', disabled: true, reason: 'Fill in pages one to three, and at least one value on each extra page' };
-  if (firstRun) return { label: `Verify · ${cost}`, disabled: busy };
+  if (!complete) return { label: firstRun ? first : 'Re-verify', disabled: true, reason: 'Fill in pages one to three, and at least one value on each extra page' };
+  if (firstRun) return { label: first, disabled: busy };
   if (reverifyCount === 0) return { label: 'Everything is verified', disabled: true, reason: 'Nothing has changed since the last verification' };
-  const n = `${reverifyCount} field${reverifyCount === 1 ? '' : 's'}`;
-  const free = capturesFresh && (!aiAvailable || upperBoundUsd === 0);
-  return { label: `Re-verify ${n} · ${free ? 'free' : cost}`, disabled: busy };
+  return { label: `Re-verify ${fieldsWord(reverifyCount)} · ${cost}`, disabled: busy };
 }
