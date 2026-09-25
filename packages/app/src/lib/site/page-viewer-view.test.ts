@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { boxAt, enclosing, toPage, targetAt } from './page-viewer-view';
+import { boxAt, enclosing, toPage, targetAt, labelBelow, LABEL_HEIGHT } from './page-viewer-view';
 import type { Box } from './verification-model';
 
 const b = (x: number, y: number, w: number, h: number): Box => ({ xpaths: ['//x'], text: 't', rect: { x, y, w, h }, tag: 'div', kind: 'text' });
@@ -47,5 +47,18 @@ describe('targetAt', () => {
   });
   it('is null off every box, overlaid or not', () => {
     expect(targetAt(boxes, new Set([0, 1, 2]), 2000, 10, true)).toBeNull();
+  });
+});
+
+describe('labelBelow', () => {
+  // Found in the plan 5 smoke: a heading at the very top of a page wore its
+  // label above itself, where the scrolling frame cut it off.
+  it('puts the label under a rectangle too near the top of the frame to fit it above', () => {
+    expect(labelBelow(0)).toBe(true);
+    expect(labelBelow(LABEL_HEIGHT - 1)).toBe(true);
+  });
+  it('keeps it above everywhere else', () => {
+    expect(labelBelow(LABEL_HEIGHT)).toBe(false);
+    expect(labelBelow(400)).toBe(false);
   });
 });
