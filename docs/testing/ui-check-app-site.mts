@@ -3,12 +3,17 @@
 // four tabs were built blind to, because a throwaway website has no verification,
 // no run and no green cell anywhere.
 //
-// **It is read-only by construction.** It navigates, reads, measures and
-// screenshots. It clicks no Verify / Re-verify / Sample / Extract / Check /
-// "Find pages" / Save / Delete, opens no popover, types into no cell and changes
-// no page, value, mode or budget. The one write it makes is the theme preference
-// it needs to photograph both themes, and it puts that back in the `finally` at
-// the bottom — the same bargain `ui-check-app-project.mts` strikes.
+// **It is read-only by construction, but for captures.** It navigates, reads,
+// measures and screenshots. It clicks no Verify / Re-verify / Sample / Extract /
+// Check / Find products / Delete, ticks nothing, opens no popover, types into
+// nothing and changes no page, value, mode or budget. The one write it asks for
+// is the theme preference it needs to photograph both themes, and it puts that
+// back in the `finally` at the bottom — the same bargain
+// `ui-check-app-project.mts` strikes. Since plan 5 (2026-09-25) the first tab is
+// the Verification tab, which on open takes a screenshot of every product that
+// has no fresh one (`sources.captureProofPage`): free — a browser, no model —
+// but it does write capture rows and files for the website. That call is
+// allowed below by name, so it is visible in the output rather than hidden.
 //
 // That claim is enforced rather than asserted: every tRPC request the page makes
 // is watched, the procedure names are collected (batched calls are split on the
@@ -22,13 +27,14 @@
 //
 // Options: `--email <address>` (required — this check is about somebody's real
 // data), `--project <slug>` (default `acne`) and `--site <slug>` (default
-// `ikea`). The ten captures Marko reviews go to
-// `docs/testing/screens/app-site-{schema,schema-step1,extract,runs,settings}-<project>-<theme>.png`,
+// `ikea`). The eight captures Marko reviews go to
+// `docs/testing/screens/app-site-{verification,extract,runs,settings}-<project>-<theme>.png`,
 // resolved from packages/browser; `SCREENS_DIR` overrides that.
 //
-// The PASS/FAIL lines below are written against **Acne / Ikea**: 8 fields, three
-// proof pages, every field certified, so the Schema grid is 24 green cells and
-// the Extract tab is unlocked. What it does *not* have is a single extraction —
+// The PASS/FAIL lines below are written against **Acne / Ikea**: three proof
+// pages, every field certified, so every battery on the Verification tab is
+// full and green and every row reads "verified", and the Extract tab is
+// unlocked. The field count is read from `sources.get`, not assumed. What it does *not* have is a single extraction —
 // so the Runs walk branches on `runs.listBySource` and says SKIP rather than
 // passing a test that proves nothing. Run it against another website and the
 // expectations to change are collected in `EXPECTED`.
@@ -57,10 +63,7 @@ const API = 'http://localhost:4000';
 const EXPECTED = {
   breadcrumb: 'Markodjordjievski / Acne / Ikea',
   name: 'Ikea',
-  fieldCount: 8,
   pageCount: 3,
-  /** `stripSummary`'s `results` branch for a website where every field is current and none fails. */
-  summary: '8 of 8 fields verified',
   /**
    * `verifyButton`'s `reverifyCount === 0` branch. A fully verified website whose
    * binding has not been touched since has nothing to re-verify, so the button
@@ -68,7 +71,7 @@ const EXPECTED = {
    * a value or a hint has changed. Either way this check never presses it.
    */
   verifyLabel: 'Everything is verified',
-  /** The three tab labels Extract's strip carries when the schema is green. */
+  /** The three tab labels Extract's strip carries once every field is verified. */
   extractCells: ['Pages', 'Sample', 'Run'],
 };
 
@@ -93,8 +96,12 @@ const MODE_LABEL: Record<string, string> = {
  *   before this check navigates to the website (`routes/_app/projects/index.tsx`
  *   — the command palette asks for it too, but only once opened, which this
  *   check never does). Observed on the first real run, 2026-09-23.
- * - Schema (`index.tsx`): `sources.verifyEstimate`, `sources.verificationStatus`.
- *   Step 1 is a panel over data already loaded and asks for nothing of its own.
+ * - Verification (`index.tsx`, plan 5): `sources.verifyEstimate`,
+ *   `sources.verificationStatus`, `sources.proofPageCaptures` (which products
+ *   already have a screenshot), `sources.proofPageCapture` (each one's state),
+ *   `sources.suggestMarks` (page data, a read over the stored capture) — and
+ *   `sources.captureProofPage` for any product with no fresh screenshot: free,
+ *   but a write of a capture (see the header).
  * - Extract (`extract.tsx`): `sources.verificationStatus`, `sources.inputRows`,
  *   `runs.listBySource`, and — only on a website that has a probe to show —
  *   `crawl.status`, `crawl.items`, `runs.getWithDetails` behind `ExtractSample`.
@@ -115,6 +122,10 @@ const ALLOWED = [
   'sources.get',
   'sources.verifyEstimate',
   'sources.verificationStatus',
+  'sources.proofPageCaptures',
+  'sources.proofPageCapture',
+  'sources.suggestMarks',
+  'sources.captureProofPage',
   'sources.inputRows',
   'runs.listBySource',
   'runs.getWithDetails',
@@ -341,50 +352,29 @@ for (const theme of ['dark', 'light'] as const) {
   console.log(`\n── ${theme} ──`);
   check(`theme switches to ${theme} and the server renders it`, await setTheme(theme));
 
-  // ── Schema ────────────────────────────────────────────────────────────────
+  // ── Verification ──────────────────────────────────────────────────────────
   errors = [];
-  const schema = await p.goto(BASE, { waitUntil: 'networkidle' });
+  const verification = await p.goto(BASE, { waitUntil: 'networkidle' });
   await p.waitForTimeout(1500);
-  check('schema renders', !!schema?.ok() && (await p.locator('h1').count()) > 0, `HTTP ${schema?.status()}`);
+  check('verification renders', !!verification?.ok() && (await p.locator('h1').count()) > 0, `HTTP ${verification?.status()}`);
 
   const crumbs = norm(await p.locator('nav[aria-label="Breadcrumb"]').innerText());
   check(`breadcrumb reads "${EXPECTED.breadcrumb}"`, crumbs === EXPECTED.breadcrumb, crumbs);
 
-  // The strip's own sentence — `stripSummary`'s results branch.
-  const summary = norm(await p.locator('[role="status"] p').first().innerText());
-  check(`the strip reads "${EXPECTED.summary}"`, summary === EXPECTED.summary, summary);
+  // One card per proof page, and one battery per field with a segment per card.
+  const cards = await p.locator('button[aria-pressed]').count();
+  check(`${EXPECTED.pageCount} product cards`, cards === EXPECTED.pageCount, `${cards}`);
+  const batteries = await p.locator('[role="img"][aria-label*=" confirmed"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+  check(`one battery per field (${site.fields.length})`, batteries.length === site.fields.length, `${batteries.length}`);
+  const full = batteries.filter((l) => l.endsWith(`${EXPECTED.pageCount} of ${EXPECTED.pageCount} confirmed`)).length;
+  check('every battery is full and green', full === batteries.length, batteries.filter((l) => !l.endsWith('confirmed')).join(' | ') || `${full} of ${batteries.length}`);
 
-  // The grid: one row per field, one column per proof page, and a rail on every
-  // cell where they meet.
-  const rows = await p.locator('tbody tr').count();
-  const heads = await p.locator('thead th').count();
-  check(`the grid has ${EXPECTED.fieldCount} field rows`, rows === EXPECTED.fieldCount, `${rows}`);
-  check(
-    `and ${EXPECTED.pageCount} page columns beside Field, Type and the hint`,
-    heads === 3 + EXPECTED.pageCount,
-    `${heads} heads`,
-  );
+  // The engine's verdict, one badge per row.
+  const verifiedBadges = await p.locator('li span', { hasText: /^verified$/ }).count();
+  check(`every row reads "verified"`, verifiedBadges === site.fields.length, `${verifiedBadges} of ${site.fields.length}`);
 
-  // `td` index 3 onward is a page column; each holds one `div` carrying the rail.
-  const rails = await p.evaluate(() =>
-    [...document.querySelectorAll('tbody tr')].flatMap((tr) =>
-      [...tr.children].slice(3).map((td) => {
-        const box = td.querySelector('div');
-        return box ? getComputedStyle(box).borderLeftColor : 'no rail';
-      }),
-    ),
-  );
-  const pass = await tokenColour(p, 'border-pass');
-  const green = rails.filter((c) => c === pass).length;
-  check(
-    `every one of the ${rails.length} cells wears the pass rail`,
-    rails.length === EXPECTED.fieldCount * EXPECTED.pageCount && green === rails.length,
-    `${green} of ${rails.length} = ${pass}; others: ${[...new Set(rails.filter((c) => c !== pass))].join(', ') || 'none'}`,
-  );
-  measure('cell second lines', [...new Set(await p.locator('tbody td p').allInnerTexts())].map(norm).filter(Boolean).join(' | '));
-
-  // Read, never pressed: a verification is the one control on this screen that
-  // can cost money.
+  // Read, never pressed: a verification is the one control on this screen
+  // that can cost money.
   const verifyLabel = norm(await p.getByRole('button', { name: /^(Verify|Re-verify|Everything is verified)/ }).first().innerText());
   check(`the Verify button reads "${EXPECTED.verifyLabel}"`, verifyLabel === EXPECTED.verifyLabel, verifyLabel);
 
@@ -392,28 +382,9 @@ for (const theme of ['dark', 'light'] as const) {
   const extractLink = await p.getByRole('link', { name: 'Go to Extract' }).count();
   check('Go to Extract is a live link', extractLink === 1, `${extractLink} link(s)`);
 
-  await shellMeasurements('schema', theme);
-  check('schema logs nothing', errors.length === 0, errors.join(' | '));
-  await shoot(SCREENS, `app-site-schema-${PROJECT}-${theme}.png`);
-
-  // ── Schema, step 1 ────────────────────────────────────────────────────────
-  // The stepper's first step is a whole screen of the design review with no
-  // capture otherwise: `?step=fields` is in the URL by design (index.tsx:37 —
-  // "which step is open lives in the URL"), the panel it opens is a read of
-  // fields already loaded, and nothing on it is clicked here.
-  errors = [];
-  const step1 = await p.goto(`${BASE}?step=fields`, { waitUntil: 'networkidle' });
-  await p.waitForTimeout(1500);
-  check('schema step 1 renders', !!step1?.ok() && (await p.locator('h1').count()) > 0, `HTTP ${step1?.status()}`);
-  const step1Body = norm(await p.locator('main').innerText());
-  check(
-    `step 1 lists the ${EXPECTED.fieldCount} fields and offers Edit fields`,
-    step1Body.includes(`${EXPECTED.fieldCount} fields`) && step1Body.includes('Edit fields'),
-    step1Body.slice(0, 120),
-  );
-  check('and the grid is not on screen', (await p.locator('tbody tr').count()) === 0);
-  check('schema step 1 logs nothing', errors.length === 0, errors.join(' | '));
-  await shoot(SCREENS, `app-site-schema-step1-${PROJECT}-${theme}.png`);
+  await shellMeasurements('verification', theme);
+  check('verification logs nothing', errors.length === 0, errors.join(' | '));
+  await shoot(SCREENS, `app-site-verification-${PROJECT}-${theme}.png`);
 
   // ── Extract ───────────────────────────────────────────────────────────────
   errors = [];
