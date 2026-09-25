@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  answer, badge, boardFrom, canSave, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
+  answer, badge, boardFrom, canSave, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
 } from './verification-model';
 
@@ -52,6 +52,22 @@ describe('the board and its save', () => {
     expect(canSave({ ...board(), cards: [...board().cards.slice(0, 2), { url: 'https://other.example/p', title: '' }] })).toBe(false);
     expect(canSave({ ...board(), cards: [...board().cards.slice(0, 2), { url: U[0]!, title: '' }] })).toBe(false);
   });
+  it('says why the products cannot be saved, or null when they can (fewer than three is the gate’s to say)', () => {
+    const cards = board().cards;
+    expect(productsProblem(board())).toBeNull();
+    expect(productsProblem({ ...board(), cards: cards.slice(0, 2) })).toBeNull();
+    expect(productsProblem({ ...board(), cards: [...cards.slice(0, 2), { url: '', title: '' }] })).toBe('Every product needs a page');
+    expect(productsProblem({ ...board(), cards: [...cards.slice(0, 2), { url: 'https://other.example/p', title: '' }] })).toBe('All products must be on the same website');
+    expect(productsProblem({ ...board(), cards: [...cards.slice(0, 2), { url: `${U[0]!}#x`, title: '' }] })).toBe('Two products are the same page');
+    expect(productsProblem({ ...board(), cards: [...cards.slice(0, 2), { url: 'not a url', title: '' }] })).toBe('Fix the products above first');
+    const seven = Array.from({ length: 7 }, (_, i) => ({ url: `https://s.example/p/${i}`, title: '' }));
+    expect(productsProblem({ ...board(), cards: seven })).toBe('Six products is the most a website is checked on');
+    // Whenever canSave is false with three or more cards, there is a reason.
+    for (const b of [{ ...board(), cards: [...cards.slice(0, 2), { url: 'ftp://s.example/p', title: '' }] }]) {
+      expect(canSave(b)).toBe(false);
+      expect(productsProblem(b)).not.toBeNull();
+    }
+  });
 });
 
 describe('a click', () => {
@@ -98,11 +114,16 @@ describe('the battery and the badge', () => {
   it('says verified, fails on product n, changed, or checking', () => {
     const results = { title: { certified: [{}], cells: { [U[0]!]: { status: 'pass' as const } } }, price: { certified: [], cells: { [U[0]!]: { status: 'pass' as const }, [U[1]!]: { status: 'fail' as const } } } };
     const cards = board().cards;
-    expect(badge({ key: 'title', results, currentKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'verified' });
-    expect(badge({ key: 'price', results, currentKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'fails', product: 2 });
-    expect(badge({ key: 'title', results, currentKeys: [], running: false, cards })).toEqual({ kind: 'changed' });
-    expect(badge({ key: 'title', results, currentKeys: [], running: true, cards })).toEqual({ kind: 'checking' });
-    expect(badge({ key: 'title', results: null, currentKeys: [], running: false, cards })).toBeNull();
+    expect(badge({ key: 'title', results, unchangedKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'verified' });
+    expect(badge({ key: 'price', results, unchangedKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'fails', product: 2 });
+    expect(badge({ key: 'title', results, unchangedKeys: [], running: false, cards })).toEqual({ kind: 'changed' });
+    expect(badge({ key: 'title', results, unchangedKeys: [], running: true, cards })).toEqual({ kind: 'checking' });
+    expect(badge({ key: 'title', results: null, unchangedKeys: [], running: false, cards })).toBeNull();
+  });
+  it('a field that failed and has not changed since reads fails on product n, not changed (it is never current)', () => {
+    const results = { price: { certified: [], cells: { [U[0]!]: { status: 'pass' as const }, [U[1]!]: { status: 'fail' as const }, [U[2]!]: { status: 'pass' as const } } } };
+    expect(badge({ key: 'price', results, unchangedKeys: ['price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', product: 2 });
+    expect(badge({ key: 'price', results, unchangedKeys: [], running: false, cards: board().cards })).toEqual({ kind: 'changed' });
   });
 });
 

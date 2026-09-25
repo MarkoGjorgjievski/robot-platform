@@ -27,6 +27,7 @@ import {
   validateValue,
   valueFromBox,
   verifyGate,
+  productsProblem,
   type Board,
   type Box,
   type Card,
@@ -155,6 +156,7 @@ function VerificationBody({ source }: { source: SiteData }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [transferNote, setTransferNote] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [arrival, setArrival] = useState<{ url: string; field?: string; note?: string } | null>(null);
 
@@ -218,6 +220,8 @@ function VerificationBody({ source }: { source: SiteData }) {
   const active = strip === 'active';
   const locked = active || verifying;
   const currentKeys = useMemo(() => status?.currentKeys ?? [], [status?.currentKeys]);
+  // A failure is shown only while the field still reads as it did when it failed.
+  const unchangedKeys = useMemo(() => status?.unchangedKeys ?? [], [status?.unchangedKeys]);
 
   // A run that lands while the tab is open refreshes what it changed.
   const sawActive = useRef(false);
@@ -257,11 +261,9 @@ function VerificationBody({ source }: { source: SiteData }) {
       landed.reduce((acc, d) => {
         const url = Object.keys(captureIds).find((u) => captureIds[u] === d.captureId);
         if (!url) return acc;
-        // A value no element shows has nothing to click on the screenshot and
-        // nothing to tick — it would leave an orange segment nobody can clear.
-        const incoming = Object.fromEntries(
-          Object.entries(d.fields).map(([k, s]) => [k, s && s.boxes.length > 0 ? { value: s.value, boxes: s.boxes } : null]),
-        );
+        // A value no element shows (no boxes) is kept: it is offered on the
+        // field's row rather than on the screenshot (spec §2.3).
+        const incoming = Object.fromEntries(Object.entries(d.fields).map(([k, s]) => [k, s ? { value: s.value, boxes: s.boxes } : null]));
         return mergeSuggestions(acc, incoming, url, d.captureId, 'page-data', boardRef.current);
       }, prev),
     );
@@ -287,7 +289,7 @@ function VerificationBody({ source }: { source: SiteData }) {
           let next = prev;
           for (const [u, r] of Object.entries(out)) {
             const t = r?.fields[key];
-            if (!r || !t || t.boxes.length === 0) continue;
+            if (!r || !t) continue;
             next = mergeSuggestions(next, { [key]: { value: t.value, boxes: t.boxes } }, u, r.captureId, 'from-product', boardRef.current);
           }
           return next;
@@ -354,11 +356,16 @@ function VerificationBody({ source }: { source: SiteData }) {
     setQueue(fresh);
   }
 
-  function onNoListing() {
+  function onNoListing(listingUrl: string) {
     const b = boardRef.current;
-    if (b.cards.length >= PRODUCTS_MIN) return;
+    // The listing URL is kept either way (spec §2.1).
+    const withListing = listingUrl && listingUrl !== b.listingUrl ? { ...b, listingUrl } : b;
+    if (b.cards.length >= PRODUCTS_MIN) {
+      if (withListing !== b) setBoard(withListing);
+      return;
+    }
     const blanks = Array.from({ length: PRODUCTS_MIN - b.cards.length }, () => ({ url: '', title: '' }));
-    setBoard(setCards(b, [...b.cards, ...blanks]));
+    setBoard(setCards(withListing, [...b.cards, ...blanks]));
   }
 
   function onDrop(i: number) {
@@ -402,7 +409,7 @@ function VerificationBody({ source }: { source: SiteData }) {
   const boxes = capture?.boxes ?? NO_BOXES;
 
   function failedCell(key: string, url: string): boolean {
-    return currentKeys.includes(key) && results?.[key]?.cells[url]?.status === 'fail';
+    return unchangedKeys.includes(key) && results?.[key]?.cells[url]?.status === 'fail';
   }
 
   const { overlays, overlayInfo } = useMemo(() => {
@@ -430,7 +437,7 @@ function VerificationBody({ source }: { source: SiteData }) {
     }
     return { overlays: list, overlayInfo: info };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields, board.answers, live, selectedUrl, boxes, results, currentKeys]);
+  }, [fields, board.answers, live, selectedUrl, boxes, results, unchangedKeys]);
 
   const highlight = fieldKey && selectedUrl ? boxOfMark(boxes, board.answers[fieldKey]?.[selectedUrl]?.mark ?? null) : null;
 
@@ -568,7 +575,8 @@ function VerificationBody({ source }: { source: SiteData }) {
       : null;
 
   // --- Verify.
-  const gate = verifyGate(board, fields, live);
+  const problem = productsProblem(board);
+  const gate: ReturnType<typeof verifyGate> = problem ? { ok: false, reason: problem } : verifyGate(board, fields, live);
   const scope = reverifyScope(fields, results, currentKeys);
   const firstRun = strip === 'editing' || strip === 'none';
   const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId, ...(firstRun || !scope ? {} : { onlyKeys: scope }) });
@@ -587,6 +595,7 @@ function VerificationBody({ source }: { source: SiteData }) {
 
   async function handleVerify() {
     setError(null);
+    setNotice(null);
     setVerifying(true);
     try {
       // The server checks the record it has, so it must have this one.
@@ -595,7 +604,11 @@ function VerificationBody({ source }: { source: SiteData }) {
       // the server says now, not on the render that drew the button.
       const fresh = utils.sources.verificationStatus.getData({ sourceId }) ?? status;
       const onlyKeys = reverifyScope(fields, (fresh?.results ?? null) as VerificationResults | null, fresh?.currentKeys ?? []);
-      if (onlyKeys && onlyKeys.length === 0) return; // everything is already verified
+      if (onlyKeys && onlyKeys.length === 0) {
+        // The save put every field back to what was verified: nothing to check, and nothing spent.
+        setNotice('Everything is verified; nothing has changed since');
+        return;
+      }
       await verifyMutation.mutateAsync({ sourceId, ...(onlyKeys ? { onlyKeys } : {}) });
       await invalidate();
     } catch (err) {
@@ -606,19 +619,56 @@ function VerificationBody({ source }: { source: SiteData }) {
   }
 
   // --- The sidebar.
+  function rejectSuggestion(key: string, url: string) {
+    setSuggestions((s) => {
+      const byUrl = { ...(s[key] ?? {}) };
+      delete byUrl[url];
+      return { ...s, [key]: byUrl };
+    });
+  }
+
+  /**
+   * What the row says about the selected product that the screenshot cannot:
+   * a value the page data holds but no element shows (tick it as a typed
+   * answer, or ×), or a suggestion outlined in several places.
+   */
+  function rowHint(f: Field): FieldsSidebarRow['hint'] {
+    const s = selectedUrl ? live[f.key]?.[selectedUrl] : undefined;
+    if (!s) return undefined;
+    const url = selectedUrl;
+    if (s.boxes.length === 0) {
+      return {
+        text: s.origin === 'page-data' ? 'page data' : 'from another product',
+        value: s.value,
+        onAccept: () => {
+          const given = { value: s.value, mark: null };
+          setBoard((b) => answer(b, f.key, url, given));
+          select({ field: f.key });
+          carry(f.key, url, given);
+        },
+        onReject: () => rejectSuggestion(f.key, url),
+      };
+    }
+    if (s.boxes.length > 1) {
+      return { text: `found in ${s.boxes.length} places — click the right one`, onReject: () => rejectSuggestion(f.key, url) };
+    }
+    return undefined;
+  }
+
   const rows: FieldsSidebarRow[] = fields.map((f) => {
     const a = selectedUrl ? board.answers[f.key]?.[selectedUrl] : undefined;
     const typed = a && a.mark === null ? a.value : '';
     return {
       field: f,
       segments: board.cards.map((c) => segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) })),
-      badge: badge({ key: f.key, results, currentKeys, running: active, cards: board.cards }),
+      badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       selected: fieldKey === f.key,
       productNumber: selected + 1,
       expanded: !!expanded[f.key],
       description: board.descriptions[f.key] ?? f.description,
       typed,
       typedError: typed.trim() !== '' ? (validateValue(f.type, typed) ?? undefined) : undefined,
+      hint: rowHint(f),
       onSegment: (i) => {
         setPopover(null);
         select({ product: i + 1, field: f.key });
@@ -632,7 +682,8 @@ function VerificationBody({ source }: { source: SiteData }) {
     };
   });
 
-  const stage = active ? (status?.stage ?? 'starting') : null;
+  // Non-null locks the sidebar: from the click, not only once the server says the run is active.
+  const stage = active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null;
   const runNote =
     strip === 'stalled' ? 'The last verification stalled. Run it again.' : strip === 'failed' ? (status?.errorMessage ?? 'The last verification failed.') : null;
   const unsaved = board !== seededBoard.current && !canSave(board);
@@ -682,6 +733,7 @@ function VerificationBody({ source }: { source: SiteData }) {
         ) : null}
         {arrival?.note ? <p className="text-sm text-muted-foreground">{arrival.note}</p> : null}
         {transferNote ? <p className="text-sm text-warn">{transferNote}</p> : null}
+        {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
         {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
 
         <ProductView

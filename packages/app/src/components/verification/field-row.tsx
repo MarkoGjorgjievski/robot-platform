@@ -1,11 +1,20 @@
 import { ChevronRight, ShieldCheck } from 'lucide-react';
 import { Battery } from './battery';
+import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { RunDot } from '../run-dot';
 import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
 import type { Badge, Field, Segment } from '../../lib/site/verification-model';
+
+/**
+ * A line under the row about the selected product that the screenshot cannot
+ * say on its own: a page-data value no element shows (with a tick and ×), or
+ * a suggestion outlined in several places. Presentational — the caller
+ * decides what accepting or rejecting means.
+ */
+export type FieldRowHint = { text: string; value?: string; onAccept?: () => void; onReject?: () => void };
 
 function BadgeView({ badge }: { badge: Badge }) {
   if (!badge) return null;
@@ -53,6 +62,7 @@ export function FieldRow({
   description,
   typed,
   typedError,
+  hint,
   locked,
   onSegment,
   onToggle,
@@ -70,6 +80,7 @@ export function FieldRow({
   /** The value typed for `field` on product `productNumber`, resolved by the caller. */
   typed: string;
   typedError?: string;
+  hint?: FieldRowHint;
   locked: boolean;
   onSegment: (i: number) => void;
   onToggle: () => void;
@@ -100,6 +111,29 @@ export function FieldRow({
         <Battery segments={segments} onSegment={onSegment} label={field.name} disabled={locked} />
         <BadgeView badge={badge} />
       </div>
+
+      {hint ? (
+        <div className="flex min-w-0 items-center gap-2 pr-2 pb-2 pl-5">
+          <span className="min-w-0 truncate text-sm text-warn" title={hint.value !== undefined ? `${hint.text}: ${hint.value}` : hint.text}>
+            {hint.text}
+            {hint.value !== undefined ? (
+              <>
+                : <span className="font-mono">{hint.value}</span>
+              </>
+            ) : null}
+          </span>
+          {hint.onAccept ? (
+            <Button variant="outline" size="icon-xs" disabled={locked} aria-label={`Confirm ${field.name} from the page data`} onClick={hint.onAccept} className="shrink-0">
+              ✓
+            </Button>
+          ) : null}
+          {hint.onReject ? (
+            <Button variant="ghost" size="icon-xs" disabled={locked} aria-label={`Reject the ${field.name} suggestion`} onClick={hint.onReject} className="shrink-0">
+              ×
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       {expanded ? (
         <div className="space-y-3 pr-2 pb-3">
