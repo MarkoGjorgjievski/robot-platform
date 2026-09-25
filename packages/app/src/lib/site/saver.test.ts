@@ -58,7 +58,7 @@ describe('createSaver', () => {
   // when that save fails — not swallow the error and resolve.
   it('flush rejects when the save already in flight, that it is waiting on, fails', async () => {
     let reject!: (e: Error) => void;
-    const save = vi.fn().mockImplementationOnce(() => new Promise<void>((_, rej) => { reject = rej; }));
+    const save = vi.fn().mockImplementationOnce(() => new Promise<void>((_, rej) => { reject = rej; })).mockResolvedValue(undefined);
     const s = createSaver<number>({ delay: 10, save });
     s.push(1);
     await vi.advanceTimersByTimeAsync(10); // save(1) is now in flight
@@ -85,5 +85,39 @@ describe('createSaver', () => {
     await p1;
     await p2;
     expect(save).toHaveBeenCalledTimes(1);
+  });
+  // Fix round 2 (Important): the earlier fix scheduled its own retry on every
+  // failure, which against a down server saves every `delay` ms forever with
+  // no user action. A failure must sit still; only a later push or flush
+  // tries again.
+  it('a save that keeps failing is never retried on its own; a later push tries again', async () => {
+    const save = vi.fn().mockRejectedValue(new Error('down'));
+    const s = createSaver<number>({ delay: 10, save });
+    s.push(1);
+    await vi.advanceTimersByTimeAsync(10); // the scheduled autosave fires and fails
+    expect(save).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(10_000); // however long we wait, nothing retries on its own
+    expect(save).toHaveBeenCalledTimes(1);
+    s.push(2);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(save).toHaveBeenCalledTimes(2); // the next push is what tries again
+    expect(save).toHaveBeenLastCalledWith(2);
+  });
+  // Fix round 2 (Important): a save already in flight when `dispose()` runs
+  // must not bring an unmounted saver back to life if it goes on to fail —
+  // no restored value, no schedule, no further `onState`.
+  it('dispose stops autosave; a save already in flight that then fails reports nothing and schedules nothing', async () => {
+    let reject!: (e: Error) => void;
+    const save = vi.fn().mockImplementationOnce(() => new Promise<void>((_, rej) => { reject = rej; })).mockResolvedValue(undefined);
+    const states: string[] = [];
+    const s = createSaver<number>({ delay: 10, save, onState: (x) => states.push(x) });
+    s.push(1);
+    await vi.advanceTimersByTimeAsync(10); // save(1) is now in flight
+    s.dispose();
+    const before = states.length;
+    reject(new Error('down'));
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(states.slice(before)).toEqual([]);
   });
 });
