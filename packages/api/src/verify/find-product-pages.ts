@@ -45,21 +45,77 @@ export function rankProductLinks(anchors: Array<{ href: string; text: string }>,
   return largestProductGroup(anchors, listingUrl).slice(0, limit);
 }
 
+export type ListingAnchor = { href: string; text: string; title?: string; image?: string };
+
+/**
+ * Runs inside the listing page (`setContentEvaluate`). Per link: its href as
+ * written, its text, a title from `title`/`aria-label`/an inner img's `alt`,
+ * and an image — one inside the link, else the first in the nearest ancestor
+ * (up to three levels) that holds no other product link. Lazy images keep
+ * their URL in `data-src`/`srcset`. Relative URLs are resolved later, against
+ * the listing URL, because `setContent` pages have no base URL.
+ */
+export const LISTING_ANCHORS_SCRIPT = `(() => {
+  const imgUrl = (img) => img ? (img.getAttribute('src') || img.getAttribute('data-src') || (img.getAttribute('srcset') || '').split(/[ ,]/)[0] || '') : '';
+  const near = (a) => {
+    let el = a.parentElement;
+    for (let i = 0; el && i < 3; i++, el = el.parentElement) {
+      if (el.querySelectorAll('a[href]').length > 3) break;
+      const img = el.querySelector('img');
+      if (img) return img;
+    }
+    return null;
+  };
+  return Array.from(document.querySelectorAll('a[href]')).map((a) => {
+    const inner = a.querySelector('img');
+    return {
+      href: a.getAttribute('href') || '',
+      text: (a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 200),
+      title: a.getAttribute('title') || a.getAttribute('aria-label') || (inner && inner.getAttribute('alt')) || undefined,
+      image: imgUrl(inner || near(a)) || undefined,
+    };
+  });
+})()`;
+
+const absolute = (u: string, base: string): string | undefined => {
+  try { const x = new URL(u, base); return /^https?:$/.test(x.protocol) ? x.href : undefined; } catch { return undefined; }
+};
+
+/**
+ * Names each product from `describeListingPage`'s sample: for each url,
+ * merges every anchor that resolves (relative to `listingUrl`, hash
+ * ignored — matching `largestProductGroup`'s own normalisation) to that url.
+ * Title is the longest anchor text, else the first anchor's `title`, else the
+ * url's path. Image is the first anchor's resolved, http(s) image.
+ */
+export function listingProducts(anchors: ListingAnchor[], listingUrl: string, urls: string[]) {
+  return urls.map((url) => {
+    const mine = anchors.filter((a) => absolute(a.href, listingUrl)?.replace(/#.*$/, '') === url);
+    const text = mine.map((a) => a.text.trim()).sort((x, y) => y.length - x.length)[0] || mine.find((a) => a.title?.trim())?.title?.trim() || '';
+    const image = mine.map((a) => (a.image ? absolute(a.image, listingUrl) : undefined)).find(Boolean);
+    return { url, title: (text || new URL(url).pathname).slice(0, 120), ...(image ? { image } : {}) };
+  });
+}
+
 /**
  * The Extract tab's free per-row listing check (`sources.checkListingPage`):
  * how many product links the largest same-template group has (before any
- * `limit` cut), a 10-item sample of them, and whether a pager was seen on
- * the page (`detectPaginationFromHtml`, `@robot/browser` — no AI).
+ * `limit` cut), a 10-item sample of them, whether a pager was seen on the
+ * page (`detectPaginationFromHtml`, `@robot/browser` — no AI), and the
+ * sample's products (title + image), so the Verification tab's product
+ * cards fill without visiting any product.
  */
 export function describeListingPage(
-  anchors: Array<{ href: string; text: string }>,
+  anchors: ListingAnchor[],
   listingUrl: string,
   html: string,
-): { productLinks: number; pagerSeen: boolean; sample: string[] } {
+): { productLinks: number; pagerSeen: boolean; sample: string[]; products: ReturnType<typeof listingProducts> } {
   const group = largestProductGroup(anchors, listingUrl);
+  const sample = group.slice(0, 10);
   return {
     productLinks: group.length,
     pagerSeen: detectPaginationFromHtml(html, listingUrl) !== null,
-    sample: group.slice(0, 10),
+    sample,
+    products: listingProducts(anchors, listingUrl, sample),
   };
 }

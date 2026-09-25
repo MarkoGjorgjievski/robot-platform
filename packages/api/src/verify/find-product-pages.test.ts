@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { rankProductLinks, describeListingPage } from './find-product-pages.js';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { PlaywrightBrowser } from '@robot/browser';
+import { rankProductLinks, describeListingPage, listingProducts, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './find-product-pages.js';
 
 describe('rankProductLinks', () => {
   it('returns the largest same-host path cluster in document order, capped', () => {
@@ -90,5 +91,45 @@ describe('describeListingPage', () => {
     const result = describeListingPage(anchors, listingUrl, html);
     expect(result.productLinks).toBe(12);
     expect(result.pagerSeen).toBe(false);
+  });
+});
+
+const L = 'https://shop.example/c/chairs';
+
+describe('listingProducts', () => {
+  it('merges the several links to one product: the longest text wins, the first image wins', () => {
+    const anchors: ListingAnchor[] = [
+      { href: '/p/1', text: '', image: '/img/1.jpg' },
+      { href: '/p/1', text: 'Chair' },
+      { href: 'https://shop.example/p/1', text: 'Oak chair, natural' },
+    ];
+    expect(listingProducts(anchors, L, ['https://shop.example/p/1'])).toEqual([{ url: 'https://shop.example/p/1', title: 'Oak chair, natural', image: 'https://shop.example/img/1.jpg' }]);
+  });
+  it('falls back to the title attribute, then to the path, and leaves out a missing image', () => {
+    expect(listingProducts([{ href: '/p/2', text: '', title: 'Pine stool' }], L, ['https://shop.example/p/2'])).toEqual([{ url: 'https://shop.example/p/2', title: 'Pine stool' }]);
+    expect(listingProducts([{ href: '/p/3', text: '  ' }], L, ['https://shop.example/p/3'])).toEqual([{ url: 'https://shop.example/p/3', title: '/p/3' }]);
+  });
+  it('drops an image that is not http(s) and keeps the order of the urls asked for', () => {
+    const anchors: ListingAnchor[] = [{ href: '/p/b', text: 'B', image: 'data:image/png;base64,xx' }, { href: '/p/a', text: 'A' }];
+    expect(listingProducts(anchors, L, ['https://shop.example/p/a', 'https://shop.example/p/b']).map((p) => [p.title, p.image])).toEqual([['A', undefined], ['B', undefined]]);
+  });
+});
+
+describe('LISTING_ANCHORS_SCRIPT in Chromium', () => {
+  let browser: PlaywrightBrowser;
+  beforeAll(async () => { browser = new PlaywrightBrowser(); await browser.launch({ headless: true }); });
+  afterAll(async () => { await browser.close(); });
+
+  it('reads an image inside the link, a lazy one, and one beside the link in the same card', async () => {
+    const html = `<html><body>
+      <a href="/p/1"><img src="/i/1.jpg"><span>Oak chair</span></a>
+      <a href="/p/2" aria-label="Pine stool"><img data-src="/i/2.jpg"></a>
+      <div class="card"><img src="/i/3.jpg"><a href="/p/3">Birch table</a></div>
+    </body></html>`;
+    const anchors = await browser.setContentEvaluate<ListingAnchor[]>(html, LISTING_ANCHORS_SCRIPT);
+    const byHref = Object.fromEntries(anchors.map((a) => [a.href, a]));
+    expect(byHref['/p/1']).toMatchObject({ text: 'Oak chair', image: '/i/1.jpg' });
+    expect(byHref['/p/2']).toMatchObject({ title: 'Pine stool', image: '/i/2.jpg' });
+    expect(byHref['/p/3']).toMatchObject({ text: 'Birch table', image: '/i/3.jpg' });
   });
 });
