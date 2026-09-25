@@ -17,6 +17,7 @@ export function ListingBar({
   onFound,
   onNoListing,
   extractOwnsInput,
+  problem,
 }: {
   listingUrl: string;
   disabled: boolean;
@@ -24,6 +25,8 @@ export function ListingBar({
   /** The listing URL as typed (possibly blank): it is kept either way (spec §2.1). */
   onNoListing: (listingUrl: string) => void;
   extractOwnsInput: boolean;
+  /** Why the route refused this listing (e.g. it is on another website than the products), shown under the input. */
+  problem?: string | null;
 }) {
   const [url, setUrl] = useState(listingUrl);
   const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean } | null>(null);
@@ -70,6 +73,12 @@ export function ListingBar({
           Find products
         </Button>
       </div>
+
+      {problem ? (
+        <p role="alert" className="text-sm text-fail">
+          {problem}
+        </p>
+      ) : null}
 
       <button type="button" disabled={disabled} onClick={() => onNoListing(url.trim())} className="text-base text-link underline-offset-4 hover:underline">
         No listing? Paste product pages instead

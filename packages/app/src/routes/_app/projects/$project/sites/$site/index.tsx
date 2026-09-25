@@ -29,6 +29,7 @@ import {
   valueFromBox,
   verifyGate,
   productsProblem,
+  LISTING_ELSEWHERE,
   type Board,
   type Box,
   type Card,
@@ -160,6 +161,8 @@ function VerificationBody({ source }: { source: SiteData }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [arrival, setArrival] = useState<{ url: string; field?: string; note?: string } | null>(null);
+  /** Why the last listing was refused, shown under the listing input. */
+  const [listingNote, setListingNote] = useState<string | null>(null);
 
   // --- Invalidation: a save moves which fields are current (plan 3's reason),
   // and the project page's per-website badge reads the same currency.
@@ -335,6 +338,15 @@ function VerificationBody({ source }: { source: SiteData }) {
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Paste the full address, starting with https://';
     const others = boardRef.current.cards.map((c) => c.url.trim()).filter(Boolean);
     if (others.includes(url.trim())) return 'This product is already on the list';
+    // The listing counts too: the server saves one website, listing included.
+    const listing = boardRef.current.listingUrl.trim();
+    if (listing) {
+      try {
+        if (new URL(listing).hostname.toLowerCase() !== parsed.hostname.toLowerCase()) return 'This product is not on the same website as the listing';
+      } catch {
+        /* a stored listing that is not a URL says nothing about this one */
+      }
+    }
     for (const o of others) {
       try {
         if (new URL(o).hostname.toLowerCase() !== parsed.hostname.toLowerCase()) return 'All products must be on the same website';
@@ -345,7 +357,36 @@ function VerificationBody({ source }: { source: SiteData }) {
     return null;
   }
 
+  /**
+   * Why this listing cannot join these products, or null. The server counts
+   * the listing's website in its one-website rule even for an autosave, so a
+   * listing elsewhere would make every save fail (final review I4): refused
+   * here, where it is typed, rather than kept and failing quietly.
+   */
+  function listingRefusal(listingUrl: string): string | null {
+    if (listingUrl.trim() === '') return null;
+    let listingHost: string;
+    try {
+      const u = new URL(listingUrl.trim());
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Paste the full listing address, starting with https://';
+      listingHost = u.hostname.toLowerCase();
+    } catch {
+      return 'Paste the full listing address, starting with https://';
+    }
+    for (const c of boardRef.current.cards) {
+      try {
+        if (c.url.trim() && new URL(c.url.trim()).hostname.toLowerCase() !== listingHost) return LISTING_ELSEWHERE;
+      } catch {
+        /* a card that is not a URL says nothing about the listing */
+      }
+    }
+    return null;
+  }
+
   function onFound(listingUrl: string, products: Card[]) {
+    const refused = listingRefusal(listingUrl);
+    setListingNote(refused);
+    if (refused) return;
     const b = boardRef.current;
     const onBoard = new Set(b.cards.map((c) => c.url));
     const fresh = products.filter((p) => !onBoard.has(p.url));
@@ -359,8 +400,12 @@ function VerificationBody({ source }: { source: SiteData }) {
 
   function onNoListing(listingUrl: string) {
     const b = boardRef.current;
-    // The listing URL is kept either way (spec §2.1).
-    const withListing = listingUrl && listingUrl !== b.listingUrl ? { ...b, listingUrl } : b;
+    // The listing URL is kept either way (spec §2.1) — unless it cannot be saved
+    // with these products, when the old one stays and the input says why.
+    const refused = listingRefusal(listingUrl);
+    setListingNote(refused);
+    const keep = !refused && listingUrl && listingUrl !== b.listingUrl;
+    const withListing = keep ? { ...b, listingUrl } : b;
     if (b.cards.length >= PRODUCTS_MIN) {
       if (withListing !== b) setBoard(withListing);
       return;
@@ -577,6 +622,11 @@ function VerificationBody({ source }: { source: SiteData }) {
   // --- Verify.
   const problem = productsProblem(board);
   const gate: ReturnType<typeof verifyGate> = problem ? { ok: false, reason: problem } : verifyGate(board, fields, live);
+  // A reason that lives on a field's row (its descriptor) opens that row, once per new reason.
+  const gateField = gate.ok ? undefined : gate.field;
+  useEffect(() => {
+    if (gateField) setExpanded((e) => (e[gateField] ? e : { ...e, [gateField]: true }));
+  }, [gateField]);
   const scope = reverifyScope(fields, results, currentKeys);
   const firstRun = strip === 'editing' || strip === 'none';
   const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId, ...(firstRun || !scope ? {} : { onlyKeys: scope }) });
@@ -702,6 +752,7 @@ function VerificationBody({ source }: { source: SiteData }) {
             onFound={(listingUrl, products) => onFound(listingUrl, products)}
             onNoListing={onNoListing}
             extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
+            problem={listingNote}
           />
           {board.cards.length > 0 ? (
             <ProductGrid
@@ -721,7 +772,7 @@ function VerificationBody({ source }: { source: SiteData }) {
               hostProblem={hostProblem}
             />
           ) : null}
-          {unsaved ? <p className="text-sm text-muted-foreground">Not saved until every product has a page, all on this website</p> : null}
+          {unsaved ? <p className="text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}
           {locked && active ? <p className="text-sm text-muted-foreground">Products and answers are locked while this verification runs</p> : null}
         </div>
 
