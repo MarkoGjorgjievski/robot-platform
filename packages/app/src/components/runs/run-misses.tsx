@@ -12,7 +12,7 @@ import type { ResultColumn } from './results-table';
  *
  * The reading this panel exists for: a listing whose products all miss the same
  * field is a second layout, not a broken extractor. "Use as proof page" takes
- * one of those products to the Schema tab with the field already picked, where
+ * one of those products to the Verification tab with the field already picked, where
  * the customer types the one value it should have read and verifies — which is
  * how the website learns that layout.
  *
@@ -109,6 +109,7 @@ export function RunMisses({
                               <Link
                                 to="/projects/$project/sites/$site"
                                 params={{ project, site }}
+                                // `field.name` is the engine key (see `nameOf` above), which is what `?field` expects.
                                 search={{ addPage: url, field: field.name }}
                               >
                                 Use as proof page
