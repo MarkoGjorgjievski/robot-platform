@@ -190,14 +190,14 @@ describe('budgetFromForm / budgetToForm', () => {
 describe('lockedStripText', () => {
   it('names the fix target when there is a first failing field', () => {
     expect(lockedStripText({ fieldCount: 5, currentKeys: ['a', 'b', 'c', 'd'], firstFailing: 'author_url' })).toBe(
-      'Extraction is locked · 4 of 5 fields verified · fix author_url on the Schema tab',
+      'Extraction is locked · 4 of 5 fields verified · fix author_url on the Verification tab',
     );
   });
   it('omits the fix clause when nothing is failing', () => {
     expect(lockedStripText({ fieldCount: 5, currentKeys: ['a', 'b', 'c', 'd', 'e'], firstFailing: null })).toBe('Extraction is locked · 5 of 5 fields verified');
   });
   it('uses singular field when fieldCount is 1', () => {
-    expect(lockedStripText({ fieldCount: 1, currentKeys: [], firstFailing: 'price' })).toBe('Extraction is locked · 0 of 1 field verified · fix price on the Schema tab');
+    expect(lockedStripText({ fieldCount: 1, currentKeys: [], firstFailing: 'price' })).toBe('Extraction is locked · 0 of 1 field verified · fix price on the Verification tab');
   });
 });
 

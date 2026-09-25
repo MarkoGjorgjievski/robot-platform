@@ -25,7 +25,7 @@ export type Crumb =
 
 /**
  * Where you are: the organisation, the project once you are in one, and the
- * website once you are in one of those. The website's crumb links to its Schema
+ * website once you are in one of those. The website's crumb links to its Verification
  * tab — the tab you arrive on — so clicking it from a run page is a way back up
  * rather than a no-op.
  */
