@@ -4,6 +4,9 @@
 // hands this module capture data and answers and reads back what to draw.
 
 import { FIELD_TYPES, type FieldType } from '../fields-view';
+// The engine's own comparison. `@robot/scraper/normalize` is the one module of
+// that package safe for a browser bundle (it imports nothing but a type).
+import { valuesEqual } from '@robot/scraper/normalize';
 
 export { FIELD_TYPES };
 export type { FieldType };
@@ -209,11 +212,20 @@ export function valueFromBox(box: Box, type: FieldType): { value: string; mark: 
   return { value, mark };
 }
 
-/** Fields that fit the element first, then fields already answered here, then the rest; stable within groups by field order. */
-export function fieldsFor(box: Box, fields: Field[], board: Board, url: string): Array<{ field: Field; fits: boolean; answered: boolean }> {
+/**
+ * Fields that fit the element first, then fields already answered here, then the rest; stable within groups by field order.
+ *
+ * `suggestion`: the popover is open on a suggestion for that field, whose
+ * value is what a tick stores (final review M1) — so that field fits when
+ * the suggested value is valid, whatever the element's own text says.
+ */
+export function fieldsFor(box: Box, fields: Field[], board: Board, url: string, suggestion?: { key: string; value: string }): Array<{ field: Field; fits: boolean; answered: boolean }> {
   const rows = fields.map((field) => {
     const r = valueFromBox(box, field.type);
-    const fits = !('error' in r) && validateValue(field.type, r.value) === null;
+    const fits =
+      suggestion && suggestion.key === field.key
+        ? validateValue(field.type, suggestion.value) === null
+        : !('error' in r) && validateValue(field.type, r.value) === null;
     const answered = !!board.answers[field.key]?.[url];
     return { field, fits, answered };
   });
@@ -222,6 +234,20 @@ export function fieldsFor(box: Box, fields: Field[], board: Board, url: string):
     .map((r, i) => ({ r, i }))
     .sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i)
     .map(({ r }) => r);
+}
+
+/**
+ * The answer a tick on a suggestion stores (final review M1): always the
+ * suggested value, and the element as its mark only when the element itself
+ * shows that value by the engine's comparison. The server drops a mark whose
+ * text does not equal its value (`prepareBinding`), so keeping one here would
+ * show a clicked answer that reads "typed" after a reload — and a mark on the
+ * wrong element must never reach certification's candidates anyway.
+ */
+export function answerFromSuggestion(box: Box, field: Field, value: string, url: string): Answer {
+  const read = valueFromBox(box, field.type);
+  if ('error' in read || !read.mark) return { value, mark: null };
+  return valuesEqual(field.type, read.value, value, { pageUrl: url }) ? { value, mark: read.mark } : { value, mark: null };
 }
 
 export function mergeSuggestions(

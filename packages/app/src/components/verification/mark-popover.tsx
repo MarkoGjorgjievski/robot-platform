@@ -25,6 +25,7 @@ export function MarkPopover({
   fields,
   initialKey,
   error,
+  suggestion,
   onTick,
   onRemove,
   onReject,
@@ -37,6 +38,8 @@ export function MarkPopover({
   fields: ReturnType<typeof fieldsFor>;
   initialKey?: string;
   error?: string;
+  /** Open on a suggestion: that field's tick stores the suggested value, so its fitness and reason come from it (final review M1). */
+  suggestion?: { key: string; value: string };
   onTick: (key: string) => void;
   onRemove?: () => void;
   onReject?: () => void;
@@ -63,7 +66,13 @@ export function MarkPopover({
       ? resolveFor(box, selected.field.type)
       : { error: 'No fields on this project' };
 
-  const fitReason = selected && !selected.fits ? reasonFor(box, selected.field.type) : null;
+  const forSuggestion = !!selected && !!suggestion && selected.field.key === suggestion.key;
+  const fitReason =
+    selected && !selected.fits
+      ? forSuggestion
+        ? (validateValue(selected.field.type, suggestion!.value) ?? 'This value does not fit this field')
+        : reasonFor(box, selected.field.type)
+      : null;
 
   return (
     <Popover open={open} onOpenChange={(next) => { if (!next) onClose(); }}>

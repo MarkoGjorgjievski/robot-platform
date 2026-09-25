@@ -11,6 +11,7 @@ import {
   PRODUCTS_MAX,
   PRODUCTS_MIN,
   answer,
+  answerFromSuggestion,
   badge,
   boardFrom,
   canSave,
@@ -582,11 +583,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     const field = fields.find((f) => f.key === key);
     const box = boxes[pop.box];
     if (!field || !box || pop.url !== selectedUrl) return;
-    const read = valueFromBox(box, field.type);
     let given: { value: string; mark: Mark | null };
-    if (pop.mode === 'suggestion' && pop.key === key && live[key]?.[pop.url]) {
-      given = { value: live[key]![pop.url]!.value, mark: 'error' in read ? null : read.mark };
+    const sug = pop.mode === 'suggestion' && pop.key === key ? live[key]?.[pop.url] : undefined;
+    if (sug) {
+      // The suggested value, with the element as its mark only when it shows that value.
+      given = answerFromSuggestion(box, field, sug.value, pop.url);
     } else {
+      const read = valueFromBox(box, field.type);
       if ('error' in read) return;
       given = read;
     }
@@ -609,7 +612,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (!popover || popover.url !== selectedUrl) return null;
     const box = boxes[popover.box];
     if (!box) return null;
-    const rows = fieldsFor(box, fields, board, popover.url);
+    const popSug = popover.mode === 'suggestion' && popover.key ? live[popover.key]?.[popover.url] : undefined;
+    const rows = fieldsFor(box, fields, board, popover.url, popSug && popover.key ? { key: popover.key, value: popSug.value } : undefined);
     const initialKey = popover.key ?? rows[0]?.field.key;
     const initial = fields.find((f) => f.key === initialKey);
     let value = '';
@@ -638,6 +642,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         error={err}
         fields={rows}
         initialKey={initialKey}
+        suggestion={popSug && pop.key ? { key: pop.key, value: popSug.value } : undefined}
         onTick={tick}
         onRemove={
           pop.mode === 'answer' && pop.key
