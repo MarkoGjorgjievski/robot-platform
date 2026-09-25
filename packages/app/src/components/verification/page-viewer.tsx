@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import type { Box } from '../../lib/site/verification-model';
-import { boxAt, enclosing, toPage } from '../../lib/site/page-viewer-view';
+import { targetAt, toPage } from '../../lib/site/page-viewer-view';
 
 export type Overlay = { box: number; label: string; tone: 'answered' | 'suggested' | 'failed'; key: string };
 
@@ -68,6 +68,18 @@ export function PageViewer({
     if (locked) setHover(null);
   }, [locked]);
 
+  // A new product (fresh `tiles`/`boxes`) invalidates both the old hover
+  // index (it would otherwise be drawn against the new product's boxes until
+  // the pointer next moves) and the measured scale — the new first tile has
+  // its own natural size, and until it reports one the overlay layer stays
+  // hidden (`scale <= 0`) rather than drawing at the previous product's scale.
+  useEffect(() => {
+    setHover(null);
+    setNaturalWidth(0);
+  }, [tiles, boxes]);
+
+  const overlaid = useMemo(() => new Set(overlays.map((o) => o.box)), [overlays]);
+
   const scale = naturalWidth > 0 && renderedWidth > 0 ? renderedWidth / naturalWidth : 0;
 
   function resolveIndex(e: ReactMouseEvent<HTMLDivElement>): number | null {
@@ -75,12 +87,7 @@ export function PageViewer({
     if (!el || scale <= 0) return null;
     const r = el.getBoundingClientRect();
     const p = toPage(e.clientX, e.clientY, { left: r.left, top: r.top, scale });
-    let i = boxAt(boxes, p.x, p.y);
-    if (i !== null && e.altKey) {
-      const wider = enclosing(boxes, i);
-      if (wider !== null) i = wider;
-    }
-    return i;
+    return targetAt(boxes, overlaid, p.x, p.y, e.altKey);
   }
 
   function handleMove(e: ReactMouseEvent<HTMLDivElement>) {
