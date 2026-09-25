@@ -16,7 +16,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding, bindingProblems, host, markInput } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
-import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
+import { rankProductLinks, describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
@@ -798,10 +798,7 @@ export const sourcesRouter = router({
     .mutation(async ({ input }) => {
       const anchors = await withBrowserSession(async (browser) => {
         const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
-        return browser.setContentEvaluate<Array<{ href: string; text: string }>>(
-          capture.html,
-          `(() => Array.from(document.querySelectorAll('a[href]')).map(a => ({ href: a.getAttribute('href') || '', text: (a.textContent || '').trim().slice(0, 80) })))()`,
-        );
+        return browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
       });
 
       return { urls: rankProductLinks(anchors, input.listingUrl, FIND_PRODUCT_PAGES_LIMIT) };
@@ -820,10 +817,7 @@ export const sourcesRouter = router({
     .mutation(async ({ input }) => {
       const { anchors, html } = await withBrowserSession(async (browser) => {
         const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
-        const anchors = await browser.setContentEvaluate<Array<{ href: string; text: string }>>(
-          capture.html,
-          `(() => Array.from(document.querySelectorAll('a[href]')).map(a => ({ href: a.getAttribute('href') || '', text: (a.textContent || '').trim().slice(0, 80) })))()`,
-        );
+        const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
         return { anchors, html: capture.html };
       });
 
