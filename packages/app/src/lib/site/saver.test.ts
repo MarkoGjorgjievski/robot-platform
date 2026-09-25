@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createSaver } from './saver';
+import { createSaver, saveErrorReason } from './saver';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -119,5 +119,20 @@ describe('createSaver', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(save).toHaveBeenCalledTimes(1);
     expect(states.slice(before)).toEqual([]);
+  });
+});
+
+describe('saveErrorReason (final review R1)', () => {
+  it('keeps the first line of the server’s refusal', () => {
+    expect(saveErrorReason(new Error('All URLs must be on the same website\nPrice @ https://s.example/p/1: Not a money amount'))).toBe('All URLs must be on the same website');
+  });
+  it('reads the first message out of a validation error’s JSON', () => {
+    const zod = JSON.stringify([{ code: 'too_small', message: 'Array must contain at least 3 element(s)', path: ['urls'] }], null, 2);
+    expect(saveErrorReason(new Error(zod))).toBe('Array must contain at least 3 element(s)');
+  });
+  it('says something when there is nothing to read', () => {
+    expect(saveErrorReason(new Error(''))).toBe('the server did not say why');
+    expect(saveErrorReason('boom')).toBe('boom');
+    expect(saveErrorReason(new Error('   \n  second'))).toBe('second');
   });
 });

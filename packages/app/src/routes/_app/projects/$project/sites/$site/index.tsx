@@ -37,7 +37,8 @@ import {
   type Mark,
   type Suggestions,
 } from '../../../../../../lib/site/verification-model';
-import { createSaver } from '../../../../../../lib/site/saver';
+import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
+import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
@@ -113,7 +114,39 @@ function VerificationTab() {
 
   // Keyed on the website: the board is seeded once per mount, and the
   // captures hook keeps what it started — a website switch must start over.
-  return <VerificationBody key={source.id} source={source} />;
+  return <SeededBody key={source.id} source={source} serverUpdatedAt={site.dataUpdatedAt} />;
+}
+
+/**
+ * Holds the tab on its skeleton while a save from an earlier visit is still in
+ * flight (final review I3): seeding from the cache before it lands would show
+ * the board without the tick that save carries, and the next edit would
+ * overwrite it on the server. Only a save pending at mount is waited for — the
+ * body's own saves never unmount it.
+ */
+function SeededBody({ source, serverUpdatedAt }: { source: SiteData; serverUpdatedAt: number }) {
+  const [waiting, setWaiting] = useState(() => boardStore.get(source.id)?.pending ?? null);
+  useEffect(() => {
+    if (!waiting) return;
+    let live = true;
+    const done = () => {
+      if (live) setWaiting(null);
+    };
+    waiting.then(done, done);
+    return () => {
+      live = false;
+    };
+  }, [waiting]);
+  if (waiting) {
+    return (
+      <div className="rise rounded-[6px] border border-line bg-panel p-4 [box-shadow:var(--shadow)]">
+        <Skeleton className="h-[22px] w-64 bg-raised" />
+        <Skeleton className="mt-3 h-[22px] w-full bg-raised" />
+        <Skeleton className="mt-2 h-[22px] w-full bg-raised" />
+      </div>
+    );
+  }
+  return <VerificationBody source={source} serverUpdatedAt={serverUpdatedAt} />;
 }
 
 /** The first box in `boxes` a stored mark points at — by XPath, else by the very same rectangle. */
@@ -131,7 +164,7 @@ type OverlayInfo = { fieldKey: string; kind: 'answer' | 'suggestion' };
 
 type Popover = { url: string; box: number; at: { x: number; y: number }; mode: 'pick' | 'answer' | 'suggestion'; key?: string };
 
-function VerificationBody({ source }: { source: SiteData }) {
+function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serverUpdatedAt: number }) {
   const { project: projectSlug, site: siteSlug } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -144,9 +177,15 @@ function VerificationBody({ source }: { source: SiteData }) {
   fieldsRef.current = fields;
 
   // Seeded once; afterwards local state is the truth — a background refetch of
-  // the website must never clobber an answer being given.
-  const [board, setBoard] = useState<Board>(() => boardFrom(source));
-  const seededBoard = useRef(board);
+  // the website must never clobber an answer being given. A board this page
+  // pushed after the cached copy was fetched wins over it (final review I3);
+  // one whose save never landed is seeded and saved again.
+  const [seed] = useState(() => {
+    const d = seedDecision(boardStore.get(source.id), serverUpdatedAt);
+    return d.kind === 'stored' ? { board: d.board, resave: d.resave } : { board: boardFrom(source), resave: false };
+  });
+  const [board, setBoard] = useState<Board>(seed.board);
+  const seededBoard = useRef<Board | null>(seed.resave ? null : board);
   const boardRef = useRef(board);
   boardRef.current = board;
 
@@ -154,6 +193,10 @@ function VerificationBody({ source }: { source: SiteData }) {
   const [queue, setQueue] = useState<Card[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestions>({});
   const [saveState, setSaveState] = useState<SaveState>('idle');
+  const saveStateRef = useRef(saveState);
+  saveStateRef.current = saveState;
+  /** The server's reason the last save failed, in one line (final review R1). */
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [popover, setPopover] = useState<Popover | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
@@ -185,27 +228,73 @@ function VerificationBody({ source }: { source: SiteData }) {
   useEffect(() => {
     const saver = createSaver<Board>({
       delay: 600,
-      save: (b) =>
-        utils.client.sources.updateBinding
-          .mutate({ sourceId, ...toBindingInput(b, fieldsRef.current) })
-          .then(() => invalidateRef.current()),
+      save: (b) => {
+        const p = utils.client.sources.updateBinding.mutate({ sourceId, ...toBindingInput(b, fieldsRef.current) }).then(
+          (row) => {
+            setSaveError(null);
+            // The saved record goes straight into the cache, so a remount
+            // before the refetch lands seeds from what the server now holds.
+            utils.sources.get.setData({ projectSlug, sourceSlug: siteSlug }, (old) =>
+              old ? { ...old, schemaDefinition: row.schemaDefinition, verificationSet: row.verificationSet } : old,
+            );
+            boardStore.saved(sourceId, b);
+            return invalidateRef.current();
+          },
+          (e: unknown) => {
+            setSaveError(saveErrorReason(e));
+            throw e;
+          },
+        );
+        boardStore.saving(sourceId, p);
+        return p;
+      },
       onState: setSaveState,
     });
     saverRef.current = saver;
+
+    // A tick given less than the debounce before the page goes away must
+    // still reach the server (final review I2): flush when the page is hidden
+    // or unloaded, and ask before unloading while a save is waiting or running.
+    const flushNow = () => {
+      boardStore.saving(sourceId, saver.flush().catch(() => {}));
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushNow();
+    };
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveStateRef.current !== 'pending' && saveStateRef.current !== 'saving') return;
+      flushNow();
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('pagehide', flushNow);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+
     return () => {
+      window.removeEventListener('pagehide', flushNow);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       saverRef.current = null;
       // dispose() alone would drop a change still waiting out its debounce.
-      void saver
-        .flush()
-        .catch(() => {})
-        .finally(() => saver.dispose());
+      // The flush is recorded so a remount waits for it (final review I3).
+      boardStore.saving(
+        sourceId,
+        saver
+          .flush()
+          .catch(() => {})
+          .finally(() => saver.dispose()),
+      );
     };
-  }, [utils, sourceId]);
+  }, [utils, sourceId, projectSlug, siteSlug]);
 
   useEffect(() => {
     if (board === seededBoard.current) return; // the seed is what the server already has
-    if (canSave(board)) saverRef.current?.push(board);
-  }, [board]);
+    if (canSave(board)) {
+      boardStore.pushed(sourceId, board);
+      saverRef.current?.push(board);
+    }
+  }, [board, sourceId]);
 
   // --- Verification status (plan 3's polling and stall rules).
   const stallQuery = trpc.sources.verifyEstimate.useQuery({ sourceId });
@@ -829,6 +918,7 @@ function VerificationBody({ source }: { source: SiteData }) {
             onClick: () => void handleVerify(),
           }}
           saveState={saveState}
+          saveError={saveError}
           extract={{ enabled: !!(status?.current && status?.allPassed), project: projectSlug, site: siteSlug }}
           stage={stage}
         />
