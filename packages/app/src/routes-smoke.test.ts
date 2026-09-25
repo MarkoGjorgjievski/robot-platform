@@ -782,7 +782,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // Ready to verify, and priced before the click — which this run never makes.
     const verify = verifyButtonOf(page);
     await expect.poll(() => verify.isEnabled(), { timeout: 20_000 }).toBe(true);
-    expect(await verify.innerText(), 'the Verify button does not say what it costs').toMatch(/· (free|mechanical only|up to \$\d)/);
+    expect(await verify.innerText(), 'the Verify button does not say what it costs').toMatch(/^Verify \d+ fields? · (free|up to \$\d)/);
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000 }).toBe(3);
     await shootBothThemes(page, 'ready');
 
