@@ -17,6 +17,8 @@ export type VerificationSet = {
   listing_url?: string;
   /** fieldKey → url → the element the customer clicked for that cell (spec 2026-09-18 §3.5). Absent on sets written before marks existed. */
   marks?: Record<string, Record<string, Mark>>;
+  /** What the Verification tab shows for each product page: its title and image from the listing. Display only — no hash reads it. */
+  cards?: Array<{ url: string; title: string; image?: string }>;
 };
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';

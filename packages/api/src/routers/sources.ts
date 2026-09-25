@@ -14,7 +14,7 @@ import { sourceInOrg, captureInOrg } from '../auth/scope.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
-import { bindingInput, prepareBinding, host, markInput } from '../verify/binding-input.js';
+import { bindingInput, prepareBinding, bindingProblems, host, markInput } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks, describeListingPage } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
@@ -1123,6 +1123,7 @@ export const sourcesRouter = router({
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
         columns: { id: true, schemaDefinition: true, verificationSet: true },
+        with: { dataset: { columns: { schema: true } } },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
@@ -1133,6 +1134,18 @@ export const sourcesRouter = router({
           code: 'PRECONDITION_FAILED',
           message: `Source ${input.sourceId} has no schema definition to verify`,
         });
+      }
+
+      // Draft saves (the Verification tab's autosave) can leave cells blank, so Verify checks the record itself.
+      const set = source.verificationSet as VerificationSet | null;
+      const defs = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
+      if (set) {
+        const problems = bindingProblems({
+          urls: set.urls, ...(set.listing_url ? { listingUrl: set.listing_url } : {}),
+          descriptions: Object.fromEntries(defs.map((d) => [d.key, d.description])),
+          expected: set.expected, ...(set.marks ? { marks: set.marks } : {}),
+        }, contractFields(source.dataset?.schema));
+        if (problems.length) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: problems.join('\n') });
       }
 
       const inFlight = await resolveInFlightVerification(ctx.db, input.sourceId);

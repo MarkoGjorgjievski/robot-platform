@@ -9,6 +9,7 @@ import { bindingFor, type ContractField } from '../contract.js';
 
 const rect = z.object({ x: z.number().min(0), y: z.number().min(0), w: z.number().min(0), h: z.number().min(0) });
 export const markInput = z.object({ xpaths: z.array(z.string().max(2000)).min(1).max(3), text: z.string().max(2000), rect });
+const card = z.object({ url: httpUrl, title: z.string().max(300), image: httpUrl.optional() });
 
 export const bindingInput = z.object({
   sourceId: z.string().uuid(),
@@ -18,25 +19,30 @@ export const bindingInput = z.object({
   expected: z.record(z.string(), z.record(z.string(), z.string())),
   /** fieldKey → url → the element the customer clicked (spec 2026-09-18 §3.5). */
   marks: z.record(z.string(), z.record(z.string(), markInput)).optional(),
+  /** Autosave from the Verification tab: the per-cell completeness rules wait for Verify (spec 2026-09-25 §3). */
+  draft: z.boolean().optional(),
+  cards: z.array(card).max(VERIFY_URL_MAX).optional(),
 });
 export type BindingInput = z.infer<typeof bindingInput>;
 
 /** Shared with `sources.setListingPages`/`setProductUrls` (task 3 fix round 1): the same-host comparison must use the same lowercasing everywhere. */
 export const host = (u: string) => new URL(u).hostname.toLowerCase();
 
-export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { sourceId?: string }, contract: ContractField[]): string[] {
+export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { sourceId?: string }, contract: ContractField[], opts: { draft?: boolean } = {}): string[] {
+  const draft = opts.draft ?? input.draft ?? false;
   const problems: string[] = [];
   const hosts = new Set(input.urls.map(host));
   if (input.listingUrl) hosts.add(host(input.listingUrl));
   if (hosts.size > 1) problems.push('All URLs must be on the same website');
   if (new Set(input.urls.map((u) => normalize('url', u))).size !== input.urls.length) problems.push('URLs must be different pages');
   for (const f of contract) {
-    if (!(input.descriptions[f.key] ?? '').trim()) problems.push(`${f.name}: say where it is on this website`);
+    if (!draft && !(input.descriptions[f.key] ?? '').trim()) problems.push(`${f.name}: say where it is on this website`);
     const cells = input.expected[f.key] ?? {};
     input.urls.forEach((url, i) => {
       const value = cells[url] ?? '';
       // Pages four to six: a blank cell means "not checked here" (spec 2026-09-17 §4).
-      if (i >= VERIFY_URL_MIN && value.trim() === '') return;
+      // A draft save (Verification tab autosave) can leave any cell blank — Verify checks completeness itself.
+      if ((draft || i >= VERIFY_URL_MIN) && value.trim() === '') return;
       const err = validateExpected(f.type, value);
       if (err) problems.push(`${f.name} @ ${url}: ${err}`);
     });
@@ -44,9 +50,11 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
       if (input.marks?.[f.key]?.[url] && (cells[url] ?? '').trim() === '') problems.push(`${f.name} @ ${url}: a marked element needs its value`);
     }
   }
-  input.urls.slice(VERIFY_URL_MIN).forEach((url) => {
-    if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '')) problems.push(`${url}: type at least one expected value on this page, or remove it`);
-  });
+  if (!draft) {
+    input.urls.slice(VERIFY_URL_MIN).forEach((url) => {
+      if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '')) problems.push(`${url}: type at least one expected value on this page, or remove it`);
+    });
+  }
   return problems;
 }
 
@@ -70,5 +78,15 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
     const perUrl = Object.fromEntries(input.urls.filter(current).map((u) => [u, input.marks![f.key]![u]!]));
     if (Object.keys(perUrl).length) marks[f.key] = perUrl;
   }
-  return { fields, verificationSet: { urls: input.urls, expected, ...(input.listingUrl ? { listing_url: input.listingUrl } : {}), ...(Object.keys(marks).length ? { marks } : {}) } };
+  const cards = input.cards?.filter((c) => input.urls.includes(c.url));
+  return {
+    fields,
+    verificationSet: {
+      urls: input.urls,
+      expected,
+      ...(input.listingUrl ? { listing_url: input.listingUrl } : {}),
+      ...(Object.keys(marks).length ? { marks } : {}),
+      ...(cards?.length ? { cards } : {}),
+    },
+  };
 }
