@@ -8,6 +8,8 @@ type: project
 
 ## Read this first
 
+**Newest: [App redesign, plan 5 — the Verification tab (2026-09-25)](#app-redesign-plan-5-the-verification-tab-2026-09-25).** A website's first tab is now Verification (find products from a listing, point at values, tick suggestions, verify); the grid and the stepper are gone from `@robot/app`. Ikea — its six stored fields plus SKU and Brand — verifies 8 of 8 through it, live and free. Plans 1–4 of the app redesign follow it below; the state paragraph under this one is older.
+
 **State on 2026-09-11.** `main` holds the whole MVP flow: routes and shell (phase 1), the contract on the dataset (phase 2), the Schema tab as the proof sheet (phase 3), the Extract tab stepper (phase 4) and the visual system (phase 5), all merged fast-forward from `feat/schema-verification` at `b025fbf`. Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`; one plan per phase under `docs/superpowers/plans/2026-09-*-mvp-flow-phase*`; one section per phase below. `main` is not pushed: `origin/main` is at `941cac3`, far behind.
 
 **Every phase was gated the same way:** a review per task, a whole-branch review on the most capable model, one fix wave, one scoped re-review, then the full per-package test gate (`pnpm --filter <pkg> test -- --maxWorkers=1`; `pnpm -r test` gets killed for memory on this machine) and `RUN_UI_SMOKE=1` against `pnpm dev:all`. All green on `b025fbf`.
@@ -33,6 +35,150 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## App redesign, plan 5: the Verification tab (2026-09-25)
+
+Spec: `docs/superpowers/specs/2026-09-25-verification-tab-design.md` (supersedes
+the stepper's flow in `2026-09-18-schema-stepper-with-marks-design.md`; its
+engine stands). Plan: `docs/superpowers/plans/2026-09-25-app-redesign-plan5-verification-tab.md`;
+briefs, reports and the ledger: `.superpowers/sdd/2026-09-25-app-redesign-plan5-verification-tab/`.
+Branch `feat/app-verification-tab`, base `main` at `a420222`. A website's first
+tab is now **Verification**, at the website's root URL: paste a listing, get
+three product cards, look at each product's screenshot, point at a value and
+name its field, tick what page data and the other products suggest, and
+Verify. The proof-sheet grid, the Fields step, the stepper and Import values
+are gone from `@robot/app` (`@robot/dashboard` is untouched).
+
+**What landed** (`git log --oneline a420222..HEAD`; later shas in a row are that task's fix rounds):
+
+| Commit | What |
+|---|---|
+| `ca4c491` | API: `proofPageCapture` / `suggestMarks` scoped through capture → website → organisation (`captureInOrg`); `proofPageCaptures` (newest capture per url, so a reload resumes); captures three at a time per api-server; `transferMarks` takes the answer on screen (`from`) and `fieldKeys` (Task 1) |
+| `f935289` | API: `updateBinding({ draft: true, cards })` — autosave from the first tick, the cards stored on the verification set; `verify` runs `bindingProblems` on the stored record first (Task 2) |
+| `b66eee2` | API: `checkListingPage` answers `products: [{ url, title, image }]` from the same page load (Task 3) |
+| `89611f1`, `e3586ac`, `400c37d` | the tab's model (`lib/site/verification-model.ts`: board, answers, suggestions, battery segment, badge, Verify gate) and its autosave (`lib/site/saver.ts`), then two saver fixes — a rejected save no longer loses the value, and a failed save is retried on the next edit or Verify, not in a loop (Task 4) |
+| `17f9fe7` | the listing bar and the product grid, each product captured in the background (`lib/site/use-proof-captures.ts`) (Task 5) |
+| `0607dc1`, `d9bb253` | the screenshot viewer — hover, Alt widens, click to mark, labelled rectangles, the field popover (Task 6) |
+| `55a1230`, `b8cc5d6` | the fields sidebar — a battery per field, the badge, Type it, the descriptor, Verify, "saved", Go to Extract (a typed router `Link`) (Task 7) |
+| `fe32d77`, `cbee154`, `764363e` | the route that joins them, and two fixes its browser walk found: every product's capture id is recorded when three start at once; a click inside a labelled rectangle opens that rectangle (Task 8) |
+| `927252b`, `9938f5a`, `6d0a538` | Task 8's fix round: `verificationStatus.unchangedKeys` so a failure shows red ("fails on product n") until the answer changes; the row hints ("page data: <value>" with ✓/×, "found in n places — click the right one"); the run's "use as proof page" link sends the field's key |
+| `973f554` | the grid, the stepper and Import are deleted; runs and Add website land on Verification (Task 9) |
+| `caf7d70`, `c7831ac`, `5803280` | three fixes the live checks found (below) (Task 10) |
+| this task | the smoke's Verification walk, the live check on Ikea, these docs (Task 10) |
+
+**No implementer signed in as `markodjordjievski@gmail.com` or touched org
+`default`, org `mar`, or Acne / Scratch / Competitor prices**, beyond Task 10's
+one read-only SQL query (Ikea's stored field names and listing URL). Every
+browser check used a throwaway `smoke-*@` / `check-*@example.com` and deleted
+its own project. Verify was clicked once per live run, only on the keyless
+:4100 api-server, after the check asserted "mechanical only".
+
+**Rulings this plan made:**
+
+- `validateValue` / `shortUrl` were copied into the model (not moved) until the
+  grid was deleted, so the build held through Tasks 5–8; `FieldType` is the one
+  in `lib/fields-view.ts`.
+- The saver's plan-given code could resolve `flush()` without having saved, so
+  Verify could check a stale record: fixed despite the brief (spec §3 — the
+  latest state wins, and Verify needs the saved record).
+- Task 7's `extract={{ enabled, href }}` became `{ enabled, project, site }` and a
+  typed `<Link>` — a raw href was a full page reload.
+- **The plan's "failed only for a current key" was wrong** (current = passing
+  and unchanged, so red could never show). `verificationStatus` now also
+  returns `unchangedKeys` (latest result's `fieldHash` matches, pass or fail);
+  red segments and "fails on product n" read it.
+- Spec §2.3's row-level suggestions landed in Task 8's fix round, not later.
+- Task 10: a suggestion on an element smaller than 4 px on a side is offered on
+  the row, not drawn (`pointable`); the app's yes/no words now include
+  schema.org's availability URLs, as the engine's do.
+
+**Deviations from the spec:**
+
+- The Verify label reads `Verify · mechanical only` on a keyless server and
+  `Verify · up to $X` with a key — `verifyButton`'s wording from plan 3 — not
+  the spec's illustrative `Verify 8 fields · free`. A re-verify of certified
+  paths does read "· free". The live check accepts either "free" or
+  "mechanical only" and refuses anything with a "$".
+- A page-data value ticked from the row is saved as a typed answer (value, no
+  mark), as Type it is; the engine certifies it from the page data.
+- The smoke's website is named "0": that is what the Add website dialog derives
+  from `http://127.0.0.1:<port>/`, and the smoke keeps the customer's gesture.
+
+**What the checks found.** The smoke (`pnpm test:ui:app`, 14 tests) is green in
+both themes and now walks the whole tab on a local shop: listing → three cards
+("Widget A/B/C") → three screenshots → tick the Title suggestion → reject the
+Price suggestion and click `$129.99` on the screenshot, pick Price, tick →
+"Price: 1 of 3 confirmed, 2 suggested" → tick products 2 and 3 → "saved" →
+reload → every segment green, Verify enabled and priced, **not clicked** →
+`sources.get` has Price's mark on product 1 and the three cards' titles. The
+live check on Ikea (`docs/testing/2026-09-25-verification-live.md`): listing
+in 12–16 s ("35 products found · a pager too"), three screenshots together in
+12–22 s, **every one of eight fields suggested by page data on every
+product**, nothing left to mark by hand, 43 clicks, a mechanical Verify in
+21 s, **8 of 8 verified**, $0.00. Four of the eight (Title, Description, Main
+image, Brand) came only as "page data: …" row lines — the path had never been
+seen live and is the commonest on Ikea. Fixed on the way, each with a test:
+
+1. `caf7d70` — a rectangle at the top of the screenshot (a page's heading)
+   lost its label to the frame; it now goes under the top edge.
+2. `c7831ac` — Product URL was suggested on a 1×1 anchor: a label with nothing
+   to click, and Verify stuck on "Product URL still needs product 1".
+3. `5803280` — In stock, suggested as `https://schema.org/InStock`, could be
+   ticked and was then refused by the Verify gate as "Not yes/no"; the app's
+   words now match the engine's.
+
+**Seen, not fixed:**
+
+- The capture paints Ikea's cookie banner and sticky header into later tiles;
+  one of SKU's two places sat under the banner (`@robot/browser`, not this tab).
+- A Verify on a throwaway Ikea website wrote verified paths to the shared
+  domain cache (`[cache] verified paths for www.ikea.com/detail: 8 concept(s)`)
+  — the cache is per domain, not per organisation. Harmless here (Ikea's real
+  paths, enrich-only), but a live check that verifies a domain Marko also uses
+  touches his cache.
+- A tick whose save has not finished when the page is navigated away (tab
+  close, reload, typed URL) is lost: the autosave waits 600 ms and then sends,
+  and nothing flushes it on `pagehide`. Seen once in the smoke, when a failing
+  step navigated away about a second after a tick (inferred from the website
+  walk that followed, which found Title unticked); a customer closing the tab
+  straight after a tick would lose it the same way.
+- "found in n places" gives no hint which place is right (SKU on Ikea).
+- Engine/listing quality from Task 8's walk: books.toscrape's sidebar
+  categories read as products; `suggestMarks` offered a breadcrumb as a second
+  Title place.
+- The Ikea marking/verified screenshots and the smoke's state shots are
+  honest, but the tab keeps the document scrolled ~90 px after a click on the
+  screenshot, which is why the smoke's three state pairs are viewport shots.
+
+**Deferred minors** (the ledger has them all): `dispose()` / `push` after
+dispose in the saver; `verifyGate` does not check `canSave`, and `canSave` does
+not cap at six; the badge shows nothing for a field that failed with only
+`not_captured` cells; `toBindingInput` trims urls but not the cards'; Try again
+/ Use this page are not disabled while their own call runs; the checking badge
+announces twice to screen readers; `targetAt` allocates a box list per pointer
+move; `read-excel-file` is now unused in `@robot/app`; `cellStatusFor` /
+`CellStatus` are dead outside their test.
+
+**How to run.** `pnpm test:ui:app` with `pnpm dev:all` up (free; never clicks
+Verify). The live check needs its own keyless stack — see the live note; never
+point it at :4000. `docs/testing/ui-check-app-site.mts` (the look-only walk of
+Acne / Ikea) has its Schema and step 1 stops replaced by one Verification stop;
+it now allows `sources.captureProofPage` by name (opening the tab takes a free
+screenshot of any proof page with none fresh) and **has not been run** — it is
+the controller's, against Marko's account. The screenshot set and what each
+shows: `docs/testing/screens/README.md`.
+
+**Open decisions:**
+
+- The Verify label's wording: keep plan 3's "mechanical only" / "up to $X", or
+  the spec's "free"?
+- Flush the autosave on `pagehide` (a `keepalive` request), so a tick is never
+  lost to a closed tab?
+- Whether live checks may verify a domain Marko also has, given the shared
+  domain cache.
+
+**Next.** Plan 6: cut-over (delete `@robot/dashboard` once `@robot/app` has
+parity).
 
 ## App redesign, plan 4: the organisation (2026-09-24)
 
