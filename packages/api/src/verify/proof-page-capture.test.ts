@@ -95,3 +95,36 @@ describe('a capturing row the api-server never finished', () => {
     } finally { await f.cleanup(); }
   });
 });
+
+describe('a capture waiting for a browser slot (final review M4)', () => {
+  it('is not reported stalled by its insert time, and its clock starts when it gets a slot', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-queue', fields: [{ name: 'Title', type: 'text' }] });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const blocked = sessionWith(async (u) => { await gate; return fakeCapture(u); });
+    try {
+      // Three captures hold every slot; the fourth waits in the queue.
+      const holders = await Promise.all([0, 1, 2].map(() => startProofPageCapture(f.sourceId, f.urls[1]!, { session: blocked })));
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { session: blocked });
+      // It has waited longer than the stall window (a busy server), by its insert time.
+      const old = new Date(Date.now() - PROOF_PAGE_STALL_MS - 1000).toISOString();
+      await db.update(captures).set({ metadata: { kind: 'proof-page', status: 'capturing', url: f.urls[0]!, startedAt: old } }).where(eq(captures.id, captureId));
+      expect(await caller.sources.proofPageCapture({ captureId })).toMatchObject({ status: 'capturing' });
+
+      const freed = Date.now();
+      release();
+      const meta = async () => (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
+      for (let i = 0; i < 100 && (await meta()).status === 'capturing'; i++) await new Promise((r) => setTimeout(r, 50));
+      const done = await meta();
+      expect(done.status).toBe('captured');
+      expect(Date.parse(done.startedAt)).toBeGreaterThanOrEqual(freed - 1000);
+      for (const h of holders) {
+        for (let i = 0; i < 100; i++) {
+          const m = (await db.query.captures.findFirst({ where: eq(captures.id, h.captureId) }))!.metadata as ProofPageMeta;
+          if (m.status !== 'capturing') break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+    } finally { release(); await f.cleanup(); }
+  });
+});

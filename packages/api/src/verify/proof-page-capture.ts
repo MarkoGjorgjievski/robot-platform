@@ -15,6 +15,14 @@ import { createLimiter } from './limiter.js';
 /** At most three product-page captures run at once — a real browser tab each, so a burst of "mark this page" clicks does not pile up unbounded Chromium processes. */
 const captureSlots = createLimiter(3);
 
+/**
+ * Captures started in this process still queued for a slot (final review M4).
+ * Their row's `startedAt` is the insert time, so under load the stall rule
+ * would close them while they are merely waiting; being in this set is proof
+ * they are not a crash leftover (a restart empties it, and they stall as before).
+ */
+const waitingForSlot = new Set<string>();
+
 export type ProofPageMeta =
   | { kind: 'proof-page'; status: 'capturing'; url: string; startedAt: string }
   | {
@@ -42,7 +50,11 @@ export type ProofPageCaptureRecord = { ref: StoredCaptureRef; capture: PageCaptu
 export async function startProofPageCapture(sourceId: string, url: string, opts: { session?: Session; fire?: boolean } = {}): Promise<{ captureId: string }> {
   const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url, startedAt: new Date().toISOString() };
   const [row] = await db.insert(captures).values({ sourceId, url, metadata: meta }).returning({ id: captures.id });
-  if (opts.fire ?? true) void captureSlots(() => runProofPageCapture(row!.id, opts.session));
+  if (opts.fire ?? true) {
+    const id = row!.id;
+    waitingForSlot.add(id);
+    void captureSlots(() => runProofPageCapture(id, opts.session)).finally(() => waitingForSlot.delete(id));
+  }
   return { captureId: row!.id };
 }
 
@@ -50,8 +62,16 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   const row = await db.query.captures
     .findFirst({ where: eq(captures.id, captureId), columns: { id: true, url: true, metadata: true } })
     .catch(() => null);
-  if (!row) return;
-  const meta = row.metadata as ProofPageMeta;
+  if (!row) {
+    waitingForSlot.delete(captureId);
+    return;
+  }
+  // The capture's clock starts now, with a browser slot, not at the insert:
+  // the stall rule measures work, not time spent in the queue (final review M4).
+  const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url: row.url, startedAt: new Date().toISOString() };
+  await db.update(captures).set({ metadata: meta }).where(eq(captures.id, captureId))
+    .catch((e) => console.error(`[proof-page] failed to record the start of ${captureId}:`, e));
+  waitingForSlot.delete(captureId);
   try {
     const { capture, boxes } = await session((browser) => captureProofPage(browser, row.url));
     const tiles = await persistTiles(capture.screenshotTiles);
@@ -101,6 +121,7 @@ export const PROOF_PAGE_STALL_MS = 3 * 60 * 1000;
  */
 export async function resolveStalledProofPage(captureId: string, meta: ProofPageMeta): Promise<ProofPageMeta> {
   if (meta.status !== 'capturing') return meta;
+  if (waitingForSlot.has(captureId)) return meta; // queued in this process, not stalled
   if (!(Date.now() - Date.parse(meta.startedAt) > PROOF_PAGE_STALL_MS)) return meta;
   const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: meta.url, startedAt: meta.startedAt, error: 'stalled' };
   await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
