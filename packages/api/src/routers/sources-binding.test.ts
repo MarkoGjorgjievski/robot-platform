@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, projects, sources, inputSets, sourceVerifications } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
+import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
 const caller = createCallerFactory(appRouter)({ db, session: null });
 const projectIds: string[] = [];
@@ -63,6 +64,43 @@ describe('sources.updateBinding', () => {
     await caller.sources.updateBinding({ sourceId: s.sourceId, urls: U, descriptions: { price: 'green' }, expected: { price: { [U[0]!]: '1', [U[1]!]: '2', [U[2]!]: '3' } } });
     const withoutMark = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId) });
     expect(withoutMark?.verificationSet).not.toHaveProperty('marks');
+  });
+});
+
+describe('updateBinding draft', () => {
+  it('saves a record with blank cells and keeps the cards', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'bind-draft', fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }] });
+    try {
+      const cards = f.urls.map((url, i) => ({ url, title: `Widget ${i + 1}` }));
+      const saved = await caller.sources.updateBinding({
+        sourceId: f.sourceId, urls: f.urls, draft: true, cards,
+        descriptions: { [f.keys.Price!]: 'price', [f.keys.Title!]: '' },
+        expected: { [f.keys.Price!]: { [f.urls[0]!]: '129.99' } },
+      });
+      const set = saved!.verificationSet as { cards: unknown; expected: Record<string, Record<string, string>> };
+      expect(set.cards).toEqual(cards);
+      expect(set.expected[f.keys.Price!]![f.urls[1]!]).toBe('');
+    } finally { await f.cleanup(); }
+  });
+
+  it('still refuses a wrong-typed value, another website, and a mark without a value', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'bind-draft-no', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const base = { sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [f.keys.Price!]: 'price' } };
+      await expect(caller.sources.updateBinding({ ...base, expected: { [f.keys.Price!]: { [f.urls[0]!]: 'free' } } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      await expect(caller.sources.updateBinding({ ...base, urls: [f.urls[0]!, f.urls[1]!, 'https://elsewhere.example.org/p/3'], expected: {} })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      const mark = { xpaths: ['//h1'], text: 'x', rect: { x: 0, y: 0, w: 1, h: 1 } };
+      await expect(caller.sources.updateBinding({ ...base, expected: {}, marks: { [f.keys.Price!]: { [f.urls[0]!]: mark } } })).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    } finally { await f.cleanup(); }
+  });
+
+  it('drops a card whose url is not one of the pages', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'bind-draft-cards', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const saved = await caller.sources.updateBinding({ sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: {}, expected: {},
+        cards: [{ url: f.urls[0]!, title: 'A' }, { url: 'https://test-bind-draft-cards.example.com/gone', title: 'Gone' }] });
+      expect((saved!.verificationSet as { cards: Array<{ url: string }> }).cards.map((c) => c.url)).toEqual([f.urls[0]]);
+    } finally { await f.cleanup(); }
   });
 });
 

@@ -82,6 +82,16 @@ describe('sources.verify', () => {
     }
   });
 
+  it('verify refuses an incomplete draft and names what is missing', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'verify-draft', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await caller.sources.updateBinding({ sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [f.keys.Price!]: 'price' }, expected: { [f.keys.Price!]: { [f.urls[0]!]: '129.99' } } });
+      await expect(caller.sources.verify({ sourceId: f.sourceId })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: expect.stringContaining('Price @') });
+      const rows = await db.query.sourceVerifications.findMany({ where: eq(sourceVerifications.sourceId, f.sourceId) });
+      expect(rows).toHaveLength(0);
+    } finally { await f.cleanup(); }
+  });
+
   it('closes a stalled in-flight verification (older than VERIFY_STALL_MS) and starts a fresh one', async () => {
     const { sourceId, cleanup } = await makeSchemaSource('stalled');
     try {
