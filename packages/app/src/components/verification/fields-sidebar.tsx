@@ -45,18 +45,24 @@ export function FieldsSidebar({
   rows,
   verify,
   saveState,
+  saveError,
   extract,
   stage,
 }: {
   rows: FieldsSidebarRow[];
   verify: { label: string; disabled: boolean; reason?: string; busy: boolean; onClick: () => void };
   saveState: 'idle' | 'pending' | 'saving' | 'error';
+  /** The server's reason the last save was refused, in one line; shown with the error state. */
+  saveError?: string | null;
   extract: { enabled: boolean; project: string; site: string };
   /** Where a running Verify is, e.g. "checking product 2 of 3". `null` when nothing is running. */
   stage: string | null;
 }) {
   const locked = stage !== null;
-  const save = SAVE_LABEL[saveState];
+  const save =
+    saveState === 'error' && saveError
+      ? { ...SAVE_LABEL.error, text: `Not saved: ${saveError} — it will try again on your next change or when you verify` }
+      : SAVE_LABEL[saveState];
 
   return (
     <div className="rise flex flex-col rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">

@@ -72,3 +72,25 @@ export function createSaver<T>(opts: { delay: number; save: (value: T) => Promis
     dispose() { disposed = true; if (timer) clearTimeout(timer); timer = null; latest = null; },
   };
 }
+
+/**
+ * The reason a save was refused, in one line, for the sidebar's save line
+ * (final review R1). The server's own refusals are one problem per line
+ * (`bindingProblems`); an input-validation error arrives as tRPC's JSON list
+ * of issues, whose first `message` is the readable part.
+ */
+export function saveErrorReason(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const issues = JSON.parse(trimmed) as Array<{ message?: unknown }>;
+      const first = issues.find((i) => typeof i?.message === 'string' && i.message.trim() !== '');
+      if (first) return (first.message as string).trim();
+    } catch {
+      /* not JSON after all: fall through to the first line */
+    }
+  }
+  const line = trimmed.split('\n').map((l) => l.trim()).find((l) => l !== '');
+  return line ?? 'the server did not say why';
+}
