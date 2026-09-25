@@ -37,10 +37,23 @@ export function toPage(clientX: number, clientY: number, f: { left: number; top:
  * answer would resolve to its parent and land on `onPick` instead of the
  * rectangle's own `onOverlay`. Used for both the hover outline and click
  * routing, so what's outlined is always what a click there hits.
+ *
+ * A labelled rectangle also wins over the elements inside it: a price whose
+ * "$" is its own element would otherwise send a click on the rectangle to
+ * the "$" (found in the browser walk of plan 5 Task 8). The innermost
+ * rectangle under the pointer is the target; elements inside one are reached
+ * by removing it first.
  */
 export function targetAt(boxes: Box[], overlaid: ReadonlySet<number>, x: number, y: number, alt: boolean): number | null {
   const i = boxAt(boxes, x, y);
-  if (i === null || overlaid.has(i) || !alt) return i;
+  if (i === null || overlaid.has(i)) return i;
+  const rectangle = boxAt(
+    boxes.map((bx, j) => (overlaid.has(j) ? bx : { ...bx, rect: { x: 0, y: 0, w: 0, h: 0 } })),
+    x,
+    y,
+  );
+  if (rectangle !== null) return rectangle;
+  if (!alt) return i;
   const wider = enclosing(boxes, i);
   return wider !== null ? wider : i;
 }
