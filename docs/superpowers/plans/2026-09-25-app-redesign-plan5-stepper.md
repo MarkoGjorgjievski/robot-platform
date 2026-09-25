@@ -1,3 +1,5 @@
+> **Superseded 2026-09-25, never executed.** The flow changed in conversation; see `docs/superpowers/specs/2026-09-25-verification-tab-design.md` and the plan written from it.
+
 # App redesign plan 5 — the stepper's Pages and Mark steps — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
