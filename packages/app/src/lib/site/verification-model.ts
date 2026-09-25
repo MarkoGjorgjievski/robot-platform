@@ -122,6 +122,30 @@ export function canSave(board: Board): boolean {
   return true;
 }
 
+/**
+ * Why these products cannot be saved or verified, in the customer's words, or
+ * null. Fewer than three is not a problem here — the Verify gate says "Add at
+ * least three products" for that.
+ */
+export function productsProblem(board: Board): string | null {
+  if (board.cards.length > PRODUCTS_MAX) return 'Six products is the most a website is checked on';
+  const hosts = new Set<string>();
+  const pages = new Set<string>();
+  for (const c of board.cards) {
+    const u = c.url.trim();
+    if (u === '') return 'Every product needs a page';
+    let parsed: URL;
+    try { parsed = new URL(u); } catch { return 'Fix the products above first'; }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Fix the products above first';
+    hosts.add(parsed.hostname.toLowerCase());
+    const page = u.replace(/#.*$/, '');
+    if (pages.has(page)) return 'Two products are the same page';
+    pages.add(page);
+  }
+  if (hosts.size > 1) return 'All products must be on the same website';
+  return null;
+}
+
 /** Drops answers for urls no longer present. */
 export function setCards(board: Board, cards: Card[]): Board {
   const urls = new Set(cards.map((c) => c.url));
@@ -222,11 +246,16 @@ export function segment(board: Board, s: Suggestions, key: string, url: string, 
   return 'empty';
 }
 
-export function badge(args: { key: string; results: VerificationResultsLike | null; currentKeys: string[]; running: boolean; cards: Card[] }): Badge {
+/**
+ * `unchangedKeys` (not `currentKeys`): a field whose last result failed is
+ * never current, but it has not changed since — its verdict is "fails on
+ * product n", and only an edit makes it "changed since verified".
+ */
+export function badge(args: { key: string; results: VerificationResultsLike | null; unchangedKeys: string[]; running: boolean; cards: Card[] }): Badge {
   if (args.running) return { kind: 'checking' };
   const fv = args.results?.[args.key];
   if (!fv) return null;
-  if (!args.currentKeys.includes(args.key)) return { kind: 'changed' };
+  if (!args.unchangedKeys.includes(args.key)) return { kind: 'changed' };
   if (fv.certified.length > 0) return { kind: 'verified' };
   for (let i = 0; i < args.cards.length; i++) {
     const cell = fv.cells[args.cards[i]!.url];

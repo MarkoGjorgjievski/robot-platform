@@ -1,6 +1,6 @@
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
-import { FieldRow } from './field-row';
+import { FieldRow, type FieldRowHint } from './field-row';
 import { Button, buttonVariants } from '../ui/button';
 import { cn } from '../../lib/utils';
 import type { Badge, Field, Segment } from '../../lib/site/verification-model';
@@ -18,6 +18,8 @@ export type FieldsSidebarRow = {
   /** The value typed for `field` on that product, resolved by the caller. */
   typed: string;
   typedError?: string;
+  /** A line under the row for the selected product (see `FieldRowHint`). */
+  hint?: FieldRowHint;
   onSegment: (i: number) => void;
   onToggle: () => void;
   onType: (value: string) => void;
@@ -71,6 +73,7 @@ export function FieldsSidebar({
             description={row.description}
             typed={row.typed}
             typedError={row.typedError}
+            hint={row.hint}
             locked={locked}
             onSegment={row.onSegment}
             onToggle={row.onToggle}

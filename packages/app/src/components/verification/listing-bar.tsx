@@ -21,7 +21,8 @@ export function ListingBar({
   listingUrl: string;
   disabled: boolean;
   onFound: (listingUrl: string, products: Card[], found: { productLinks: number; pagerSeen: boolean }) => void;
-  onNoListing: () => void;
+  /** The listing URL as typed (possibly blank): it is kept either way (spec §2.1). */
+  onNoListing: (listingUrl: string) => void;
   extractOwnsInput: boolean;
 }) {
   const [url, setUrl] = useState(listingUrl);
@@ -38,7 +39,7 @@ export function ListingBar({
         onSuccess: (data) => {
           setFound({ productLinks: data.productLinks, pagerSeen: data.pagerSeen });
           if (data.productLinks === 0) {
-            onNoListing();
+            onNoListing(trimmed);
           } else {
             onFound(trimmed, data.products, { productLinks: data.productLinks, pagerSeen: data.pagerSeen });
           }
@@ -70,7 +71,7 @@ export function ListingBar({
         </Button>
       </div>
 
-      <button type="button" disabled={disabled} onClick={onNoListing} className="text-base text-link underline-offset-4 hover:underline">
+      <button type="button" disabled={disabled} onClick={() => onNoListing(url.trim())} className="text-base text-link underline-offset-4 hover:underline">
         No listing? Paste product pages instead
       </button>
 
