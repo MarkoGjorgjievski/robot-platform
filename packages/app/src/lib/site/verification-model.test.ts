@@ -178,4 +178,12 @@ describe('small things', () => {
     expect(validateValue('text', '')).toBe('Expected value is required');
     expect(shortUrl('https://s.example/p/1')).toBe('/p/1');
   });
+  it('takes schema.org availability as yes/no, as the engine does', () => {
+    // Found in plan 5's live run on Ikea: page data suggested In stock as its
+    // JSON-LD value, the tab let it be ticked, and the Verify gate then
+    // refused it ("Not yes/no") although the engine reads it fine.
+    expect(validateValue('boolean', 'https://schema.org/InStock')).toBeNull();
+    expect(validateValue('boolean', 'http://schema.org/OutOfStock')).toBeNull();
+    expect(validateValue('boolean', 'https://schema.org/Discontinued')).toBe('Not yes/no (or in stock/out of stock)');
+  });
 });
