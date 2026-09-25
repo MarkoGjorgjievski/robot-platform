@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  answer, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
+  answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
 } from './verification-model';
 
@@ -86,6 +86,30 @@ describe('a click', () => {
     expect(list.map((l) => [l.field.key, l.fits, l.answered])).toEqual([['price', true, false], ['title', true, true]]);
     const img = fieldsFor(box({ kind: 'image', src: 'https://s.example/a.jpg' }), [...FIELDS, { key: 'img', name: 'Image', type: 'image', description: '' }], board(), U[0]!);
     expect(img[0]!.field.key).toBe('img');
+  });
+});
+
+describe('ticking a suggestion (final review M1)', () => {
+  const PRICE = FIELDS[1]!;
+  const TITLE = FIELDS[0]!;
+  it('a suggestion fits by its own value, not by the element it sits on', () => {
+    // The element reads "Add to basket"; the page data says 12.00 — the tick must be offered.
+    const rows = fieldsFor(box({ text: 'Add to basket' }), FIELDS, board(), U[0]!, { key: 'price', value: '12.00' });
+    expect(rows.find((r) => r.field.key === 'price')!.fits).toBe(true);
+    // And a suggestion whose value does not fit is not tickable, whatever the element says.
+    const bad = fieldsFor(box({ text: '$5.00' }), FIELDS, board(), U[0]!, { key: 'price', value: 'call us' });
+    expect(bad.find((r) => r.field.key === 'price')!.fits).toBe(false);
+  });
+  it('keeps the element as the mark only when it shows the suggested value (the server’s comparison)', () => {
+    const a = answerFromSuggestion(box({ text: '£12.00' }), PRICE, '12', U[0]!);
+    expect(a.value).toBe('12');
+    expect(a.mark).not.toBeNull();
+    expect(answerFromSuggestion(box({ text: '  widget a ' }), TITLE, 'Widget A', U[0]!).mark).not.toBeNull();
+  });
+  it('stores the value alone when the element shows something else, as the server would keep it: what shows before a reload shows after', () => {
+    expect(answerFromSuggestion(box({ text: 'Add to basket' }), PRICE, '12.00', U[0]!)).toEqual({ value: '12.00', mark: null });
+    expect(answerFromSuggestion(box({ text: 'Widget A deluxe' }), TITLE, 'Widget A', U[0]!)).toEqual({ value: 'Widget A', mark: null });
+    expect(answerFromSuggestion(box({ kind: 'image', src: 'x' }), PRICE, '12.00', U[0]!)).toEqual({ value: '12.00', mark: null });
   });
 });
 
