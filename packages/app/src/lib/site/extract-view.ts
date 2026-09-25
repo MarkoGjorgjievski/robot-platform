@@ -234,12 +234,12 @@ export function budgetToForm(
   return { items, pages };
 }
 
-/** "Extraction is locked · 4 of 5 fields verified · fix author_url on the Schema tab" (fix clause only when there's a first failing field). */
+/** "Extraction is locked · 4 of 5 fields verified · fix author_url on the Verification tab" (fix clause only when there's a first failing field). */
 export function lockedStripText(args: { fieldCount: number; currentKeys: string[]; firstFailing: string | null }): string {
   const { fieldCount, currentKeys, firstFailing } = args;
   const fieldWord = fieldCount === 1 ? 'field' : 'fields';
   let text = `Extraction is locked · ${currentKeys.length} of ${fieldCount} ${fieldWord} verified`;
-  if (firstFailing !== null) text += ` · fix ${firstFailing} on the Schema tab`;
+  if (firstFailing !== null) text += ` · fix ${firstFailing} on the Verification tab`;
   return text;
 }
 

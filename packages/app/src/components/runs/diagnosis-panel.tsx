@@ -50,7 +50,7 @@ export function DiagnosisPanel({
       )}
 
       <p className="mt-3 text-base text-muted-foreground">
-        To change the pages this website extracts from, edit its proof pages on the Schema tab.
+        To change the pages this website extracts from, change its products on the Verification tab.
       </p>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">

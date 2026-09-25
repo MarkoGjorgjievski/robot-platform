@@ -203,7 +203,7 @@ describe('extractGate', () => {
 
   it('names the schema first — nothing below it matters until it is green', () => {
     expect(extractGate({ ...ok, green: false, pagesSaved: false, sampleDone: false })).toBe(
-      'Verify every field on the Schema tab first',
+      'Verify every field on the Verification tab first',
     );
   });
 
@@ -225,7 +225,7 @@ describe('extractGate', () => {
 
 describe('sampleGate', () => {
   it('needs a green schema and saved pages, and says which is missing', () => {
-    expect(sampleGate({ green: false, pagesSaved: true })).toBe('Verify every field on the Schema tab first');
+    expect(sampleGate({ green: false, pagesSaved: true })).toBe('Verify every field on the Verification tab first');
     expect(sampleGate({ green: true, pagesSaved: false })).toBe('Save your pages first');
     expect(sampleGate({ green: true, pagesSaved: true })).toBeNull();
   });

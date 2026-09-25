@@ -177,7 +177,7 @@ export function extractGate(args: {
   sampleDone: boolean;
 }): string | null {
   const { green, pagesSaved, mode, sampleDone } = args;
-  if (!green) return 'Verify every field on the Schema tab first';
+  if (!green) return 'Verify every field on the Verification tab first';
   if (!mode) return 'Choose where the products come from';
   if (!pagesSaved) return mode === 'detail' ? 'Save your URLs first' : 'Save your pages first';
   if (mode === 'listing' && !sampleDone) return 'Sample first';
@@ -186,7 +186,7 @@ export function extractGate(args: {
 
 /** The same question for the Sample button: it needs a saved set of listing pages and nothing else. */
 export function sampleGate(args: { green: boolean; pagesSaved: boolean }): string | null {
-  if (!args.green) return 'Verify every field on the Schema tab first';
+  if (!args.green) return 'Verify every field on the Verification tab first';
   if (!args.pagesSaved) return 'Save your pages first';
   return null;
 }

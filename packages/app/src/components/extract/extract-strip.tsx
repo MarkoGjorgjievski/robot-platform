@@ -60,7 +60,7 @@ export function ExtractStrip({ cells }: { cells: [StripCell, StripCell, StripCel
 
 /**
  * The locked tab's one sentence (spec §5.7): "Extraction is locked · n of m
- * fields verified · fix <field> on the Schema tab", and the way there.
+ * fields verified · fix <field> on the Verification tab", and the way there.
  *
  * Tone is a 2 px left rail and nothing else (spec §4) — a panel washed amber
  * would read as the website being wrong, when what is true is that one step is
@@ -78,7 +78,7 @@ export function ExtractLockedStrip({ text, project, site }: { text: string; proj
         params={{ project, site }}
         className="text-base text-link underline-offset-4 hover:underline"
       >
-        Go to the Schema tab
+        Go to the Verification tab
       </Link>
     </div>
   );

@@ -109,7 +109,7 @@ export function RunMisses({
                               <Link
                                 to="/projects/$project/sites/$site"
                                 params={{ project, site }}
-                                search={{ addPage: url, field: field.name, step: 'pages' as const }}
+                                search={{ addPage: url, field: field.name }}
                               >
                                 Use as proof page
                               </Link>

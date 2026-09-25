@@ -152,7 +152,7 @@ const SITE_SCREENS = [
       // Nothing has been verified, so this is the tab's true state.
       const main = await page.locator('main').innerText();
       expect(main, 'the Extract tab is not locked on an unverified website').toContain('Extraction is locked');
-      expect(main, 'the locked strip offers no way back to the Schema tab').toContain('Go to the Schema tab');
+      expect(main, 'the locked strip offers no way back to the Schema tab').toContain('Go to the Verification tab');
       expect(await page.locator('main [inert]').count(), 'the locked sections are still reachable').toBeGreaterThan(0);
     },
   },
