@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { Button } from '../ui/button';
 import {
   Dialog,
@@ -31,6 +32,7 @@ export function AddWebsiteDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const utils = trpc.useUtils();
+  const navigate = useNavigate();
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   // Until the customer types in the name field it belongs to the address: every
@@ -61,12 +63,15 @@ export function AddWebsiteDialog({
     event.preventDefault();
     setError(null);
     try {
-      await create.mutateAsync({ projectSlug, name: name.trim(), url: url.trim() });
+      const created = await create.mutateAsync({ projectSlug, name: name.trim(), url: url.trim() });
       await utils.projects.get.invalidate({ projectSlug });
       await utils.projects.list.invalidate();
       // The Output screen's summary line counts the project's websites.
       await utils.projects.output.invalidate({ projectSlug });
       change(false);
+      // Land on the new website's Verification tab — there is nothing else to
+      // configure first; the address and name above are all Add website asks for.
+      await navigate({ to: '/projects/$project/sites/$site', params: { project: projectSlug, site: created.sourceSlug } });
     } catch {
       setError('That website could not be added. Try again.');
     }

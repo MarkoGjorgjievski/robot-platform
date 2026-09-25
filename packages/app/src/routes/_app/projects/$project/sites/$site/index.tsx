@@ -37,7 +37,7 @@ import {
 } from '../../../../../../lib/site/verification-model';
 import { createSaver } from '../../../../../../lib/site/saver';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
-import { stripState, verifyButton } from '../../../../../../lib/site/schema-tab-view';
+import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
