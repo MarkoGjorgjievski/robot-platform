@@ -248,9 +248,40 @@ describe('loadCurrentCertification', () => {
       });
       const c = await loadFieldCurrency(db, sourceId);
       expect(c.currentKeys).toEqual(['price']);
+      expect(c.unchangedKeys).toEqual(['price']);
       expect(await loadCurrentCertification(db, sourceId)).toBeNull(); // title is not current
     } finally {
       await f.cleanup();
+    }
+  });
+
+  it('unchangedKeys: a failing field whose fieldHash still matches is unchanged but not current, and an edited answer takes it out of both', async () => {
+    const { sourceId, source, urls, cleanup } = await makeSchemaSource('unchanged');
+    try {
+      const fields = source.schemaDefinition as SchemaDefinitionField[];
+      const set = source.verificationSet as VerificationSet;
+      const cells = {
+        [urls[0]!]: { status: 'pass', found: '1.00', path: certifiedPrice[0] },
+        [urls[1]!]: { status: 'fail', reason: 'not_found' },
+        [urls[2]!]: { status: 'pass', found: '3.00', path: certifiedPrice[0] },
+      };
+      await db.insert(sourceVerifications).values({
+        sourceId, definitionHash: 'any', allPassed: false, completedAt: new Date(),
+        results: { price: fieldVerification([], { fieldHash: fieldHash(fields[0]!, set), cells }) },
+      });
+
+      const before = await caller.sources.verificationStatus({ sourceId });
+      expect(before?.unchangedKeys).toEqual(['price']);
+      expect(before?.currentKeys).toEqual([]);
+
+      // The customer changes product 2's answer: the result no longer describes the field.
+      const edited: VerificationSet = { ...set, expected: { ...set.expected, price: { ...set.expected.price, [urls[1]!]: '2.50' } } };
+      await db.update(sources).set({ verificationSet: edited }).where(eq(sources.id, sourceId));
+      const after = await caller.sources.verificationStatus({ sourceId });
+      expect(after?.unchangedKeys).toEqual([]);
+      expect(after?.currentKeys).toEqual([]);
+    } finally {
+      await cleanup();
     }
   });
 });

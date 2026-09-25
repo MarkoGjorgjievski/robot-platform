@@ -1190,7 +1190,7 @@ export const sourcesRouter = router({
         columns: { schemaDefinition: true, verificationSet: true },
       });
 
-      const { currentKeys } = await loadFieldCurrency(ctx.db, input.sourceId);
+      const { currentKeys, unchangedKeys } = await loadFieldCurrency(ctx.db, input.sourceId);
       const fieldCount = source && Array.isArray(source.schemaDefinition) ? source.schemaDefinition.length : 0;
 
       const captures = { ...(row.captures as Record<string, unknown>) };
@@ -1209,6 +1209,8 @@ export const sourcesRouter = router({
         costUsd: row.costUsd,
         errorMessage: row.errorMessage,
         currentKeys,
+        // Fields whose latest result still matches them, passed or failed: a failure there is real, not stale.
+        unchangedKeys,
         current: fieldCount > 0 && currentKeys.length === fieldCount,
       };
     }),

@@ -50,16 +50,22 @@ export function sourceDefinitionHash(source: { schemaDefinition: unknown; verifi
  * only one consulted; a field is current when that run holds a passing result
  * for it whose `fieldHash` equals the hash of the field as it stands now.
  * Rows written before phase 2 carry no `fieldHash` and are never current.
+ *
+ * `unchangedKeys` is the wider set: fields whose latest result still
+ * describes the field as it stands now (matching `fieldHash`), passed or
+ * failed. It is what tells "fails on product 2" apart from "changed since
+ * verified" — a failing field is never current, but it can be unchanged.
  */
 export async function loadFieldCurrency(db: Database, sourceId: string): Promise<{
   latest: { id: string; completedAt: Date; results: Record<string, FieldVerification> } | null;
   currentKeys: string[];
+  unchangedKeys: string[];
 }> {
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
     columns: { schemaDefinition: true, verificationSet: true },
   });
-  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [] };
+  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [], unchangedKeys: [] };
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
 
@@ -67,18 +73,22 @@ export async function loadFieldCurrency(db: Database, sourceId: string): Promise
     where: and(eq(sourceVerifications.sourceId, sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
     orderBy: [desc(sourceVerifications.completedAt)],
   });
-  if (!row) return { latest: null, currentKeys: [] };
+  if (!row) return { latest: null, currentKeys: [], unchangedKeys: [] };
   const results = row.results as Record<string, FieldVerification>;
 
-  const currentKeys = fields
+  const unchangedKeys = fields
     .filter((f) => {
       const r = results[f.key];
-      if (!r || !r.fieldHash || r.fieldHash !== fieldHash(f, set)) return false;
-      return r.certified.length > 0 && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
+      return !!r && !!r.fieldHash && r.fieldHash === fieldHash(f, set);
     })
     .map((f) => f.key);
 
-  return { latest: { id: row.id, completedAt: row.completedAt!, results }, currentKeys };
+  const currentKeys = unchangedKeys.filter((key) => {
+    const r = results[key]!;
+    return r.certified.length > 0 && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
+  });
+
+  return { latest: { id: row.id, completedAt: row.completedAt!, results }, currentKeys, unchangedKeys };
 }
 
 /** A certification exists only when EVERY contract field is current on this source (spec 4.4). */
