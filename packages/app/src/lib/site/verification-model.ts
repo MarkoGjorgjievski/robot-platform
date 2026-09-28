@@ -326,20 +326,43 @@ export function sameValue(a: string, b: string): boolean { return norm(a) === no
  * screenshot lands. The same source path on every product is the confidence
  * signal — it is what certification looks for — and a value that is the same
  * on every product is never agreement (a shop name offered as Brand).
+ *
+ * One suggestion alone agrees with nothing (final review I1): after two
+ * answers, a leftover page-data value "agrees" with itself whatever path it
+ * came by. It is agreed only when it was carried from a ticked product (the
+ * path is the customer's own, spec A2); otherwise the row asks for a look.
+ * An answer that is not valid for the type is never accepted (M4).
+ * `failedUrls`: products whose screenshot failed rather than is still coming (M6).
  */
-export function rowStatus(field: Field, board: Board, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): RowStatus {
+export function rowStatus(
+  field: Field,
+  board: Board,
+  live: Suggestions,
+  boxesByUrl: Record<string, Box[] | undefined>,
+  failedUrls?: ReadonlySet<string>,
+): RowStatus {
   const values: string[] = [];
-  const vias: Array<Via | undefined> = [];
-  let required = true;
+  const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number }> = [];
   for (const [i, card] of board.cards.entries()) {
     const url = card.url.trim();
     if (!url) continue;
-    required = i < PRODUCTS_MIN;
+    const required = i < PRODUCTS_MIN;
     const n = i + 1;
     const a = board.answers[field.key]?.[card.url];
-    if (a) { values.push(a.value); continue; }
+    if (a) {
+      const bad = validateValue(field.type, a.value);
+      if (bad) return { kind: 'needs-you', reason: `${bad} on product ${n}`, product: n };
+      values.push(a.value);
+      continue;
+    }
     const boxes = boxesByUrl[card.url];
-    if (!boxes) { if (required) return { kind: 'needs-you', reason: `screenshot not ready on product ${n}`, product: n }; continue; }
+    if (!boxes) {
+      if (required) {
+        const why = failedUrls?.has(card.url) ? 'screenshot failed' : 'screenshot not ready';
+        return { kind: 'needs-you', reason: `${why} on product ${n}`, product: n };
+      }
+      continue;
+    }
     const s = live[field.key]?.[card.url];
     if (!s) { if (required) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
     const places = pointable(boxes, s.boxes).length;
@@ -347,11 +370,15 @@ export function rowStatus(field: Field, board: Board, live: Suggestions, boxesBy
     const err = validateValue(field.type, s.value);
     if (err) return { kind: 'needs-you', reason: `${err} on product ${n}`, product: n };
     values.push(s.value);
-    vias.push(s.via);
+    offered.push({ via: s.via, origin: s.origin, product: n });
   }
-  if (vias.length === 0) return { kind: 'accepted' };
-  const first = vias[0];
-  if (!first || vias.some((v) => !v || v.source !== first.source || v.path !== first.path)) return { kind: 'needs-you', reason: 'comes from different places' };
+  if (offered.length === 0) return { kind: 'accepted' };
+  if (offered.length === 1 && offered[0]!.origin !== 'from-product') {
+    const n = offered[0]!.product;
+    return { kind: 'needs-you', reason: `check product ${n}`, product: n };
+  }
+  const first = offered[0]!.via;
+  if (!first || offered.some(({ via: v }) => !v || v.source !== first.source || v.path !== first.path)) return { kind: 'needs-you', reason: 'comes from different places' };
   if (values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere' };
   return { kind: 'agreed' };
 }
@@ -409,9 +436,11 @@ export function badge(args: { key: string; results: VerificationResultsLike | nu
 
 /**
  * `field` names the field a reason is about when the fix lives on its row
- * (the descriptor), so the route can open that row.
+ * (the descriptor), so the route can open that row. `gap` names the field a
+ * product gap is about, so the route can say "Accept it first" when that
+ * row is already agreed (final review M7).
  */
-export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok: true } | { ok: false; reason: string; field?: string } {
+export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok: true } | { ok: false; reason: string; field?: string; gap?: string } {
   if (board.cards.length < PRODUCTS_MIN) return { ok: false, reason: 'Add at least three products' };
   // The server refuses a non-draft save with a blank descriptor (bindingProblems),
   // and a custom field with no catalogue entry starts with none. Reported before
@@ -425,9 +454,9 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
     if (i < PRODUCTS_MIN) {
       for (const f of fields) {
         const a = board.answers[f.key]?.[url];
-        if (!a) return { ok: false, reason: `${f.name} still needs product ${n}` };
+        if (!a) return { ok: false, reason: `${f.name} still needs product ${n}`, gap: f.key };
         const err = validateValue(f.type, a.value);
-        if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}` };
+        if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}`, gap: f.key };
       }
     } else {
       const anyAnswered = fields.some((f) => board.answers[f.key]?.[url]);
@@ -435,11 +464,11 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
       for (const f of fields) {
         const a = board.answers[f.key]?.[url];
         if (!a) {
-          if (s[f.key]?.[url]) return { ok: false, reason: `${f.name} has a suggestion to confirm on product ${n}` };
+          if (s[f.key]?.[url]) return { ok: false, reason: `${f.name} has a suggestion to confirm on product ${n}`, gap: f.key };
           continue;
         }
         const err = validateValue(f.type, a.value);
-        if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}` };
+        if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}`, gap: f.key };
       }
     }
   }
