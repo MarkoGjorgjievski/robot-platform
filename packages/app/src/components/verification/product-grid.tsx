@@ -91,7 +91,7 @@ export function AddProductCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const minHeight = compact ? 'min-h-[64px]' : 'min-h-[120px]';
+  const minHeight = compact ? 'min-h-[136px]' : 'min-h-[120px]';
 
   function commit() {
     const value = draft.trim();
@@ -113,7 +113,7 @@ export function AddProductCard({
         type="button"
         disabled={disabled}
         onClick={() => (canAddFromQueue ? onAdd() : setEditing(true))}
-        className={`flex ${minHeight} flex-col items-center justify-center gap-1 rounded-[6px] border border-dashed border-line text-sm text-muted-foreground hover:border-line-hover hover:text-text`}
+        className={`flex ${minHeight} w-full flex-col items-center justify-center gap-1 rounded-[6px] border border-dashed border-line text-sm text-muted-foreground hover:border-line-hover hover:text-text`}
       >
         + Add product
       </button>

@@ -3,13 +3,18 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
 import { ListingBar } from '../../../../../../components/verification/listing-bar';
-import { ProductGrid } from '../../../../../../components/verification/product-grid';
+import { AddProductCard } from '../../../../../../components/verification/product-grid';
+import { ProductCard } from '../../../../../../components/verification/product-card';
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
-import { FieldsSidebar, type FieldsSidebarRow } from '../../../../../../components/verification/fields-sidebar';
+import { VerificationTable, type TableRow } from '../../../../../../components/verification/verification-table';
+import { VerifyBar } from '../../../../../../components/verification/verify-bar';
+import type { FieldHint } from '../../../../../../components/verification/field-details';
 import {
   PRODUCTS_MAX,
   PRODUCTS_MIN,
+  acceptAllAgreed,
+  acceptRow,
   answer,
   answerFromSuggestion,
   badge,
@@ -21,6 +26,7 @@ import {
   mergeSuggestions,
   pointable,
   reverifyScope,
+  rowStatus,
   segment,
   setCards,
   setDescription,
@@ -338,6 +344,22 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const captureIds = useMemo(() => captures.captureIds, [captureIdsKey]);
   const capturedUrls = urls.filter((u) => captures.byUrl[u]?.status === 'captured');
 
+  /**
+   * Each product's elements once its screenshot has landed, for the row
+   * rules. `captures.byUrl` is rebuilt every render; this is rebuilt only
+   * when a product's landed capture changes, so rows keep their identity.
+   */
+  const boxesKey = urls.map((u) => `${u}\n${captures.byUrl[u]?.status === 'captured' ? captures.byUrl[u]!.captureId : ''}`).join('\n');
+  const boxesByUrl = useMemo(() => {
+    const out: Record<string, Box[] | undefined> = {};
+    for (const u of urls) {
+      const c = captures.byUrl[u];
+      out[u] = c?.status === 'captured' ? c.boxes : undefined;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boxesKey]);
+
   // --- Suggestions from page data: one `suggestMarks` per captured product,
   // merged once per capture (a × must not be undone by a refetch).
   const suggestQueries = trpc.useQueries((t) =>
@@ -357,7 +379,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         if (!url) return acc;
         // A value no element shows (no boxes) is kept: it is offered on the
         // field's row rather than on the screenshot (spec §2.3).
-        const incoming = Object.fromEntries(Object.entries(d.fields).map(([k, s]) => [k, s ? { value: s.value, boxes: s.boxes } : null]));
+        const incoming = Object.fromEntries(Object.entries(d.fields).map(([k, s]) => [k, s ? { value: s.value, boxes: s.boxes, via: s.via } : null]));
         return mergeSuggestions(acc, incoming, url, d.captureId, 'page-data', boardRef.current);
       }, prev),
     );
@@ -384,7 +406,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           for (const [u, r] of Object.entries(out)) {
             const t = r?.fields[key];
             if (!r || !t) continue;
-            next = mergeSuggestions(next, { [key]: { value: t.value, boxes: t.boxes } }, u, r.captureId, 'from-product', boardRef.current);
+            next = mergeSuggestions(next, { [key]: { value: t.value, boxes: t.boxes, via: t.via } }, u, r.captureId, 'from-product', boardRef.current);
           }
           return next;
         });
@@ -416,6 +438,37 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       }),
     [navigate, projectSlug, siteSlug],
   );
+
+  /** The screenshot panel is open exactly while `?product` is set. */
+  const panelOpen = search.product !== undefined && board.cards.length > 0;
+  const closePanel = useCallback(() => {
+    setPopover(null);
+    void navigate({
+      to: '/projects/$project/sites/$site',
+      params: { project: projectSlug, site: siteSlug },
+      search: (s) => {
+        const { product: _p, field: _f, ...rest } = s;
+        return rest;
+      },
+      replace: true,
+    });
+  }, [navigate, projectSlug, siteSlug]);
+
+  // Escape closes the panel — unless focus is in a text field, or a popover
+  // is open (its own Escape closes it first).
+  const popoverRef = useRef<Popover | null>(null);
+  popoverRef.current = popover;
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || popoverRef.current) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      closePanel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [panelOpen, closePanel]);
 
   // --- The board's edits.
   function hostProblem(url: string): string | null {
@@ -574,7 +627,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields, board.answers, live, selectedUrl, boxes, results, unchangedKeys]);
 
-  const highlight = fieldKey && selectedUrl ? boxOfMark(boxes, board.answers[fieldKey]?.[selectedUrl]?.mark ?? null) : null;
+  // The selected field's element: its answer's, else its suggestion's first clickable place.
+  const highlight = (() => {
+    if (!fieldKey || !selectedUrl) return null;
+    const a = board.answers[fieldKey]?.[selectedUrl];
+    if (a) return boxOfMark(boxes, a.mark);
+    const s = live[fieldKey]?.[selectedUrl];
+    return s ? (pointable(boxes, s.boxes)[0] ?? null) : null;
+  })();
 
   // --- Marking.
   function tick(key: string) {
@@ -763,7 +823,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
   }
 
-  // --- The sidebar.
+  // --- The table.
   function rejectSuggestion(key: string, url: string) {
     setSuggestions((s) => {
       const byUrl = { ...(s[key] ?? {}) };
@@ -773,11 +833,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   }
 
   /**
-   * What the row says about the selected product that the screenshot cannot:
-   * a value the page data holds but no element shows (tick it as a typed
-   * answer, or ×), or a suggestion outlined in several places.
+   * What the expanded row says about the selected product that the screenshot
+   * cannot: a value the page data holds but no element shows (tick it as a
+   * typed answer, or ×), or a suggestion outlined in several places.
    */
-  function rowHint(f: Field): FieldsSidebarRow['hint'] {
+  function rowHint(f: Field): FieldHint | undefined {
     const s = selectedUrl ? live[f.key]?.[selectedUrl] : undefined;
     if (!s) return undefined;
     const url = selectedUrl;
@@ -803,154 +863,189 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     return undefined;
   }
 
-  const rows: FieldsSidebarRow[] = fields.map((f) => {
+  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl));
+  const agreedCount = statuses.filter((s) => s.kind === 'agreed').length;
+
+  const rows: TableRow[] = fields.map((f, fi) => {
     const a = selectedUrl ? board.answers[f.key]?.[selectedUrl] : undefined;
     const typed = a && a.mark === null ? a.value : '';
     return {
       field: f,
-      segments: board.cards.map((c) => segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) })),
+      status: statuses[fi]!,
+      cells: board.cards.map((c, i) => ({
+        value: board.answers[f.key]?.[c.url]?.value ?? live[f.key]?.[c.url]?.value ?? '',
+        state: segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) }),
+        selected: panelOpen && selected === i && fieldKey === f.key,
+        onClick: () => {
+          setPopover(null);
+          select({ product: i + 1, field: f.key });
+        },
+      })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
-      selected: fieldKey === f.key,
-      productNumber: selected + 1,
       expanded: !!expanded[f.key],
-      description: board.descriptions[f.key] ?? f.description,
-      typed,
-      typedError: typed.trim() !== '' ? (validateValue(f.type, typed) ?? undefined) : undefined,
-      hint: rowHint(f),
-      onSegment: (i) => {
-        setPopover(null);
-        select({ product: i + 1, field: f.key });
+      details: {
+        productNumber: selected + 1,
+        description: board.descriptions[f.key] ?? f.description,
+        typed,
+        typedError: typed.trim() !== '' ? (validateValue(f.type, typed) ?? undefined) : undefined,
+        hint: rowHint(f),
+        onType: (text: string) => {
+          if (!selectedUrl) return;
+          setBoard((b) => answer(b, f.key, selectedUrl, text.trim() ? { value: text, mark: null } : null));
+        },
+        onDescription: (text: string) => setBoard((b) => setDescription(b, f.key, text)),
       },
+      onAccept: () => setBoard((b) => acceptRow(b, f, live, boxesByUrl)),
       onToggle: () => setExpanded((e) => ({ ...e, [f.key]: !e[f.key] })),
-      onType: (text) => {
-        if (!selectedUrl) return;
-        setBoard((b) => answer(b, f.key, selectedUrl, text.trim() ? { value: text, mark: null } : null));
-      },
-      onDescription: (text) => setBoard((b) => setDescription(b, f.key, text)),
     };
   });
 
-  // Non-null locks the sidebar: from the click, not only once the server says the run is active.
+  const heads = board.cards.map((card, i) => (
+    <ProductCard
+      key={i}
+      compact
+      card={card}
+      index={i}
+      selected={panelOpen && selected === i}
+      disabled={locked}
+      capture={captures.byUrl[card.url]}
+      onSelect={() => {
+        setPopover(null);
+        select({ product: i + 1 });
+      }}
+      onDrop={() => onDrop(i)}
+      onReplace={(url) => onReplace(i, url)}
+      onRetry={() => captures.retry(card.url)}
+      hostProblem={hostProblem}
+    />
+  ));
+
+  // Non-null locks the tab: from the click, not only once the server says the run is active.
   const stage = active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null;
   const runNote =
     strip === 'stalled' ? 'The last verification stalled. Run it again.' : strip === 'failed' ? (status?.errorMessage ?? 'The last verification failed.') : null;
   const unsaved = board !== seededBoard.current && !canSave(board);
+  const panel = 'rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]';
+  const selectedCard = board.cards[selected];
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="min-w-0 space-y-4">
-        <div className="rise space-y-4 rounded-[6px] border border-line bg-panel p-4 [box-shadow:var(--shadow)]">
-          <ListingBar
-            listingUrl={board.listingUrl}
-            disabled={locked}
-            onFound={(listingUrl, products) => onFound(listingUrl, products)}
-            onNoListing={onNoListing}
-            extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
-            problem={listingNote}
-          />
-          {board.cards.length > 0 ? (
-            <ProductGrid
-              cards={board.cards}
-              captures={captures.byUrl}
-              selected={selected}
-              disabled={locked}
-              onSelect={(i) => {
-                setPopover(null);
-                select({ product: i + 1 });
-              }}
-              onDrop={onDrop}
-              onAdd={onAdd}
-              onReplace={onReplace}
-              canAddFromQueue={queue.length > 0}
-              onRetry={captures.retry}
-              hostProblem={hostProblem}
-            />
-          ) : null}
-          {unsaved ? <p className="text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}
-          {locked && active ? <p className="text-sm text-muted-foreground">Products and answers are locked while this verification runs</p> : null}
-        </div>
-
-        {runNote ? (
-          <p role="alert" className={`border-l-2 pl-3 text-sm ${strip === 'failed' ? 'border-fail text-fail' : 'border-warn text-warn'}`}>
-            {runNote}
-          </p>
-        ) : null}
-        {error ? (
-          <p role="alert" className="text-sm whitespace-pre-line text-fail">
-            {error}
-          </p>
-        ) : null}
-        {arrival?.note ? <p className="text-sm text-muted-foreground">{arrival.note}</p> : null}
-        {transferNote ? <p className="text-sm text-warn">{transferNote}</p> : null}
-        {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
-        {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
-
-        <ProductView
-          hasCards={board.cards.length > 0}
-          url={selectedUrl}
-          capture={capture}
-          onRetry={() => captures.retry(selectedUrl)}
-          locked={locked}
-        >
-          <PageViewer
-            tiles={tiles}
-            boxes={boxes}
-            pageHeight={capture?.pageHeight ?? 0}
-            capturedHeight={capture?.capturedHeight ?? 0}
-            overlays={overlays}
-            highlight={highlight}
-            locked={locked}
-            onPick={(box, at) => setPopover({ url: selectedUrl, box, at, mode: 'pick' })}
-            onOverlay={(o, at) => {
-              const info = overlayInfo.get(o.key);
-              if (!info) return;
-              setPopover({ url: selectedUrl, box: o.box, at, mode: info.kind, key: info.fieldKey });
-              select({ field: info.fieldKey });
-            }}
-          />
-        </ProductView>
-        {locked ? null : popoverView}
-      </div>
-
-      <div className="space-y-2">
-        <FieldsSidebar
-          rows={rows}
-          verify={{
-            label: button.label,
-            disabled: button.disabled || locked,
-            reason: gate.ok ? button.reason : gate.reason,
-            busy: verifying || verifyMutation.isPending,
-            onClick: () => void handleVerify(),
-          }}
-          saveState={saveState}
-          saveError={saveError}
-          extract={{ enabled: !!(status?.current && status?.allPassed), project: projectSlug, site: siteSlug }}
-          stage={stage}
+    <div className="min-w-0 space-y-4">
+      <div className={`${panel} space-y-3 p-4`}>
+        <ListingBar
+          listingUrl={board.listingUrl}
+          disabled={locked}
+          onFound={(listingUrl, products) => onFound(listingUrl, products)}
+          onNoListing={onNoListing}
+          extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
+          problem={listingNote}
         />
-        <p className="px-1 text-sm text-muted-foreground">
-          Field names and types come from the project.{' '}
-          <Link to="/projects/$project/fields" params={{ project: projectSlug }} className="text-link underline-offset-4 hover:underline">
-            Edit fields
-          </Link>
-        </p>
+        {unsaved ? <p className="text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}
+        {locked && active ? <p className="text-sm text-muted-foreground">Products and answers are locked while this verification runs</p> : null}
       </div>
+
+      <VerifyBar
+        acceptAll={{
+          count: agreedCount,
+          disabled: locked || agreedCount === 0,
+          onClick: () => setBoard((b) => acceptAllAgreed(b, fields, live, boxesByUrl).board),
+        }}
+        verify={{
+          label: button.label,
+          disabled: button.disabled || locked,
+          reason: gate.ok ? button.reason : gate.reason,
+          busy: verifying || verifyMutation.isPending,
+          onClick: () => void handleVerify(),
+        }}
+        saveState={saveState}
+        saveError={saveError}
+        extract={{ enabled: !!(status?.current && status?.allPassed), project: projectSlug, site: siteSlug }}
+        stage={stage}
+      />
+
+      {board.cards.length > 0 ? (
+        <div className="space-y-2">
+          <VerificationTable
+            heads={heads}
+            addHead={
+              board.cards.length < PRODUCTS_MAX ? (
+                <AddProductCard compact disabled={locked} canAddFromQueue={queue.length > 0} onAdd={onAdd} hostProblem={hostProblem} />
+              ) : undefined
+            }
+            rows={rows}
+            locked={locked}
+          />
+          <p className="px-1 text-sm text-muted-foreground">
+            Field names and types come from the project.{' '}
+            <Link to="/projects/$project/fields" params={{ project: projectSlug }} className="text-link underline-offset-4 hover:underline">
+              Edit fields
+            </Link>
+          </p>
+        </div>
+      ) : (
+        <div className={`${panel} px-4 py-5 text-base text-muted-foreground`}>Find products from a listing page, or paste product pages, to start.</div>
+      )}
+
+      {runNote ? (
+        <p role="alert" className={`border-l-2 pl-3 text-sm ${strip === 'failed' ? 'border-fail text-fail' : 'border-warn text-warn'}`}>
+          {runNote}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-sm whitespace-pre-line text-fail">
+          {error}
+        </p>
+      ) : null}
+      {arrival?.note ? <p className="text-sm text-muted-foreground">{arrival.note}</p> : null}
+      {transferNote ? <p className="text-sm text-warn">{transferNote}</p> : null}
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
+      {arrivalPrompt ? <p className="text-base">{arrivalPrompt}</p> : null}
+
+      {panelOpen ? (
+        <section aria-label="Screenshot" className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="min-w-0 truncate text-base">
+              {selectedCard?.title || (selectedCard?.url ? shortUrl(selectedCard.url) : `Product ${selected + 1}`)} — screenshot
+            </h2>
+            <Button variant="ghost" size="icon-xs" aria-label="Close screenshot" onClick={closePanel} className="shrink-0 text-muted-foreground hover:text-text">
+              ×
+            </Button>
+          </div>
+          <ProductView url={selectedUrl} capture={capture} onRetry={() => captures.retry(selectedUrl)} locked={locked}>
+            <PageViewer
+              tiles={tiles}
+              boxes={boxes}
+              pageHeight={capture?.pageHeight ?? 0}
+              capturedHeight={capture?.capturedHeight ?? 0}
+              overlays={overlays}
+              highlight={highlight}
+              locked={locked}
+              onPick={(box, at) => setPopover({ url: selectedUrl, box, at, mode: 'pick' })}
+              onOverlay={(o, at) => {
+                const info = overlayInfo.get(o.key);
+                if (!info) return;
+                setPopover({ url: selectedUrl, box: o.box, at, mode: info.kind, key: info.fieldKey });
+                select({ field: info.fieldKey });
+              }}
+            />
+          </ProductView>
+          {locked ? null : popoverView}
+        </section>
+      ) : null}
     </div>
   );
 }
 
 /**
- * Below the grid: the selected product's screenshot once it has landed, and
- * its state until then.
+ * Under the table, while a product is open: its screenshot once it has
+ * landed, and its state until then.
  */
 function ProductView({
-  hasCards,
   url,
   capture,
   onRetry,
   locked,
   children,
 }: {
-  hasCards: boolean;
   url: string;
   capture: ReturnType<typeof useProofCaptures>['byUrl'][string];
   onRetry: () => void;
@@ -958,11 +1053,8 @@ function ProductView({
   children: ReactNode;
 }) {
   const panel = 'rise rounded-[6px] border border-line bg-panel px-4 py-5 [box-shadow:var(--shadow)]';
-  if (!hasCards) {
-    return <div className={`${panel} text-base text-muted-foreground`}>Find products from a listing page, or paste product pages, to start.</div>;
-  }
   if (!url) {
-    return <div className={`${panel} text-base text-muted-foreground`}>Paste this product&apos;s page above.</div>;
+    return <div className={`${panel} text-base text-muted-foreground`}>Paste this product&apos;s page in its column above.</div>;
   }
   if (!capture || capture.status === 'starting' || capture.status === 'capturing') {
     return (
