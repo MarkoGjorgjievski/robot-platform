@@ -32,8 +32,8 @@
 // resolved from packages/browser; `SCREENS_DIR` overrides that.
 //
 // The PASS/FAIL lines below are written against **Acne / Ikea**: three proof
-// pages, every field certified, so every battery on the Verification tab is
-// full and green and every row reads "verified", and the Extract tab is
+// pages, every field certified, so every cell of the Verification tab's table
+// is accepted and every row reads "verified", and the Extract tab is
 // unlocked. The field count is read from `sources.get`, not assumed. What it does *not* have is a single extraction —
 // so the Runs walk branches on `runs.listBySource` and says SKIP rather than
 // passing a test that proves nothing. Run it against another website and the
@@ -361,16 +361,22 @@ for (const theme of ['dark', 'light'] as const) {
   const crumbs = norm(await p.locator('nav[aria-label="Breadcrumb"]').innerText());
   check(`breadcrumb reads "${EXPECTED.breadcrumb}"`, crumbs === EXPECTED.breadcrumb, crumbs);
 
-  // One card per proof page, and one battery per field with a segment per card.
+  // The table (2026-09-28): a column head per proof page, a row per field,
+  // and a cell per field and page whose label ends in its state.
   const cards = await p.locator('button[aria-pressed]').count();
-  check(`${EXPECTED.pageCount} product cards`, cards === EXPECTED.pageCount, `${cards}`);
-  const batteries = await p.locator('[role="img"][aria-label*=" confirmed"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
-  check(`one battery per field (${site.fields.length})`, batteries.length === site.fields.length, `${batteries.length}`);
-  const full = batteries.filter((l) => l.endsWith(`${EXPECTED.pageCount} of ${EXPECTED.pageCount} confirmed`)).length;
-  check('every battery is full and green', full === batteries.length, batteries.filter((l) => !l.endsWith('confirmed')).join(' | ') || `${full} of ${batteries.length}`);
+  check(`${EXPECTED.pageCount} product column heads`, cards === EXPECTED.pageCount, `${cards}`);
+  const rows = await p.locator('tbody th[scope="row"]').count();
+  check(`one row per field (${site.fields.length})`, rows === site.fields.length, `${rows}`);
+  const cells = await p.locator('tbody button[aria-label*=" on product "]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+  const accepted = cells.filter((l) => l.endsWith(': accepted')).length;
+  check(
+    'every cell is accepted',
+    cells.length === site.fields.length * EXPECTED.pageCount && accepted === cells.length,
+    cells.filter((l) => !l.endsWith(': accepted')).join(' | ') || `${accepted} of ${cells.length}`,
+  );
 
-  // The engine's verdict, one badge per row.
-  const verifiedBadges = await p.locator('li span', { hasText: /^verified$/ }).count();
+  // The engine's verdict, one badge per row, in the table's last column.
+  const verifiedBadges = await p.locator('tbody td span', { hasText: /^verified$/ }).count();
   check(`every row reads "verified"`, verifiedBadges === site.fields.length, `${verifiedBadges} of ${site.fields.length}`);
 
   // Read, never pressed: a verification is the one control on this screen

@@ -1,8 +1,10 @@
-// A free live run of the Verification tab (`@robot/app`, plan 5) on a real
-// shop: Ikea, end to end, as a throwaway identity — find products from a
-// listing, let every screenshot land, confirm every suggestion, mark what is
-// left by clicking, and press Verify — against an api-server with NO Anthropic
-// key, so Verify reads "free" and costs nothing.
+// A free live run of the Verification tab (`@robot/app`; plan 5, table-first
+// since 2026-09-28) on a real shop: Ikea, end to end, as a throwaway identity
+// — find products from a listing, let every screenshot land, read what each
+// row of the table needs, Accept all agreed, open a cell's screenshot for
+// each row that needs you and tick what is there, and press Verify — against
+// an api-server with NO Anthropic key, so Verify reads "free" and costs
+// nothing. It counts every click from Find products to an enabled Verify.
 //
 // **It spends nothing by construction.** Captures, suggestions and transfers
 // never use a model. Verify is the one control that can, and this check
@@ -31,9 +33,10 @@
 //
 // Options: `--listing <url>` (default Ikea Malaysia's Cabinets category),
 // `--site <url>` (the website's address, default `https://www.ikea.com/my/en/`).
-// Screenshots go to `docs/testing/screens/app-site-verification-ikea-{marking,verified}-{dark,light}.png`
+// Screenshots go to `docs/testing/screens/app-site-verification-ikea-{agreed,verified}-{dark,light}.png`
 // (resolved from packages/browser; `SCREENS_DIR` overrides). The numbers it
-// prints are what `docs/testing/2026-09-25-verification-live.md` records.
+// prints are what `docs/testing/2026-09-28-table-first-live.md` records (plan 5's
+// run, before the table: `docs/testing/2026-09-25-verification-live.md`).
 import { chromium, type Page } from 'playwright';
 
 const arg = (name: string): string | undefined => {
@@ -101,6 +104,32 @@ p.on('console', (m) => {
  * a field shows no change on screen, so the response is the honest count.
  */
 const transfers: Array<{ field: string; to: Record<string, number> }> = [];
+
+/**
+ * Where page data found each field, per capture, in the order answered:
+ * `{ captureId, fields: { key: "json-ld offers.price = 399 (1 element)" } }`.
+ * A row reads "comes from different places" when these paths differ between
+ * products, so they are what explains it.
+ */
+const suggested: Array<{ captureId: string; fields: Record<string, string> }> = [];
+p.on('response', async (r) => {
+  if (!r.url().includes('sources.suggestMarks')) return;
+  try {
+    const body = (await r.json()) as unknown;
+    const list = (Array.isArray(body) ? body : [body]) as Array<{ result?: { data?: { json?: unknown } } }>;
+    for (const item of list) {
+      const out = item.result?.data?.json as
+        | { captureId: string; fields: Record<string, { value: string; via: { source: string; path: string }; boxes: number[] } | null> }
+        | undefined;
+      if (!out?.fields) continue;
+      const fields: Record<string, string> = {};
+      for (const [k, s] of Object.entries(out.fields)) fields[k] = s ? `${s.via.source} ${s.via.path} = ${s.value.slice(0, 40)} (${s.boxes.length} element(s))` : '—';
+      suggested.push({ captureId: out.captureId, fields });
+    }
+  } catch {
+    /* a response this check cannot read is not a failure of the tab */
+  }
+});
 p.on('response', async (r) => {
   if (!r.url().includes('sources.transferMarks') || r.request().method() !== 'POST') return;
   try {
@@ -201,37 +230,43 @@ async function shootBoth(name: string) {
   await flipTheme(current);
 }
 
-const battery = (name: string) => p.locator(`[role="img"][aria-label^="${name}: "]`).getAttribute('aria-label');
-const segmentWord = async (name: string, product: number) => {
-  for (const w of ['confirmed', 'suggested', 'empty', 'failed']) {
-    if ((await p.getByRole('button', { name: `${name} on product ${product}: ${w}`, exact: true }).count()) > 0) return w;
-  }
-  return '?';
-};
-const card = (i: number) => p.locator('button[aria-pressed]').nth(i);
-const selectedProduct = async () => {
-  const n = await p.locator('button[aria-pressed]').count();
-  for (let i = 0; i < n; i++) if ((await card(i).getAttribute('aria-pressed')) === 'true') return i;
-  return -1;
-};
-
-/** The field rows' hint lines for the product on screen: "page data: …", "found in n places — …", "from another product: …". */
-async function rowHints(): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  for (const f of FIELDS) {
-    const row = p.locator('li').filter({ has: p.locator(`[role="img"][aria-label^="${f.name}: "]`) });
-    const hint = row.locator('span.text-warn');
-    if ((await hint.count()) > 0) out[f.name] = norm(await hint.first().innerText());
-  }
-  return out;
+/** A cell of the table, by the state word its label ends in: empty, suggested, accepted or failed. */
+const cellButton = (name: string, product: number) => p.locator(`button[aria-label^="${name} on product ${product}: "]`);
+async function cellState(name: string, product: number): Promise<string> {
+  const cell = cellButton(name, product);
+  if ((await cell.count()) !== 1) return '?';
+  return ((await cell.getAttribute('aria-label')) ?? '').slice(`${name} on product ${product}: `.length);
 }
-
-/** Each field's state on product `i` (0-based), from the battery segment. */
 async function statesOn(i: number): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for (const f of FIELDS) out[f.name] = await segmentWord(f.name, i + 1);
+  for (const f of FIELDS) out[f.name] = await cellState(f.name, i + 1);
   return out;
 }
+
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const rowOf = (name: string) => p.getByRole('row').filter({ has: p.getByRole('rowheader', { name: new RegExp(`^${escape(name)}\\b`) }) });
+
+/** What a row's last column reads, whitespace folded: "agreed Accept", "missing on product 2", "verified", "". */
+async function statusText(name: string): Promise<string> {
+  return norm(await rowOf(name).locator('td').last().innerText());
+}
+type Kind = 'agreed' | 'same-everywhere' | 'needs-you' | 'accepted';
+const kindOf = (text: string): Kind =>
+  text === 'agreed Accept'
+    ? 'agreed'
+    : text.startsWith('same on every product')
+      ? 'same-everywhere'
+      : text === '' || /^(verified|fails on product \d+|changed since verified|checking…)$/.test(text)
+        ? 'accepted'
+        : 'needs-you';
+async function statuses(): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const f of FIELDS) out[f.name] = await statusText(f.name);
+  return out;
+}
+
+const card = (i: number) => p.locator('button[aria-pressed]').nth(i);
+const panel = () => p.getByRole('region', { name: 'Screenshot' });
 
 let clicks = 0;
 const click = async (what: () => Promise<void>) => {
@@ -239,51 +274,77 @@ const click = async (what: () => Promise<void>) => {
   clicks++;
 };
 
-/** Tick every suggestion on the product on screen: rectangles by their label, row lines by their ✓. */
-async function confirmAllSuggestions(i: number): Promise<{ onScreen: string[]; chosen: string[]; onRow: string[]; skipped: string[] }> {
-  const onScreen: string[] = [];
-  const chosen: string[] = [];
-  const onRow: string[] = [];
-  const skipped: string[] = [];
-  for (const f of FIELDS) {
-    if ((await segmentWord(f.name, i + 1)) !== 'suggested') continue;
-    const label = p.locator('span', { hasText: new RegExp(`^${f.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?$`) });
-    const row = p.getByRole('button', { name: `Confirm ${f.name} from the page data` });
-    const places = await label.count();
-    if (places >= 1) {
-      // One rectangle: tick it. Several ("found in n places — click the right
-      // one"): a person would look and pick; this check takes the first the
-      // page data names, and says so in the numbers. The rectangle itself is
-      // scrolled into view, not its label, which sits above it.
-      const target = label.nth(0);
-      await target.locator('..').scrollIntoViewIfNeeded().catch(() => {});
-      const box = await target.locator('..').boundingBox();
-      if (!box) {
-        skipped.push(`${f.name} (rectangle off screen)`);
-        continue;
-      }
-      await click(() => p.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 10)));
-      const confirm = p.getByRole('button', { name: `Confirm ${f.name}`, exact: true });
-      if (!(await until(`the ${f.name} popover`, async () => (await confirm.count()) > 0, 5_000, 200))) {
-        const pop = p.locator('[data-slot="popover-content"]');
-        const opened = (await pop.count()) > 0 ? norm(await pop.innerText()).slice(0, 80) : 'nothing opened';
-        const around = await p.evaluate(([x, y]) => document.elementsFromPoint(x, y).slice(0, 4).map((e) => `${e.tagName.toLowerCase()}${e.textContent && e.children.length === 0 ? `"${e.textContent.slice(0, 20)}"` : ''}`).join(' > '), [box.x + box.width / 2, box.y + Math.min(box.height / 2, 10)] as const);
-        await p.screenshot({ path: `${SCREENS}/../ui-check-verification-${f.key}-p${i + 1}.png` }).catch(() => {});
-        skipped.push(`${f.name} (the click on its rectangle opened: ${opened}; under the pointer: ${around}; rect ${Math.round(box.width)}×${Math.round(box.height)} at ${Math.round(box.x)},${Math.round(box.y)})`);
-        await p.keyboard.press('Escape');
-        continue;
-      }
-      await click(() => confirm.click());
-      (places > 1 ? chosen : onScreen).push(places > 1 ? `${f.name} (1 of ${places})` : f.name);
-    } else if ((await row.count()) > 0) {
-      await click(() => row.click());
-      onRow.push(f.name);
-    } else {
-      skipped.push(`${f.name} (${(await rowHints())[f.name] ?? 'no rectangle and no row line'})`);
+/**
+ * Accept one suggested cell the way a person does: click the cell (the
+ * product's screenshot opens with the field outlined), then tick the orange
+ * rectangle — or, when no element shows the value, the expanded row's
+ * "page data" line. Several rectangles ("found in n places"): a person would
+ * look and pick; this check takes the first, and says so in the numbers.
+ */
+async function tickCell(name: string, product: number): Promise<string> {
+  await click(() => cellButton(name, product).click());
+  await until(`product ${product} in the address`, async () => new URL(p.url()).searchParams.get('product') === String(product), 5_000, 100);
+  await until(`product ${product}'s screenshot`, async () => (await panel().locator('img[alt="Screenshot of this product"]').count()) > 0, 20_000, 200);
+  const label = panel().locator('span', { hasText: new RegExp(`^${escape(name)}\\?$`) });
+  await until(`the ${name} rectangle`, async () => (await label.count()) > 0, 3_000, 200);
+  const places = await label.count();
+  if (places > 0) {
+    const target = label.nth(0).locator('..');
+    // A product switch swaps the tiles (the rectangles are hidden until the new
+    // screenshot has a scale) and the tab then scrolls the element into view:
+    // read the rectangle's place only once it has stopped moving.
+    let box = await target.boundingBox();
+    await until(
+      `the ${name} rectangle to stop moving`,
+      async () => {
+        await p.waitForTimeout(300);
+        const next = await target.boundingBox();
+        const still = !!box && !!next && box.x === next.x && box.y === next.y;
+        box = next;
+        return still;
+      },
+      5_000,
+      0,
+    );
+    const vh = p.viewportSize()?.height ?? 900;
+    if (box && (box.y < 0 || box.y + box.height > vh)) {
+      measure(`${name} on product ${product}`, `the tab left its rectangle off screen (y ${Math.round(box.y)}); scrolled to it`);
+      await target.scrollIntoViewIfNeeded().catch(() => {});
+      box = await target.boundingBox();
     }
-    await until(`${f.name} to turn green`, async () => (await segmentWord(f.name, i + 1)) === 'confirmed', 10_000, 200);
+    if (box) {
+      await click(() => p.mouse.click(box.x + box.width / 2, box.y + Math.min(box.height / 2, 10)));
+      const confirm = p.getByRole('button', { name: `Confirm ${name}`, exact: true });
+      if (await until(`the ${name} popover`, async () => (await confirm.count()) > 0, 5_000, 200)) {
+        await click(() => confirm.click());
+        await until(`${name} on product ${product} to be accepted`, async () => (await cellState(name, product)) === 'accepted', 10_000, 200);
+        return places > 1 ? `on the screenshot, 1 of ${places} places` : 'on the screenshot';
+      }
+      // Say what the click did open, and what was under the pointer.
+      const pop = p.locator('[data-slot="popover-content"]');
+      const opened = (await pop.count()) > 0 ? norm(await pop.innerText()).slice(0, 120) : 'nothing opened';
+      const at = [box.x + box.width / 2, box.y + Math.min(box.height / 2, 10)] as const;
+      const under = await p.evaluate(
+        ([x, y]) => document.elementsFromPoint(x, y).slice(0, 5).map((e) => `${e.tagName.toLowerCase()}${e.textContent && e.children.length === 0 ? `"${e.textContent.slice(0, 20)}"` : ''}`).join(' > '),
+        at,
+      );
+      measure(`${name} on product ${product}: the rectangle click opened`, `${opened}; under the pointer: ${under}; rect ${Math.round(box.width)}×${Math.round(box.height)}`);
+      await p.screenshot({ path: `${SCREENS}/../ui-check-verification-${name.replace(/\W+/g, '-').toLowerCase()}-p${product}.png` }).catch(() => {});
+      await p.keyboard.press('Escape');
+    }
   }
-  return { onScreen, chosen, onRow, skipped };
+  // No rectangle to tick: the expanded row's page-data line.
+  const fromRow = p.getByRole('button', { name: `Confirm ${name} from the page data` });
+  if ((await fromRow.count()) === 0) {
+    const toggle = rowOf(name).getByRole('button', { name: new RegExp(`^${escape(name)}$`) });
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await click(() => toggle.click());
+  }
+  if (await until(`${name}'s page-data line`, async () => (await fromRow.count()) > 0, 3_000, 200)) {
+    await click(() => fromRow.click());
+    await until(`${name} on product ${product} to be accepted`, async () => (await cellState(name, product)) === 'accepted', 10_000, 200);
+    return 'on the row (page data)';
+  }
+  return 'nothing to tick';
 }
 
 let projectId: string | null = null;
@@ -346,7 +407,7 @@ try {
   check('Find products answers', found, foundLine);
   measure('listing time', seconds(listingMs));
   const cardCount = await p.locator('button[aria-pressed]').count();
-  const titles = await p.locator('button[aria-pressed] p.line-clamp-2').allInnerTexts();
+  const titles = await p.locator('button[aria-pressed] p.line-clamp-1').allInnerTexts();
   check('three product cards', cardCount === 3, titles.map(norm).join(' | '));
   const withImage = await p.locator('button[aria-pressed] img').count();
   measure('cards with a photo', `${withImage} of ${cardCount}`);
@@ -369,70 +430,97 @@ try {
   check('every product has its screenshot', stateLines.every((l) => l === 'ready'), stateLines.join(' | '));
   measure('capture time per product (from the listing answering)', readyAt.map((ms, i) => `product ${i + 1}: ${ms === undefined ? '—' : seconds(ms)}`).join(', '));
 
-  // Page data lands per product; give the last one a moment.
-  await p.waitForTimeout(3000);
-
-  // What page data suggested, product by product — before anything is ticked,
-  // so nothing here is a transfer. Each product is opened in turn.
-  const pageData: Record<number, { states: Record<string, string>; hints: Record<string, string> }> = {};
-  for (let i = 0; i < 3; i++) {
-    await click(() => card(i).click());
-    await until(`product ${i + 1} to open`, async () => (await selectedProduct()) === i, 10_000, 200);
-    await p.waitForTimeout(1500);
-    pageData[i] = { states: await statesOn(i), hints: await rowHints() };
-    const suggested = Object.entries(pageData[i]!.states).filter(([, s]) => s === 'suggested').map(([n]) => n);
-    measure(`product ${i + 1}, suggested from page data`, `${suggested.length} of ${FIELDS.length}: ${suggested.join(', ') || '—'}`);
-    for (const [n, h] of Object.entries(pageData[i]!.hints)) measure(`product ${i + 1}, ${n}'s row says`, h);
-  }
-
-  // ── Confirm product 1's suggestions; what carries to 2 and 3 ──────────────
-  await click(() => card(0).click());
-  await until('product 1 to open', async () => (await selectedProduct()) === 0, 10_000, 200);
-  await p.waitForTimeout(1000);
-  const first = await confirmAllSuggestions(0);
-  measure('product 1: ticked on the screenshot', first.onScreen.join(', ') || '—');
-  measure('product 1: picked from several rectangles', first.chosen.join(', ') || '—');
-  measure('product 1: ticked on the row (page data, no element)', first.onRow.join(', ') || '—');
-  if (first.skipped.length) measure('product 1: left for a person', first.skipped.join('; '));
-  await p.waitForTimeout(4000); // transfers are one browser call per tick
-
-  // Carried by transfer = empty on product n from page data, suggested now.
-  const carried: Record<number, string[]> = {};
-  for (const i of [1, 2]) {
-    const now = await statesOn(i);
-    carried[i] = FIELDS.map((f) => f.name).filter((n) => pageData[i]!.states[n] === 'empty' && now[n] === 'suggested');
-    measure(`product ${i + 1}, carried from product 1`, carried[i]!.join(', ') || '—');
-  }
-  const carriedBy = transfers.map((x) => `${x.field} → ${Object.values(x.to).map((n) => (n < 0 ? 'nothing' : n === 0 ? 'a value, no element' : `${n} element(s)`)).join(' / ')}`);
-  measure('transferMarks answers (per tick, per other product)', carriedBy.join('; ') || 'none');
-  await shootBoth('marking');
-
-  for (const i of [1, 2]) {
-    await click(() => card(i).click());
-    await until(`product ${i + 1} to open`, async () => (await selectedProduct()) === i, 10_000, 200);
-    await p.waitForTimeout(1500);
-    const r = await confirmAllSuggestions(i);
-    measure(`product ${i + 1}: ticked on the screenshot`, r.onScreen.join(', ') || '—');
-    measure(`product ${i + 1}: picked from several rectangles`, r.chosen.join(', ') || '—');
-    measure(`product ${i + 1}: ticked on the row`, r.onRow.join(', ') || '—');
-    if (r.skipped.length) measure(`product ${i + 1}: left for a person`, r.skipped.join('; '));
-  }
-
-  // What is left: fields still grey on any of products 1–3. This check does
-  // not guess where a value is — that is the customer's judgement — so a
-  // grey cell is reported, and Verify stays off, saying which.
-  const left: string[] = [];
+  // ── What each row needs, before any click ─────────────────────────────────
+  // Page data lands per product after its screenshot: wait until no row waits
+  // on a screenshot and the column has read the same five times running.
+  let before: Record<string, string> = {};
+  let steady = 0;
+  await until(
+    'the rows to settle',
+    async () => {
+      const now = await statuses();
+      const same = JSON.stringify(now) === JSON.stringify(before);
+      before = now;
+      steady = same ? steady + 1 : 0;
+      return steady >= 5 && !Object.values(now).some((t) => t.startsWith('screenshot not ready'));
+    },
+    90_000,
+    1000,
+  );
+  const byKind = (k: Kind) => FIELDS.map((f) => f.name).filter((n) => kindOf(before[n]!) === k);
+  measure('rows agreed before any click', `${byKind('agreed').length} of ${FIELDS.length}: ${byKind('agreed').join(', ') || '—'}`);
+  measure('rows the same everywhere', `${byKind('same-everywhere').length}: ${byKind('same-everywhere').join(', ') || '—'}`);
+  measure('rows that need you', `${byKind('needs-you').length}: ${byKind('needs-you').map((n) => `${n} (${before[n]})`).join('; ') || '—'}`);
   for (let i = 0; i < 3; i++) {
     const s = await statesOn(i);
-    for (const [n, w] of Object.entries(s)) if (w !== 'confirmed') left.push(`${n} on product ${i + 1} (${w})`);
+    const suggested = Object.entries(s).filter(([, w]) => w === 'suggested').map(([n]) => n);
+    measure(`product ${i + 1}, suggested`, `${suggested.length} of ${FIELDS.length}`);
   }
-  measure('transferMarks calls in all', `${transfers.length}, carrying ${transfers.reduce((n, x) => n + Object.values(x.to).filter((v) => v >= 0).length, 0)} field-product suggestions`);
-  measure('still to mark by hand after every suggestion is ticked', left.join(', ') || 'nothing');
-  measure('batteries', (await Promise.all(FIELDS.map((f) => battery(f.name)))).join(' | '));
-  measure('clicks so far (find, card switches, rectangles, ticks)', clicks);
+  const acceptAll = p.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ });
+  measure('the bar reads', norm(await acceptAll.innerText()));
+  for (const s of suggested) for (const f of FIELDS) measure(`page data, capture ${s.captureId.slice(0, 8)}, ${f.name}`, s.fields[f.key] ?? '(not asked)');
+  check('no screenshot is open before a click', (await panel().count()) === 0);
+  await shootBoth('agreed');
+
+  // ── Accept what agrees; look at the rest ──────────────────────────────────
+  const verify = p.getByRole('button', { name: /^Verify/ });
+  const how: string[] = [];
+  const leftForAPerson = new Set<string>();
+  for (let step = 0; step < 40; step++) {
+    if (await verify.isEnabled()) break;
+    const st = await statuses();
+    const kinds = Object.fromEntries(Object.entries(st).map(([n, t]) => [n, kindOf(t)])) as Record<string, Kind>;
+    if (Object.values(kinds).includes('agreed')) {
+      const label = norm(await acceptAll.innerText());
+      await click(() => acceptAll.click());
+      how.push(label);
+      await p.waitForTimeout(500);
+      continue;
+    }
+    const same = FIELDS.find((f) => kinds[f.name] === 'same-everywhere');
+    if (same) {
+      // A value every product shows alike (Ikea's brand is IKEA): a person
+      // reads it and accepts it with the second click the row asks for.
+      await click(() => p.getByRole('button', { name: `Accept ${same.name} anyway`, exact: true }).click());
+      how.push(`Accept ${same.name} anyway (${st[same.name]})`);
+      await p.waitForTimeout(500);
+      continue;
+    }
+    // A row that needs you: the product its reason names, else its first suggested cell.
+    let acted = false;
+    for (const f of FIELDS) {
+      if (kinds[f.name] !== 'needs-you' || leftForAPerson.has(f.name)) continue;
+      const named = /on product (\d)/.exec(st[f.name]!)?.[1];
+      const order = [named ? Number(named) : 0, 1, 2, 3].filter((n) => n > 0);
+      let target = 0;
+      for (const n of order) if ((await cellState(f.name, n)) === 'suggested') { target = n; break; }
+      if (!target) {
+        leftForAPerson.add(f.name);
+        continue;
+      }
+      const r = await tickCell(f.name, target);
+      how.push(`${f.name} on product ${target}: ${r} (the row read "${st[f.name]}")`);
+      if (r === 'nothing to tick') leftForAPerson.add(f.name);
+      acted = true;
+      break;
+    }
+    if (!acted) break;
+  }
+  for (const h of how) measure('clicked', h);
+  if (leftForAPerson.size) measure('left for a person', [...leftForAPerson].map((n) => `${n} (${before[n]})`).join('; '));
+  const cellsLeft: string[] = [];
+  for (let i = 0; i < 3; i++) for (const [n, w] of Object.entries(await statesOn(i))) if (w !== 'accepted') cellsLeft.push(`${n} on product ${i + 1} (${w})`);
+  measure('cells not accepted on products 1–3', cellsLeft.join(', ') || 'none');
+  measure('transferMarks calls', `${transfers.length}`);
+  const enabled = await until('Verify to be enabled', () => verify.isEnabled(), 10_000, 500);
+  measure('CLICKS to an enabled Verify (Find products included)', enabled ? clicks : `${clicks} — and Verify is still off`);
+  // The spec's target (2026-09-28 A5) is a measurement, not a pass mark: how
+  // many rows need a person is the website's, not the tab's.
+  measure('target: five clicks or fewer (plan 5 took 43)', enabled && clicks <= 5 ? 'met' : 'missed');
+  check('Verify is enabled once every row is accepted', enabled, enabled ? '' : 'Verify is still off');
+  if ((await panel().count()) > 0) await p.getByRole('button', { name: 'Close screenshot' }).click();
 
   // ── Verify, only if it is free ────────────────────────────────────────────
-  const verify = p.getByRole('button', { name: /^Verify/ });
   const label = norm(await verify.innerText());
   // The disabled button's reason is the span beside it (spec: within one line).
   const reasonOf = async () => norm((await verify.locator('xpath=following-sibling::span[1]').innerText({ timeout: 1000 }).catch(() => '')) || '');
@@ -443,15 +531,13 @@ try {
   check('the Verify button says it is free', free, label);
   if (!free) throw new Error(`Verify does not read free ("${label}"); not clicking it`);
 
-  if (await until('Verify to be enabled', () => verify.isEnabled(), 10_000, 500)) {
-    // Unmarked fields can still be typed; this check only presses Verify when
-    // the tab itself says every field is answered on products 1–3.
+  if (enabled) {
     const started = Date.now();
     await verify.click();
     const settled = await until(
       'the verification',
       async () => {
-        const rows = await Promise.all(FIELDS.map((f) => p.locator('li').filter({ has: p.locator(`[role="img"][aria-label^="${f.name}: "]`) }).innerText()));
+        const rows = Object.values(await statuses());
         return rows.every((r) => !r.includes('checking…')) && rows.some((r) => /verified|fails on product|changed since verified/.test(r));
       },
       600_000,
@@ -459,24 +545,17 @@ try {
     );
     measure('verification took', seconds(Date.now() - started));
     check('the verification settles', settled);
-    const badges: Record<string, string> = {};
-    for (const f of FIELDS) {
-      const r = norm(await p.locator('li').filter({ has: p.locator(`[role="img"][aria-label^="${f.name}: "]`) }).first().innerText());
-      // "changed since verified" contains "verified", so it is asked first.
-      badges[f.name] = /changed since verified/.test(r)
-        ? 'changed since verified'
-        : (/fails on product \d/.exec(r)?.[0] ?? (/\bverified\b/.test(r) ? 'verified' : 'no badge'));
-    }
+    const badges = await statuses();
     const verified = Object.values(badges).filter((x) => x === 'verified').length;
-    measure('badges', Object.entries(badges).map(([n, x]) => `${n}: ${x}`).join(', '));
+    measure('badges', Object.entries(badges).map(([n, x]) => `${n}: ${x || 'no badge'}`).join(', '));
     check(`verified count`, true, `${verified} of ${FIELDS.length}`);
     const red = [];
-    for (const f of FIELDS) for (let i = 1; i <= 3; i++) if ((await segmentWord(f.name, i)) === 'failed') red.push(`${f.name} on product ${i}`);
-    measure('red segments', red.join(', ') || 'none');
+    for (const f of FIELDS) for (let i = 1; i <= 3; i++) if ((await cellState(f.name, i)) === 'failed') red.push(`${f.name} on product ${i}`);
+    measure('red cells', red.join(', ') || 'none');
     measure('Go to Extract', (await p.getByRole('link', { name: 'Go to Extract' }).count()) > 0 ? 'live' : 'locked');
     await shootBoth('verified');
   } else {
-    check('Verify is enabled after every suggestion is confirmed', false, (await reasonOf()) || 'no reason shown');
+    measure('Verify stays off because', (await reasonOf()) || 'no reason shown');
     await shootBoth('verified');
   }
 
