@@ -1,8 +1,5 @@
-import { ArrowRight, Loader2 } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
 import { FieldRow, type FieldRowHint } from './field-row';
-import { Button, buttonVariants } from '../ui/button';
-import { cn } from '../../lib/utils';
+import { VerifyBar } from './verify-bar';
 import type { Badge, Field, Segment } from '../../lib/site/verification-model';
 
 export type FieldsSidebarRow = {
@@ -26,16 +23,12 @@ export type FieldsSidebarRow = {
   onDescription: (text: string) => void;
 };
 
-const SAVE_LABEL: Record<'idle' | 'pending' | 'saving' | 'error', { text: string; className: string }> = {
-  idle: { text: 'saved', className: 'text-muted-foreground' },
-  pending: { text: 'saving…', className: 'text-muted-foreground' },
-  saving: { text: 'saving…', className: 'text-muted-foreground' },
-  error: { text: 'Not saved — it will try again on your next change or when you verify', className: 'text-warn' },
-};
-
 /**
  * The Verification tab's right rail (spec §2.4–§2.5): every project field, in
- * order, with its battery and verdict; the Verify gate and its footer.
+ * order, with its battery and verdict; the Verify gate and its footer
+ * (`VerifyBar`, moved out for the verification table's own bar — table-first
+ * verification, task 2; this sidebar has no "agreed" rows of its own, so it
+ * always offers nothing to accept in one click).
  *
  * Locking is one flag for the whole rail, not one per row — `stage` is only
  * non-null while a Verify run is in flight (spec §2.5: "the rectangles, cards
@@ -59,10 +52,6 @@ export function FieldsSidebar({
   stage: string | null;
 }) {
   const locked = stage !== null;
-  const save =
-    saveState === 'error' && saveError
-      ? { ...SAVE_LABEL.error, text: `Not saved: ${saveError} — it will try again on your next change or when you verify` }
-      : SAVE_LABEL[saveState];
 
   return (
     <div className="rise flex flex-col rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
@@ -89,43 +78,14 @@ export function FieldsSidebar({
         ))}
       </ul>
 
-      <div className="space-y-2 border-t border-line px-3 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" disabled={verify.disabled} onClick={verify.onClick}>
-            {verify.busy ? <Loader2 className="animate-spin" /> : null}
-            {verify.label}
-          </Button>
-          {/* Every disabled control says why, within a line of it. */}
-          {verify.disabled && verify.reason ? (
-            <span className="min-w-0 truncate text-sm text-muted-foreground" title={verify.reason}>
-              {verify.reason}
-            </span>
-          ) : null}
-        </div>
-
-        <p className={cn('text-sm', save.className)}>{save.text}</p>
-
-        {stage ? <p className="text-sm text-muted-foreground">{stage}</p> : null}
-
-        {extract.enabled ? (
-          <Link
-            to="/projects/$project/sites/$site/extract"
-            params={{ project: extract.project, site: extract.site }}
-            className={cn(buttonVariants({ size: 'sm' }), 'w-full')}
-          >
-            Go to Extract
-            <ArrowRight />
-          </Link>
-        ) : (
-          <div>
-            <Button size="sm" variant="outline" disabled className="w-full">
-              Go to Extract
-              <ArrowRight />
-            </Button>
-            <p className="mt-1 text-sm text-muted-foreground">Unlocks when every field is verified</p>
-          </div>
-        )}
-      </div>
+      <VerifyBar
+        acceptAll={{ count: 0, disabled: true, onClick: () => {} }}
+        verify={verify}
+        saveState={saveState}
+        saveError={saveError}
+        extract={extract}
+        stage={stage}
+      />
     </div>
   );
 }

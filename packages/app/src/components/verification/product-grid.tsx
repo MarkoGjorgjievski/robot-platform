@@ -70,21 +70,28 @@ export function ProductGrid({
  * route pulls the next unused listing product when `onAdd` is called with no
  * url. With no queue to draw from it opens as a URL input instead, so the
  * customer can add a page directly without first creating a blank card.
+ *
+ * Exported for the verification table's own `addHead` column (spec
+ * 2026-09-28 A1) — `compact` shortens the slot to match `ProductCard`'s
+ * compact height there.
  */
-function AddProductCard({
+export function AddProductCard({
   disabled,
   canAddFromQueue,
   onAdd,
   hostProblem,
+  compact,
 }: {
   disabled: boolean;
   canAddFromQueue: boolean;
   onAdd: (url?: string) => void;
   hostProblem: (url: string) => string | null;
+  compact?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  const minHeight = compact ? 'min-h-[64px]' : 'min-h-[120px]';
 
   function commit() {
     const value = draft.trim();
@@ -106,7 +113,7 @@ function AddProductCard({
         type="button"
         disabled={disabled}
         onClick={() => (canAddFromQueue ? onAdd() : setEditing(true))}
-        className="flex min-h-[120px] flex-col items-center justify-center gap-1 rounded-[6px] border border-dashed border-line text-sm text-muted-foreground hover:border-line-hover hover:text-text"
+        className={`flex ${minHeight} flex-col items-center justify-center gap-1 rounded-[6px] border border-dashed border-line text-sm text-muted-foreground hover:border-line-hover hover:text-text`}
       >
         + Add product
       </button>
@@ -114,7 +121,7 @@ function AddProductCard({
   }
 
   return (
-    <div className="flex min-h-[120px] flex-col justify-center gap-2 rounded-[6px] border border-dashed border-line p-2">
+    <div className={`flex ${minHeight} flex-col justify-center gap-2 rounded-[6px] border border-dashed border-line p-2`}>
       <Input
         autoFocus
         aria-label="New product URL"
