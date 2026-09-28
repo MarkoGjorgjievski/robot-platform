@@ -183,12 +183,12 @@ describe('the battery and the badge', () => {
 
 describe('the Verify gate', () => {
   it('names the first gap on products 1 to 3', () => {
-    expect(verifyGate(board(), FIELDS, {})).toEqual({ ok: false, reason: 'Title still needs product 1' });
+    expect(verifyGate(board(), FIELDS, {})).toEqual({ ok: false, reason: 'Title still needs product 1', gap: 'title' });
     expect(verifyGate(full(), FIELDS, {})).toEqual({ ok: true });
   });
   it('refuses a value of the wrong type', () => {
     const b = answer(full(), 'price', U[1]!, { value: 'free', mark: null });
-    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: false, reason: 'Price on product 2: Not a money amount' });
+    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: false, reason: 'Price on product 2: Not a money amount', gap: 'price' });
   });
   it('lets products 4 to 6 stay empty but not suggested, and not wholly empty', () => {
     let b = setCards(full(), [...full().cards, { url: 'https://s.example/p/4', title: 'W4' }]);
@@ -196,7 +196,7 @@ describe('the Verify gate', () => {
     b = answer(b, 'title', 'https://s.example/p/4', { value: 'W', mark: MARK });
     expect(verifyGate(b, FIELDS, {})).toEqual({ ok: true });
     const s = mergeSuggestions({}, { price: { value: '2.00', boxes: [0] } }, 'https://s.example/p/4', 'c', 'from-product', b);
-    expect(verifyGate(b, FIELDS, s)).toEqual({ ok: false, reason: 'Price has a suggestion to confirm on product 4' });
+    expect(verifyGate(b, FIELDS, s)).toEqual({ ok: false, reason: 'Price has a suggestion to confirm on product 4', gap: 'price' });
   });
   it('needs three products', () => {
     expect(verifyGate({ ...full(), cards: full().cards.slice(0, 2) }, FIELDS, {})).toEqual({ ok: false, reason: 'Add at least three products' });
@@ -341,6 +341,58 @@ describe('rowStatus', () => {
     expect(rowStatus(price, b, liveSuggestions(s, b, ids), m).kind).toBe('agreed');
     const bad = mergeSuggestions(s, { price: sug('ask', [1], JL) }, U4, 'cap-3', 'page-data', b);
     expect(rowStatus(price, b, liveSuggestions(bad, b, ids), m)).toEqual({ kind: 'needs-you', reason: 'Not a money amount on product 4', product: 4 });
+  });
+});
+
+describe('rowStatus: a lone suggestion is not agreement (final review I1)', () => {
+  const ids = { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' };
+  const twoAnswered = () => answer(answer(board(), 'price', U[0]!, { value: '129.99', mark: null }), 'price', U[1]!, { value: '219.99', mark: null });
+
+  it('one page-data suggestion left after two answers needs you: check product 3', () => {
+    const b = twoAnswered();
+    const s = mergeSuggestions({}, { price: sug('149.00', [1], JL) }, U[2]!, 'cap-2', 'page-data', b);
+    expect(rowStatus(price, b, liveSuggestions(s, b, ids), maps())).toEqual({ kind: 'needs-you', reason: 'check product 3', product: 3 });
+  });
+  it('two answers and one suggestion carried from a ticked product is agreed (spec A2 transfer)', () => {
+    const b = twoAnswered();
+    const s = mergeSuggestions({}, { price: sug('149.00', [1], JL) }, U[2]!, 'cap-2', 'from-product', b);
+    expect(rowStatus(price, b, liveSuggestions(s, b, ids), maps())).toEqual({ kind: 'agreed' });
+  });
+  it('a single filled card with blanks beside it is not agreed', () => {
+    const U4 = 'https://s.example/p/4', U5 = 'https://s.example/p/5';
+    let b = setCards(board(), [...board().cards, { url: U4, title: 'W4' }, { url: U5, title: 'W5' }]);
+    for (const [i, u] of U.entries()) b = answer(b, 'price', u, { value: `${i + 1}.00`, mark: null });
+    const s = mergeSuggestions({}, { price: sug('4.00', [1], JL) }, U4, 'cap-3', 'page-data', b);
+    const m = { ...maps(), [U4]: boxesOf(['Widget D', '$4.00']), [U5]: boxesOf(['Widget E']) };
+    const live = liveSuggestions(s, b, { ...ids, [U4]: 'cap-3', [U5]: 'cap-4' });
+    expect(rowStatus(price, b, live, m)).toEqual({ kind: 'needs-you', reason: 'check product 4', product: 4 });
+    expect(acceptAllAgreed(b, FIELDS, live, m).accepted).toEqual([]);
+  });
+});
+
+describe('rowStatus: answered cells and failed screenshots (final review M4, M6)', () => {
+  it('an answer that is not valid for the type needs you, not a green rail', () => {
+    let b = board();
+    b = answer(b, 'price', U[0]!, { value: '1.00', mark: null });
+    b = answer(b, 'price', U[1]!, { value: 'abc', mark: null });
+    b = answer(b, 'price', U[2]!, { value: '3.00', mark: null });
+    expect(rowStatus(price, b, {}, maps())).toEqual({ kind: 'needs-you', reason: 'Not a money amount on product 2', product: 2 });
+  });
+  it('a failed screenshot says so, a pending one says not ready', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), null]);
+    const noShot = { ...maps(), [U[2]!]: undefined };
+    expect(rowStatus(price, b, live, noShot, new Set([U[2]!])))
+      .toEqual({ kind: 'needs-you', reason: 'screenshot failed on product 3', product: 3 });
+    expect(rowStatus(price, b, live, noShot, new Set()))
+      .toEqual({ kind: 'needs-you', reason: 'screenshot not ready on product 3', product: 3 });
+  });
+});
+
+describe('the Verify gate names the field a product gap is about (final review M7)', () => {
+  it('a missing answer carries its field key, apart from the descriptor field', () => {
+    const b = answer(board(), 'title', U[0]!, { value: 'W', mark: null });
+    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: false, reason: 'Price still needs product 1', gap: 'price' });
   });
 });
 
