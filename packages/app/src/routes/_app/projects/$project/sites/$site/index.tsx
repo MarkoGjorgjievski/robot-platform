@@ -206,6 +206,12 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [saveError, setSaveError] = useState<string | null>(null);
   const [popover, setPopover] = useState<Popover | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  /**
+   * A cell or a column head asked to see this product's screenshot (and this
+   * field's element on it). Handed to the viewer only once the address has
+   * caught up with the click, so it scrolls to the element the click meant.
+   */
+  const [reveal, setReveal] = useState<{ n: number; product: number; field: string | undefined }>({ n: 0, product: 0, field: undefined });
   const [error, setError] = useState<string | null>(null);
   const [transferNote, setTransferNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -879,6 +885,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         onClick: () => {
           setPopover(null);
           select({ product: i + 1, field: f.key });
+          setReveal((r) => ({ n: r.n + 1, product: i + 1, field: f.key }));
         },
       })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
@@ -912,6 +919,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       onSelect={() => {
         setPopover(null);
         select({ product: i + 1 });
+        setReveal((r) => ({ n: r.n + 1, product: i + 1, field: fieldKey }));
       }}
       onDrop={() => onDrop(i)}
       onReplace={(url) => onReplace(i, url)}
@@ -1018,6 +1026,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               capturedHeight={capture?.capturedHeight ?? 0}
               overlays={overlays}
               highlight={highlight}
+              reveal={reveal.product === selected + 1 && reveal.field === fieldKey ? reveal.n : 0}
               locked={locked}
               onPick={(box, at) => setPopover({ url: selectedUrl, box, at, mode: 'pick' })}
               onOverlay={(o, at) => {

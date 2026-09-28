@@ -31,6 +31,7 @@ export function PageViewer({
   locked,
   onPick,
   onOverlay,
+  reveal = 0,
 }: {
   tiles: string[];
   boxes: Box[];
@@ -41,8 +42,20 @@ export function PageViewer({
   locked: boolean;
   onPick: (box: number, at: { x: number; y: number }) => void;
   onOverlay: (o: Overlay, at: { x: number; y: number }) => void;
+  /**
+   * Bumped by the caller each time a table cell or column head asks to see
+   * this screenshot. Each new value brings the highlighted element into view
+   * (the frame scrolled to it, and the page scrolled to the frame), or the
+   * screenshot itself when nothing is highlighted — once, as soon as the
+   * screenshot has a scale. A click inside the viewer never bumps it, so an
+   * open popover is never scrolled away from.
+   */
+  reveal?: number;
 }) {
   const stackRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const revealed = useRef(0);
   const [naturalWidth, setNaturalWidth] = useState(0);
   const [renderedWidth, setRenderedWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -82,6 +95,17 @@ export function PageViewer({
 
   const scale = naturalWidth > 0 && renderedWidth > 0 ? renderedWidth / naturalWidth : 0;
 
+  // The screenshot opens under the table, often below the fold, and the
+  // field's element can be far down a long page: without this a cell click
+  // outlines something nobody can see.
+  useEffect(() => {
+    if (reveal === 0 || reveal === revealed.current || scale <= 0) return;
+    revealed.current = reveal;
+    const el = highlightRef.current;
+    if (el) el.scrollIntoView({ block: 'center' });
+    else frameRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [reveal, scale, highlight]);
+
   function resolveIndex(e: ReactMouseEvent<HTMLDivElement>): number | null {
     const el = stackRef.current;
     if (!el || scale <= 0) return null;
@@ -115,7 +139,7 @@ export function PageViewer({
 
   return (
     <div>
-      <div className="max-h-[calc(100vh-260px)] overflow-auto rounded-[6px] border border-line bg-raised">
+      <div ref={frameRef} className="max-h-[calc(100vh-260px)] overflow-auto rounded-[6px] border border-line bg-raised">
         <div ref={stackRef} className="relative">
           {tiles.map((src, i) => (
             <img
@@ -157,7 +181,7 @@ export function PageViewer({
               })}
 
               {highlight !== null && boxes[highlight] ? (
-                <div className="pointer-events-none absolute outline-2 outline-text" style={rectStyle(boxes[highlight]!.rect)} />
+                <div ref={highlightRef} className="pointer-events-none absolute outline-2 outline-text" style={rectStyle(boxes[highlight]!.rect)} />
               ) : null}
             </div>
           ) : null}
