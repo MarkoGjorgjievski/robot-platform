@@ -20,7 +20,8 @@ export type Card = { url: string; title: string; image?: string };
 export type Answer = { value: string; mark: Mark | null };
 export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>> };
 export type Box = { xpaths: string[]; text: string; rect: Mark['rect']; tag: string; kind: 'text' | 'image' | 'link'; src?: string; href?: string };
-export type Suggestion = { captureId: string; value: string; boxes: number[]; origin: 'page-data' | 'from-product' };
+export type Via = { source: string; path: string };
+export type Suggestion = { captureId: string; value: string; boxes: number[]; origin: 'page-data' | 'from-product'; via?: Via };
 /** key → url → suggestion (client-side only; never saved). */
 export type Suggestions = Record<string, Record<string, Suggestion>>;
 export type Segment = 'empty' | 'suggested' | 'answered' | 'failed';
@@ -252,7 +253,7 @@ export function answerFromSuggestion(box: Box, field: Field, value: string, url:
 
 export function mergeSuggestions(
   prev: Suggestions,
-  incoming: Record<string, { value: string; boxes: number[] } | null>,
+  incoming: Record<string, { value: string; boxes: number[]; via?: Via } | null>,
   url: string,
   captureId: string,
   origin: Suggestion['origin'],
@@ -262,7 +263,7 @@ export function mergeSuggestions(
   for (const [key, val] of Object.entries(incoming)) {
     if (!val) continue;
     if (board.answers[key]?.[url]) continue;
-    const byUrl = { ...(next[key] ?? {}), [url]: { captureId, value: val.value, boxes: val.boxes, origin } };
+    const byUrl = { ...(next[key] ?? {}), [url]: { captureId, value: val.value, boxes: val.boxes, origin, ...(val.via ? { via: val.via } : {}) } };
     next = { ...next, [key]: byUrl };
   }
   return next;
@@ -298,6 +299,77 @@ export function liveSuggestions(s: Suggestions, board: Board, captureIds: Record
     if (Object.keys(kept).length > 0) result[key] = kept;
   }
   return result;
+}
+
+export type RowStatus =
+  | { kind: 'accepted' }
+  | { kind: 'agreed' }
+  | { kind: 'same-everywhere' }
+  | { kind: 'needs-you'; reason: string; product?: number };
+
+const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
+export function sameValue(a: string, b: string): boolean { return norm(a) === norm(b); }
+
+/**
+ * What a field's row needs (spec 2026-09-28 A2). `live` must already be
+ * `liveSuggestions(...)`; `boxesByUrl[url]` is undefined until that product's
+ * screenshot lands. The same source path on every product is the confidence
+ * signal — it is what certification looks for — and a value that is the same
+ * on every product is never agreement (a shop name offered as Brand).
+ */
+export function rowStatus(field: Field, board: Board, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): RowStatus {
+  const values: string[] = [];
+  const vias: Array<Via | undefined> = [];
+  let required = true;
+  for (const [i, card] of board.cards.entries()) {
+    const url = card.url.trim();
+    if (!url) continue;
+    required = i < PRODUCTS_MIN;
+    const n = i + 1;
+    const a = board.answers[field.key]?.[card.url];
+    if (a) { values.push(a.value); continue; }
+    const boxes = boxesByUrl[card.url];
+    if (!boxes) { if (required) return { kind: 'needs-you', reason: `screenshot not ready on product ${n}`, product: n }; continue; }
+    const s = live[field.key]?.[card.url];
+    if (!s) { if (required) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
+    const places = pointable(boxes, s.boxes).length;
+    if (places > 1) return { kind: 'needs-you', reason: `found in ${places} places on product ${n}`, product: n };
+    const err = validateValue(field.type, s.value);
+    if (err) return { kind: 'needs-you', reason: `${err} on product ${n}`, product: n };
+    values.push(s.value);
+    vias.push(s.via);
+  }
+  if (vias.length === 0) return { kind: 'accepted' };
+  const first = vias[0];
+  if (!first || vias.some((v) => !v || v.source !== first.source || v.path !== first.path)) return { kind: 'needs-you', reason: 'comes from different places' };
+  if (values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere' };
+  return { kind: 'agreed' };
+}
+
+/** Accept a row's suggestions as a tick on each would (spec A3). Never overwrites an answer or writes an invalid value. */
+export function acceptRow(board: Board, field: Field, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): Board {
+  let next = board;
+  for (const card of board.cards) {
+    if (!card.url.trim() || next.answers[field.key]?.[card.url]) continue;
+    const s = live[field.key]?.[card.url];
+    const boxes = boxesByUrl[card.url];
+    if (!s || !boxes || validateValue(field.type, s.value)) continue;
+    const one = pointable(boxes, s.boxes);
+    const given = one.length === 1 ? answerFromSuggestion(boxes[one[0]!]!, field, s.value, card.url) : { value: s.value, mark: null };
+    next = answer(next, field.key, card.url, given);
+  }
+  return next;
+}
+
+export function acceptAllAgreed(board: Board, fields: Field[], live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): { board: Board; accepted: string[] } {
+  let next = board;
+  const accepted: string[] = [];
+  for (const f of fields) {
+    if (rowStatus(f, next, live, boxesByUrl).kind !== 'agreed') continue;
+    next = acceptRow(next, f, live, boxesByUrl);
+    accepted.push(f.key);
+  }
+  return { board: next, accepted };
 }
 
 export function segment(board: Board, s: Suggestions, key: string, url: string, verdict: { failed: boolean }): Segment {

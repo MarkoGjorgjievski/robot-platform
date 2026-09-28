@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
+  acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -242,5 +243,129 @@ describe('small things', () => {
     expect(validateValue('boolean', 'https://schema.org/InStock')).toBeNull();
     expect(validateValue('boolean', 'http://schema.org/OutOfStock')).toBeNull();
     expect(validateValue('boolean', 'https://schema.org/Discontinued')).toBe('Not yes/no (or in stock/out of stock)');
+  });
+});
+
+const JL = { source: 'json-ld', path: 'offers.price' };
+const TL = { source: 'json-ld', path: 'name' };
+const boxesOf = (texts: string[]): Box[] => texts.map((t, i) => box({ text: t, rect: { x: 0, y: i * 20, w: 100, h: 16 }, xpaths: [`//x${i}`] }));
+const maps = (): Record<string, Box[]> => ({ [U[0]!]: boxesOf(['Widget A', '$129.99']), [U[1]!]: boxesOf(['Widget B', '$219.99']), [U[2]!]: boxesOf(['Widget C', '$149.00']) });
+const sug = (value: string, boxes: number[], via?: { source: string; path: string }) => ({ value, boxes, ...(via ? { via } : {}) });
+function liveFor(b: Board, key: string, per: Array<ReturnType<typeof sug> | null>) {
+  let s = {};
+  per.forEach((p, i) => { if (p) s = mergeSuggestions(s, { [key]: p }, U[i]!, `cap-${i}`, 'page-data', b); });
+  return liveSuggestions(s, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' });
+}
+const price = FIELDS.find((f) => f.key === 'price')!;
+const title = FIELDS.find((f) => f.key === 'title')!;
+
+describe('suggestions keep their path', () => {
+  it('mergeSuggestions stores via', () => {
+    const s = mergeSuggestions({}, { price: sug('129.99', [1], JL) }, U[0]!, 'c', 'page-data', board());
+    expect(s.price![U[0]!]!.via).toEqual(JL);
+  });
+});
+
+describe('rowStatus', () => {
+  it('agreed: one place each, valid, same path, different values', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), sug('149.00', [1], JL)]);
+    expect(rowStatus(price, b, live, maps())).toEqual<RowStatus>({ kind: 'agreed' });
+  });
+  it('page data with no element counts as one place', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [], JL), sug('219.99', [1], JL), sug('149.00', [], JL)]);
+    expect(rowStatus(price, b, live, maps()).kind).toBe('agreed');
+  });
+  it('an answered product plus suggestions on the rest is still agreed', () => {
+    const b = answer(board(), 'price', U[0]!, { value: '129.99', mark: null });
+    const live = liveFor(b, 'price', [null, sug('219.99', [1], JL), sug('149.00', [1], JL)]);
+    expect(rowStatus(price, b, live, maps()).kind).toBe('agreed');
+  });
+  it('accepted when every product has an answer', () => {
+    let b = board();
+    for (const u of U) b = answer(b, 'price', u, { value: '1.00', mark: null });
+    expect(rowStatus(price, b, {}, maps())).toEqual({ kind: 'accepted' });
+  });
+  it('names the first gap, product by product', () => {
+    const b = board();
+    expect(rowStatus(price, b, liveFor(b, 'price', [sug('129.99', [1], JL), null, sug('149.00', [1], JL)]), maps()))
+      .toEqual({ kind: 'needs-you', reason: 'missing on product 2', product: 2 });
+    expect(rowStatus(price, b, liveFor(b, 'price', [sug('129.99', [0, 1], JL), sug('219.99', [1], JL), sug('149.00', [1], JL)]), maps()))
+      .toEqual({ kind: 'needs-you', reason: 'found in 2 places on product 1', product: 1 });
+    expect(rowStatus(price, b, liveFor(b, 'price', [sug('129.99', [1], JL), sug('free', [1], JL), sug('149.00', [1], JL)]), maps()))
+      .toEqual({ kind: 'needs-you', reason: 'Not a money amount on product 2', product: 2 });
+    const noShot = { ...maps(), [U[2]!]: undefined };
+    expect(rowStatus(price, b, liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), null]), noShot))
+      .toEqual({ kind: 'needs-you', reason: 'screenshot not ready on product 3', product: 3 });
+  });
+  it('different paths, or a missing path, are not agreement', () => {
+    const b = board();
+    const mixed = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], { source: 'meta', path: 'product:price:amount' }), sug('149.00', [1], JL)]);
+    expect(rowStatus(price, b, mixed, maps())).toEqual({ kind: 'needs-you', reason: 'comes from different places' });
+    const noVia = liveFor(b, 'price', [sug('129.99', [1]), sug('219.99', [1]), sug('149.00', [1])]);
+    expect(rowStatus(price, b, noVia, maps())).toEqual({ kind: 'needs-you', reason: 'comes from different places' });
+  });
+  it('same-everywhere ignores case and spaces', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('IKEA', [0], TL), sug('Ikea ', [0], TL), sug('ikea', [0], TL)]);
+    expect(rowStatus(title, b, live, maps())).toEqual({ kind: 'same-everywhere' });
+    expect(sameValue(' IKEA  AB', 'ikea ab')).toBe(true);
+  });
+  it('rowStatus ignores stale capture ids (through liveSuggestions)', () => {
+    const b = board();
+    let s = {};
+    U.forEach((u, i) => { s = mergeSuggestions(s, { price: sug(['129.99', '219.99', '149.00'][i]!, [1], JL) }, u, `cap-${i}`, 'page-data', b); });
+    const live = liveSuggestions(s, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-NEW', [U[2]!]: 'cap-2' });
+    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'needs-you', reason: 'missing on product 2', product: 2 });
+  });
+  it('products 4 to 6: blank is fine, an invalid or several-place suggestion is not', () => {
+    const U4 = 'https://s.example/p/4';
+    const b = setCards(board(), [...board().cards, { url: U4, title: 'W4' }]);
+    const m = { ...maps(), [U4]: boxesOf(['Widget D', '$1']) };
+    const base = [sug('129.99', [1], JL), sug('219.99', [1], JL), sug('149.00', [1], JL)];
+    let s = {};
+    base.forEach((p, i) => { s = mergeSuggestions(s, { price: p }, U[i]!, `cap-${i}`, 'page-data', b); });
+    const ids = { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2', [U4]: 'cap-3' };
+    expect(rowStatus(price, b, liveSuggestions(s, b, ids), m).kind).toBe('agreed');
+    const bad = mergeSuggestions(s, { price: sug('ask', [1], JL) }, U4, 'cap-3', 'page-data', b);
+    expect(rowStatus(price, b, liveSuggestions(bad, b, ids), m)).toEqual({ kind: 'needs-you', reason: 'Not a money amount on product 4', product: 4 });
+  });
+});
+
+describe('accepting', () => {
+  it('acceptRow marks a one-place suggestion by its element and a page-data value as typed', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('$129.99', [1], JL), sug('219.99', [], JL), sug('149.00', [1], JL)]);
+    const next = acceptRow(b, price, live, maps());
+    expect(next.answers.price![U[0]!]!.mark?.xpaths).toEqual(['//x1']);
+    expect(next.answers.price![U[1]!]).toEqual({ value: '219.99', mark: null });
+  });
+  it('acceptAllAgreed only fills agreed rows\' empty cells', () => {
+    let b = answer(board(), 'title', U[0]!, { value: 'SAME', mark: null }); // with 'Same' and 'same' below: same-everywhere, so not accepted
+    let s = {};
+    const add = (key: string, i: number, p: ReturnType<typeof sug>) => { s = mergeSuggestions(s, { [key]: p }, U[i]!, `cap-${i}`, 'page-data', b); };
+    add('price', 0, sug('129.99', [1], JL)); add('price', 1, sug('219.99', [1], JL)); add('price', 2, sug('149.00', [1], JL));
+    add('title', 1, sug('Same', [0], TL)); add('title', 2, sug('same', [0], TL));
+    const live = liveSuggestions(s, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' });
+    const r = acceptAllAgreed(b, FIELDS, live, maps());
+    expect(r.accepted).toEqual(['price']);
+    expect(r.board.answers.title![U[0]!]).toEqual({ value: 'SAME', mark: null });
+    expect(r.board.answers.title![U[1]!]).toBeUndefined();
+    b = r.board;
+    // A late transfer for an accepted cell is ignored.
+    const late = mergeSuggestions(s, { price: sug('999.00', [1], JL) }, U[1]!, 'cap-1', 'from-product', b);
+    expect(liveSuggestions(late, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' }).price).toBeUndefined();
+    expect(b.answers.price![U[1]!]!.value).toBe('219.99');
+  });
+  it('after accepting every agreed row the Verify gate can open', () => {
+    let b = board();
+    let s = {};
+    const add = (key: string, i: number, p: ReturnType<typeof sug>) => { s = mergeSuggestions(s, { [key]: p }, U[i]!, `cap-${i}`, 'page-data', b); };
+    ['129.99', '219.99', '149.00'].forEach((v, i) => add('price', i, sug(v, [1], JL)));
+    ['Widget A', 'Widget B', 'Widget C'].forEach((v, i) => add('title', i, sug(v, [0], TL)));
+    const live = liveSuggestions(s, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' });
+    b = acceptAllAgreed(b, FIELDS, live, maps()).board;
+    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: true });
   });
 });
