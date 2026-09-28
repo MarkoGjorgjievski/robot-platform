@@ -196,6 +196,11 @@ export function setDescription(board: Board, key: string, text: string): Board {
   return { ...board, descriptions: { ...board.descriptions, [key]: text } };
 }
 
+/** The box map measures in page px from the page's top left; an element outside that (a scrolled carousel, a panel measured mid-scroll) is not on the screenshot. */
+function onScreenshot(box: Box): boolean {
+  return box.rect.x >= 0 && box.rect.y >= 0;
+}
+
 export function valueFromBox(box: Box, type: FieldType): { value: string; mark: Mark | null } | { error: string } {
   let value: string;
   if (type === 'image') {
@@ -209,7 +214,11 @@ export function valueFromBox(box: Box, type: FieldType): { value: string; mark: 
     if (t === '') return { error: 'This element has no text' };
     value = t;
   }
-  const mark: Mark | null = box.xpaths.length ? { xpaths: box.xpaths.slice(0, 3), text: type === 'image' || type === 'url' ? '' : box.text, rect: box.rect } : null;
+  // An element that starts above or left of the screenshot has a negative
+  // rect, which the server refuses in a mark — and one refused mark fails
+  // every autosave after it. Its value stands, as a typed one does.
+  const mark: Mark | null =
+    box.xpaths.length && onScreenshot(box) ? { xpaths: box.xpaths.slice(0, 3), text: type === 'image' || type === 'url' ? '' : box.text, rect: box.rect } : null;
   return { value, mark };
 }
 
@@ -278,12 +287,13 @@ export const MIN_BOX_SIDE = 4;
  * to point at, in order. A suggestion left with none is offered on the
  * field's row instead, like a page-data value no element shows — a label on
  * the screenshot over a 1×1 anchor is a rectangle nobody can open (seen on
- * Ikea, plan 5's live run).
+ * Ikea, plan 5's live run). So is one that starts above or left of the
+ * screenshot (Ikea, 2026-09-28: a link at y = -1066).
  */
 export function pointable(boxes: Box[], indices: number[]): number[] {
   return indices.filter((i) => {
     const b = boxes[i];
-    return !!b && b.rect.w >= MIN_BOX_SIDE && b.rect.h >= MIN_BOX_SIDE;
+    return !!b && b.rect.w >= MIN_BOX_SIDE && b.rect.h >= MIN_BOX_SIDE && onScreenshot(b);
   });
 }
 
