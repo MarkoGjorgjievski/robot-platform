@@ -50,7 +50,7 @@ function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; 
       return (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-warn">same on every product — check it</span>
-          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name}`} onClick={onAccept}>
+          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} anyway`} onClick={onAccept}>
             Accept anyway
           </Button>
         </div>
@@ -124,7 +124,7 @@ export function VerificationTable({
           {rows.map((row) => (
             <Fragment key={row.field.key}>
               <tr>
-                <th scope="row" className="sticky left-0 z-10 w-[180px] border-t border-line bg-panel px-2 py-2 align-top font-normal">
+                <th scope="row" className="sticky left-0 z-10 w-[180px] border-t border-line bg-panel px-2 py-2 text-left align-top font-normal">
                   <button
                     type="button"
                     aria-expanded={row.expanded}
