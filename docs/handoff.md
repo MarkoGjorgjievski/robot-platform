@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [App redesign, plan 5 — the Verification tab (2026-09-25)](#app-redesign-plan-5-the-verification-tab-2026-09-25).** A website's first tab is now Verification (find products from a listing, point at values, tick suggestions, verify); the grid and the stepper are gone from `@robot/app`. Ikea — its six stored fields plus SKU and Brand — verifies 8 of 8 through it, live and free. Plans 1–4 of the app redesign follow it below; the state paragraph under this one is older.
+**Newest: [Table-first verification (2026-09-28)](#table-first-verification-2026-09-28).** The Verification tab is one table — a row per field, a column per product, Accept all agreed above it, a cell click opens the screenshot. On Ikea it took 24 clicks to Verify (plan 5: 43) and verified 8 of 8, free; three defects the live check found are fixed. Next: Part B of the same spec, drift repair. The Jev shadow-checks design is parked, not scheduled.
+
+**Before it: [App redesign, plan 5 — the Verification tab (2026-09-25)](#app-redesign-plan-5-the-verification-tab-2026-09-25).** A website's first tab is now Verification (find products from a listing, point at values, tick suggestions, verify); the grid and the stepper are gone from `@robot/app`. Ikea — its six stored fields plus SKU and Brand — verifies 8 of 8 through it, live and free. Plans 1–4 of the app redesign follow it below; the state paragraph under this one is older.
 
 **State on 2026-09-11.** `main` holds the whole MVP flow: routes and shell (phase 1), the contract on the dataset (phase 2), the Schema tab as the proof sheet (phase 3), the Extract tab stepper (phase 4) and the visual system (phase 5), all merged fast-forward from `feat/schema-verification` at `b025fbf`. Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`; one plan per phase under `docs/superpowers/plans/2026-09-*-mvp-flow-phase*`; one section per phase below. `main` is not pushed: `origin/main` is at `941cac3`, far behind.
 
@@ -35,6 +37,121 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Table-first verification (2026-09-28)
+
+Spec: `docs/superpowers/specs/2026-09-28-table-first-and-drift-repair-design.md`, Part A
+(Part B, drift repair, is next and has its own plan to write). Plan:
+`docs/superpowers/plans/2026-09-28-table-first-verification.md`; the per-task briefs, reports
+and ledger were scratch; `git log` is the record. Branch `feat/app-table-first`, base `main` at
+`bdd02be`. The Verification tab is now **one table**: a row per field, a column per product
+(the product cards are the column heads), a cell per field and product with its value and a
+2 px state rail, and a last column that says what the row needs — "agreed · Accept", "same on
+every product — check it · Accept anyway", the first reason it needs you, or the verdict after
+a Verify. **Accept all agreed (n)** sits above it beside Verify. Clicking a cell opens that
+product's screenshot under the table with the field's element outlined; × or Escape closes it.
+The fields sidebar and the battery are gone.
+
+**What landed** (`git log --oneline bdd02be..HEAD`):
+
+| Commit | What |
+|---|---|
+| `212a149` | the model (`lib/site/verification-model.ts`): a suggestion keeps the page-data path it came from (`via`); `rowStatus` (accepted / agreed / same-everywhere / needs-you with its first reason), `acceptRow`, `acceptAllAgreed`; 13 tests (Task 1) |
+| `bba801f` | the components: `VerificationTable`, `VerifyBar` (Accept all agreed, Verify and its reason, the save line, Go to Extract), `FieldDetails` (the expanded row: hint, Type it, descriptor), compact product cards as column heads (Task 2) |
+| `8c733b9` | the route becomes the table; the screenshot panel opens exactly while `?product` is set; `fields-sidebar.tsx`, `field-row.tsx`, `battery.tsx` deleted; "Accept {field} anyway" label; the row header left-aligned (Task 3) |
+| `8816244`, `1c4d7af` | a cell or column-head click brings the screenshot and the field's element into view, and on a product switch only once the new screenshot is measured (Task 4, found by the live check) |
+| `e526d4b` | an element off the top or left of the screenshot is never pointable and never a mark: one such mark made every autosave fail (Task 4, found by the live check) |
+| this task | the smoke's table walk, the live check rewritten for the table, the look-only check edited, these docs (Task 4) |
+
+**No implementer signed in as `markodjordjievski@gmail.com` or touched org `default`, org
+`mar`, or Acne / Scratch / Competitor prices.** Every browser check used a throwaway
+`smoke-*@` / `check-*@example.com` and deleted its project. Verify was clicked only by the live
+check, only on the keyless :4100 api-server, after it asserted the label ends "· free" — four
+times in all, $0.00.
+
+**Rulings this plan made:**
+
+- Each implementer's commits carry its own model's `Co-Authored-By` line.
+- Task 2's two transitional findings (the hint only inside an expanded row; a dead "Accept all
+  agreed (0)" on the old sidebar) were parked, not fixed: both lived only in the sidebar Task 3
+  deleted on this unmerged branch.
+- Suggestions carried from another product are not saved (spec: suggestions never are), so
+  after a reload a row can go from "agreed" back to "comes from different places". The smoke
+  asserts that accepted cells survive a reload, never that "agreed" does.
+- The smoke adds a third field, **Rating**: nothing in the fixture shop's page data names a
+  rating, so it is the honest "needs you" row the walk marks on a screenshot.
+- The spec's "≤ 5 clicks to Verify" is recorded as a measurement (met / missed), not a pass mark
+  in the live check: how many rows need a person is the website's.
+- The live check accepts a same-everywhere row ("IKEA" as Brand) with its Accept anyway, as a
+  person would, and for a row that needs you ticks the product its reason names, else the first
+  suggested cell; for several places it takes the first rectangle and says so.
+
+**What the checks found.** The smoke (`pnpm test:ui:app`, 14 tests) is green in both themes and
+walks the table on the local shop: three column heads ready → Title and Price "agreed · Accept",
+Rating "missing on product 1", every Title/Price cell "suggested", "Accept all agreed (2)" → one
+click and all six cells "accepted", Rating untouched, "Accept all agreed (0)" disabled with
+"Nothing agreed to accept" → Rating's cell opens "Widget A — screenshot" with `?product=1&field=rating`
+**and the frame on screen** → the rating marked on the screenshot → the carried row "agreed" →
+Accept Rating → × closes the panel and clears the address → "saved" → reload → all nine cells
+still "accepted", Verify enabled and priced, **not clicked** → `sources.get` has Rating's mark on
+product 1 and the cards' titles. The live check on Ikea (`docs/testing/2026-09-28-table-first-live.md`),
+same listing and products as plan 5: listing in 12.4 s, three screenshots together 12.3 s after
+it, 8 of 8 fields suggested on every product; before any click **4 rows agreed, 1 same
+everywhere (Brand), 3 need you**; **24 clicks to an enabled Verify (plan 5: 43)** — three of them
+cover five rows; a free Verify in 6.2 s; **8 of 8 verified**; no page errors. The ≤ 5 target is
+missed on this listing, for reasons that are real: Price and In stock come from two JSON-LD
+shapes (product 3 is a combination with an AggregateOffer, `offers.offers[0].price`), and SKU
+is shown in two or three places. A second listing (Ikea's `chairs-fu002`, not a record run):
+15 clicks, 8 of 8. Fixed on the way, each in its own commit:
+
+1. `8816244` — a cell click opened the screenshot below the fold, with the element further
+   down a frame that starts at the page top: the click outlined something nobody could see.
+   The smoke's new "frame on screen" assertion fails without it.
+2. `1c4d7af` — on a product switch that reveal fired against the old screenshot's width.
+3. `e526d4b` — Accept all agreed took Product URL from a link Ikea's box map measured at
+   y = −1066; the server refuses a negative rect in a mark, so every autosave after it failed
+   ("Not saved: Number must be greater than or equal to 0"). Two unit tests.
+
+**Seen, not fixed:**
+
+- **"comes from different places" names no product.** On Ikea the odd one is product 3; a
+  person, like the check, ticks product 1 first. Naming it ("…on product 3") would have made
+  the run 18 clicks, not 24. A spec wording change (A2), so Marko's call.
+- Yes/no cells show the raw page-data value (`https://schema.org/InStock`); after the run
+  product 3's In stock read `1`. A carried Price reads "RM399" where the tick read "99" (Task 3).
+  Both verify; both read oddly in an "agreed" row.
+- The box map measures some Ikea elements at negative y (the price module) — `@robot/browser`'s
+  question; harmless on this tab now.
+- Verify on a throwaway Ikea website again enriched the shared domain cache (plan 5's open
+  decision stands).
+- Ikea MY's `chairs-fu002` listing yields a table, a lamp and a vase, titled by the whole card
+  text, with no photos, in 42 s — listing quality, not this tab.
+
+**Deferred minors** (from the task reviews): `let required` in `rowStatus` could be a `const`
+in the loop; Escape is swallowed while a mark popover is open (the popover has no Escape of its
+own) and may close the panel when meant for an open menu; a "found in n places" row outlines the
+first place only; the add head's `min-h-[136px]` is a measured number; `ProductGrid` is
+exported but unused; after a reload a carried suggestion is not re-run for rows whose first
+product is answered; accepted rows show nothing in the status column until a Verify; the status
+column's 220 px leaves a gap on wide screens.
+
+**How to run.** `pnpm test:ui:app` with `pnpm dev:all` up (free; never clicks Verify). The live
+check needs its own keyless stack (:4100 api-server, :3100 app) — see the live note; never
+point it at :4000. `docs/testing/ui-check-app-site.mts` (the look-only walk of Acne / Ikea) had
+its Verification stop edited for the table (a row per field, every cell "accepted", "verified"
+in the status column) and **has not been run** — it is the controller's, against Marko's
+account. Screens: `docs/testing/screens/README.md` (`app-site-verification-table-*`,
+`app-site-verification-ikea-{agreed,verified}-*`; the plan 5 `marking` / `ready` state shots
+are deleted with the sidebar they showed).
+
+**Parked, not scheduled:** `docs/superpowers/specs/2026-09-28-jev-shadow-checks-design.md` — Jev
+(TypeSafe) shadow checks on agreed rows and a Choice for "found in n places", calibrated on the
+customers' own accepted answers (research: `2026-09-28-jev-research-update.md`). Spec §C keeps it
+out until the table-first rule is measured; this run is that first measurement.
+
+**Next.** Part B of the same spec, **drift repair**: a verified website that stops extracting a
+field is flagged today (`sources.driftedFields`) but nothing shows it or proposes the fix. Then
+plan 6, the cut-over (deleting `@robot/dashboard`).
 
 ## App redesign, plan 5: the Verification tab (2026-09-25)
 

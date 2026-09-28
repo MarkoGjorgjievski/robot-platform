@@ -19,19 +19,21 @@
 // also the only honest way to prove the mutations reach the API.
 //
 // Plan 3's four screens live inside that website, and plan 5 made its first
-// tab the Verification tab: find products from a listing, look at each one's
-// screenshot, point at a value and name it. That tab needs real pages, so this
-// run serves its own — a `node:http` server on 127.0.0.1 with a listing and
-// the three shop-example product pages (with their JSON-LD) — and adds the
-// website on that address, so nothing here touches the outside network. It
-// pastes the listing, waits for the three screenshots, ticks one page-data
-// suggestion, clicks one element and names it, ticks what that carries to the
-// other two products, and reloads to find every answer still there. All of
-// that is free: captures, suggestions and transfers use no model. It never
-// clicks Verify, Sample, Extract or Check: every one of those can spend, and a
-// test that spends money is a test nobody runs. So the Verify button is read
-// for its label, Extract is photographed locked, Runs empty, and Settings is
-// proven by a rename that goes to the server and comes back.
+// tab the Verification tab — since 2026-09-28 one table, a row per field and
+// a column per product. That tab needs real pages, so this run serves its own
+// — a `node:http` server on 127.0.0.1 with a listing and the three
+// shop-example product pages (with their JSON-LD) — and adds the website on
+// that address, so nothing here touches the outside network. It pastes the
+// listing, waits for the three screenshots, reads what each row needs (Title
+// and Price agree from the page data; nothing names Rating), accepts what
+// agrees in one click, opens Rating's screenshot from its cell and marks the
+// value there, accepts what that carries to the other two products, and
+// reloads to find every cell still accepted. All of that is free: captures,
+// suggestions and transfers use no model. It never clicks Verify, Sample,
+// Extract or Check: every one of those can spend, and a test that spends
+// money is a test nobody runs. So the Verify button is read for its label,
+// Extract is photographed locked, Runs empty, and Settings is proven by a
+// rename that goes to the server and comes back.
 //
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
@@ -79,13 +81,16 @@ const WEBSITE_NAME = '0';
 const FIELDS = [
   { name: 'Title', type: 'Text' },
   { name: 'Price', type: 'Money' },
+  // Nothing on the shop's pages names a rating in its page data, so this row
+  // needs the customer: the one the Verification walk marks on a screenshot.
+  { name: 'Rating', type: 'Number' },
 ] as const;
 
-/** The three products the listing links to, in its order: `SHOP_EXAMPLE`'s pages and their headings. */
+/** The three products the listing links to, in its order: `SHOP_EXAMPLE`'s pages, their headings, and the values they show. */
 const PRODUCTS = [
-  { path: '/p/1', page: SHOP_EXAMPLE.p1, title: 'Widget A', price: '$129.99' },
-  { path: '/p/2', page: SHOP_EXAMPLE.p2, title: 'Widget B', price: '$219.99' },
-  { path: '/p/3', page: SHOP_EXAMPLE.p3, title: 'Widget C', price: '$149.00' },
+  { path: '/p/1', page: SHOP_EXAMPLE.p1, title: 'Widget A', price: '$129.99', rating: '4.5' },
+  { path: '/p/2', page: SHOP_EXAMPLE.p2, title: 'Widget B', price: '$219.99', rating: '3.8' },
+  { path: '/p/3', page: SHOP_EXAMPLE.p3, title: 'Widget C', price: '$149.00', rating: '4.9' },
 ] as const;
 
 /** A 1×1 transparent PNG: every image the shop serves. */
@@ -171,7 +176,7 @@ const PROJECT_SCREENS = [
 /**
  * Plan 3's four website screens, the first of them plan 5's Verification tab.
  * Each carries the one thing that proves it is the real screen: this run's
- * three products with every answer confirmed, the locked strip a website that
+ * three products with every cell of the table accepted, the locked strip a website that
  * has never verified must show, the empty run list, and the settings rows.
  *
  * Nothing here clicks a control that spends: the Verify button is read for its
@@ -188,7 +193,9 @@ const SITE_SCREENS = [
         expect(await page.getByRole('button', { name: new RegExp(p.title) }).count(), `the card for ${p.title} is missing`).toBe(1);
       }
       for (const f of FIELDS) {
-        expect(await batteryLabel(f.name), `${f.name} lost an answer`).toBe(`${f.name}: 3 of 3 confirmed`);
+        for (let i = 1; i <= 3; i++) {
+          expect(await cellState(f.name, i), `${f.name} on product ${i} lost its answer`).toBe('accepted');
+        }
       }
       // Read, never pressed — a verification is the one thing on this screen
       // that can cost money.
@@ -429,7 +436,7 @@ async function shootBothThemes(p: Page, name: string) {
   // document stays scrolled a little (something puts it back after a
   // scrollTo), and a full-page capture of a scrolled document draws the
   // sticky sidebar and breadcrumb at the scroll offset, over the title. The
-  // 1440×900 viewport holds the grid, the top of the screenshot and the
+  // 1440×900 viewport holds the table, the top of the screenshot and the
   // whole sidebar.
   await shoot(p, `app-site-verification-${name}-${current}.png`, false);
   await flipThemeInPlace(p, other);
@@ -437,35 +444,29 @@ async function shootBothThemes(p: Page, name: string) {
   await flipThemeInPlace(p, current);
 }
 
-/** A field's battery, as its accessible summary: "Price: 1 of 3 confirmed, 2 suggested". */
-const batteryLabel = (name: string) => page.locator(`[role="img"][aria-label^="${name}: "]`).getAttribute('aria-label');
+/**
+ * A cell of the verification table, by the state word its label ends in:
+ * "Price on product 2: suggested" -> "suggested" (empty, suggested, accepted
+ * or failed). `null` while the cell is not on the page.
+ */
+async function cellState(name: string, product: number): Promise<string | null> {
+  const cell = page.locator(`button[aria-label^="${name} on product ${product}: "]`);
+  if ((await cell.count()) !== 1) return null;
+  return ((await cell.getAttribute('aria-label')) ?? '').slice(`${name} on product ${product}: `.length);
+}
+
+/**
+ * What a field's row needs, as its last column reads, whitespace folded:
+ * "agreed Accept", "missing on product 1", "same on every product — check it
+ * Accept anyway", or nothing once every cell is accepted and nothing is verified.
+ */
+async function rowStatusText(name: string): Promise<string> {
+  const row = page.getByRole('row').filter({ has: page.getByRole('rowheader', { name: new RegExp(`^${name}\\b`) }) });
+  return (await row.locator('td').last().innerText()).replace(/\s+/g, ' ').trim();
+}
 
 /** The one button on the Verification tab that can spend. Found to be read, never clicked. */
 const verifyButtonOf = (p: Page) => p.getByRole('button', { name: /^Verify/ });
-
-/**
- * Tick a suggestion for `name` on the product on screen, wherever the tab
- * offers it: an orange rectangle on the screenshot (its label reads
- * "Price?"), or — when no element on the page shows the value — the row's own
- * "page data" / "from another product" line.
- *
- * The rectangle is clicked by the mouse at its centre, not through the label:
- * the drawn rectangles ignore the pointer and the layer over the screenshot
- * decides what a click hit, exactly as it does for a customer.
- */
-async function confirmSuggestion(p: Page, name: string) {
-  const label = p.locator('span', { hasText: new RegExp(`^${name}\\?$`) });
-  const row = p.getByRole('button', { name: `Confirm ${name} from the page data` });
-  await expect.poll(async () => (await label.count()) + (await row.count()), { timeout: 30_000, message: `no ${name} suggestion on this product` }).toBeGreaterThan(0);
-  if ((await label.count()) > 0) {
-    const box = await label.first().locator('..').boundingBox();
-    if (!box) throw new Error(`the ${name} suggestion has no box on screen`);
-    await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await p.getByRole('button', { name: `Confirm ${name}`, exact: true }).click();
-  } else {
-    await row.click();
-  }
-}
 
 beforeAll(async () => {
   if (!ENABLED) return;
@@ -657,7 +658,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     }, 180_000);
   }
 
-  it('a website is verified-ready from its Verification tab', async () => {
+  it('the Verification table accepts what agrees and opens the screenshot for what needs you', async () => {
     expect(websiteSlug, 'there is no website to set up').not.toBeNull();
     problems.length = 0;
     const api = apiAs(await sessionCookie(context));
@@ -670,89 +671,116 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.locator('main').innerText(), { timeout: 20_000 }).toContain('Find products from a listing page');
     await shootBothThemes(page, 'empty');
 
-    // 1. The listing: one page load, three product cards named by the
+    // 1. The listing: one page load, three column heads named by the
     // listing's own link text — and not the "About the shop" link.
     await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/l`);
     await page.getByRole('button', { name: 'Find products' }).click();
     await expect.poll(() => page.locator('main').innerText(), { timeout: 60_000 }).toContain('3 products found');
     const card = (title: string) => page.getByRole('button', { name: new RegExp(`^${title}`) });
     for (const p of PRODUCTS) {
-      expect(await card(p.title).count(), `no card reads "${p.title}"`).toBe(1);
+      expect(await card(p.title).count(), `no column head reads "${p.title}"`).toBe(1);
     }
     expect(await page.getByRole('button', { name: /^About the shop/ }).count(), 'the About link became a product').toBe(0);
+    // The table is there, and no screenshot is open until a cell asks for one.
+    expect(await page.getByRole('region', { name: 'Screenshot' }).count(), 'a screenshot opened before any click').toBe(0);
 
     // 2. Every product's screenshot is taken in the background, at most three at once.
     await expect
       .poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 90_000, interval: 1000 })
       .toBe(3);
 
-    // 3. Product 1 is open, and its page data put the title on the heading: an
-    // orange "Title?" on the screenshot. Tick it.
-    await page.locator('span', { hasText: /^Title\?$/ }).first().waitFor({ timeout: 30_000 });
-    await confirmSuggestion(page, 'Title');
-    await expect.poll(() => page.getByRole('button', { name: 'Title on product 1: confirmed' }).count(), { timeout: 10_000 }).toBe(1);
+    // 3. Before any click, what each row needs. The shop's JSON-LD names Title
+    // and Price on every product, by one path, on one element each, with values
+    // that differ: both agree. Nothing names a rating: that row needs you.
+    await expect.poll(() => rowStatusText('Title'), { timeout: 30_000 }).toBe('agreed Accept');
+    await expect.poll(() => rowStatusText('Price'), { timeout: 30_000 }).toBe('agreed Accept');
+    expect(await rowStatusText('Rating'), 'Rating does not say what it needs').toBe('missing on product 1');
+    for (const f of ['Title', 'Price']) {
+      for (let i = 1; i <= 3; i++) expect(await cellState(f, i), `${f} on product ${i} is not a suggestion`).toBe('suggested');
+    }
+    for (let i = 1; i <= 3; i++) expect(await cellState('Rating', i), `Rating on product ${i} is not empty`).toBe('empty');
+    const acceptAll = page.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ });
+    expect(await acceptAll.innerText()).toBe('Accept all agreed (2)');
+    await shootBothThemes(page, 'table');
 
-    // 4. Point at the price on the screenshot and name it. Where the element
-    // is comes from the capture's own box map, read through the same session;
-    // the click lands where the viewer draws that box (its rect × the scale
-    // the screenshot is shown at, from the frame's top left corner).
+    // 4. One click accepts both agreed rows; the row that needs you is untouched.
+    await acceptAll.click();
+    for (const f of ['Title', 'Price']) {
+      for (let i = 1; i <= 3; i++) {
+        await expect.poll(() => cellState(f, i), { timeout: 10_000, message: `${f} on product ${i} was not accepted` }).toBe('accepted');
+      }
+    }
+    for (let i = 1; i <= 3; i++) expect(await cellState('Rating', i), `Accept all agreed touched Rating on product ${i}`).toBe('empty');
+    expect(await acceptAll.innerText()).toBe('Accept all agreed (0)');
+    expect(await acceptAll.isDisabled(), 'Accept all agreed is live with nothing agreed').toBe(true);
+    expect(await page.locator('main').innerText(), 'the disabled Accept all agreed does not say why').toContain('Nothing agreed to accept');
+
+    // 5. The row that needs you: its cell opens product 1's screenshot, with
+    // the product named over it and the cell outlined as the one on screen.
+    await page.getByRole('button', { name: 'Rating on product 1: empty', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Screenshot' });
+    await panel.waitFor({ timeout: 10_000 });
+    expect(await panel.getByRole('heading').innerText(), 'the screenshot is not named for its product').toBe(`${PRODUCTS[0].title} — screenshot`);
+    await expect.poll(() => new URL(page.url()).searchParams.get('product'), { timeout: 10_000 }).toBe('1');
+    expect(new URL(page.url()).searchParams.get('field'), 'the open cell is not in the address').toBe('rating');
+    // ...and on screen: the panel opens under the table, below the fold, so
+    // the click has to bring it into view (Rating has no element outlined
+    // yet, so the whole screenshot frame is what must be visible).
+    const shot = page.locator('img[alt="Screenshot of this product"]');
+    await shot.waitFor({ timeout: 20_000 });
+    await expect
+      .poll(
+        () =>
+          shot.evaluate((img) => {
+            const r = img.closest('.overflow-auto')!.getBoundingClientRect();
+            return r.top >= 0 && r.bottom <= window.innerHeight + 1;
+          }),
+        { timeout: 5_000, message: 'the screenshot a cell opened is not on screen' },
+      )
+      .toBe(true);
+
+    // Point at the rating on the screenshot and name it. Where the element is
+    // comes from the capture's own box map, read through the same session; the
+    // click lands where the viewer draws that box (its rect × the scale the
+    // screenshot is shown at, from the frame's top left corner).
     const captures = await api.sources.proofPageCaptures.query({ sourceId: site.id, urls: [productUrls[0]!] });
     const captureId = captures[productUrls[0]!]?.captureId;
     expect(captureId, 'product 1 has no capture').toBeTruthy();
     const capture = await api.sources.proofPageCapture.query({ captureId: captureId! });
-    const priceBoxes = capture.boxes.filter((b) => b.text.trim() === PRODUCTS[0].price);
-    expect(priceBoxes.length, `no element on product 1 reads ${PRODUCTS[0].price}`).toBeGreaterThan(0);
-    const price = priceBoxes.sort((a, b) => a.rect.w * a.rect.h - b.rect.w * b.rect.h)[0]!.rect;
-    // Measured afresh for every click: opening and closing a popover moves
-    // focus, and the page may scroll under the pointer with it.
-    const clickPrice = async () => {
-      const shot = page.locator('img[alt="Screenshot of this product"]');
-      await shot.scrollIntoViewIfNeeded();
-      const scale = await shot.evaluate((img: HTMLImageElement) => img.getBoundingClientRect().width / img.naturalWidth);
-      const frame = await shot.boundingBox();
-      if (!frame) throw new Error('the screenshot is not on screen');
-      await page.mouse.click(frame.x + (price.x + price.w / 2) * scale, frame.y + (price.y + price.h / 2) * scale);
-    };
-    await clickPrice();
+    const ratingBoxes = capture.boxes.filter((b) => b.text.trim() === PRODUCTS[0].rating);
+    expect(ratingBoxes.length, `no element on product 1 reads ${PRODUCTS[0].rating}`).toBeGreaterThan(0);
+    const rating = ratingBoxes.sort((a, b) => a.rect.w * a.rect.h - b.rect.w * b.rect.h)[0]!.rect;
+    await shot.scrollIntoViewIfNeeded();
+    const scale = await shot.evaluate((img: HTMLImageElement) => img.getBoundingClientRect().width / img.naturalWidth);
+    const frame = await shot.boundingBox();
+    if (!frame) throw new Error('the screenshot is not on screen');
+    await page.mouse.click(frame.x + (rating.x + rating.w / 2) * scale, frame.y + (rating.y + rating.h / 2) * scale);
     const popover = page.locator('[data-slot="popover-content"]');
     await popover.waitFor({ timeout: 10_000 });
-    // The shop's JSON-LD carries the price, so page data may already have
-    // outlined this element as "Price?". Reject that suggestion (×) and click
-    // the element again: this step is the customer pointing at a value
-    // nobody suggested and naming it from the dropdown.
-    const reject = popover.getByRole('button', { name: 'Reject suggestion' });
-    if ((await reject.count()) > 0) {
-      await reject.click();
-      await popover.waitFor({ state: 'detached', timeout: 10_000 });
-      await expect.poll(() => page.locator('span', { hasText: /^Price\?$/ }).count(), { timeout: 10_000 }).toBe(0);
-      await clickPrice();
-      await popover.waitFor({ timeout: 10_000 });
-      expect(await reject.count(), 'the rejected suggestion came back').toBe(0);
-    }
-    expect(await popover.innerText(), 'the popover does not show the value it read').toContain(PRODUCTS[0].price);
-    // A money value lists the money field first; pick Price if it is not already chosen.
+    expect(await popover.innerText(), 'the popover does not show the value it read').toContain(PRODUCTS[0].rating);
     const fieldPicker = popover.getByRole('combobox');
-    if (!(await fieldPicker.innerText()).includes('Price')) {
+    if (!(await fieldPicker.innerText()).includes('Rating')) {
       await fieldPicker.click();
-      await page.getByRole('option', { name: /^Price/ }).click();
+      await page.getByRole('option', { name: /^Rating/ }).click();
     }
-    await popover.getByRole('button', { name: 'Confirm Price', exact: true }).click();
+    await popover.getByRole('button', { name: 'Confirm Rating', exact: true }).click();
+    await expect.poll(() => cellState('Rating', 1), { timeout: 10_000 }).toBe('accepted');
 
-    // 5. The tick is carried to the other two products as a suggestion.
-    await expect.poll(() => batteryLabel('Price'), { timeout: 20_000 }).toBe('Price: 1 of 3 confirmed, 2 suggested');
-    await shootBothThemes(page, 'marking');
-
-    for (const p of PRODUCTS.slice(1)) {
-      await card(p.title).click();
-      await expect.poll(() => card(p.title).getAttribute('aria-pressed'), { timeout: 10_000 }).toBe('true');
-      for (const f of FIELDS) await confirmSuggestion(page, f.name);
-    }
-    for (const f of FIELDS) {
-      await expect.poll(() => batteryLabel(f.name), { timeout: 10_000 }).toBe(`${f.name}: 3 of 3 confirmed`);
+    // 6. The mark is carried to the other two products by its own path, so
+    // the row now agrees: one more click accepts it.
+    await expect.poll(() => rowStatusText('Rating'), { timeout: 20_000 }).toBe('agreed Accept');
+    await page.getByRole('button', { name: 'Accept Rating', exact: true }).click();
+    for (let i = 1; i <= 3; i++) {
+      await expect.poll(() => cellState('Rating', i), { timeout: 10_000, message: `Rating on product ${i} was not accepted` }).toBe('accepted');
     }
 
-    // 6. Every answer autosaves: the line under Verify says so, and the server
-    // has all six before the reload that proves it.
+    // 7. × closes the screenshot and takes the product out of the address.
+    await page.getByRole('button', { name: 'Close screenshot' }).click();
+    await expect.poll(() => panel.count(), { timeout: 10_000 }).toBe(0);
+    expect(new URL(page.url()).searchParams.get('product'), 'the closed screenshot is still in the address').toBeNull();
+
+    // 8. Every answer autosaves: the line under Verify says so, and the server
+    // has all nine before the reload that proves it.
     await expect
       .poll(
         async () => {
@@ -768,15 +796,16 @@ describe.skipIf(!ENABLED)('app shell', () => {
       .toBe(true);
     await expect.poll(() => page.getByText('saved', { exact: true }).count(), { timeout: 10_000 }).toBe(1);
 
+    // 9. After a reload every cell is still accepted. (A row's "agreed" is not
+    // asserted here: suggestions carried from another product are never
+    // saved, so only accepted cells are what a reload must keep.)
     await page.reload({ waitUntil: 'networkidle' });
     await waitForHydration(page, 'input[aria-label="Listing page"]');
     for (const f of FIELDS) {
-      await expect.poll(() => batteryLabel(f.name), { timeout: 20_000 }).toBe(`${f.name}: 3 of 3 confirmed`);
       for (let i = 1; i <= 3; i++) {
-        expect(
-          await page.getByRole('button', { name: `${f.name} on product ${i}: confirmed` }).count(),
-          `${f.name} on product ${i} did not survive the reload`,
-        ).toBe(1);
+        await expect
+          .poll(() => cellState(f.name, i), { timeout: 20_000, message: `${f.name} on product ${i} did not survive the reload` })
+          .toBe('accepted');
       }
     }
     // Ready to verify, and priced before the click — which this run never makes.
@@ -784,15 +813,14 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => verify.isEnabled(), { timeout: 20_000 }).toBe(true);
     expect(await verify.innerText(), 'the Verify button does not say what it costs').toMatch(/^Verify \d+ fields? · (free|up to \$\d)/);
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000 }).toBe(3);
-    await shootBothThemes(page, 'ready');
 
-    // 7. What the server stored: Price's mark on product 1, and the cards
-    // with the listing's titles, so the grid comes back without the listing.
+    // 10. What the server stored: Rating's mark on product 1, and the cards
+    // with the listing's titles, so the table comes back without the listing.
     const stored = (await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).verificationSet as {
       marks?: Record<string, Record<string, unknown>>;
       cards?: Array<{ url: string; title: string }>;
     } | null;
-    expect(stored?.marks?.price?.[productUrls[0]!], 'Price on product 1 was saved without its mark').toBeTruthy();
+    expect(stored?.marks?.rating?.[productUrls[0]!], 'Rating on product 1 was saved without its mark').toBeTruthy();
     expect(stored?.cards?.map((c) => c.title), 'the cards were not saved with their titles').toEqual(PRODUCTS.map((p) => p.title));
 
     expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);

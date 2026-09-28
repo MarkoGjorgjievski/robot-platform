@@ -103,4 +103,4 @@ After the run the badge classifier in the script was corrected ("changed since v
 asked before "verified"); the numbers above come from the run just before that one-line change,
 and "Go to Extract: live" — which needs every field current and passing — agrees with them.
 
-Screenshots: `docs/testing/screens/app-site-verification-ikea-{marking,verified}-{dark,light}.png`.
+Screenshots: `docs/testing/screens/app-site-verification-ikea-{marking,verified}-{dark,light}.png`. (Since 2026-09-28 the marking pair is deleted with the sidebar it showed, and the verified pair shows the table: `docs/testing/2026-09-28-table-first-live.md`.)
