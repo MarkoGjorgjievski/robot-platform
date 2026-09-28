@@ -22,6 +22,7 @@ export function ProductCard({
   onReplace,
   onRetry,
   hostProblem,
+  compact,
 }: {
   card: Card;
   index: number;
@@ -33,6 +34,8 @@ export function ProductCard({
   onReplace: (url: string) => void;
   onRetry: () => void;
   hostProblem: (url: string) => string | null;
+  /** As a verification table's column head (spec 2026-09-28 A1): a shorter photo, one-line title. */
+  compact?: boolean;
 }) {
   if (card.url.trim() === '') {
     return <BlankProductCard index={index} disabled={disabled} onCommit={onReplace} onDrop={onDrop} hostProblem={hostProblem} />;
@@ -46,11 +49,11 @@ export function ProductCard({
       <div className={`h-[2px] w-full shrink-0 ${rail}`} aria-hidden />
 
       <button type="button" disabled={disabled} onClick={onSelect} aria-pressed={selected} className="flex flex-col text-left disabled:cursor-not-allowed">
-        <div className="h-[120px] w-full shrink-0 bg-raised">
+        <div className={`w-full shrink-0 bg-raised ${compact ? 'h-[56px]' : 'h-[120px]'}`}>
           {card.image ? <img src={card.image} alt="" className="h-full w-full object-cover" /> : null}
         </div>
         <div className="space-y-0.5 px-2 py-1.5">
-          <p className="line-clamp-2 text-base" title={card.title}>
+          <p className={compact ? 'line-clamp-1 text-base' : 'line-clamp-2 text-base'} title={card.title}>
             {card.title}
           </p>
           <p className="truncate font-mono text-sm text-muted-foreground" title={card.url}>
