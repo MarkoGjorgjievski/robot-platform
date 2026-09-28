@@ -56,6 +56,12 @@ export function PageViewer({
   const frameRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
   const revealed = useRef(0);
+  // Which tiles the measured width belongs to. A product switch renders the
+  // new tiles once with the old width before the reset below clears it, and a
+  // reveal in that render would scroll against tiles that have not loaded.
+  const tilesNow = useRef(tiles);
+  tilesNow.current = tiles;
+  const measuredFor = useRef<string[] | null>(null);
   const [naturalWidth, setNaturalWidth] = useState(0);
   const [renderedWidth, setRenderedWidth] = useState(0);
   const [hover, setHover] = useState<number | null>(null);
@@ -63,7 +69,10 @@ export function PageViewer({
   // A cached-and-already-complete first tile never fires `onLoad`, so a ref
   // callback catches that case; `onLoad` covers the normal, not-yet-loaded one.
   const firstTileRef = useCallback((img: HTMLImageElement | null) => {
-    if (img && img.complete && img.naturalWidth > 0) setNaturalWidth(img.naturalWidth);
+    if (img && img.complete && img.naturalWidth > 0) {
+      measuredFor.current = tilesNow.current;
+      setNaturalWidth(img.naturalWidth);
+    }
   }, []);
 
   useEffect(() => {
@@ -99,12 +108,12 @@ export function PageViewer({
   // field's element can be far down a long page: without this a cell click
   // outlines something nobody can see.
   useEffect(() => {
-    if (reveal === 0 || reveal === revealed.current || scale <= 0) return;
+    if (reveal === 0 || reveal === revealed.current || scale <= 0 || measuredFor.current !== tiles) return;
     revealed.current = reveal;
     const el = highlightRef.current;
     if (el) el.scrollIntoView({ block: 'center' });
     else frameRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [reveal, scale, highlight]);
+  }, [reveal, scale, highlight, tiles]);
 
   function resolveIndex(e: ReactMouseEvent<HTMLDivElement>): number | null {
     const el = stackRef.current;
@@ -149,7 +158,14 @@ export function PageViewer({
               alt={i === 0 ? 'Screenshot of this product' : ''}
               draggable={false}
               className="block w-full select-none"
-              onLoad={i === 0 ? (e) => setNaturalWidth(e.currentTarget.naturalWidth) : undefined}
+              onLoad={
+                i === 0
+                  ? (e) => {
+                      measuredFor.current = tiles;
+                      setNaturalWidth(e.currentTarget.naturalWidth);
+                    }
+                  : undefined
+              }
             />
           ))}
 
