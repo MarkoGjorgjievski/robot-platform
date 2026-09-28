@@ -409,6 +409,21 @@ export function acceptAllAgreed(board: Board, fields: Field[], live: Suggestions
   return { board: next, accepted };
 }
 
+/** The value cell's state word — distinct from the battery's own ("confirmed"): the table calls an answered cell "accepted". */
+const CELL_WORD: Record<Segment, string> = { empty: 'empty', suggested: 'suggested', answered: 'accepted', failed: 'failed' };
+
+/**
+ * A table cell's accessible name (final review M2): "Price on product 2:
+ * suggested, 219.99" — the state word, then the value; a cell with no value
+ * reads "…: empty" (or "failed, empty").
+ */
+export function cellLabel(field: string, product: number, state: Segment, value: string): string {
+  const word = CELL_WORD[state];
+  const v = value.trim();
+  const tail = v ? `${word}, ${v}` : state === 'empty' ? word : `${word}, empty`;
+  return `${field} on product ${product}: ${tail}`;
+}
+
 export function segment(board: Board, s: Suggestions, key: string, url: string, verdict: { failed: boolean }): Segment {
   if (verdict.failed) return 'failed';
   if (board.answers[key]?.[url]) return 'answered';
@@ -473,6 +488,19 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
     }
   }
   return { ok: true };
+}
+
+/**
+ * The reason beside a disabled Verify (final review M7). When the gate's first
+ * gap is on a row that is already agreed, the fix is that row's Accept, not
+ * the product the gate names: "Accept Title first", or "Accept all agreed
+ * first" when more than one row agrees.
+ */
+export function verifyReason(gate: ReturnType<typeof verifyGate>, fields: Field[], statuses: RowStatus[], buttonReason: string | undefined): string | undefined {
+  if (gate.ok) return buttonReason;
+  const i = gate.gap ? fields.findIndex((f) => f.key === gate.gap) : -1;
+  if (i < 0 || statuses[i]?.kind !== 'agreed') return gate.reason;
+  return statuses.filter((s) => s.kind === 'agreed').length > 1 ? 'Accept all agreed first' : `Accept ${fields[i]!.name} first`;
 }
 
 /** Fields not current, or everything on a first run (no results yet). */
