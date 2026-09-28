@@ -35,6 +35,7 @@ import {
   validateValue,
   valueFromBox,
   verifyGate,
+  verifyReason,
   productsProblem,
   LISTING_ELSEWHERE,
   type Board,
@@ -869,7 +870,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     return undefined;
   }
 
-  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl));
+  // A screenshot that failed says so on its row, not "not ready" (final review M6).
+  const failedUrls = new Set(urls.filter((u) => captures.byUrl[u]?.status === 'failed'));
+  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls));
   const agreedCount = statuses.filter((s) => s.kind === 'agreed').length;
 
   const rows: TableRow[] = fields.map((f, fi) => {
@@ -955,12 +958,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         acceptAll={{
           count: agreedCount,
           disabled: locked || agreedCount === 0,
+          locked,
           onClick: () => setBoard((b) => acceptAllAgreed(b, fields, live, boxesByUrl).board),
         }}
         verify={{
           label: button.label,
           disabled: button.disabled || locked,
-          reason: gate.ok ? button.reason : gate.reason,
+          reason: verifyReason(gate, fields, statuses, button.reason),
           busy: verifying || verifyMutation.isPending,
           onClick: () => void handleVerify(),
         }}

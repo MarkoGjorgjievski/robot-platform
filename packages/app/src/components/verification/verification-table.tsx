@@ -4,7 +4,8 @@ import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
-import type { Badge, Field, RowStatus, Segment } from '../../lib/site/verification-model';
+import { LOCKED_REASON } from './verify-bar';
+import { cellLabel, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
 
 export type TableCell = { value: string; state: Segment; selected: boolean; onClick: () => void };
 export type TableRow = {
@@ -27,32 +28,26 @@ const CELL_BORDER: Record<Segment, string> = {
   failed: 'border-fail',
 };
 
-/** The value cell's aria-label state word — distinct from the battery's own ("confirmed"): the table calls an answered cell "accepted". */
-const CELL_WORD: Record<Segment, string> = {
-  empty: 'empty',
-  suggested: 'suggested',
-  answered: 'accepted',
-  failed: 'failed',
-};
-
 function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; status: RowStatus; badge: Badge; locked: boolean; onAccept: () => void }) {
   switch (status.kind) {
     case 'agreed':
       return (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">agreed</span>
-          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name}`} onClick={onAccept}>
+          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name}`} title={locked ? LOCKED_REASON : undefined} onClick={onAccept}>
             Accept
           </Button>
+          {locked ? <span className="text-sm text-muted-foreground">{LOCKED_REASON}</span> : null}
         </div>
       );
     case 'same-everywhere':
       return (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-warn">same on every product — check it</span>
-          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} anyway`} onClick={onAccept}>
+          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} anyway`} title={locked ? LOCKED_REASON : undefined} onClick={onAccept}>
             Accept anyway
           </Button>
+          {locked ? <span className="text-sm text-muted-foreground">{LOCKED_REASON}</span> : null}
         </div>
       );
     case 'needs-you':
@@ -145,7 +140,7 @@ export function VerificationTable({
                     <button
                       type="button"
                       disabled={locked}
-                      aria-label={`${row.field.name} on product ${i + 1}: ${CELL_WORD[cell.state]}`}
+                      aria-label={cellLabel(row.field.name, i + 1, cell.state, cell.value)}
                       onClick={cell.onClick}
                       className={cn(
                         'flex h-full w-full items-center border-l-2 px-2 py-2 text-left disabled:cursor-not-allowed',

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
-  acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus,
+  acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -430,5 +430,24 @@ describe('accepting', () => {
     const live = liveSuggestions(s, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' });
     b = acceptAllAgreed(b, FIELDS, live, maps()).board;
     expect(verifyGate(b, FIELDS, {})).toEqual({ ok: true });
+  });
+});
+
+describe('what the table and the Verify reason say (final review M2, M7)', () => {
+  it('a cell names its state and its value', () => {
+    expect(cellLabel('Price', 2, 'suggested', '219.99')).toBe('Price on product 2: suggested, 219.99');
+    expect(cellLabel('Price', 1, 'answered', ' 1.00 ')).toBe('Price on product 1: accepted, 1.00');
+    expect(cellLabel('Rating', 1, 'empty', '')).toBe('Rating on product 1: empty');
+    expect(cellLabel('Rating', 3, 'failed', '')).toBe('Rating on product 3: failed, empty');
+  });
+  it('a gap on an agreed row asks for its Accept, not the product', () => {
+    const gate = verifyGate(board(), FIELDS, {});
+    const agreed: RowStatus = { kind: 'agreed' };
+    const needs: RowStatus = { kind: 'needs-you', reason: 'missing on product 1', product: 1 };
+    expect(verifyReason(gate, FIELDS, [agreed, needs], 'x')).toBe('Accept Title first');
+    expect(verifyReason(gate, FIELDS, [agreed, agreed], 'x')).toBe('Accept all agreed first');
+    expect(verifyReason(gate, FIELDS, [needs, agreed], 'x')).toBe('Title still needs product 1');
+    expect(verifyReason({ ok: true }, FIELDS, [agreed, agreed], 'Nothing has changed')).toBe('Nothing has changed');
+    expect(verifyReason({ ok: false, reason: 'Say where SKU is on this website', field: 'sku' }, FIELDS, [agreed, agreed], 'x')).toBe('Say where SKU is on this website');
   });
 });

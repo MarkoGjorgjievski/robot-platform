@@ -3,6 +3,9 @@ import { Link } from '@tanstack/react-router';
 import { Button, buttonVariants } from '../ui/button';
 import { cn } from '../../lib/utils';
 
+/** Why Accept and Accept all agreed are disabled while a Verify runs. */
+export const LOCKED_REASON = 'Locked while this verification runs';
+
 const SAVE_LABEL: Record<'idle' | 'pending' | 'saving' | 'error', { text: string; className: string }> = {
   idle: { text: 'saved', className: 'text-muted-foreground' },
   pending: { text: 'saving…', className: 'text-muted-foreground' },
@@ -29,7 +32,8 @@ export function VerifyBar({
   extract,
   stage,
 }: {
-  acceptAll: { count: number; disabled: boolean; onClick: () => void };
+  /** `locked`: a Verify is running — the reason shown beside the disabled button (final review M8). */
+  acceptAll: { count: number; disabled: boolean; locked?: boolean; onClick: () => void };
   verify: { label: string; disabled: boolean; reason?: string; busy: boolean; onClick: () => void };
   saveState: 'idle' | 'pending' | 'saving' | 'error';
   /** The server's reason the last save was refused, in one line; shown with the error state. */
@@ -50,7 +54,9 @@ export function VerifyBar({
           <Button size="sm" variant="outline" disabled={acceptAll.disabled} onClick={acceptAll.onClick}>
             Accept all agreed ({acceptAll.count})
           </Button>
-          {acceptAll.disabled && acceptAll.count === 0 ? (
+          {acceptAll.disabled && acceptAll.locked ? (
+            <span className="text-sm text-muted-foreground">{LOCKED_REASON}</span>
+          ) : acceptAll.disabled && acceptAll.count === 0 ? (
             <span className="text-sm text-muted-foreground">Nothing agreed to accept</span>
           ) : null}
         </div>
