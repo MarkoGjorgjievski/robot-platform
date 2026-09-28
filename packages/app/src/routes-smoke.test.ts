@@ -190,7 +190,7 @@ const SITE_SCREENS = [
     route: '',
     assert: async () => {
       for (const p of PRODUCTS) {
-        expect(await page.getByRole('button', { name: new RegExp(p.title) }).count(), `the card for ${p.title} is missing`).toBe(1);
+        expect(await page.getByRole('button', { name: new RegExp(`^${p.title}`) }).count(), `the card for ${p.title} is missing`).toBe(1);
       }
       for (const f of FIELDS) {
         for (let i = 1; i <= 3; i++) {
@@ -445,14 +445,14 @@ async function shootBothThemes(p: Page, name: string) {
 }
 
 /**
- * A cell of the verification table, by the state word its label ends in:
- * "Price on product 2: suggested" -> "suggested" (empty, suggested, accepted
- * or failed). `null` while the cell is not on the page.
+ * A cell of the verification table, by the state word its label carries:
+ * "Price on product 2: suggested, 219.99" -> "suggested" (empty, suggested,
+ * accepted or failed). `null` while the cell is not on the page.
  */
 async function cellState(name: string, product: number): Promise<string | null> {
   const cell = page.locator(`button[aria-label^="${name} on product ${product}: "]`);
   if ((await cell.count()) !== 1) return null;
-  return ((await cell.getAttribute('aria-label')) ?? '').slice(`${name} on product ${product}: `.length);
+  return ((await cell.getAttribute('aria-label')) ?? '').slice(`${name} on product ${product}: `.length).split(',')[0]!;
 }
 
 /**
@@ -699,6 +699,11 @@ describe.skipIf(!ENABLED)('app shell', () => {
       for (let i = 1; i <= 3; i++) expect(await cellState(f, i), `${f} on product ${i} is not a suggestion`).toBe('suggested');
     }
     for (let i = 1; i <= 3; i++) expect(await cellState('Rating', i), `Rating on product ${i} is not empty`).toBe('empty');
+    // A cell's name carries its value, not only its state (final review M2).
+    expect(
+      await page.locator('button[aria-label^="Title on product 1: "]').getAttribute('aria-label'),
+      'the Title cell does not name its value',
+    ).toBe(`Title on product 1: suggested, ${PRODUCTS[0].title}`);
     const acceptAll = page.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ });
     expect(await acceptAll.innerText()).toBe('Accept all agreed (2)');
     await shootBothThemes(page, 'table');
@@ -750,14 +755,30 @@ describe.skipIf(!ENABLED)('app shell', () => {
     const ratingBoxes = capture.boxes.filter((b) => b.text.trim() === PRODUCTS[0].rating);
     expect(ratingBoxes.length, `no element on product 1 reads ${PRODUCTS[0].rating}`).toBeGreaterThan(0);
     const rating = ratingBoxes.sort((a, b) => a.rect.w * a.rect.h - b.rect.w * b.rect.h)[0]!.rect;
-    await shot.scrollIntoViewIfNeeded();
-    const scale = await shot.evaluate((img: HTMLImageElement) => img.getBoundingClientRect().width / img.naturalWidth);
-    const frame = await shot.boundingBox();
-    if (!frame) throw new Error('the screenshot is not on screen');
-    await page.mouse.click(frame.x + (rating.x + rating.w / 2) * scale, frame.y + (rating.y + rating.h / 2) * scale);
+    const clickRating = async () => {
+      await shot.scrollIntoViewIfNeeded();
+      const scale = await shot.evaluate((img: HTMLImageElement) => img.getBoundingClientRect().width / img.naturalWidth);
+      const frame = await shot.boundingBox();
+      if (!frame) throw new Error('the screenshot is not on screen');
+      await page.mouse.click(frame.x + (rating.x + rating.w / 2) * scale, frame.y + (rating.y + rating.h / 2) * scale);
+    };
+    await clickRating();
     const popover = page.locator('[data-slot="popover-content"]');
     await popover.waitFor({ timeout: 10_000 });
     expect(await popover.innerText(), 'the popover does not show the value it read').toContain(PRODUCTS[0].rating);
+
+    // Escape closes the popover first, and only the popover; a second Escape
+    // closes the screenshot (final review H1). Then open both again.
+    await page.keyboard.press('Escape');
+    await expect.poll(() => popover.count(), { timeout: 5_000, message: 'Escape did not close the popover' }).toBe(0);
+    expect(await panel.count(), 'the Escape meant for the popover closed the screenshot').toBe(1);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => panel.count(), { timeout: 5_000, message: 'a second Escape did not close the screenshot' }).toBe(0);
+    await page.getByRole('button', { name: 'Rating on product 1: empty', exact: true }).click();
+    await panel.waitFor({ timeout: 10_000 });
+    await shot.waitFor({ timeout: 20_000 });
+    await clickRating();
+    await popover.waitFor({ timeout: 10_000 });
     const fieldPicker = popover.getByRole('combobox');
     if (!(await fieldPicker.innerText()).includes('Rating')) {
       await fieldPicker.click();

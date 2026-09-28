@@ -127,13 +127,25 @@ is shown in two or three places. A second listing (Ikea's `chairs-fu002`, not a 
 - Ikea MY's `chairs-fu002` listing yields a table, a lamp and a vase, titled by the whole card
   text, with no photos, in 42 s — listing quality, not this tab.
 
-**Deferred minors** (from the task reviews): `let required` in `rowStatus` could be a `const`
-in the loop; Escape is swallowed while a mark popover is open (the popover has no Escape of its
-own) and may close the panel when meant for an open menu; a "found in n places" row outlines the
-first place only; the add head's `min-h-[136px]` is a measured number; `ProductGrid` is
-exported but unused; after a reload a carried suggestion is not re-run for rows whose first
-product is answered; accepted rows show nothing in the status column until a Verify; the status
-column's 220 px leaves a gap on wide screens.
+**Deferred minors** (from the task reviews): the panel's Escape may close it when meant for an
+open menu; a "found in n places" row outlines the first place only; the add head's
+`min-h-[136px]` is a measured number; `ProductGrid` is exported but unused; after a reload a
+carried suggestion is not re-run for rows whose first product is answered; accepted rows show
+nothing in the status column until a Verify; the status column's 220 px leaves a gap on wide
+screens. From the final review, not fixed yet: focus after Accept and in the panel (M3);
+truncated values — thumbnails, path-only URLs (M5); the status column can scroll off on laptops
+(M9); and two spec calls for Marko — name the odd product for "comes from different places",
+and whether a same-value structured "found in n places" counts as one place.
+
+Escape with a mark popover open closes the popover only (Radix's DismissableLayer handles it in
+the capture phase and prevents the default, which the route's window listener respects); a
+second Escape closes the panel. The smoke asserts both.
+
+**Final review fixes** (2026-09-28): a lone suggestion agrees only when it was carried from a
+ticked product — otherwise the row says "check product n"; an answer that is not valid for its
+type needs you; a failed screenshot says "screenshot failed on product n"; a cell's accessible
+name carries its value; a Verify gap on an agreed row reads "Accept {field} first" (or "Accept
+all agreed first"); Accept and Accept all agreed say "Locked while this verification runs".
 
 **How to run.** `pnpm test:ui:app` with `pnpm dev:all` up (free; never clicks Verify). The live
 check needs its own keyless stack (:4100 api-server, :3100 app) — see the live note; never
