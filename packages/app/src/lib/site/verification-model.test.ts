@@ -81,6 +81,11 @@ describe('a click', () => {
     expect(valueFromBox(box({ kind: 'image', src: 'x' }), 'text')).toEqual({ error: 'This element has no text' });
     expect(valueFromBox(box({ text: 'x', xpaths: [] }), 'text')).toEqual({ value: 'x', mark: null });
   });
+  it('keeps no mark for an element that is not on the screenshot: the server refuses a negative rect', () => {
+    // Ikea 2026-09-28: a price-module link measured at y = -1066; its mark made every autosave fail.
+    expect(valueFromBox(box({ kind: 'link', href: 'https://s.example/b', rect: { x: 793, y: -1066, w: 77, h: 20 } }), 'url')).toEqual({ value: 'https://s.example/b', mark: null });
+    expect(valueFromBox(box({ text: 'x', rect: { x: -3, y: 10, w: 80, h: 20 } }), 'text')).toEqual({ value: 'x', mark: null });
+  });
   it('lists fields that fit the element first, and marks the ones already answered here', () => {
     const b = answer(board(), 'title', U[0]!, { value: 'A', mark: MARK });
     const list = fieldsFor(box({ text: '$129.99' }), FIELDS, b, U[0]!);
@@ -142,6 +147,12 @@ describe('pointable', () => {
   });
   it('drops an index the box map does not have', () => {
     expect(pointable(boxes, [1, 9])).toEqual([1]);
+  });
+  it('drops an element that starts above or left of the screenshot', () => {
+    // Ikea 2026-09-28: Product URL's one link sat at y = -1066 — not on the
+    // screenshot, and its rect is refused by the server as a mark.
+    const off = [box({ rect: { x: 793, y: -1066, w: 77, h: 20 } }), box({ rect: { x: -3, y: 10, w: 80, h: 20 } }), box({ rect: { x: 10, y: 10, w: 80, h: 20 } })];
+    expect(pointable(off, [0, 1, 2])).toEqual([2]);
   });
 });
 
