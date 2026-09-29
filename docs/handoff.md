@@ -127,6 +127,8 @@ reason says "Accept {field} first" when the gap is the odd product itself; the �
 touch (the cell click still works); `imageKey` treats two images differing only by a query id as
 one (accepted in the spec).
 
+**Left from the final re-review (rare, deferred):** the one-click ✓ can come back on the odd product after a majority whose shared path is a page element (an XPath carried from a marked element) is accepted — answers keep only structured paths, so the check has nothing to count. It needs four or more products and two carries sharing one XPath. Fix when it matters: keep the carried XPath on the answer for this check only.
+
 **Next: variants**, a design of its own (spec §6). Decided up front: the customer chooses variant
 handling at setup — usually one row per variant — and a run never stops to ask. Until then A4 leaves
 a combination or variant product (Ikea's BILLY / OXBERG) to a person. Then Part B of the 2026-09-28
