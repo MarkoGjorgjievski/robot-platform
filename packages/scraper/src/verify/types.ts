@@ -9,6 +9,9 @@ export type SchemaDefinitionField = {
   concept: string;      // cache bridge
 };
 
+/** A structured path the customer accepted an answer from (spec 2026-09-29 C1). */
+export type ConfirmedPath = { source: 'api' | 'json-ld' | 'meta'; path: string };
+
 export type Mark = { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } };
 
 export type VerificationSet = {
@@ -17,6 +20,8 @@ export type VerificationSet = {
   listing_url?: string;
   /** fieldKey → url → the element the customer clicked for that cell (spec 2026-09-18 §3.5). Absent on sets written before marks existed. */
   marks?: Record<string, Record<string, Mark>>;
+  /** fieldKey → url → the structured path the customer accepted that cell's answer from (spec 2026-09-29 C1). Certified first when it is correct or empty on every checked page; absent on sets written before it existed. */
+  paths?: Record<string, Record<string, ConfirmedPath>>;
   /** What the Verification tab shows for each product page: its title and image from the listing. Display only — no hash reads it. */
   cards?: Array<{ url: string; title: string; image?: string }>;
 };
@@ -26,7 +31,7 @@ export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 /** `provenOn` is set only when a field needed more than one layout (spec 2026-09-17 §3): the proof pages this path was correct on. Absent on a one-layout result, so those stay byte-for-byte what they were. Ignored by extraction and by path identity. */
 export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform; provenOn?: string[] };
 
-export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch';
+export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path';
 export type CellResult =
   | { status: 'pass'; found: string; path: CertifiedPath }
   | { status: 'fail'; reason: FailReason; found?: string; nearMisses?: string[] }

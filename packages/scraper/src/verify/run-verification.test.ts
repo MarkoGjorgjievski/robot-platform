@@ -362,3 +362,85 @@ describe('runVerification — a cached certification that rests on a volatile XP
     expect(run.outcome.fields.rating!.certified).toEqual([stable]);
   }, 60_000);
 });
+
+// Spec 2026-09-29 C1: the path the customer confirmed is part of the field's definition.
+describe('fieldHash / definitionHash — confirmed paths', () => {
+  const P = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
+  const inStock: SchemaDefinitionField = { key: 'in_stock', name: 'In stock', type: 'boolean', description: 'x', concept: 'availability' };
+  const base: VerificationSet = {
+    urls: P,
+    expected: { in_stock: { [P[0]!]: 'yes', [P[1]!]: 'yes', [P[2]!]: 'no' } },
+    marks: { in_stock: { [P[0]!]: { xpaths: ['//p'], text: 'In stock', rect: { x: 1, y: 2, w: 3, h: 4 } } } },
+  };
+
+  it('is byte-identical for a set without paths (existing verified websites stay current)', () => {
+    // Pinned literals: computed on 594d93d (before `paths` existed) for this exact set.
+    expect(fieldHash(inStock, base)).toBe('573a8acda4c1322d1b75aebb632f3c16a5b198f4f66df67d6451d2d741c70822');
+    expect(definitionHash([inStock], base)).toBe('d8eb28f538b9265b31b9b9a5a2a38d1769a1a58eacbc7e1c8a867a2c6634402c');
+    // An empty `paths` record, or one for another field, changes nothing either.
+    expect(fieldHash(inStock, { ...base, paths: {} })).toBe(fieldHash(inStock, base));
+    expect(fieldHash(inStock, { ...base, paths: { price: { [P[0]!]: { source: 'api', path: 'x' } } } })).toBe(fieldHash(inStock, base));
+    expect(definitionHash([inStock], { ...base, paths: {} })).toBe(definitionHash([inStock], base));
+  });
+
+  it('changes when a confirmed path is added or changed on a checked page', () => {
+    const withPath = { ...base, paths: { in_stock: { [P[0]!]: { source: 'json-ld' as const, path: 'offers.availability' } } } };
+    expect(fieldHash(inStock, withPath)).not.toBe(fieldHash(inStock, base));
+    expect(definitionHash([inStock], withPath)).not.toBe(definitionHash([inStock], base));
+    const changed = { ...base, paths: { in_stock: { [P[0]!]: { source: 'api' as const, path: 'priority' } } } };
+    expect(fieldHash(inStock, changed)).not.toBe(fieldHash(inStock, withPath));
+    expect(definitionHash([inStock], changed)).not.toBe(definitionHash([inStock], withPath));
+  });
+
+  it('ignores a confirmed path on a page the field is not checked on', () => {
+    const P4x = 'https://s.example/4';
+    const four: VerificationSet = { ...base, urls: [...P, P4x], expected: { in_stock: { ...base.expected.in_stock, [P4x]: '' } } };
+    expect(fieldHash(inStock, { ...four, paths: { in_stock: { [P4x]: { source: 'api', path: 'priority' } } } })).toBe(fieldHash(inStock, four));
+  });
+});
+
+describe('runVerification — confirmed paths and marks reach certification', () => {
+  const inStock: SchemaDefinitionField = { key: 'in_stock', name: 'In stock', type: 'boolean', description: 'x', concept: 'availability' };
+  // Three in-stock products: an unrelated API field is 1 everywhere, JSON-LD says InStock.
+  const capture = (url: string) => ({
+    ...emptyCapture(url),
+    structuredData: { ldJson: [{ '@type': 'Product', offers: { availability: 'https://schema.org/InStock' } }], nextData: null, initialState: null, meta: {} },
+    interceptedRequests: [{ url: `${url}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { priority: 1 } }],
+  }) as unknown as import('@robot/browser').PageCapture;
+  const caps = Object.fromEntries(U.map((u) => [u, capture(u)]));
+  const stockSet: VerificationSet = { urls: U, expected: { in_stock: Object.fromEntries(U.map((u) => [u, 'yes'])) } };
+  const offline = { setContentEvaluate: async () => [] } as unknown as IBrowser;
+  const priority = { source: 'api' as const, path: 'priority', transform: 'identity' as const };
+
+  it('the domain-cache shortcut does not replay a cached path that does not fit a yes/no field', async () => {
+    const run = await runVerification({ fields: [inStock], verificationSet: stockSet }, { browser: offline, agent: null, captures: caps, cachedPaths: async () => [priority] });
+    expect(run.outcome.fields.in_stock!.certified.map((p) => `${p.source} ${p.path}`)).toEqual(['json-ld offers.availability']);
+  });
+
+  it('a confirmed path reaches the cache shortcut and is certified first', async () => {
+    const confirmed: VerificationSet = { ...stockSet, paths: { in_stock: Object.fromEntries(U.map((u) => [u, { source: 'api' as const, path: 'priority' }])) } };
+    const run = await runVerification({ fields: [inStock], verificationSet: confirmed }, {
+      browser: { setContentEvaluate: async () => { throw new Error('searched although the cached, confirmed path certifies'); } } as unknown as IBrowser,
+      agent: null, captures: caps, cachedPaths: async () => [priority],
+    });
+    expect(run.outcome.fields.in_stock!.certified[0]).toMatchObject({ source: 'api', path: 'priority' });
+  });
+
+  it('a confirmed path reaches certification of the gathered set and goes first', async () => {
+    const price = fields[1]!;
+    const confirmed: VerificationSet = { urls: U, expected: { price: set.expected.price }, paths: { price: { [U[0]!]: { source: 'json-ld', path: 'offers.price' } } } };
+    const run = await runVerification({ fields: [price], verificationSet: confirmed }, { browser, agent: null, captures: loadShopExample() });
+    expect(run.outcome.fields.price!.certified[0]).toMatchObject({ source: 'json-ld', path: 'offers.price' });
+  }, 60_000);
+
+  it('a mark qualifies a yes/no field\'s DOM path; an unmarked one does not', async () => {
+    const stock = fields[2]!; // in_stock, yes / yes / no
+    const only: VerificationSet = { urls: U, expected: { in_stock: set.expected.in_stock } };
+    const plain = await runVerification({ fields: [stock], verificationSet: only }, { browser, agent: null, captures: loadShopExample() });
+    expect(plain.outcome.fields.in_stock!.certified.every((p) => p.source !== 'xpath')).toBe(true);
+    const MARK = '//*[@id="main"]/p[@class="stock"]';
+    const marked: VerificationSet = { ...only, marks: { in_stock: { [U[0]!]: { xpaths: [MARK], text: 'In stock', rect: { x: 0, y: 0, w: 1, h: 1 } } } } };
+    const run = await runVerification({ fields: [stock], verificationSet: marked }, { browser, agent: null, captures: loadShopExample() });
+    expect(run.outcome.fields.in_stock!.certified.map((p) => p.path)).toContain(MARK);
+  }, 60_000);
+});

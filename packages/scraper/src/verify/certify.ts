@@ -4,7 +4,8 @@ import { normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
-import type { CellResult, CertifiedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
+import { isWeakField, pathFitsConcept } from './field-fit.js';
+import type { CellResult, CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
 
 export type CandidatePath = CertifiedPath;
 export type CaptureLike = Pick<PageCapture, 'url' | 'html' | 'structuredData' | 'interceptedRequests'>;
@@ -14,12 +15,41 @@ export type CertifyInput = {
   expected: Record<string, string>;
   captures: Record<string, CaptureLike | null>;
   candidates: CandidatePath[];
+  /** Structured paths the customer accepted answers from (spec 2026-09-29 C1): always candidates, and certified first. */
+  confirmed?: ConfirmedPath[];
+  /** The XPaths of the elements the customer marked for this field: the only DOM paths a weak field may certify. */
+  markXPaths?: string[];
 };
 
 const SOURCE_RANK: Record<CertifiedPath['source'], number> = { api: 0, 'json-ld': 1, meta: 2, xpath: 3 };
 
 export function rankCertified(paths: CertifiedPath[]): CertifiedPath[] {
   return [...paths].sort((a, b) => SOURCE_RANK[a.source] - SOURCE_RANK[b.source] || a.path.length - b.path.length);
+}
+
+/** Was this candidate confirmed by the customer? Source and path; the transform does not matter. */
+function isConfirmedPath(c: CandidatePath, confirmed: ConfirmedPath[] | undefined): boolean {
+  return c.source !== 'xpath' && (confirmed ?? []).some((p) => p.source === c.source && p.path === c.path);
+}
+
+/**
+ * May this candidate certify a weak field (spec 2026-09-29 C2)? A value match
+ * cannot tell a yes/no field's paths apart (anything that is 1 or true on every
+ * proof page matches), nor a field whose proof pages share one value. So only a
+ * path the customer confirmed, the XPath of an element they marked, or a
+ * structured path whose name fits the field's concept may stand for it. An
+ * unmarked DOM hit never qualifies, whatever its XPath ends in.
+ */
+export function qualifiesForWeak(field: SchemaDefinitionField, c: CandidatePath, opts: { confirmed?: ConfirmedPath[]; markXPaths?: string[] }): boolean {
+  if (isConfirmedPath(c, opts.confirmed)) return true;
+  if (c.source === 'xpath') return (opts.markXPaths ?? []).includes(c.path);
+  return pathFitsConcept(field.concept, c.path);
+}
+
+/** Confirmed paths first (in rank order), then the rest (in rank order): API stays first among the paths the customer did not confirm (spec 2026-09-29 §7.1). */
+function rankConfirmedFirst(paths: CandidatePath[], confirmed: ConfirmedPath[] | undefined): CandidatePath[] {
+  const ranked = rankCertified(paths);
+  return [...ranked.filter((p) => isConfirmedPath(p, confirmed)), ...ranked.filter((p) => !isConfirmedPath(p, confirmed))];
 }
 
 function pathId(p: CandidatePath): string {
@@ -76,8 +106,8 @@ export function checkedPages(urls: string[], expected: Record<string, string>): 
  * so whichever resolves first is right); it is by pages proven, then rank,
  * so the common layout is tried first at scale.
  */
-function greedyCover(safe: CandidatePath[], pages: string[], isCorrect: (c: CandidatePath, url: string) => boolean): CandidatePath[] {
-  const ranked = rankCertified(safe);
+function greedyCover(safe: CandidatePath[], pages: string[], isCorrect: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[]): CandidatePath[] {
+  const ranked = rank(safe);
   const uncovered = new Set(pages);
   const chosen: CandidatePath[] = [];
   while (uncovered.size > 0 && chosen.length < MAX_CERTIFIED_PATHS) {
@@ -129,8 +159,29 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // Only the pages this field is checked on take part: evaluation, cells, completeness.
   const urls = checkedPages(Object.keys(captures), input.expected);
   const expected = Object.fromEntries(urls.map((u) => [u, input.expected[u]!]));
-  const candidates = dedupe(input.candidates).filter((c) => c.source !== 'xpath' || !Object.values(expected).some((e) => xpathContainsValue(c.path, e)));
+  const filtered = dedupe(input.candidates).filter((c) => c.source !== 'xpath' || !Object.values(expected).some((e) => xpathContainsValue(c.path, e)));
+  // A confirmed path is always a candidate (spec 2026-09-29 C1), though still only a candidate:
+  // it must be correct or empty on every checked page like any other.
+  const confirmedExtra = (input.confirmed ?? [])
+    .filter((p, i, all) => all.findIndex((q) => q.source === p.source && q.path === p.path) === i)
+    .filter((p) => !filtered.some((c) => c.source === p.source && c.path === p.path))
+    .map((p): CandidatePath => ({ source: p.source, path: p.path, transform: 'identity' }));
+  const withConfirmed = [...filtered, ...confirmedExtra];
+  const weak = isWeakField(field.type, Object.values(expected));
+  const opts = { confirmed: input.confirmed, markXPaths: input.markXPaths };
+  const candidates = weak ? withConfirmed.filter((c) => qualifiesForWeak(field, c, opts)) : withConfirmed;
   const capturedUrls = urls.filter((u) => captures[u] !== null);
+  const rank = (paths: CandidatePath[]) => rankConfirmedFirst(paths, input.confirmed);
+
+  const norms = new Set(Object.values(expected).map((e) => normalize(field.type, e)));
+  const weakEvidence = norms.size === 1 && Object.keys(expected).length > 1;
+  if (weak && candidates.length === 0) {
+    // Nothing on these pages can be told to be this field: say so, rather than
+    // certify whatever happens to hold the same value everywhere.
+    const cells: Record<string, CellResult> = Object.fromEntries(urls.map((u): [string, CellResult] =>
+      [u, captures[u] ? { status: 'fail', reason: 'no_fitting_path' } : { status: 'not_captured' }]));
+    return { key: field.key, cells, certified: [], weakEvidence, aiCalled: false, incomplete: capturedUrls.length !== urls.length };
+  }
 
   // Evaluate every candidate on every captured, checked page.
   const evals = new Map<string, Record<string, Eval>>(); // pathId → url → eval
@@ -156,9 +207,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // scale paths are tried in order and the first value wins.
   const safe = candidates.filter((c) => capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
   const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
-  const oneLayout = complete ? rankCertified(correctOnAllCaptured).slice(0, MAX_CERTIFIED_PATHS) : [];
+  const oneLayout = complete ? rank(correctOnAllCaptured).slice(0, MAX_CERTIFIED_PATHS) : [];
   // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
-  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, isCorrect) : [];
+  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, isCorrect, rank) : [];
   const certified: CertifiedPath[] = oneLayout.length > 0
     ? oneLayout
     : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => isCorrect(c, u)) }));
@@ -213,10 +264,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       : { status: 'fail', reason: 'not_found', ...(nearMisses.length ? { nearMisses } : {}) };
   }
 
-  const norms = new Set(Object.values(expected).map((e) => normalize(field.type, e)));
   return {
     key: field.key, cells, certified,
-    weakEvidence: norms.size === 1 && Object.keys(expected).length > 1,
+    weakEvidence,
     aiCalled: false, incomplete: !complete,
     ...(thinEvidence ? { thinEvidence: true } : {}),
   };
