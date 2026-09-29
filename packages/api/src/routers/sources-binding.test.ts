@@ -104,6 +104,24 @@ describe('updateBinding draft', () => {
   });
 });
 
+describe('updateBinding keeps the path each answer was accepted from', () => {
+  it('stores paths for answered cells and drops them for blank ones', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'bind-paths', fields: [{ name: 'In stock', type: 'boolean' }] });
+    try {
+      const k = f.keys['In stock']!;
+      const saved = await caller.sources.updateBinding({
+        sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [k]: 'stock' },
+        expected: { [k]: { [f.urls[0]!]: 'https://schema.org/InStock', [f.urls[1]!]: '' } },
+        paths: { [k]: { [f.urls[0]!]: { source: 'json-ld', path: 'offers.availability' }, [f.urls[1]!]: { source: 'json-ld', path: 'offers.availability' } } },
+      });
+      const set = saved!.verificationSet as { paths?: Record<string, Record<string, unknown>> };
+      expect(set.paths).toEqual({ [k]: { [f.urls[0]!]: { source: 'json-ld', path: 'offers.availability' } } });
+      const again = await caller.sources.updateBinding({ sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [k]: 'stock' }, expected: { [k]: { [f.urls[0]!]: 'yes' } } });
+      expect((again!.verificationSet as { paths?: unknown }).paths).toBeUndefined(); // a whole-record save without paths erases them
+    } finally { await f.cleanup(); }
+  });
+});
+
 describe('sources.verificationStatus.currentKeys', () => {
   it('is empty for a never-verified website and current is false', async () => {
     const { s } = await seeded();
