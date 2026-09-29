@@ -316,7 +316,7 @@ export function pickAnswer(boxes: Box[], boxIndex: number, field: Field, url: st
  * can point at — except that a structured value every one of whose elements
  * shows that same value is one place (the path is the evidence).
  */
-function placesOf(boxes: Box[], s: Suggestion, field: Field, url: string): number {
+export function placesOf(boxes: Box[], s: Suggestion, field: Field, url: string): number {
   const at = pointable(boxes, s.boxes);
   if (at.length > 1 && structuredVia(s.via) && at.every((i) => {
     const read = valueFromBox(boxes[i]!, field.type);
@@ -354,6 +354,8 @@ export function mergeSuggestions(
   for (const [key, val] of Object.entries(incoming)) {
     if (!val) continue;
     if (board.answers[key]?.[url]) continue;
+    // A carry fills only products with no suggestion (spec 2026-09-29 A1).
+    if (origin === 'from-product' && next[key]?.[url]?.origin === 'page-data') continue;
     const byUrl = { ...(next[key] ?? {}), [url]: { captureId, value: val.value, boxes: val.boxes, origin, ...(val.via ? { via: val.via } : {}) } };
     next = { ...next, [key]: byUrl };
   }
@@ -614,8 +616,10 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
 export function verifyReason(gate: ReturnType<typeof verifyGate>, fields: Field[], statuses: RowStatus[], buttonReason: string | undefined): string | undefined {
   if (gate.ok) return buttonReason;
   const i = gate.gap ? fields.findIndex((f) => f.key === gate.gap) : -1;
-  if (i < 0 || statuses[i]?.kind !== 'agreed') return gate.reason;
-  return statuses.filter((s) => s.kind === 'agreed').length > 1 ? 'Accept all agreed first' : `Accept ${fields[i]!.name} first`;
+  // A majority row's Accept is an agreed row's Accept for its majority part (spec A4).
+  const acceptable = (s: RowStatus | undefined) => s?.kind === 'agreed' || s?.kind === 'majority';
+  if (i < 0 || !acceptable(statuses[i])) return gate.reason;
+  return statuses.filter(acceptable).length > 1 ? 'Accept all agreed first' : `Accept ${fields[i]!.name} first`;
 }
 
 /** Fields not current, or everything on a first run (no results yet). */

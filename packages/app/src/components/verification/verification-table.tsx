@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
@@ -7,7 +7,11 @@ import { BadgeView, FieldDetails } from './field-details';
 import { LOCKED_REASON } from './verify-bar';
 import { cellLabel, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
 
-export type TableCell = { value: string; state: Segment; selected: boolean; onClick: () => void };
+/**
+ * `onAccept`: accept this cell's suggestion in one click, as a tick would
+ * (spec 2026-09-29 A7) — supplied only for a suggestion found in one place.
+ */
+export type TableCell = { value: string; state: Segment; selected: boolean; onClick: () => void; onAccept?: () => void };
 export type TableRow = {
   field: Field;
   cells: TableCell[];
@@ -15,7 +19,7 @@ export type TableRow = {
   badge: Badge;
   expanded: boolean;
   details: Omit<Parameters<typeof FieldDetails>[0], 'field' | 'locked'>;
-  /** Agreed or same-everywhere ("Accept anyway"): what the status column's one action does. */
+  /** Agreed, majority or same-everywhere ("Accept anyway"): what the status column's one action does. */
   onAccept: () => void;
   onToggle: () => void;
 };
@@ -27,6 +31,12 @@ const CELL_BORDER: Record<Segment, string> = {
   answered: 'border-pass',
   failed: 'border-fail',
 };
+
+/** "product 3" / "products 3 and 4" / "products 2, 3 and 4". */
+function productsText(ns: number[]): string {
+  if (ns.length === 1) return `product ${ns[0]}`;
+  return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
+}
 
 function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; status: RowStatus; badge: Badge; locked: boolean; onAccept: () => void }) {
   switch (status.kind) {
@@ -40,10 +50,23 @@ function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; 
           {locked ? <span className="text-sm text-muted-foreground">{LOCKED_REASON}</span> : null}
         </div>
       );
+    case 'majority':
+      // Spec A4: Accept takes the majority's cells only; the odd product stays for a person.
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-warn">different place on {productsText(status.odd)} — check it</span>
+          <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name}`} title={locked ? LOCKED_REASON : undefined} onClick={onAccept}>
+            Accept
+          </Button>
+          {locked ? <span className="text-sm text-muted-foreground">{LOCKED_REASON}</span> : null}
+        </div>
+      );
     case 'same-everywhere':
       return (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-warn">same on every product — check it</span>
+          <span className="text-sm text-warn">
+            same on every product — check it{status.odd?.length ? `; ${productsText(status.odd)} ${status.odd.length === 1 ? 'differs' : 'differ'}` : ''}
+          </span>
           <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} anyway`} title={locked ? LOCKED_REASON : undefined} onClick={onAccept}>
             Accept anyway
           </Button>
@@ -136,7 +159,7 @@ export function VerificationTable({
                 </th>
 
                 {row.cells.map((cell, i) => (
-                  <td key={i} className="w-[190px] border-t border-line p-0 align-top">
+                  <td key={i} className="group relative w-[190px] border-t border-line p-0 align-top">
                     <button
                       type="button"
                       disabled={locked}
@@ -146,12 +169,26 @@ export function VerificationTable({
                         'flex h-full w-full items-center border-l-2 px-2 py-2 text-left disabled:cursor-not-allowed',
                         CELL_BORDER[cell.state],
                         cell.selected && 'outline outline-1 outline-text',
+                        cell.onAccept && 'pr-8',
                       )}
                     >
                       <span className="min-w-0 truncate font-mono text-base" title={cell.value || undefined}>
                         {cell.value || '—'}
                       </span>
                     </button>
+                    {cell.onAccept ? (
+                      <Button
+                        variant="outline"
+                        size="icon-xs"
+                        disabled={locked}
+                        aria-label={`Accept ${row.field.name} on product ${i + 1}`}
+                        title={`Accept ${row.field.name} on product ${i + 1}`}
+                        onClick={cell.onAccept}
+                        className="absolute top-1/2 right-1 -translate-y-1/2 bg-panel opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                      >
+                        <Check aria-hidden className="size-3" />
+                      </Button>
+                    ) : null}
                   </td>
                 ))}
 

@@ -704,6 +704,11 @@ describe.skipIf(!ENABLED)('app shell', () => {
       await page.locator('button[aria-label^="Title on product 1: "]').getAttribute('aria-label'),
       'the Title cell does not name its value',
     ).toBe(`Title on product 1: suggested, ${PRODUCTS[0].title}`);
+    // A suggestion found in one place can be accepted from its cell (spec 2026-09-29 A7); an empty cell cannot.
+    for (let i = 1; i <= 3; i++) {
+      expect(await page.getByRole('button', { name: `Accept Title on product ${i}`, exact: true }).count(), `Title on product ${i} has no one-click accept`).toBe(1);
+      expect(await page.getByRole('button', { name: `Accept Rating on product ${i}`, exact: true }).count(), `the empty Rating on product ${i} offers an accept`).toBe(0);
+    }
     const acceptAll = page.getByRole('button', { name: /^Accept all agreed \(\d+\)$/ });
     expect(await acceptAll.innerText()).toBe('Accept all agreed (2)');
     await shootBothThemes(page, 'table');
@@ -788,8 +793,14 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => cellState('Rating', 1), { timeout: 10_000 }).toBe('accepted');
 
     // 6. The mark is carried to the other two products by its own path, so
-    // the row now agrees: one more click accepts it.
+    // the row now agrees. Product 2's cell is accepted on its own, from the ✓
+    // its hover shows (spec 2026-09-29 A7); one more click accepts the rest.
     await expect.poll(() => rowStatusText('Rating'), { timeout: 20_000 }).toBe('agreed Accept');
+    await page.locator('button[aria-label^="Rating on product 2: suggested"]').hover();
+    await page.getByRole('button', { name: 'Accept Rating on product 2', exact: true }).click();
+    await expect.poll(() => cellState('Rating', 2), { timeout: 10_000, message: 'the cell ✓ did not accept Rating on product 2' }).toBe('accepted');
+    expect(await cellState('Rating', 3), 'the cell ✓ accepted another product too').toBe('suggested');
+    await expect.poll(() => rowStatusText('Rating'), { timeout: 10_000 }).toBe('agreed Accept');
     await page.getByRole('button', { name: 'Accept Rating', exact: true }).click();
     for (let i = 1; i <= 3; i++) {
       await expect.poll(() => cellState('Rating', i), { timeout: 10_000, message: `Rating on product ${i} was not accepted` }).toBe('accepted');

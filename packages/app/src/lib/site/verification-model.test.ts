@@ -541,3 +541,20 @@ describe('the table-first rules, revised', () => {
     expect(displayValue(sku, 'A1')).toBe('A1');
   });
 });
+
+describe('the tab keeps page data over a carry', () => {
+  it('a carried suggestion never replaces a page-data one', () => {
+    const b = board();
+    let s = mergeSuggestions({}, { in_stock: { value: 'https://schema.org/InStock', boxes: [0], via: JL } }, U[1]!, 'c1', 'page-data', b);
+    s = mergeSuggestions(s, { in_stock: { value: '1', boxes: [0], via: { source: 'api', path: 'priority' } } }, U[1]!, 'c1', 'from-product', b);
+    expect(s.in_stock![U[1]!]!.value).toBe('https://schema.org/InStock');
+    s = mergeSuggestions(s, { in_stock: { value: 'x', boxes: [0], via: JL } }, U[2]!, 'c2', 'from-product', b);
+    expect(s.in_stock![U[2]!]!.origin).toBe('from-product');
+  });
+  it('a majority row counts as agreed for the Verify reason', () => {
+    const maj: RowStatus = { kind: 'majority', odd: [3], via: JL };
+    const gate = { ok: false as const, reason: 'Title still needs product 1', gap: 'title' };
+    expect(verifyReason(gate, FIELDS, [maj, { kind: 'needs-you', reason: 'x' }], undefined)).toBe('Accept Title first');
+    expect(verifyReason(gate, FIELDS, [maj, { kind: 'agreed' }], undefined)).toBe('Accept all agreed first');
+  });
+});
