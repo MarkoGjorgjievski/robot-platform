@@ -6,7 +6,7 @@ import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
-import type { CertifiedPath, FieldVerification, Mark, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
+import type { CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
 
 export type VerificationRequest = { fields: SchemaDefinitionField[]; verificationSet: VerificationSet };
 export type VerificationDeps = {
@@ -36,14 +36,37 @@ function markDigest(marks: Record<string, Mark> | undefined, pages: string[]): R
   return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
+/** The hash-relevant part of a field's confirmed paths (spec 2026-09-29 C1) on the given pages, by url: source and path only. Undefined when there are none, so a set without `paths` hashes byte-for-byte as before. */
+function pathDigest(paths: Record<string, ConfirmedPath> | undefined, pages: string[]): Record<string, ConfirmedPath> | undefined {
+  if (!paths) return undefined;
+  const entries = pages.filter((u) => paths[u]).sort().map((u) => [u, { source: paths[u]!.source, path: paths[u]!.path }] as const);
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+/** Every field's confirmed-path digest over the set's pages, by field key; undefined when no field has one. */
+function allPathDigests(set: VerificationSet): Record<string, Record<string, ConfirmedPath>> | undefined {
+  const entries = Object.keys(set.paths ?? {}).sort()
+    .map((k) => [k, pathDigest(set.paths![k], set.urls)] as const)
+    .filter((e): e is readonly [string, Record<string, ConfirmedPath>] => e[1] !== undefined);
+  return entries.length ? Object.fromEntries(entries) : undefined;
+}
+
+/** The distinct paths the customer confirmed for a field, across its pages. */
+function confirmedPathsOf(set: VerificationSet, key: string): ConfirmedPath[] {
+  const all = Object.values(set.paths?.[key] ?? {});
+  return all.filter((p, i) => all.findIndex((q) => q.source === p.source && q.path === p.path) === i).map((p) => ({ source: p.source, path: p.path }));
+}
+
 /** Whole-definition hash, kept for history and the fast path. Excludes `name`: renaming is free (spec 4.3). */
 export function definitionHash(fields: SchemaDefinitionField[], set: VerificationSet): string {
+  const paths = allPathDigests(set);
   return sha256(JSON.stringify({
     fields: fields.map((f) => ({ key: f.key, type: f.type, description: f.description, concept: f.concept })),
     urls: set.urls,
     expected: Object.fromEntries(Object.keys(set.expected).sort().map((k) => [k, Object.fromEntries(Object.entries(set.expected[k]!).sort())])),
     listing_url: set.listing_url ?? null,
     ...(set.marks && Object.keys(set.marks).length ? { marks: Object.fromEntries(Object.keys(set.marks).sort().map((k) => [k, markDigest(set.marks![k], set.urls)])) } : {}),
+    ...(paths ? { paths } : {}),
   }));
 }
 
@@ -58,6 +81,7 @@ export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): s
   const expected = set.expected[field.key] ?? {};
   const pages = checkedPages(set.urls, expected);
   const marks = markDigest(set.marks?.[field.key], pages);
+  const paths = pathDigest(set.paths?.[field.key], pages);
   return sha256(JSON.stringify({
     key: field.key,
     type: field.type,
@@ -66,6 +90,7 @@ export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): s
     urls: pages,
     expected: Object.fromEntries(Object.entries(expected).filter(([u]) => pages.includes(u)).sort()),
     ...(marks ? { marks } : {}),
+    ...(paths ? { paths } : {}),
   }));
 }
 
@@ -113,11 +138,15 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     }
     const expected = req.verificationSet.expected[field.key] ?? {};
     const caps: Record<string, CaptureLike | null> = captures;
+    // What the customer said about this field (spec 2026-09-29 C1/C2) goes to every certification
+    // below, the domain-cache shortcut included: that is where a cached `priority` would slip in.
+    const confirmed = confirmedPathsOf(req.verificationSet, field.key);
+    const markXPaths = Object.values(req.verificationSet.marks?.[field.key] ?? {}).flatMap((m) => m.xpaths);
 
     let result: FieldVerification | null = null;
     const cached = deps.cachedPaths ? await deps.cachedPaths(field.concept) : [];
     if (cached.length > 0) {
-      const r = await certify({ field, expected, captures: caps, candidates: cached }, { evalXPaths });
+      const r = await certify({ field, expected, captures: caps, candidates: cached, confirmed, markXPaths }, { evalXPaths });
       // The shortcut is for a certification worth keeping. One that rests on a
       // volatile XPath (only possible as certify's last resort) is searched
       // again, so the stable paths the generator now finds can replace it.
@@ -127,7 +156,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     if (!result) {
       const gathered = await gatherCandidates(field, expected, caps, { runDomSearch, marks: req.verificationSet.marks?.[field.key] });
       candidates = [...cached, ...gathered.candidates];
-      result = await certify({ field, expected, captures: caps, candidates }, { evalXPaths });
+      result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths }, { evalXPaths });
     }
     if (result.certified.length === 0 && !result.incomplete && deps.agent) {
       deps.onProgress?.(`asking AI for ${field.key}`);
@@ -141,7 +170,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const checkedCaps: Record<string, CaptureLike | null> = Object.fromEntries(pages.map((u) => [u, caps[u] ?? null]));
       const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, deps.agent);
       aiCalls++;
-      result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals] }, { evalXPaths });
+      result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths }, { evalXPaths });
       result.aiCalled = true;
     }
     fields[field.key] = { ...result, fieldHash: fh };

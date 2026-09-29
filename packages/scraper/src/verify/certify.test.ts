@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { certify, checkedPages, gatherCandidates, rankCertified, type CaptureLike } from './certify.js';
+import { certify, checkedPages, gatherCandidates, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
 import type { DomHit } from './dom-scripts.js';
 import type { Mark, SchemaDefinitionField } from './types.js';
@@ -185,12 +185,14 @@ describe('rankCertified', () => {
 describe('certify — stable XPaths before volatile ones', () => {
   const textField = { key: 'subtitle', name: 'Subtitle', type: 'text' as const, description: 'under the title', concept: 'subtitle' };
   const pages = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
-  const blank = (url: string): CaptureLike => ({ url, html: '<html></html>', structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
+  const blank = (url: string): CaptureLike => ({ url, html: `<html data-page="${url}"></html>`, structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
   const caps = Object.fromEntries(pages.map((u) => [u, blank(u)]));
-  const exp = Object.fromEntries(pages.map((u) => [u, '2-seat sofa']));
+  // A different value on each page: identical values would make the field weak (spec 2026-09-29 C2), which is not what this block is about.
+  const exp = Object.fromEntries(pages.map((u, i) => [u, `${i + 2}-seat sofa`]));
+  const onPage = (html: string) => exp[pages.find((p) => html.includes(`"${p}"`))!]!;
   const VOLATILE = { source: 'xpath' as const, path: '//div[@data-skapa="price-module@11.1.8"]/div[@class="info"]/h1/span', transform: 'identity' as const };
   const STABLE = { source: 'xpath' as const, path: '//div[@data-region="product"]/div[1]/div[@class="info"]/h1/span', transform: 'identity' as const };
-  const bothResolve = { evalXPaths: async (_html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, '2-seat sofa'])) };
+  const bothResolve = { evalXPaths: async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, onPage(html)])) };
 
   it('drops a volatile XPath when a stable one certifies', async () => {
     const r = await certify({ field: textField, expected: exp, captures: caps, candidates: [VOLATILE, STABLE] }, bothResolve);
@@ -202,7 +204,7 @@ describe('certify — stable XPaths before volatile ones', () => {
     expect(r.certified).toEqual([VOLATILE]);
   });
   it('a stable non-xpath path beats it too', async () => {
-    const withLd = Object.fromEntries(pages.map((u) => [u, { ...blank(u), structuredData: { ldJson: [{ description: '2-seat sofa' }], nextData: null, initialState: null, meta: {} } }]));
+    const withLd = Object.fromEntries(pages.map((u) => [u, { ...blank(u), structuredData: { ldJson: [{ description: exp[u] }], nextData: null, initialState: null, meta: {} } }]));
     const r = await certify({ field: textField, expected: exp, captures: withLd, candidates: [VOLATILE, { source: 'json-ld', path: 'description', transform: 'identity' }] }, bothResolve);
     expect(r.certified).toEqual([{ source: 'json-ld', path: 'description', transform: 'identity' }]);
   });
@@ -218,13 +220,16 @@ describe('certify — a cover is not made of one-page paths', () => {
   const names = ['KIVIK', 'GLOSTAD', 'HEMLINGBY'];
   const blank = (url: string): CaptureLike => ({ url, html: `<html data-page="${url}"></html>`, structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
   const caps = Object.fromEntries(pages.map((u) => [u, blank(u)]));
-  const exp = Object.fromEntries(pages.map((u) => [u, '2-seat sofa']));
+  // A different value on each page: identical values would make the field weak (spec 2026-09-29 C2), which is not what this block is about.
+  const value = (url: string) => `${url.slice(-1)}-seat sofa`;
+  const exp = Object.fromEntries(pages.map((u) => [u, value(u)]));
+  const onPage = (html: string) => value(html.match(/data-page="([^"]+)"/)![1]!);
   const specific = names.map((n) => ({ source: 'xpath' as const, path: `//div[@data-product-name="${n}"]/h2[@class="sub"]`, transform: 'identity' as const }));
   const SHARED = { source: 'xpath' as const, path: '//*[@id="content"]/div[1]/h2[@class="sub"]', transform: 'identity' as const };
   // Each product-specific XPath resolves only on its own page; the shared one resolves on all of them.
   const evalXPaths = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => {
     const i = names.findIndex((n) => x.includes(`"${n}"`));
-    return [x, i === -1 || html.includes(pages[i]!) ? '2-seat sofa' : null];
+    return [x, i === -1 || html.includes(pages[i]!) ? onPage(html) : null];
   }));
 
   it('three paths that each work on one page only do not certify the field', async () => {
@@ -238,9 +243,9 @@ describe('certify — a cover is not made of one-page paths', () => {
   it('a real second layout still certifies: one path proven on three pages, one on the fourth', async () => {
     const p4 = 'https://s.example/4';
     const caps4 = { ...caps, [p4]: blank(p4) };
-    const exp4 = { ...exp, [p4]: '2-seat sofa' };
+    const exp4 = { ...exp, [p4]: value(p4) };
     const LAYOUT_2 = { source: 'xpath' as const, path: '//*[@id="clearance"]/h2[@class="sub"]', transform: 'identity' as const };
-    const evalTwoLayouts = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, (x === LAYOUT_2.path) === html.includes(p4) ? '2-seat sofa' : null]));
+    const evalTwoLayouts = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, (x === LAYOUT_2.path) === html.includes(p4) ? onPage(html) : null]));
     const r = await certify({ field: textField, expected: exp4, captures: caps4, candidates: [SHARED, LAYOUT_2] }, { evalXPaths: evalTwoLayouts });
     expect(r.certified.map((p) => p.path)).toEqual([SHARED.path, LAYOUT_2.path]);
   });
@@ -322,5 +327,102 @@ describe('marks — a mark settles ambiguous (end to end)', () => {
     const r = await certify({ field: shopField, expected: exp, captures, candidates }, { evalXPaths });
     expect(r.certified).toEqual([{ source: 'xpath', path: CLICKED, transform: 'identity' }]);
     expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+});
+
+// Spec 2026-09-29 C1/C2 (Ikea, 2026-09-28): In stock certified `api → priority` (1 on every proof page).
+describe('weak fields need a fitting path', () => {
+  // Three in-stock products: an unrelated API field equals 1 everywhere, JSON-LD says InStock.
+  const cap = (url: string): CaptureLike => ({
+    url, html: '<html><body><span class="s">Available</span></body></html>',
+    structuredData: { ldJson: [{ '@type': 'Product', offers: { availability: 'https://schema.org/InStock' } }], nextData: null, initialState: null, meta: {} },
+    interceptedRequests: [{ url: `${url}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { priority: 1 } }] as unknown as CaptureLike['interceptedRequests'],
+  });
+  const urls = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
+  const field = { key: 'in_stock', name: 'In stock', type: 'boolean' as const, description: '', concept: 'availability' };
+  const expected = Object.fromEntries(urls.map((u) => [u, 'Available']));
+  const captures = Object.fromEntries(urls.map((u) => [u, cap(u)]));
+
+  it('certifies offers.availability, not an unrelated API field that happens to be 1', async () => {
+    const candidates = [{ source: 'api', path: 'priority', transform: 'identity' }, { source: 'json-ld', path: 'offers.availability', transform: 'identity' }] as const;
+    const r = await certify({ field, expected, captures, candidates: [...candidates] }, { evalXPaths: async () => ({}) });
+    expect(r.certified.map((p) => `${p.source} ${p.path}`)).toEqual(['json-ld offers.availability']);
+  });
+
+  it('fails with no_fitting_path when nothing fits and nothing was confirmed', async () => {
+    const r = await certify({ field, expected, captures, candidates: [{ source: 'api', path: 'priority', transform: 'identity' }] }, { evalXPaths: async () => ({}) });
+    expect(r.certified).toEqual([]);
+    expect(Object.values(r.cells).every((c) => c.status === 'fail' && c.reason === 'no_fitting_path')).toBe(true);
+  });
+
+  it('a confirmed path qualifies even when its name does not fit, and goes first', async () => {
+    const r = await certify({ field, expected, captures, confirmed: [{ source: 'api', path: 'priority' }], candidates: [{ source: 'json-ld', path: 'offers.availability', transform: 'identity' }] }, { evalXPaths: async () => ({}) });
+    expect(r.certified[0]).toMatchObject({ source: 'api', path: 'priority' });
+  });
+
+  it('confirmed paths from different products cover together', async () => {
+    const c3 = { ...cap(urls[2]!), structuredData: { ...cap(urls[2]!).structuredData, ldJson: [{ '@type': 'Product', offers: { offers: [{ availability: 'https://schema.org/InStock' }] } }] } };
+    const r = await certify({ field, expected, captures: { ...captures, [urls[2]!]: c3 },
+      confirmed: [{ source: 'json-ld', path: 'offers.availability' }, { source: 'json-ld', path: 'offers.offers[0].availability' }], candidates: [] }, { evalXPaths: async () => ({}) });
+    expect(r.certified.map((p) => p.path).sort()).toEqual(['offers.availability', 'offers.offers[0].availability']);
+  });
+
+  it('a custom field with identical values and no concept only takes confirmed paths or marks', async () => {
+    const f = { ...field, key: 'shop', name: 'Shop', type: 'text' as const, concept: 'shop' };
+    const r = await certify({ field: f, expected: Object.fromEntries(urls.map((u) => [u, '1'])), captures, candidates: [{ source: 'api', path: 'priority', transform: 'identity' }] }, { evalXPaths: async () => ({}) });
+    expect(r.certified).toEqual([]);
+  });
+
+  it('a non-weak field is unaffected', async () => {
+    const f = { key: 'price', name: 'Price', type: 'money' as const, description: '', concept: 'price' };
+    const caps = Object.fromEntries(urls.map((u, i) => [u, { ...cap(u), interceptedRequests: [{ url: `${u}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { amount: [10, 20, 30][i] } }] as unknown as CaptureLike['interceptedRequests'] }]));
+    const r = await certify({ field: f, expected: Object.fromEntries(urls.map((u, i) => [u, String([10, 20, 30][i])])), captures: caps, candidates: [{ source: 'api', path: 'amount', transform: 'identity' }] }, { evalXPaths: async () => ({}) });
+    expect(r.certified[0]).toMatchObject({ source: 'api', path: 'amount' });
+  });
+
+  it('a marked element qualifies; an unmarked DOM hit does not', async () => {
+    const probe = { evalXPaths: async (_h: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, 'Available'])) };
+    const marked = '//span[@class="s"]';
+    const unmarked = '//body/span';
+    const r = await certify({ field, expected, captures, markXPaths: [marked], candidates: [
+      { source: 'xpath', path: unmarked, transform: 'identity' },
+      { source: 'xpath', path: marked, transform: 'identity' },
+    ] }, probe);
+    expect(r.certified.map((p) => p.path)).toEqual([marked]);
+    const none = await certify({ field, expected, captures, candidates: [{ source: 'xpath', path: unmarked, transform: 'identity' }] }, probe);
+    expect(none.certified).toEqual([]);
+  });
+
+  it('a confirmed path is still only a candidate: wrong on one page, it is not certified', async () => {
+    const caps = { ...captures, [urls[1]!]: { ...cap(urls[1]!), interceptedRequests: [{ url: 'x', method: 'GET', status: 200, isJson: true, parsedJson: { priority: 0 } }] as unknown as CaptureLike['interceptedRequests'] } };
+    const r = await certify({ field, expected, captures: caps, confirmed: [{ source: 'api', path: 'priority' }], candidates: [{ source: 'json-ld', path: 'offers.availability', transform: 'identity' }] }, { evalXPaths: async () => ({}) });
+    expect(r.certified.map((p) => `${p.source} ${p.path}`)).toEqual(['json-ld offers.availability']);
+  });
+
+  it('a confirmed path goes first for a non-weak field too; API order otherwise', async () => {
+    const f = { key: 'price', name: 'Price', type: 'money' as const, description: '', concept: 'price' };
+    const caps = Object.fromEntries(urls.map((u, i) => [u, { ...cap(u),
+      structuredData: { ldJson: [{ offers: { price: String([10, 20, 30][i]) } }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [{ url: `${u}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { amount: [10, 20, 30][i] } }] as unknown as CaptureLike['interceptedRequests'] }]));
+    const exp = Object.fromEntries(urls.map((u, i) => [u, String([10, 20, 30][i])]));
+    const candidates = [{ source: 'api' as const, path: 'amount', transform: 'identity' as const }, { source: 'json-ld' as const, path: 'offers.price', transform: 'identity' as const }];
+    const plain = await certify({ field: f, expected: exp, captures: caps, candidates }, { evalXPaths: async () => ({}) });
+    expect(plain.certified.map((p) => p.source)).toEqual(['api', 'json-ld']);
+    const withConfirmed = await certify({ field: f, expected: exp, captures: caps, confirmed: [{ source: 'json-ld', path: 'offers.price' }], candidates }, { evalXPaths: async () => ({}) });
+    expect(withConfirmed.certified.map((p) => p.source)).toEqual(['json-ld', 'api']);
+  });
+});
+
+describe('qualifiesForWeak', () => {
+  const field = { key: 'in_stock', name: 'In stock', type: 'boolean' as const, description: '', concept: 'availability' };
+  it('takes a fitting structured path, a confirmed path, or a marked XPath', () => {
+    expect(qualifiesForWeak(field, { source: 'json-ld', path: 'offers.availability', transform: 'identity' }, {})).toBe(true);
+    expect(qualifiesForWeak(field, { source: 'api', path: 'priority', transform: 'identity' }, {})).toBe(false);
+    expect(qualifiesForWeak(field, { source: 'api', path: 'priority', transform: 'identity' }, { confirmed: [{ source: 'api', path: 'priority' }] })).toBe(true);
+    expect(qualifiesForWeak(field, { source: 'meta', path: 'priority', transform: 'identity' }, { confirmed: [{ source: 'api', path: 'priority' }] })).toBe(false);
+    expect(qualifiesForWeak(field, { source: 'xpath', path: '//p', transform: 'identity' }, { markXPaths: ['//p'] })).toBe(true);
+    expect(qualifiesForWeak(field, { source: 'xpath', path: '//p', transform: 'identity' }, {})).toBe(false);
+    // An XPath never fits by name, however it ends.
+    expect(qualifiesForWeak(field, { source: 'xpath', path: '//availability', transform: 'identity' }, {})).toBe(false);
   });
 });

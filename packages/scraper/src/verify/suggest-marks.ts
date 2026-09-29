@@ -5,26 +5,13 @@
 import type { CaptureLike } from './certify.js';
 import type { Box } from './box-map.js';
 import { normalize, valuesEqual } from './normalize.js';
+import { CONCEPT_PATHS } from './field-fit.js';
 import type { SchemaDefinitionField } from './types.js';
 
 export type Suggestion = {
   value: string;
   via: { source: 'api' | 'json-ld' | 'meta'; path: string };
   boxes: number[];
-};
-
-/** Path tails that carry a concept, by concept (deriveConcept's vocabulary). Matched against the end of a dotted path with array indices removed. */
-const CONCEPT_PATHS: Record<string, string[]> = {
-  product_name: ['name', 'og:title', 'title', 'productName', 'product_name', 'headline'],
-  price: ['offers.price', 'price', 'product:price:amount', 'currentPrice', 'current_price', 'salePrice', 'sale_price'],
-  description: ['description', 'og:description', 'productDescription', 'product_description'],
-  image_url: ['image', 'images', 'og:image', 'image.url', 'thumbnailUrl', 'primary_image_url'],
-  brand: ['brand.name', 'brand', 'manufacturer', 'brand_name'],
-  sku: ['sku', 'productID', 'mpn', 'gtin', 'gtin13', 'code', 'item_id', 'product_id'],
-  availability: ['offers.availability', 'availability', 'in_stock', 'is_available'],
-  rating: ['aggregateRating.ratingValue', 'ratingValue', 'rating'],
-  review_count: ['aggregateRating.reviewCount', 'reviewCount', 'review_count', 'ratingCount'],
-  currency: ['offers.priceCurrency', 'priceCurrency', 'product:price:currency'],
 };
 
 /** JSON-LD is canonical, meta next, API bodies last: an API body is noisy (`priceCents: 12999` would be offered as the price). */
