@@ -9,7 +9,7 @@
 /** The status of one (field, url) verification cell, for cellStatusFor's callers. */
 export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string; layout?: number };
 
-export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch';
+export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path';
 
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 
@@ -52,6 +52,8 @@ export function hintFor(reason: FailReason, found?: string, type?: string): stri
       return 'Several places match. Add what makes yours different to the description.';
     case 'type_mismatch':
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
+    case 'no_fitting_path':
+      return "We can't tell which value on this page is this field. Mark it on the screenshot.";
   }
 }
 

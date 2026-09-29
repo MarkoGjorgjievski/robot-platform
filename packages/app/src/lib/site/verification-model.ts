@@ -6,18 +6,22 @@
 import { FIELD_TYPES, type FieldType } from '../fields-view';
 // The engine's own comparison. `@robot/scraper/normalize` is the one module of
 // that package safe for a browser bundle (it imports nothing but a type).
-import { valuesEqual } from '@robot/scraper/normalize';
+import { normalize, valuesEqual } from '@robot/scraper/normalize';
 
 export { FIELD_TYPES };
 export type { FieldType };
 
 export const PRODUCTS_MIN = 3, PRODUCTS_MAX = 6;
 
-export type Field = { key: string; name: string; type: FieldType; description: string };
+export type Field = { key: string; name: string; type: FieldType; description: string; concept?: string };
 export type Mark = { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } };
 export type Card = { url: string; title: string; image?: string };
-/** A customer's answer for one field on one product: `mark` null means typed. */
-export type Answer = { value: string; mark: Mark | null };
+/**
+ * A customer's answer for one field on one product: `mark` null means typed.
+ * `via`: the structured path (API, JSON-LD, meta) of the suggestion it was
+ * accepted from (spec 2026-09-29 C1) — certification tries it first.
+ */
+export type Answer = { value: string; mark: Mark | null; via?: Via };
 export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>> };
 export type Box = { xpaths: string[]; text: string; rect: Mark['rect']; tag: string; kind: 'text' | 'image' | 'link'; src?: string; href?: string };
 export type Via = { source: string; path: string };
@@ -25,7 +29,15 @@ export type Suggestion = { captureId: string; value: string; boxes: number[]; or
 /** key → url → suggestion (client-side only; never saved). */
 export type Suggestions = Record<string, Record<string, Suggestion>>;
 export type Segment = 'empty' | 'suggested' | 'answered' | 'failed';
-export type Badge = { kind: 'verified' } | { kind: 'fails'; product: number } | { kind: 'changed' } | { kind: 'checking' } | null;
+export type Badge = { kind: 'verified' } | { kind: 'fails'; products: number[] } | { kind: 'changed' } | { kind: 'checking' } | null;
+
+/** The structured sources a saved path may come from; a page-search (`xpath`) suggestion is never one. */
+const STRUCTURED = ['api', 'json-ld', 'meta'] as const;
+type StructuredVia = { source: (typeof STRUCTURED)[number]; path: string };
+function structuredVia(via: Via | undefined): StructuredVia | undefined {
+  return via && (STRUCTURED as readonly string[]).includes(via.source) ? (via as StructuredVia) : undefined;
+}
+const sameVia = (a: Via | undefined, b: Via | undefined) => !!a && !!b && a.source === b.source && a.path === b.path;
 
 type VerificationResultsLike = Record<string, { certified: unknown[]; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured' }> }>;
 
@@ -38,6 +50,7 @@ type StoredVerificationSet = {
   listing_url?: string;
   marks?: Record<string, Record<string, Mark>>;
   cards?: Card[];
+  paths?: Record<string, Record<string, Via>>;
 };
 
 export function emptyBoard(): Board {
@@ -66,7 +79,8 @@ export function boardFrom(source: { schemaDefinition: unknown; verificationSet: 
     const kept: Record<string, Answer> = {};
     for (const [url, value] of Object.entries(byUrl)) {
       if (value.trim() === '') continue;
-      kept[url] = { value, mark: set.marks?.[key]?.[url] ?? null };
+      const via = set.paths?.[key]?.[url];
+      kept[url] = { value, mark: set.marks?.[key]?.[url] ?? null, ...(via ? { via } : {}) };
     }
     if (Object.keys(kept).length > 0) answers[key] = kept;
   }
@@ -77,23 +91,31 @@ export function boardFrom(source: { schemaDefinition: unknown; verificationSet: 
 export function toBindingInput(
   board: Board,
   fields: Field[],
-): { urls: string[]; listingUrl?: string; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>; marks?: Record<string, Record<string, Mark>>; cards: Card[]; draft: true } {
+): {
+  urls: string[]; listingUrl?: string; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>;
+  marks?: Record<string, Record<string, Mark>>; paths?: Record<string, Record<string, StructuredVia>>; cards: Card[]; draft: true;
+} {
   const urls = board.cards.map((c) => c.url.trim());
   const descriptions: Record<string, string> = {};
   const expected: Record<string, Record<string, string>> = {};
   const marks: Record<string, Record<string, Mark>> = {};
+  const paths: Record<string, Record<string, StructuredVia>> = {};
 
   for (const f of fields) {
     descriptions[f.key] = board.descriptions[f.key] ?? f.description;
     const byUrl: Record<string, string> = {};
     const markByUrl: Record<string, Mark> = {};
+    const pathByUrl: Record<string, StructuredVia> = {};
     board.cards.forEach((card, i) => {
       const a = board.answers[f.key]?.[card.url];
       byUrl[urls[i]!] = a?.value ?? '';
       if (a?.mark) markByUrl[urls[i]!] = a.mark;
+      const via = structuredVia(a?.via);
+      if (via) pathByUrl[urls[i]!] = { source: via.source, path: via.path };
     });
     expected[f.key] = byUrl;
     if (Object.keys(markByUrl).length > 0) marks[f.key] = markByUrl;
+    if (Object.keys(pathByUrl).length > 0) paths[f.key] = pathByUrl;
   }
 
   return {
@@ -102,6 +124,7 @@ export function toBindingInput(
     descriptions,
     expected,
     ...(Object.keys(marks).length > 0 ? { marks } : {}),
+    ...(Object.keys(paths).length > 0 ? { paths } : {}),
     cards: board.cards,
     draft: true,
   };
@@ -260,6 +283,64 @@ export function answerFromSuggestion(box: Box, field: Field, value: string, url:
   return valuesEqual(field.type, read.value, value, { pageUrl: url }) ? { value, mark: read.mark } : { value, mark: null };
 }
 
+/**
+ * The answer a tick or an Accept stores for a suggestion (spec 2026-09-29 A5,
+ * C1): marked by its element when it has exactly one to point at, typed
+ * otherwise, and carrying its path when that path is structured.
+ */
+export function suggestionAnswer(boxes: Box[], field: Field, s: Suggestion, url: string): Answer {
+  const one = pointable(boxes, s.boxes);
+  const given = one.length === 1 ? answerFromSuggestion(boxes[one[0]!]!, field, s.value, url) : { value: s.value, mark: null };
+  const via = structuredVia(s.via);
+  return via ? { ...given, via } : given;
+}
+
+/**
+ * The answer a click on the screenshot stores (spec A3). A click on an element
+ * the field's structured suggestion outlines accepts that suggestion — its
+ * value and path, the element as its mark when it shows that value; any other
+ * click reads the element's own text, as before.
+ */
+export function pickAnswer(boxes: Box[], boxIndex: number, field: Field, url: string, s?: Suggestion): Answer | { error: string } {
+  const via = structuredVia(s?.via);
+  if (s && via && pointable(boxes, s.boxes).includes(boxIndex) && validateValue(field.type, s.value) === null) {
+    return { ...answerFromSuggestion(boxes[boxIndex]!, field, s.value, url), via };
+  }
+  const box = boxes[boxIndex];
+  if (!box) return { error: 'This element is not on the page' };
+  return valueFromBox(box, field.type);
+}
+
+/**
+ * How many places a suggestion is found in (spec A5): its elements a customer
+ * can point at — except that a structured value every one of whose elements
+ * shows that same value is one place (the path is the evidence).
+ */
+function placesOf(boxes: Box[], s: Suggestion, field: Field, url: string): number {
+  const at = pointable(boxes, s.boxes);
+  if (at.length > 1 && structuredVia(s.via) && at.every((i) => {
+    const read = valueFromBox(boxes[i]!, field.type);
+    return !('error' in read) && valuesEqual(field.type, read.value, s.value, { pageUrl: url });
+  })) return 1;
+  return at.length;
+}
+
+/** Yes/no answers in one form (spec A6); the saved value is never rewritten. Other types unchanged. */
+export function displayValue(field: Field, value: string): string {
+  if (field.type !== 'boolean') return value;
+  const n = normalize('boolean', value);
+  const stock = field.concept === 'availability';
+  if (n === 'true') return stock ? 'In stock' : 'Yes';
+  if (n === 'false') return stock ? 'Out of stock' : 'No';
+  return value;
+}
+
+/** "fails on product 1" / "fails on products 1 and 3" / "fails on products 1, 2 and 3" (spec C5). */
+export function failsText(products: number[]): string {
+  if (products.length <= 1) return `fails on product ${products[0] ?? ''}`.trimEnd();
+  return `fails on products ${products.slice(0, -1).join(', ')} and ${products[products.length - 1]}`;
+}
+
 export function mergeSuggestions(
   prev: Suggestions,
   incoming: Record<string, { value: string; boxes: number[]; via?: Via } | null>,
@@ -315,6 +396,8 @@ export type RowStatus =
   | { kind: 'accepted' }
   | { kind: 'agreed' }
   | { kind: 'same-everywhere' }
+  /** Spec A4: two or more share one path; Accept takes theirs, `odd` (product numbers) stay for a person. */
+  | { kind: 'majority'; odd: number[] }
   | { kind: 'needs-you'; reason: string; product?: number };
 
 const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -342,7 +425,7 @@ export function rowStatus(
   failedUrls?: ReadonlySet<string>,
 ): RowStatus {
   const values: string[] = [];
-  const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number }> = [];
+  const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number; value: string }> = [];
   for (const [i, card] of board.cards.entries()) {
     const url = card.url.trim();
     if (!url) continue;
@@ -365,35 +448,76 @@ export function rowStatus(
     }
     const s = live[field.key]?.[card.url];
     if (!s) { if (required) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
-    const places = pointable(boxes, s.boxes).length;
+    const places = placesOf(boxes, s, field, card.url);
     if (places > 1) return { kind: 'needs-you', reason: `found in ${places} places on product ${n}`, product: n };
     const err = validateValue(field.type, s.value);
     if (err) return { kind: 'needs-you', reason: `${err} on product ${n}`, product: n };
-    values.push(s.value);
-    offered.push({ via: s.via, origin: s.origin, product: n });
+    offered.push({ via: s.via, origin: s.origin, product: n, value: s.value });
   }
   if (offered.length === 0) return { kind: 'accepted' };
   if (offered.length === 1 && offered[0]!.origin !== 'from-product') {
     const n = offered[0]!.product;
     return { kind: 'needs-you', reason: `check product ${n}`, product: n };
   }
+  let odd: number[] = [];
   const first = offered[0]!.via;
-  if (!first || offered.some(({ via: v }) => !v || v.source !== first.source || v.path !== first.path)) return { kind: 'needs-you', reason: 'comes from different places' };
-  if (values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere' };
-  return { kind: 'agreed' };
+  if (!first || offered.some(({ via: v }) => !sameVia(v, first))) {
+    const group = majorityOf(offered);
+    if (!group) return { kind: 'needs-you', reason: 'comes from different places' };
+    odd = offered.filter((o) => !sameVia(o.via, group)).map((o) => o.product);
+  }
+  const oddSet = new Set(odd);
+  for (const o of offered) if (!oddSet.has(o.product)) values.push(o.value);
+  // Every product in stock is normal (A6): a yes/no field is never "same on every product".
+  if (field.type !== 'boolean' && values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere' };
+  return odd.length > 0 ? { kind: 'majority', odd } : { kind: 'agreed' };
 }
 
-/** Accept a row's suggestions as a tick on each would (spec A3). Never overwrites an answer or writes an invalid value. */
-export function acceptRow(board: Board, field: Field, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): Board {
+/**
+ * The one path two or more suggestions share (spec A4), or undefined when no
+ * path has two, or two paths tie for the most (then nobody's path is the
+ * row's — the customer decides).
+ */
+function majorityOf(offered: Array<{ via?: Via }>): Via | undefined {
+  const counts = new Map<string, { via: Via; n: number }>();
+  for (const { via } of offered) {
+    if (!via) continue;
+    const k = `${via.source}\u0000${via.path}`;
+    const c = counts.get(k);
+    if (c) c.n++; else counts.set(k, { via, n: 1 });
+  }
+  const ranked = [...counts.values()].sort((a, b) => b.n - a.n);
+  const top = ranked[0];
+  if (!top || top.n < 2 || ranked[1]?.n === top.n) return undefined;
+  return top.via;
+}
+
+/** The path a `majority` row's Accept takes (spec A4), or undefined for any other row. */
+export function majorityVia(field: Field, board: Board, live: Suggestions, status: RowStatus): Via | undefined {
+  if (status.kind !== 'majority') return undefined;
+  const odd = new Set(status.odd);
+  for (const [i, card] of board.cards.entries()) {
+    if (odd.has(i + 1)) continue;
+    const via = live[field.key]?.[card.url]?.via;
+    if (via) return via;
+  }
+  return undefined;
+}
+
+/**
+ * Accept a row's suggestions as a tick on each would (spec A3). Never
+ * overwrites an answer or writes an invalid value. `only`: accept just the
+ * cells whose suggestion came by that path (a majority row's Accept, A4).
+ */
+export function acceptRow(board: Board, field: Field, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>, only?: Via): Board {
   let next = board;
   for (const card of board.cards) {
     if (!card.url.trim() || next.answers[field.key]?.[card.url]) continue;
     const s = live[field.key]?.[card.url];
     const boxes = boxesByUrl[card.url];
     if (!s || !boxes || validateValue(field.type, s.value)) continue;
-    const one = pointable(boxes, s.boxes);
-    const given = one.length === 1 ? answerFromSuggestion(boxes[one[0]!]!, field, s.value, card.url) : { value: s.value, mark: null };
-    next = answer(next, field.key, card.url, given);
+    if (only && !sameVia(s.via, only)) continue;
+    next = answer(next, field.key, card.url, suggestionAnswer(boxes, field, s, card.url));
   }
   return next;
 }
@@ -402,8 +526,13 @@ export function acceptAllAgreed(board: Board, fields: Field[], live: Suggestions
   let next = board;
   const accepted: string[] = [];
   for (const f of fields) {
-    if (rowStatus(f, next, live, boxesByUrl).kind !== 'agreed') continue;
-    next = acceptRow(next, f, live, boxesByUrl);
+    const status = rowStatus(f, next, live, boxesByUrl);
+    if (status.kind === 'agreed') next = acceptRow(next, f, live, boxesByUrl);
+    else if (status.kind === 'majority') {
+      const only = majorityVia(f, next, live, status);
+      if (!only) continue;
+      next = acceptRow(next, f, live, boxesByUrl, only);
+    } else continue;
     accepted.push(f.key);
   }
   return { board: next, accepted };
@@ -442,11 +571,8 @@ export function badge(args: { key: string; results: VerificationResultsLike | nu
   if (!fv) return null;
   if (!args.unchangedKeys.includes(args.key)) return { kind: 'changed' };
   if (fv.certified.length > 0) return { kind: 'verified' };
-  for (let i = 0; i < args.cards.length; i++) {
-    const cell = fv.cells[args.cards[i]!.url];
-    if (cell?.status === 'fail') return { kind: 'fails', product: i + 1 };
-  }
-  return null;
+  const products = args.cards.flatMap((c, i) => (fv.cells[c.url]?.status === 'fail' ? [i + 1] : []));
+  return products.length > 0 ? { kind: 'fails', products } : null;
 }
 
 /**

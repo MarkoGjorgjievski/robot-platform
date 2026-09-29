@@ -3,6 +3,7 @@ import {
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
+  failsText, displayValue, pickAnswer,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -169,14 +170,16 @@ describe('the battery and the badge', () => {
     const results = { title: { certified: [{}], cells: { [U[0]!]: { status: 'pass' as const } } }, price: { certified: [], cells: { [U[0]!]: { status: 'pass' as const }, [U[1]!]: { status: 'fail' as const } } } };
     const cards = board().cards;
     expect(badge({ key: 'title', results, unchangedKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'verified' });
-    expect(badge({ key: 'price', results, unchangedKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'fails', product: 2 });
+    expect(badge({ key: 'price', results, unchangedKeys: ['title', 'price'], running: false, cards })).toEqual({ kind: 'fails', products: [2] });
     expect(badge({ key: 'title', results, unchangedKeys: [], running: false, cards })).toEqual({ kind: 'changed' });
     expect(badge({ key: 'title', results, unchangedKeys: [], running: true, cards })).toEqual({ kind: 'checking' });
     expect(badge({ key: 'title', results: null, unchangedKeys: [], running: false, cards })).toBeNull();
   });
   it('a field that failed and has not changed since reads fails on product n, not changed (it is never current)', () => {
     const results = { price: { certified: [], cells: { [U[0]!]: { status: 'pass' as const }, [U[1]!]: { status: 'fail' as const }, [U[2]!]: { status: 'pass' as const } } } };
-    expect(badge({ key: 'price', results, unchangedKeys: ['price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', product: 2 });
+    const two = { price: { certified: [], cells: { [U[0]!]: { status: 'fail' as const }, [U[1]!]: { status: 'pass' as const }, [U[2]!]: { status: 'fail' as const } } } };
+    expect(badge({ key: 'price', results: two, unchangedKeys: ['price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', products: [1, 3] });
+    expect(badge({ key: 'price', results, unchangedKeys: ['price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', products: [2] });
     expect(badge({ key: 'price', results, unchangedKeys: [], running: false, cards: board().cards })).toEqual({ kind: 'changed' });
   });
 });
@@ -312,7 +315,8 @@ describe('rowStatus', () => {
   });
   it('different paths, or a missing path, are not agreement', () => {
     const b = board();
-    const mixed = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], { source: 'meta', path: 'product:price:amount' }), sug('149.00', [1], JL)]);
+    // Three different paths: no majority (two sharing one is A4's majority, below).
+    const mixed = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], { source: 'meta', path: 'product:price:amount' }), sug('149.00', [1], { source: 'api', path: 'price' })]);
     expect(rowStatus(price, b, mixed, maps())).toEqual({ kind: 'needs-you', reason: 'comes from different places' });
     const noVia = liveFor(b, 'price', [sug('129.99', [1]), sug('219.99', [1]), sug('149.00', [1])]);
     expect(rowStatus(price, b, noVia, maps())).toEqual({ kind: 'needs-you', reason: 'comes from different places' });
@@ -402,7 +406,7 @@ describe('accepting', () => {
     const live = liveFor(b, 'price', [sug('$129.99', [1], JL), sug('219.99', [], JL), sug('149.00', [1], JL)]);
     const next = acceptRow(b, price, live, maps());
     expect(next.answers.price![U[0]!]!.mark?.xpaths).toEqual(['//x1']);
-    expect(next.answers.price![U[1]!]).toEqual({ value: '219.99', mark: null });
+    expect(next.answers.price![U[1]!]).toEqual({ value: '219.99', mark: null, via: JL });
   });
   it('acceptAllAgreed only fills agreed rows\' empty cells', () => {
     let b = answer(board(), 'title', U[0]!, { value: 'SAME', mark: null }); // with 'Same' and 'same' below: same-everywhere, so not accepted
@@ -449,5 +453,75 @@ describe('what the table and the Verify reason say (final review M2, M7)', () =>
     expect(verifyReason(gate, FIELDS, [needs, agreed], 'x')).toBe('Title still needs product 1');
     expect(verifyReason({ ok: true }, FIELDS, [agreed, agreed], 'Nothing has changed')).toBe('Nothing has changed');
     expect(verifyReason({ ok: false, reason: 'Say where SKU is on this website', field: 'sku' }, FIELDS, [agreed, agreed], 'x')).toBe('Say where SKU is on this website');
+  });
+});
+
+const JLA = { source: 'json-ld', path: 'offers.availability' };
+const JL3 = { source: 'json-ld', path: 'offers.offers[0].availability' };
+const stock: Field = { key: 'in_stock', name: 'In stock', type: 'boolean', description: '', concept: 'availability' };
+const sku: Field = { key: 'sku', name: 'SKU', type: 'text', description: '', concept: 'sku' };
+
+describe('the table-first rules, revised', () => {
+  it('names the odd product and accepts only the majority', () => {
+    const b = board();
+    const live = liveFor(b, 'in_stock', [sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JL3)]);
+    expect(rowStatus(stock, b, live, maps())).toEqual({ kind: 'majority', odd: [3] });
+    const next = acceptRow(b, stock, live, maps(), JLA);
+    expect(next.answers.in_stock![U[0]!]).toMatchObject({ value: 'https://schema.org/InStock', via: JLA });
+    expect(next.answers.in_stock![U[2]!]).toBeUndefined();
+  });
+  it('Accept all takes the majority part of such a row', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], { source: 'meta', path: 'product:price:amount' }), sug('149.00', [1], JL)]);
+    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [2] });
+    const r = acceptAllAgreed(b, [price], live, maps());
+    expect(r.accepted).toEqual(['price']);
+    expect(Object.keys(r.board.answers.price!)).toEqual([U[0], U[2]]);
+  });
+  it('yes/no fields are never "same on every product"', () => {
+    const b = board();
+    const live = liveFor(b, 'in_stock', [sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JLA)]);
+    expect(rowStatus(stock, b, live, maps()).kind).toBe('agreed');
+  });
+  it('a structured value shown in several places counts as one place, accepted without a mark', () => {
+    const m = { ...maps(), [U[0]!]: boxesOf(['A1', 'A1']), [U[1]!]: boxesOf(['B2', 'B2', 'B2']), [U[2]!]: boxesOf(['C3']) };
+    const b = board();
+    const SK = { source: 'json-ld', path: 'sku' };
+    const live = liveFor(b, 'sku', [sug('A1', [0, 1], SK), sug('B2', [0, 1, 2], SK), sug('C3', [0], SK)]);
+    expect(rowStatus(sku, b, live, m).kind).toBe('agreed');
+    expect(acceptRow(b, sku, live, m).answers.sku![U[0]!]).toEqual({ value: 'A1', mark: null, via: SK });
+  });
+  it('several places from the page search still need a person', () => {
+    const m = { ...maps(), [U[0]!]: boxesOf(['A1', 'A1']) };
+    const live = liveFor(board(), 'sku', [sug('A1', [0, 1], { source: 'xpath', path: '//x' }), sug('B2', [0], { source: 'xpath', path: '//x' }), sug('C3', [0], { source: 'xpath', path: '//x' })]);
+    expect(rowStatus(sku, board(), live, m)).toMatchObject({ kind: 'needs-you', reason: 'found in 2 places on product 1' });
+  });
+  it('an answer keeps its path through a save and a reload', () => {
+    const b = answer(board(), 'in_stock', U[0]!, { value: 'https://schema.org/InStock', mark: null, via: JLA });
+    const input = toBindingInput(b, [stock]);
+    expect(input.paths).toEqual({ in_stock: { [U[0]!]: JLA } });
+    const back = boardFrom({ schemaDefinition: [stock], verificationSet: { urls: input.urls, expected: input.expected, paths: input.paths } });
+    expect(back.answers.in_stock![U[0]!]!.via).toEqual(JLA);
+    expect(toBindingInput(board(), [stock])).not.toHaveProperty('paths');
+  });
+  it('clicking the outlined element accepts its suggestion; any other element reads its own text', () => {
+    const bx = boxesOf(['Available', 'Something']);
+    const s = { captureId: 'c', value: 'https://schema.org/InStock', boxes: [0], origin: 'page-data' as const, via: JLA };
+    expect(pickAnswer(bx, 0, stock, U[0]!, s)).toMatchObject({ value: 'https://schema.org/InStock', via: JLA });
+    expect(pickAnswer(bx, 1, sku, U[0]!, undefined)).toMatchObject({ value: 'Something', mark: expect.anything() });
+    const bad = { ...s, value: 'not a yes/no' };
+    expect(pickAnswer(bx, 0, stock, U[0]!, bad)).toMatchObject({ value: 'Available' });
+  });
+  it('the badge names every failing product', () => {
+    expect(failsText([1])).toBe('fails on product 1');
+    expect(failsText([1, 3])).toBe('fails on products 1 and 3');
+    expect(failsText([1, 2, 3])).toBe('fails on products 1, 2 and 3');
+  });
+  it('shows yes/no answers in one form', () => {
+    expect(displayValue(stock, 'https://schema.org/InStock')).toBe('In stock');
+    expect(displayValue(stock, 'Available')).toBe('In stock');
+    expect(displayValue(stock, 'out of stock')).toBe('Out of stock');
+    expect(displayValue({ ...stock, concept: 'remote' }, 'yes')).toBe('Yes');
+    expect(displayValue(sku, 'A1')).toBe('A1');
   });
 });

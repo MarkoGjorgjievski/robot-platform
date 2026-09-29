@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { RunDot } from '../run-dot';
-import type { Badge, Field } from '../../lib/site/verification-model';
+import { failsText, type Badge, type Field } from '../../lib/site/verification-model';
 
 /**
  * A line about the selected product that a cell click cannot say on its own:
@@ -26,7 +26,7 @@ export function BadgeView({ badge }: { badge: Badge }) {
         </span>
       );
     case 'fails':
-      return <span className="shrink-0 text-sm text-fail">fails on product {badge.product}</span>;
+      return <span className="shrink-0 text-sm text-fail">{failsText(badge.products)}</span>;
     case 'changed':
       return <span className="shrink-0 text-sm text-muted-foreground">changed since verified</span>;
     case 'checking':
