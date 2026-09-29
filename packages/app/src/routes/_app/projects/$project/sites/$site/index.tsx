@@ -20,10 +20,13 @@ import {
   badge,
   boardFrom,
   canSave,
+  displayValue,
   dropCard,
   fieldsFor,
   liveSuggestions,
   mergeSuggestions,
+  pickAnswer,
+  placesOf,
   pointable,
   reverifyScope,
   rowStatus,
@@ -31,25 +34,27 @@ import {
   setCards,
   setDescription,
   shortUrl,
+  suggestionAnswer,
   toBindingInput,
   validateValue,
-  valueFromBox,
   verifyGate,
   verifyReason,
   productsProblem,
   LISTING_ELSEWHERE,
+  type Answer,
   type Board,
   type Box,
   type Card,
   type Field,
   type Mark,
+  type Suggestion,
   type Suggestions,
 } from '../../../../../../lib/site/verification-model';
 import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
 import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
-import { verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
+import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -398,7 +403,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   // --- Carry a tick to every other captured product, for that field only.
   const transfer = trpc.sources.transferMarks.useMutation();
-  function carry(key: string, url: string, a: { value: string; mark: Mark | null }) {
+  function carry(key: string, url: string, a: Answer) {
     const b = boardRef.current;
     const toUrls = b.cards
       .map((c) => c.url)
@@ -650,13 +655,15 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     const field = fields.find((f) => f.key === key);
     const box = boxes[pop.box];
     if (!field || !box || pop.url !== selectedUrl) return;
-    let given: { value: string; mark: Mark | null };
+    let given: Answer;
     const sug = pop.mode === 'suggestion' && pop.key === key ? live[key]?.[pop.url] : undefined;
     if (sug) {
-      // The suggested value, with the element as its mark only when it shows that value.
-      given = answerFromSuggestion(box, field, sug.value, pop.url);
+      // The suggested value and its path (spec 2026-09-29 C1), with the
+      // element ticked as its mark only when it shows that value.
+      given = { ...suggestionAnswer(boxes, field, sug, pop.url), ...answerFromSuggestion(box, field, sug.value, pop.url) };
     } else {
-      const read = valueFromBox(box, field.type);
+      // A click on an element this field's suggestion outlines accepts that suggestion (A3).
+      const read = pickAnswer(boxes, pop.box, field, pop.url, live[key]?.[pop.url]);
       if ('error' in read) return;
       given = read;
     }
@@ -691,7 +698,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         value = sug.value;
         err = validateValue(initial.type, value) ?? undefined;
       } else {
-        const r = valueFromBox(box, initial.type);
+        // What a tick would store (A3): a suggestion's value when this element is outlined for it.
+        const r = pickAnswer(boxes, popover.box, initial, popover.url, live[initial.key]?.[popover.url]);
         if ('error' in r) err = r.error;
         else {
           value = r.value;
@@ -845,6 +853,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
    * typed answer, or ×), or a suggestion outlined in several places.
    */
   function rowHint(f: Field): FieldHint | undefined {
+    // A failed cell says why on its row, "Mark it on the screenshot" included (spec C2's no_fitting_path).
+    if (selectedUrl && failedCell(f.key, selectedUrl)) {
+      const hint = cellStatusFor(results, f.key, selectedUrl, false, f.type)?.hint;
+      if (hint) return { text: hint };
+    }
     const s = selectedUrl ? live[f.key]?.[selectedUrl] : undefined;
     if (!s) return undefined;
     const url = selectedUrl;
@@ -854,9 +867,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (places === 0) {
       return {
         text: s.origin === 'page-data' ? 'page data' : 'from another product',
-        value: s.value,
+        value: displayValue(f, s.value),
         onAccept: () => {
-          const given = { value: s.value, mark: null };
+          const given = suggestionAnswer(boxes, f, s, url);
           setBoard((b) => answer(b, f.key, url, given));
           select({ field: f.key });
           carry(f.key, url, given);
@@ -873,7 +886,24 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // A screenshot that failed says so on its row, not "not ready" (final review M6).
   const failedUrls = new Set(urls.filter((u) => captures.byUrl[u]?.status === 'failed'));
   const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls));
-  const agreedCount = statuses.filter((s) => s.kind === 'agreed').length;
+  // A majority row is accepted by Accept all for its majority part (A4), so it counts.
+  const agreedCount = statuses.filter((s) => s.kind === 'agreed' || s.kind === 'majority').length;
+
+  /**
+   * A cell's one-click accept (A7): only for a valid suggestion found in one
+   * place once its screenshot has landed; stored as a tick would, and carried.
+   */
+  function cellAccept(f: Field, url: string): (() => void) | undefined {
+    const s: Suggestion | undefined = live[f.key]?.[url];
+    const cellBoxes = boxesByUrl[url];
+    if (!s || !cellBoxes || board.answers[f.key]?.[url]) return undefined;
+    if (validateValue(f.type, s.value) || placesOf(cellBoxes, s, f, url) !== 1) return undefined;
+    return () => {
+      const given = suggestionAnswer(cellBoxes, f, s, url);
+      setBoard((b) => (b.answers[f.key]?.[url] ? b : answer(b, f.key, url, given)));
+      carry(f.key, url, given);
+    };
+  }
 
   const rows: TableRow[] = fields.map((f, fi) => {
     const a = selectedUrl ? board.answers[f.key]?.[selectedUrl] : undefined;
@@ -882,7 +912,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       field: f,
       status: statuses[fi]!,
       cells: board.cards.map((c, i) => ({
-        value: board.answers[f.key]?.[c.url]?.value ?? live[f.key]?.[c.url]?.value ?? '',
+        value: displayValue(f, board.answers[f.key]?.[c.url]?.value ?? live[f.key]?.[c.url]?.value ?? ''),
         state: segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) }),
         selected: panelOpen && selected === i && fieldKey === f.key,
         onClick: () => {
@@ -890,6 +920,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           select({ product: i + 1, field: f.key });
           setReveal((r) => ({ n: r.n + 1, product: i + 1, field: f.key }));
         },
+        onAccept: c.url.trim() ? cellAccept(f, c.url) : undefined,
       })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       expanded: !!expanded[f.key],
