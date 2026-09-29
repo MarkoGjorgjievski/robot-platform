@@ -69,16 +69,35 @@ function day(raw: unknown): string | null {
   return zoned ? new Date(t).toISOString().slice(0, 10) : local(new Date(t));
 }
 
+/** A structured value that names a URL directly, or an object that carries one (JSON-LD ImageObject, `{ url }`, `{ contentUrl }`, `{ '@id' }`) — the first of those that is a string. */
+function urlString(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const obj = raw as Record<string, unknown>;
+  const candidate = obj.url ?? obj.contentUrl ?? obj['@id'];
+  return typeof candidate === 'string' ? candidate : null;
+}
+
 function url(raw: unknown, ctx?: NormalizeContext): string | null {
-  if (typeof raw !== 'string' || raw.trim() === '') return null;
+  const value = urlString(raw);
+  if (typeof value !== 'string' || value.trim() === '') return null;
   try {
-    const u = new URL(raw.trim(), ctx?.pageUrl);
+    const u = new URL(value.trim(), ctx?.pageUrl);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
     u.hash = '';
     u.hostname = u.hostname.toLowerCase();
     return u.href;
   } catch {
     return null;
+  }
+}
+
+/** Scheme-less host + path, for image equality (spec 2026-09-29 C3): the query and fragment never tell two renditions of the same image apart. `u` is already an absolute, host-lower-cased URL from `normalize`. */
+function imageKey(u: string): string {
+  try {
+    const x = new URL(u);
+    return x.hostname + x.pathname;
+  } catch {
+    return u;
   }
 }
 
@@ -107,6 +126,7 @@ export function valuesEqual(type: CustomerFieldType, a: unknown, b: unknown, ctx
   const na = normalize(type, a, ctx);
   const nb = normalize(type, b, ctx);
   if (na === null || nb === null) return false;
+  if (type === 'image') return imageKey(na) === imageKey(nb);
   return type === 'text' ? na.toLowerCase() === nb.toLowerCase() : na === nb;
 }
 

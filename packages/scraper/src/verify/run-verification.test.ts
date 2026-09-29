@@ -444,3 +444,40 @@ describe('runVerification — confirmed paths and marks reach certification', ()
     expect(run.outcome.fields.in_stock!.certified.map((p) => p.path)).toContain(MARK);
   }, 60_000);
 });
+
+// controller ruling, follow-up 3: a field whose result has every captured
+// cell failing with no_fitting_path cannot be rescued by an AI XPath
+// proposal — a weak field's DOM hits never qualify unless marked — so the
+// paid fallback must not be asked.
+describe('runVerification — the AI fallback is skipped when nothing can fit a weak field', () => {
+  it('does not ask the agent when every checked page fails with no_fitting_path', async () => {
+    const inStock = fields[2]!; // in_stock, boolean, concept 'availability'
+    const only: VerificationSet = { urls: U, expected: { in_stock: Object.fromEntries(U.map((u) => [u, 'yes'])) } };
+    // Direct `captures` (not `captureOne`) so an empty page is used as-is, never routed through
+    // captureProblem's page-health gate — that would turn these into not_captured, not fail.
+    const caps = Object.fromEntries(U.map((u) => [u, emptyCapture(u)])) as unknown as Record<string, import('@robot/browser').PageCapture>;
+    const offlineBrowser = { setContentEvaluate: async () => [] } as unknown as IBrowser;
+    let calls = 0;
+    const agent = { proposePaths: async () => { calls++; return []; } };
+    const run = await runVerification({ fields: [inStock], verificationSet: only }, {
+      browser: offlineBrowser, agent, captures: caps,
+    });
+    expect(calls).toBe(0);
+    expect(run.outcome.aiCalls).toBe(0);
+    for (const url of U) {
+      expect(run.outcome.fields.in_stock!.cells[url]).toMatchObject({ status: 'fail', reason: 'no_fitting_path' });
+    }
+  });
+
+  it('still asks the agent for an ordinary non-weak failure', async () => {
+    const stubborn = [{ key: 'sku', name: 'SKU', type: 'text' as const, description: 'item number', concept: 'sku' }];
+    const skuSet = { urls: U, expected: { sku: { [U[0]!]: 'A1', [U[1]!]: 'B2', [U[2]!]: 'C3' } } };
+    let calls = 0;
+    const agent = { proposePaths: async () => { calls++; return [
+      { source: 'xpath' as const, path: '//*[@id="main"]/span[@class="sku"]/@data-sku', transform: 'identity' as const },
+    ]; } };
+    const run = await runVerification({ fields: stubborn, verificationSet: skuSet }, { browser, agent, captures: loadShopExample() });
+    expect(calls).toBe(1);
+    expect(run.outcome.aiCalls).toBe(1);
+  }, 60_000);
+});

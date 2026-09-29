@@ -107,6 +107,18 @@ function provenPagesStillPresent(prev: FieldVerification, urls: string[]): boole
   return Object.keys(prev.cells).every((u) => urls.includes(u));
 }
 
+/**
+ * Did every captured, checked page fail because nothing could be told to be
+ * this field (spec 2026-09-29 C2, `no_fitting_path`)? An AI XPath proposal
+ * cannot rescue a weak field — an unmarked DOM hit never qualifies, whatever
+ * it finds — so asking (and paying for) the model here is wasted: the
+ * customer marks it instead.
+ */
+function everyCellNoFittingPath(result: FieldVerification): boolean {
+  const captured = Object.values(result.cells).filter((c) => c.status !== 'not_captured');
+  return captured.length > 0 && captured.every((c) => c.status === 'fail' && c.reason === 'no_fitting_path');
+}
+
 export async function runVerification(req: VerificationRequest, deps: VerificationDeps): Promise<VerificationRun> {
   const captureOne = deps.captureOne ?? defaultCapture;
   const captures: Record<string, PageCapture | null> = {};
@@ -158,7 +170,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       candidates = [...cached, ...gathered.candidates];
       result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths }, { evalXPaths });
     }
-    if (result.certified.length === 0 && !result.incomplete && deps.agent) {
+    if (result.certified.length === 0 && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
       deps.onProgress?.(`asking AI for ${field.key}`);
       const nearMisses = Object.fromEntries(Object.entries(result.cells).map(([u, c]) => [u, c.status === 'fail' ? c.nearMisses ?? [] : []]));
       // I1: only the pages this field is actually checked on go to the model

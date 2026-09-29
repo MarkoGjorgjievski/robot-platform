@@ -4,7 +4,7 @@ import { normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
-import { isWeakField, pathFitsConcept } from './field-fit.js';
+import { isWeakField, normalizeForWeak, pathFitsConcept } from './field-fit.js';
 import type { CellResult, CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
 
 export type CandidatePath = CertifiedPath;
@@ -54,6 +54,24 @@ function rankConfirmedFirst(paths: CandidatePath[], confirmed: ConfirmedPath[] |
 
 function pathId(p: CandidatePath): string {
   return `${p.source} ${p.path} ${p.transform}`;
+}
+
+/** A raw value fit to show the customer (spec 2026-09-29 C4): a scalar prints as-is; an object
+ *  (JSON-LD ImageObject etc.) reads its url/contentUrl/@id, never `[object Object]`; an array
+ *  joins its items' own display. Null when nothing displayable is in there. */
+function displayRaw(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
+  if (Array.isArray(raw)) {
+    const items = raw.map(displayRaw).filter((i): i is string => i !== null);
+    return items.length ? items.join(', ') : null;
+  }
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const u = obj.url ?? obj.contentUrl ?? obj['@id'];
+    return typeof u === 'string' ? u : null;
+  }
+  return null;
 }
 
 function dedupe(candidates: CandidatePath[]): CandidatePath[] {
@@ -161,11 +179,14 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const expected = Object.fromEntries(urls.map((u) => [u, input.expected[u]!]));
   const filtered = dedupe(input.candidates).filter((c) => c.source !== 'xpath' || !Object.values(expected).some((e) => xpathContainsValue(c.path, e)));
   // A confirmed path is always a candidate (spec 2026-09-29 C1), though still only a candidate:
-  // it must be correct or empty on every checked page like any other.
+  // it must be correct or empty on every checked page like any other. Dedupe on the FULL path
+  // id (source + path + transform), not source+path alone: the cache can hold the same
+  // source+path under a different transform (e.g. `cents_to_units`), which must not crowd out
+  // the confirmed path's own identity reading — that reading may be the correct one.
   const confirmedExtra = (input.confirmed ?? [])
     .filter((p, i, all) => all.findIndex((q) => q.source === p.source && q.path === p.path) === i)
-    .filter((p) => !filtered.some((c) => c.source === p.source && c.path === p.path))
-    .map((p): CandidatePath => ({ source: p.source, path: p.path, transform: 'identity' }));
+    .map((p): CandidatePath => ({ source: p.source, path: p.path, transform: 'identity' }))
+    .filter((p) => !filtered.some((c) => pathId(c) === pathId(p)));
   const withConfirmed = [...filtered, ...confirmedExtra];
   const weak = isWeakField(field.type, Object.values(expected));
   const opts = { confirmed: input.confirmed, markXPaths: input.markXPaths };
@@ -173,7 +194,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const capturedUrls = urls.filter((u) => captures[u] !== null);
   const rank = (paths: CandidatePath[]) => rankConfirmedFirst(paths, input.confirmed);
 
-  const norms = new Set(Object.values(expected).map((e) => normalize(field.type, e)));
+  // Same normalisation isWeakField uses (case-insensitive for text), so the flag and the
+  // weak-field filter above can never disagree about what counts as "the same value".
+  const norms = new Set(Object.values(expected).map((e) => normalizeForWeak(field.type, e)));
   const weakEvidence = norms.size === 1 && Object.keys(expected).length > 1;
   if (weak && candidates.length === 0) {
     // Nothing on these pages can be told to be this field: say so, rather than
@@ -233,29 +256,32 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
     if (certified.length > 0) {
       // Every checked page is covered; safety makes the first non-empty path the right one.
       const winner = certified.find((p) => isCorrect(p, url))!;
-      cells[url] = { status: 'pass', found: String(evals.get(pathId(winner))![url]!.raw), path: winner };
+      const raw = evals.get(pathId(winner))![url]!.raw;
+      cells[url] = { status: 'pass', found: displayRaw(raw) ?? String(raw), path: winner };
       continue;
     }
     if (!complete && rankedCorrectOnAllCaptured.length > 0) {
       const top = rankedCorrectOnAllCaptured[0]!;
       const raw = evals.get(pathId(top))![url]!.raw;
-      cells[url] = { status: 'pass', found: String(raw), path: top };
+      cells[url] = { status: 'pass', found: displayRaw(raw) ?? String(raw), path: top };
       continue;
     }
     const others = capturedUrls.filter((u) => u !== url);
-    const nearMisses = [...new Set(candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).filter((r) => r !== null && r !== undefined && r !== '').map(String))].slice(0, 3);
+    const nearMisses = [...new Set(candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).map(displayRaw).filter((r): r is string => r !== null && r !== ''))].slice(0, 3);
     const twoOfThree = candidates.find((c) => others.length > 0 && others.every((u) => evals.get(pathId(c))?.[u]?.correct) && !evals.get(pathId(c))?.[url]?.correct);
     if (twoOfThree) {
       const here = evals.get(pathId(twoOfThree))![url]!.raw;
       const empty = here === null || here === undefined || here === '';
+      const hereDisplay = displayRaw(here) ?? String(here);
       if (empty) cells[url] = { status: 'fail', reason: 'not_found', ...(nearMisses.length ? { nearMisses } : {}) };
-      else if (normalize(field.type, here, ctx) === null) cells[url] = { status: 'fail', reason: 'type_mismatch', found: String(here), ...(nearMisses.length ? { nearMisses } : {}) };
-      else cells[url] = { status: 'fail', reason: 'different_value', found: String(here), ...(nearMisses.length ? { nearMisses } : {}) };
+      else if (normalize(field.type, here, ctx) === null) cells[url] = { status: 'fail', reason: 'type_mismatch', found: hereDisplay, ...(nearMisses.length ? { nearMisses } : {}) };
+      else cells[url] = { status: 'fail', reason: 'different_value', found: hereDisplay, ...(nearMisses.length ? { nearMisses } : {}) };
       continue;
     }
     const safeHere = rankedSafe.find((c) => isCorrect(c, url));
     if (complete && urls.length > VERIFY_URL_MIN && safeHere) {
-      cells[url] = { status: 'pass', found: String(evals.get(pathId(safeHere))![url]!.raw), path: safeHere };
+      const raw = evals.get(pathId(safeHere))![url]!.raw;
+      cells[url] = { status: 'pass', found: displayRaw(raw) ?? String(raw), path: safeHere };
       continue;
     }
     const correctHere = candidates.some((c) => evals.get(pathId(c))?.[url]?.correct);

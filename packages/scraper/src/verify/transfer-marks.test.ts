@@ -58,4 +58,21 @@ describe('transferMarks', () => {
     const r = await transferMarks({ field: title, from: { url: U[0]!, capture: caps[U[0]!]!, expected: 'Widget A' }, to }, deps);
     expect(r[U[1]!]).toMatchObject({ value: 'Widget B', boxes: [] });
   });
+
+  // spec 2026-09-29 A2: the carry follows the same fit rule as certification
+  // (C2) for a weak (boolean) field — an unrelated API field that happens to
+  // agree is not a candidate; only a path that fits the concept is.
+  it('carries a boolean field by the fitting concept path, not an unrelated field that happens to agree', async () => {
+    const inStock: SchemaDefinitionField = { key: 'in_stock', name: 'In stock', type: 'boolean', description: '', concept: 'availability' };
+    const capOf = (url: string): CaptureLike => ({
+      url, html: '<html><body></body></html>',
+      structuredData: { ldJson: [{ offers: { availability: 'https://schema.org/InStock' } }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [{ url: `${url}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { priority: 1 } }] as unknown as CaptureLike['interceptedRequests'],
+    });
+    const fromCapture = capOf('https://s.example/p/1');
+    const toCapture = capOf('https://s.example/p/2');
+    const to = { 'https://s.example/p/2': { capture: toCapture, boxes: [] as Box[] } };
+    const r = await transferMarks({ field: inStock, from: { url: 'https://s.example/p/1', capture: fromCapture, expected: 'true' }, to }, deps);
+    expect(r['https://s.example/p/2']).toMatchObject({ via: { source: 'json-ld', path: 'offers.availability' } });
+  });
 });
