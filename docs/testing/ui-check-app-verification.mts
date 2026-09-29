@@ -235,7 +235,8 @@ const cellButton = (name: string, product: number) => p.locator(`button[aria-lab
 async function cellState(name: string, product: number): Promise<string> {
   const cell = cellButton(name, product);
   if ((await cell.count()) !== 1) return '?';
-  return ((await cell.getAttribute('aria-label')) ?? '').slice(`${name} on product ${product}: `.length);
+  // The label reads "<field> on product <n>: <state>[, <value>]".
+  return ((await cell.getAttribute('aria-label')) ?? '').slice(`${name} on product ${product}: `.length).split(', ')[0]!;
 }
 async function statesOn(i: number): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
@@ -250,10 +251,12 @@ const rowOf = (name: string) => p.getByRole('row').filter({ has: p.getByRole('ro
 async function statusText(name: string): Promise<string> {
   return norm(await rowOf(name).locator('td').last().innerText());
 }
-type Kind = 'agreed' | 'same-everywhere' | 'needs-you' | 'accepted';
+type Kind = 'agreed' | 'majority' | 'same-everywhere' | 'needs-you' | 'accepted';
 const kindOf = (text: string): Kind =>
   text === 'agreed Accept'
     ? 'agreed'
+    : text.startsWith('different place on product')
+      ? 'majority'
     : text.startsWith('same on every product')
       ? 'same-everywhere'
       : text === '' || /^(verified|fails on product \d+|changed since verified|checking…)$/.test(text)
@@ -282,6 +285,13 @@ const click = async (what: () => Promise<void>) => {
  * look and pick; this check takes the first, and says so in the numbers.
  */
 async function tickCell(name: string, product: number): Promise<string> {
+  // One place on the screenshot: the cell's own ✓ (shown on hover) accepts it in one click.
+  await cellButton(name, product).hover();
+  const tick = p.getByRole('button', { name: `Accept ${name} on product ${product}`, exact: true });
+  if ((await tick.count()) === 1) {
+    await click(() => tick.click());
+    if (await until(`${name} on product ${product} to be accepted`, async () => (await cellState(name, product)) === 'accepted', 10_000, 200)) return 'the cell\'s ✓';
+  }
   await click(() => cellButton(name, product).click());
   await until(`product ${product} in the address`, async () => new URL(p.url()).searchParams.get('product') === String(product), 5_000, 100);
   await until(`product ${product}'s screenshot`, async () => (await panel().locator('img[alt="Screenshot of this product"]').count()) > 0, 20_000, 200);
@@ -449,6 +459,7 @@ try {
   );
   const byKind = (k: Kind) => FIELDS.map((f) => f.name).filter((n) => kindOf(before[n]!) === k);
   measure('rows agreed before any click', `${byKind('agreed').length} of ${FIELDS.length}: ${byKind('agreed').join(', ') || '—'}`);
+  measure('rows agreed but for one product', `${byKind('majority').length}: ${byKind('majority').map((n) => `${n} (${before[n]})`).join('; ') || '—'}`);
   measure('rows the same everywhere', `${byKind('same-everywhere').length}: ${byKind('same-everywhere').join(', ') || '—'}`);
   measure('rows that need you', `${byKind('needs-you').length}: ${byKind('needs-you').map((n) => `${n} (${before[n]})`).join('; ') || '—'}`);
   for (let i = 0; i < 3; i++) {
@@ -470,7 +481,20 @@ try {
     if (await verify.isEnabled()) break;
     const st = await statuses();
     const kinds = Object.fromEntries(Object.entries(st).map(([n, t]) => [n, kindOf(t)])) as Record<string, Kind>;
-    if (Object.values(kinds).includes('agreed')) {
+    // Accept all agreed takes a majority row's majority too (spec 2026-09-29 A4); its odd product
+    // stays for a person, and the row keeps its wording until that product is answered.
+    const majorityOpen = async (n: string) => {
+      const odd = Number(/on product (\d)/.exec(st[n]!)?.[1] ?? 0);
+      for (const i of [1, 2, 3]) if (i !== odd && (await cellState(n, i)) === 'suggested') return true;
+      return false;
+    };
+    let agreedLeft = Object.values(kinds).includes('agreed');
+    for (const f of FIELDS) {
+      if (kinds[f.name] !== 'majority') continue;
+      if (await majorityOpen(f.name)) agreedLeft = true;
+      else kinds[f.name] = 'needs-you';
+    }
+    if (agreedLeft) {
       const label = norm(await acceptAll.innerText());
       await click(() => acceptAll.click());
       how.push(label);
@@ -553,6 +577,13 @@ try {
     for (const f of FIELDS) for (let i = 1; i <= 3; i++) if ((await cellState(f.name, i)) === 'failed') red.push(`${f.name} on product ${i}`);
     measure('red cells', red.join(', ') || 'none');
     measure('Go to Extract', (await p.getByRole('link', { name: 'Go to Extract' }).count()) > 0 ? 'live' : 'locked');
+    // Which path each field certified (spec 2026-09-29: In stock must stand on a path that names it).
+    const status = await query<{ results: Record<string, { certified: Array<{ source: string; path: string }>; cells: Record<string, { status: string; path?: { source: string; path: string } }> }> }>('sources.verificationStatus', { sourceId: site.id });
+    for (const f of FIELDS) {
+      const r = status.results[f.key];
+      const cells = Object.values(r?.cells ?? {}).map((c) => (c.status === 'pass' && c.path ? `${c.path.source} ${c.path.path}` : c.status));
+      measure(`certified, ${f.name}`, `${(r?.certified ?? []).map((c) => `${c.source} ${c.path}`).join(' | ') || 'nothing'}; per product: ${cells.join(', ')}`);
+    }
     await shootBoth('verified');
   } else {
     measure('Verify stays off because', (await reasonOf()) || 'no reason shown');

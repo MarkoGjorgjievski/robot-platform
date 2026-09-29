@@ -8,9 +8,11 @@ type: project
 
 ## Read this first
 
-**Newest: [Table-first verification (2026-09-28)](#table-first-verification-2026-09-28).** The Verification tab is one table — a row per field, a column per product, Accept all agreed above it, a cell click opens the screenshot. On Ikea it took 24 clicks to Verify (plan 5: 43) and verified 8 of 8, free; three defects the live check found are fixed. Next: Part B of the same spec, drift repair. The Jev shadow-checks design is parked, not scheduled.
+**Newest: [Certification picks the right path (2026-09-29)](#certification-picks-the-right-path-2026-09-29).** A yes/no field, or one whose proof pages share a value, now certifies only on a path the customer confirmed, an element they marked, or a structured path named for it — Ikea's In stock stands on `offers.availability`, no longer on `priority`. Images match on host and path. On Ikea: **7 clicks** to Verify (was 24), 8 of 8 verified, free. The read-only audit flags two existing websites for the customer to re-verify (Competitor prices / Ikea — In stock; Acne / Ikea — Price currency); nothing is re-certified automatically. Next: variants, a design of their own.
 
-**Before it: [App redesign, plan 5 — the Verification tab (2026-09-25)](#app-redesign-plan-5-the-verification-tab-2026-09-25).** A website's first tab is now Verification (find products from a listing, point at values, tick suggestions, verify); the grid and the stepper are gone from `@robot/app`. Ikea — its six stored fields plus SKU and Brand — verifies 8 of 8 through it, live and free. Plans 1–4 of the app redesign follow it below; the state paragraph under this one is older.
+**Before it: [Table-first verification (2026-09-28)](#table-first-verification-2026-09-28).** The Verification tab is one table — a row per field, a column per product, Accept all agreed above it, a cell click opens the screenshot. On Ikea it took 24 clicks to Verify (plan 5: 43) and verified 8 of 8, free; three defects the live check found are fixed. Next: Part B of the same spec, drift repair. The Jev shadow-checks design is parked, not scheduled.
+
+**Before that: [App redesign, plan 5 — the Verification tab (2026-09-25)](#app-redesign-plan-5-the-verification-tab-2026-09-25).** A website's first tab is now Verification (find products from a listing, point at values, tick suggestions, verify); the grid and the stepper are gone from `@robot/app`. Ikea — its six stored fields plus SKU and Brand — verifies 8 of 8 through it, live and free. Plans 1–4 of the app redesign follow it below; the state paragraph under this one is older.
 
 **State on 2026-09-11.** `main` holds the whole MVP flow: routes and shell (phase 1), the contract on the dataset (phase 2), the Schema tab as the proof sheet (phase 3), the Extract tab stepper (phase 4) and the visual system (phase 5), all merged fast-forward from `feat/schema-verification` at `b025fbf`. Spec: `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`; one plan per phase under `docs/superpowers/plans/2026-09-*-mvp-flow-phase*`; one section per phase below. `main` is not pushed: `origin/main` is at `941cac3`, far behind.
 
@@ -37,6 +39,96 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Certification picks the right path (2026-09-29)
+
+Spec: `docs/superpowers/specs/2026-09-29-certification-picks-the-right-path-design.md`. Plan:
+`docs/superpowers/plans/2026-09-29-certification-picks-the-right-path.md`; the per-task briefs,
+reports and ledger were scratch; `git log` is the record. Branch `feat/certification-right-path`,
+base `main` at `594d93d`. Why: Marko's own Ikea run (2026-09-28) certified **In stock on
+`api → priority`** — a yes/no value matches any field that is 1 on every proof page, and API
+outranks JSON-LD — so at scale an out-of-stock product would have read "in stock", silently. Main
+image failed on all three products (a `?f=s` size parameter), and a JSON-LD `ImageObject` was stored
+as `[object Object]`. **API stays the first-ranked source** (Marko): the rules decide which paths
+may compete, not the order among them.
+
+**What landed** (`git log --oneline 594d93d..HEAD`):
+
+| Commit | What |
+|---|---|
+| `2d4f4fd` | C1/C2: `field-fit.ts` (`isWeakField`, `pathFitsConcept`, `CONCEPT_PATHS`); a weak field — yes/no, or one value on every checked proof page — certifies only a path the customer confirmed, the XPath of an element they marked, or a structured path named for its concept (`qualifiesForWeak`, one rule for certify and the carry); nothing fitting → cell reason `no_fitting_path` and no paid AI fallback; confirmed paths go first; `VerificationSet.paths` (Task 1) |
+| `be410c4`, `42b84e5` | C3/C4: an image is the same image when host + path match (query and fragment ignored; `url` stays exact); a structured object is read (`url` / `contentUrl` / `@id`, `structured-value.ts`'s one reader), never stringified; the carry follows C2 (Task 2 and its fix round) |
+| `e5b11e4` | an answer keeps the path it was accepted from: `paths` round-trips through `updateBinding`, is dropped with a changed value, moves `fieldHash`; `fieldHash` / `definitionHash` are byte-identical for a set without `paths`, so existing websites stay current (Task 3) |
+| `8a1f428`, `699fd39` | the model: answers keep their path; A4 majority rows ("different place on product n — check it", Accept takes the majority only, the odd product is left for a person — also when every value matches); A5 one structured value in several places is one place; A6 yes/no reads "In stock / Out of stock" (availability) or "Yes / No", the saved value untouched (Task 4 and its fix round) |
+| `c0329c9` | the tab: A1 a carry never replaces a page-data suggestion; the majority status and Accept; A7 a per-cell ✓ ("Accept {field} on product {n}") for a suggestion with exactly one place; the `no_fitting_path` hint "We can't tell which value on this page is this field. Mark it on the screenshot." (Task 5) |
+| `473e7e2` | found by the live run: a bare fragment (`#0058a3`) or a lone dot (`.`) resolves to the page itself, so it certified as Product URL; `normalize` now refuses it as a URL (Task 6) |
+| this task | `packages/api/src/scripts/audit-certified-paths{,-core}.ts` (+ test), the live check updated for the new rows, the live note, this section (Task 6) |
+
+**No implementer signed in as `markodjordjievski@gmail.com` or wrote to org `default` or `mar`.**
+The audit read every organisation's websites, select queries only. Verify was clicked only by the
+live check, on the keyless :4100 api-server, after it asserted "· free" — three times, $0.00.
+
+**Rulings this plan made:**
+
+- One weak-candidate rule, `qualifiesForWeak(field, c, { confirmed, markXPaths })` in `certify.ts`,
+  used by certification, the carry and the audit.
+- Dedupe confirmed extras on the full path id (source + path + transform), so the identity reading
+  of a confirmed path is tried even when the cache holds another transform.
+- A weak field whose every cell ends `no_fitting_path` skips the paid AI fallback: its XPath
+  proposals cannot qualify; the remedy is a mark. Cost if wrong: a rare field whose fitting path
+  needs a transform only the AI finds needs a mark instead.
+- C4 applies wherever a raw structured value becomes text (transfer value, certify's `found`).
+- A majority row whose values all match still keeps its odd product for a person (A4 binding):
+  same-everywhere carries `{ odd, via }` and "Accept anyway" takes `via` only.
+- The one-click ✓ is to be hidden on a majority row's odd product (strict A4) — **ruled, not yet in
+  the code** (`cellAccept` still offers it; the live run used it once).
+
+**The live run** (`docs/testing/2026-09-29-certification-live.md`; Ikea MY Cabinets; the listing's
+first three are now BAGGEBO and two BILLY / OXBERG combinations, so the odd product is product 1):
+before any click **5 rows agreed, 2 agreed but for one product** (Price, In stock), 1 same
+everywhere (Brand), none need you; **7 clicks to an enabled Verify** (was 24; plan 5: 43): Find
+products, Accept all agreed (7), Accept Brand anyway, Price's ✓ on product 1, and three for In
+stock on product 1 (its value has no element on the screenshot, so no ✓). A free Verify in 6.2 s,
+**8 of 8 verified**. **In stock certified `json-ld offers.offers[0].availability |
+json-ld offers.availability`** (nothing from the API); **Main image verified on all three**
+(`meta og:image`, backups `api mainImage.url`, `json-ld image[0].contentUrl`); SKU, 7 clicks last
+time, is agreed (A5).
+
+**The audit** (`pnpm --filter @robot/api exec tsx src/scripts/audit-certified-paths.ts`, read-only;
+full output in the live note): 2 websites with a verification set, 13 certified fields, **2 on
+paths that no longer qualify**:
+
+| Website | Field | Certified on | Why |
+|---|---|---|---|
+| mar / Competitor prices / Ikea | In stock | `api priority`, `api [0..3].cashAndCarry` | yes/no field on paths that do not name it |
+| default / Acne / Ikea | Price currency | `api revampPrice.currencyPrefix`, `api revampPrice.currencySymbol` | one value on every product, on paths that do not name it |
+
+**The customer re-verifies those two fields from the tab** (free: mechanical paths). Nothing is
+re-certified automatically; both stay "current" until then, because their hashes did not change.
+Competitor prices / Ikea's Product URL also still holds the junk backups `473e7e2` stops
+(`revampPrice.separator`, theme colours); they can no longer read as a URL, and a re-verify drops
+them.
+
+**Seen, not fixed:**
+
+- A page-data value with no element on the screenshot gets no ✓ (A7 needs exactly one place):
+  3 clicks instead of 1 for In stock on the odd product.
+- After "Confirm … from the page data", the expanded row's "Type it" box shows the raw
+  `https://schema.org/InStock` (the answer has no mark, so it reads as typed).
+- Verify on a throwaway Ikea website again enriched the shared domain cache (plan 5's open
+  decision stands).
+
+**Deferred minors** (task reviews): no dedicated test for omitting `found` when unreadable; the pass
+cells' `displayValue(raw) ?? String(raw)` fallback; `majorityOf` counts products 4–6 too, and a tie
+reads "comes from different places"; `cellAccept`'s guards are covered by the smoke only; the Verify
+reason says "Accept {field} first" when the gap is the odd product itself; the ✓ is invisible on
+touch (the cell click still works); `imageKey` treats two images differing only by a query id as
+one (accepted in the spec).
+
+**Next: variants**, a design of its own (spec §6). Decided up front: the customer chooses variant
+handling at setup — usually one row per variant — and a run never stops to ask. Until then A4 leaves
+a combination or variant product (Ikea's BILLY / OXBERG) to a person. Then Part B of the 2026-09-28
+spec, drift repair, and plan 6, the cut-over.
 
 ## Table-first verification (2026-09-28)
 
