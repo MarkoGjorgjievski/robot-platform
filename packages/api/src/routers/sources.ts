@@ -14,7 +14,7 @@ import { sourceInOrg, captureInOrg } from '../auth/scope.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
-import { bindingInput, prepareBinding, bindingProblems, host, markInput } from '../verify/binding-input.js';
+import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
 import { contractFields, bindingFor } from '../contract.js';
 import { rankProductLinks, describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
@@ -905,7 +905,8 @@ export const sourcesRouter = router({
       sourceId: z.string().uuid(),
       fromUrl: httpUrl,
       toUrls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX),
-      from: z.record(z.string(), z.object({ value: z.string(), mark: markInput.optional() })).optional(),
+      // `via`: the structured path the answer on screen was accepted from (spec 2026-09-29 C1): the carry tries it first.
+      from: z.record(z.string(), z.object({ value: z.string(), mark: markInput.optional(), via: confirmedPathInput.optional() })).optional(),
       fieldKeys: z.array(z.string()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -917,8 +918,8 @@ export const sourcesRouter = router({
       const set = (source.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
       // The Verification tab saves drafts, but a tick transfers before its save lands, so it sends the answer on screen.
       const pageOne = (key: string) => input.from
-        ? { value: input.from[key]?.value ?? '', mark: input.from[key]?.mark }
-        : { value: set.expected[key]?.[input.fromUrl] ?? '', mark: set.marks?.[key]?.[input.fromUrl] };
+        ? { value: input.from[key]?.value ?? '', mark: input.from[key]?.mark, via: input.from[key]?.via }
+        : { value: set.expected[key]?.[input.fromUrl] ?? '', mark: set.marks?.[key]?.[input.fromUrl], via: set.paths?.[key]?.[input.fromUrl] };
       const pages = await loadProofPageCaptures(input.sourceId, [input.fromUrl, ...input.toUrls]);
       const from = pages[input.fromUrl];
       if (!from) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Mark page 1 first: it has no fresh capture' });
@@ -940,8 +941,8 @@ export const sourcesRouter = router({
           runDomSearch: (html: string, needles: DomNeedle[], pageUrl: string) => browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl)),
         };
         for (const field of carried) {
-          const { value: expected, mark } = pageOne(field.key);
-          const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark }, to }, deps);
+          const { value: expected, mark, via } = pageOne(field.key);
+          const r = await transferMarks({ field, from: { url: input.fromUrl, capture: from.capture, expected, mark, via }, to }, deps);
           for (const u of input.toUrls) if (out[u]) out[u]!.fields[field.key] = r[u] ?? null;
         }
       });

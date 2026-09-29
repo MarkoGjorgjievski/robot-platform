@@ -142,4 +142,14 @@ describe('sources.transferMarks from the values on screen', () => {
       expect(saved[f.urls[1]!]!.fields[f.keys.Price!]).toBeNull();
     } finally { await f.cleanup(); }
   });
+  it('passes the path page 1\'s answer came from through to the carry, which tries it first', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-via', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await seedProofPage(f.sourceId, f.urls[0]!, 'p1'); await seedProofPage(f.sourceId, f.urls[1]!, 'p2');
+      const plain = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99' } } });
+      expect(plain[f.urls[1]!]!.fields[f.keys.Price!]!.via.source).toBe('api'); // item.priceCents: the API ranks first
+      const r = await caller.sources.transferMarks({ sourceId: f.sourceId, fromUrl: f.urls[0]!, toUrls: [f.urls[1]!], from: { [f.keys.Price!]: { value: '129.99', via: { source: 'meta', path: 'product:price:amount' } } } });
+      expect(r[f.urls[1]!]!.fields[f.keys.Price!]).toMatchObject({ value: expect.stringMatching(/219\.99/), via: { source: 'meta', path: 'product:price:amount' } });
+    } finally { await f.cleanup(); }
+  });
 });
