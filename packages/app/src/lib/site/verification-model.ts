@@ -516,6 +516,41 @@ export function acceptRow(board: Board, field: Field, live: Suggestions, boxesBy
   return next;
 }
 
+/**
+ * May this cell's suggestion be taken in one click (spec A7, strict A4)? Only a
+ * valid, unanswered suggestion found in one place once its screenshot has
+ * landed — and never on an odd product: one whose suggestion came by another
+ * path than one two or more other products share (their suggestions' paths and
+ * their answers' paths both count, so the odd product stays for a person even
+ * after the majority is accepted).
+ */
+export function cellAcceptable(field: Field, board: Board, live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>, url: string): boolean {
+  const s = live[field.key]?.[url];
+  const boxes = boxesByUrl[url];
+  if (!s || !boxes || board.answers[field.key]?.[url]) return false;
+  if (validateValue(field.type, s.value) || placesOf(boxes, s, field, url) !== 1) return false;
+  const others: Array<{ via?: Via }> = board.cards
+    .filter((c) => c.url.trim() && c.url !== url)
+    .map((c) => ({ via: board.answers[field.key]?.[c.url]?.via ?? live[field.key]?.[c.url]?.via }));
+  const counts = new Map<string, { via: Via; n: number }>();
+  for (const { via } of others) {
+    if (!via) continue;
+    const k = `${via.source}\u0000${via.path}`;
+    const c = counts.get(k);
+    if (c) c.n++; else counts.set(k, { via, n: 1 });
+  }
+  if ([...counts.values()].some((c) => c.n >= 2 && !sameVia(s.via, c.via))) return false;
+  const n = board.cards.findIndex((c) => c.url === url) + 1;
+  const st = rowStatus(field, board, live, boxesByUrl);
+  return !((st.kind === 'majority' || st.kind === 'same-everywhere') && st.odd?.includes(n));
+}
+
+/** What a carry sends for page 1's answer: its value, its mark, and the structured path it was accepted from (spec A2 + C1). */
+export function carryFrom(a: Answer): { value: string; mark?: Mark; via?: StructuredVia } {
+  const via = structuredVia(a.via);
+  return { value: a.value, ...(a.mark ? { mark: a.mark } : {}), ...(via ? { via } : {}) };
+}
+
 export function acceptAllAgreed(board: Board, fields: Field[], live: Suggestions, boxesByUrl: Record<string, Box[] | undefined>): { board: Board; accepted: string[] } {
   let next = board;
   const accepted: string[] = [];
