@@ -76,6 +76,24 @@ describe('transferMarks', () => {
     expect(r['https://s.example/p/2']).toMatchObject({ via: { source: 'json-ld', path: 'offers.availability' } });
   });
 
+  // spec 2026-09-29 A2 + C1: the path the customer confirmed on page 1 carries first, ahead
+  // of a fitting API path that certification's order would otherwise pick.
+  it('a confirmed JSON-LD path carries ahead of a fitting API path', async () => {
+    const inStock: SchemaDefinitionField = { key: 'in_stock', name: 'In stock', type: 'boolean', description: '', concept: 'availability' };
+    const capOf = (url: string, ld: string, api: boolean): CaptureLike => ({
+      url, html: '<html><body></body></html>',
+      structuredData: { ldJson: [{ offers: { availability: ld } }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [{ url: `${url}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { product: { inStock: api } } }] as unknown as CaptureLike['interceptedRequests'],
+    });
+    const fromCapture = capOf('https://s.example/p/1', 'https://schema.org/InStock', true);
+    const toCapture = capOf('https://s.example/p/2', 'https://schema.org/OutOfStock', true);
+    const to = { 'https://s.example/p/2': { capture: toCapture, boxes: [] as Box[] } };
+    const unconfirmed = await transferMarks({ field: inStock, from: { url: 'https://s.example/p/1', capture: fromCapture, expected: 'true' }, to }, deps);
+    expect(unconfirmed['https://s.example/p/2']).toMatchObject({ via: { source: 'api', path: 'product.inStock' } });
+    const confirmed = await transferMarks({ field: inStock, from: { url: 'https://s.example/p/1', capture: fromCapture, expected: 'true', via: { source: 'json-ld', path: 'offers.availability' } }, to }, deps);
+    expect(confirmed['https://s.example/p/2']).toMatchObject({ via: { source: 'json-ld', path: 'offers.availability' } });
+  });
+
   // Fix round 1, regression (Important): normalize() now reads an ImageObject's own
   // `url`, so it no longer rejects the array-level candidate (`image`, transform
   // first_of_list) that outranks the leaf one (`image[0].url`, longer path) once both
