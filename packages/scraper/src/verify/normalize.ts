@@ -79,6 +79,9 @@ function urlString(raw: unknown): unknown {
 function url(raw: unknown, ctx?: NormalizeContext): string | null {
   const value = urlString(raw);
   if (typeof value !== 'string' || value.trim() === '') return null;
+  // A bare fragment ("#0058a3", a colour) or a lone dot segment (".", a price separator) names no
+  // link, yet resolves to the page itself, which is what a Product URL expects: never a URL.
+  if (/^(#|\.{1,2}\/?$)/.test(value.trim())) return null;
   try {
     const u = new URL(value.trim(), ctx?.pageUrl);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;

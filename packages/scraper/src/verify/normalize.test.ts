@@ -49,6 +49,15 @@ describe('normalize', () => {
     expect(normalize('url', '/p/1#top', { pageUrl: 'https://shop.example/x' })).toBe('https://shop.example/p/1');
     expect(normalize('image', 'HTTPS://CDN.Example/a.jpg')).toBe('https://cdn.example/a.jpg');
   });
+  it('url/image: a bare fragment or a lone dot is not a link, though it resolves to the page itself (Ikea: a colour "#0058a3" and a price separator "." certified as Product URL)', () => {
+    const ctx = { pageUrl: 'https://www.ikea.com/my/en/p/baggebo-70483882/' };
+    for (const v of ['#0058a3', '#', '.', './', '..', ' . ']) {
+      expect(normalize('url', v, ctx)).toBeNull();
+      expect(normalize('image', v, ctx)).toBeNull();
+      expect(valuesEqual('url', v, ctx.pageUrl, ctx)).toBe(false);
+    }
+    expect(normalize('url', './other', ctx)).toBe('https://www.ikea.com/my/en/p/baggebo-70483882/other');
+  });
   it('text_list: splits on newline, comma, semicolon; set semantics', () => {
     expect(normalize('text_list', 'Red, Blue;Green')).toBe(normalize('text_list', ['green', 'red', 'blue']));
   });
