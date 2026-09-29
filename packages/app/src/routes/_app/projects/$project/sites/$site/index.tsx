@@ -864,8 +864,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (!s) return undefined;
     const url = selectedUrl;
     // Only elements big enough to click count: a suggestion on nothing but a
-    // 1×1 anchor is offered here, like a value no element shows.
-    const places = pointable(boxes, s.boxes).length;
+    // 1×1 anchor is offered here, like a value no element shows. Counted as the
+    // row's status counts them (A5): one structured value in several elements is one place.
+    const places = placesOf(boxes, s, f, url);
     if (places === 0) {
       return {
         text: s.origin === 'page-data' ? 'page data' : 'from another product',
