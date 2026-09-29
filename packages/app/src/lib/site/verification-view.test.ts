@@ -25,6 +25,12 @@ describe('hintFor', () => {
     );
   });
 
+  test('no_fitting_path asks for a mark', () => {
+    expect(hintFor('no_fitting_path')).toBe(
+      "We can't tell which value on this page is this field. Mark it on the screenshot.",
+    );
+  });
+
   test('type_mismatch substitutes found and the field type', () => {
     expect(hintFor('type_mismatch', 'banana', 'a number')).toBe(
       'Found banana, which is not a valid a number.',
