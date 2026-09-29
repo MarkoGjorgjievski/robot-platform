@@ -25,9 +25,21 @@ describe('hintFor', () => {
     );
   });
 
-  test('no_fitting_path asks for a mark', () => {
+  test('no_fitting_path names the field and asks for a mark', () => {
+    expect(hintFor('no_fitting_path', undefined, 'yes/no', 'In stock')).toBe(
+      "We can't tell which value on this page is In stock — mark it on the screenshot.",
+    );
     expect(hintFor('no_fitting_path')).toBe(
-      "We can't tell which value on this page is this field. Mark it on the screenshot.",
+      "We can't tell which value on this page is this field — mark it on the screenshot.",
+    );
+  });
+
+  test('a fail cell passes the field name to the no_fitting_path hint', () => {
+    const results: VerificationResults = {
+      stock: { key: 'stock', cells: { 'https://x/1': { status: 'fail', reason: 'no_fitting_path' } }, certified: [], weakEvidence: false, aiCalled: false, incomplete: false },
+    };
+    expect(cellStatusFor(results, 'stock', 'https://x/1', false, 'boolean', 'In stock')?.hint).toBe(
+      "We can't tell which value on this page is In stock — mark it on the screenshot.",
     );
   });
 
