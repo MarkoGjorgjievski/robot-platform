@@ -42,7 +42,8 @@ export type VerificationRow =
   | undefined;
 
 /** Spec 5.6 red-cell hints, verbatim, with `found`/`type` substituted where the copy calls for it. */
-export function hintFor(reason: FailReason, found?: string, type?: string): string {
+/** `field`: the field's name, for the no_fitting_path hint (spec 2026-09-29 C2). */
+export function hintFor(reason: FailReason, found?: string, type?: string, field?: string): string {
   switch (reason) {
     case 'not_found':
       return 'Not found on this page. Check the value, or say where it is.';
@@ -53,7 +54,7 @@ export function hintFor(reason: FailReason, found?: string, type?: string): stri
     case 'type_mismatch':
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
     case 'no_fitting_path':
-      return "We can't tell which value on this page is this field. Mark it on the screenshot.";
+      return `We can't tell which value on this page is ${field || 'this field'} — mark it on the screenshot.`;
   }
 }
 
@@ -74,7 +75,8 @@ function pathSourceLabel(source: CertifiedSource | undefined): string | undefine
  * `stale` wins over everything else — a row whose definition or expected
  * value has changed since the last save makes its old verification result
  * meaningless, whether that old result was a pass or a fail. `fieldType` is
- * only consulted for the `type_mismatch` hint's "<type>" substitution.
+ * only consulted for the `type_mismatch` hint's "<type>" substitution;
+ * `fieldName` only for the `no_fitting_path` hint's field name.
  */
 export function cellStatusFor(
   results: VerificationResults | null | undefined,
@@ -82,6 +84,7 @@ export function cellStatusFor(
   url: string,
   stale: boolean,
   fieldType?: string,
+  fieldName?: string,
 ): CellStatus | null {
   if (stale) return { status: 'stale' };
 
@@ -103,7 +106,7 @@ export function cellStatusFor(
     status: 'fail',
     found: cell.found,
     reason: cell.reason,
-    hint: hintFor(cell.reason, cell.found, fieldType),
+    hint: hintFor(cell.reason, cell.found, fieldType, fieldName),
     weak,
   };
 }

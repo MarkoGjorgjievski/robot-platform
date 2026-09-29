@@ -857,7 +857,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   function rowHint(f: Field): FieldHint | undefined {
     // A failed cell says why on its row, "Mark it on the screenshot" included (spec C2's no_fitting_path).
     if (selectedUrl && failedCell(f.key, selectedUrl)) {
-      const hint = cellStatusFor(results, f.key, selectedUrl, false, f.type)?.hint;
+      const hint = cellStatusFor(results, f.key, selectedUrl, false, f.type, f.name)?.hint;
       if (hint) return { text: hint };
     }
     const s = selectedUrl ? live[f.key]?.[selectedUrl] : undefined;
