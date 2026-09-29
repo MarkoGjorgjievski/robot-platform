@@ -27,6 +27,8 @@ import {
   mergeSuggestions,
   pickAnswer,
   placesOf,
+  cellAcceptable,
+  carryFrom,
   pointable,
   reverifyScope,
   rowStatus,
@@ -411,7 +413,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (toUrls.length === 0) return;
     setTransferNote(null);
     transfer
-      .mutateAsync({ sourceId, fromUrl: url, toUrls, fieldKeys: [key], from: { [key]: { value: a.value, ...(a.mark ? { mark: a.mark } : {}) } } })
+      .mutateAsync({ sourceId, fromUrl: url, toUrls, fieldKeys: [key], from: { [key]: carryFrom(a) } })
       .then((out) => {
         setSuggestions((prev) => {
           let next = prev;
@@ -896,8 +898,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   function cellAccept(f: Field, url: string): (() => void) | undefined {
     const s: Suggestion | undefined = live[f.key]?.[url];
     const cellBoxes = boxesByUrl[url];
-    if (!s || !cellBoxes || board.answers[f.key]?.[url]) return undefined;
-    if (validateValue(f.type, s.value) || placesOf(cellBoxes, s, f, url) !== 1) return undefined;
+    // Never on the odd product of a row whose other products share a path (strict A4, final review I1).
+    if (!s || !cellBoxes || !cellAcceptable(f, board, live, boxesByUrl, url)) return undefined;
     return () => {
       const given = suggestionAnswer(cellBoxes, f, s, url);
       setBoard((b) => (b.answers[f.key]?.[url] ? b : answer(b, f.key, url, given)));

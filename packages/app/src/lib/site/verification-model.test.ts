@@ -3,7 +3,7 @@ import {
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
-  failsText, displayValue, pickAnswer,
+  failsText, displayValue, pickAnswer, cellAcceptable, carryFrom,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -556,5 +556,50 @@ describe('the tab keeps page data over a carry', () => {
     const gate = { ok: false as const, reason: 'Title still needs product 1', gap: 'title' };
     expect(verifyReason(gate, FIELDS, [maj, { kind: 'needs-you', reason: 'x' }], undefined)).toBe('Accept Title first');
     expect(verifyReason(gate, FIELDS, [maj, { kind: 'agreed' }], undefined)).toBe('Accept all agreed first');
+  });
+});
+
+describe('the one-click accept on a cell (final review I1)', () => {
+  const inStock = (via: { source: string; path: string }) => sug('https://schema.org/InStock', [0], via);
+  it('a majority row offers no one-click accept on its odd product', () => {
+    const b = board();
+    const live = liveFor(b, 'in_stock', [inStock(JLA), inStock(JLA), inStock(JL3)]);
+    expect(cellAcceptable(stock, b, live, maps(), U[2]!)).toBe(false);
+    expect(cellAcceptable(stock, b, live, maps(), U[0]!)).toBe(true);
+  });
+  it('once the majority is accepted, the odd product still has no one-click accept', () => {
+    const b0 = board();
+    const live0 = liveFor(b0, 'in_stock', [inStock(JLA), inStock(JLA), inStock(JL3)]);
+    const b = acceptRow(b0, stock, live0, maps(), JLA);
+    const live = liveFor(b, 'in_stock', [inStock(JLA), inStock(JLA), inStock(JL3)]);
+    expect(rowStatus(stock, b, live, maps())).toMatchObject({ kind: 'needs-you', product: 3 });
+    expect(cellAcceptable(stock, b, live, maps(), U[2]!)).toBe(false);
+  });
+  it('a same-everywhere row offers none on its odd product', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('IKEA', [0], TL), sug('IKEA', [0], TL), sug('IKEA', [0], { source: 'meta', path: 'og:site_name' })]);
+    expect(cellAcceptable(title, b, live, maps(), U[2]!)).toBe(false);
+  });
+  it('an ordinary suggestion found in one place is one click', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), null, null]);
+    expect(cellAcceptable(price, b, live, maps(), U[0]!)).toBe(true);
+  });
+  it('never on an answered, invalid, several-place or not-yet-screenshotted cell', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('not a price', [1], JL), sug('149.00', [0, 1])]);
+    expect(cellAcceptable(price, b, live, maps(), U[1]!)).toBe(false);
+    expect(cellAcceptable(price, b, live, maps(), U[2]!)).toBe(false);
+    expect(cellAcceptable(price, b, live, { [U[1]!]: maps()[U[1]!]! }, U[0]!)).toBe(false);
+    const answered = answer(b, 'price', U[0]!, { value: '129.99', mark: null });
+    expect(cellAcceptable(price, answered, live, maps(), U[0]!)).toBe(false);
+  });
+});
+
+describe('what a carry sends (final review I4)', () => {
+  it('sends the answer, its mark and the structured path it was accepted from', () => {
+    expect(carryFrom({ value: '129.99', mark: MARK, via: JL })).toEqual({ value: '129.99', mark: MARK, via: JL });
+    expect(carryFrom({ value: '129.99', mark: null })).toEqual({ value: '129.99' });
+    expect(carryFrom({ value: '129.99', mark: null, via: { source: 'xpath', path: '//x' } })).toEqual({ value: '129.99' });
   });
 });
