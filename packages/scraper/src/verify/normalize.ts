@@ -1,3 +1,4 @@
+import { objectUrl } from './structured-value.js';
 import type { CustomerFieldType } from './types.js';
 
 export type NormalizeContext = { pageUrl?: string };
@@ -69,12 +70,10 @@ function day(raw: unknown): string | null {
   return zoned ? new Date(t).toISOString().slice(0, 10) : local(new Date(t));
 }
 
-/** A structured value that names a URL directly, or an object that carries one (JSON-LD ImageObject, `{ url }`, `{ contentUrl }`, `{ '@id' }`) — the first of those that is a string. */
+/** A structured value that names a URL directly, or an object that carries one (`objectUrl`, the one place that reads it — spec 2026-09-29 C4). */
 function urlString(raw: unknown): unknown {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
-  const obj = raw as Record<string, unknown>;
-  const candidate = obj.url ?? obj.contentUrl ?? obj['@id'];
-  return typeof candidate === 'string' ? candidate : null;
+  return objectUrl(raw);
 }
 
 function url(raw: unknown, ctx?: NormalizeContext): string | null {

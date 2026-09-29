@@ -5,6 +5,7 @@ import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { isWeakField, normalizeForWeak, pathFitsConcept } from './field-fit.js';
+import { displayValue } from './structured-value.js';
 import type { CellResult, CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
 
 export type CandidatePath = CertifiedPath;
@@ -54,24 +55,6 @@ function rankConfirmedFirst(paths: CandidatePath[], confirmed: ConfirmedPath[] |
 
 function pathId(p: CandidatePath): string {
   return `${p.source} ${p.path} ${p.transform}`;
-}
-
-/** A raw value fit to show the customer (spec 2026-09-29 C4): a scalar prints as-is; an object
- *  (JSON-LD ImageObject etc.) reads its url/contentUrl/@id, never `[object Object]`; an array
- *  joins its items' own display. Null when nothing displayable is in there. */
-function displayRaw(raw: unknown): string | null {
-  if (raw === null || raw === undefined) return null;
-  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
-  if (Array.isArray(raw)) {
-    const items = raw.map(displayRaw).filter((i): i is string => i !== null);
-    return items.length ? items.join(', ') : null;
-  }
-  if (typeof raw === 'object') {
-    const obj = raw as Record<string, unknown>;
-    const u = obj.url ?? obj.contentUrl ?? obj['@id'];
-    return typeof u === 'string' ? u : null;
-  }
-  return null;
 }
 
 function dedupe(candidates: CandidatePath[]): CandidatePath[] {
@@ -195,9 +178,11 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const rank = (paths: CandidatePath[]) => rankConfirmedFirst(paths, input.confirmed);
 
   // Same normalisation isWeakField uses (case-insensitive for text), so the flag and the
-  // weak-field filter above can never disagree about what counts as "the same value".
+  // weak-field filter above can never disagree about what counts as "the same value". Also
+  // its `!norms.has(null)` guard: expected values that all fail to normalise are not "the
+  // same value", they are all unparseable — never flag that as weak evidence.
   const norms = new Set(Object.values(expected).map((e) => normalizeForWeak(field.type, e)));
-  const weakEvidence = norms.size === 1 && Object.keys(expected).length > 1;
+  const weakEvidence = norms.size === 1 && !norms.has(null) && Object.keys(expected).length > 1;
   if (weak && candidates.length === 0) {
     // Nothing on these pages can be told to be this field: say so, rather than
     // certify whatever happens to hold the same value everywhere.
@@ -257,31 +242,34 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       // Every checked page is covered; safety makes the first non-empty path the right one.
       const winner = certified.find((p) => isCorrect(p, url))!;
       const raw = evals.get(pathId(winner))![url]!.raw;
-      cells[url] = { status: 'pass', found: displayRaw(raw) ?? String(raw), path: winner };
+      cells[url] = { status: 'pass', found: displayValue(raw) ?? String(raw), path: winner };
       continue;
     }
     if (!complete && rankedCorrectOnAllCaptured.length > 0) {
       const top = rankedCorrectOnAllCaptured[0]!;
       const raw = evals.get(pathId(top))![url]!.raw;
-      cells[url] = { status: 'pass', found: displayRaw(raw) ?? String(raw), path: top };
+      cells[url] = { status: 'pass', found: displayValue(raw) ?? String(raw), path: top };
       continue;
     }
     const others = capturedUrls.filter((u) => u !== url);
-    const nearMisses = [...new Set(candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).map(displayRaw).filter((r): r is string => r !== null && r !== ''))].slice(0, 3);
+    const nearMisses = [...new Set(candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).map(displayValue).filter((r): r is string => r !== null && r !== ''))].slice(0, 3);
     const twoOfThree = candidates.find((c) => others.length > 0 && others.every((u) => evals.get(pathId(c))?.[u]?.correct) && !evals.get(pathId(c))?.[url]?.correct);
     if (twoOfThree) {
       const here = evals.get(pathId(twoOfThree))![url]!.raw;
       const empty = here === null || here === undefined || here === '';
-      const hereDisplay = displayRaw(here) ?? String(here);
+      // A structured object with no url/contentUrl/@id (spec 2026-09-29 C4) has nothing to
+      // show: `found` is optional on a fail cell, so it is left out rather than stringified.
+      const hereDisplay = displayValue(here);
+      const foundField = hereDisplay !== null ? { found: hereDisplay } : {};
       if (empty) cells[url] = { status: 'fail', reason: 'not_found', ...(nearMisses.length ? { nearMisses } : {}) };
-      else if (normalize(field.type, here, ctx) === null) cells[url] = { status: 'fail', reason: 'type_mismatch', found: hereDisplay, ...(nearMisses.length ? { nearMisses } : {}) };
-      else cells[url] = { status: 'fail', reason: 'different_value', found: hereDisplay, ...(nearMisses.length ? { nearMisses } : {}) };
+      else if (normalize(field.type, here, ctx) === null) cells[url] = { status: 'fail', reason: 'type_mismatch', ...foundField, ...(nearMisses.length ? { nearMisses } : {}) };
+      else cells[url] = { status: 'fail', reason: 'different_value', ...foundField, ...(nearMisses.length ? { nearMisses } : {}) };
       continue;
     }
     const safeHere = rankedSafe.find((c) => isCorrect(c, url));
     if (complete && urls.length > VERIFY_URL_MIN && safeHere) {
       const raw = evals.get(pathId(safeHere))![url]!.raw;
-      cells[url] = { status: 'pass', found: displayRaw(raw) ?? String(raw), path: safeHere };
+      cells[url] = { status: 'pass', found: displayValue(raw) ?? String(raw), path: safeHere };
       continue;
     }
     const correctHere = candidates.some((c) => evals.get(pathId(c))?.[url]?.correct);
