@@ -4,26 +4,26 @@
 import { normalize } from './normalize.js';
 import type { CustomerFieldType } from './types.js';
 
-/** Path tails that carry a concept, by concept (deriveConcept's vocabulary). Matched against the end of a dotted path with array indices removed. */
+/** Path tails that carry a concept, by concept (deriveConcept's vocabulary). Matched against the end of a path with array indices removed; "." and ":" (meta keys such as og:price:currency) both separate segments. */
 export const CONCEPT_PATHS: Record<string, string[]> = {
   product_name: ['name', 'og:title', 'title', 'productName', 'product_name', 'headline'],
   price: ['offers.price', 'price', 'product:price:amount', 'currentPrice', 'current_price', 'salePrice', 'sale_price'],
   description: ['description', 'og:description', 'productDescription', 'product_description'],
   image_url: ['image', 'images', 'og:image', 'image.url', 'thumbnailUrl', 'primary_image_url'],
-  brand: ['brand.name', 'brand', 'manufacturer', 'brand_name'],
+  brand: ['brand.name', 'brand', 'manufacturer', 'manufacturer.name', 'vendor', 'brandName', 'brand_name', 'product:brand', 'og:brand'],
   sku: ['sku', 'productID', 'mpn', 'gtin', 'gtin13', 'code', 'item_id', 'product_id'],
-  availability: ['offers.availability', 'availability', 'inStock', 'in_stock', 'isAvailable', 'is_available', 'stock', 'stockStatus', 'stock_status', 'available', 'buyable', 'purchasable'],
+  availability: ['offers.availability', 'availability', 'inStock', 'in_stock', 'isAvailable', 'is_available', 'stock', 'stockStatus', 'stock_status', 'available', 'buyable', 'purchasable', 'isInStock', 'is_in_stock', 'availableForSale', 'isBuyable', 'orderable', 'product:availability', 'og:availability'],
   rating: ['aggregateRating.ratingValue', 'ratingValue', 'rating'],
   review_count: ['aggregateRating.reviewCount', 'reviewCount', 'review_count', 'ratingCount'],
-  currency: ['offers.priceCurrency', 'priceCurrency', 'product:price:currency'],
+  currency: ['offers.priceCurrency', 'priceCurrency', 'product:price:currency', 'currency', 'currencyCode', 'currency_code', 'currencySymbol', 'currency_symbol', 'currencyPrefix'],
 };
 
-/** Does this structured path's tail (whole segments, array indices removed, any case) name the concept? Unknown concept: no. */
+/** Does this structured path's tail (whole segments split on "." or ":", array indices removed, any case) name the concept? Unknown concept: no. */
 export function pathFitsConcept(concept: string, path: string): boolean {
   const tails = CONCEPT_PATHS[concept];
   if (!tails) return false;
   const p = path.replace(/\[\d+\]/g, '').toLowerCase();
-  return tails.some((t) => { const x = t.toLowerCase(); return p === x || p.endsWith(`.${x}`); });
+  return tails.some((t) => { const x = t.toLowerCase(); return p === x || p.endsWith(`.${x}`) || p.endsWith(`:${x}`); });
 }
 
 /** Normalises one expected value the way the same-value comparison (isWeakField, weakEvidence) needs: text case-insensitively, everything else via `normalize`, as `valuesEqual` does. Shared so the "is this weak" check and the "was this weak" flag can never disagree. */
