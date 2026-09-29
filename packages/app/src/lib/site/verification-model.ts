@@ -337,7 +337,8 @@ export function displayValue(field: Field, value: string): string {
 
 /** "fails on product 1" / "fails on products 1 and 3" / "fails on products 1, 2 and 3" (spec C5). */
 export function failsText(products: number[]): string {
-  if (products.length <= 1) return `fails on product ${products[0] ?? ''}`.trimEnd();
+  if (products.length === 0) return '';
+  if (products.length === 1) return `fails on product ${products[0]}`;
   return `fails on products ${products.slice(0, -1).join(', ')} and ${products[products.length - 1]}`;
 }
 
@@ -395,9 +396,10 @@ export function liveSuggestions(s: Suggestions, board: Board, captureIds: Record
 export type RowStatus =
   | { kind: 'accepted' }
   | { kind: 'agreed' }
-  | { kind: 'same-everywhere' }
-  /** Spec A4: two or more share one path; Accept takes theirs, `odd` (product numbers) stay for a person. */
-  | { kind: 'majority'; odd: number[] }
+  /** `odd`/`via` when the paths disagree and a majority exists (A4): "Accept anyway" takes only `via`'s cells. */
+  | { kind: 'same-everywhere'; odd?: number[]; via?: Via }
+  /** Spec A4: two or more share `via`; Accept takes theirs, `odd` (product numbers) stay for a person. */
+  | { kind: 'majority'; odd: number[]; via: Via }
   | { kind: 'needs-you'; reason: string; product?: number };
 
 const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -459,18 +461,20 @@ export function rowStatus(
     const n = offered[0]!.product;
     return { kind: 'needs-you', reason: `check product ${n}`, product: n };
   }
-  let odd: number[] = [];
+  // Paths disagree: the majority's path, if there is one, and the products it
+  // leaves for a person (A4) — kept whatever the values, so no Accept takes them.
+  let split: { odd: number[]; via: Via } | undefined;
   const first = offered[0]!.via;
   if (!first || offered.some(({ via: v }) => !sameVia(v, first))) {
-    const group = majorityOf(offered);
-    if (!group) return { kind: 'needs-you', reason: 'comes from different places' };
-    odd = offered.filter((o) => !sameVia(o.via, group)).map((o) => o.product);
+    const via = majorityOf(offered);
+    if (!via) return { kind: 'needs-you', reason: 'comes from different places' };
+    split = { odd: offered.filter((o) => !sameVia(o.via, via)).map((o) => o.product), via };
   }
-  const oddSet = new Set(odd);
+  const oddSet = new Set(split?.odd ?? []);
   for (const o of offered) if (!oddSet.has(o.product)) values.push(o.value);
   // Every product in stock is normal (A6): a yes/no field is never "same on every product".
-  if (field.type !== 'boolean' && values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere' };
-  return odd.length > 0 ? { kind: 'majority', odd } : { kind: 'agreed' };
+  if (field.type !== 'boolean' && values.length > 1 && values.every((v) => sameValue(v, values[0]!))) return { kind: 'same-everywhere', ...split };
+  return split ? { kind: 'majority', ...split } : { kind: 'agreed' };
 }
 
 /**
@@ -490,18 +494,6 @@ function majorityOf(offered: Array<{ via?: Via }>): Via | undefined {
   const top = ranked[0];
   if (!top || top.n < 2 || ranked[1]?.n === top.n) return undefined;
   return top.via;
-}
-
-/** The path a `majority` row's Accept takes (spec A4), or undefined for any other row. */
-export function majorityVia(field: Field, board: Board, live: Suggestions, status: RowStatus): Via | undefined {
-  if (status.kind !== 'majority') return undefined;
-  const odd = new Set(status.odd);
-  for (const [i, card] of board.cards.entries()) {
-    if (odd.has(i + 1)) continue;
-    const via = live[field.key]?.[card.url]?.via;
-    if (via) return via;
-  }
-  return undefined;
 }
 
 /**
@@ -528,11 +520,8 @@ export function acceptAllAgreed(board: Board, fields: Field[], live: Suggestions
   for (const f of fields) {
     const status = rowStatus(f, next, live, boxesByUrl);
     if (status.kind === 'agreed') next = acceptRow(next, f, live, boxesByUrl);
-    else if (status.kind === 'majority') {
-      const only = majorityVia(f, next, live, status);
-      if (!only) continue;
-      next = acceptRow(next, f, live, boxesByUrl, only);
-    } else continue;
+    else if (status.kind === 'majority') next = acceptRow(next, f, live, boxesByUrl, status.via);
+    else continue;
     accepted.push(f.key);
   }
   return { board: next, accepted };

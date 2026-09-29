@@ -465,7 +465,7 @@ describe('the table-first rules, revised', () => {
   it('names the odd product and accepts only the majority', () => {
     const b = board();
     const live = liveFor(b, 'in_stock', [sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JLA), sug('https://schema.org/InStock', [0], JL3)]);
-    expect(rowStatus(stock, b, live, maps())).toEqual({ kind: 'majority', odd: [3] });
+    expect(rowStatus(stock, b, live, maps())).toEqual({ kind: 'majority', odd: [3], via: JLA });
     const next = acceptRow(b, stock, live, maps(), JLA);
     expect(next.answers.in_stock![U[0]!]).toMatchObject({ value: 'https://schema.org/InStock', via: JLA });
     expect(next.answers.in_stock![U[2]!]).toBeUndefined();
@@ -473,10 +473,25 @@ describe('the table-first rules, revised', () => {
   it('Accept all takes the majority part of such a row', () => {
     const b = board();
     const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], { source: 'meta', path: 'product:price:amount' }), sug('149.00', [1], JL)]);
-    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [2] });
+    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [2], via: JL });
     const r = acceptAllAgreed(b, [price], live, maps());
     expect(r.accepted).toEqual(['price']);
     expect(Object.keys(r.board.answers.price!)).toEqual([U[0], U[2]]);
+  });
+  it('a suggestion with no path is the odd one out of a majority', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), sug('149.00', [1])]);
+    expect(rowStatus(price, b, live, maps())).toEqual({ kind: 'majority', odd: [3], via: JL });
+  });
+  it('a majority whose values match is same-everywhere that still keeps the odd product for a person', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('IKEA', [0], TL), sug('IKEA', [0], TL), sug('IKEA', [0], { source: 'meta', path: 'og:site_name' })]);
+    const st = rowStatus(title, b, live, maps());
+    expect(st).toEqual({ kind: 'same-everywhere', odd: [3], via: TL });
+    expect(acceptAllAgreed(b, [title], live, maps()).accepted).toEqual([]);
+    const next = acceptRow(b, title, live, maps(), st.kind === 'same-everywhere' ? st.via : undefined); // "Accept anyway"
+    expect(Object.keys(next.answers.title!)).toEqual([U[0], U[1]]);
+    expect(toBindingInput(next, [title]).paths).toEqual({ title: { [U[0]!]: TL, [U[1]!]: TL } });
   });
   it('yes/no fields are never "same on every product"', () => {
     const b = board();
@@ -513,6 +528,7 @@ describe('the table-first rules, revised', () => {
     expect(pickAnswer(bx, 0, stock, U[0]!, bad)).toMatchObject({ value: 'Available' });
   });
   it('the badge names every failing product', () => {
+    expect(failsText([])).toBe('');
     expect(failsText([1])).toBe('fails on product 1');
     expect(failsText([1, 3])).toBe('fails on products 1 and 3');
     expect(failsText([1, 2, 3])).toBe('fails on products 1, 2 and 3');
