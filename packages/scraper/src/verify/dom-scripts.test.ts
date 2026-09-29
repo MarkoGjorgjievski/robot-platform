@@ -59,6 +59,28 @@ describe('buildDomSearchScript', () => {
     expect(numberHits[0]).toEqual({ key: 'rate', xpath: '//*[@id="main"]/span[@class="rate"]', raw: '1.299' });
     expect(new Set(numberHits.map((h) => h.raw))).toEqual(new Set(['1.299'])); // one element, several anchors
   });
+  it('finds an image whose query differs from the expected one (host + path decide)', async () => {
+    const html = `<html><body><div id="main"><img id="hero" src="https://cdn.example/p/sofa_s5.jpg"></div></body></html>`;
+    const hits = await browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript([
+      { key: 'image', type: 'image', expected: 'https://CDN.example/p/sofa_s5.jpg?f=s' },
+    ], 'https://shop.example/p/1'));
+    expect(hits).toContainEqual({ key: 'image', xpath: '//*[@id="hero"]/@src', raw: 'https://cdn.example/p/sofa_s5.jpg' });
+  });
+  it('a url still compares exactly, query included', async () => {
+    const html = `<html><body><div id="main"><a id="buy" href="/checkout?p=2">Buy</a></div></body></html>`;
+    const hits = await browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript([
+      { key: 'buy', type: 'url', expected: 'https://shop.example/checkout?p=1' },
+    ], 'https://shop.example/p/1'));
+    expect(hits).toEqual([]);
+  });
+  it('never takes a bare fragment or a lone dot for the page\'s own URL', async () => {
+    const html = `<html><body><div id="main"><a id="skip" href="#content">Skip</a><a id="self" href=".">Here</a><a id="up" href="../">Up</a></div></body></html>`;
+    const hits = await browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript([
+      { key: 'url', type: 'url', expected: 'https://shop.example/p/' },
+      { key: 'url2', type: 'url', expected: 'https://shop.example/' },
+    ], 'https://shop.example/p/'));
+    expect(hits).toEqual([]);
+  });
   it('uses the matched element\'s own id as the anchor', async () => {
     const html = `<html><body><div id="main"><span id="sku">A1</span></div></body></html>`;
     const hits = await browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript([{ key: 'sku', type: 'text', expected: 'A1' }], 'https://shop.example/'));

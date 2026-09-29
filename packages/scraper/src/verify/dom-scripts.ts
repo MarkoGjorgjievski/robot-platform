@@ -52,7 +52,17 @@ function browserNormalize(type: string, raw: string, pageUrl: string): string | 
       return zoned ? x.toISOString().slice(0, 10) : `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
     }
     case 'url':
-    case 'image': { try { const u = new URL(t, pageUrl); if (u.protocol !== 'http:' && u.protocol !== 'https:') return null; u.hash = ''; u.hostname = u.hostname.toLowerCase(); return u.href; } catch { return null; } }
+    case 'image': {
+      // A bare fragment ("#0058a3") or a lone dot segment (".") resolves to the page itself: never a URL (as normalize.ts).
+      if (/^(#|\.{1,2}\/?$)/.test(t)) return null;
+      try {
+        const u = new URL(t, pageUrl);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+        u.hash = ''; u.hostname = u.hostname.toLowerCase();
+        // An image is its host + path; the query never tells two renditions apart (spec 2026-09-29 C3, as valuesEqual).
+        return type === 'image' ? u.hostname + u.pathname : u.href;
+      } catch { return null; }
+    }
     case 'text_list': { const items = t.split(/[\n,;]/).map((s) => s.replace(/\s+/g, ' ').trim().toLowerCase()).filter(Boolean); return items.length ? Array.from(new Set(items)).sort().join(' ') : null; }
     default: return null;
   }
