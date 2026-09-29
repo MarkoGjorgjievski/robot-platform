@@ -89,8 +89,8 @@ Marko's Ikea website: they stay stored, but can no longer read as a URL.
 - **The expanded In stock row's "Type it" box reads `https://schema.org/InStock`** on product 1
   after "Confirm from the page data": that answer is stored without a mark, so the box shows it as
   typed, raw. The cells read "In stock" (A6).
-- **The ruling to hide the ✓ on a majority row's odd product is not in the code** (the progress
-  ledger folds it into a final fix wave). This run used that ✓ for Price on product 1; hidden, the
+- **The ruling to hide the ✓ on a majority row's odd product was not in the code at this run**
+  (fixed in the final fix wave: `cellAcceptable`). This run used that ✓ for Price on product 1; hidden, the
   run is 9 clicks (open the cell, tick the rectangle, confirm).
 - Verify on a throwaway Ikea website again enriched the shared domain cache (plan 5's open
   decision stands).
@@ -98,7 +98,8 @@ Marko's Ikea website: they stay stored, but can no longer read as a URL.
 ## The audit (read-only)
 
 `pnpm --filter @robot/api exec tsx src/scripts/audit-certified-paths.ts` against the local
-database, 2026-09-29, before the fix above (select queries only; it covers every organisation,
+database, 2026-09-29, re-run after the final fix wave widened the concept vocabulary (`:` now
+separates meta-key segments; wider currency / availability / brand tails) (select queries only; it covers every organisation,
 Marko's included, and writes nothing). A row is **NO** when the field is weak (yes/no, or one value
 on every proof page) and a certified path is neither confirmed, nor a marked element, nor named
 for the field.
@@ -112,7 +113,7 @@ mar/competitor-prices/Ikea  Price            api price | api priceExclTax | api 
 mar/competitor-prices/Ikea  In stock         api priority | api [0].cashAndCarry | api [1].cashAndCarry | api [2].cashAndCarry | api [3].cashAndCarry  NO  yes/no field certified on paths that do not name it: api priority, api [0].cashAndCarry, api [1].cashAndCarry, api [2].cashAndCarry, api [3].cashAndCarry
 mar/competitor-prices/Ikea  Description      json-ld description                                                     ok
 default/acne/Ikea           Price            api price | api priceExclTax | api priceNumeral | api priceExclTaxNumeral | api revampPrice.integer  ok
-default/acne/Ikea           Price currency   api revampPrice.currencyPrefix | api revampPrice.currencySymbol         NO  same value on every product certified on paths that do not name it: api revampPrice.currencyPrefix, api revampPrice.currencySymbol
+default/acne/Ikea           Price currency   api revampPrice.currencyPrefix | api revampPrice.currencySymbol         ok
 default/acne/Ikea           Title            api name | xpath //*[@id="overview"]/…/div[@class="pipf-text pipf-typography-heading-s"]  ok
 default/acne/Ikea           Subtitle         xpath //*[@id="content"]/…/span[@class="… pipcom-price-module__description"] | xpath //body/div[2]/main/…/span[@class="… pipcom-price-module__description"]  ok
 default/acne/Ikea           Product id       json-ld mpn | json-ld sku                                               ok
@@ -120,23 +121,22 @@ default/acne/Ikea           Product details  xpath //*[@id="product-details"]/�
 default/acne/Ikea           Total reviews    api experimental.rating.count | json-ld aggregateRating.reviewCount     ok
 default/acne/Ikea           Average rating   api experimental.rating.value | json-ld aggregateRating.ratingValue     ok
 
-2 websites with a verification set, 0 never verified; 13 certified fields audited, 2 on paths that no longer qualify (2 websites).
+2 websites with a verification set, 0 never verified; 13 certified fields audited, 1 on paths that no longer qualify (1 websites).
 ```
+
+The first run, before that fix, also flagged **Acne / Ikea — Price currency** on
+`revampPrice.currencyPrefix` / `currencySymbol`: the vocabulary knew only `priceCurrency`-style
+tails. `currencyPrefix` and `currencySymbol` do name a currency, so the field now qualifies.
 
 (The four long XPaths are shortened with `…` here; the script prints them whole.)
 
-**Two websites to re-verify, one field each:**
+**One website to re-verify, one field:**
 
 - **Competitor prices / Ikea — In stock** on `api priority` and `[n].cashAndCarry`: the case the
   spec was written for. On the same website a fresh verification (this run's throwaway) certifies
   `json-ld offers.availability`.
-- **Acne / Ikea — Price currency** on `revampPrice.currencyPrefix` / `currencySymbol` (one value
-  on every product): the paths may hold the right text today but name no currency, so C2 would not
-  let them certify. Re-verified, the field needs a path that names it (`offers.priceCurrency`,
-  `priceCurrency`, `product:price:currency`) holding the expected value, or a mark on the
-  screenshot; otherwise its cells read "We can't tell which value on this page is this field."
 
-Nothing was re-certified; the customer re-verifies these from the tab (free: the paths are
+Nothing was re-certified; the customer re-verifies it from the tab (free: the paths are
 mechanical).
 
 ## How to run it again

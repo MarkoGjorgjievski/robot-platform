@@ -8,7 +8,7 @@ type: project
 
 ## Read this first
 
-**Newest: [Certification picks the right path (2026-09-29)](#certification-picks-the-right-path-2026-09-29).** A yes/no field, or one whose proof pages share a value, now certifies only on a path the customer confirmed, an element they marked, or a structured path named for it — Ikea's In stock stands on `offers.availability`, no longer on `priority`. Images match on host and path. On Ikea: **7 clicks** to Verify (was 24), 8 of 8 verified, free. The read-only audit flags two existing websites for the customer to re-verify (Competitor prices / Ikea — In stock; Acne / Ikea — Price currency); nothing is re-certified automatically. Next: variants, a design of their own.
+**Newest: [Certification picks the right path (2026-09-29)](#certification-picks-the-right-path-2026-09-29).** A yes/no field, or one whose proof pages share a value, now certifies only on a path the customer confirmed, an element they marked, or a structured path named for it — Ikea's In stock stands on `offers.availability`, no longer on `priority`. Images match on host and path. On Ikea: **7 clicks** to Verify (was 24), 8 of 8 verified, free. The read-only audit flags one existing website for the customer to re-verify (Competitor prices / Ikea — In stock); nothing is re-certified automatically. Next: variants, a design of their own.
 
 **Before it: [Table-first verification (2026-09-28)](#table-first-verification-2026-09-28).** The Verification tab is one table — a row per field, a column per product, Accept all agreed above it, a cell click opens the screenshot. On Ikea it took 24 clicks to Verify (plan 5: 43) and verified 8 of 8, free; three defects the live check found are fixed. Next: Part B of the same spec, drift repair. The Jev shadow-checks design is parked, not scheduled.
 
@@ -63,6 +63,7 @@ may compete, not the order among them.
 | `c0329c9` | the tab: A1 a carry never replaces a page-data suggestion; the majority status and Accept; A7 a per-cell ✓ ("Accept {field} on product {n}") for a suggestion with exactly one place; the `no_fitting_path` hint "We can't tell which value on this page is this field. Mark it on the screenshot." (Task 5) |
 | `473e7e2` | found by the live run: a bare fragment (`#0058a3`) or a lone dot (`.`) resolves to the page itself, so it certified as Product URL; `normalize` now refuses it as a URL (Task 6) |
 | this task | `packages/api/src/scripts/audit-certified-paths{,-core}.ts` (+ test), the live check updated for the new rows, the live note, this section (Task 6) |
+| `89709b0`, `837e99c`, `b486a96`, `b7902b0`, `0d108e4`, `445e404`, `f54f8cf`, `194969e` | the final fix wave: `:` separates meta-key segments and the currency / availability / brand vocabularies are wider; the in-page search compares images on host + path and refuses a fragment or lone dot as a URL; the carry sends the answer's path (`from[key].via`) and tries it first; no one-click ✓ on an odd product, also after the majority is accepted (`cellAcceptable`); the expanded row counts places as the status does; the `no_fitting_path` hint names the field (new app and old dashboard) |
 
 **No implementer signed in as `markodjordjievski@gmail.com` or wrote to org `default` or `mar`.**
 The audit read every organisation's websites, select queries only. Verify was clicked only by the
@@ -80,8 +81,9 @@ live check, on the keyless :4100 api-server, after it asserted "· free" — thr
 - C4 applies wherever a raw structured value becomes text (transfer value, certify's `found`).
 - A majority row whose values all match still keeps its odd product for a person (A4 binding):
   same-everywhere carries `{ odd, via }` and "Accept anyway" takes `via` only.
-- The one-click ✓ is to be hidden on a majority row's odd product (strict A4) — **ruled, not yet in
-  the code** (`cellAccept` still offers it; the live run used it once).
+- The one-click ✓ is hidden on an odd product (strict A4): `cellAcceptable` refuses a cell whose
+  path differs from one two or more other products share, counting their suggestions and their
+  answers, so it stays hidden after the majority is accepted (the live run, before this, used it once).
 
 **The live run** (`docs/testing/2026-09-29-certification-live.md`; Ikea MY Cabinets; the listing's
 first three are now BAGGEBO and two BILLY / OXBERG combinations, so the odd product is product 1):
@@ -95,16 +97,16 @@ json-ld offers.availability`** (nothing from the API); **Main image verified on 
 time, is agreed (A5).
 
 **The audit** (`pnpm --filter @robot/api exec tsx src/scripts/audit-certified-paths.ts`, read-only;
-full output in the live note): 2 websites with a verification set, 13 certified fields, **2 on
-paths that no longer qualify**:
+full output in the live note; re-run after the final fix wave): 2 websites with a verification set,
+13 certified fields, **1 on paths that no longer qualify**:
 
 | Website | Field | Certified on | Why |
 |---|---|---|---|
 | mar / Competitor prices / Ikea | In stock | `api priority`, `api [0..3].cashAndCarry` | yes/no field on paths that do not name it |
-| default / Acne / Ikea | Price currency | `api revampPrice.currencyPrefix`, `api revampPrice.currencySymbol` | one value on every product, on paths that do not name it |
 
-**The customer re-verifies those two fields from the tab** (free: mechanical paths). Nothing is
-re-certified automatically; both stay "current" until then, because their hashes did not change.
+(Acne / Ikea's Price currency, flagged by the first run, now qualifies: `currencyPrefix` /
+`currencySymbol` are currency tails.) **The customer re-verifies that field from the tab** (free:
+mechanical paths). Nothing is re-certified automatically; it stays "current" until then, because its hash did not change.
 Competitor prices / Ikea's Product URL also still holds the junk backups `473e7e2` stops
 (`revampPrice.separator`, theme colours); they can no longer read as a URL, and a re-verify drops
 them.
