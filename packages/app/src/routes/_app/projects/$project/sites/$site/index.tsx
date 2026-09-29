@@ -905,7 +905,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         },
         onDescription: (text: string) => setBoard((b) => setDescription(b, f.key, text)),
       },
-      onAccept: () => setBoard((b) => acceptRow(b, f, live, boxesByUrl)),
+      // A row whose paths disagree accepts only the majority's cells (spec A4).
+      onAccept: () => setBoard((b) => acceptRow(b, f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined)),
       onToggle: () => setExpanded((e) => ({ ...e, [f.key]: !e[f.key] })),
     };
   });
