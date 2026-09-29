@@ -9,6 +9,7 @@ import { bindingFor, type ContractField } from '../contract.js';
 
 const rect = z.object({ x: z.number().min(0), y: z.number().min(0), w: z.number().min(0), h: z.number().min(0) });
 export const markInput = z.object({ xpaths: z.array(z.string().max(2000)).min(1).max(3), text: z.string().max(2000), rect });
+export const confirmedPathInput = z.object({ source: z.enum(['api', 'json-ld', 'meta']), path: z.string().max(2000) });
 const card = z.object({ url: httpUrl, title: z.string().max(300), image: httpUrl.optional() });
 
 export const bindingInput = z.object({
@@ -19,6 +20,8 @@ export const bindingInput = z.object({
   expected: z.record(z.string(), z.record(z.string(), z.string())),
   /** fieldKey → url → the element the customer clicked (spec 2026-09-18 §3.5). */
   marks: z.record(z.string(), z.record(z.string(), markInput)).optional(),
+  /** fieldKey → url → the structured path the answer was accepted from (spec 2026-09-29 §2 C1). */
+  paths: z.record(z.string(), z.record(z.string(), confirmedPathInput)).optional(),
   /** Autosave from the Verification tab: the per-cell completeness rules wait for Verify (spec 2026-09-25 §3). */
   draft: z.boolean().optional(),
   cards: z.array(card).max(VERIFY_URL_MAX).optional(),
@@ -78,6 +81,13 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
     const perUrl = Object.fromEntries(input.urls.filter(current).map((u) => [u, input.marks![f.key]![u]!]));
     if (Object.keys(perUrl).length) marks[f.key] = perUrl;
   }
+  const paths: NonNullable<VerificationSet['paths']> = {};
+  for (const f of contract) {
+    const perUrl = Object.fromEntries(
+      input.urls.filter((u) => input.paths?.[f.key]?.[u] && (expected[f.key]![u] ?? '').trim() !== '').map((u) => [u, input.paths![f.key]![u]!])
+    );
+    if (Object.keys(perUrl).length) paths[f.key] = perUrl;
+  }
   const cards = input.cards?.filter((c) => input.urls.includes(c.url));
   return {
     fields,
@@ -86,6 +96,7 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
       expected,
       ...(input.listingUrl ? { listing_url: input.listingUrl } : {}),
       ...(Object.keys(marks).length ? { marks } : {}),
+      ...(Object.keys(paths).length ? { paths } : {}),
       ...(cards?.length ? { cards } : {}),
     },
   };
