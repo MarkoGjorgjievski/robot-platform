@@ -10,6 +10,7 @@ import type { DomHit, DomNeedle, XPathProbeResult } from './dom-scripts.js';
 import { isWeakField } from './field-fit.js';
 import { normalize, valuesEqual } from './normalize.js';
 import { resolveStructured } from './search-structured.js';
+import { displayValue } from './structured-value.js';
 import { applyTransform } from './transforms.js';
 import type { CertifiedSource, Mark, SchemaDefinitionField } from './types.js';
 
@@ -54,7 +55,11 @@ export async function transferMarks(input: TransferInput, deps: TransferDeps): P
       const raw = applyTransform(rawBase, c.transform);
       if (raw === null || raw === undefined || raw === '') continue;
       if (normalize(field.type, raw, ctx) === null) continue;               // a value the type rejects is not this field
-      const value = Array.isArray(raw) ? raw.map(String).join(', ') : String(raw);
+      // spec 2026-09-29 C4: a structured object is read (its url/contentUrl/@id), never
+      // stringified into "[object Object]" — displayValue is the one place that does this.
+      // A candidate whose object has none of those is not a fit reading; try the next one.
+      const value = displayValue(raw);
+      if (value === null) continue;
       const boxes = target.boxes.map((b, i) => (valuesEqual(field.type, boxValue(b), value, ctx) ? i : -1)).filter((i) => i >= 0);
       hit = { value, via: { source: c.source, path: c.path }, boxes };
       break;

@@ -75,4 +75,26 @@ describe('transferMarks', () => {
     const r = await transferMarks({ field: inStock, from: { url: 'https://s.example/p/1', capture: fromCapture, expected: 'true' }, to }, deps);
     expect(r['https://s.example/p/2']).toMatchObject({ via: { source: 'json-ld', path: 'offers.availability' } });
   });
+
+  // Fix round 1, regression (Important): normalize() now reads an ImageObject's own
+  // `url`, so it no longer rejects the array-level candidate (`image`, transform
+  // first_of_list) that outranks the leaf one (`image[0].url`, longer path) once both
+  // qualify. Before the fix, `String(raw)` on that winning ImageObject produced
+  // "[object Object]" instead of the URL.
+  const image: SchemaDefinitionField = { key: 'image', name: 'Image', type: 'image', description: '', concept: 'image_url' };
+  it('a JSON-LD image array carries the URL of its ImageObject, never [object Object], and matches the image box', async () => {
+    const capOf = (url: string, imgUrl: string): CaptureLike => ({
+      url, html: `<html><body><img src="${imgUrl}"></body></html>`,
+      structuredData: { ldJson: [{ image: [{ '@type': 'ImageObject', url: imgUrl }] }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [],
+    });
+    const fromCapture = capOf('https://s.example/p/1', 'https://x.example/from.jpg');
+    const toCapture = capOf('https://s.example/p/2', 'https://x.example/to.jpg');
+    const to = { 'https://s.example/p/2': { capture: toCapture, boxes: await boxesOf(toCapture.html) } };
+    const r = await transferMarks({ field: image, from: { url: 'https://s.example/p/1', capture: fromCapture, expected: 'https://x.example/from.jpg' }, to }, deps);
+    expect(r['https://s.example/p/2']).toMatchObject({ value: 'https://x.example/to.jpg', via: { source: 'json-ld', path: 'image' } });
+    expect(r['https://s.example/p/2']!.value).not.toContain('[object Object]');
+    const box = to['https://s.example/p/2']!.boxes[r['https://s.example/p/2']!.boxes[0]!];
+    expect(box).toMatchObject({ kind: 'image', src: 'https://x.example/to.jpg' });
+  });
 });
