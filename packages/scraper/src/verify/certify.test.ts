@@ -167,6 +167,74 @@ describe('checkedPages', () => {
   });
 });
 
+// spec 2026-09-29 C4 / task 2: a structured value that is an object is read
+// (its url/contentUrl/@id), never stringified into a near miss.
+describe('near misses never contain [object Object]', () => {
+  const imageField = { key: 'image', name: 'Image', type: 'image' as const, description: '', concept: 'image_url' };
+  const imgUrls = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
+  function capImg(url: string, imgUrl: string): CaptureLike {
+    return {
+      url, html: '<html></html>',
+      structuredData: { ldJson: [{ image: { '@type': 'ImageObject', url: imgUrl } }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [],
+    };
+  }
+  it('a failing image field whose JSON-LD image is an ImageObject yields near misses that are URLs', async () => {
+    const imgCaptures = Object.fromEntries(imgUrls.map((u, i) => [u, capImg(u, `https://cdn.example/img${i}.jpg`)]));
+    const imgExpected = Object.fromEntries(imgUrls.map((u) => [u, 'https://cdn.example/does-not-match.jpg']));
+    const r = await certify({ field: imageField, expected: imgExpected, captures: imgCaptures, candidates: [{ source: 'json-ld', path: 'image', transform: 'identity' }] }, { evalXPaths: async () => ({}) });
+    const cell = r.cells[imgUrls[0]!];
+    expect(cell).toMatchObject({ status: 'fail', reason: 'not_found', nearMisses: ['https://cdn.example/img0.jpg'] });
+    expect(JSON.stringify(cell)).not.toContain('[object Object]');
+  });
+});
+
+// controller ruling, follow-up 1: a confirmed path's identity reading is
+// always a candidate, even when the cache offers the same source+path with
+// another transform.
+describe('confirmed extras dedupe on the full path id', () => {
+  it('the identity reading of a confirmed path certifies although the cache offers a different transform for it', async () => {
+    const f = { key: 'price', name: 'Price', type: 'money' as const, description: '', concept: 'price' };
+    const urls3 = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
+    const vals = [129.99, 219.99, 149.0];
+    const cap3 = (url: string, price: number): CaptureLike => ({
+      url, html: '<html></html>',
+      structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [{ url: `${url}/api`, method: 'GET', status: 200, isJson: true, parsedJson: { price } }] as unknown as CaptureLike['interceptedRequests'],
+    });
+    const caps3 = Object.fromEntries(urls3.map((u, i) => [u, cap3(u, vals[i]!)]));
+    const exp3 = Object.fromEntries(urls3.map((u, i) => [u, String(vals[i])]));
+    const r = await certify({
+      field: f, expected: exp3, captures: caps3,
+      confirmed: [{ source: 'api', path: 'price' }],
+      candidates: [{ source: 'api', path: 'price', transform: 'cents_to_units' }],
+    }, { evalXPaths: async () => ({}) });
+    expect(r.certified).toEqual([{ source: 'api', path: 'price', transform: 'identity' }]);
+  });
+});
+
+// controller ruling, follow-up 2: weakEvidence must use the same case-insensitive
+// normalisation as isWeakField, or the flag and the filter disagree.
+describe('weakEvidence follows the same normalisation as isWeakField', () => {
+  it('flags weak evidence when text values differ only in case', async () => {
+    const f = { key: 'brand', name: 'Brand', type: 'text' as const, description: '', concept: 'brand' };
+    const urls3 = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];
+    const vals = ['IKEA', 'ikea', 'ikea'];
+    const capB = (url: string, brand: string): CaptureLike => ({
+      url, html: '<html></html>',
+      structuredData: { ldJson: [{ brand }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [],
+    });
+    const caps3 = Object.fromEntries(urls3.map((u, i) => [u, capB(u, vals[i]!)]));
+    const exp3 = Object.fromEntries(urls3.map((u, i) => [u, vals[i]!]));
+    const r = await certify({
+      field: f, expected: exp3, captures: caps3, candidates: [{ source: 'json-ld', path: 'brand', transform: 'identity' }],
+    }, { evalXPaths: async () => ({}) });
+    expect(r.weakEvidence).toBe(true);
+    expect(r.certified.map((p) => p.path)).toEqual(['brand']);
+  });
+});
+
 describe('rankCertified', () => {
   it('orders api, json-ld, meta, xpath then by path length', () => {
     const ranked = rankCertified([

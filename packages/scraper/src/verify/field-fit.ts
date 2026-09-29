@@ -26,6 +26,12 @@ export function pathFitsConcept(concept: string, path: string): boolean {
   return tails.some((t) => { const x = t.toLowerCase(); return p === x || p.endsWith(`.${x}`); });
 }
 
+/** Normalises one expected value the way the same-value comparison (isWeakField, weakEvidence) needs: text case-insensitively, everything else via `normalize`, as `valuesEqual` does. Shared so the "is this weak" check and the "was this weak" flag can never disagree. */
+export function normalizeForWeak(type: CustomerFieldType, value: string): string | null {
+  const n = normalize(type, value);
+  return n !== null && type === 'text' ? n.toLowerCase() : n;
+}
+
 /**
  * Can a value match not tell this field's paths apart? A yes/no field (any
  * field that is 1 or true on every proof page matches it), or one whose
@@ -35,6 +41,6 @@ export function pathFitsConcept(concept: string, path: string): boolean {
 export function isWeakField(type: CustomerFieldType, expectedValues: string[]): boolean {
   if (type === 'boolean') return true;
   if (expectedValues.length < 2) return false;
-  const norms = new Set(expectedValues.map((v) => { const n = normalize(type, v); return n !== null && type === 'text' ? n.toLowerCase() : n; }));
+  const norms = new Set(expectedValues.map((v) => normalizeForWeak(type, v)));
   return norms.size === 1 && !norms.has(null);
 }

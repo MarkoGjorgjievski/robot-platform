@@ -59,6 +59,27 @@ describe('valuesEqual', () => {
   it('null on either side is never equal', () => expect(valuesEqual('number', 'x', 'x')).toBe(false));
 });
 
+describe('images and url objects', () => {
+  it('treats image URLs differing only in the query as the same image', () => {
+    expect(valuesEqual('image', 'https://www.ikea.com/a/b_s5.jpg?f=s', 'https://www.ikea.com/a/b_s5.jpg')).toBe(true);
+    expect(valuesEqual('image', 'https://WWW.ikea.com/a/b.jpg#x', 'https://www.ikea.com/a/b.jpg?w=200')).toBe(true);
+    expect(valuesEqual('image', 'https://x.example/img?id=1', 'https://x.example/img?id=2')).toBe(true); // accepted risk (Review Focus 4)
+    expect(valuesEqual('image', 'https://x.example/a.jpg', 'https://x.example/b.jpg')).toBe(false);
+  });
+  it('keeps page URLs exact', () => {
+    expect(valuesEqual('url', 'https://x.example/p?id=1', 'https://x.example/p?id=2')).toBe(false);
+  });
+  it('reads an ImageObject or a url object', () => {
+    expect(normalize('image', { '@type': 'ImageObject', url: 'https://x.example/a.jpg' })).toBe('https://x.example/a.jpg');
+    expect(normalize('image', { contentUrl: 'https://x.example/b.jpg' })).toBe('https://x.example/b.jpg');
+    expect(normalize('url', { '@id': 'https://x.example/p/1' })).toBe('https://x.example/p/1');
+    expect(normalize('image', { width: 10 })).toBeNull();
+  });
+  it('image normalize output keeps the query (only valuesEqual ignores it)', () => {
+    expect(normalize('image', 'https://www.ikea.com/a/b_s5.jpg?f=s')).toBe('https://www.ikea.com/a/b_s5.jpg?f=s');
+  });
+});
+
 describe('validateExpected', () => {
   it('rejects a blank cell for every type', () => {
     expect(validateExpected('text', '   ')).toMatch(/required/i);

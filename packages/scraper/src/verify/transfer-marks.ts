@@ -4,9 +4,10 @@
 // first. Whatever resolves is shown with the element that displays it; the
 // customer confirms or corrects. Nothing is certified here.
 import type { CaptureLike } from './certify.js';
-import { gatherCandidates, isVolatilePath, rankCertified, type CandidatePath } from './certify.js';
+import { gatherCandidates, isVolatilePath, qualifiesForWeak, rankCertified, type CandidatePath } from './certify.js';
 import type { Box } from './box-map.js';
 import type { DomHit, DomNeedle, XPathProbeResult } from './dom-scripts.js';
+import { isWeakField } from './field-fit.js';
 import { normalize, valuesEqual } from './normalize.js';
 import { resolveStructured } from './search-structured.js';
 import { applyTransform } from './transforms.js';
@@ -35,14 +36,20 @@ export async function transferMarks(input: TransferInput, deps: TransferDeps): P
   });
   // Certification's order, with the deploy-fragile XPaths last (certify.ts's stable-first rule).
   const ranked: CandidatePath[] = [...rankCertified(gathered.candidates.filter((c) => !isVolatilePath(c))), ...rankCertified(gathered.candidates.filter(isVolatilePath))];
+  // The carry follows C2 (spec 2026-09-29 A2): for a weak (boolean) field, a value match cannot
+  // tell candidates apart, so only the mark's own XPath or a structured path that fits the
+  // field's concept may carry — the same rule certification uses, so a tick on a yes/no field
+  // never carries an unrelated field that happens to agree.
+  const weak = isWeakField(field.type, [from.expected]);
+  const eligible = weak ? ranked.filter((c) => qualifiesForWeak(field, c, { markXPaths: from.mark?.xpaths })) : ranked;
 
   const out: Record<string, Transferred | null> = {};
   for (const [url, target] of Object.entries(input.to)) {
     const ctx = { pageUrl: target.capture.url };
-    const xpaths = ranked.filter((c) => c.source === 'xpath').map((c) => c.path);
+    const xpaths = eligible.filter((c) => c.source === 'xpath').map((c) => c.path);
     const probe = xpaths.length ? await deps.evalXPaths(target.capture.html, xpaths) : {};
     let hit: Transferred | null = null;
-    for (const c of ranked) {
+    for (const c of eligible) {
       const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(target.capture, c.source, c.path);
       const raw = applyTransform(rawBase, c.transform);
       if (raw === null || raw === undefined || raw === '') continue;
