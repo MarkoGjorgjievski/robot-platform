@@ -9,7 +9,7 @@
 import type { GridRow, GridState } from './schema-grid';
 import type { CellStatus } from '../components/schema-grid';
 
-export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch';
+export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path';
 
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 
@@ -42,7 +42,8 @@ export type VerificationRow =
   | undefined;
 
 /** Spec 5.6 red-cell hints, verbatim, with `found`/`type` substituted where the copy calls for it. */
-export function hintFor(reason: FailReason, found?: string, type?: string): string {
+/** `field`: the field's name, for the no_fitting_path hint (spec 2026-09-29 C2). */
+export function hintFor(reason: FailReason, found?: string, type?: string, field?: string): string {
   switch (reason) {
     case 'not_found':
       return 'Not found on this page. Check the value, or say where it is.';
@@ -52,6 +53,8 @@ export function hintFor(reason: FailReason, found?: string, type?: string): stri
       return 'Several places match. Add what makes yours different to the description.';
     case 'type_mismatch':
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
+    case 'no_fitting_path':
+      return `We can't tell which value on this page is ${field || 'this field'} — mark it on the screenshot.`;
   }
 }
 
@@ -80,6 +83,7 @@ export function cellStatusFor(
   url: string,
   stale: boolean,
   fieldType?: string,
+  fieldName?: string,
 ): CellStatus | null {
   if (stale) return { status: 'stale' };
 
@@ -101,7 +105,7 @@ export function cellStatusFor(
     status: 'fail',
     found: cell.found,
     reason: cell.reason,
-    hint: hintFor(cell.reason, cell.found, fieldType),
+    hint: hintFor(cell.reason, cell.found, fieldType, fieldName),
     weak,
   };
 }

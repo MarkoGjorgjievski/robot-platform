@@ -315,7 +315,7 @@ export default function SourceSchema() {
     const row = grid.rows.find((r) => r.id === rowId);
     if (!row) return null;
     const url = grid.urls[urlIndex] ?? '';
-    const base = cellStatusFor(results, row.key ?? '', url, cellIsStale(row, urlIndex), row.type);
+    const base = cellStatusFor(results, row.key ?? '', url, cellIsStale(row, urlIndex), row.type, row.name);
     if (base?.status === 'fail' && estimate && !estimate.aiAvailable) {
       return { ...base, hint: `${base.hint} AI is unavailable on this machine, so only the mechanical search ran.` };
     }
