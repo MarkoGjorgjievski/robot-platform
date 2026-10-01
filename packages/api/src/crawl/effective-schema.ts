@@ -88,6 +88,14 @@ export function effectiveSchema(source: {
   const datasetSchema = source.dataset?.schema as DatasetSchemaEntry[] | null | undefined;
   if (Array.isArray(datasetSchema) && datasetSchema.length > 0) {
     return datasetSchema
+      // Axis entries (spec 2026-10-01 §2, `kind: 'axis'`) sit on the dataset
+      // schema alongside contract fields but are never extracted as a field
+      // themselves — they have no `type`, so mapping one through here the
+      // way a keyed field is mapped would hand the chain a field with
+      // `type: undefined`. `contractFields` applies this same exclusion;
+      // mirrored here rather than reusing it because this branch must also
+      // keep legacy unkeyed entries, which `contractFields` drops.
+      .filter((f) => (f as { kind?: unknown }).kind !== 'axis')
       .filter((f) => f.name !== DETAIL_URL_FIELD)
       .map((f) =>
         typeof f.key === 'string'

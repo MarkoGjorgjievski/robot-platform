@@ -42,7 +42,10 @@ export const projectsRouter = router({
           createdAt: projects.createdAt,
           updatedAt: projects.updatedAt,
           datasetCount: sql<number>`count(${datasets.id})::int`,
-          fieldCount: sql<number>`coalesce(sum((select count(*) from jsonb_array_elements(case when jsonb_typeof(${datasets.schema}) = 'array' then ${datasets.schema} else '[]'::jsonb end) e where e ? 'key')), 0)::int`,
+          // Counts keyed entries with `e ? 'key'`, same as `contractFields`,
+          // and excludes axis entries (spec 2026-10-01 §2, `kind: 'axis'`)
+          // the same way — an axis has a `key` too but is never a field.
+          fieldCount: sql<number>`coalesce(sum((select count(*) from jsonb_array_elements(case when jsonb_typeof(${datasets.schema}) = 'array' then ${datasets.schema} else '[]'::jsonb end) e where e ? 'key' and coalesce(e->>'kind', '') <> 'axis')), 0)::int`,
         })
         .from(projects)
         .leftJoin(datasets, eq(projects.id, datasets.projectId))
