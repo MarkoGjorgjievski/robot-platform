@@ -44,7 +44,7 @@ function FieldsScreen() {
   const variants = trpc.datasets.variants.useQuery({ datasetId: datasetId ?? '' }, { enabled: !!datasetId });
   const levels: FieldLevels | undefined =
     variants.data && variants.data.mode !== 'ignore'
-      ? Object.fromEntries(variants.data.fields.map((f) => [f.key, { level: f.level, isDefault: f.levelIsDefault }]))
+      ? Object.fromEntries(variants.data.fields.map((f) => [f.key, { level: f.level, isDefault: f.levelIsDefault, defaultLevel: f.defaultLevel }]))
       : undefined;
 
   const fields = fieldsView(project.data?.fields ?? [], status.data, websiteCount);

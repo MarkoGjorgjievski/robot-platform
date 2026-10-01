@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CUSTOMER_FIELD_TYPES } from '@robot/scraper';
-import { FIELD_TYPES, TYPE_LABELS, VARIANT_MODES, VARIANT_MODE_LABELS, LEVEL_LABELS, fieldsView, sharedNote, addNote, deleteNote, nameRefusal, axisRefusal, type ContractRow } from './fields-view';
+import { FIELD_TYPES, TYPE_LABELS, VARIANT_MODES, VARIANT_MODE_LABELS, LEVEL_LABELS, fieldsView, sharedNote, addNote, deleteNote, nameRefusal, axisRefusal, levelToSend, type ContractRow } from './fields-view';
 
 const contract: ContractRow[] = [
   { key: 'price', name: 'Price', type: 'money', concept: 'price' },
@@ -64,6 +64,12 @@ describe('fields view', () => {
       nested: 'One row per product, variants listed inside',
     });
     expect(LEVEL_LABELS).toEqual({ product: 'Same for every variant', variant: 'Differs per variant' });
+  });
+
+  it('picking the level a field\'s kind implies resets it (null), keeping the "default" marker', () => {
+    expect(levelToSend('variant', 'variant')).toBeNull();
+    expect(levelToSend('product', 'variant')).toBe('product');
+    expect(levelToSend('product', 'product')).toBeNull();
   });
 
   // Deleting a variant column a website uses is refused with the website named

@@ -116,6 +116,11 @@ export const LEVEL_LABELS: Record<FieldLevel, string> = {
   variant: 'Differs per variant',
 };
 
+/** What `datasets.setFieldLevel` is sent for a pick: `null` (back to the default) when it is the level the field's kind implies, so the "default" marker stays. */
+export function levelToSend(next: FieldLevel, defaultLevel: FieldLevel): FieldLevel | null {
+  return next === defaultLevel ? null : next;
+}
+
 /**
  * Why a change to a variant column was refused, when the customer can act on
  * it: a delete refused because a website maps to the column carries the API's

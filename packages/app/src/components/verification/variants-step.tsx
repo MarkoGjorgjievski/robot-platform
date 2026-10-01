@@ -7,7 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { nameRefusal } from '../../lib/fields-view';
 import {
   METHOD_LABELS,
+  NEW_COLUMN,
   axesFor,
+  axisMappings,
+  defaultTarget,
+  newColumnName,
   setLine,
   variantsStepState,
   type DetectResult,
@@ -17,8 +21,7 @@ import {
 import { trpc } from '../../lib/trpc';
 
 const METHODS: VariantMethod[] = ['list', 'links', 'none'];
-/** The select value that asks for a new project column rather than an existing one. */
-const NEW = '__new__';
+const NEW = NEW_COLUMN;
 const GENERIC = 'That could not be saved.';
 const panel = 'rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]';
 
@@ -54,6 +57,8 @@ export function VariantsStep({
   const [changing, setChanging] = useState(false);
   const mode = variants.data?.mode ?? 'ignore';
   const axes = variants.data?.axes ?? [];
+  // Every name a new column must not repeat: the project's fields and columns.
+  const taken = [...(variants.data?.fields ?? []).map((f) => f.name), ...axes.map((a) => a.name)];
   const shownSetup = changing ? null : setup;
 
   const detection = useQuery({
@@ -104,6 +109,8 @@ export function VariantsStep({
             summary={state.summary}
             initialMethod={state.initialMethod}
             axes={axes}
+            taken={taken}
+            setup={setup}
             onCancel={setup ? () => setChanging(false) : undefined}
             onSaved={() => setChanging(false)}
           />
@@ -120,6 +127,8 @@ function FoundForm({
   summary,
   initialMethod,
   axes,
+  taken,
+  setup,
   onCancel,
   onSaved,
 }: {
@@ -129,6 +138,10 @@ function FoundForm({
   summary: string[];
   initialMethod: VariantMethod;
   axes: Array<{ key: string; name: string }>;
+  /** Field and column names a new column must not repeat. */
+  taken: string[];
+  /** The confirmed setup when changing it: its column mapping is where each axis starts. */
+  setup: VariantSetup | null;
   onCancel?: () => void;
   onSaved: () => void;
 }) {
@@ -140,20 +153,20 @@ function FoundForm({
   const [error, setError] = useState<string | null>(null);
 
   const found = axesFor(detection, method);
-  // An existing column of the same name is the obvious target; otherwise a new one.
-  const targetOf = (a: { from: string; label: string }) =>
-    targets[a.from] ?? axes.find((x) => x.name.trim().toLowerCase() === a.label.toLowerCase())?.key ?? NEW;
+  // The customer's pick, else the confirmed mapping (on Change), else a column of the same name, else a new one.
+  const targetOf = (a: { from: string; label: string }) => targets[a.from] ?? defaultTarget(a, axes, setup);
 
   async function confirm() {
     setError(null);
-    const mapped = method === 'none' ? [] : found.map((a) => (targetOf(a) === NEW ? { from: a.from, newAxisName: a.label } : { from: a.from, axisKey: targetOf(a) }));
+    const mapped = method === 'none' ? [] : axisMappings(found, targetOf, taken);
     try {
       await save.mutateAsync({ sourceId, method, axes: mapped });
       await Promise.all([utils.sources.get.invalidate(), datasetId ? utils.datasets.variants.invalidate({ datasetId }) : null]);
       onSaved();
     } catch (err) {
       // A new column whose name a field already has is the customer's to fix.
-      const newName = method === 'none' ? undefined : found.find((a) => targetOf(a) === NEW)?.label;
+      const newAxis = method === 'none' ? undefined : found.find((a) => targetOf(a) === NEW);
+      const newName = newAxis ? newColumnName(newAxis.label, taken) : undefined;
       setError((newName ? nameRefusal(err, newName) : null) ?? GENERIC);
     }
   }
@@ -204,7 +217,7 @@ function FoundForm({
                       {x.name}
                     </SelectItem>
                   ))}
-                  <SelectItem value={NEW}>New column &lsquo;{a.label}&rsquo;</SelectItem>
+                  <SelectItem value={NEW}>New column &lsquo;{newColumnName(a.label, taken)}&rsquo;</SelectItem>
                 </SelectContent>
               </Select>
             </li>
