@@ -61,4 +61,81 @@ describe('exclusion', () => {
     expect(links).toEqual([]);
     expect(pickers).toEqual([]);
   });
+
+  it('never mistakes a filter/facet/sort/refine/pagination/tabs control for a variant picker', async () => {
+    const filterHtml = `<html><body>
+      <div class="filter-options">
+        <button>New</button>
+        <button>Sale</button>
+        <button>Clearance</button>
+      </div>
+    </body></html>`;
+    const pickers = await browser.setContentEvaluate<VariantPicker[]>(filterHtml, buildVariantPickerScript());
+    expect(pickers).toEqual([]);
+  });
+});
+
+describe('radio-group pickers (fix round 1, #1 and #2)', () => {
+  it('reports every radio group in the control, with the axis from the shared name — never from an option\'s own label[for]', async () => {
+    const radiosHtml = `<html><body>
+      <fieldset class="variant-options">
+        <div>
+          <input type="radio" name="color" id="color-black"><label for="color-black">Black</label>
+          <input type="radio" name="color" id="color-red"><label for="color-red">Red</label>
+        </div>
+        <div>
+          <input type="radio" name="size" id="size-8"><label for="size-8">8</label>
+          <input type="radio" name="size" id="size-9"><label for="size-9">9</label>
+        </div>
+      </fieldset>
+    </body></html>`;
+    const pickers = await browser.setContentEvaluate<VariantPicker[]>(radiosHtml, buildVariantPickerScript());
+    expect(pickers).toEqual([
+      { axis: 'color', options: ['Black', 'Red'] },
+      { axis: 'size', options: ['8', '9'] },
+    ]);
+  });
+
+  it('prefers a group-specific fieldset legend over the shared name', async () => {
+    const radiosHtml = `<html><body>
+      <div class="variant-options">
+        <fieldset><legend>Colour</legend>
+          <input type="radio" name="color" id="c-black"><label for="c-black">Black</label>
+          <input type="radio" name="color" id="c-red"><label for="c-red">Red</label>
+        </fieldset>
+      </div>
+    </body></html>`;
+    const pickers = await browser.setContentEvaluate<VariantPicker[]>(radiosHtml, buildVariantPickerScript());
+    expect(pickers).toEqual([{ axis: 'colour', options: ['Black', 'Red'] }]);
+  });
+});
+
+describe('select placeholders (fix round 1, #3)', () => {
+  it('drops a disabled placeholder option', async () => {
+    const selectHtml = `<html><body>
+      <div class="size-selector">
+        <select><option disabled selected>Select Size</option><option>8</option><option>9</option></select>
+      </div>
+    </body></html>`;
+    const pickers = await browser.setContentEvaluate<VariantPicker[]>(selectHtml, buildVariantPickerScript());
+    expect(pickers).toEqual([{ axis: 'size', options: ['8', '9'] }]);
+  });
+});
+
+describe('hidden duplicates (fix round 1, #4)', () => {
+  it('skips a hidden swatch group and reports only its visible duplicate', async () => {
+    const dupHtml = `<html><body>
+      <div class="swatches mobile-only" style="visibility:hidden">
+        <a href="/p?c=1">Black</a>
+        <a href="/p?c=2">Red</a>
+      </div>
+      <div class="swatches desktop-only">
+        <a href="/p?c=1">Black</a>
+        <a href="/p?c=2">Red</a>
+      </div>
+    </body></html>`;
+    const links = await browser.setContentEvaluate<VariantLinks[]>(dupHtml, buildVariantLinksScript('https://s.example/p'));
+    expect(links).toHaveLength(1);
+    expect(links[0]!.links.map((l) => l.label)).toEqual(['Black', 'Red']);
+  });
 });
