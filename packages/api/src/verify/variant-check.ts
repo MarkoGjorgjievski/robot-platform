@@ -105,14 +105,16 @@ export async function runVariantCheck(
     const answer = answers[url];
     if (!answer || answer.count === 0 || pages[url]?.status !== 'pass') continue;
     if (!everyFieldCertified) { pages[url] = { status: 'fail', message: VERIFY_EVERY_FIELD_FIRST }; continue; }
+    // Fail closed: a product with variants is never passed without its checked variant page.
     const spotUrl = answer.spot?.url;
-    if (!spotUrl) continue;
-    const linkIndex = answer.links?.indexOf(spotUrl) ?? -1;
-    const label = (linkIndex >= 0 ? answer.labels[linkIndex] : undefined) ?? spotUrl;
-    const spot = (await loadProofPageCaptures(sourceId, [spotUrl]))[spotUrl];
-    if (!spot) { pages[url] = { status: 'fail', message: `Take the ${label} page's screenshot again` }; continue; }
+    const linkIndex = spotUrl ? answer.links?.indexOf(spotUrl) ?? -1 : -1;
+    const label = (linkIndex >= 0 ? answer.labels[linkIndex] : undefined) ?? answer.labels[0] ?? 'variant';
+    const spot = spotUrl ? (await loadProofPageCaptures(sourceId, [spotUrl]))[spotUrl] : undefined;
+    if (!spotUrl || !spot) { pages[url] = { status: 'fail', message: `Take the ${label} page's screenshot again` }; continue; }
     const { data } = await runVerifiedExtraction({ url: spotUrl, fields: verified }, { browser: deps.browser, capture: spot.capture });
-    const missing = fields.find((f) => normalize(f.type, data[f.key], { pageUrl: spotUrl }) === null);
+    // Only the fields this product is checked on: one left blank here is not required on its variant page either.
+    const checked = fields.filter((f) => (set.expected[f.key]?.[url] ?? '').trim() !== '');
+    const missing = checked.find((f) => normalize(f.type, data[f.key], { pageUrl: spotUrl }) === null);
     if (missing) pages[url] = { status: 'fail', message: `${missing.name} missing on the ${label} page of product ${i + 1}` };
   }
 

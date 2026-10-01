@@ -124,6 +124,10 @@ describe('runVariantCheck — links', () => {
     return Object.fromEntries(fields.map((d) => [d.key, { key: d.key, cells: {}, certified: paths[d.key] ?? [], weakEvidence: false, aiCalled: false, incomplete: false } as unknown as FieldVerification]));
   };
 
+  const P2_SPOT = 'https://variants.example/p/2-white';
+  const P2_LINKS = ['https://variants.example/p/2-black', 'https://variants.example/p/2-red', P2_SPOT];
+
+  /** p1 checks its Red page, p2 its White page; no spot capture is seeded — each test seeds what it needs. */
   async function linksWebsite(tag: string) {
     const f = await website(tag, [{ name: 'Title', type: 'text' }, { name: 'Price', type: 'money' }], {
       Title: { [URLS[0]!]: 'Shoe', [URLS[1]!]: 'Hat', [URLS[2]!]: 'Belt' },
@@ -131,17 +135,23 @@ describe('runVariantCheck — links', () => {
     });
     await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'links', axes: [] });
     await answer(f.sourceId, URLS[0]!, { count: 2, labels: ['Black', 'Red'], links: [URLS[0]!, VARIANT_SHOP_SPOT_URL], spot: { index: 0, url: VARIANT_SHOP_SPOT_URL, expected: {} } });
-    await answer(f.sourceId, URLS[1]!, { count: 3, labels: ['Black', 'Red', 'White'], links: ['https://variants.example/p/2-black', 'https://variants.example/p/2-red', 'https://variants.example/p/2-white'] });
+    await answer(f.sourceId, URLS[1]!, { count: 3, labels: ['Black', 'Red', 'White'], links: P2_LINKS, spot: { index: 0, url: P2_SPOT, expected: {} } });
     await answer(f.sourceId, URLS[2]!, { count: 0, labels: [] });
     return f;
   }
+
+  const check = async (f: { sourceId: string; keys: Record<string, string> }, opts: { withoutPrice?: boolean; edit?: (set: VerificationSet) => void } = {}) => {
+    const l = await load(f.sourceId);
+    opts.edit?.(l.set);
+    return runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys, opts) }, { browser });
+  };
 
   it('links: certifies the swatch collector and spot-checks the first variant page against the certified fields', async () => {
     const f = await linksWebsite('variant-check-links');
     try {
       await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1');
-      const l = await load(f.sourceId);
-      const r = await runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys) }, { browser });
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f);
       expect(r.method).toBe('links');
       expect(r.collector).toBeTruthy();
       expect(r.pages[URLS[0]!]).toEqual({ status: 'pass', count: 2 });
@@ -154,22 +164,59 @@ describe('runVariantCheck — links', () => {
   it('links: a missing spot capture asks for the screenshot again', async () => {
     const f = await linksWebsite('variant-check-nospot');
     try {
-      const l = await load(f.sourceId);
-      const r = await runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys) }, { browser });
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f);
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: "Take the Red page's screenshot again" });
+      expect(r.pages[URLS[1]!]).toEqual({ status: 'pass', count: 3 });
+      expect(r.passed).toBe(false);
+    } finally { await f.cleanup(); }
+  });
+
+  it('links: a failed spot capture asks for the screenshot again, never a pass', async () => {
+    const f = await linksWebsite('variant-check-failedspot');
+    try {
+      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1', { failed: true });
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f);
       expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: "Take the Red page's screenshot again" });
       expect(r.passed).toBe(false);
     } finally { await f.cleanup(); }
   });
 
-  it('links: a failed or day-old spot capture asks for the screenshot again, never a pass', async () => {
+  it('links: a day-old spot capture asks for the screenshot again, never a pass', async () => {
     const f = await linksWebsite('variant-check-stalespot');
     try {
       await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1', { ageMs: DAY + 60_000 });
-      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1', { failed: true });
-      const l = await load(f.sourceId);
-      const r = await runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys) }, { browser });
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f);
       expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: "Take the Red page's screenshot again" });
       expect(r.passed).toBe(false);
+    } finally { await f.cleanup(); }
+  });
+
+  it('links: a product with variants but no checked variant page fails closed', async () => {
+    const f = await linksWebsite('variant-check-nospoturl');
+    try {
+      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1');
+      await answer(f.sourceId, URLS[1]!, { count: 3, labels: ['Black', 'Red', 'White'], links: P2_LINKS });
+      const r = await check(f);
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'pass', count: 2 });
+      expect(r.pages[URLS[1]!]).toEqual({ status: 'fail', message: "Take the Black page's screenshot again" });
+      expect(r.passed).toBe(false);
+
+      // No labels at all: the generic word.
+      await answer(f.sourceId, URLS[1]!, { count: 3, labels: [], links: P2_LINKS });
+      expect((await check(f)).pages[URLS[1]!]).toEqual({ status: 'fail', message: "Take the variant page's screenshot again" });
+    } finally { await f.cleanup(); }
+  });
+
+  it('links: a checked page that is not one of the links is labelled with the first variant', async () => {
+    const f = await linksWebsite('variant-check-spotoutside');
+    try {
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      await answer(f.sourceId, URLS[0]!, { count: 2, labels: ['Black', 'Red'], links: [URLS[0]!, VARIANT_SHOP_SPOT_URL], spot: { index: 0, url: 'https://variants.example/p/1-elsewhere', expected: {} } });
+      const r = await check(f);
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: "Take the Black page's screenshot again" });
     } finally { await f.cleanup(); }
   });
 
@@ -178,10 +225,21 @@ describe('runVariantCheck — links', () => {
     try {
       // The Red page is the Belt page: no hasVariant, so the certified price path reads nothing there.
       await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p3');
-      const l = await load(f.sourceId);
-      const r = await runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys) }, { browser });
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f);
       expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: 'Price missing on the Red page of product 1' });
       expect(r.passed).toBe(false);
+    } finally { await f.cleanup(); }
+  });
+
+  it('links: a field blank on the product is not required on its variant page', async () => {
+    const f = await linksWebsite('variant-check-spotblank');
+    try {
+      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p3');
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f, { edit: (set) => { set.expected[f.keys.Price!]![URLS[0]!] = ''; } });
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'pass', count: 2 });
+      expect(r.passed).toBe(true);
     } finally { await f.cleanup(); }
   });
 
@@ -189,8 +247,8 @@ describe('runVariantCheck — links', () => {
     const f = await linksWebsite('variant-check-uncert');
     try {
       await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p1');
-      const l = await load(f.sourceId);
-      const r = await runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys, { withoutPrice: true }) }, { browser });
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f, { withoutPrice: true });
       expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: 'Verify every field first' });
       expect(r.pages[URLS[1]!]).toEqual({ status: 'fail', message: 'Verify every field first' });
       expect(r.pages[URLS[2]!]).toEqual({ status: 'none' });

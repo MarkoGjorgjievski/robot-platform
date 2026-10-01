@@ -70,7 +70,7 @@ function latestCleanRun(db: Database, sourceId: string) {
  * verified" — a failing field is never current, but it can be unchanged.
  */
 export async function loadFieldCurrency(db: Database, sourceId: string): Promise<{
-  latest: { id: string; completedAt: Date; results: Record<string, FieldVerification> } | null;
+  latest: { id: string; completedAt: Date; results: Record<string, FieldVerification>; variantResults: VariantVerification | null } | null;
   currentKeys: string[];
   unchangedKeys: string[];
 }> {
@@ -98,21 +98,59 @@ export async function loadFieldCurrency(db: Database, sourceId: string): Promise
     return r.certified.length > 0 && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
   });
 
-  return { latest: { id: row.id, completedAt: row.completedAt!, results }, currentKeys, unchangedKeys };
+  const variantResults = (row.variantResults as VariantVerification | null | undefined) ?? null;
+  return { latest: { id: row.id, completedAt: row.completedAt!, results, variantResults }, currentKeys, unchangedKeys };
 }
 
-/** A certification exists only when EVERY contract field is current on this source (spec 4.4). */
-export async function loadCurrentCertification(db: Database, sourceId: string): Promise<Certification | null> {
+export type VariantCurrency = { required: VariantsRequired; current: boolean; passed: boolean; result: VariantVerification | null };
+
+type VariantSource = { verificationSet: unknown; variantSetup: unknown; dataset: { schema: unknown; variantMode: string } | null } | undefined;
+
+/** The source half of variant currency: what the project and the website ask for now. */
+function loadVariantSource(db: Database, sourceId: string) {
+  return db.query.sources.findFirst({
+    where: eq(sources.id, sourceId),
+    columns: { verificationSet: true, variantSetup: true },
+    with: { dataset: { columns: { schema: true, variantMode: true } } },
+  });
+}
+
+/**
+ * Variant currency (spec 2026-10-01 §4) of one stored run's `variantResults`,
+ * decided at read time like the fields': the project's mode and the website's
+ * setup say whether variants are required at all, and the stored result is
+ * current only while its hash equals the hash of the setup and answers as
+ * they stand now. Setting the project back to `ignore`, or the website to
+ * "no variants", needs no new run: `required` becomes `no` and nothing gates.
+ */
+function variantCurrencyOf(source: VariantSource, result: VariantVerification | null): VariantCurrency {
+  const setup = (source?.variantSetup as VariantSetup | null | undefined) ?? null;
+  const required = variantsRequired(source?.dataset?.variantMode, setup);
+  if (required !== 'yes' || !source?.verificationSet) return { required, current: false, passed: false, result: null };
+  const current = !!result && result.hash === currentVariantHash({ set: source.verificationSet as VerificationSet, setup: setup!, datasetSchema: source.dataset?.schema });
+  return { required, current, passed: current && result!.passed, result };
+}
+
+/**
+ * The certification and the variant currency, both from ONE read of the
+ * latest clean run, so the field paths and the variants can never come from
+ * different runs. `cert` is null unless every contract field is current
+ * (spec 4.4); it carries `variants` only when they are required, current and
+ * passed.
+ */
+export async function loadCertificationState(db: Database, sourceId: string): Promise<{ cert: Certification | null; variants: VariantCurrency }> {
+  const variantSource = await loadVariantSource(db, sourceId);
+  const { latest, currentKeys } = await loadFieldCurrency(db, sourceId);
+  const variants = variantCurrencyOf(variantSource, latest?.variantResults ?? null);
+
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
     columns: { schemaDefinition: true, verificationSet: true },
   });
-  if (!source || !Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 || !source.verificationSet) return null;
+  if (!source || !Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 || !source.verificationSet) return { cert: null, variants };
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
-
-  const { latest, currentKeys } = await loadFieldCurrency(db, sourceId);
-  if (!latest || currentKeys.length !== fields.length) return null;
+  if (!latest || currentKeys.length !== fields.length) return { cert: null, variants };
 
   // A certification with no usable hostname is not a certification: the
   // hostname IS the domain_intelligence row the certified paths live in and
@@ -127,43 +165,30 @@ export async function loadCurrentCertification(db: Database, sourceId: string): 
     hostname = new URL(set.urls[0]!).hostname;
   } catch {
     console.error(`[verify] source ${sourceId} has an unparseable verification url; treating it as uncertified`);
-    return null;
+    return { cert: null, variants };
   }
 
-  const variants = await loadVariantCurrency(db, sourceId);
   return {
-    verificationId: latest.id,
-    completedAt: latest.completedAt,
-    paths: Object.fromEntries(fields.map((f) => [f.key, latest.results[f.key]?.certified ?? []])),
-    concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
-    hostname,
-    ...(variants.required === 'yes' && variants.passed && variants.result ? { variants: variants.result } : {}),
+    cert: {
+      verificationId: latest.id,
+      completedAt: latest.completedAt,
+      paths: Object.fromEntries(fields.map((f) => [f.key, latest.results[f.key]?.certified ?? []])),
+      concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
+      hostname,
+      ...(variants.required === 'yes' && variants.passed && variants.result ? { variants: variants.result } : {}),
+    },
+    variants,
   };
 }
 
-/**
- * Variant currency (spec 2026-10-01 §4), decided at read time like the
- * fields': the project's mode and the website's setup say whether variants
- * are required at all, and the latest clean run (the same row
- * `loadFieldCurrency` reads) is current only while its `variantResults.hash`
- * equals the hash of the setup and answers as they stand now. Setting the
- * project back to `ignore`, or the website to "no variants", needs no new
- * run: `required` becomes `no` and nothing here gates.
- */
-export async function loadVariantCurrency(db: Database, sourceId: string): Promise<{
-  required: VariantsRequired; current: boolean; passed: boolean; result: VariantVerification | null;
-}> {
-  const source = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { verificationSet: true, variantSetup: true },
-    with: { dataset: { columns: { schema: true, variantMode: true } } },
-  });
-  const setup = (source?.variantSetup as VariantSetup | null | undefined) ?? null;
-  const required = variantsRequired(source?.dataset?.variantMode, setup);
-  if (required !== 'yes' || !source?.verificationSet) return { required, current: false, passed: false, result: null };
+/** A certification exists only when EVERY contract field is current on this source (spec 4.4). */
+export async function loadCurrentCertification(db: Database, sourceId: string): Promise<Certification | null> {
+  return (await loadCertificationState(db, sourceId)).cert;
+}
 
+/** Variant currency against the latest clean run (the same row `loadFieldCurrency` reads); see `variantCurrencyOf`. */
+export async function loadVariantCurrency(db: Database, sourceId: string): Promise<VariantCurrency> {
+  const source = await loadVariantSource(db, sourceId);
   const row = await latestCleanRun(db, sourceId);
-  const result = (row?.variantResults as VariantVerification | null | undefined) ?? null;
-  const current = !!result && result.hash === currentVariantHash({ set: source.verificationSet as VerificationSet, setup: setup!, datasetSchema: source.dataset?.schema });
-  return { required, current, passed: current && result!.passed, result };
+  return variantCurrencyOf(source, (row?.variantResults as VariantVerification | null | undefined) ?? null);
 }
