@@ -20,6 +20,21 @@ import {
 } from '../../lib/site/variants-view';
 import { trpc } from '../../lib/trpc';
 
+/**
+ * `sources.detectVariants` for one set of landed screenshots: the one query
+ * the Variants step and the table's Variants row share — same key, so the
+ * captures are looked at once.
+ */
+export function detectVariantsQuery(utils: ReturnType<typeof trpc.useUtils>, sourceId: string, capturedKey: string) {
+  return {
+    queryKey: ['sources.detectVariants', sourceId, capturedKey] as const,
+    queryFn: () => utils.client.sources.detectVariants.query({ sourceId }),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
+  };
+}
+
 const METHODS: VariantMethod[] = ['list', 'links', 'none'];
 const NEW = NEW_COLUMN;
 const GENERIC = 'That could not be saved.';
@@ -62,12 +77,8 @@ export function VariantsStep({
   const shownSetup = changing ? null : setup;
 
   const detection = useQuery({
-    queryKey: ['sources.detectVariants', sourceId, capturedKey],
-    queryFn: () => utils.client.sources.detectVariants.query({ sourceId }),
+    ...detectVariantsQuery(utils, sourceId, capturedKey),
     enabled: mode !== 'ignore' && !shownSetup && capturedKey !== '',
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
   });
 
   const state = variantsStepState({ mode, cards, failedCards, detection: detection.data ?? null, setup, changing, axes });
@@ -161,7 +172,12 @@ function FoundForm({
     const mapped = method === 'none' ? [] : axisMappings(found, targetOf, taken);
     try {
       await save.mutateAsync({ sourceId, method, axes: mapped });
-      await Promise.all([utils.sources.get.invalidate(), datasetId ? utils.datasets.variants.invalidate({ datasetId }) : null]);
+      // The status's `variants` follow the setup (setup missing → required), so it is refreshed too.
+      await Promise.all([
+        utils.sources.get.invalidate(),
+        utils.sources.verificationStatus.invalidate({ sourceId }),
+        datasetId ? utils.datasets.variants.invalidate({ datasetId }) : null,
+      ]);
       onSaved();
     } catch (err) {
       // A new column whose name a field already has is the customer's to fix.
