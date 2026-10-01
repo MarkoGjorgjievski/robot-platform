@@ -1042,7 +1042,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       )}
 
       {/* Only while the project wants variants; never holds Verify or Extract back (plan 2 gates on it). */}
-      <VariantsStep sourceId={sourceId} datasetId={source.datasetId} setup={source.variantSetup} cards={urls.length} capturedKey={variantsKey} />
+      <VariantsStep sourceId={sourceId} datasetId={source.datasetId} setup={source.variantSetup} cards={urls.length} failedCards={urls.filter((u) => captures.byUrl[u]?.status === 'failed').length} capturedKey={variantsKey} />
 
       {runNote ? (
         <p role="alert" className={`border-l-2 pl-3 text-sm ${strip === 'failed' ? 'border-fail text-fail' : 'border-warn text-warn'}`}>
