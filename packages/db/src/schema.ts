@@ -111,6 +111,9 @@ export const datasets = pgTable('datasets', {
   slug: varchar('slug', { length: 255 }).notNull(),
   description: text('description'),
   schema: jsonb('schema'),
+  // Variants setting (spec 2026-10-01 §2): 'ignore' | 'row_per_variant' | 'nested'.
+  // Defaults to 'ignore' for every project, existing and new.
+  variantMode: varchar('variant_mode', { length: 20 }).notNull().default('ignore'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
@@ -169,6 +172,10 @@ export const sources = pgTable('sources', {
   verificationSet: jsonb('verification_set'),
   // Field keys flagged by the last run's drift check (spec §5.3): string[].
   driftedFields: jsonb('drifted_fields'),
+  // How this website exposes variants, chosen on the Variants step (spec
+  // 2026-10-01 §3): VariantSetup { method: 'list' | 'links' | 'none'; axes:
+  // Array<{ from: string; axisKey: string }>; confirmedAt }. Null until set.
+  variantSetup: jsonb('variant_setup'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
