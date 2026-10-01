@@ -5,7 +5,9 @@ import { sources, datasets, projects, orgs, domains, inputSets, sourceVerificati
 import {
   FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
+  detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
+  type VariantList, type VariantLinks, type VariantPicker,
 } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
@@ -15,7 +17,7 @@ import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
-import { contractFields, bindingFor } from '../contract.js';
+import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { rankProductLinks, describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
@@ -23,6 +25,7 @@ import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, 
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
+import { createAxis } from './datasets.js';
 
 /** The transaction handle `ctx.db.transaction` hands its callback — named so `setInputPages` can take one as a parameter. */
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -405,6 +408,7 @@ export const sourcesRouter = router({
           : (s.budget as { max_items: number | 'all'; max_pages: number | 'all'; mode?: 'all' | 'first_n' }),
         parameters,
         schemaDefinition: s.schemaDefinition, verificationSet: s.verificationSet, driftedFields: s.driftedFields as string[] | null,
+        variantSetup: s.variantSetup as VariantSetup | null,
         project, fields: contractFields(hit.datasetSchema), createdAt: s.createdAt,
       };
     }),
@@ -1214,5 +1218,125 @@ export const sourcesRouter = router({
         unchangedKeys,
         current: fieldCount > 0 && currentKeys.length === fieldCount,
       };
+    }),
+
+  // ─── Variants (spec 2026-10-01 §3): how a website exposes variants ──────
+
+  /**
+   * Inspects this website's proof-page captures for how it exposes variants
+   * — no AI, no navigation: `detectVariantLists` reads each capture's
+   * structured data/intercepted JSON already on hand, and the links/pickers
+   * scripts run once per capture's stored HTML inside a single
+   * `withBrowserSession` (`setContentEvaluate`, same as `transferMarks`). A
+   * proof page with no fresh capture reports `captured: false` and empty
+   * arrays rather than being skipped — the caller still gets one row per
+   * proof page, in order.
+   *
+   * `suggested` is computed only from what was found: `list` if any page has
+   * a variant list, else `links` if any page has a link group, else `none`.
+   * A source with no verification set, or one with no proof URLs yet,
+   * answers `{ pages: [], suggested: 'none' }` — nothing to inspect.
+   */
+  detectVariants: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, verificationSet: true },
+      });
+      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
+
+      const urls = (source.verificationSet as VerificationSet | null)?.urls ?? [];
+      if (urls.length === 0) return { pages: [], suggested: 'none' as const };
+
+      const captureRecords = await loadProofPageCaptures(input.sourceId, urls);
+      type Page = { url: string; captured: boolean; lists: VariantList[]; links: VariantLinks[]; pickers: VariantPicker[] };
+      const pages: Page[] = await withBrowserSession(async (browser) => {
+        const out: Page[] = [];
+        for (const url of urls) {
+          const rec = captureRecords[url];
+          if (!rec) { out.push({ url, captured: false, lists: [], links: [], pickers: [] }); continue; }
+          const lists = detectVariantLists(rec.capture);
+          const links = await browser.setContentEvaluate<VariantLinks[]>(rec.capture.html, buildVariantLinksScript(url));
+          const pickers = await browser.setContentEvaluate<VariantPicker[]>(rec.capture.html, buildVariantPickerScript());
+          out.push({ url, captured: true, lists, links, pickers });
+        }
+        return out;
+      });
+
+      const suggested = pages.some((p) => p.lists.length > 0)
+        ? ('list' as const)
+        : pages.some((p) => p.links.length > 0)
+          ? ('links' as const)
+          : ('none' as const);
+      return { pages, suggested };
+    }),
+
+  /**
+   * Confirms how this website exposes variants (spec 2026-10-01 §3): the
+   * method the customer picked, plus where each axis the site shows maps to
+   * a project axis. An axis entry either names an existing project axis
+   * (`axisKey`) or asks for a new one to be minted on the fly
+   * (`newAxisName`, via `createAxis` — the same minting `datasets.addAxis`
+   * uses) — never both, never neither. `method: 'none'` always stores an
+   * empty `axes` list, whatever the caller sent.
+   *
+   * The axis creation(s) and the `variant_setup` write happen in one
+   * transaction: a crash between minting an axis and recording the mapping
+   * would otherwise leave an orphaned axis with nothing pointing at it.
+   */
+  setVariantSetup: publicProcedure
+    .input(z.object({
+      sourceId: z.string().uuid(),
+      method: z.enum(['list', 'links', 'none']),
+      axes: z.array(z.object({
+        from: z.string().min(1),
+        axisKey: z.string().min(1).optional(),
+        newAxisName: z.string().trim().min(1).max(100).optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, datasetId: true },
+      });
+      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
+
+      for (const a of input.axes) {
+        const hasKey = a.axisKey !== undefined;
+        const hasNew = a.newAxisName !== undefined;
+        if (hasKey === hasNew) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `Axis mapping for "${a.from}" needs exactly one of axisKey or newAxisName` });
+        }
+      }
+
+      const variantSetup = await ctx.db.transaction(async (tx) => {
+        let axes: Array<{ from: string; axisKey: string }> = [];
+        if (input.method !== 'none' && input.axes.length > 0) {
+          if (!source.datasetId) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Website ${input.sourceId} has no project to map axes in` });
+          const ds = await tx.query.datasets.findFirst({ where: eq(datasets.id, source.datasetId), columns: { schema: true } });
+          const knownKeys = new Set(contractAxes(ds?.schema).map((a) => a.key));
+          for (const a of input.axes) {
+            if (a.newAxisName !== undefined) {
+              const created = await createAxis(tx, source.datasetId, a.newAxisName);
+              knownKeys.add(created.key);
+              axes.push({ from: a.from, axisKey: created.key });
+            } else {
+              if (!knownKeys.has(a.axisKey!)) {
+                throw new TRPCError({ code: 'BAD_REQUEST', message: `Axis ${a.axisKey} not found` });
+              }
+              axes.push({ from: a.from, axisKey: a.axisKey! });
+            }
+          }
+        }
+
+        const setup: VariantSetup = { method: input.method, axes, confirmedAt: new Date().toISOString() };
+        await tx.update(sources).set({ variantSetup: setup, updatedAt: new Date() }).where(eq(sources.id, source.id));
+        return setup;
+      });
+
+      return variantSetup;
     }),
 });
