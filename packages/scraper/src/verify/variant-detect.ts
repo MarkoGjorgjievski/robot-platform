@@ -110,44 +110,75 @@ function buildList(source: VariantList['source'], path: string, raw: unknown[], 
   for (const o of objs) for (const k of axisKeysOf(o)) keys.add(k);
   const axes = variesByAxes ?? orderAxes(keys);
   const entries = objs.slice(0, MAX_ENTRIES).map((o) => toEntry(o, axes));
-  return { source, path, count: raw.length, axes, entries };
+  return { source, path, count: objs.length, axes, entries };
+}
+
+function typeIncludes(block: PlainObject, type: string): boolean {
+  const t = block['@type'];
+  if (typeof t === 'string') return t === type;
+  if (Array.isArray(t)) return t.includes(type);
+  return false;
+}
+
+/** `offers[]` and `AggregateOffer` only mean variants on a product-shaped block — a `hasVariant` array needs no such gate (brief: any object with a `hasVariant` array). */
+function isProductLike(block: PlainObject): boolean {
+  return typeIncludes(block, 'Product') || typeIncludes(block, 'ProductGroup');
+}
+
+function offersArrayQualifies(offers: unknown): offers is unknown[] {
+  return Array.isArray(offers) && offers.length >= 2 && offers.every((o) => isPlainObject(o) && ('sku' in o || 'price' in o));
+}
+
+/** The JSON-LD blocks to scan: each top-level `ldJson` entry, plus the objects inside any `@graph` array, treated the same way. */
+function jsonLdBlocks(ldJson: unknown[]): PlainObject[] {
+  const out: PlainObject[] = [];
+  for (const b of ldJson) {
+    if (!isPlainObject(b)) continue;
+    out.push(b);
+    if (Array.isArray(b['@graph'])) for (const g of b['@graph']) if (isPlainObject(g)) out.push(g);
+  }
+  return out;
 }
 
 function jsonLdCandidates(ldJson: unknown[]): VariantList[] {
   const out: VariantList[] = [];
-  for (const block of ldJson) {
-    if (!isPlainObject(block)) continue;
+  for (const block of jsonLdBlocks(ldJson)) {
     const variesByAxes = axesFromVariesBy(block.variesBy);
     if (Array.isArray(block.hasVariant) && block.hasVariant.length >= 2) {
       const list = buildList('json-ld', 'hasVariant', block.hasVariant, variesByAxes);
       if (list) out.push(list);
     }
-    if (
-      Array.isArray(block.offers) &&
-      block.offers.length >= 2 &&
-      block.offers.every((o) => isPlainObject(o) && ('sku' in o || 'price' in o))
-    ) {
+    if (!isProductLike(block)) continue;
+    if (offersArrayQualifies(block.offers)) {
       const list = buildList('json-ld', 'offers', block.offers, variesByAxes);
+      if (list) out.push(list);
+    } else if (isPlainObject(block.offers) && typeIncludes(block.offers, 'AggregateOffer') && offersArrayQualifies(block.offers.offers)) {
+      const list = buildList('json-ld', 'offers.offers', block.offers.offers, variesByAxes);
       if (list) out.push(list);
     }
   }
   return out;
 }
 
-function isIdentifiedEntry(e: PlainObject): boolean {
-  return 'sku' in e || 'price' in e || 'id' in e || 'variant_id' in e;
+function hasSkuOrPrice(e: PlainObject): boolean {
+  return 'sku' in e || 'price' in e;
 }
 
-function hasAxisSignal(e: PlainObject): boolean {
-  if (Object.keys(e).some(isKnownAxisKey)) return true;
-  return Array.isArray(e.options) || Array.isArray(e.selectedOptions);
+function hasIdSignal(e: PlainObject): boolean {
+  return 'id' in e || 'variant_id' in e;
+}
+
+/** `option1`–`option3`, or an `options`/`selectedOptions` array: the narrow signal that lets an `id`/`variant_id`-only entry count toward "identified". A plain `VARIANT_AXIS_KEYS` field like `size` is not enough on its own — a photo or related-item list often carries `id` and `size` too. */
+function hasNarrowOptionSignal(e: PlainObject): boolean {
+  return 'option1' in e || 'option2' in e || 'option3' in e || Array.isArray(e.options) || Array.isArray(e.selectedOptions);
 }
 
 function qualifiesAsApiVariantArray(arr: unknown[]): boolean {
   if (arr.length < 2 || !arr.every(isPlainObject)) return false;
   const objs = arr as PlainObject[];
-  if (objs.filter(isIdentifiedEntry).length < 2) return false;
-  return objs.some(hasAxisSignal);
+  if (objs.filter(hasSkuOrPrice).length >= 2) return true;
+  if (!objs.some(hasNarrowOptionSignal)) return false;
+  return objs.filter(hasIdSignal).length >= 2;
 }
 
 function collectApiArrays(value: unknown, path: string, depth: number, out: Array<{ path: string; arr: unknown[] }>): void {
