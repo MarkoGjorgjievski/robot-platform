@@ -131,19 +131,23 @@ describe('sources.verify', () => {
     }
   });
 
-  it('verify refuses with "Confirm the variants of every product first" when a proof page has no answer and variants are required', async () => {
+  it('a variants-only verify is refused with "Confirm the variants of every product first" while a proof page has no answer; a run with fields is not', async () => {
     const { sourceId, urls, datasetId, cleanup } = await makeSchemaSource('variantsunanswered');
     try {
       await caller.datasets.setVariantMode({ datasetId, mode: 'row_per_variant' });
       await caller.sources.setVariantSetup({ sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
       await caller.sources.saveVariantAnswer({ sourceId, url: urls[0]!, answer: { count: 2, labels: ['Black', 'Red'] } });
       await caller.sources.saveVariantAnswer({ sourceId, url: urls[1]!, answer: { count: 0, labels: [] } });
-      await expect(caller.sources.verify({ sourceId })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
+      await expect(caller.sources.verify({ sourceId, onlyKeys: [] })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
       expect(runSourceVerificationMock).not.toHaveBeenCalled();
 
-      // Every product answered (one with none): Verify starts.
-      await caller.sources.saveVariantAnswer({ sourceId, url: urls[2]!, answer: { count: 0, labels: [] } });
+      // A run that also verifies fields starts: the unanswered product fails inside the variant result.
       expect((await caller.sources.verify({ sourceId })).status).toBe('started');
+      await db.update(sourceVerifications).set({ completedAt: new Date() }).where(eq(sourceVerifications.sourceId, sourceId));
+
+      // Every product answered (one with none): the variants-only run starts too.
+      await caller.sources.saveVariantAnswer({ sourceId, url: urls[2]!, answer: { count: 0, labels: [] } });
+      expect((await caller.sources.verify({ sourceId, onlyKeys: [] })).status).toBe('started');
 
       // "No variants on this website" needs no answers at all.
       await caller.sources.saveVariantAnswer({ sourceId, url: urls[2]!, answer: null });

@@ -1180,8 +1180,12 @@ export const sourcesRouter = router({
         }, contractFields(source.dataset?.schema));
         if (problems.length) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: problems.join('\n') });
 
-        // Variants (spec 2026-10-01): every product needs an answer, even "No variants on this product".
-        if (variantsRequired(source.dataset?.variantMode, source.variantSetup as VariantSetup | null) === 'yes'
+        // Variants (spec 2026-10-01): a variants-only run (`onlyKeys: []`) checks nothing but the
+        // answers, so it needs one for every product, even "No variants on this product". A run that
+        // also verifies fields is never held back by them: an unanswered product fails inside the
+        // variant result instead ("product {n} lists {k} {noun} — confirm them").
+        if (input.onlyKeys?.length === 0
+          && variantsRequired(source.dataset?.variantMode, source.variantSetup as VariantSetup | null) === 'yes'
           && set.urls.some((u) => !set.variants?.[u])) {
           throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
         }
