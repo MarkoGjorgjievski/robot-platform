@@ -77,13 +77,19 @@ function buildLabelForMap(): Map<string, string> {
   return map;
 }
 
-/** Resolves href against pageUrl; null for a fragment, javascript:, or non-http(s) link. */
+/**
+ * Resolves href against pageUrl; null for a fragment, javascript:, or non-http(s) link. The
+ * fragment is stripped, so a detected link is already in the one normal form every variant
+ * link is stored and compared in (absolute, no fragment — variant-collector.ts
+ * normalizeVariantLink): `/p/x#a` and `/p/x` are the same link.
+ */
 function resolveHref(href: string, pageUrl: string): string | null {
   const h = href.trim();
   if (h === '' || h.charAt(0) === '#' || /^javascript:/i.test(h)) return null;
   try {
     const u = new URL(h, pageUrl);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    u.hash = '';
     return u.href;
   } catch {
     return null;

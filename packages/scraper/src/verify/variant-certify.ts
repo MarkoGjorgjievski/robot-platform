@@ -9,14 +9,33 @@
 import { createHash } from 'node:crypto';
 import type { CaptureLike } from './certify.js';
 import { getByDotPath } from '../domain-cache.js';
-import { normalize, valuesEqual } from './normalize.js';
+import { normalize, valuesEqual, type NormalizeContext } from './normalize.js';
 import { pathFitsConcept } from './field-fit.js';
 import { objectUrl, displayValue } from './structured-value.js';
 import { entryAxisValue } from './variant-detect.js';
 import type { CustomerFieldType, VariantListRef, VariantAnswer } from './types.js';
 
-export type EntryField = { key: string; name: string; type: CustomerFieldType; concept: string; axisFrom?: string };
-export type EntryPath = { kind: 'path'; path: string } | { kind: 'axis'; from: string };
+/**
+ * An entry field. `axisFrom` names where an axis column reads from on an entry; a list when
+ * several detected names map to the same column (the first that yields a value wins). A single
+ * string is the same as a one-item list.
+ */
+export type EntryField = { key: string; name: string; type: CustomerFieldType; concept: string; axisFrom?: string | string[] };
+export type EntryPath = { kind: 'path'; path: string } | { kind: 'axis'; from: string | string[] };
+
+/** An axis column's value on an entry: the first of its `from` names that yields one. */
+export function entryAxisValueOf(entry: Record<string, unknown>, from: string | string[]): string | undefined {
+  for (const name of typeof from === 'string' ? [from] : from) {
+    const v = entryAxisValue(entry, name);
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
+/** Which of an axis column's `from` names yields a value on this entry, or undefined. */
+function axisFromUsed(entry: Record<string, unknown>, from: string | string[]): string | undefined {
+  return (typeof from === 'string' ? [from] : from).find((name) => entryAxisValue(entry, name) !== undefined);
+}
 export type VariantPageResult =
   | { status: 'pass'; count: number }
   | { status: 'none' }
@@ -102,7 +121,7 @@ export function flattenEntry(entry: Record<string, unknown>, maxDepth = 4): Arra
 
 /** Reads an entry field's confirmed path from a resolved entry. */
 export function readEntryPath(entry: Record<string, unknown>, p: EntryPath): unknown {
-  return p.kind === 'path' ? getByDotPath(entry, p.path) : entryAxisValue(entry, p.from);
+  return p.kind === 'path' ? getByDotPath(entry, p.path) : entryAxisValueOf(entry, p.from);
 }
 
 function accepted(value: string): EntryPath {
@@ -114,18 +133,21 @@ function accepted(value: string): EntryPath {
  * reads its axis value; otherwise the first leaf whose path fits the
  * field's concept and whose value normalises for its type. `null` when
  * nothing fits — the customer types it. The suggestion's value is the
- * display text, same as the certified entry path would show.
+ * display text, same as the certified entry path would show. `ctx.pageUrl`
+ * is the product page's url, so a relative or protocol-relative url/image
+ * value reads as the url it is (the same context certification uses).
  */
-export function suggestEntryValues(entry: Record<string, unknown>, fields: EntryField[]): Record<string, { value: string; path: string } | null> {
+export function suggestEntryValues(entry: Record<string, unknown>, fields: EntryField[], ctx?: NormalizeContext): Record<string, { value: string; path: string } | null> {
   const leaves = flattenEntry(entry);
   const out: Record<string, { value: string; path: string } | null> = {};
   for (const f of fields) {
     if (f.axisFrom !== undefined) {
-      const v = entryAxisValue(entry, f.axisFrom);
-      out[f.key] = v !== undefined ? { value: v, path: `axis:${f.axisFrom}` } : null;
+      const from = axisFromUsed(entry, f.axisFrom);
+      const v = from !== undefined ? entryAxisValue(entry, from) : undefined;
+      out[f.key] = from !== undefined && v !== undefined ? { value: v, path: `axis:${from}` } : null;
       continue;
     }
-    const hit = leaves.find((l) => pathFitsConcept(f.concept, l.path) && normalize(f.type, l.raw) !== null);
+    const hit = leaves.find((l) => pathFitsConcept(f.concept, l.path) && normalize(f.type, l.raw, ctx) !== null);
     out[f.key] = hit ? { value: displayValue(hit.raw) ?? String(hit.raw), path: hit.path } : null;
   }
   return out;
@@ -135,7 +157,7 @@ type PageInfo = { url: string; n: number; answer: VariantAnswer; capture: Captur
 type FittingPage = PageInfo & { entries: Record<string, unknown>[] };
 
 function candidateKey(c: EntryPath): string {
-  return c.kind === 'axis' ? `axis:${c.from}` : `path:${c.path}`;
+  return c.kind === 'axis' ? `axis:${typeof c.from === 'string' ? c.from : c.from.join('|')}` : `path:${c.path}`;
 }
 
 /**
@@ -172,7 +194,7 @@ function candidatesForField(f: EntryField, pages: FittingPage[]): EntryPath[] {
     if (!entry) continue;
     for (const leaf of flattenEntry(entry)) {
       if (leafSeen.has(leaf.path)) continue;
-      if (!valuesEqual(f.type, leaf.raw, expected)) continue;
+      if (!valuesEqual(f.type, leaf.raw, expected, { pageUrl: p.url })) continue;
       if (f.type === 'boolean' && !pathFitsConcept(f.concept, leaf.path)) continue;
       leafSeen.add(leaf.path);
       leafPaths.push(leaf.path);
@@ -265,7 +287,7 @@ export function certifyVariantList(input: {
   const axisFields = fields.filter((f) => f.axisFrom !== undefined);
   if (axisFields.length > 0) {
     for (const p of fitting) {
-      const tuples = p.entries.map((e) => axisFields.map((f) => entryAxisValue(e, f.axisFrom!) ?? ''));
+      const tuples = p.entries.map((e) => axisFields.map((f) => entryAxisValueOf(e, f.axisFrom!) ?? ''));
       findDup: for (let i = 0; i < tuples.length; i++) {
         for (let j = i + 1; j < tuples.length; j++) {
           // Position-wise, the engine's own notion of "the same" (valuesEqual), not a raw string
@@ -301,11 +323,11 @@ export function certifyVariantList(input: {
       if (!spot || !entry) return false;
       const expected = spot.expected[f.key];
       if (expected === undefined) return false;
-      return valuesEqual(f.type, readEntryPath(entry, c), expected);
+      return valuesEqual(f.type, readEntryPath(entry, c), expected, { pageUrl: p.url });
     };
     const normalizesOthers = (c: EntryPath, p: FittingPage): boolean => {
       const spotIndex = p.answer.spot?.index;
-      return p.entries.every((e, idx) => idx === spotIndex || normalize(f.type, readEntryPath(e, c)) !== null);
+      return p.entries.every((e, idx) => idx === spotIndex || normalize(f.type, readEntryPath(e, c), { pageUrl: p.url }) !== null);
     };
 
     const winner = candidates.find((c) => fitting.every((p) => readsA(c, p) && normalizesOthers(c, p)));
@@ -325,7 +347,7 @@ export function certifyVariantList(input: {
     if (best) {
       for (const p of fitting) {
         if (!readsA(best, p) || normalizesOthers(best, p)) continue;
-        const m = p.entries.filter((e) => normalize(f.type, readEntryPath(e, best!)) === null).length;
+        const m = p.entries.filter((e) => normalize(f.type, readEntryPath(e, best!), { pageUrl: p.url }) === null).length;
         addFailure(p.url, `${f.name} missing on ${m} of ${p.answer.count} ${noun} on product ${p.n}`);
       }
     }
@@ -362,7 +384,7 @@ function canonical(v: unknown): unknown {
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-/** sha256 over the website's variant setup and its answers for the given pages only, as `fieldHash` does for a field. */
+/** sha256 over the website's variant setup, its proof pages (sorted) and its answers for those pages only, as `fieldHash` does for a field. A proof page with no answer still moves the hash: it is certified as having none. */
 export function variantHash(input: {
   method: 'list' | 'links'; axes: Array<{ from: string; axisKey: string }>; urls: string[];
   answers: Record<string, VariantAnswer>; fields: Array<{ key: string; type: string; concept: string }>;
@@ -370,6 +392,8 @@ export function variantHash(input: {
   const axes = [...input.axes].sort((a, b) => a.from.localeCompare(b.from));
   const answerKeys = Object.keys(input.answers).filter((u) => input.urls.includes(u)).sort();
   const answers = Object.fromEntries(answerKeys.map((u) => [u, canonical(input.answers[u])]));
-  const fields = [...input.fields].sort((a, b) => a.key.localeCompare(b.key));
-  return sha256(JSON.stringify({ method: input.method, axes, answers, fields }));
+  // Only a field's identity goes in — never its name (renaming is free, spec 4.3), whatever else the caller's objects carry.
+  const fields = [...input.fields].sort((a, b) => a.key.localeCompare(b.key)).map((f) => ({ key: f.key, type: f.type, concept: f.concept }));
+  const urls = [...input.urls].sort();
+  return sha256(JSON.stringify({ method: input.method, axes, urls, answers, fields }));
 }

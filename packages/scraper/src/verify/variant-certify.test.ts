@@ -160,3 +160,100 @@ describe('variantHash', () => {
     expect(variantHash({ ...base, answers: a })).toBe(variantHash(base));
   });
 });
+
+describe('relative url and image values (read against the product page)', () => {
+  const IMG: EntryField[] = [
+    { key: 'image', name: 'Image', type: 'image', concept: 'image_url' },
+    { key: 'colour', name: 'Colour', type: 'text', concept: 'axis', axisFrom: 'color' },
+  ];
+  const withImages = (): Record<string, CaptureLike | null> => ({
+    [U[0]!]: cap(U[0]!, [group([v('Black', 'A1', '10.00', { image: '//cdn.s.example/a1.jpg' }), v('Red', 'A2', '11.00', { image: '/img/a2.jpg' })])]),
+    [U[1]!]: cap(U[1]!, [group([v('Black', 'B1', '20.00', { image: 'img/b1.jpg' }), v('Red', 'B2', '21.00', { image: '/img/b2.jpg' }), v('White', 'B3', '22.00', { image: '//cdn.s.example/b3.jpg' })])]),
+    [U[2]!]: cap(U[2]!, [{ '@type': 'Product', name: 'Plain', sku: 'C1' }]),
+  });
+  it('suggests a protocol-relative or relative image given the page url, and not without it', () => {
+    const entry = resolveVariantList(withImages()[U[0]!]!, LIST)![0]!;
+    expect(suggestEntryValues(entry, IMG, { pageUrl: U[0]! }).image).toEqual({ value: '//cdn.s.example/a1.jpg', path: 'image' });
+    expect(suggestEntryValues(entry, IMG).image).toBeNull();
+  });
+  it('certifies an entry field whose values are relative', () => {
+    const a: Record<string, VariantAnswer> = {
+      [U[0]!]: { count: 2, labels: ['Black', 'Red'], list: LIST, spot: spot({ image: '//cdn.s.example/a1.jpg', colour: 'Black' }) },
+      [U[1]!]: { count: 3, labels: ['Black', 'Red', 'White'], list: LIST, spot: spot({ image: 'https://s.example/p/img/b1.jpg', colour: 'Black' }) },
+      [U[2]!]: { count: 0, labels: [] },
+    };
+    const r = certifyVariantList({ urls: U, captures: withImages(), answers: a, fields: IMG, noun: 'colours' });
+    expect(r.pages[U[0]!]).toEqual({ status: 'pass', count: 2 });
+    expect(r.pages[U[1]!]).toEqual({ status: 'pass', count: 3 });
+    expect(r.entryPaths!.image).toEqual({ kind: 'path', path: 'image' });
+    expect(r.passed).toBe(true);
+  });
+});
+
+describe('an axis column several detected names map to', () => {
+  const BOTH: EntryField[] = [{ key: 'colour', name: 'Colour', type: 'text', concept: 'axis', axisFrom: ['color', 'colour'] }];
+  it('reads the first name that yields a value, in suggestions and certification', () => {
+    const entry = { colour: 'Red', sku: 'X' };
+    expect(suggestEntryValues(entry, BOTH)).toEqual({ colour: { value: 'Red', path: 'axis:colour' } });
+    const c: Record<string, CaptureLike | null> = {
+      [U[0]!]: cap(U[0]!, [group([{ color: 'Black', sku: 'A1' }, { color: 'Red', sku: 'A2' }])]),
+      [U[1]!]: cap(U[1]!, [group([{ colour: 'Black', sku: 'B1' }, { colour: 'Red', sku: 'B2' }])]),
+      [U[2]!]: cap(U[2]!, []),
+    };
+    const a: Record<string, VariantAnswer> = {
+      [U[0]!]: { count: 2, labels: ['Black', 'Red'], list: LIST, spot: spot({ colour: 'Black' }) },
+      [U[1]!]: { count: 2, labels: ['Black', 'Red'], list: LIST, spot: spot({ colour: 'Black' }) },
+      [U[2]!]: { count: 0, labels: [] },
+    };
+    const r = certifyVariantList({ urls: U, captures: c, answers: a, fields: BOTH, noun: 'colours' });
+    expect(r.passed).toBe(true);
+    expect(r.entryPaths!.colour).toEqual({ kind: 'axis', from: ['color', 'colour'] });
+  });
+});
+
+describe('a yes/no field read from an axis', () => {
+  it('never certifies on the bare axis reading — only on a path the customer accepted', () => {
+    const fields: EntryField[] = [{ key: 'gift', name: 'Gift wrap', type: 'boolean', concept: 'gift_wrap', axisFrom: 'giftwrap' }];
+    const entries = (sku: string) => [{ giftwrap: 'yes', sku: `${sku}1` }, { giftwrap: 'no', sku: `${sku}2` }];
+    const c: Record<string, CaptureLike | null> = {
+      [U[0]!]: cap(U[0]!, [group(entries('A'))]), [U[1]!]: cap(U[1]!, [group(entries('B'))]), [U[2]!]: cap(U[2]!, []),
+    };
+    const a = (paths?: Record<string, string>): Record<string, VariantAnswer> => ({
+      [U[0]!]: { count: 2, labels: ['a', 'b'], list: LIST, spot: spot({ gift: 'yes' }, paths ? { paths } : {}) },
+      [U[1]!]: { count: 2, labels: ['a', 'b'], list: LIST, spot: spot({ gift: 'yes' }, paths ? { paths } : {}) },
+      [U[2]!]: { count: 0, labels: [] },
+    });
+    const bare = certifyVariantList({ urls: U, captures: c, answers: a(), fields, noun: 'variants' });
+    expect(bare.entryPaths!.gift).toBeUndefined();
+    expect(bare.passed).toBe(false);
+    const vouched = certifyVariantList({ urls: U, captures: c, answers: a({ gift: 'axis:giftwrap' }), fields, noun: 'variants' });
+    expect(vouched.entryPaths!.gift).toEqual({ kind: 'axis', from: 'giftwrap' });
+    expect(vouched.passed).toBe(true);
+  });
+});
+
+describe('variantHash — what moves it', () => {
+  const base = { method: 'list' as const, axes: [{ from: 'color', axisKey: 'colour' }], urls: U, answers: answers(), fields: FIELDS };
+  const h = (o: Partial<typeof base> | Record<string, unknown>) => variantHash({ ...base, ...o } as typeof base);
+  it('moves with the method', () => {
+    expect(h({ method: 'links' })).not.toBe(h({}));
+  });
+  it('moves with the axis mapping', () => {
+    expect(h({ axes: [{ from: 'colour', axisKey: 'colour' }] })).not.toBe(h({}));
+    expect(h({ axes: [{ from: 'color', axisKey: 'shade' }] })).not.toBe(h({}));
+  });
+  it('moves when an entry field is added or dropped (a field changed level)', () => {
+    expect(h({ fields: FIELDS.filter((f) => f.key !== 'sku') })).not.toBe(h({}));
+    expect(h({ fields: [...FIELDS, { key: 'image', name: 'Image', type: 'image', concept: 'image_url' }] })).not.toBe(h({}));
+  });
+  it('moves when an entry field is retyped', () => {
+    expect(h({ fields: FIELDS.map((f) => (f.key === 'sku' ? { ...f, type: 'number' as const } : f)) })).not.toBe(h({}));
+  });
+  it('does not move when an entry field is renamed', () => {
+    expect(h({ fields: FIELDS.map((f) => ({ ...f, name: `${f.name} renamed` })) })).toBe(h({}));
+  });
+  it('moves when a proof page is added with no answer, and is independent of url order', () => {
+    expect(h({ urls: [...U, 'https://s.example/p/4'] })).not.toBe(h({}));
+    expect(h({ urls: [...U].reverse() })).toBe(h({}));
+  });
+});
