@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { DeleteFieldDialog } from './delete-field-dialog';
-import { FIELD_TYPES, TYPE_LABELS, nameRefusal, sharedNote, type FieldType, type FieldView } from '../../lib/fields-view';
+import { FIELD_TYPES, LEVEL_LABELS, TYPE_LABELS, nameRefusal, sharedNote, type FieldLevel, type FieldType, type FieldView } from '../../lib/fields-view';
 import { trpc } from '../../lib/trpc';
 
 /**
@@ -34,16 +34,22 @@ function failureMessage(error: unknown): string {
   return e?.data?.code === 'PRECONDITION_FAILED' && e.message ? e.message : GENERIC;
 }
 
+/** A field's level as `datasets.variants` reports it: `isDefault` while it is still the one its concept implies. */
+export type FieldLevels = Record<string, { level: FieldLevel; isDefault: boolean }>;
+
 export function FieldsTable({
   datasetId,
   fields,
   websiteCount,
   loading,
+  levels,
 }: {
   datasetId: string;
   fields: FieldView[];
   websiteCount: number;
   loading: boolean;
+  /** Present only while the project wants variants: then every row also says whether the field differs per variant. */
+  levels?: FieldLevels;
 }) {
   const utils = trpc.useUtils();
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +66,11 @@ export function FieldsTable({
       utils.projects.get.invalidate(),
       utils.datasets.fieldStatus.invalidate({ datasetId }),
       utils.projects.output.invalidate(),
+      utils.datasets.variants.invalidate({ datasetId }),
     ]);
   }
+
+  const columns = levels ? 5 : 4;
 
   const note = sharedNote(websiteCount);
 
@@ -78,10 +87,11 @@ export function FieldsTable({
         {/* Below `md` the table keeps its real width and the container scrolls
             (spec §3), so a long field name never squeezes the type out. */}
         <div className="overflow-x-auto rounded-[6px] md:overflow-x-visible">
-          <table className="w-full min-w-[560px] border-collapse text-base md:min-w-0">
+          <table className={`w-full border-collapse text-base md:min-w-0 ${levels ? 'min-w-[760px]' : 'min-w-[560px]'}`}>
             <colgroup>
               <col />
               <col className="w-[150px]" />
+              {levels ? <col className="w-[214px]" /> : null}
               <col className="w-[148px]" />
               <col className="w-[52px]" />
             </colgroup>
@@ -92,6 +102,7 @@ export function FieldsTable({
               <tr className="[&>th]:z-10 [&>th]:border-b [&>th]:border-line [&>th]:bg-panel [&>th]:py-2 [&>th]:font-normal [&>th]:whitespace-nowrap [&>th]:text-muted-foreground md:[&>th]:sticky md:[&>th]:top-12">
                 <th className="px-4 text-left text-sm">Name</th>
                 <th className="px-3 text-left text-sm">Type</th>
+                {levels ? <th className="px-3 text-left text-sm">Variants</th> : null}
                 <th className="px-3 text-left text-sm">Verified on</th>
                 <th className="pr-3">
                   <span className="sr-only">Delete</span>
@@ -104,13 +115,13 @@ export function FieldsTable({
                   table is the shared list, not one field in it. */}
               {note && !loading ? (
                 <tr className="border-b border-line">
-                  <td colSpan={4} className="px-4 py-1.5 text-sm text-muted-foreground">
+                  <td colSpan={columns} className="px-4 py-1.5 text-sm text-muted-foreground">
                     {note}
                   </td>
                 </tr>
               ) : null}
 
-              {loading ? <LoadingRows /> : null}
+              {loading ? <LoadingRows columns={columns} /> : null}
 
               {!loading &&
                 fields.map((field) => (
@@ -118,6 +129,9 @@ export function FieldsTable({
                     key={field.key}
                     datasetId={datasetId}
                     field={field}
+                    // `null` when there is no Variants column; `undefined` for a field
+                    // added a moment ago whose level has not been read back yet.
+                    level={levels ? levels[field.key] : null}
                     onDelete={() => setDeleting(field)}
                     onError={setError}
                     onSettled={refresh}
@@ -149,18 +163,21 @@ export function FieldsTable({
 function FieldRow({
   datasetId,
   field,
+  level,
   onDelete,
   onError,
   onSettled,
 }: {
   datasetId: string;
   field: FieldView;
+  level: { level: FieldLevel; isDefault: boolean } | undefined | null;
   onDelete: () => void;
   onError: (message: string | null) => void;
   onSettled: () => Promise<void>;
 }) {
   const rename = trpc.datasets.renameField.useMutation();
   const retype = trpc.datasets.retypeField.useMutation();
+  const setLevel = trpc.datasets.setFieldLevel.useMutation();
 
   const [draft, setDraft] = useState(field.name);
   const input = useRef<HTMLInputElement>(null);
@@ -207,6 +224,16 @@ function FieldRow({
       await onSettled();
     } catch (err) {
       onError(failureMessage(err));
+    }
+  }
+
+  async function commitLevel(next: FieldLevel) {
+    onError(null);
+    try {
+      await setLevel.mutateAsync({ datasetId, key: field.key, level: next });
+      await onSettled();
+    } catch {
+      onError(GENERIC);
     }
   }
 
@@ -312,6 +339,35 @@ function FieldRow({
         )}
       </td>
 
+      {level === null ? null : level === undefined ? (
+        <td className="px-3 py-2" />
+      ) : (
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-1.5">
+            <Select value={level.level} onValueChange={(v) => void commitLevel(v as FieldLevel)} disabled={setLevel.isPending}>
+              <SelectTrigger
+                size="sm"
+                aria-label={`Variants of ${field.name}`}
+                // The type select's manners: a hairline on row hover, hugging its value.
+                className="-mx-2 h-7 max-w-full gap-1 border-transparent px-2 hover:border-line-hover group-hover/row:border-line"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(['product', 'variant'] as const).map((l) => (
+                  <SelectItem key={l} value={l}>
+                    {LEVEL_LABELS[l]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Until the customer picks, the level is the one the field's kind
+                implies (a price differs per variant, a title does not). */}
+            {level.isDefault ? <span className="text-xs text-muted-foreground">default</span> : null}
+          </div>
+        </td>
+      )}
+
       <td className="px-3 py-2 whitespace-nowrap">
         {field.verifiedOn.length > 0 ? (
           <Tooltip>
@@ -347,7 +403,7 @@ function FieldRow({
 }
 
 /** Three rows the shape of real ones, so nothing jumps when the contract lands. */
-function LoadingRows() {
+function LoadingRows({ columns }: { columns: number }) {
   return (
     <>
       {[0, 1, 2].map((i) => (
@@ -358,7 +414,7 @@ function LoadingRows() {
           <td className="px-3 py-2">
             <Skeleton className="h-[22px] w-20 bg-raised" />
           </td>
-          <td colSpan={2} />
+          <td colSpan={columns - 2} />
         </tr>
       ))}
     </>

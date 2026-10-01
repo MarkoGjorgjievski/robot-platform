@@ -94,3 +94,36 @@ export function deleteNote(view: FieldView, websiteCount: number): string {
     ? `Removes it from ${plural(websiteCount, 'website')}; ${verified} of them had verified it.`
     : `Removes it from ${plural(websiteCount, 'website')}.`;
 }
+
+/**
+ * The project's Variants setting (spec 2026-10-01 §2), in the order the Fields
+ * page offers it. `ignore` is every project's default; turning variants on
+ * preselects `row_per_variant` because it is the first choice after it.
+ */
+export const VARIANT_MODES = ['ignore', 'row_per_variant', 'nested'] as const;
+export type VariantMode = (typeof VARIANT_MODES)[number];
+
+export const VARIANT_MODE_LABELS: Record<VariantMode, string> = {
+  ignore: 'No variants',
+  row_per_variant: 'One row per variant',
+  nested: 'One row per product, variants listed inside',
+};
+
+/** A field's level, said as what it means for the rows. */
+export type FieldLevel = 'product' | 'variant';
+export const LEVEL_LABELS: Record<FieldLevel, string> = {
+  product: 'Same for every variant',
+  variant: 'Differs per variant',
+};
+
+/**
+ * Why a change to a variant column was refused, when the customer can act on
+ * it: a delete refused because a website maps to the column carries the API's
+ * own sentence ("Nike uses Colour"), and a name clash reads as it does for a
+ * field. Null for everything else, which the caller reports without a cause.
+ */
+export function axisRefusal(error: unknown, name: string): string | null {
+  const e = error as { data?: { code?: string }; message?: string } | undefined;
+  if (e?.data?.code === 'PRECONDITION_FAILED' && e.message) return e.message;
+  return nameRefusal(error, name);
+}

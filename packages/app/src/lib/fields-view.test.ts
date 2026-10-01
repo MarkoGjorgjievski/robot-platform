@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CUSTOMER_FIELD_TYPES } from '@robot/scraper';
-import { FIELD_TYPES, TYPE_LABELS, fieldsView, sharedNote, addNote, deleteNote, nameRefusal, type ContractRow } from './fields-view';
+import { FIELD_TYPES, TYPE_LABELS, VARIANT_MODES, VARIANT_MODE_LABELS, LEVEL_LABELS, fieldsView, sharedNote, addNote, deleteNote, nameRefusal, axisRefusal, type ContractRow } from './fields-view';
 
 const contract: ContractRow[] = [
   { key: 'price', name: 'Price', type: 'money', concept: 'price' },
@@ -54,5 +54,24 @@ describe('fields view', () => {
     expect(nameRefusal({ data: { code: 'PRECONDITION_FAILED' }, message: 'Alpha has verified this field' }, 'Price')).toBeNull();
     expect(nameRefusal(new Error('Failed to fetch'), 'Price')).toBeNull();
     expect(nameRefusal(undefined, 'Price')).toBeNull();
+  });
+
+  it("the Variants choices, in order, in the customer's words", () => {
+    expect([...VARIANT_MODES]).toEqual(['ignore', 'row_per_variant', 'nested']);
+    expect(VARIANT_MODE_LABELS).toEqual({
+      ignore: 'No variants',
+      row_per_variant: 'One row per variant',
+      nested: 'One row per product, variants listed inside',
+    });
+    expect(LEVEL_LABELS).toEqual({ product: 'Same for every variant', variant: 'Differs per variant' });
+  });
+
+  // Deleting a variant column a website uses is refused with the website named
+  // ("Nike uses Colour"): that message is the customer's to act on, so it is passed
+  // through. Anything else names no cause.
+  it('passes a variant column refusal through, and nothing else', () => {
+    expect(axisRefusal({ data: { code: 'PRECONDITION_FAILED' }, message: 'Nike uses Colour' }, 'Colour')).toBe('Nike uses Colour');
+    expect(axisRefusal({ data: { code: 'BAD_REQUEST' }, message: 'A field named "Size" already exists' }, 'Size')).toBe('There is already a field called Size.');
+    expect(axisRefusal(new Error('Failed to fetch'), 'Size')).toBeNull();
   });
 });
