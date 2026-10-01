@@ -1,0 +1,213 @@
+/**
+ * The Verification tab's Variants row (spec 2026-10-01 §3-4): what each proof
+ * page's cell shows before and after confirmation, the one-tick confirm, the
+ * variant-level entry fields' spot-check rows, and what the Verify bar needs
+ * to know about variants. Pure — no UI, no tRPC.
+ *
+ * `VariantAnswer`/`VariantResultView` mirror the server's shapes
+ * (`VariantAnswer` in `@robot/scraper`'s `verify/types.ts`, the `pages` of
+ * `VariantVerification` in `verify/variant-certify.ts`) rather than importing
+ * them: the app never imports scraper code. `tsc` on the route that passes
+ * server data in is what keeps the two in step, as `variants-view.ts` already
+ * does for detection.
+ */
+import type { DetectResult } from './variants-view';
+
+export type VariantAnswer = {
+  count: number;
+  labels: string[];
+  list?: { source: string; path: string };
+  links?: string[];
+  spot?: { index: number; url?: string; expected: Record<string, string>; paths?: Record<string, string>; fromProduct?: string[] };
+};
+
+export type VariantResultView = {
+  passed: boolean;
+  problem?: string;
+  pages: Record<string, { status: 'pass'; count: number } | { status: 'none' } | { status: 'fail'; message: string } | { status: 'not_captured' }>;
+};
+
+export type VariantCell =
+  | { kind: 'waiting'; text: string }                       // "Waiting for the screenshot"
+  | { kind: 'found'; text: string; labels: string[] }       // orange — found, not confirmed: "4 colours"
+  | { kind: 'none-found'; text: string }                    // grey — nothing found, nothing to do: "No variants"
+  | { kind: 'confirmed'; text: string; labels: string[] }   // green
+  | { kind: 'confirmed-none'; text: string }                // green — "No variants on this product"
+  | { kind: 'failed'; text: string };                       // red — the page's message, after Verify
+
+/** The plural word for this website's variants (Global Constraints): the first mapped axis's name, lower-cased, with "s" added; "variants" with no mapped axis. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). */
+export function variantNoun(axisNames: string[]): string {
+  const first = axisNames[0];
+  return first ? `${first.toLowerCase()}s` : 'variants';
+}
+
+/** One entry's label: its axis values joined "/" ("Black/10C"), else its sku, else a 1-based placeholder. */
+function entryLabel(axes: string[], entry: Record<string, string>, index: number): string {
+  const values = axes.map((a) => entry[a]).filter((v): v is string => !!v);
+  if (values.length > 0) return values.join('/');
+  return entry.sku ?? `Variant ${index + 1}`;
+}
+
+/** What a page's capture shows, before any confirmation: the first list's or first link group's count and labels, or null when the method found nothing on this page. */
+function detectedOn(method: 'list' | 'links', page: DetectResult['pages'][number]): { count: number; labels: string[] } | null {
+  if (method === 'list') {
+    const list = page.lists[0];
+    if (!list) return null;
+    return { count: list.count, labels: list.entries.map((e, i) => entryLabel(list.axes, e, i)) };
+  }
+  const group = page.links[0];
+  if (!group || group.links.length === 0) return null;
+  return { count: group.count, labels: group.links.map((l) => l.label) };
+}
+
+/**
+ * Per-url cell state (Rules): a current result's fail beats everything; else
+ * an answer is `confirmed`/`confirmed-none`; else what the capture shows,
+ * `found`/`none-found`, or `waiting` with no capture yet. A stale
+ * (non-current) result's fail is ignored — the answer, or the capture, shows
+ * through instead.
+ */
+export function variantCells(args: {
+  method: 'list' | 'links'; urls: string[]; detection: DetectResult | null; answers: Record<string, VariantAnswer>;
+  result: VariantResultView | null; resultCurrent: boolean; noun: string;
+}): Record<string, VariantCell> {
+  const { method, urls, detection, answers, result, resultCurrent, noun } = args;
+  const out: Record<string, VariantCell> = {};
+
+  for (const url of urls) {
+    if (result && resultCurrent) {
+      const r = result.pages[url];
+      if (r && r.status === 'fail') {
+        out[url] = { kind: 'failed', text: r.message };
+        continue;
+      }
+    }
+
+    const answer = answers[url];
+    if (answer) {
+      out[url] =
+        answer.count > 0
+          ? { kind: 'confirmed', text: `${answer.count} ${noun}`, labels: answer.labels }
+          : { kind: 'confirmed-none', text: 'No variants on this product' };
+      continue;
+    }
+
+    const page = detection?.pages.find((p) => p.url === url) ?? null;
+    if (!page || !page.captured) {
+      out[url] = { kind: 'waiting', text: 'Waiting for the screenshot' };
+      continue;
+    }
+    const found = detectedOn(method, page);
+    out[url] =
+      found && found.count > 0
+        ? { kind: 'found', text: `${found.count} ${noun}`, labels: found.labels }
+        : { kind: 'none-found', text: 'No variants' };
+  }
+
+  return out;
+}
+
+function sameLinks(a: string[] | undefined, b: string[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
+}
+
+/**
+ * The one-tick confirm (Rules): what pressing "Check this one" / the
+ * confirm action writes for a page, from what its capture shows right now.
+ * Keeps an existing `spot` — the customer's checked entry/variant page —
+ * when the count and the list/links it was checked against are unchanged,
+ * so re-detecting (a fresh capture) never silently drops a confirmed check.
+ *
+ * A links answer must always carry `spot.url` when the page has a link that
+ * is not the page itself (the server now fails a product without one): the
+ * first such link, or the first link at all when every one of them is the
+ * page itself.
+ */
+export function confirmAnswer(method: 'list' | 'links', page: DetectResult['pages'][number], current: VariantAnswer | undefined): VariantAnswer {
+  if (method === 'list') {
+    const list = page.lists[0];
+    if (!list) return { count: 0, labels: [] };
+    const labels = list.entries.map((e, i) => entryLabel(list.axes, e, i));
+    const result: VariantAnswer = { count: list.count, labels, list: { source: list.source, path: list.path } };
+    const unchanged = !!current?.spot && current.count === list.count && current.list?.source === list.source && current.list?.path === list.path;
+    if (unchanged) result.spot = current!.spot;
+    return result;
+  }
+
+  const group = page.links[0];
+  if (!group || group.links.length === 0) return { count: 0, labels: [] };
+  const labels = group.links.map((l) => l.label);
+  const links = group.links.map((l) => l.href);
+  const unchanged = !!current?.spot && current.count === group.count && sameLinks(current.links, links);
+  if (unchanged) return { count: group.count, labels, links, spot: current!.spot };
+
+  const notSelf = group.links.find((l) => l.href !== page.url);
+  const url = (notSelf ?? group.links[0]!).href;
+  return { count: group.count, labels, links, spot: { index: 0, url, expected: {} } };
+}
+
+export type SpotRow = { key: string; name: string; state: 'suggested' | 'confirmed' | 'from-product' | 'needs-you'; value?: string; suggestion?: { value: string; path: string } };
+
+/** An entry field's row in the spot-check panel (Rules): from-product, then confirmed, then suggested, else needs-you. */
+export function spotRows(args: {
+  fields: Array<{ key: string; name: string }>;
+  suggestions: Record<string, { value: string; path: string } | null> | null;
+  answer: VariantAnswer | undefined;
+}): SpotRow[] {
+  const { fields, suggestions, answer } = args;
+  return fields.map(({ key, name }) => {
+    if (answer?.spot?.fromProduct?.includes(key)) return { key, name, state: 'from-product' as const };
+    const confirmed = answer?.spot?.expected[key];
+    if (confirmed !== undefined && confirmed.trim() !== '') return { key, name, state: 'confirmed' as const, value: confirmed };
+    const suggestion = suggestions?.[key];
+    if (suggestion) return { key, name, state: 'suggested' as const, suggestion };
+    return { key, name, state: 'needs-you' as const };
+  });
+}
+
+export type VariantsNeed = { kind: 'none' } | { kind: 'blocked'; reason: string } | { kind: 'pending' } | { kind: 'done' };
+
+/**
+ * What the Verify bar needs to know about variants (Rules, in order):
+ * nothing required, setup missing, an unanswered product, a list-method
+ * product whose confirmed variant has an unchecked entry field, not current,
+ * then current (`done`). `done` says nothing about whether the last check
+ * passed — the route reads `passed` off the loaded status for that, the
+ * same way `extractEnabled` does.
+ */
+export function variantsNeed(args: {
+  variants: { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean } | null;
+  urls: string[]; answers: Record<string, VariantAnswer>; method: 'list' | 'links' | null;
+  entryFieldKeys: string[];
+}): VariantsNeed {
+  const { variants, urls, answers, method, entryFieldKeys } = args;
+  if (!variants) return { kind: 'none' };
+  if (variants.required === 'setup-missing') return { kind: 'blocked', reason: "Set up this website's variants below" };
+  if (urls.some((u) => !answers[u])) return { kind: 'blocked', reason: 'Confirm the variants of every product' };
+
+  if (method === 'list') {
+    for (let i = 0; i < urls.length; i++) {
+      const a = answers[urls[i]!];
+      if (!a || a.count <= 0) continue;
+      const checked = (key: string) => {
+        const expected = a.spot?.expected[key];
+        return (expected !== undefined && expected.trim() !== '') || !!a.spot?.fromProduct?.includes(key);
+      };
+      if (entryFieldKeys.some((key) => !checked(key))) return { kind: 'blocked', reason: `Check one variant of product ${i + 1}` };
+    }
+  }
+
+  return variants.current ? { kind: 'done' } : { kind: 'pending' };
+}
+
+/**
+ * Extract's gate (Rules): fields current and all passed, and variants are
+ * either not required (`null`, `ignore` mode or method `none`) or current
+ * and passed. `status` mirrors `sources.verificationStatus`'s own field
+ * names, so the route can pass that query's result straight through.
+ */
+export function extractEnabled(status: { current: boolean; allPassed: boolean; variants: { current: boolean; passed: boolean } | null }): boolean {
+  if (!status.current || !status.allPassed) return false;
+  return status.variants === null || (status.variants.current && status.variants.passed);
+}
