@@ -13,9 +13,9 @@ import { PAGE_SCRIPT_PRELUDE } from './dom-scripts.js';
 import { NO_PRODUCT_HAS_VARIANTS, type VariantPageResult, type VariantVerification } from './variant-certify.js';
 import type { CaptureLike } from './certify.js';
 import type { VariantAnswer } from './types.js';
-// VariantLinks is variant-dom.ts's shape for this function's return value ({ container, count, links }); not
-// re-exported here — it already comes from verify/index.ts via variant-dom.js, and a second `export *`
-// of the same name would collide in the barrel.
+// VariantLinks (variant-dom.ts) describes buildLinksNearScript's in-page result shape
+// ({ container, count, links }) — named only in the JSDoc below, never imported: the function
+// itself returns a string (the in-page script text), not a VariantLinks value.
 
 export type EvalScript = <T>(html: string, script: string) => Promise<T>;
 
@@ -56,10 +56,20 @@ function describeContainer(el: Element): string {
   return tag;
 }
 
-/** Resolves href against pageUrl; null when it does not parse. */
+/**
+ * Resolves href against pageUrl; null for a fragment, javascript:, non-http(s), or unparseable
+ * href — same guards as variant-dom.ts's resolveHref (not exported there, so mirrored here). The
+ * fragment is also stripped from the resolved href, so `/p/x#a` and `/p/x` are the same link: a
+ * mark on a hash-anchor swatch must not read as two distinct variants of the same page.
+ */
 function resolveAgainst(href: string, pageUrl: string): string | null {
+  const h = href.trim();
+  if (h === '' || h.charAt(0) === '#' || /^javascript:/i.test(h)) return null;
   try {
-    return new URL(href, pageUrl).href;
+    const u = new URL(h, pageUrl);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+    u.hash = '';
+    return u.href;
   } catch {
     return null;
   }
