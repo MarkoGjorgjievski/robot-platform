@@ -26,4 +26,19 @@ describe('detectVariantLists', () => {
   it('ignores arrays that look like lists but carry no variant data', () => {
     expect(detectVariantLists(cap([], [{ reviews: [{ id: 1, text: 'a' }, { id: 2, text: 'b' }] }]))).toEqual([]);
   });
+  it('ignores an image/related-item list — id + a generic axis-like key is not enough', () => {
+    expect(detectVariantLists(cap([], [{ images: [{ id: 1, url: 'https://s.example/a.jpg', size: 'large' }, { id: 2, url: 'https://s.example/b.jpg', size: 'small' }] }]))).toEqual([]);
+  });
+  it('still finds a Shopify list identified by id + option1, with no sku/price', () => {
+    const l = detectVariantLists(cap([], [{ product: { variants: [{ id: 1, option1: 'Red' }, { id: 2, option1: 'Blue' }] } }]));
+    expect(l[0]).toMatchObject({ source: 'api', path: 'product.variants', count: 2, axes: ['option1'] });
+  });
+  it('unwraps a JSON-LD @graph to find hasVariant inside it', () => {
+    const l = detectVariantLists(cap([{ '@graph': [{ '@type': 'ProductGroup', hasVariant: [{ sku: 'G-1', color: 'Red' }, { sku: 'G-2', color: 'Blue' }] }] }]));
+    expect(l[0]).toMatchObject({ source: 'json-ld', path: 'hasVariant', count: 2, axes: ['color'] });
+  });
+  it('finds an AggregateOffer\'s combination variants (Ikea shape)', () => {
+    const l = detectVariantLists(cap([{ '@type': 'Product', offers: { '@type': 'AggregateOffer', offers: [{ sku: 'IK-1', price: '20', color: 'Red' }, { sku: 'IK-2', price: '20', color: 'Blue' }] } }]));
+    expect(l[0]).toMatchObject({ source: 'json-ld', path: 'offers.offers', count: 2, axes: ['color'] });
+  });
 });
