@@ -54,10 +54,16 @@ async function loadDatasetInOrg(ctx: Context, datasetId: string) {
  * which have no write to protect), so a concurrent `updateBinding` commit between that
  * read and this mutation's write would otherwise be silently overwritten by `propagate`
  * writing back the stale copy. Locking here makes `updateBinding` block until this
- * transaction commits, instead of losing its write. */
+ * transaction commits, instead of losing its write.
+ *
+ * `deleteAxis` reuses this same lock to re-check, under `FOR UPDATE`, that no website's
+ * `variantSetup` maps to the axis being deleted — otherwise a `setVariantSetup` call
+ * (Task 5) committing between `deleteAxis`'s pre-check and its write could map a website
+ * to an axis this call is about to delete out from under it. `name` and `variantSetup`
+ * are selected for that check; `propagate`'s callers ignore the extra columns. */
 async function lockSources(tx: Pick<Database, 'select'>, datasetId: string) {
   return tx
-    .select({ id: sources.id, schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet })
+    .select({ id: sources.id, name: sources.name, schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet, variantSetup: sources.variantSetup })
     .from(sources)
     .where(eq(sources.datasetId, datasetId))
     .for('update');
@@ -243,6 +249,16 @@ export const datasetsRouter = router({
    * has already verified. Unkeyed legacy entries, and every other property
    * of a keyed entry (`origin`, `candidate`, `required`, `input_column`,
    * `description`), may still change freely here.
+   *
+   * Pre-existing behaviour, now also covering axes: unlike `addField` et al.,
+   * this reads the current schema outside any transaction and writes it back
+   * wholesale with a plain `UPDATE`, no `lockDatasetSchema` row lock. A
+   * concurrent `addAxis`/`setFieldLevel`/`addField` commit between this read
+   * and this write is silently overwritten by this call's stale copy (echoed
+   * back via the `axes`/`level` carry-forward added above, but from the
+   * pre-write snapshot, not a re-read). Left as-is: this procedure is the old
+   * dashboard's bulk "save origins" call, already scoped down to the parts of
+   * the schema it owns, not a new race introduced here.
    */
   updateSchema: publicProcedure
     .input(
@@ -462,21 +478,30 @@ export const datasetsRouter = router({
       });
     }),
 
-  /** Refused while any website's `variantSetup` maps to this axis (spec 2026-10-01 §3), naming the website. */
+  /**
+   * Refused while any website's `variantSetup` maps to this axis (spec 2026-10-01 §3),
+   * naming the website. Both the axis's existence and the in-use check are re-derived
+   * from row-locked reads taken inside the transaction — not the pre-transaction
+   * `ds`/`ds.sources` snapshot — so a `setVariantSetup` call (Task 5) that maps a
+   * website to this axis between this call's dispatch and its write cannot race past
+   * the refusal: it either commits its mapping first and this call then sees it under
+   * lock, or it blocks on `lockSources` until this transaction (and its delete) commits.
+   */
   deleteAxis: publicProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
-      const axis = contractAxes(ds.schema).find((a) => a.key === input.key);
-      if (!axis) throw new TRPCError({ code: 'NOT_FOUND', message: `Axis ${input.key} not found` });
-      for (const s of ds.sources) {
-        const setup = s.variantSetup as VariantSetup | null;
-        if (setup?.axes.some((m) => m.axisKey === input.key)) {
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `${s.name} uses ${axis.name}` });
-        }
-      }
       await ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
+        const axis = contractAxes(schema).find((a) => a.key === input.key);
+        if (!axis) throw new TRPCError({ code: 'NOT_FOUND', message: `Axis ${input.key} not found` });
+        const locked = await lockSources(tx, ds.id);
+        for (const s of locked) {
+          const setup = s.variantSetup as VariantSetup | null;
+          if (setup?.axes.some((m) => m.axisKey === input.key)) {
+            throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `${s.name} uses ${axis.name}` });
+          }
+        }
         await tx.update(datasets).set({ schema: schema.filter((f) => f.key !== input.key), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
       });
       return { ok: true as const };

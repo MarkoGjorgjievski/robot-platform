@@ -133,8 +133,8 @@ describe('datasets.updateSchema preserves axes and levels it does not know about
   });
 });
 
-describe('level changes never disturb verification currency', () => {
-  it('a verified field stays current after its level is set and reset', async () => {
+describe('level and mode changes never disturb verification currency', () => {
+  it('a verified field stays current, with an unchanged fieldHash, through a level change and a mode change', async () => {
     const urls = [
       `https://test-${tag}-currency.example.com/p/1`,
       `https://test-${tag}-currency.example.com/p/2`,
@@ -170,13 +170,33 @@ describe('level changes never disturb verification currency', () => {
         },
       });
 
+      // The website's own definition never changes underneath a level or mode
+      // change, so its fieldHash — recomputed the same way the server does —
+      // must read back identical to the one the verification row was stamped
+      // with, on top of `currentKeys` still carrying the field.
+      const currentHash = async () => {
+        const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+        const d = (row!.schemaDefinition as SchemaDefinitionField[]).find((x) => x.key === f.keys.Price)!;
+        return fieldHash(d, row!.verificationSet as VerificationSet);
+      };
+
       expect((await loadFieldCurrency(db, f.sourceId)).currentKeys).toEqual([f.keys.Price]);
 
       await caller.datasets.setFieldLevel({ datasetId: f.datasetId, key: f.keys.Price!, level: 'product' });
       expect((await loadFieldCurrency(db, f.sourceId)).currentKeys).toEqual([f.keys.Price]);
+      expect(await currentHash()).toBe(hash);
 
       await caller.datasets.setFieldLevel({ datasetId: f.datasetId, key: f.keys.Price!, level: null });
       expect((await loadFieldCurrency(db, f.sourceId)).currentKeys).toEqual([f.keys.Price]);
+      expect(await currentHash()).toBe(hash);
+
+      await caller.datasets.setVariantMode({ datasetId: f.datasetId, mode: 'row_per_variant' });
+      expect((await loadFieldCurrency(db, f.sourceId)).currentKeys).toEqual([f.keys.Price]);
+      expect(await currentHash()).toBe(hash);
+
+      await caller.datasets.setVariantMode({ datasetId: f.datasetId, mode: 'ignore' });
+      expect((await loadFieldCurrency(db, f.sourceId)).currentKeys).toEqual([f.keys.Price]);
+      expect(await currentHash()).toBe(hash);
     } finally {
       await f.cleanup();
     }
