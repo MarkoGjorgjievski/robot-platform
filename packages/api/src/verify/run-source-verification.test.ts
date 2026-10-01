@@ -10,6 +10,8 @@ import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { runSourceVerification, writeStage } from './run-source-verification.js';
 import { writeCaptureFile } from './capture-store.js';
+import { loadVariantCurrency } from './current-certification.js';
+import { VARIANT_SHOP } from '../test-helpers/variant-shop.js';
 
 // `runSourceVerification` never launches a real browser or calls
 // `@robot/scraper`'s `runVerification` for real — both are stubbed here, the
@@ -303,6 +305,75 @@ describe('writeStage', () => {
 
       const after = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(after!.captures).toEqual({ _stage: 'searching' });
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe('runSourceVerification — variants', () => {
+  const certifiedPrice = [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }];
+  const passingRun = (urls: string[], pages: Array<'p1' | 'p2' | 'p3'>) => ({
+    outcome: { fields: { price: { key: 'price', cells: {}, certified: certifiedPrice, weakEvidence: false, aiCalled: false, incomplete: false } }, allPassed: true, aiCalls: 0 },
+    captures: Object.fromEntries(urls.map((u, i) => [u, { ...VARIANT_SHOP[pages[i]!], url: u, screenshot: Buffer.from('x') }])),
+    captureErrors: {},
+  });
+
+  async function variantSource(tag: string, method: 'list' | 'links') {
+    const s = await makeSchemaSource(tag);
+    const src = await db.query.sources.findFirst({ where: eq(sources.id, s.sourceId), columns: { datasetId: true } });
+    await caller.datasets.setVariantMode({ datasetId: src!.datasetId!, mode: 'row_per_variant' });
+    const setup = await caller.sources.setVariantSetup({ sourceId: s.sourceId, method, axes: [{ from: 'color', newAxisName: 'Colour' }] });
+    const colour = setup.axes[0]!.axisKey;
+    const list = { source: 'json-ld' as const, path: 'hasVariant' };
+    await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[0]!, answer: { count: 2, labels: ['Black', 'Red'], list, links: [s.urls[0]!, `${s.urls[0]!}-red`], spot: { index: 0, expected: { price: '10.00', [colour]: 'Black' } } } });
+    await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[1]!, answer: { count: 3, labels: ['Black', 'Red', 'White'], list, spot: { index: 0, expected: { price: '20.00', [colour]: 'Black' } } } });
+    await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[2]!, answer: { count: 0, labels: [] } });
+    return s;
+  }
+
+  it('ignore mode: writes variantResults null', async () => {
+    const { sourceId, urls, cleanup } = await makeSchemaSource('variants-ignore');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      runVerificationMock.mockResolvedValue(passingRun(urls, ['p1', 'p2', 'p3']));
+      await runSourceVerification(sourceId, verificationId);
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      expect(row!.completedAt).not.toBeNull();
+      expect(row!.variantResults).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('variants required: checks them on the run\'s own captures and writes them with the field results', async () => {
+    const { sourceId, urls, cleanup } = await variantSource('variants-list', 'list');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      runVerificationMock.mockResolvedValue(passingRun(urls, ['p1', 'p2', 'p3']));
+      await runSourceVerification(sourceId, verificationId);
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      expect(row!.allPassed).toBe(true);
+      expect(row!.variantResults).toMatchObject({ method: 'list', passed: true, pages: { [urls[0]!]: { status: 'pass', count: 2 }, [urls[2]!]: { status: 'none' } } });
+      expect((await loadVariantCurrency(db, sourceId))).toMatchObject({ required: 'yes', current: true, passed: true });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('a throw inside the variant check is a failed variant result, never a failed field run', async () => {
+    // The stubbed browser has no setContentEvaluate, so the links method throws.
+    const { sourceId, urls, cleanup } = await variantSource('variants-throw', 'links');
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      runVerificationMock.mockResolvedValue(passingRun(urls, ['p1', 'p2', 'p3']));
+      await runSourceVerification(sourceId, verificationId);
+      const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
+      expect(row!.errorMessage).toBeNull();
+      expect(row!.allPassed).toBe(true);
+      expect(row!.results).toMatchObject({ price: { certified: certifiedPrice } });
+      expect(row!.variantResults).toMatchObject({ method: 'links', passed: false, problem: 'The variant check failed — try Verify again', pages: {} });
+      expect(saveVerifiedPathsMock).toHaveBeenCalled();
     } finally {
       await cleanup();
     }

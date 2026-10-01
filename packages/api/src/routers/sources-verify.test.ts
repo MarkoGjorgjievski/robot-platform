@@ -119,6 +119,41 @@ describe('sources.verify', () => {
       await cleanup();
     }
   });
+
+  it('verify({ onlyKeys: [] }) starts a variants-only run', async () => {
+    const { sourceId, cleanup } = await makeSchemaSource('variantsonly');
+    try {
+      const r = await caller.sources.verify({ sourceId, onlyKeys: [] });
+      expect(r.status).toBe('started');
+      expect(runSourceVerificationMock).toHaveBeenCalledWith(sourceId, r.verificationId, { onlyKeys: [] });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('verify refuses with "Confirm the variants of every product first" when a proof page has no answer and variants are required', async () => {
+    const { sourceId, urls, datasetId, cleanup } = await makeSchemaSource('variantsunanswered');
+    try {
+      await caller.datasets.setVariantMode({ datasetId, mode: 'row_per_variant' });
+      await caller.sources.setVariantSetup({ sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+      await caller.sources.saveVariantAnswer({ sourceId, url: urls[0]!, answer: { count: 2, labels: ['Black', 'Red'] } });
+      await caller.sources.saveVariantAnswer({ sourceId, url: urls[1]!, answer: { count: 0, labels: [] } });
+      await expect(caller.sources.verify({ sourceId })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
+      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+
+      // Every product answered (one with none): Verify starts.
+      await caller.sources.saveVariantAnswer({ sourceId, url: urls[2]!, answer: { count: 0, labels: [] } });
+      expect((await caller.sources.verify({ sourceId })).status).toBe('started');
+
+      // "No variants on this website" needs no answers at all.
+      await caller.sources.saveVariantAnswer({ sourceId, url: urls[2]!, answer: null });
+      await caller.sources.setVariantSetup({ sourceId, method: 'none', axes: [] });
+      await db.update(sourceVerifications).set({ completedAt: new Date() }).where(eq(sourceVerifications.sourceId, sourceId));
+      expect((await caller.sources.verify({ sourceId })).status).toBe('started');
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('sources.verificationStatus', () => {
@@ -174,6 +209,21 @@ describe('sources.verificationStatus', () => {
       expect(status!.id).toBe(row!.id);
       expect(status!.stage).toBe('searching');
       expect(status!.captures).toEqual({});
+      expect(status!.variants).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('reports the variants when the website needs them', async () => {
+    const { sourceId, datasetId, cleanup } = await makeSchemaSource('statusvariants');
+    try {
+      await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true });
+      await caller.datasets.setVariantMode({ datasetId, mode: 'row_per_variant' });
+      expect((await caller.sources.verificationStatus({ sourceId }))!.variants).toEqual({ required: 'setup-missing', current: false, passed: false, result: null });
+
+      await caller.sources.setVariantSetup({ sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+      expect((await caller.sources.verificationStatus({ sourceId }))!.variants).toEqual({ required: 'yes', current: false, passed: false, result: null });
     } finally {
       await cleanup();
     }

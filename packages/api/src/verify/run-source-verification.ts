@@ -15,7 +15,10 @@ import {
   type VerificationSet,
   type VerificationOutcome,
   type CertifiedPath,
+  type VariantVerification,
 } from '@robot/scraper';
+import type { VariantSetup } from '../contract.js';
+import { variantsRequired, runVariantCheck, currentVariantHash, VARIANT_CHECK_FAILED } from './variant-check.js';
 import { db, sources, sourceVerifications, captures } from '@robot/db';
 import type { Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
@@ -72,11 +75,14 @@ export async function runSourceVerification(sourceId: string, verificationId: st
   try {
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
-      columns: { id: true, schemaDefinition: true, verificationSet: true },
+      columns: { id: true, schemaDefinition: true, verificationSet: true, variantSetup: true },
+      with: { dataset: { columns: { schema: true, variantMode: true } } },
     });
     if (!source) throw new Error(`Source ${sourceId} not found`);
     const fields = source.schemaDefinition as SchemaDefinitionField[];
     const set = source.verificationSet as VerificationSet;
+    const variantSetup = (source.variantSetup as VariantSetup | null) ?? null;
+    const checkVariants = variantsRequired(source.dataset?.variantMode, variantSetup) === 'yes';
     const hostname = new URL(set.urls[0]!).hostname;
 
     // Re-verify only: reuse the previous completed run's captures when young
@@ -116,15 +122,31 @@ export async function runSourceVerification(sourceId: string, verificationId: st
     const agent = process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;
     const onProgress = (stage: string) =>
       void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
-    const run = await withBrowserSession((browser) => runVerification({ fields, verificationSet: set }, {
-      browser,
-      agent,
-      captures: reuse,
-      onlyKeys: opts.onlyKeys,
-      previous,
-      cachedPaths: (concept) => lookupVerifiedPaths(hostname, 'detail', concept),
-      onProgress,
-    }));
+    const { run, variantResults } = await withBrowserSession(async (browser) => {
+      const run = await runVerification({ fields, verificationSet: set }, {
+        browser,
+        agent,
+        captures: reuse,
+        onlyKeys: opts.onlyKeys,
+        previous,
+        cachedPaths: (concept) => lookupVerifiedPaths(hostname, 'detail', concept),
+        onProgress,
+      });
+      // Variants (spec 2026-10-01 §4) ride on the same run and never fail it: a
+      // throw is reported as a failed variant check, the fields' result stands.
+      let variantResults: VariantVerification | null = null;
+      if (checkVariants) {
+        onProgress('checking variants');
+        const args = { sourceId, set, setup: variantSetup!, datasetSchema: source.dataset?.schema };
+        try {
+          variantResults = await runVariantCheck({ ...args, fields, results: run.outcome.fields, captures: run.captures }, { browser });
+        } catch (err) {
+          console.error(`[verify] variant check for ${verificationId} failed:`, err);
+          variantResults = { method: variantSetup!.method as 'list' | 'links', hash: currentVariantHash(args), passed: false, problem: VARIANT_CHECK_FAILED, pages: {} };
+        }
+      }
+      return { run, variantResults };
+    });
     const cost = estimateCostUsd(diffUsage(before, snapshotUsage())).usd;
 
     const captureRefs: Record<string, StoredCaptureRef> = {};
@@ -138,6 +160,7 @@ export async function runSourceVerification(sourceId: string, verificationId: st
 
     await db.update(sourceVerifications).set({
       results: run.outcome.fields,
+      variantResults,
       captures: captureRefs,
       allPassed: run.outcome.allPassed,
       aiCalls: run.outcome.aiCalls,
