@@ -45,4 +45,20 @@ describe('buildLinksNearScript', () => {
     expect(got?.count).toBe(2);
     expect(got?.links.map((l) => l.label)).toEqual(['Black', 'Red']);
   });
+  it('pure-fragment swatch hrefs are not real links — returns null', async () => {
+    const html = `<html><body><div class="product-swatches" aria-label="Colour">
+      <a href="#black">Black</a><a href="#red">Red</a>
+    </div></body></html>`;
+    const got = await browser.setContentEvaluate<unknown | null>(html, buildLinksNearScript("//a[text()='Black']", U[0]!));
+    expect(got).toBeNull();
+  });
+  it('two hrefs differing only by fragment are one link, not two', async () => {
+    const html = `<html><body><div class="product-swatches" aria-label="Colour">
+      <a href="/p/shoe-black">Black</a><a href="/p/shoe-red#top">Red</a><a href="/p/shoe-red">Red again</a>
+    </div></body></html>`;
+    const got = await browser.setContentEvaluate<{ count: number; links: Array<{ href: string; label: string }> } | null>(
+      html, buildLinksNearScript("//a[text()='Black']", U[0]!));
+    expect(got?.count).toBe(2);
+    expect(got?.links.map((l) => l.href)).toEqual(['https://s.example/p/shoe-black', 'https://s.example/p/shoe-red']);
+  });
 });
