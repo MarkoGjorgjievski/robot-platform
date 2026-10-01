@@ -62,7 +62,7 @@ sizes), and until now the engine collected one row per page whatever it showed.
 
 **What it does not do yet.** Nothing is verified, certified or extracted per variant, and the step
 never holds Verify or Extract back. **Plan 2** (spec §4): verifying and certifying the variant
-paths on the proof pages, and gating Verify on a confirmed setup. **Plan 3** (spec §5): extraction
+paths on the proof pages, and keeping Extract locked until the variant certification passes. **Plan 3** (spec §5): extraction
 at scale — a row per variant (list method: one page load; links method: one per variant page,
 counted against the budget), `product_key` / `variant_key`, and the export shapes.
 
