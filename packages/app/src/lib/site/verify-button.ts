@@ -41,10 +41,12 @@ const fieldsWord = (n: number) => `${n} field${n === 1 ? '' : 's'}`;
  * `capturesFresh` stays in the arguments for callers that pass the estimate whole.
  *
  * `variants` (plan 2, optional, defaults to `{ kind: 'none' }` — controller
- * ruling R3): when variants are `pending`, the label gains "and variants" (or
- * becomes the variants-only `Verify variants · free` when no field needs a
- * run) — the variant part never costs money (Global Constraints), so it is
- * always said "free" regardless of the fields' own cost. When `blocked`, the
+ * ruling R3): when variants are `pending`, the label gains "and variants" and
+ * keeps carrying the fields' own cost (`Re-verify 2 fields and variants · up
+ * to $0.10` when fields reach AI) — the variant part never costs money
+ * (Global Constraints), it just never adds to what the fields already cost.
+ * Only the variants-only form, `Verify variants · free`, shown when no field
+ * needs a run, is unconditionally "free". When `blocked`, the
  * button stays enabled for a field run that is still possible and shows the
  * reason beside it; otherwise the reason disables it, same as any other.
  */

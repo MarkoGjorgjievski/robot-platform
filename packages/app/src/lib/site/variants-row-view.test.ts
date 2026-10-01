@@ -90,6 +90,11 @@ describe('confirmAnswer', () => {
     expect(confirmAnswer('list', page(U[0]!), undefined)).toEqual({ count: 0, labels: [] });
   });
 
+  it('list: falls back to a 1-based placeholder with no axis value and no sku', () => {
+    const p = page(U[0]!, { lists: [{ source: 'api', path: 'variants', count: 2, axes: ['colour'], entries: [{}, {}] }] });
+    expect(confirmAnswer('list', p, undefined)).toEqual({ count: 2, labels: ['Variant 1', 'Variant 2'], list: { source: 'api', path: 'variants' } });
+  });
+
   it('links: picks the first link that is not the page itself', () => {
     const p = page(U[0]!, { links: [{ container: 'swatches', count: 2, links: [{ href: U[0]!, label: 'Black' }, { href: U[1]!, label: 'Red' }] }] });
     expect(confirmAnswer('links', p, undefined)).toEqual({
@@ -108,6 +113,15 @@ describe('confirmAnswer', () => {
 
   it('links: nothing found returns an empty answer', () => {
     expect(confirmAnswer('links', page(U[0]!), undefined)).toEqual({ count: 0, labels: [] });
+  });
+
+  it('links: a trailing-slash self-link is still recognised as the page itself', () => {
+    const proofUrl = 'https://shop.example/products/shoe';
+    const selfWithSlash = 'https://shop.example/products/shoe/';
+    const redUrl = 'https://shop.example/products/shoe-red';
+    const p = page(proofUrl, { links: [{ container: 'swatches', count: 2, links: [{ href: selfWithSlash, label: 'Blue' }, { href: redUrl, label: 'Red' }] }] });
+    const answer = confirmAnswer('links', p, undefined);
+    expect(answer.spot?.url).toBe(redUrl);
   });
 
   it('keeps the spot when the count and list are unchanged (list method)', () => {
