@@ -4,7 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { datasets, projects, orgs, sources, type Database } from '@robot/db';
 import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure, type Context } from '../trpc';
-import { contractFields, type ContractField } from '../contract.js';
+import { contractFields, contractAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { CATALOGUE } from '../schema-catalogue.js';
 import { resolveOrg } from '../auth/session.js';
@@ -27,7 +27,7 @@ export const datasetSchemaFieldSchema = z.object({
 async function loadDataset(db: Database, datasetId: string) {
   const ds = await db.query.datasets.findFirst({
     where: eq(datasets.id, datasetId),
-    with: { sources: { columns: { id: true, slug: true, name: true, schemaDefinition: true, verificationSet: true } } },
+    with: { sources: { columns: { id: true, slug: true, name: true, schemaDefinition: true, verificationSet: true, variantSetup: true } } },
   });
   if (!ds) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${datasetId} not found` });
   return ds;
@@ -76,12 +76,36 @@ async function lockDatasetSchema(tx: Pick<Database, 'select'>, datasetId: string
   return (Array.isArray(row?.schema) ? row.schema : []) as Array<Record<string, unknown>>;
 }
 
-function assertNameFree(contract: ContractField[], name: string, exceptKey?: string) {
+/** A field and an axis may not share a name (spec 2026-10-01 §2, constraints): checked against
+ * both the contract's fields and its axes, whichever `name` is being minted for. */
+function assertNameFree(contract: ContractField[], axes: ContractAxis[], name: string, exceptKey?: string) {
   const lower = name.trim().toLowerCase();
   if (contract.some((f) => f.key !== exceptKey && f.name.trim().toLowerCase() === lower)) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: `A field named "${name}" already exists` });
   }
+  if (axes.some((a) => a.key !== exceptKey && a.name.trim().toLowerCase() === lower)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: `A field named "${name}" already exists` });
+  }
   if (deriveKey(name, new Set()) === DETAIL_URL_FIELD) throw new TRPCError({ code: 'BAD_REQUEST', message: `"${name}" is reserved` });
+}
+
+/**
+ * Creates an axis column (spec 2026-10-01 §2): the name-free check against
+ * both fields and axes, `deriveKey` over both key sets, and the schema
+ * append, all under the caller's `lockDatasetSchema` row lock. The one place
+ * an axis is minted — used by `addAxis` here and by Task 5's
+ * `setVariantSetup` (a website's axis mapping may mint a new project axis on
+ * the fly).
+ */
+export async function createAxis(tx: Pick<Database, 'select' | 'update'>, datasetId: string, name: string): Promise<ContractAxis> {
+  const schema = await lockDatasetSchema(tx, datasetId);
+  const contract = contractFields(schema);
+  const axes = contractAxes(schema);
+  assertNameFree(contract, axes, name);
+  const key = deriveKey(name, new Set([...contract.map((f) => f.key), ...axes.map((a) => a.key)]));
+  const axis: ContractAxis = { key, name, kind: 'axis', concept: 'axis' };
+  await tx.update(datasets).set({ schema: [...schema, axis], updatedAt: new Date() }).where(eq(datasets.id, datasetId));
+  return axis;
 }
 
 /** Apply `patch` to the source's binding + verification set for one key, or remove it when `patch` is null. */
@@ -231,6 +255,7 @@ export const datasetsRouter = router({
       const current = await ctx.db.query.datasets.findFirst({ where: eq(datasets.id, input.datasetId), columns: { schema: true } });
       if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${input.datasetId} not found` });
       const currentByKey = new Map(contractFields(current.schema).map((f) => [f.key, f]));
+      const axes = contractAxes(current.schema);
       const incomingKeys = new Set<string>();
       for (const entry of input.schema) {
         if (typeof entry.key !== 'string' || entry.key.length === 0) continue; // legacy unkeyed entry: free to change
@@ -245,9 +270,20 @@ export const datasetsRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Fields are added and removed with addField and deleteField' });
       }
 
+      // This save doesn't know about `level` (changed exclusively via
+      // `setFieldLevel`, spec 2026-10-01 §2) or axis entries (their own kind
+      // of schema entry, added/renamed/deleted exclusively via
+      // `addAxis`/`renameAxis`/`deleteAxis`) — both are carried forward
+      // unchanged rather than dropped by a caller that never saw them.
+      const nextFields = input.schema.map((entry) => {
+        if (typeof entry.key !== 'string' || entry.key.length === 0) return entry;
+        const existing = currentByKey.get(entry.key)!;
+        return existing.level !== undefined ? { ...entry, level: existing.level } : entry;
+      });
+
       const [updated] = await ctx.db
         .update(datasets)
-        .set({ schema: input.schema })
+        .set({ schema: [...nextFields, ...axes] })
         .where(eq(datasets.id, input.datasetId))
         .returning();
       return updated;
@@ -271,8 +307,9 @@ export const datasetsRouter = router({
       return ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
         const contract = contractFields(schema);
-        assertNameFree(contract, input.name);
-        const key = deriveKey(input.name, new Set(contract.map((f) => f.key)));
+        const axes = contractAxes(schema);
+        assertNameFree(contract, axes, input.name);
+        const key = deriveKey(input.name, new Set([...contract.map((f) => f.key), ...axes.map((a) => a.key)]));
         const concept = input.concept ?? deriveConcept(input.name, input.type);
         const description = input.description ?? '';
         const field: ContractField = { key, name: input.name, type: input.type, concept, ...(description ? { description } : {}) };
@@ -290,8 +327,9 @@ export const datasetsRouter = router({
       const affectedSourceIds = await ctx.db.transaction(async (tx) => {
         const schema = await lockDatasetSchema(tx, ds.id);
         const contract = contractFields(schema);
+        const axes = contractAxes(schema);
         if (!contract.some((f) => f.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
-        assertNameFree(contract, input.name, input.key);
+        assertNameFree(contract, axes, input.name, input.key);
         await tx.update(datasets).set({ schema: schema.map((f) => (f.key === input.key ? { ...f, name: input.name } : f)), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
         const locked = await lockSources(tx, ds.id);
         return propagate(tx, locked, input.key, { name: input.name });
@@ -347,5 +385,100 @@ export const datasetsRouter = router({
         out[f.key] = { verified: websites.filter((w) => w.verified).length, total: websites.length, websites };
       }
       return out;
+    }),
+
+  /** The Variants setting, every field's effective level, and the project's axes (spec 2026-10-01 §2). */
+  variants: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      const fields = contractFields(ds.schema).map((f) => ({
+        key: f.key,
+        name: f.name,
+        level: effectiveLevel(f),
+        levelIsDefault: f.level === undefined,
+      }));
+      return { mode: (ds.variantMode as VariantMode) ?? 'ignore', fields, axes: contractAxes(ds.schema) };
+    }),
+
+  /** Never deletes axes, levels or website setups (Review Focus 2, spec 2026-10-01 §2). */
+  setVariantMode: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid(), mode: z.enum(['ignore', 'row_per_variant', 'nested']) }))
+    .mutation(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      await ctx.db.update(datasets).set({ variantMode: input.mode, updatedAt: new Date() }).where(eq(datasets.id, ds.id));
+      return { mode: input.mode as VariantMode };
+    }),
+
+  /**
+   * `level: null` resets the field to its default-by-concept (`effectiveLevel`).
+   * Never touches a website's binding or verification set: `level` lives only
+   * on the dataset's contract field and plays no part in `fieldHash`, so a
+   * verified field's currency is untouched by this (constraints, ruling 5).
+   */
+  setFieldLevel: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), level: z.enum(['product', 'variant']).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      return ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        const field = contractFields(schema).find((f) => f.key === input.key);
+        if (!field) throw new TRPCError({ code: 'NOT_FOUND', message: `Field ${input.key} not found` });
+        const nextSchema = schema.map((f) => {
+          if (f.key !== input.key) return f;
+          if (input.level === null) {
+            const { level: _drop, ...rest } = f as Record<string, unknown>;
+            return rest;
+          }
+          return { ...f, level: input.level };
+        });
+        await tx.update(datasets).set({ schema: nextSchema, updatedAt: new Date() }).where(eq(datasets.id, ds.id));
+        const level: FieldLevel = input.level ?? effectiveLevel(field);
+        return { key: input.key, level };
+      });
+    }),
+
+  /** Spec 2026-10-01 §2: a new axis column; `key` via `deriveKey`, name free among fields and axes. */
+  addAxis: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid(), name: z.string().trim().min(1).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      return ctx.db.transaction((tx) => createAxis(tx, ds.id, input.name));
+    }),
+
+  renameAxis: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), name: z.string().trim().min(1).max(100) }))
+    .mutation(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      return ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        const contract = contractFields(schema);
+        const axes = contractAxes(schema);
+        if (!axes.some((a) => a.key === input.key)) throw new TRPCError({ code: 'NOT_FOUND', message: `Axis ${input.key} not found` });
+        assertNameFree(contract, axes, input.name, input.key);
+        await tx.update(datasets).set({ schema: schema.map((f) => (f.key === input.key ? { ...f, name: input.name } : f)), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
+        const axis: ContractAxis = { key: input.key, name: input.name, kind: 'axis', concept: 'axis' };
+        return axis;
+      });
+    }),
+
+  /** Refused while any website's `variantSetup` maps to this axis (spec 2026-10-01 §3), naming the website. */
+  deleteAxis: publicProcedure
+    .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const ds = await loadDatasetInOrg(ctx, input.datasetId);
+      const axis = contractAxes(ds.schema).find((a) => a.key === input.key);
+      if (!axis) throw new TRPCError({ code: 'NOT_FOUND', message: `Axis ${input.key} not found` });
+      for (const s of ds.sources) {
+        const setup = s.variantSetup as VariantSetup | null;
+        if (setup?.axes.some((m) => m.axisKey === input.key)) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `${s.name} uses ${axis.name}` });
+        }
+      }
+      await ctx.db.transaction(async (tx) => {
+        const schema = await lockDatasetSchema(tx, ds.id);
+        await tx.update(datasets).set({ schema: schema.filter((f) => f.key !== input.key), updatedAt: new Date() }).where(eq(datasets.id, ds.id));
+      });
+      return { ok: true as const };
     }),
 });

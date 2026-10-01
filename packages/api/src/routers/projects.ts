@@ -156,7 +156,7 @@ export const projectsRouter = router({
       const dataset = await ctx.db.query.datasets.findFirst({
         where: eq(datasets.projectId, project.id),
         orderBy: (d, { asc }) => [asc(d.createdAt)],
-        columns: { id: true, schema: true },
+        columns: { id: true, schema: true, variantMode: true },
       });
       // `projects.create` always makes the dataset; a project without one is a
       // legacy row, and the home reads as empty rather than failing.
@@ -193,7 +193,17 @@ export const projectsRouter = router({
         })),
       );
 
-      return { id: project.id, name: project.name, slug: project.slug, datasetId: dataset?.id ?? null, createdAt: project.createdAt, fields, websites };
+      return {
+        id: project.id,
+        name: project.name,
+        slug: project.slug,
+        datasetId: dataset?.id ?? null,
+        createdAt: project.createdAt,
+        // Variants setting (spec 2026-10-01 §2): 'ignore' for a legacy project without a dataset.
+        variantMode: dataset?.variantMode ?? 'ignore',
+        fields,
+        websites,
+      };
     }),
 
   /** The Output screen (spec 2026-09-21 §5): the project export, capped for the browser. The file has everything. */
