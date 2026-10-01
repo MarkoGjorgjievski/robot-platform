@@ -400,6 +400,10 @@ export const sourceVerifications = pgTable('source_verifications', {
   captures: jsonb('captures').notNull().default({}),
   // Record<fieldKey, FieldVerification> — see @robot/scraper verify/types.ts
   results: jsonb('results').notNull().default({}),
+  // VariantVerification (@robot/scraper verify/variant-certify.ts) — the free variant check run
+  // alongside this Verify, when the website's project wants variants (spec 2026-10-01 §4). Null
+  // for a website with variants off, or a verification row written before this existed.
+  variantResults: jsonb('variant_results'),
   allPassed: boolean('all_passed').notNull().default(false),
   aiCalls: integer('ai_calls').notNull().default(0),
   costUsd: numeric('cost_usd', { precision: 10, scale: 4 }).notNull().default('0'),

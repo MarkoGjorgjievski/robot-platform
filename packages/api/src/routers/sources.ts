@@ -6,6 +6,7 @@ import {
   FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
+  resolveVariantList, suggestEntryValues, flattenEntry, pathFitsConcept, buildLinksNearScript,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker,
 } from '@robot/scraper';
@@ -18,6 +19,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
+import { entryFieldsFor } from '../verify/variant-fields.js';
 import { rankProductLinks, describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
@@ -92,6 +94,21 @@ function budgetIsUnchosen(budget: unknown, priorParameters: Record<string, unkno
  * true if the stored budget says all.
  */
 const ALL_BUDGET = { max_items: 'all', max_pages: 'all', mode: 'all' } as const;
+
+/** What the customer confirmed about a product's variants on one proof page (types.ts VariantAnswer, spec 2026-10-01 §3). */
+const variantAnswerInput = z.object({
+  count: z.number().int().min(0).max(500),
+  labels: z.array(z.string().max(200)).max(500),
+  list: z.object({ source: z.enum(['json-ld', 'api']), path: z.string().min(1).max(300) }).optional(),
+  links: z.array(z.string().url()).max(500).optional(),
+  spot: z.object({
+    index: z.number().int().min(0),
+    url: z.string().url().optional(),
+    expected: z.record(z.string(), z.string().max(2000)),
+    paths: z.record(z.string(), z.string().max(300)).optional(),
+    fromProduct: z.array(z.string()).optional(),
+  }).optional(),
+});
 
 const budgetShape = z.object({
   max_items: z.union([z.number().int().positive(), z.literal('all')]),
@@ -737,9 +754,25 @@ export const sourcesRouter = router({
       const { fields, verificationSet } = prepareBinding(binding, contract);
 
       return ctx.db.transaction(async (tx) => {
+        // Variant answers (plan 2 task 3, Review Focus 1) never travel through `bindingInput` —
+        // `prepareBinding` above never emits `variants` — so a concurrent `saveVariantAnswer`
+        // committing between this procedure's dispatch and its write must not be silently
+        // dropped by this write replacing the whole row. Re-read the row's `variants` under a
+        // row lock, right before the write that would otherwise clobber it: a concurrent
+        // `saveVariantAnswer` (which takes the same lock) either commits first and is seen
+        // here, or blocks on this lock until this transaction commits and then carries forward
+        // whatever this write leaves behind. Dropped along with the proof page it answered for
+        // (Review Focus 2): only urls still in the new `urls` are kept.
+        const [locked] = await tx.select({ verificationSet: sources.verificationSet }).from(sources).where(eq(sources.id, sourceId)).for('update');
+        const priorVariants = (locked?.verificationSet as VerificationSet | null)?.variants;
+        const variants = priorVariants
+          ? Object.fromEntries(Object.entries(priorVariants).filter(([url]) => binding.urls.includes(url)))
+          : undefined;
+        const verificationSetToWrite: VerificationSet = variants && Object.keys(variants).length > 0 ? { ...verificationSet, variants } : verificationSet;
+
         const [updated] = await tx
           .update(sources)
-          .set({ schemaDefinition: fields, verificationSet, updatedAt: new Date() })
+          .set({ schemaDefinition: fields, verificationSet: verificationSetToWrite, updatedAt: new Date() })
           .where(eq(sources.id, sourceId))
           .returning();
 
@@ -1378,5 +1411,107 @@ export const sourcesRouter = router({
       });
 
       return variantSetup;
+    }),
+
+  /**
+   * Saves what the customer confirmed about one proof page's variants (spec
+   * 2026-10-01 §3): sets `verificationSet.variants[url]`, or deletes it when
+   * `answer` is null ("No variants on this product" after having had some,
+   * or the row being cleared). Row-locked (`SELECT … FOR UPDATE`) the same
+   * way `updateBinding`'s carry-forward is, so this and a concurrent fields
+   * autosave can never drop each other's write (Review Focus 1) — whichever
+   * commits second re-reads the other's result under the lock. `url` must be
+   * one of this website's current proof pages; otherwise the answer would
+   * outlive the page it was about (Review Focus 2), so this refuses instead
+   * of writing an orphan.
+   */
+  saveVariantAnswer: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, answer: variantAnswerInput.nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      return ctx.db.transaction(async (tx) => {
+        const [locked] = await tx.select({ verificationSet: sources.verificationSet }).from(sources).where(eq(sources.id, input.sourceId)).for('update');
+        if (!locked) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
+        const verificationSet = (locked.verificationSet as VerificationSet | null) ?? { urls: [], expected: {} };
+        if (!verificationSet.urls.includes(input.url)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `That page is not one of this website's products` });
+        }
+        const variants = { ...(verificationSet.variants ?? {}) };
+        if (input.answer === null) delete variants[input.url];
+        else variants[input.url] = input.answer;
+        const next: VerificationSet = { ...verificationSet, variants };
+        await tx.update(sources).set({ verificationSet: next, updatedAt: new Date() }).where(eq(sources.id, input.sourceId));
+        return { variants };
+      });
+    }),
+
+  /**
+   * Lists one product's variants from a confirmed list ref (spec 2026-10-01
+   * §3 "list" method step, the Variants row's expand): resolves the ref
+   * against the page's fresh proof capture (`resolveVariantList`, same rules
+   * certification uses) and suggests a value per entry field
+   * (`suggestEntryValues`) for up to the first 50 entries. No browser — the
+   * list lives in the page's structured data/intercepted JSON, already on
+   * the stored capture. `null` when there is no fresh capture of `url`, or
+   * the ref does not resolve to a list on it (the page changed shape, or the
+   * customer picked the wrong ref) — the caller re-detects rather than
+   * being shown an empty list as if it were real.
+   */
+  variantList: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, list: z.object({ source: z.enum(['json-ld', 'api']), path: z.string().min(1).max(300) }) }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      const source = await ctx.db.query.sources.findFirst({
+        where: eq(sources.id, input.sourceId),
+        columns: { id: true, variantSetup: true },
+        with: { dataset: { columns: { schema: true } } },
+      });
+      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
+
+      const captureRecords = await loadProofPageCaptures(input.sourceId, [input.url]);
+      const rec = captureRecords[input.url];
+      if (!rec) return null;
+
+      const entries = resolveVariantList(rec.capture, input.list);
+      if (!entries) return null;
+
+      const fields = entryFieldsFor(source.dataset?.schema, source.variantSetup as VariantSetup | null);
+      const axisFields = fields.filter((f) => f.axisFrom !== undefined);
+      const limited = entries.slice(0, 50);
+      const suggestions = limited.map((entry) => suggestEntryValues(entry, fields));
+      const labels = limited.map((entry, i) => {
+        if (axisFields.length > 0) {
+          const values = axisFields.map((f) => suggestions[i]![f.key]?.value ?? '');
+          if (values.some((v) => v !== '')) return values.join('/');
+        }
+        const skuLeaf = flattenEntry(entry).find((l) => pathFitsConcept('sku', l.path) && typeof l.raw !== 'object');
+        if (skuLeaf) return String(skuLeaf.raw);
+        return `Variant ${i + 1}`;
+      });
+
+      return { count: entries.length, labels, suggestions };
+    }),
+
+  /**
+   * Finds the links near an element the customer marks on a proof page's
+   * screenshot (spec 2026-10-01 §3 "links" method, the manual-mark picker):
+   * runs `buildLinksNearScript` against the page's fresh proof capture in
+   * one `withBrowserSession`, the same `setContentEvaluate` pattern
+   * `detectVariants`/`transferMarks` use. `null` when there is no fresh
+   * capture of `url`, or nothing near the marked element groups into a
+   * link set.
+   */
+  variantLinksNear: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, xpath: z.string().min(1).max(2000) }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true } });
+      if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
+
+      const captureRecords = await loadProofPageCaptures(input.sourceId, [input.url]);
+      const rec = captureRecords[input.url];
+      if (!rec) return null;
+
+      return withBrowserSession((browser) => browser.setContentEvaluate<VariantLinks | null>(rec.capture.html, buildLinksNearScript(input.xpath, input.url)));
     }),
 });

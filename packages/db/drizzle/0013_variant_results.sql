@@ -1,0 +1,1 @@
+ALTER TABLE "source_verifications" ADD COLUMN "variant_results" jsonb;
