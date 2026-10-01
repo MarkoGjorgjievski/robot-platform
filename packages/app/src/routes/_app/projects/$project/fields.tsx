@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, createFileRoute, useRouteContext } from '@tanstack/react-router';
 import { Page } from '../../../../components/page';
 import { AddCustomFieldDialog } from '../../../../components/fields/add-custom-field-dialog';
 import { FieldCatalogue } from '../../../../components/fields/field-catalogue';
-import { FieldsTable } from '../../../../components/fields/fields-table';
+import { FieldsTable, type FieldLevels } from '../../../../components/fields/fields-table';
+import { VariantsPanel } from '../../../../components/fields/variants-panel';
 import { Button } from '../../../../components/ui/button';
 import { fieldsView } from '../../../../lib/fields-view';
 import { trpc } from '../../../../lib/trpc';
@@ -38,7 +39,26 @@ function FieldsScreen() {
     { enabled: !!datasetId },
   );
 
+  // The Variants setting, each field's level and the variant columns
+  // (spec 2026-10-01 §2): one query, read by the panel and by the field list.
+  const variants = trpc.datasets.variants.useQuery({ datasetId: datasetId ?? '' }, { enabled: !!datasetId });
+  const levels: FieldLevels | undefined =
+    variants.data && variants.data.mode !== 'ignore'
+      ? Object.fromEntries(variants.data.fields.map((f) => [f.key, { level: f.level, isDefault: f.levelIsDefault }]))
+      : undefined;
+
   const fields = fieldsView(project.data?.fields ?? [], status.data, websiteCount);
+  // A field added from the catalogue or the dialog reaches `projects.get`, not
+  // this query: read the levels again whenever the field list itself changes.
+  const fieldKeys = fields.map((f) => f.key).join('\n');
+  const refetchVariants = variants.refetch;
+  const seenKeys = useRef<string | null>(null);
+  useEffect(() => {
+    if (!project.data) return;
+    // The first list seen is the one the query was just fetched for.
+    if (seenKeys.current !== null && seenKeys.current !== fieldKeys && datasetId) void refetchVariants();
+    seenKeys.current = fieldKeys;
+  }, [fieldKeys, datasetId, refetchVariants, project.data]);
   // A slug that is not a project in this org, as opposed to a request that
   // failed: one is a wrong address, the other is something to retry.
   const missing = project.error?.data?.code === 'NOT_FOUND';
@@ -92,26 +112,34 @@ function FieldsScreen() {
         // `items-start` so the shorter panel keeps its own height: a catalogue
         // stretched to match a long field list would be a box of empty panel.
         <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
-          {empty ? (
-            // An empty table head over nothing is furniture: with no field yet
-            // the panel holds one sentence, and the catalogue beside it is the
-            // way out of the state.
-            <div className="rise rounded-[6px] border border-line bg-panel px-4 py-5 [box-shadow:var(--shadow)]">
-              <p className="text-base text-muted-foreground">
-                No fields yet. Pick them from the catalogue, or add your own.
-              </p>
-            </div>
-          ) : (
-            <FieldsTable
-              // Empty only while the project is still loading, and then the
-              // table holds skeleton rows: there is nothing to rename, retype
-              // or delete until `datasetId` is real.
-              datasetId={datasetId ?? ''}
-              fields={fields}
-              websiteCount={websiteCount}
-              loading={project.isPending}
-            />
-          )}
+          {/* `min-w-0`: a grid item's minimum is its content, and the
+              field list's own scroll container needs the column not to grow. */}
+          <div className="min-w-0 space-y-4">
+            {datasetId && variants.data ? (
+              <VariantsPanel datasetId={datasetId} mode={variants.data.mode} axes={variants.data.axes} />
+            ) : null}
+            {empty ? (
+              // An empty table head over nothing is furniture: with no field yet
+              // the panel holds one sentence, and the catalogue beside it is the
+              // way out of the state.
+              <div className="rise rounded-[6px] border border-line bg-panel px-4 py-5 [box-shadow:var(--shadow)]">
+                <p className="text-base text-muted-foreground">
+                  No fields yet. Pick them from the catalogue, or add your own.
+                </p>
+              </div>
+            ) : (
+              <FieldsTable
+                // Empty only while the project is still loading, and then the
+                // table holds skeleton rows: there is nothing to rename, retype
+                // or delete until `datasetId` is real.
+                datasetId={datasetId ?? ''}
+                fields={fields}
+                websiteCount={websiteCount}
+                loading={project.isPending}
+                levels={levels}
+              />
+            )}
+          </div>
 
           {datasetId ? (
             <FieldCatalogue

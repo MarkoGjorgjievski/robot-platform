@@ -9,6 +9,7 @@ import { PageViewer, type Overlay } from '../../../../../../components/verificat
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
 import { VerificationTable, type TableRow } from '../../../../../../components/verification/verification-table';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
+import { VariantsStep } from '../../../../../../components/verification/variants-step';
 import type { FieldHint } from '../../../../../../components/verification/field-details';
 import {
   PRODUCTS_MAX,
@@ -357,6 +358,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const captureIds = useMemo(() => captures.captureIds, [captureIdsKey]);
   const capturedUrls = urls.filter((u) => captures.byUrl[u]?.status === 'captured');
+  /**
+   * The landed screenshots, named once every product's has settled (landed or
+   * failed): the Variants step looks at the captures once per such set, not
+   * once per screenshot as they arrive.
+   */
+  const variantsKey = urls.every((u) => captures.byUrl[u]?.status === 'captured' || captures.byUrl[u]?.status === 'failed')
+    ? capturedUrls.map((u) => captures.byUrl[u]!.captureId).join(',')
+    : '';
 
   /**
    * Each product's elements once its screenshot has landed, for the row
@@ -1031,6 +1040,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       ) : (
         <div className={`${panel} px-4 py-5 text-base text-muted-foreground`}>Find products from a listing page, or paste product pages, to start.</div>
       )}
+
+      {/* Only while the project wants variants; never holds Verify or Extract back (plan 2 gates on it). */}
+      <VariantsStep sourceId={sourceId} datasetId={source.datasetId} setup={source.variantSetup} cards={urls.length} capturedKey={variantsKey} />
 
       {runNote ? (
         <p role="alert" className={`border-l-2 pl-3 text-sm ${strip === 'failed' ? 'border-fail text-fail' : 'border-warn text-warn'}`}>

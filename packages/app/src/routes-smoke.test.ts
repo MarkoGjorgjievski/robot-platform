@@ -116,8 +116,28 @@ function shopPage(pathname: string): { type: string; body: string | Buffer } | n
   if (/^\/(i|img)\/[\w.-]+$/.test(pathname)) return { type: 'image/png', body: PIXEL };
   const product = PRODUCTS.find((p) => p.path === pathname);
   if (!product) return null;
-  const ld = product.page.structuredData.ldJson.map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`).join('');
+  const ld = [...product.page.structuredData.ldJson, variantGroup(product.path)]
+    .map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`)
+    .join('');
   return { type: 'text/html', body: product.page.html.replace('<html>', `<html><head><title>${product.title}</title>${ld}</head>`) };
+}
+
+/**
+ * Every product comes in two colours, said the way a shop's page data says it:
+ * a `ProductGroup` whose `hasVariant` lists one entry per colour (spec
+ * 2026-10-01 §3, "Listed in the page data"). The entries carry a colour and a
+ * SKU only — no name, no price — so the Title and Price rows above still find
+ * one value each.
+ */
+const VARIANT_COLOURS = ['Red', 'Blue'] as const;
+function variantGroup(productPath: string) {
+  const id = productPath.replace(/\W/g, '');
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ProductGroup',
+    variesBy: ['https://schema.org/color'],
+    hasVariant: VARIANT_COLOURS.map((color) => ({ '@type': 'Product', color, sku: `${id}-${color.toLowerCase()}` })),
+  };
 }
 
 function serveShop(): Promise<{ server: Server; origin: string }> {
@@ -426,6 +446,16 @@ async function flipThemeInPlace(p: Page, theme: Theme) {
   await saved;
   await p.keyboard.press('Escape');
   await expect.poll(() => p.evaluate(() => document.documentElement.dataset.theme), { timeout: 10_000 }).toBe(theme);
+}
+
+/** The viewport in both themes, as `<name>-<theme>.png`, the current theme first; leaves the page in the theme it found. */
+async function shootViewportBothThemes(p: Page, name: string) {
+  const current = (await p.evaluate(() => document.documentElement.dataset.theme)) as Theme;
+  const other: Theme = current === 'dark' ? 'light' : 'dark';
+  await shoot(p, `${name}-${current}.png`, false);
+  await flipThemeInPlace(p, other);
+  await shoot(p, `${name}-${other}.png`, false);
+  await flipThemeInPlace(p, current);
 }
 
 /** A Verification tab state in both themes, the current one first; leaves the page in the theme it found. */
@@ -891,6 +921,70 @@ describe.skipIf(!ENABLED)('app shell', () => {
       }
     }, 240_000);
   }
+
+  // Variants (spec 2026-10-01 §2–§3), after the website screens above so their
+  // screenshots stay the ones a project without variants shows. Free: the
+  // detection reads the captures the Verification walk already took. Verify is
+  // never pressed.
+  it("variants: turned on in the Fields panel, and recorded by the website's Variants step", async () => {
+    expect(websiteSlug, 'there is no website to set up variants on').not.toBeNull();
+    problems.length = 0;
+
+    // 1. Fields: the panel, off by default; turning it on shows each field's level.
+    await page.goto(`${APP}/projects/${projectSlug}/fields`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+    const panel = page.getByRole('region', { name: 'Variants' });
+    await panel.waitFor({ timeout: 20_000 });
+    expect(await page.getByRole('radio', { name: 'No variants', exact: true }).isChecked(), 'a new project wants variants').toBe(true);
+    expect(await page.getByRole('combobox', { name: 'Variants of Price' }).count(), 'levels are shown while variants are off').toBe(0);
+    await page.getByRole('radio', { name: 'One row per variant', exact: true }).click();
+    const priceLevel = page.getByRole('combobox', { name: 'Variants of Price' });
+    await priceLevel.waitFor({ timeout: 20_000 });
+    expect(await priceLevel.innerText(), 'a price is not variant-level by default').toContain('Differs per variant');
+    expect(await page.getByRole('combobox', { name: 'Variants of Title' }).innerText(), 'a title is not product-level by default').toContain('Same for every variant');
+    expect(await panel.innerText(), 'the panel does not say where variant columns come from').toContain('Variant columns');
+    await shootViewportBothThemes(page, 'app-project-fields-variants');
+
+    // 2. The website: what the proof pages show, with the suggestion preselected.
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const step = page.getByRole('region', { name: 'Variants' });
+    await expect
+      .poll(() => step.innerText().catch(() => ''), { timeout: 120_000, interval: 1000 })
+      .toContain('Listed in the page data: 2 colours on every product');
+    expect(await page.getByRole('radio', { name: 'Listed in the page data', exact: true }).isChecked(), 'the suggestion is not preselected').toBe(true);
+    const column = page.getByRole('combobox', { name: 'Column for Colour' });
+    expect(await column.innerText(), 'a colour does not become a new Colour column').toContain('New column ‘Colour’');
+    await step.scrollIntoViewIfNeeded();
+    await shootViewportBothThemes(page, 'app-site-verification-variants-found');
+
+    // 3. Confirm, and the step is one line — still there after a reload.
+    await step.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await expect.poll(() => step.innerText(), { timeout: 20_000 }).toContain('Variants: listed in the page data · Colour');
+    await page.reload({ waitUntil: 'networkidle' });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    await expect.poll(() => step.innerText().catch(() => ''), { timeout: 20_000 }).toContain('Variants: listed in the page data · Colour');
+    expect(await step.getByRole('button', { name: 'Change', exact: true }).count(), 'the confirmed step offers no Change').toBe(1);
+    const stored = await apiAs(await sessionCookie(context)).sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    expect(stored.variantSetup?.method, 'the method was not stored').toBe('list');
+    expect(stored.variantSetup?.axes.map((a) => a.from), 'the colour mapping was not stored').toEqual(['color']);
+    await step.scrollIntoViewIfNeeded();
+    await shootViewportBothThemes(page, 'app-site-verification-variants-set');
+
+    // 4. Back on Fields the new column is listed, and deleting it is refused
+    // with the website that uses it named. The refusal is an HTTP 412, which
+    // the browser logs as a failed load: the one console line this step expects.
+    expect(problems, `the variants walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+    await page.goto(`${APP}/projects/${projectSlug}/fields`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+    await page.getByRole('textbox', { name: 'Name of variant column Colour' }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Delete variant column Colour' }).click();
+    await expect.poll(() => panel.innerText(), { timeout: 10_000 }).toContain(`${WEBSITE_NAME} uses Colour`);
+    expect(await page.getByRole('textbox', { name: 'Name of variant column Colour' }).count(), 'the refused delete removed the column').toBe(1);
+
+    const unexpected = problems.filter((line) => !line.includes('status of 412'));
+    expect(unexpected, `the refused delete logged errors:\n  ${unexpected.join('\n  ')}`).toEqual([]);
+  }, 300_000);
 
   it('a rename on the Settings tab reaches the server and comes back', async () => {
     expect(websiteSlug, 'there is no website to rename').not.toBeNull();
