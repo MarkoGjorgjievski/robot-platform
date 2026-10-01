@@ -8,6 +8,8 @@ import { createSaver, saveErrorReason } from '../../lib/site/saver';
 import { useProofCaptures, type ProofCapture } from '../../lib/site/use-proof-captures';
 import {
   confirmAnswer,
+  fittingAnswers,
+  reuseListAnswer,
   spotRows,
   variantCells,
   type SpotRow,
@@ -199,7 +201,9 @@ function LabelList({ labels, count, checked, onCheck, locked, product }: { label
  * says whether an add-product column follows the products.
  */
 export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowProps; locked: boolean; hasAddHead: boolean }) {
-  const { sourceId, method, urls, noun, detection, answers, result, resultCurrent, need, passed, entryFields, save, saveErrors, proofCaptures, onRetryProof, mark, onMark, onMarkDone } = props;
+  const { sourceId, method, urls, noun, detection, result, resultCurrent, need, passed, entryFields, save, saveErrors, proofCaptures, onRetryProof, mark, onMark, onMarkDone } = props;
+  // An answer given under the other method reads as unanswered everywhere in the row (final review I3).
+  const answers = fittingAnswers(method, props.answers);
   const [expanded, setExpanded] = useState(false);
   const [notRight, setNotRight] = useState<Record<string, boolean>>({});
   const filled = urls.filter((u) => u.trim() !== '');
@@ -368,6 +372,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
               const open = !!notRight[url];
               const marking = mark?.url === url;
               const others = method === 'list' && page ? page.lists.filter((l) => !(a?.list && l.source === a.list.source && l.path === a.list.path)) : [];
+              const reuse = method === 'list' ? reuseListAnswer(a, listData) : null;
               return (
                 <td key={i} className={cn(td, 'space-y-2 px-2 py-2')}>
                   {a && a.count > 0 ? (
@@ -396,6 +401,20 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
                       </Button>
                       {open ? (
                         <div className="space-y-1">
+                          {reuse ? (
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              disabled={locked}
+                              className="h-auto w-full justify-start py-1 text-left text-sm whitespace-normal"
+                              onClick={() => {
+                                setNotRight((r) => ({ ...r, [url]: false }));
+                                void save(url, reuse, true).catch(() => {});
+                              }}
+                            >
+                              Use this list again ({reuse.count})
+                            </Button>
+                          ) : null}
                           {method === 'list'
                             ? others.map((l) => (
                                 <Button
