@@ -71,7 +71,7 @@ function axesFromVariesBy(variesBy: unknown): string[] | null {
   return vals.length ? vals : null;
 }
 
-function entryAxisValue(entry: PlainObject, axisKey: string): string | undefined {
+export function entryAxisValue(entry: PlainObject, axisKey: string): string | undefined {
   if (axisKey in entry) {
     const t = toText(entry[axisKey]);
     if (t !== undefined) return t;
