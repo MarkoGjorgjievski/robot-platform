@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { trpc } from '../../lib/trpc';
 import { createSaver, saveErrorReason } from '../../lib/site/saver';
-import { useProofCaptures } from '../../lib/site/use-proof-captures';
+import { useProofCaptures, type ProofCapture } from '../../lib/site/use-proof-captures';
 import {
   confirmAnswer,
   spotRows,
@@ -41,7 +41,8 @@ function toInput(a: VariantAnswer | null) {
 export function useVariantAnswers(sourceId: string, server: Record<string, VariantAnswer>) {
   const utils = trpc.useUtils();
   const [overrides, setOverrides] = useState<Record<string, VariantAnswer | null>>({});
-  const [error, setError] = useState<string | null>(null);
+  /** Each product's last failed save, by url: cleared only by that product's own next successful save. */
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const savers = useRef(new Map<string, Saver>());
 
   useEffect(() => {
@@ -62,9 +63,14 @@ export function useVariantAnswers(sourceId: string, server: Record<string, Varia
           save: async (answer) => {
             try {
               await utils.client.sources.saveVariantAnswer.mutate({ sourceId, url, answer: toInput(answer) });
-              setError(null);
+              setErrors((all) => {
+                if (!(url in all)) return all;
+                const next = { ...all };
+                delete next[url];
+                return next;
+              });
             } catch (e) {
-              setError(saveErrorReason(e));
+              setErrors((all) => ({ ...all, [url]: saveErrorReason(e) }));
               throw e;
             }
             await Promise.all([utils.sources.get.invalidate(), utils.sources.verificationStatus.invalidate({ sourceId })]);
@@ -105,7 +111,7 @@ export function useVariantAnswers(sourceId: string, server: Record<string, Varia
     return out;
   }, [server, overrides]);
 
-  return { answers, save, flush, error };
+  return { answers, save, flush, errors };
 }
 
 export type VariantsRowProps = {
@@ -124,7 +130,11 @@ export type VariantsRowProps = {
   /** The variant-level fields and mapped columns, contract order then columns. */
   entryFields: Array<{ key: string; name: string }>;
   save: (url: string, answer: VariantAnswer | null, now?: boolean) => Promise<void>;
-  saveError: string | null;
+  /** Each product's last failed save, by url. */
+  saveErrors: Record<string, string>;
+  /** The proof pages' own captures: a checked variant page that is itself a proof page reads its state from here. */
+  proofCaptures: Record<string, ProofCapture | undefined>;
+  onRetryProof: (url: string) => void;
   /** The product whose screenshot is in mark mode for its variant buttons, and the element clicked there. */
   mark: { url: string; xpath?: string } | null;
   onMark: (url: string) => void;
@@ -189,7 +199,7 @@ function LabelList({ labels, count, checked, onCheck, locked, product }: { label
  * says whether an add-product column follows the products.
  */
 export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowProps; locked: boolean; hasAddHead: boolean }) {
-  const { sourceId, method, urls, noun, detection, answers, result, resultCurrent, need, passed, entryFields, save, saveError, mark, onMark, onMarkDone } = props;
+  const { sourceId, method, urls, noun, detection, answers, result, resultCurrent, need, passed, entryFields, save, saveErrors, proofCaptures, onRetryProof, mark, onMark, onMarkDone } = props;
   const [expanded, setExpanded] = useState(false);
   const [notRight, setNotRight] = useState<Record<string, boolean>>({});
   const filled = urls.filter((u) => u.trim() !== '');
@@ -213,8 +223,15 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
   };
 
   // --- Links method: the checked variant page of each product, captured like a proof page.
-  const spotUrls = method === 'links' ? [...new Set(filled.map((u) => answers[u]?.spot?.url).filter((u): u is string => !!u))] : [];
+  // `useProofCaptures` starts the capture of a new checked page by itself, once its answer is
+  // saved; a checked page that is also a proof page reuses that page's own capture.
+  const spotUrls =
+    method === 'links'
+      ? [...new Set(filled.map((u) => answers[u]?.spot?.url).filter((u): u is string => !!u && !filled.includes(u)))]
+      : [];
   const spotCaptures = useProofCaptures(sourceId, spotUrls);
+  const spotCapture = (u: string) => (filled.includes(u) ? proofCaptures[u] : spotCaptures.byUrl[u]);
+  const retrySpot = (u: string) => (filled.includes(u) ? onRetryProof(u) : spotCaptures.retry(u));
 
   // --- Links method: what the clicked element on the screenshot groups into.
   const near = trpc.sources.variantLinksNear.useQuery(
@@ -226,11 +243,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
     const page = pageOf(url);
     if (!page) return;
     const answer = confirmAnswer(method, page, answers[url]);
-    void save(url, answer, true)
-      .then(() => {
-        if (method === 'links' && answer.spot?.url) spotCaptures.retry(answer.spot.url);
-      })
-      .catch(() => {});
+    void save(url, answer, true).catch(() => {});
   }
 
   function takeLinks(url: string, group: DetectedLinks) {
@@ -238,11 +251,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
     const answer = confirmAnswer('links', { ...page, links: [group] }, undefined);
     onMarkDone();
     setNotRight((n) => ({ ...n, [url]: false }));
-    void save(url, answer, true)
-      .then(() => {
-        if (answer.spot?.url) spotCaptures.retry(answer.spot.url);
-      })
-      .catch(() => {});
+    void save(url, answer, true).catch(() => {});
   }
 
   function spotChange(url: string, change: (spot: NonNullable<VariantAnswer['spot']>) => NonNullable<VariantAnswer['spot']>) {
@@ -324,6 +333,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
                 </span>
               </div>
               {tick}
+              {saveErrors[url] ? <p className="px-2 pb-2 text-sm text-warn">Not saved: {saveErrors[url]}</p> : null}
             </td>
           );
         })}
@@ -331,7 +341,13 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
         {hasAddHead ? <td className={td} /> : null}
         <td className="w-[220px] border-t border-line px-2 py-2 align-top">
           {statusText}
-          {saveError ? <p className="mt-1 text-sm text-warn">Not saved: {saveError}</p> : null}
+          {filled.map((u) =>
+            saveErrors[u] ? (
+              <p key={u} className="mt-1 text-sm text-warn">
+                Not saved on product {urls.indexOf(u) + 1}
+              </p>
+            ) : null,
+          )}
         </td>
       </tr>
 
@@ -510,7 +526,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
                 if (!a || a.count <= 0 || !spotUrl) return <td key={i} className={td} />;
                 const at = a.links?.indexOf(spotUrl) ?? -1;
                 const label = (at >= 0 ? a.labels[at] : undefined) ?? 'variant';
-                const cap = spotCaptures.byUrl[spotUrl];
+                const cap = spotCapture(spotUrl);
                 const page = resultCurrent ? result?.pages[url] : undefined;
                 return (
                   <td key={i} className={cn(td, 'space-y-1 px-2 py-2')}>
@@ -522,7 +538,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm text-warn">{cap.error ?? 'The screenshot could not be taken'}</span>
-                        <Button variant="outline" size="xs" disabled={locked} onClick={() => spotCaptures.retry(spotUrl)}>
+                        <Button variant="outline" size="xs" disabled={locked} onClick={() => retrySpot(spotUrl)}>
                           Try again
                         </Button>
                       </div>

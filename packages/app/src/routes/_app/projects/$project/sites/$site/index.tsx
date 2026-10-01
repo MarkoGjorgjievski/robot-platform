@@ -1033,7 +1033,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         passed: !!variantsStatus?.current && !!variantsStatus.passed,
         entryFields,
         save: variantAnswers.save,
-        saveError: variantAnswers.error,
+        saveErrors: variantAnswers.errors,
+        proofCaptures: captures.byUrl,
+        onRetryProof: (url) => captures.retry(url),
         mark: variantMark,
         onMark: (url) => {
           const i = board.cards.findIndex((c) => c.url === url);
@@ -1196,6 +1198,12 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
                 setPopover({ url: selectedUrl, box, at, mode: 'pick' });
               }}
               onOverlay={(o, at) => {
+                // In variant mark mode an outlined field's element is a click on the page like any other.
+                if (variantMark && variantMark.url === selectedUrl) {
+                  const xpath = boxes[o.box]?.xpaths[0];
+                  if (xpath) setVariantMark({ url: selectedUrl, xpath });
+                  return;
+                }
                 const info = overlayInfo.get(o.key);
                 if (!info) return;
                 setPopover({ url: selectedUrl, box: o.box, at, mode: info.kind, key: info.fieldKey });
