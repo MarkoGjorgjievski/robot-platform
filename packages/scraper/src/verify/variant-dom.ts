@@ -11,8 +11,16 @@ export type VariantPicker = { axis: string; options: string[] };
 
 /** A variant-like control: class/id/data-* name-or-value/aria-label matching one of these words. */
 const CONTROL_PATTERN = 'variant|swatch|colou?r|size|option|style|length|material';
-/** A control inside (or itself matching) one of these is never a product's own variant picker. */
-const EXCLUDE_PATTERN = 'related|recommend|also|similar|recently|upsell|cross-?sell|breadcrumb|filter|facet|sort|refine|pagination|tabs?';
+/** A control inside (or itself matching) one of these is never a product's own variant picker — matched as a substring. */
+const EXCLUDE_PATTERN = 'related|recommend|also|similar|recently|upsell|cross-?sell|breadcrumb';
+/**
+ * Also never a variant picker if a class/id TOKEN (split on whitespace, `-`, `_`; camelCase not
+ * split) is exactly one of these. Unlike EXCLUDE_PATTERN, these are common enough fragments of
+ * ordinary words (filter -> "size-table", sort -> "assorted-grid", tabs -> "comfortable-fit",
+ * "variant-table") that matching them as a substring wrongly excludes those controls (controller
+ * ruling, fix round 2) — so they get their own regex, anchored to token boundaries.
+ */
+const EXCLUDE_TOKEN_PATTERN = '(^|[\\s_-])(filter|facet|sort|refine|pagination|tabs?)([\\s_-]|$)';
 
 // ---- Everything below runs INSIDE the page: stringified via toString() into the scripts at the
 // bottom of this file, each bound in the template to a `const` of the SAME name it is declared
@@ -35,14 +43,17 @@ function isVariantControl(el: Element, controlRe: RegExp): boolean {
   return false;
 }
 
-/** Inside nav/header/footer, or any ancestor (self included) whose class/id matches excludeRe. */
-function isExcluded(el: Element, excludeRe: RegExp): boolean {
+/**
+ * Inside nav/header/footer, or any ancestor (self included) whose class/id matches excludeRe
+ * (substring) or excludeTokenRe (whole token only — see EXCLUDE_TOKEN_PATTERN).
+ */
+function isExcluded(el: Element, excludeRe: RegExp, excludeTokenRe: RegExp): boolean {
   if (el.closest('nav,header,footer')) return true;
   let cur: Element | null = el;
   while (cur) {
     const cls = cur.getAttribute('class');
     const id = cur.getAttribute('id');
-    if ((cls && excludeRe.test(cls)) || (id && excludeRe.test(id))) return true;
+    if ((cls && (excludeRe.test(cls) || excludeTokenRe.test(cls))) || (id && (excludeRe.test(id) || excludeTokenRe.test(id)))) return true;
     cur = cur.parentElement;
   }
   return false;
@@ -273,6 +284,7 @@ export function buildVariantLinksScript(pageUrl: string): string {
     ${PAGE_SCRIPT_PRELUDE}
     const controlRe = /${CONTROL_PATTERN}/i;
     const excludeRe = /${EXCLUDE_PATTERN}/i;
+    const excludeTokenRe = /${EXCLUDE_TOKEN_PATTERN}/i;
     const pageUrl = ${JSON.stringify(pageUrl)};
     const isVariantControl = ${isVariantControl.toString()};
     const isExcluded = ${isExcluded.toString()};
@@ -286,7 +298,7 @@ export function buildVariantLinksScript(pageUrl: string): string {
     const candidates = [];
     for (const el of all) {
       if (!isVariantControl(el, controlRe)) continue;
-      if (isExcluded(el, excludeRe)) continue;
+      if (isExcluded(el, excludeRe, excludeTokenRe)) continue;
       if (isHidden(el)) continue;
       const seen = new Map();
       for (const a of el.querySelectorAll('a[href]')) {
@@ -325,6 +337,7 @@ export function buildVariantPickerScript(): string {
     ${PAGE_SCRIPT_PRELUDE}
     const controlRe = /${CONTROL_PATTERN}/i;
     const excludeRe = /${EXCLUDE_PATTERN}/i;
+    const excludeTokenRe = /${EXCLUDE_TOKEN_PATTERN}/i;
     const isVariantControl = ${isVariantControl.toString()};
     const isExcluded = ${isExcluded.toString()};
     const isHidden = ${isHidden.toString()};
@@ -341,7 +354,7 @@ export function buildVariantPickerScript(): string {
     const candidates = [];
     for (const el of all) {
       if (!isVariantControl(el, controlRe)) continue;
-      if (isExcluded(el, excludeRe)) continue;
+      if (isExcluded(el, excludeRe, excludeTokenRe)) continue;
       if (isHidden(el)) continue;
       for (const picker of findPickersIn(el, controlRe, labelForMap)) candidates.push({ controlEl: el, picker });
     }

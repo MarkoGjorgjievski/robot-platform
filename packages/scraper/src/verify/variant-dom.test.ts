@@ -73,6 +73,18 @@ describe('exclusion', () => {
     const pickers = await browser.setContentEvaluate<VariantPicker[]>(filterHtml, buildVariantPickerScript());
     expect(pickers).toEqual([]);
   });
+
+  it('does not exclude a control merely because its class contains one of those words as a substring (fix round 2)', async () => {
+    const substringHtml = `<html><body>
+      <div class="size-table">
+        <a href="/p/shoe?size=8">8</a>
+        <a href="/p/shoe?size=9">9</a>
+      </div>
+    </body></html>`;
+    const links = await browser.setContentEvaluate<VariantLinks[]>(substringHtml, buildVariantLinksScript('https://s.example/p/shoe'));
+    expect(links).toHaveLength(1);
+    expect(links[0]!.links.map((l) => l.label)).toEqual(['8', '9']);
+  });
 });
 
 describe('radio-group pickers (fix round 1, #1 and #2)', () => {
