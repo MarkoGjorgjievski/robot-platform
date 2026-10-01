@@ -116,27 +116,41 @@ function shopPage(pathname: string): { type: string; body: string | Buffer } | n
   if (/^\/(i|img)\/[\w.-]+$/.test(pathname)) return { type: 'image/png', body: PIXEL };
   const product = PRODUCTS.find((p) => p.path === pathname);
   if (!product) return null;
-  const ld = [...product.page.structuredData.ldJson, variantGroup(product.path)]
+  // The product's own SKU, in its page data and on the page (the shop-example
+  // page keeps it in an empty element's attribute): what the SKU row reads.
+  const sku = /data-sku="([^"]+)"/.exec(product.page.html)?.[1] ?? '';
+  const group = variantGroup(product.path);
+  const ld = [...product.page.structuredData.ldJson.map((j, i) => (i === 0 ? { ...(j as object), sku } : j)), ...(group ? [group] : [])]
     .map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`)
     .join('');
-  return { type: 'text/html', body: product.page.html.replace('<html>', `<html><head><title>${product.title}</title>${ld}</head>`) };
+  const html = product.page.html.replace(`data-sku="${sku}"></span>`, `data-sku="${sku}">${sku}</span>`);
+  return { type: 'text/html', body: html.replace('<html>', `<html><head><title>${product.title}</title>${ld}</head>`) };
 }
 
 /**
- * Every product comes in two colours, said the way a shop's page data says it:
- * a `ProductGroup` whose `hasVariant` lists one entry per colour (spec
- * 2026-10-01 §3, "Listed in the page data"). The entries carry a colour and a
- * SKU only — no name, no price — so the Title and Price rows above still find
- * one value each.
+ * Products 1 and 2 come in colours — two and three — said the way a shop's
+ * page data says it: a `ProductGroup` whose `hasVariant` lists one entry per
+ * colour (spec 2026-10-01 §3, "Listed in the page data"). Product 3 has none.
+ * The entries carry a colour, a SKU and the product's own price, and no name —
+ * so the Title row above still finds one value each, and the variants' Price,
+ * SKU and Colour are there to be suggested when one variant is checked.
  */
-const VARIANT_COLOURS = ['Red', 'Blue'] as const;
+const VARIANT_COLOURS: Record<string, readonly string[]> = { '/p/1': ['Red', 'Blue'], '/p/2': ['Black', 'White', 'Grey'] };
 function variantGroup(productPath: string) {
+  const colours = VARIANT_COLOURS[productPath];
+  if (!colours) return null;
   const id = productPath.replace(/\W/g, '');
+  const price = PRODUCTS.find((p) => p.path === productPath)!.price.replace(/^\$/, '');
   return {
     '@context': 'https://schema.org',
     '@type': 'ProductGroup',
     variesBy: ['https://schema.org/color'],
-    hasVariant: VARIANT_COLOURS.map((color) => ({ '@type': 'Product', color, sku: `${id}-${color.toLowerCase()}` })),
+    hasVariant: colours.map((color) => ({
+      '@type': 'Product',
+      color,
+      sku: `${id}-${color.toLowerCase()}`,
+      offers: { '@type': 'Offer', price, priceCurrency: 'USD' },
+    })),
   };
 }
 
@@ -951,7 +965,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     const step = page.getByRole('region', { name: 'Variants' });
     await expect
       .poll(() => step.innerText().catch(() => ''), { timeout: 120_000, interval: 1000 })
-      .toContain('Listed in the page data: 2 colours on every product');
+      .toContain('Listed in the page data: 2 colours on product 1, 3 on product 2, none on product 3');
     expect(await page.getByRole('radio', { name: 'Listed in the page data', exact: true }).isChecked(), 'the suggestion is not preselected').toBe(true);
     const column = page.getByRole('combobox', { name: 'Column for Colour' });
     expect(await column.innerText(), 'a colour does not become a new Colour column').toContain('New column ‘Colour’');
@@ -984,6 +998,98 @@ describe.skipIf(!ENABLED)('app shell', () => {
 
     const unexpected = problems.filter((line) => !line.includes('status of 412'));
     expect(unexpected, `the refused delete logged errors:\n  ${unexpected.join('\n  ')}`).toEqual([]);
+  }, 300_000);
+
+  // Variants plan 2 (spec 2026-10-01 §4.1): the Variants row confirms each
+  // product's count and checks one variant. Free: everything here reads the
+  // captures already taken. Verify is read for its label, never pressed.
+  it('variants: the Variants row confirms the counts and checks one variant', async () => {
+    expect(websiteSlug, 'there is no website to confirm variants on').not.toBeNull();
+    problems.length = 0;
+
+    // 1. Two more variant-level fields: SKU (suggested from the list) and In
+    // stock (which the list does not carry — taken from the product page).
+    await page.goto(`${APP}/projects/${projectSlug}/fields`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+    for (const f of [{ name: 'SKU', type: 'Text' }, { name: 'In stock', type: 'Yes / no' }]) {
+      await page.getByRole('button', { name: `${f.name} ${f.type}`, exact: true }).click();
+      await page.getByRole('textbox', { name: `Name of ${f.name}` }).waitFor({ timeout: 20_000 });
+    }
+
+    // 2. Back on the website, every field is answered on every product, so
+    // Verify is only waiting on the variants.
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 90_000, interval: 1000 }).toBe(3);
+    for (const f of ['SKU', 'In stock']) {
+      for (let i = 1; i <= 3; i++) {
+        await expect.poll(async () => {
+          const state = await cellState(f, i);
+          if (state === 'suggested') {
+            const accept = page.getByRole('button', { name: `Accept ${f} on product ${i}`, exact: true });
+            if ((await accept.count()) === 1) await accept.click({ force: true });
+          }
+          return state;
+        }, { timeout: 30_000, message: `${f} on product ${i} could not be accepted` }).toBe('accepted');
+      }
+    }
+
+    // 3. The row: 2 and 3 colours found (orange), none on product 3 (grey).
+    const cell = (n: number) => page.locator(`[aria-label^="Variants on product ${n}: "]`);
+    await expect.poll(() => cell(1).getAttribute('aria-label'), { timeout: 30_000 }).toBe('Variants on product 1: 2 colours');
+    expect(await cell(2).getAttribute('aria-label')).toBe('Variants on product 2: 3 colours');
+    expect(await cell(3).getAttribute('aria-label')).toBe('Variants on product 3: No variants');
+    expect(await cell(1).getAttribute('class'), 'a found count is not orange').toContain('border-warn');
+    expect(await cell(3).getAttribute('class'), 'nothing found is not grey').toContain('border-line');
+    // Until every product's variants are confirmed, Verify does not offer them.
+    expect(await verifyButtonOf(page).innerText(), 'Verify offers variants nobody confirmed').not.toContain('and variants');
+
+    // 4. Tick both counts, and "No variants on this product" on product 3.
+    await page.getByRole('button', { name: 'Confirm the variants of product 1', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm the variants of product 2', exact: true }).click();
+    await page.getByRole('button', { name: 'No variants on product 3', exact: true }).click();
+    await expect.poll(() => cell(1).getAttribute('class'), { timeout: 20_000 }).toContain('border-pass');
+    await expect.poll(() => cell(2).getAttribute('class'), { timeout: 20_000 }).toContain('border-pass');
+    await expect.poll(() => cell(3).getAttribute('aria-label'), { timeout: 20_000 }).toBe('Variants on product 3: No variants on this product');
+
+    // 5. Expand: the first variant of each is checked. Accept its suggested
+    // Price, SKU and Colour, and take In stock from the product page.
+    await page.getByRole('rowheader', { name: /^Variants/ }).getByRole('button').click();
+    await expect.poll(() => page.locator('main').innerText(), { timeout: 20_000 }).toContain('Check this one');
+    for (const n of [1, 2]) {
+      for (const f of ['Price', 'SKU', 'Colour']) {
+        const accept = page.getByRole('button', { name: `Accept ${f} of the checked variant on product ${n}`, exact: true });
+        await accept.waitFor({ timeout: 20_000 });
+        await accept.click();
+      }
+      await page.getByRole('button', { name: `In stock of product ${n} from the product page`, exact: true }).click();
+    }
+
+    // 6. The answers reach the server (300 ms after the last change).
+    const api = apiAs(await sessionCookie(context));
+    const urlOf = (n: number) => `${SHOP}${PRODUCTS[n - 1]!.path}`;
+    type Stored = { variants?: Record<string, { count: number; spot?: { expected: Record<string, string>; fromProduct?: string[] } }> } | null;
+    const storedVariants = async () =>
+      ((await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).verificationSet as Stored)?.variants ?? {};
+    await expect
+      .poll(async () => {
+        const v = await storedVariants();
+        return [1, 2].every((n) => Object.keys(v[urlOf(n)]?.spot?.expected ?? {}).length === 3 && v[urlOf(n)]?.spot?.fromProduct?.length === 1);
+      }, { timeout: 20_000, message: 'the checked variants were not saved' })
+      .toBe(true);
+    const v = await storedVariants();
+    expect(v[urlOf(1)]?.count).toBe(2);
+    expect(v[urlOf(2)]?.count).toBe(3);
+    expect(v[urlOf(3)]?.count).toBe(0);
+    expect(v[urlOf(1)]?.spot?.expected, 'product 1 checked the wrong variant').toMatchObject({ sku: 'p1-red' });
+
+    // 7. Verify now names the variants. Read, never clicked.
+    await expect.poll(() => verifyButtonOf(page).innerText(), { timeout: 20_000 }).toMatch(/ and variants · /);
+    expect(await verifyButtonOf(page).isDisabled(), 'Verify is not live once the variants are checked').toBe(false);
+
+    await page.getByRole('rowheader', { name: /^Variants/ }).scrollIntoViewIfNeeded();
+    await shootViewportBothThemes(page, 'app-site-verification-variants-row');
+    expect(problems, `the Variants row logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 300_000);
 
   it('a rename on the Settings tab reaches the server and comes back', async () => {
