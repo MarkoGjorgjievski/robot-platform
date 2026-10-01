@@ -16,3 +16,4 @@ export * from './capture-check.js';
 export * from './proof-page-capture.js';
 export * from './suggest-marks.js';
 export * from './transfer-marks.js';
+export * from './variant-detect.js';
