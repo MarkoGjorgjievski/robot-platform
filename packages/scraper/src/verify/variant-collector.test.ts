@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
-import { buildLinksNearScript, certifyVariantLinks } from './variant-collector.js';
+import { buildLinksNearScript, certifyVariantLinks, normalizeVariantLink, normalizeVariantLinks } from './variant-collector.js';
 import type { CaptureLike } from './certify.js';
 import type { VariantAnswer } from './types.js';
 
@@ -35,6 +35,30 @@ describe('certifyVariantLinks', () => {
     const r = await certifyVariantLinks({ urls: U, captures: captures(), answers: a, noun: 'colours' }, { evalScript });
     expect(r.passed).toBe(false);
     expect(r.pages[U[1]!]).toEqual({ status: 'fail', message: 'found 3 of 4 colours on product 2' });
+  });
+  it('certifies swatches whose hrefs carry a fragment, whether the answer stored it or not', async () => {
+    const fragPage = (swatches: string[]) => page(swatches).replace(/href="(\/p\/shoe-[a-z]+)"/g, 'href="$1#main"');
+    const c = { [U[0]!]: cap(U[0]!, fragPage(['Black', 'Red'])), [U[1]!]: cap(U[1]!, fragPage(['Black', 'Red', 'White'])), [U[2]!]: cap(U[2]!, page([])) };
+    // Product 1's answer was stored before detection stripped fragments; product 2's is in the normal form.
+    const a = answers();
+    a[U[0]!] = { ...a[U[0]!]!, links: abs(['Black', 'Red']).map((h) => `${h}#main`) };
+    const r = await certifyVariantLinks({ urls: U, captures: c, answers: a, noun: 'colours' }, { evalScript });
+    expect(r.pages[U[0]!]).toEqual({ status: 'pass', count: 2 });
+    expect(r.pages[U[1]!]).toEqual({ status: 'pass', count: 3 });
+    expect(r.passed).toBe(true);
+  });
+  it('counts only the confirmed links found when the count matches but the links differ', async () => {
+    const a = answers();
+    a[U[0]!] = { count: 2, labels: ['Black', 'Blue'], links: abs(['Black', 'Blue']) };
+    const r = await certifyVariantLinks({ urls: U, captures: captures(), answers: a, noun: 'colours' }, { evalScript });
+    expect(r.pages[U[0]!]).toEqual({ status: 'fail', message: 'found 1 of 2 colours on product 1' });
+  });
+});
+
+describe('normalizeVariantLinks', () => {
+  it('strips the fragment and de-duplicates, keeping first-seen order', () => {
+    expect(normalizeVariantLinks(['https://s.example/p/a#x', 'https://s.example/p/b', 'https://s.example/p/a'])).toEqual(['https://s.example/p/a', 'https://s.example/p/b']);
+    expect(normalizeVariantLink(' https://s.example/p/a?c=red#top ')).toBe('https://s.example/p/a?c=red');
   });
 });
 

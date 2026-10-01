@@ -206,6 +206,29 @@ export function buildLinksNearScript(xpath: string, pageUrl: string): string {
   })()`;
 }
 
+/**
+ * The one normal form for a variant link, everywhere it is stored or
+ * compared: absolute, fragment stripped (the same form `resolveAgainst` gives
+ * in the page and detection's `resolveHref` stores). Answers stored before
+ * detection stripped fragments still compare equal through this. An href
+ * that does not parse is kept as given, trimmed.
+ */
+export function normalizeVariantLink(href: string): string {
+  const h = href.trim();
+  try {
+    const u = new URL(h);
+    u.hash = '';
+    return u.href;
+  } catch {
+    return h;
+  }
+}
+
+/** Every link in its normal form (`normalizeVariantLink`), de-duplicated, first-seen order. */
+export function normalizeVariantLinks(hrefs: string[]): string[] {
+  return [...new Set(hrefs.map(normalizeVariantLink))];
+}
+
 type PageInfo = { url: string; n: number; answer: VariantAnswer; capture: CaptureLike | null };
 
 function hrefSetsEqual(a: string[], b: Set<string>): boolean {
@@ -238,12 +261,17 @@ export async function certifyVariantLinks(
     return { passed: false, problem: NO_PRODUCT_HAS_VARIANTS, pages: out };
   }
 
+  // Every page's confirmed links in the one normal form (normalizeVariantLink), once: an answer
+  // stored with `#fragment` hrefs (before detection stripped them) still matches the in-page
+  // resolution, which strips the fragment too.
+  const linksOf = new Map<string, string[]>(pages.map((p) => [p.url, normalizeVariantLinks(p.answer.links ?? [])]));
+
   // Step 3: gather candidates across every page that has variants, first-seen order, de-duplicated.
   const candidates: string[] = [];
   const seenCandidates = new Set<string>();
   for (const p of withVariants) {
     if (!p.capture || !p.answer.links) continue;
-    const found = await evalScript<string[]>(p.capture.html, buildCollectorCandidatesScript(p.answer.links, p.url));
+    const found = await evalScript<string[]>(p.capture.html, buildCollectorCandidatesScript(linksOf.get(p.url)!, p.url));
     for (const xp of found) {
       if (!seenCandidates.has(xp)) { seenCandidates.add(xp); candidates.push(xp); }
     }
@@ -263,7 +291,7 @@ export async function certifyVariantLinks(
   const fitsPage = (idx: number, p: PageInfo): boolean => {
     const hrefs = hrefsByUrl.get(p.url)?.[idx] ?? [];
     if (p.answer.count === 0) return hrefs.length === 0;
-    return hrefSetsEqual(hrefs, new Set(p.answer.links ?? []));
+    return hrefSetsEqual(hrefs, new Set(linksOf.get(p.url)!));
   };
 
   let chosenIdx = -1;
@@ -284,11 +312,16 @@ export async function certifyVariantLinks(
   if (chosenIdx >= 0) {
     for (const p of captured) {
       if (fitsPage(chosenIdx, p)) continue;
-      const k = hrefsByUrl.get(p.url)?.[chosenIdx]?.length ?? 0;
+      const found = hrefsByUrl.get(p.url)?.[chosenIdx] ?? [];
+      const k = found.length;
+      // "found {k} of {count}" counts the confirmed links actually found, not every link read:
+      // the same number of links with different members is k of count, never "found 4, expected 4".
+      const confirmed = new Set(linksOf.get(p.url)!);
+      const matched = found.filter((h) => confirmed.has(h)).length;
       if (p.answer.count === 0) failures[p.url] = `product ${p.n} lists ${k} ${noun} — confirm them`;
       else if (k === 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
-      else if (k < p.answer.count) failures[p.url] = `found ${k} of ${p.answer.count} ${noun} on product ${p.n}`;
-      else failures[p.url] = `found ${k} ${noun} on product ${p.n}, expected ${p.answer.count}`;
+      else if (k > p.answer.count) failures[p.url] = `found ${k} ${noun} on product ${p.n}, expected ${p.answer.count}`;
+      else failures[p.url] = `found ${matched} of ${p.answer.count} ${noun} on product ${p.n}`;
     }
   } else {
     // No candidate at all: nothing can be read, same as every candidate reading empty.

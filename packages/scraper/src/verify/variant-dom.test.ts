@@ -26,6 +26,27 @@ describe('buildVariantLinksScript', () => {
   });
 });
 
+describe('buildVariantLinksScript — one normal form for links', () => {
+  it('returns absolute, fragment-free hrefs, and two hrefs differing only by fragment are one link', async () => {
+    const fragHtml = `<html><body>
+      <div class="product-swatches" aria-label="Colour">
+        <a href="/p/shoe?color=black#pdp">Black</a>
+        <a href="/p/shoe?color=red#main">Red</a>
+        <a href="/p/shoe?color=red">Red again</a>
+        <a href="/p/shoe?color=white#pdp">White</a>
+      </div>
+    </body></html>`;
+    const links = await browser.setContentEvaluate<VariantLinks[]>(fragHtml, buildVariantLinksScript('https://s.example/p/shoe?color=black'));
+    expect(links).toHaveLength(1);
+    expect(links[0]!.links.map((l) => l.href)).toEqual([
+      'https://s.example/p/shoe?color=black',
+      'https://s.example/p/shoe?color=red',
+      'https://s.example/p/shoe?color=white',
+    ]);
+    expect(links[0]!.count).toBe(3);
+  });
+});
+
 describe('buildVariantPickerScript', () => {
   it('finds the size picker', async () => {
     const pickers = await browser.setContentEvaluate<VariantPicker[]>(html, buildVariantPickerScript());
