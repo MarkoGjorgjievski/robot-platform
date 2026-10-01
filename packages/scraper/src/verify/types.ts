@@ -14,6 +14,24 @@ export type ConfirmedPath = { source: 'api' | 'json-ld' | 'meta'; path: string }
 
 export type Mark = { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } };
 
+/** A variant list the customer confirmed on a proof page: the source container and the dot path to the array within it (variant-detect.ts VariantList). */
+export type VariantListRef = { source: 'json-ld' | 'api'; path: string };
+
+/** What the customer confirmed about a product's variants on one proof page (spec 2026-10-01 §3). */
+export type VariantAnswer = {
+  count: number;                     // 0 = "No variants on this product"
+  labels: string[];                  // one per variant, as confirmed ("Black/Red · 10C", or the link's label)
+  list?: VariantListRef;             // list method: the list the customer confirmed
+  links?: string[];                  // links method: the confirmed variant hrefs, absolute
+  spot?: {
+    index: number;                   // list: which entry was checked (0-based); links: 0
+    url?: string;                    // links: the variant page captured for the check
+    expected: Record<string, string>;// list: entry-field key → value as confirmed
+    paths?: Record<string, string>;  // list: entry-field key → the entry path of an accepted suggestion
+    fromProduct?: string[];          // list: entry-field keys the list does not carry
+  };
+};
+
 export type VerificationSet = {
   urls: string[];                                   // VERIFY_URL_MIN to VERIFY_URL_MAX proof pages
   expected: Record<string, Record<string, string>>; // fieldKey → url → as typed
@@ -24,6 +42,8 @@ export type VerificationSet = {
   paths?: Record<string, Record<string, ConfirmedPath>>;
   /** What the Verification tab shows for each product page: its title and image from the listing. Display only — no hash reads it. */
   cards?: Array<{ url: string; title: string; image?: string }>;
+  /** proof url → what the customer confirmed about that product's variants (spec 2026-10-01 §3). Absent on sets written before variants existed. */
+  variants?: Record<string, VariantAnswer>;
 };
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';

@@ -18,3 +18,4 @@ export * from './suggest-marks.js';
 export * from './transfer-marks.js';
 export * from './variant-detect.js';
 export * from './variant-dom.js';
+export * from './variant-certify.js';
