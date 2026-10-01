@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { DeleteFieldDialog } from './delete-field-dialog';
-import { FIELD_TYPES, LEVEL_LABELS, TYPE_LABELS, nameRefusal, sharedNote, type FieldLevel, type FieldType, type FieldView } from '../../lib/fields-view';
+import { FIELD_TYPES, LEVEL_LABELS, TYPE_LABELS, levelToSend, nameRefusal, sharedNote, type FieldLevel, type FieldType, type FieldView } from '../../lib/fields-view';
 import { trpc } from '../../lib/trpc';
 
 /**
@@ -34,8 +34,8 @@ function failureMessage(error: unknown): string {
   return e?.data?.code === 'PRECONDITION_FAILED' && e.message ? e.message : GENERIC;
 }
 
-/** A field's level as `datasets.variants` reports it: `isDefault` while it is still the one its concept implies. */
-export type FieldLevels = Record<string, { level: FieldLevel; isDefault: boolean }>;
+/** A field's level as `datasets.variants` reports it: `isDefault` while it is still the one its concept implies (`defaultLevel`). */
+export type FieldLevels = Record<string, { level: FieldLevel; isDefault: boolean; defaultLevel: FieldLevel }>;
 
 export function FieldsTable({
   datasetId,
@@ -170,7 +170,7 @@ function FieldRow({
 }: {
   datasetId: string;
   field: FieldView;
-  level: { level: FieldLevel; isDefault: boolean } | undefined | null;
+  level: { level: FieldLevel; isDefault: boolean; defaultLevel: FieldLevel } | undefined | null;
   onDelete: () => void;
   onError: (message: string | null) => void;
   onSettled: () => Promise<void>;
@@ -230,7 +230,8 @@ function FieldRow({
   async function commitLevel(next: FieldLevel) {
     onError(null);
     try {
-      await setLevel.mutateAsync({ datasetId, key: field.key, level: next });
+      // The level the field's kind implies goes back as "default" (null), not as a pick.
+      await setLevel.mutateAsync({ datasetId, key: field.key, level: level ? levelToSend(next, level.defaultLevel) : next });
       await onSettled();
     } catch {
       onError(GENERIC);

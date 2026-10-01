@@ -234,3 +234,39 @@ export function setLine(state: Extract<VariantsStepState, { kind: 'set' }>): str
   const names = state.axes.map((a) => a.axisName);
   return `Variants: ${METHOD_SET_WORDS[state.method]}${names.length > 0 ? ` · ${names.join(', ')}` : ''}`;
 }
+
+/** The column-select value that asks for a new project column rather than an existing one. */
+export const NEW_COLUMN = '__new__';
+
+/**
+ * Where a found axis goes until the customer picks: on Change, the column the
+ * confirmed setup mapped it to, while that column still exists; else an
+ * existing column of the same name; else a new column.
+ */
+export function defaultTarget(a: { from: string; label: string }, axes: Array<{ key: string; name: string }>, setup: VariantSetup | null): string {
+  const stored = setup?.axes.find((x) => x.from === a.from)?.axisKey;
+  if (stored && axes.some((x) => x.key === stored)) return stored;
+  return axes.find((x) => x.name.trim().toLowerCase() === a.label.toLowerCase())?.key ?? NEW_COLUMN;
+}
+
+/** A new column's name: the axis label, or "<Label> (variant)" when a field or column of the project already has that name (any case). */
+export function newColumnName(label: string, taken: string[]): string {
+  const lower = label.trim().toLowerCase();
+  return taken.some((n) => n.trim().toLowerCase() === lower) ? `${label} (variant)` : label;
+}
+
+/**
+ * What `sources.setVariantSetup` is sent. Two axes that become the same new
+ * column (`color` and `colour`, both "Colour") carry the same name, and the
+ * server makes that column once and maps both to it.
+ */
+export function axisMappings(
+  found: Array<{ from: string; label: string }>,
+  targetOf: (a: { from: string; label: string }) => string,
+  taken: string[],
+): Array<{ from: string; newAxisName: string } | { from: string; axisKey: string }> {
+  return found.map((a) => {
+    const t = targetOf(a);
+    return t === NEW_COLUMN ? { from: a.from, newAxisName: newColumnName(a.label, taken) } : { from: a.from, axisKey: t };
+  });
+}

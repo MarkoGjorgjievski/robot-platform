@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   METHOD_LABELS,
+  NEW_COLUMN,
+  axisMappings,
+  defaultTarget,
+  newColumnName,
   axesFor,
   axisLabel,
   axisPlural,
@@ -178,5 +182,37 @@ describe('variantsStepState', () => {
 
   it('the method labels are the customer words', () => {
     expect(METHOD_LABELS).toEqual({ list: 'Listed in the page data', links: 'Linked as separate pages', none: 'No variants on this website' });
+  });
+});
+
+describe('column targets', () => {
+  const colour = { from: 'color', label: 'Colour' };
+  const axes = [{ key: 'hue', name: 'Hue' }, { key: 'colour', name: 'Colour' }];
+
+  it('an existing column of the same name, else a new one', () => {
+    expect(defaultTarget(colour, axes, null)).toBe('colour');
+    expect(defaultTarget(colour, [{ key: 'hue', name: 'Hue' }], null)).toBe(NEW_COLUMN);
+  });
+
+  it('on Change, the stored mapping while its column still exists', () => {
+    const setup = { method: 'list' as const, axes: [{ from: 'color', axisKey: 'hue' }], confirmedAt: '2026-10-01T00:00:00Z' };
+    expect(defaultTarget(colour, axes, setup)).toBe('hue');
+    expect(defaultTarget(colour, [{ key: 'colour', name: 'Colour' }], setup)).toBe('colour'); // "hue" is gone: by name
+    expect(defaultTarget(colour, [], setup)).toBe(NEW_COLUMN);
+  });
+
+  it('a new column whose name a field or column already has is called "<Name> (variant)"', () => {
+    expect(newColumnName('Colour', ['Price', 'Size'])).toBe('Colour');
+    expect(newColumnName('Colour', ['Price', ' colour '])).toBe('Colour (variant)');
+  });
+
+  it('two axes that become the same new column send the same name, so it is made once', () => {
+    const found = [{ from: 'color', label: 'Colour' }, { from: 'colour', label: 'Colour' }, { from: 'size', label: 'Size' }];
+    const target = (a: { from: string }) => (a.from === 'size' ? 'size_key' : NEW_COLUMN);
+    expect(axisMappings(found, target, ['Colour'])).toEqual([
+      { from: 'color', newAxisName: 'Colour (variant)' },
+      { from: 'colour', newAxisName: 'Colour (variant)' },
+      { from: 'size', axisKey: 'size_key' },
+    ]);
   });
 });
