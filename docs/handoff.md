@@ -8,9 +8,11 @@ type: project
 
 ## Read this first
 
-**Newest: [Certification picks the right path (2026-09-29)](#certification-picks-the-right-path-2026-09-29).** A yes/no field, or one whose proof pages share a value, now certifies only on a path the customer confirmed, an element they marked, or a structured path named for it — Ikea's In stock stands on `offers.availability`, no longer on `priority`. Images match on host and path. On Ikea: **7 clicks** to Verify (was 24), 8 of 8 verified, free. The read-only audit flags one existing website for the customer to re-verify (Competitor prices / Ikea — In stock); nothing is re-certified automatically. Next: variants, a design of their own.
+**Newest: [Variants plan 1 (2026-10-01)](#variants-plan-1-2026-10-01).** A project can turn variants on (Fields page: No variants / One row per variant / One row per product, variants listed inside), each field says whether it differs per variant, and a website's Verification tab has a Variants step that reads the proof pages' screenshots — free — says how the site shows its variants ("Listed in the page data: 2 colours on every product") and records the method and its columns. Nothing is verified or extracted per variant yet: plan 2 verifies, plan 3 extracts. On branch `feat/variants-contract`, not merged.
 
-**Before it: [Table-first verification (2026-09-28)](#table-first-verification-2026-09-28).** The Verification tab is one table — a row per field, a column per product, Accept all agreed above it, a cell click opens the screenshot. On Ikea it took 24 clicks to Verify (plan 5: 43) and verified 8 of 8, free; three defects the live check found are fixed. Next: Part B of the same spec, drift repair. The Jev shadow-checks design is parked, not scheduled.
+**Before it: [Certification picks the right path (2026-09-29)](#certification-picks-the-right-path-2026-09-29).** A yes/no field, or one whose proof pages share a value, now certifies only on a path the customer confirmed, an element they marked, or a structured path named for it — Ikea's In stock stands on `offers.availability`, no longer on `priority`. Images match on host and path. On Ikea: **7 clicks** to Verify (was 24), 8 of 8 verified, free. The read-only audit flags one existing website for the customer to re-verify (Competitor prices / Ikea — In stock); nothing is re-certified automatically. Next: variants, a design of their own.
+
+**Earlier: [Table-first verification (2026-09-28)](#table-first-verification-2026-09-28).** The Verification tab is one table — a row per field, a column per product, Accept all agreed above it, a cell click opens the screenshot. On Ikea it took 24 clicks to Verify (plan 5: 43) and verified 8 of 8, free; three defects the live check found are fixed. Next: Part B of the same spec, drift repair. The Jev shadow-checks design is parked, not scheduled.
 
 **Before that: [App redesign, plan 5 — the Verification tab (2026-09-25)](#app-redesign-plan-5-the-verification-tab-2026-09-25).** A website's first tab is now Verification (find products from a listing, point at values, tick suggestions, verify); the grid and the stepper are gone from `@robot/app`. Ikea — its six stored fields plus SKU and Brand — verifies 8 of 8 through it, live and free. Plans 1–4 of the app redesign follow it below; the state paragraph under this one is older.
 
@@ -39,6 +41,42 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Variants plan 1 (2026-10-01)
+
+Spec: `docs/superpowers/specs/2026-10-01-variants-design.md` (§2 the contract, §3 the website's
+Variants step). Plan: `docs/superpowers/plans/2026-10-01-variants-plan1-contract-and-detection.md`
+(spec §8 item 1). Branch `feat/variants-contract`, base `main` at `e59c884`; `git log --oneline
+e59c884..HEAD` is the record. Why: a product page often stands for several products (colours,
+sizes), and until now the engine collected one row per page whatever it showed.
+
+**What landed:**
+
+| Commits | What |
+|---|---|
+| `e315bbf`, `bb88a02`, `c5a430c` | Migration `0012_variants.sql`: `datasets.variant_mode` (default `ignore`, so every existing project is unchanged) and `sources.variant_setup` (null). A field's level (`product` / `variant`, defaulting by concept — price, SKU, stock, image… are variant), and axis columns (`kind: 'axis'` entries on the dataset schema, never returned by `contractFields`, so nothing that verifies fields sees them). `datasets.variants / setVariantMode / setFieldLevel / addAxis / renameAxis / deleteAxis`; deleting a column a website maps to is refused naming the website ("Nike uses Colour"); turning variants off deletes nothing. |
+| `30e360b`, `50c0233` | `@robot/scraper` `detectVariantLists`: variants listed in a capture's page data — JSON-LD `hasVariant`, a `Product.offers[]` list with a SKU or price per entry (also inside `@graph` and `AggregateOffer`), an API body's `variants[]`-like array. Pure, no browser. |
+| `f50f436`, `e3a601b`, `2d68a01` | In-page scripts: groups of variant links (same-site links near a swatch/option control) and pickers (select, radio group, button group), with exclusion words for filters, sorts, related products. |
+| `574b2ee`, `74d08e7` | `sources.detectVariants` (reads the proof pages' stored captures — no page load, no model, free) and `sources.setVariantSetup` (the method plus each detected axis mapped to an existing column or a new one, minted under the same locks as `deleteAxis`); `sources.get` returns `variantSetup`. |
+| `401912c` | `@robot/app`: the Fields page's **Variants** panel (No variants / One row per variant / One row per product, variants listed inside; the variant columns, renamed in place or deleted) and, while variants are on, a **Variants** column in the field list ("Same for every variant" / "Differs per variant", marked *default* until changed). The Verification tab's **Variants** step under the table: "Find products first" / "Wait for the screenshots", then what the captures show ("Listed in the page data: 2 colours on every product", "Linked as separate pages: 4 colour links per product", "Only in a picker on the page: sizes — not collected in this version"), the method preselected to the suggestion, each detected axis → "becomes column" (an existing column or New column 'Colour'), **Confirm**; once set, one line ("Variants: listed in the page data · Colour") with **Change**. View logic: `lib/site/variants-view.ts`, `lib/fields-view.ts`. |
+
+**What it does not do yet.** Nothing is verified, certified or extracted per variant, and the step
+never holds Verify or Extract back. **Plan 2** (spec §4): verifying and certifying the variant
+paths on the proof pages, and gating Verify on a confirmed setup. **Plan 3** (spec §5): extraction
+at scale — a row per variant (list method: one page load; links method: one per variant page,
+counted against the budget), `product_key` / `variant_key`, and the export shapes.
+
+**How to see it, free.** `pnpm test:ui:app` with `pnpm dev:all` up: the smoke's local shop now
+serves each product with a two-colour `hasVariant` block; after the Verification walk it turns
+variants on in the throwaway project, sees the levels, confirms the website's step with a new
+Colour column, reloads to the set line, and has the column's delete refused with the website
+named. It never clicks Verify. Screens: `docs/testing/screens/app-project-fields-variants-*.png`,
+`app-site-verification-variants-found-*.png`, `app-site-verification-variants-set-*.png`. By hand:
+turn variants on for a project of your own on its Fields page, open a website whose screenshots
+have landed, and read the Variants step under the table — the detection itself is free.
+
+**Wording.** The screen never says "axis": the Fields panel calls axes **Variant columns** (the
+plan said "Axes"; the constraints forbid the word on screen).
 
 ## Certification picks the right path (2026-09-29)
 
