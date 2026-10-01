@@ -89,6 +89,9 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
     if (Object.keys(perUrl).length) paths[f.key] = perUrl;
   }
   const cards = input.cards?.filter((c) => input.urls.includes(c.url));
+  // `BindingInput` carries no `variants` field — the fields' autosave never answers for a
+  // website's variants — so this never emits one; `sources.updateBinding` (plan 2 task 3) carries
+  // the prior `verificationSet.variants` forward itself, under a row lock, right before its write.
   return {
     fields,
     verificationSet: {
