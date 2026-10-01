@@ -254,6 +254,33 @@ describe('sources.setVariantSetup', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('stores the trimmed "from"', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'variants-trim', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const r = await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: '  size ', newAxisName: 'Size' }] });
+      expect(r.axes[0]!.from).toBe('size');
+      const row = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+      expect((row!.variantSetup as { axes: Array<{ from: string }> }).axes[0]!.from).toBe('size');
+    } finally { await f.cleanup(); }
+  });
+
+  it('two entries naming the same new column (any case) create it once and map both', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'variants-samenew', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const r = await caller.sources.setVariantSetup({
+        sourceId: f.sourceId,
+        method: 'list',
+        axes: [{ from: 'color', newAxisName: 'Colour' }, { from: 'colour', newAxisName: 'colour' }],
+      });
+      expect(r.axes).toHaveLength(2);
+      expect(r.axes[0]!.axisKey).toBe(r.axes[1]!.axisKey);
+      const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, f.datasetId) });
+      const axes = (ds!.schema as Array<Record<string, unknown>>).filter((e) => e.kind === 'axis');
+      expect(axes).toHaveLength(1);
+      expect(axes[0]).toMatchObject({ name: 'Colour', key: r.axes[0]!.axisKey });
+    } finally { await f.cleanup(); }
+  });
+
   it('sources.get returns the stored variantSetup', async () => {
     const f = await createProjectWithSource(caller, { tag: 'variants-get', fields: [{ name: 'Price', type: 'money' }] });
     try {

@@ -40,6 +40,11 @@ export function contractFields(schema: unknown): ContractField[] {
   return schema.filter((f): f is ContractField => !isAxis(f) && !!f && typeof f === 'object' && typeof (f as ContractField).key === 'string' && (f as ContractField).key.length > 0);
 }
 
+/** The raw dataset schema minus its axis entries — for callers that read every entry as a field (the old dashboard, the legacy effective-schema branch). A non-array schema is returned as is. */
+export function withoutAxes<T>(schema: T): T {
+  return (Array.isArray(schema) ? schema.filter((f) => !isAxis(f)) : schema) as T;
+}
+
 /** The dataset schema's axis entries (spec 2026-10-01 §2), in storage order. */
 export function contractAxes(schema: unknown): ContractAxis[] {
   if (!Array.isArray(schema)) return [];

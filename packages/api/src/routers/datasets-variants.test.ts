@@ -49,7 +49,7 @@ describe('variants on the contract', () => {
     const v = await caller.datasets.variants({ datasetId: p.datasetId });
     expect(v.mode).toBe('ignore');
     expect(v.axes).toEqual([a]);
-    expect(v.fields.find((f) => f.name === 'Price')).toMatchObject({ level: 'variant', levelIsDefault: true });
+    expect(v.fields.find((f) => f.name === 'Price')).toMatchObject({ level: 'variant', levelIsDefault: true, defaultLevel: 'variant' });
   });
 
   it('a field level can be set and reset to its default', async () => {
@@ -64,7 +64,7 @@ describe('variants on the contract', () => {
     const reset = await caller.datasets.setFieldLevel({ datasetId: p.datasetId, key: f.key, level: null });
     expect(reset.level).toBe('product'); // brand has no variant concept: defaults to product
     v = await caller.datasets.variants({ datasetId: p.datasetId });
-    expect(v.fields.find((x) => x.key === f.key)).toMatchObject({ level: 'product', levelIsDefault: true });
+    expect(v.fields.find((x) => x.key === f.key)).toMatchObject({ level: 'product', levelIsDefault: true, defaultLevel: 'product' });
   });
 
   it('an axis name may not repeat a field or another axis', async () => {
@@ -130,6 +130,36 @@ describe('datasets.updateSchema preserves axes and levels it does not know about
     const schema = ds?.schema as Array<Record<string, unknown>>;
     expect(schema.find((e) => e.key === f.key)).toMatchObject({ key: f.key, level: 'product', origin: 'detail' });
     expect(schema.find((e) => e.key === axis.key)).toEqual(axis);
+  });
+
+  it('round-trips exactly what getBySlug returned (the old dashboard\'s save), axes kept but never shown', async () => {
+    const p = await project(`${tag} roundtrip`);
+    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
+    const axis = await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Colour' });
+    const row = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!;
+
+    const got = await caller.datasets.getBySlug({ orgSlug: 'default', projectSlug: p.slug, datasetSlug: row.slug });
+    const shown = got.schema as Array<Record<string, unknown>>;
+    expect(shown.map((e) => e.key)).toEqual([f.key]);
+    const listed = await caller.datasets.listByProject({ projectId: p.id });
+    expect((listed[0]!.schema as Array<Record<string, unknown>>).map((e) => e.key)).toEqual([f.key]);
+
+    await caller.datasets.updateSchema({ datasetId: p.datasetId, schema: shown.map((e) => ({ ...e, origin: 'listing' })) as never });
+    const after = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!.schema as Array<Record<string, unknown>>;
+    expect(after.find((e) => e.key === f.key)).toMatchObject({ origin: 'listing' });
+    expect(after.find((e) => e.key === axis.key)).toEqual(axis);
+  });
+
+  it('accepts and discards axis entries a caller posts back, keeping the stored axes', async () => {
+    const p = await project(`${tag} postaxis`);
+    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
+    const axis = await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Colour' });
+    const raw = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!.schema as Array<Record<string, unknown>>;
+
+    await caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [...raw, { key: 'bogus', name: 'Bogus', kind: 'axis', concept: 'axis' }] as never });
+    const after = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!.schema as Array<Record<string, unknown>>;
+    expect(after.filter((e) => e.kind === 'axis')).toEqual([axis]);
+    expect(after.find((e) => e.key === f.key)).toBeTruthy();
   });
 });
 
