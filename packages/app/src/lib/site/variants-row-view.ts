@@ -35,6 +35,37 @@ export type VariantCell =
   | { kind: 'confirmed-none'; text: string }                // green — "No variants on this product"
   | { kind: 'failed'; text: string };                       // red — the page's message, after Verify
 
+/**
+ * Whether an answer fits the website's method (final review I3): a product
+ * with variants answered for the list method carries the list it was
+ * confirmed against, and one answered for the links method carries its
+ * links. An answer given under the other method does not, and counts as
+ * unanswered here — its cell shows what the capture finds again, and the
+ * Verify bar asks for every product to be confirmed. "No variants on this
+ * product" (count 0) fits either method.
+ */
+export function answerFitsMethod(method: 'list' | 'links', answer: VariantAnswer): boolean {
+  if (answer.count <= 0) return true;
+  return method === 'list' ? !!answer.list : !!answer.links && answer.links.length > 0;
+}
+
+/** The answers that fit the method (`answerFitsMethod`); the rest are left out, as if never given. */
+export function fittingAnswers(method: 'list' | 'links', answers: Record<string, VariantAnswer>): Record<string, VariantAnswer> {
+  return Object.fromEntries(Object.entries(answers).filter(([, a]) => answerFitsMethod(method, a)));
+}
+
+/**
+ * List "Not right?" (final review M4): the answer that re-confirms the same
+ * list as it reads now, when its count has changed since it was confirmed —
+ * null when there is nothing to re-confirm (no list, or the count is
+ * unchanged). The checked variant is dropped with the old count, the same
+ * way `confirmAnswer` drops it when the list changes.
+ */
+export function reuseListAnswer(answer: VariantAnswer | undefined, listed: { count: number; labels: string[] } | null | undefined): VariantAnswer | null {
+  if (!answer?.list || !listed || listed.count === answer.count) return null;
+  return { count: listed.count, labels: listed.labels, list: answer.list };
+}
+
 /** The plural word for this website's variants (Global Constraints): the first mapped axis's name, lower-cased, with "s" added; "variants" with no mapped axis. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). */
 export function variantNoun(axisNames: string[]): string {
   const first = axisNames[0];
@@ -62,7 +93,7 @@ function detectedOn(method: 'list' | 'links', page: DetectResult['pages'][number
 
 /**
  * Per-url cell state (Rules): a current result's fail beats everything; else
- * an answer is `confirmed`/`confirmed-none`; else what the capture shows,
+ * an answer that fits the method (`answerFitsMethod`) is `confirmed`/`confirmed-none`; else what the capture shows,
  * `found`/`none-found`, or `waiting` with no capture yet. A stale
  * (non-current) result's fail is ignored — the answer, or the capture, shows
  * through instead.
@@ -84,7 +115,7 @@ export function variantCells(args: {
     }
 
     const answer = answers[url];
-    if (answer) {
+    if (answer && answerFitsMethod(method, answer)) {
       out[url] =
         answer.count > 0
           ? { kind: 'confirmed', text: `${answer.count} ${noun}`, labels: answer.labels }
@@ -206,7 +237,8 @@ export type VariantsNeed = { kind: 'none' } | { kind: 'blocked'; reason: string 
 
 /**
  * What the Verify bar needs to know about variants (Rules, in order):
- * nothing required, setup missing, an unanswered product, a list-method
+ * nothing required, setup missing, an unanswered product (an answer that
+ * does not fit the method counts as unanswered), a list-method
  * product whose confirmed variant has an unchecked entry field, not current,
  * then current (`done`). `done` says nothing about whether the last check
  * passed — the route reads `passed` off the loaded status for that, the
@@ -220,7 +252,9 @@ export function variantsNeed(args: {
   const { variants, urls, answers, method, entryFieldKeys } = args;
   if (!variants) return { kind: 'none' };
   if (variants.required === 'setup-missing') return { kind: 'blocked', reason: "Set up this website's variants below" };
-  if (urls.some((u) => !answers[u])) return { kind: 'blocked', reason: 'Confirm the variants of every product' };
+  if (urls.some((u) => { const a = answers[u]; return !a || (method !== null && !answerFitsMethod(method, a)); })) {
+    return { kind: 'blocked', reason: 'Confirm the variants of every product' };
+  }
 
   if (method === 'list') {
     for (let i = 0; i < urls.length; i++) {

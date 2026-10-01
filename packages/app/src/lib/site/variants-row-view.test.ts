@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { variantCells, confirmAnswer, spotRows, variantsNeed, variantNoun, extractEnabled, type VariantAnswer, type VariantResultView } from './variants-row-view';
+import { variantCells, confirmAnswer, spotRows, variantsNeed, variantNoun, extractEnabled, answerFitsMethod, reuseListAnswer, type VariantAnswer, type VariantResultView } from './variants-row-view';
 import type { DetectResult } from './variants-view';
 
 const U = ['https://shop.example/a', 'https://shop.example/b', 'https://shop.example/c'];
+const L = { source: 'json-ld', path: 'hasVariant' };
 
 function page(url: string, over: Partial<DetectResult['pages'][number]> = {}): DetectResult['pages'][number] {
   return { url, captured: true, lists: [], links: [], pickers: [], ...over };
@@ -43,7 +44,7 @@ describe('variantCells', () => {
   });
 
   it('confirmed: an answer with variants', () => {
-    const answers: Record<string, VariantAnswer> = { [U[0]!]: { count: 2, labels: ['Black', 'Red'] } };
+    const answers: Record<string, VariantAnswer> = { [U[0]!]: { count: 2, labels: ['Black', 'Red'], list: L } };
     const cells = variantCells({ ...base, urls: [U[0]!], answers });
     expect(cells[U[0]!]).toEqual({ kind: 'confirmed', text: '2 colours', labels: ['Black', 'Red'] });
   });
@@ -62,7 +63,7 @@ describe('variantCells', () => {
 
   it('a stale (non-current) failure shows the answer, not the failure', () => {
     const result: VariantResultView = { passed: false, pages: { [U[0]!]: { status: 'fail', message: 'found 1 of 2 colours on product 1' } } };
-    const answers: Record<string, VariantAnswer> = { [U[0]!]: { count: 2, labels: ['Black', 'Red'] } };
+    const answers: Record<string, VariantAnswer> = { [U[0]!]: { count: 2, labels: ['Black', 'Red'], list: L } };
     const cells = variantCells({ ...base, urls: [U[0]!], answers, result, resultCurrent: false });
     expect(cells[U[0]!]).toEqual({ kind: 'confirmed', text: '2 colours', labels: ['Black', 'Red'] });
   });
@@ -191,8 +192,8 @@ describe('variantsNeed', () => {
 
   it('blocked: product 2 has a confirmed variant with an unchecked entry field', () => {
     const answers: Record<string, VariantAnswer> = {
-      [U[0]!]: { count: 1, labels: ['Black'], spot: { index: 0, expected: { colour: 'Black' } } },
-      [U[1]!]: { count: 1, labels: ['Red'] },
+      [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: { colour: 'Black' } } },
+      [U[1]!]: { count: 1, labels: ['Red'], list: L },
       [U[2]!]: { count: 0, labels: [] },
     };
     expect(variantsNeed({ ...base, answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({
@@ -202,8 +203,8 @@ describe('variantsNeed', () => {
 
   it('pending: every answer present and checked, not current', () => {
     const answers: Record<string, VariantAnswer> = {
-      [U[0]!]: { count: 1, labels: ['Black'], spot: { index: 0, expected: { colour: 'Black' } } },
-      [U[1]!]: { count: 1, labels: ['Red'], spot: { index: 0, expected: { colour: 'Red' } } },
+      [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: { colour: 'Black' } } },
+      [U[1]!]: { count: 1, labels: ['Red'], list: L, spot: { index: 0, expected: { colour: 'Red' } } },
       [U[2]!]: { count: 0, labels: [] },
     };
     expect(variantsNeed({ ...base, answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({ kind: 'pending' });
@@ -211,8 +212,8 @@ describe('variantsNeed', () => {
 
   it('done: current', () => {
     const answers: Record<string, VariantAnswer> = {
-      [U[0]!]: { count: 1, labels: ['Black'], spot: { index: 0, expected: { colour: 'Black' } } },
-      [U[1]!]: { count: 1, labels: ['Red'], spot: { index: 0, expected: { colour: 'Red' } } },
+      [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: { colour: 'Black' } } },
+      [U[1]!]: { count: 1, labels: ['Red'], list: L, spot: { index: 0, expected: { colour: 'Red' } } },
       [U[2]!]: { count: 0, labels: [] },
     };
     expect(variantsNeed({ ...base, answers, variants: { required: 'yes', current: true, passed: true } })).toEqual({ kind: 'done' });
@@ -245,5 +246,49 @@ describe('extractEnabled', () => {
 
   it('unlocked once variants are done and passed', () => {
     expect(extractEnabled({ current: true, allPassed: true, variants: { current: true, passed: true } })).toBe(true);
+  });
+});
+
+describe('an answer given under the other method (final review I3)', () => {
+  const lp = (url: string) => page(url, { lists: [{ source: 'json-ld', path: 'hasVariant', count: 2, axes: ['colour'], entries: [{ colour: 'Black' }, { colour: 'Red' }] }], links: [{ container: 'div.swatches', count: 2, links: [{ href: `${url}-black`, label: 'Black' }, { href: `${url}-red`, label: 'Red' }] }] });
+  const listAnswer: VariantAnswer = { count: 2, labels: ['Black', 'Red'], list: L };
+  const linksAnswer: VariantAnswer = { count: 2, labels: ['Black', 'Red'], links: [`${U[0]!}-black`, `${U[0]!}-red`] };
+
+  it('fits only its own method; no variants fits either', () => {
+    expect(answerFitsMethod('list', listAnswer)).toBe(true);
+    expect(answerFitsMethod('links', listAnswer)).toBe(false);
+    expect(answerFitsMethod('links', linksAnswer)).toBe(true);
+    expect(answerFitsMethod('list', linksAnswer)).toBe(false);
+    expect(answerFitsMethod('list', { count: 0, labels: [] })).toBe(true);
+    expect(answerFitsMethod('links', { count: 0, labels: [] })).toBe(true);
+  });
+
+  it('the cell shows what the capture finds again', () => {
+    const d = detection([lp(U[0]!)]);
+    const links = variantCells({ method: 'links', urls: [U[0]!], detection: d, answers: { [U[0]!]: listAnswer }, result: null, resultCurrent: false, noun: 'colours' });
+    expect(links[U[0]!]).toEqual({ kind: 'found', text: '2 colours', labels: ['Black', 'Red'] });
+    const list = variantCells({ method: 'list', urls: [U[0]!], detection: d, answers: { [U[0]!]: linksAnswer }, result: null, resultCurrent: false, noun: 'colours' });
+    expect(list[U[0]!]).toEqual({ kind: 'found', text: '2 colours', labels: ['Black', 'Red'] });
+  });
+
+  it('the Verify bar asks for every product to be confirmed', () => {
+    const answers: Record<string, VariantAnswer> = { [U[0]!]: listAnswer, [U[1]!]: { count: 0, labels: [] }, [U[2]!]: { count: 0, labels: [] } };
+    const variants = { required: 'yes' as const, current: false, passed: false };
+    expect(variantsNeed({ variants, urls: U, answers, method: 'links', entryFieldKeys: [] })).toEqual({ kind: 'blocked', reason: 'Confirm the variants of every product' });
+    const linksAnswers = { ...answers, [U[0]!]: linksAnswer };
+    expect(variantsNeed({ variants, urls: U, answers: linksAnswers, method: 'list', entryFieldKeys: [] })).toEqual({ kind: 'blocked', reason: 'Confirm the variants of every product' });
+    expect(variantsNeed({ variants, urls: U, answers: linksAnswers, method: 'links', entryFieldKeys: [] })).toEqual({ kind: 'pending' });
+  });
+});
+
+describe('reuseListAnswer (final review M4)', () => {
+  const a: VariantAnswer = { count: 4, labels: ['a', 'b', 'c', 'd'], list: L, spot: { index: 1, expected: { colour: 'b' } } };
+  it('re-confirms the same list at its new count, dropping the checked variant', () => {
+    expect(reuseListAnswer(a, { count: 3, labels: ['a', 'b', 'c'] })).toEqual({ count: 3, labels: ['a', 'b', 'c'], list: L });
+  });
+  it('offers nothing when the count is unchanged, the list is not read yet, or there is no list', () => {
+    expect(reuseListAnswer(a, { count: 4, labels: ['a', 'b', 'c', 'd'] })).toBeNull();
+    expect(reuseListAnswer(a, undefined)).toBeNull();
+    expect(reuseListAnswer({ count: 0, labels: [] }, { count: 3, labels: ['a', 'b', 'c'] })).toBeNull();
   });
 });
