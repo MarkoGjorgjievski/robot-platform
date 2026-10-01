@@ -38,12 +38,15 @@ export function VariantsStep({
   datasetId,
   setup,
   cards,
+  failedCards,
   capturedKey,
 }: {
   sourceId: string;
   datasetId: string | null;
   setup: VariantSetup | null;
   cards: number;
+  /** Products whose screenshot failed. */
+  failedCards: number;
   capturedKey: string;
 }) {
   const utils = trpc.useUtils();
@@ -62,7 +65,7 @@ export function VariantsStep({
     placeholderData: keepPreviousData,
   });
 
-  const state = variantsStepState({ mode, cards, detection: detection.data ?? null, setup: shownSetup, axes });
+  const state = variantsStepState({ mode, cards, failedCards, detection: detection.data ?? null, setup, changing, axes });
   if (state.kind === 'off') return null;
 
   return (
@@ -94,12 +97,12 @@ export function VariantsStep({
         ) : (
           // Keyed on what was found: a fresh detection starts the choice over at its suggestion.
           <FoundForm
-            key={`${capturedKey}|${state.suggested}`}
+            key={`${capturedKey}|${state.initialMethod}`}
             sourceId={sourceId}
             datasetId={datasetId}
             detection={detection.data!}
             summary={state.summary}
-            suggested={state.suggested}
+            initialMethod={state.initialMethod}
             axes={axes}
             onCancel={setup ? () => setChanging(false) : undefined}
             onSaved={() => setChanging(false)}
@@ -115,7 +118,7 @@ function FoundForm({
   datasetId,
   detection,
   summary,
-  suggested,
+  initialMethod,
   axes,
   onCancel,
   onSaved,
@@ -124,14 +127,14 @@ function FoundForm({
   datasetId: string | null;
   detection: DetectResult;
   summary: string[];
-  suggested: VariantMethod;
+  initialMethod: VariantMethod;
   axes: Array<{ key: string; name: string }>;
   onCancel?: () => void;
   onSaved: () => void;
 }) {
   const utils = trpc.useUtils();
   const save = trpc.sources.setVariantSetup.useMutation();
-  const [method, setMethod] = useState<VariantMethod>(suggested);
+  const [method, setMethod] = useState<VariantMethod>(initialMethod);
   /** Per detected axis, the project column it becomes: an existing axis key, or `NEW`. */
   const [targets, setTargets] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +168,7 @@ function FoundForm({
         ))}
       </div>
 
-      <RadioGroup value={method} onValueChange={(v) => setMethod(v as VariantMethod)} aria-label="How this website shows variants" className="gap-2">
+      <RadioGroup value={method} onValueChange={(v) => setMethod(v as VariantMethod)} aria-label="How this website shows variants" className="gap-2" disabled={save.isPending}>
         {METHODS.map((m) => (
           <div key={m} className="flex items-center gap-2">
             <RadioGroupItem id={`variant-method-${m}`} value={m} />
@@ -191,7 +194,7 @@ function FoundForm({
                 ) : null}
               </span>
               <span className="text-sm text-muted-foreground">becomes column</span>
-              <Select value={targetOf(a)} onValueChange={(v) => setTargets((t) => ({ ...t, [a.from]: v }))}>
+              <Select value={targetOf(a)} onValueChange={(v) => setTargets((t) => ({ ...t, [a.from]: v }))} disabled={save.isPending}>
                 <SelectTrigger size="sm" aria-label={`Column for ${a.label}`} className="h-7 gap-1 px-2">
                   <SelectValue />
                 </SelectTrigger>

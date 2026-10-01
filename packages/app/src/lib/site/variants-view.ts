@@ -24,7 +24,8 @@ export type VariantSetup = { method: VariantMethod; axes: Array<{ from: string; 
 export type VariantsStepState =
   | { kind: 'off' }
   | { kind: 'no-pages'; reason: string }
-  | { kind: 'found'; summary: string[]; suggested: VariantMethod; axes: Array<{ from: string; label: string; options: string[] }>; pickerOnly: string[] }
+  /** `initialMethod`: what the method choice opens on — the confirmed method when changing a setup, else the suggestion. */
+  | { kind: 'found'; summary: string[]; suggested: VariantMethod; initialMethod: VariantMethod; axes: Array<{ from: string; label: string; options: string[] }>; pickerOnly: string[] }
   | { kind: 'set'; method: VariantMethod; axes: Array<{ from: string; axisName: string }> };
 
 export const METHOD_LABELS: Record<VariantMethod, string> = {
@@ -198,10 +199,14 @@ export function variantsStepState(args: {
   detection: DetectResult | null;
   setup: VariantSetup | null;
   axes: Array<{ key: string; name: string }>;
+  /** The customer pressed Change: the form opens again on the stored method. */
+  changing?: boolean;
+  /** Products whose screenshot failed (the cards say so and offer Try again). */
+  failedCards?: number;
 }): VariantsStepState {
-  const { mode, cards, detection, setup, axes } = args;
+  const { mode, cards, detection, setup, axes, changing = false, failedCards = 0 } = args;
   if (mode === 'ignore') return { kind: 'off' };
-  if (setup) {
+  if (setup && !changing) {
     return {
       kind: 'set',
       method: setup.method,
@@ -209,12 +214,17 @@ export function variantsStepState(args: {
     };
   }
   if (cards === 0) return { kind: 'no-pages', reason: 'Find products first' };
-  if (!detection || !detection.pages.some((p) => p.captured)) return { kind: 'no-pages', reason: 'Wait for the screenshots' };
+  if (!detection || !detection.pages.some((p) => p.captured)) {
+    // Every product's screenshot failed: waiting will not help, a retry on the cards will.
+    return { kind: 'no-pages', reason: failedCards >= cards ? 'The screenshots failed — retry them above' : 'Wait for the screenshots' };
+  }
+  const initialMethod = setup ? setup.method : detection.suggested;
   return {
     kind: 'found',
     summary: summaryLines(detection),
     suggested: detection.suggested,
-    axes: axesFor(detection, detection.suggested),
+    initialMethod,
+    axes: axesFor(detection, initialMethod),
     pickerOnly: pickerOnlyWords(detection),
   };
 }

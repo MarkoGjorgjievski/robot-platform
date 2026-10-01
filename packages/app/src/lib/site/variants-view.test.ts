@@ -135,6 +135,24 @@ describe('variantsStepState', () => {
     expect(variantsStepState({ ...base, detection: null })).toEqual({ kind: 'no-pages', reason: 'Wait for the screenshots' });
     const none = { pages: [page(1, { captured: false })], suggested: 'none' as const };
     expect(variantsStepState({ ...base, detection: none })).toEqual({ kind: 'no-pages', reason: 'Wait for the screenshots' });
+    // Some failed, some still coming: still worth waiting.
+    expect(variantsStepState({ ...base, detection: null, failedCards: 2 })).toEqual({ kind: 'no-pages', reason: 'Wait for the screenshots' });
+  });
+
+  it('every screenshot failed: retry them, not wait', () => {
+    expect(variantsStepState({ ...base, detection: null, failedCards: 3 })).toEqual({ kind: 'no-pages', reason: 'The screenshots failed — retry them above' });
+    const none = { pages: [1, 2, 3].map((n) => page(n, { captured: false })), suggested: 'none' as const };
+    expect(variantsStepState({ ...base, detection: none, failedCards: 3 })).toEqual({ kind: 'no-pages', reason: 'The screenshots failed — retry them above' });
+  });
+
+  it('Change reopens the form on the confirmed method, not the fresh suggestion', () => {
+    const setup = { method: 'links' as const, axes: [], confirmedAt: '2026-10-01T00:00:00Z' };
+    const s = variantsStepState({ ...base, setup, changing: true });
+    expect(s).toMatchObject({ kind: 'found', suggested: 'list', initialMethod: 'links', axes: [] });
+    expect(variantsStepState({ ...base, setup, changing: true, detection: linksOnAll })).toMatchObject({
+      initialMethod: 'links',
+      axes: [{ from: 'colour', label: 'Colour' }],
+    });
   });
 
   it('found: summary, suggestion, axes and picker-only words', () => {
@@ -142,6 +160,7 @@ describe('variantsStepState', () => {
       kind: 'found',
       summary: ['Listed in the page data: 2 colours on product 1, 2 on product 2, none on product 3'],
       suggested: 'list',
+      initialMethod: 'list',
       axes: [{ from: 'color', label: 'Colour', options: ['Red', 'Blue', 'Green'] }],
       pickerOnly: [],
     });
