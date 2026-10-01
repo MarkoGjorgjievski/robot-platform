@@ -164,3 +164,87 @@ describe('sources.saveVariantAnswer / variantList / variantLinksNear', () => {
     }
   });
 });
+
+describe('variants final review fixes', () => {
+  const answerOf = async (sourceId: string) => {
+    const s = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { verificationSet: true } });
+    return (s!.verificationSet as VerificationSet).variants;
+  };
+  const website = (tag: string) =>
+    createProjectWithSource(caller, {
+      tag,
+      fields: [{ name: 'Price', type: 'money' }],
+      urls: URLS,
+      expected: { Price: { [URLS[0]!]: '10.00', [URLS[1]!]: '20.00', [URLS[2]!]: '15.00' } },
+    });
+
+  it('variantList suggests a relative or protocol-relative image, read against the product page', async () => {
+    const f = await website('variant-answers-img');
+    try {
+      await caller.datasets.setVariantMode({ datasetId: f.datasetId, mode: 'row_per_variant' });
+      await caller.datasets.addField({ datasetId: f.datasetId, name: 'Image', type: 'image', concept: 'image_url' });
+      await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+      const ld = VARIANT_SHOP.p1.structuredData.ldJson[0] as { hasVariant: Array<Record<string, unknown>> };
+      const withImages = {
+        ...VARIANT_SHOP.p1,
+        structuredData: { ...VARIANT_SHOP.p1.structuredData, ldJson: [{ ...ld, hasVariant: [{ ...ld.hasVariant[0], image: '//cdn.variants.example/black.jpg' }, { ...ld.hasVariant[1], image: '/img/red.jpg' }] }] },
+      };
+      const now = new Date().toISOString();
+      const [row] = await db.insert(captures).values({ sourceId: f.sourceId, url: URLS[0]!, html: withImages.html, metadata: { kind: 'proof-page', status: 'captured', url: URLS[0]!, startedAt: now, capturedAt: now, tiles: ['/captures/x.png'], boxes: [], pageHeight: 900, capturedHeight: 900, contentHeight: 900 } }).returning({ id: captures.id });
+      await writeCaptureFile(row!.id, withImages);
+      const r = await caller.sources.variantList({ sourceId: f.sourceId, url: URLS[0]!, list: { source: 'json-ld', path: 'hasVariant' } });
+      const imageKey = Object.keys(r!.suggestions[0]!).find((k) => r!.suggestions[0]![k]?.path === 'image');
+      expect(imageKey).toBeTruthy();
+      expect(r!.suggestions[0]![imageKey!]).toEqual({ value: '//cdn.variants.example/black.jpg', path: 'image' });
+      expect(r!.suggestions[1]![imageKey!]).toEqual({ value: '/img/red.jpg', path: 'image' });
+    } finally { await f.cleanup(); }
+  });
+
+  it('changing the variant method drops the old method\'s answers; the same method keeps them', async () => {
+    const f = await website('variant-answers-method');
+    try {
+      const setup = await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+      await caller.sources.saveVariantAnswer({ sourceId: f.sourceId, url: URLS[0]!, answer: { count: 2, labels: ['Black', 'Red'], list: { source: 'json-ld', path: 'hasVariant' } } });
+
+      await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color', axisKey: setup.axes[0]!.axisKey }] });
+      expect(Object.keys((await answerOf(f.sourceId)) ?? {})).toEqual([URLS[0]!]);
+
+      await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'links', axes: [{ from: 'color', axisKey: setup.axes[0]!.axisKey }] });
+      expect(await answerOf(f.sourceId)).toBeUndefined();
+      // The rest of the verification set is untouched.
+      const s = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { verificationSet: true } });
+      expect((s!.verificationSet as VerificationSet).urls).toEqual(URLS);
+    } finally { await f.cleanup(); }
+  });
+
+  it('a links answer must hold together: one link per variant, its checked page one of them and not the product itself', async () => {
+    const f = await website('variant-answers-links');
+    try {
+      await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'links', axes: [] });
+      const links = [`${URLS[0]!}-black`, `${URLS[0]!}-red`];
+      const save = (answer: Parameters<typeof caller.sources.saveVariantAnswer>[0]['answer']) => caller.sources.saveVariantAnswer({ sourceId: f.sourceId, url: URLS[0]!, answer });
+      const bad = { code: 'BAD_REQUEST' };
+      await expect(save({ count: 2, labels: ['Black', 'Red'] })).rejects.toMatchObject(bad);
+      await expect(save({ count: 2, labels: ['Black', 'Red'], links: [links[0]!] })).rejects.toMatchObject(bad);
+      await expect(save({ count: 2, labels: ['Black', 'Red'], links: [links[0]!, `${links[0]!}#top`] })).rejects.toMatchObject(bad);
+      await expect(save({ count: 2, labels: ['Black', 'Red'], links, spot: { index: 0, url: `${URLS[0]!}-blue`, expected: {} } })).rejects.toMatchObject(bad);
+      await expect(save({ count: 2, labels: ['Black', 'Red'], links: [URLS[0]!, links[1]!], spot: { index: 0, url: `${URLS[0]!}#pdp`, expected: {} } })).rejects.toMatchObject(bad);
+
+      // Compared in the normal form: a fragment on the checked page does not matter.
+      await save({ count: 2, labels: ['Black', 'Red'], links, spot: { index: 0, url: `${links[1]!}#main`, expected: {} } });
+      // No variants, and no checked page yet (certification fails that one closed), are both fine.
+      await save({ count: 0, labels: [] });
+      await save({ count: 2, labels: ['Black', 'Red'], links });
+      expect((await answerOf(f.sourceId))![URLS[0]!]!.links).toEqual(links);
+    } finally { await f.cleanup(); }
+  });
+
+  it('the list method does not check links', async () => {
+    const f = await website('variant-answers-listnolinks');
+    try {
+      await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [] });
+      await caller.sources.saveVariantAnswer({ sourceId: f.sourceId, url: URLS[0]!, answer: { count: 2, labels: ['Black', 'Red'], list: { source: 'json-ld', path: 'hasVariant' } } });
+      expect((await answerOf(f.sourceId))![URLS[0]!]!.count).toBe(2);
+    } finally { await f.cleanup(); }
+  });
+});

@@ -17,6 +17,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { VARIANT_SHOP, VARIANT_SHOP_URLS, VARIANT_SHOP_SPOT_URL } from '../test-helpers/variant-shop.js';
 import { writeCaptureFile } from './capture-store.js';
 import { runVariantCheck, currentVariantHash, variantsRequired } from './variant-check.js';
+import { entryFieldsFor } from './variant-fields.js';
 import type { VariantSetup } from '../contract.js';
 
 const caller = createCallerFactory(appRouter)({ db, session: null });
@@ -70,6 +71,13 @@ async function load(sourceId: string) {
 }
 
 const answer = (sourceId: string, url: string, a: VariantAnswer) => caller.sources.saveVariantAnswer({ sourceId, url, answer: a });
+
+/** Writes an answer straight into the row, past saveVariantAnswer's checks: an answer stored before those checks existed. */
+async function storeAnswer(sourceId: string, url: string, a: VariantAnswer) {
+  const s = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { verificationSet: true } });
+  const set = s!.verificationSet as VerificationSet;
+  await db.update(sources).set({ verificationSet: { ...set, variants: { ...(set.variants ?? {}), [url]: a } } }).where(eq(sources.id, sourceId));
+}
 
 describe('variantsRequired', () => {
   const setup = (method: VariantSetup['method']): VariantSetup => ({ method, axes: [], confirmedAt: '2026-10-01T00:00:00.000Z' });
@@ -214,7 +222,7 @@ describe('runVariantCheck — links', () => {
     const f = await linksWebsite('variant-check-spotoutside');
     try {
       await seedProofPage(f.sourceId, P2_SPOT, 'p2');
-      await answer(f.sourceId, URLS[0]!, { count: 2, labels: ['Black', 'Red'], links: [URLS[0]!, VARIANT_SHOP_SPOT_URL], spot: { index: 0, url: 'https://variants.example/p/1-elsewhere', expected: {} } });
+      await storeAnswer(f.sourceId, URLS[0]!, { count: 2, labels: ['Black', 'Red'], links: [URLS[0]!, VARIANT_SHOP_SPOT_URL], spot: { index: 0, url: 'https://variants.example/p/1-elsewhere', expected: {} } });
       const r = await check(f);
       expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: "Take the Black page's screenshot again" });
     } finally { await f.cleanup(); }
@@ -285,5 +293,40 @@ describe('currentVariantHash', () => {
     // Renaming a field or a column is free.
     const renamed = datasetSchema.map((e) => ({ ...e, name: `${e.name} (renamed)` }));
     expect(currentVariantHash({ set, setup, datasetSchema: renamed })).toBe(base);
+
+    // The method.
+    expect(currentVariantHash({ set, setup: { ...setup, method: 'links' }, datasetSchema })).not.toBe(base);
+    // The axis mapping.
+    expect(currentVariantHash({ set, setup: { ...setup, axes: [{ from: 'colour', axisKey: 'colour' }] }, datasetSchema })).not.toBe(base);
+    // A field's level: price moved to the product drops its entry field; a product field moved to the variant adds one.
+    const priceOnProduct = datasetSchema.map((e) => (e.key === 'price' ? { ...e, level: 'product' } : e));
+    expect(currentVariantHash({ set, setup, datasetSchema: priceOnProduct })).not.toBe(base);
+    const titleOnVariant = [...datasetSchema, { key: 'title', name: 'Title', type: 'text', concept: 'title', level: 'variant' }];
+    expect(currentVariantHash({ set, setup, datasetSchema: titleOnVariant })).not.toBe(base);
+    // A field that is not an entry field (product level) leaves it alone.
+    const titleOnProduct = [...datasetSchema, { key: 'title', name: 'Title', type: 'text', concept: 'title' }];
+    expect(currentVariantHash({ set, setup, datasetSchema: titleOnProduct })).toBe(base);
+    // A retype.
+    const retyped = datasetSchema.map((e) => (e.key === 'price' ? { ...e, type: 'text' } : e));
+    expect(currentVariantHash({ set, setup, datasetSchema: retyped })).not.toBe(base);
+  });
+});
+
+describe('entryFieldsFor', () => {
+  it('gives one entry field per column, reading every detected name mapped to it in order', () => {
+    const datasetSchema = [
+      { key: 'price', name: 'Price', type: 'money', concept: 'price' },
+      { key: 'colour', name: 'Colour', kind: 'axis', concept: 'axis' },
+      { key: 'size', name: 'Size', kind: 'axis', concept: 'axis' },
+    ];
+    const setup: VariantSetup = {
+      method: 'list',
+      axes: [{ from: 'color', axisKey: 'colour' }, { from: 'size', axisKey: 'size' }, { from: 'colour', axisKey: 'colour' }],
+      confirmedAt: '2026-10-01T00:00:00.000Z',
+    };
+    const fields = entryFieldsFor(datasetSchema, setup);
+    expect(fields.map((f) => f.key)).toEqual(['price', 'colour', 'size']);
+    expect(fields.find((f) => f.key === 'colour')!.axisFrom).toEqual(['color', 'colour']);
+    expect(fields.find((f) => f.key === 'size')!.axisFrom).toBe('size');
   });
 });
