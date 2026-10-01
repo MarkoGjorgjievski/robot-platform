@@ -21,6 +21,15 @@ vi.mock('../verify/proof-page-capture.js', async (importOriginal) => {
   return { ...real, runProofPageCapture: runMock, startProofPageCapture: (s: string, u: string) => real.startProofPageCapture(s, u, { fire: false }) };
 });
 
+// A pass-through spy on `withBrowserSession` (fix round 1, item 4): lets a test assert
+// `detectVariants` skipped opening a browser entirely, without changing what it does.
+const { withBrowserSessionMock } = vi.hoisted(() => ({ withBrowserSessionMock: vi.fn() }));
+vi.mock('../browser-session.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../browser-session.js')>();
+  withBrowserSessionMock.mockImplementation(real.withBrowserSession);
+  return { ...real, withBrowserSession: withBrowserSessionMock };
+});
+
 const caller = createCallerFactory(appRouter)({ db, session: null });
 
 /** A product-page fixture: `withVariants` puts a two-entry `hasVariant` list (color axis) in the
@@ -147,6 +156,21 @@ describe('sources.detectVariants', () => {
       expect(r).toEqual({ pages: [], suggested: 'none' });
     } finally { await f.cleanup(); }
   });
+
+  it('skips opening a browser when no proof page has a fresh capture', async () => {
+    const f = await createProjectWithSource(caller, {
+      tag: 'variants-nocaps',
+      fields: [{ name: 'Price', type: 'money' }],
+      expected: { Price: { 'https://test-variants-nocaps.example.com/p/1': '19.99', 'https://test-variants-nocaps.example.com/p/2': '19.99', 'https://test-variants-nocaps.example.com/p/3': '19.99' } },
+    });
+    try {
+      withBrowserSessionMock.mockClear();
+      const r = await caller.sources.detectVariants({ sourceId: f.sourceId });
+      expect(r.suggested).toBe('none');
+      expect(r.pages).toEqual(f.urls.map((url) => ({ url, captured: false, lists: [], links: [], pickers: [] })));
+      expect(withBrowserSessionMock).not.toHaveBeenCalled();
+    } finally { await f.cleanup(); }
+  });
 });
 
 describe('sources.setVariantSetup', () => {
@@ -200,6 +224,42 @@ describe('sources.setVariantSetup', () => {
       await expect(
         caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color' }] }),
       ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    } finally { await f.cleanup(); }
+  });
+
+  it('BAD_REQUEST for the same "from" mapped twice in one call', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'variants-dupfrom', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      await expect(
+        caller.sources.setVariantSetup({
+          sourceId: f.sourceId,
+          method: 'list',
+          axes: [{ from: 'color', newAxisName: 'Colour' }, { from: 'color', newAxisName: 'Hue' }],
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      // trimmed before comparing, but still case-sensitive: "Color" is a different mapping from "color"
+      await expect(
+        caller.sources.setVariantSetup({
+          sourceId: f.sourceId,
+          method: 'list',
+          axes: [{ from: ' color ', newAxisName: 'Colour' }, { from: 'color', newAxisName: 'Hue' }],
+        }),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      const ok = await caller.sources.setVariantSetup({
+        sourceId: f.sourceId,
+        method: 'list',
+        axes: [{ from: 'color', newAxisName: 'Colour' }, { from: 'Color', newAxisName: 'Hue' }],
+      });
+      expect(ok.axes).toHaveLength(2);
+    } finally { await f.cleanup(); }
+  });
+
+  it('sources.get returns the stored variantSetup', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'variants-get', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const setup = await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+      const got = await caller.sources.get({ projectSlug: f.projectSlug, sourceSlug: f.sourceSlug });
+      expect(got.variantSetup).toEqual(setup);
     } finally { await f.cleanup(); }
   });
 
