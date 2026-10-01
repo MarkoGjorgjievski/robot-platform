@@ -38,7 +38,8 @@ export function VerifyBar({
   saveState: 'idle' | 'pending' | 'saving' | 'error';
   /** The server's reason the last save was refused, in one line; shown with the error state. */
   saveError?: string | null;
-  extract: { enabled: boolean; project: string; site: string };
+  /** `variants`: this website's variants must be verified too — said in the locked line. */
+  extract: { enabled: boolean; project: string; site: string; variants?: boolean };
   /** Where a running Verify is, e.g. "checking product 2 of 3". `null` when nothing is running. */
   stage: string | null;
 }) {
@@ -94,7 +95,7 @@ export function VerifyBar({
             Go to Extract
             <ArrowRight />
           </Button>
-          <p className="mt-1 text-sm text-muted-foreground">Unlocks when every field is verified</p>
+          <p className="mt-1 text-sm text-muted-foreground">{extract.variants ? 'Unlocks when every field and the variants are verified' : 'Unlocks when every field is verified'}</p>
         </div>
       )}
     </div>

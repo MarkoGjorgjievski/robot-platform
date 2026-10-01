@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
@@ -9,7 +10,8 @@ import { PageViewer, type Overlay } from '../../../../../../components/verificat
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
 import { VerificationTable, type TableRow } from '../../../../../../components/verification/verification-table';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
-import { VariantsStep } from '../../../../../../components/verification/variants-step';
+import { VariantsStep, detectVariantsQuery } from '../../../../../../components/verification/variants-step';
+import { useVariantAnswers, type VariantsRowProps } from '../../../../../../components/verification/variants-row';
 import type { FieldHint } from '../../../../../../components/verification/field-details';
 import {
   PRODUCTS_MAX,
@@ -58,6 +60,7 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
+import { extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -228,6 +231,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [arrival, setArrival] = useState<{ url: string; field?: string; note?: string } | null>(null);
   /** Why the last listing was refused, shown under the listing input. */
   const [listingNote, setListingNote] = useState<string | null>(null);
+  /** A product's screenshot in mark mode for its variant buttons ("Mark the colour buttons on the screenshot"), and the element clicked. */
+  const [variantMark, setVariantMark] = useState<{ url: string; xpath?: string } | null>(null);
 
   // --- Invalidation: a save moves which fields are current (plan 3's reason),
   // and the project page's per-website badge reads the same currency.
@@ -366,6 +371,36 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const variantsKey = urls.every((u) => captures.byUrl[u]?.status === 'captured' || captures.byUrl[u]?.status === 'failed')
     ? capturedUrls.map((u) => captures.byUrl[u]!.captureId).join(',')
     : '';
+
+  // --- Variants (spec 2026-10-01 §4.1): the project's wish, this website's
+  // setup and answers, and what the captures show (the Variants step's query).
+  const variantsInfo = trpc.datasets.variants.useQuery({ datasetId: source.datasetId ?? '' }, { enabled: !!source.datasetId });
+  const variantMode = variantsInfo.data?.mode ?? 'ignore';
+  const variantSetup = source.variantSetup;
+  const variantMethod = variantMode !== 'ignore' && (variantSetup?.method === 'list' || variantSetup?.method === 'links') ? variantSetup.method : null;
+  const detection = useQuery({
+    ...detectVariantsQuery(utils, sourceId, variantsKey),
+    enabled: !!variantMethod && variantsKey !== '',
+  });
+  const serverAnswers = useMemo(
+    () => (source.verificationSet as { variants?: Record<string, VariantAnswer> } | null)?.variants ?? {},
+    [source.verificationSet],
+  );
+  const variantAnswers = useVariantAnswers(sourceId, serverAnswers);
+  /** Entry fields: the project's variant-level fields in contract order, then the columns this website maps. */
+  const entryFields = useMemo(() => {
+    const info = variantsInfo.data;
+    if (!info) return [];
+    const out = info.fields.filter((f) => f.level === 'variant').map((f) => ({ key: f.key, name: f.name }));
+    for (const a of variantSetup?.axes ?? []) {
+      const axis = info.axes.find((x) => x.key === a.axisKey);
+      if (axis && !out.some((f) => f.key === axis.key)) out.push({ key: axis.key, name: axis.name });
+    }
+    return out;
+  }, [variantsInfo.data, variantSetup]);
+  const noun = variantNoun(
+    (variantSetup?.axes ?? []).map((a) => variantsInfo.data?.axes.find((x) => x.key === a.axisKey)?.name).filter((n): n is string => !!n),
+  );
 
   /**
    * Each product's elements once its screenshot has landed, for the row
@@ -811,6 +846,28 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const firstRun = strip === 'editing' || strip === 'none';
   const estimateQuery = trpc.sources.verifyEstimate.useQuery({ sourceId, ...(firstRun || !scope ? {} : { onlyKeys: scope }) });
   const estimate = estimateQuery.data;
+  /**
+   * What variants this website owes: the status's own, or — before any Verify
+   * has run, when there is no status row — what the project's mode and this
+   * website's setup say (the server's `variantsRequired` rule).
+   */
+  type VariantsStatus = { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean; result: VariantResultView | null };
+  const variantsStatus: VariantsStatus | null = status
+    ? ((status.variants as VariantsStatus | null) ?? null)
+    : variantMode === 'ignore' || !variantsInfo.data
+      ? null
+      : !variantSetup
+        ? { required: 'setup-missing', current: false, passed: false, result: null }
+        : variantSetup.method === 'none'
+          ? null
+          : { required: 'yes', current: false, passed: false, result: null };
+  const need = variantsNeed({
+    variants: variantsStatus,
+    urls,
+    answers: variantAnswers.answers,
+    method: variantMethod,
+    entryFieldKeys: entryFields.map((f) => f.key),
+  });
   const button = verifyButton({
     state: strip,
     firstRun,
@@ -821,6 +878,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     upperBoundUsd: estimate?.upperBoundUsd ?? 0,
     complete: gate.ok,
     busy: verifying,
+    variants: need,
   });
   const verifyMutation = trpc.sources.verify.useMutation();
 
@@ -831,10 +889,17 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     try {
       // The server checks the record it has, so it must have this one.
       await saverRef.current?.flush();
+      await variantAnswers.flush();
       // The save just moved which fields are current: price the scope on what
       // the server says now, not on the render that drew the button.
       const fresh = utils.sources.verificationStatus.getData({ sourceId }) ?? status;
       const onlyKeys = reverifyScope(fields, (fresh?.results ?? null) as VerificationResults | null, fresh?.currentKeys ?? []);
+      if (onlyKeys && onlyKeys.length === 0 && need.kind === 'pending') {
+        // Only the variants need a run: `onlyKeys: []` re-runs no field, and costs nothing.
+        await verifyMutation.mutateAsync({ sourceId, onlyKeys: [] });
+        await invalidate();
+        return;
+      }
       if (onlyKeys && onlyKeys.length === 0) {
         // The save put every field back to what was verified: nothing to check, and nothing spent.
         setNotice('Everything is verified; nothing has changed since');
@@ -954,6 +1019,34 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     };
   });
 
+  const variantsRow: VariantsRowProps | null = variantMethod
+    ? {
+        sourceId,
+        method: variantMethod,
+        urls: board.cards.map((c) => c.url),
+        noun,
+        detection: detection.data ?? null,
+        answers: variantAnswers.answers,
+        result: variantsStatus?.result ?? null,
+        resultCurrent: !!variantsStatus?.current,
+        need,
+        passed: !!variantsStatus?.current && !!variantsStatus.passed,
+        entryFields,
+        save: variantAnswers.save,
+        saveError: variantAnswers.error,
+        mark: variantMark,
+        onMark: (url) => {
+          const i = board.cards.findIndex((c) => c.url === url);
+          if (i < 0) return;
+          setPopover(null);
+          setVariantMark({ url });
+          select({ product: i + 1 });
+          setReveal((r) => ({ n: r.n + 1, product: i + 1, field: undefined }));
+        },
+        onMarkDone: () => setVariantMark(null),
+      }
+    : null;
+
   const heads = board.cards.map((card, i) => (
     <ProductCard
       key={i}
@@ -1014,7 +1107,12 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         }}
         saveState={saveState}
         saveError={saveError}
-        extract={{ enabled: !!(status?.current && status?.allPassed), project: projectSlug, site: siteSlug }}
+        extract={{
+          enabled: !!status && extractEnabled({ current: status.current, allPassed: !!status.allPassed, variants: variantsStatus }),
+          project: projectSlug,
+          site: siteSlug,
+          variants: !!variantsStatus,
+        }}
         stage={stage}
       />
 
@@ -1029,6 +1127,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             }
             rows={rows}
             locked={locked}
+            variants={variantsRow}
           />
           <p className="px-1 text-sm text-muted-foreground">
             Field names and types come from the project.{' '}
@@ -1069,6 +1168,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               ×
             </Button>
           </div>
+          {variantMark && variantMark.url === selectedUrl ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-warn pl-3">
+              <p className="text-sm">Click one of the {noun.replace(/s$/, '')} buttons on this screenshot</p>
+              <Button variant="ghost" size="sm" onClick={() => setVariantMark(null)}>
+                Cancel
+              </Button>
+            </div>
+          ) : null}
           <ProductView url={selectedUrl} capture={capture} onRetry={() => captures.retry(selectedUrl)} locked={locked}>
             <PageViewer
               tiles={tiles}
@@ -1079,7 +1186,15 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               highlight={highlight}
               reveal={reveal.product === selected + 1 && reveal.field === fieldKey ? reveal.n : 0}
               locked={locked}
-              onPick={(box, at) => setPopover({ url: selectedUrl, box, at, mode: 'pick' })}
+              onPick={(box, at) => {
+                // In variant mark mode a click names the variant buttons, not a field.
+                if (variantMark && variantMark.url === selectedUrl) {
+                  const xpath = boxes[box]?.xpaths[0];
+                  if (xpath) setVariantMark({ url: selectedUrl, xpath });
+                  return;
+                }
+                setPopover({ url: selectedUrl, box, at, mode: 'pick' });
+              }}
               onOverlay={(o, at) => {
                 const info = overlayInfo.get(o.key);
                 if (!info) return;

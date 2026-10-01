@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
 import { LOCKED_REASON } from './verify-bar';
+import { VariantsRow, type VariantsRowProps } from './variants-row';
 import { cellLabel, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
 
 /**
@@ -97,6 +98,7 @@ export function VerificationTable({
   addHead,
   rows,
   locked,
+  variants,
 }: {
   /** One per product column, rendered by the route (`ProductCard` compact, or a blank slot). */
   heads: ReactNode[];
@@ -104,6 +106,12 @@ export function VerificationTable({
   addHead?: ReactNode;
   rows: TableRow[];
   locked: boolean;
+  /**
+   * The Variants row (spec 2026-10-01 §4.1), after the fields: drawn only
+   * while this website needs variant certification — a need other than
+   * `none` and a method of `list` or `links`. Never in `ignore` mode.
+   */
+  variants?: VariantsRowProps | null;
 }) {
   const totalCols = 1 + heads.length + (addHead ? 1 : 0) + 1;
 
@@ -208,6 +216,9 @@ export function VerificationTable({
               ) : null}
             </Fragment>
           ))}
+          {variants && variants.need.kind !== 'none' && (variants.method === 'list' || variants.method === 'links') ? (
+            <VariantsRow props={variants} locked={locked} hasAddHead={!!addHead} />
+          ) : null}
         </tbody>
       </table>
     </div>
