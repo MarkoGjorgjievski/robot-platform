@@ -34,6 +34,9 @@ export type VariantVerification = {
   problem?: string;                  // website-level failure
 };
 
+/** Website-level failure (list and links methods both use this, spec 2026-10-01 Global Constraints): no proof page has any variants to certify against. */
+export const NO_PRODUCT_HAS_VARIANTS = 'None of the products has variants — add one that does, or choose No variants on this website';
+
 type PlainObject = Record<string, unknown>;
 
 function isPlainObject(v: unknown): v is PlainObject {
@@ -208,7 +211,7 @@ export function certifyVariantList(input: {
     for (const p of pages) out[p.url] = p.capture ? { status: 'none' } : { status: 'not_captured' };
     return {
       passed: false,
-      problem: 'None of the products has variants — add one that does, or choose No variants on this website',
+      problem: NO_PRODUCT_HAS_VARIANTS,
       pages: out,
     };
   }
