@@ -11,6 +11,7 @@ import {
   variantHash,
   runVerifiedExtraction,
   normalize,
+  normalizeVariantLink,
   type FieldVerification,
   type SchemaDefinitionField,
   type VariantPageResult,
@@ -107,7 +108,8 @@ export async function runVariantCheck(
     if (!everyFieldCertified) { pages[url] = { status: 'fail', message: VERIFY_EVERY_FIELD_FIRST }; continue; }
     // Fail closed: a product with variants is never passed without its checked variant page.
     const spotUrl = answer.spot?.url;
-    const linkIndex = spotUrl ? answer.links?.indexOf(spotUrl) ?? -1 : -1;
+    // Compared in the links' one normal form, so an answer stored with `#fragment` hrefs still finds its label.
+    const linkIndex = spotUrl ? (answer.links ?? []).map(normalizeVariantLink).indexOf(normalizeVariantLink(spotUrl)) : -1;
     const label = (linkIndex >= 0 ? answer.labels[linkIndex] : undefined) ?? answer.labels[0] ?? 'variant';
     const spot = spotUrl ? (await loadProofPageCaptures(sourceId, [spotUrl]))[spotUrl] : undefined;
     if (!spotUrl || !spot) { pages[url] = { status: 'fail', message: `Take the ${label} page's screenshot again` }; continue; }

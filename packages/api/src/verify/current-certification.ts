@@ -50,6 +50,12 @@ export function sourceDefinitionHash(source: { schemaDefinition: unknown; verifi
   return definitionHash(source.schemaDefinition as SchemaDefinitionField[], source.verificationSet as VerificationSet);
 }
 
+type FieldCurrency = {
+  latest: { id: string; completedAt: Date; results: Record<string, FieldVerification>; variantResults: VariantVerification | null } | null;
+  currentKeys: string[];
+  unchangedKeys: string[];
+};
+
 /** The latest completed, error-free run: the one row both field and variant currency are read from. */
 function latestCleanRun(db: Database, sourceId: string) {
   return db.query.sourceVerifications.findFirst({
@@ -69,15 +75,16 @@ function latestCleanRun(db: Database, sourceId: string) {
  * failed. It is what tells "fails on product 2" apart from "changed since
  * verified" — a failing field is never current, but it can be unchanged.
  */
-export async function loadFieldCurrency(db: Database, sourceId: string): Promise<{
-  latest: { id: string; completedAt: Date; results: Record<string, FieldVerification>; variantResults: VariantVerification | null } | null;
-  currentKeys: string[];
-  unchangedKeys: string[];
-}> {
+export async function loadFieldCurrency(db: Database, sourceId: string): Promise<FieldCurrency> {
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
     columns: { schemaDefinition: true, verificationSet: true },
   });
+  return fieldCurrencyOf(db, sourceId, source);
+}
+
+/** `loadFieldCurrency` on a source row the caller already read. */
+async function fieldCurrencyOf(db: Database, sourceId: string, source: { schemaDefinition: unknown; verificationSet: unknown } | undefined): Promise<FieldCurrency> {
   if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [], unchangedKeys: [] };
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
@@ -106,11 +113,11 @@ export type VariantCurrency = { required: VariantsRequired; current: boolean; pa
 
 type VariantSource = { verificationSet: unknown; variantSetup: unknown; dataset: { schema: unknown; variantMode: string } | null } | undefined;
 
-/** The source half of variant currency: what the project and the website ask for now. */
-function loadVariantSource(db: Database, sourceId: string) {
+/** The source row both halves of currency read: its fields and proof pages, and what the project and the website ask for of variants now. */
+function loadSourceRow(db: Database, sourceId: string) {
   return db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
-    columns: { verificationSet: true, variantSetup: true },
+    columns: { schemaDefinition: true, verificationSet: true, variantSetup: true },
     with: { dataset: { columns: { schema: true, variantMode: true } } },
   });
 }
@@ -139,14 +146,12 @@ function variantCurrencyOf(source: VariantSource, result: VariantVerification | 
  * passed.
  */
 export async function loadCertificationState(db: Database, sourceId: string): Promise<{ cert: Certification | null; variants: VariantCurrency }> {
-  const variantSource = await loadVariantSource(db, sourceId);
-  const { latest, currentKeys } = await loadFieldCurrency(db, sourceId);
-  const variants = variantCurrencyOf(variantSource, latest?.variantResults ?? null);
+  // ONE read of the source row, passed down, so the field half and the variant half always
+  // describe the same binding state (final review M6).
+  const source = await loadSourceRow(db, sourceId);
+  const { latest, currentKeys } = await fieldCurrencyOf(db, sourceId, source);
+  const variants = variantCurrencyOf(source, latest?.variantResults ?? null);
 
-  const source = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { schemaDefinition: true, verificationSet: true },
-  });
   if (!source || !Array.isArray(source.schemaDefinition) || source.schemaDefinition.length === 0 || !source.verificationSet) return { cert: null, variants };
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
@@ -188,7 +193,7 @@ export async function loadCurrentCertification(db: Database, sourceId: string): 
 
 /** Variant currency against the latest clean run (the same row `loadFieldCurrency` reads); see `variantCurrencyOf`. */
 export async function loadVariantCurrency(db: Database, sourceId: string): Promise<VariantCurrency> {
-  const source = await loadVariantSource(db, sourceId);
+  const source = await loadSourceRow(db, sourceId);
   const row = await latestCleanRun(db, sourceId);
   return variantCurrencyOf(source, (row?.variantResults as VariantVerification | null | undefined) ?? null);
 }

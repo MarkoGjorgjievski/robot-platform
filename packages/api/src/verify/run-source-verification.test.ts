@@ -327,7 +327,7 @@ describe('runSourceVerification — variants', () => {
     const colour = setup.axes[0]!.axisKey;
     const list = { source: 'json-ld' as const, path: 'hasVariant' };
     await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[0]!, answer: { count: 2, labels: ['Black', 'Red'], list, links: [s.urls[0]!, `${s.urls[0]!}-red`], spot: { index: 0, expected: { price: '10.00', [colour]: 'Black' } } } });
-    await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[1]!, answer: { count: 3, labels: ['Black', 'Red', 'White'], list, spot: { index: 0, expected: { price: '20.00', [colour]: 'Black' } } } });
+    await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[1]!, answer: { count: 3, labels: ['Black', 'Red', 'White'], list, links: ['black', 'red', 'white'].map((c) => `${s.urls[1]!}-${c}`), spot: { index: 0, expected: { price: '20.00', [colour]: 'Black' } } } });
     await caller.sources.saveVariantAnswer({ sourceId: s.sourceId, url: s.urls[2]!, answer: { count: 0, labels: [] } });
     return s;
   }

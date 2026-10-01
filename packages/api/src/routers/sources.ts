@@ -6,7 +6,7 @@ import {
   FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
-  resolveVariantList, suggestEntryValues, flattenEntry, pathFitsConcept, buildLinksNearScript,
+  resolveVariantList, suggestEntryValues, flattenEntry, pathFitsConcept, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
 } from '@robot/scraper';
@@ -110,6 +110,28 @@ const variantAnswerInput = z.object({
     fromProduct: z.array(z.string()).optional(),
   }).optional(),
 });
+
+/**
+ * What is wrong with a links-method answer, if anything (variants plan 2 final review M2): a
+ * product with variants lists exactly `count` distinct links, and its checked variant page, when
+ * given, is one of them and not the product page itself. Links are compared in their one normal
+ * form (`normalizeVariantLink`: absolute, no fragment). A missing checked page is not refused
+ * here: certification already fails that product closed ("Take the … page's screenshot again").
+ */
+function linksAnswerProblem(productUrl: string, answer: z.infer<typeof variantAnswerInput>): string | null {
+  if (answer.count === 0) return null;
+  const links = answer.links ?? [];
+  if (links.length !== answer.count || normalizeVariantLinks(links).length !== answer.count) {
+    return `The answer lists ${links.length} links for ${answer.count} variants`;
+  }
+  const spotUrl = answer.spot?.url;
+  if (spotUrl !== undefined) {
+    const spot = normalizeVariantLink(spotUrl);
+    if (!normalizeVariantLinks(links).includes(spot)) return 'The checked variant page is not one of the variant links';
+    if (spot === normalizeVariantLink(productUrl)) return 'The checked variant page is the product page itself';
+  }
+  return null;
+}
 
 const budgetShape = z.object({
   max_items: z.union([z.number().int().positive(), z.literal('all')]),
@@ -1397,7 +1419,7 @@ export const sourcesRouter = router({
             }
           }
         }
-        await lockSources(tx, datasetId);
+        const locked = await lockSources(tx, datasetId);
 
         // `from` is stored trimmed (plan 2 keys entry paths on it). Two entries
         // naming the same new column (case-insensitive — e.g. detected `color`
@@ -1422,7 +1444,19 @@ export const sourcesRouter = router({
         }
 
         const setup: VariantSetup = { method: input.method, axes, confirmedAt: new Date().toISOString() };
-        await tx.update(sources).set({ variantSetup: setup, updatedAt: new Date() }).where(eq(sources.id, source.id));
+        // A different method makes the answers given for the old one meaningless (a list answer
+        // has no links, a links answer no list): they are dropped here, under the row lock just
+        // taken, so the Variants row asks for them again instead of showing them as confirmed.
+        // The same method keeps them.
+        const row = locked.find((r) => r.id === source.id);
+        const previous = (row?.variantSetup as VariantSetup | null | undefined) ?? null;
+        const set = (row?.verificationSet as VerificationSet | null | undefined) ?? null;
+        const dropAnswers = previous?.method !== input.method && !!set?.variants;
+        const { variants: _dropped, ...setWithoutVariants } = set ?? { urls: [], expected: {} };
+        await tx
+          .update(sources)
+          .set({ variantSetup: setup, ...(dropAnswers ? { verificationSet: setWithoutVariants } : {}), updatedAt: new Date() })
+          .where(eq(sources.id, source.id));
         return setup;
       });
 
@@ -1446,11 +1480,15 @@ export const sourcesRouter = router({
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       return ctx.db.transaction(async (tx) => {
-        const [locked] = await tx.select({ verificationSet: sources.verificationSet }).from(sources).where(eq(sources.id, input.sourceId)).for('update');
+        const [locked] = await tx.select({ verificationSet: sources.verificationSet, variantSetup: sources.variantSetup }).from(sources).where(eq(sources.id, input.sourceId)).for('update');
         if (!locked) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
         const verificationSet = (locked.verificationSet as VerificationSet | null) ?? { urls: [], expected: {} };
         if (!verificationSet.urls.includes(input.url)) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: `That page is not one of this website's products` });
+        }
+        if ((locked.variantSetup as VariantSetup | null)?.method === 'links' && input.answer) {
+          const problem = linksAnswerProblem(input.url, input.answer);
+          if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
         }
         const variants = { ...(verificationSet.variants ?? {}) };
         if (input.answer === null) delete variants[input.url];
@@ -1494,7 +1532,7 @@ export const sourcesRouter = router({
       const fields = entryFieldsFor(source.dataset?.schema, source.variantSetup as VariantSetup | null);
       const axisFields = fields.filter((f) => f.axisFrom !== undefined);
       const limited = entries.slice(0, 50);
-      const suggestions = limited.map((entry) => suggestEntryValues(entry, fields));
+      const suggestions = limited.map((entry) => suggestEntryValues(entry, fields, { pageUrl: input.url }));
       const labels = limited.map((entry, i) => {
         if (axisFields.length > 0) {
           const values = axisFields.map((f) => suggestions[i]![f.key]?.value ?? '');
