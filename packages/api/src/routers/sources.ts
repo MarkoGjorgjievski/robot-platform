@@ -25,7 +25,7 @@ import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, 
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { requireCertification } from '../crawl/require-certification.js';
-import { createAxis } from './datasets.js';
+import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
 
 /** The transaction handle `ctx.db.transaction` hands its callback — named so `setInputPages` can take one as a parameter. */
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -1252,18 +1252,25 @@ export const sourcesRouter = router({
 
       const captureRecords = await loadProofPageCaptures(input.sourceId, urls);
       type Page = { url: string; captured: boolean; lists: VariantList[]; links: VariantLinks[]; pickers: VariantPicker[] };
-      const pages: Page[] = await withBrowserSession(async (browser) => {
-        const out: Page[] = [];
-        for (const url of urls) {
-          const rec = captureRecords[url];
-          if (!rec) { out.push({ url, captured: false, lists: [], links: [], pickers: [] }); continue; }
-          const lists = detectVariantLists(rec.capture);
-          const links = await browser.setContentEvaluate<VariantLinks[]>(rec.capture.html, buildVariantLinksScript(url));
-          const pickers = await browser.setContentEvaluate<VariantPicker[]>(rec.capture.html, buildVariantPickerScript());
-          out.push({ url, captured: true, lists, links, pickers });
-        }
-        return out;
-      });
+      // Fix round 1: a browser is only worth opening when at least one proof
+      // page has something to evaluate — every URL missing a fresh capture
+      // means every row is `captured: false` with nothing to run a script
+      // against, so skip `withBrowserSession` entirely rather than launching
+      // Chromium to do nothing.
+      const pages: Page[] = urls.some((url) => captureRecords[url])
+        ? await withBrowserSession(async (browser) => {
+            const out: Page[] = [];
+            for (const url of urls) {
+              const rec = captureRecords[url];
+              if (!rec) { out.push({ url, captured: false, lists: [], links: [], pickers: [] }); continue; }
+              const lists = detectVariantLists(rec.capture);
+              const links = await browser.setContentEvaluate<VariantLinks[]>(rec.capture.html, buildVariantLinksScript(url));
+              const pickers = await browser.setContentEvaluate<VariantPicker[]>(rec.capture.html, buildVariantPickerScript());
+              out.push({ url, captured: true, lists, links, pickers });
+            }
+            return out;
+          })
+        : urls.map((url) => ({ url, captured: false, lists: [], links: [], pickers: [] }));
 
       const suggested = pages.some((p) => p.lists.length > 0)
         ? ('list' as const)
@@ -1283,8 +1290,17 @@ export const sourcesRouter = router({
    * empty `axes` list, whatever the caller sent.
    *
    * The axis creation(s) and the `variant_setup` write happen in one
-   * transaction: a crash between minting an axis and recording the mapping
-   * would otherwise leave an orphaned axis with nothing pointing at it.
+   * transaction, under the SAME locking protocol `deleteAxis` uses
+   * (datasets.ts: `lockDatasetSchema` then `lockSources`, always in that
+   * order): the dataset's schema row is locked first — `axisKey`s are
+   * validated against that locked read, and it is also what `createAxis`
+   * re-locks (a no-op re-lock within the same transaction, not a second
+   * distinct acquisition) when minting a new axis — then the dataset's
+   * source rows are locked the way `deleteAxis` locks them before checking
+   * for a mapping to the axis it's about to delete. Taking both locks, in
+   * this order, every time (not only when an axis is actually created) means
+   * this call and a concurrent `deleteAxis` can never deadlock on each
+   * other's locks: one always blocks behind the other instead of racing it.
    */
   setVariantSetup: publicProcedure
     .input(z.object({
@@ -1303,30 +1319,44 @@ export const sourcesRouter = router({
         columns: { id: true, datasetId: true },
       });
       if (!source) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
+      if (!source.datasetId) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Website ${input.sourceId} has no project to map axes in` });
+      const datasetId = source.datasetId;
 
+      const seenFrom = new Set<string>();
       for (const a of input.axes) {
         const hasKey = a.axisKey !== undefined;
         const hasNew = a.newAxisName !== undefined;
         if (hasKey === hasNew) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: `Axis mapping for "${a.from}" needs exactly one of axisKey or newAxisName` });
         }
+        const from = a.from.trim();
+        if (seenFrom.has(from)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `"${a.from}" is mapped more than once` });
+        }
+        seenFrom.add(from);
       }
 
       const variantSetup = await ctx.db.transaction(async (tx) => {
-        let axes: Array<{ from: string; axisKey: string }> = [];
-        if (input.method !== 'none' && input.axes.length > 0) {
-          if (!source.datasetId) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Website ${input.sourceId} has no project to map axes in` });
-          const ds = await tx.query.datasets.findFirst({ where: eq(datasets.id, source.datasetId), columns: { schema: true } });
-          const knownKeys = new Set(contractAxes(ds?.schema).map((a) => a.key));
+        // Always taken, in this order, even for `method: 'none'` or an empty
+        // `axes` list — see the procedure doc comment.
+        const schema = await lockDatasetSchema(tx, datasetId);
+        const knownKeys = new Set(contractAxes(schema).map((a) => a.key));
+        if (input.method !== 'none') {
+          for (const a of input.axes) {
+            if (a.axisKey !== undefined && !knownKeys.has(a.axisKey)) {
+              throw new TRPCError({ code: 'BAD_REQUEST', message: `Axis ${a.axisKey} not found` });
+            }
+          }
+        }
+        await lockSources(tx, datasetId);
+
+        const axes: Array<{ from: string; axisKey: string }> = [];
+        if (input.method !== 'none') {
           for (const a of input.axes) {
             if (a.newAxisName !== undefined) {
-              const created = await createAxis(tx, source.datasetId, a.newAxisName);
-              knownKeys.add(created.key);
+              const created = await createAxis(tx, datasetId, a.newAxisName);
               axes.push({ from: a.from, axisKey: created.key });
             } else {
-              if (!knownKeys.has(a.axisKey!)) {
-                throw new TRPCError({ code: 'BAD_REQUEST', message: `Axis ${a.axisKey} not found` });
-              }
               axes.push({ from: a.from, axisKey: a.axisKey! });
             }
           }

@@ -60,8 +60,13 @@ async function loadDatasetInOrg(ctx: Context, datasetId: string) {
  * `variantSetup` maps to the axis being deleted — otherwise a `setVariantSetup` call
  * (Task 5) committing between `deleteAxis`'s pre-check and its write could map a website
  * to an axis this call is about to delete out from under it. `name` and `variantSetup`
- * are selected for that check; `propagate`'s callers ignore the extra columns. */
-async function lockSources(tx: Pick<Database, 'select'>, datasetId: string) {
+ * are selected for that check; `propagate`'s callers ignore the extra columns.
+ *
+ * Exported (fix round 1) so `sources.setVariantSetup` can join the SAME locking
+ * protocol: dataset-schema row first (`lockDatasetSchema`), then this —
+ * always in that order, on both sides — so the two can never deadlock on each
+ * other's locks, and one always blocks behind the other instead of racing it. */
+export async function lockSources(tx: Pick<Database, 'select'>, datasetId: string) {
   return tx
     .select({ id: sources.id, name: sources.name, schemaDefinition: sources.schemaDefinition, verificationSet: sources.verificationSet, variantSetup: sources.variantSetup })
     .from(sources)
@@ -76,8 +81,12 @@ async function lockSources(tx: Pick<Database, 'select'>, datasetId: string) {
  * easy — both computed `[...schema, field]` from the same pre-transaction copy and the
  * second commit erased the first one's field. Locking here makes the second call block
  * until the first commits, then build its new schema (and re-derive its minted key and
- * its duplicate-name refusal) from what is actually stored. */
-async function lockDatasetSchema(tx: Pick<Database, 'select'>, datasetId: string) {
+ * its duplicate-name refusal) from what is actually stored.
+ *
+ * Exported (fix round 1) for the same reason as `lockSources`: `sources.setVariantSetup`
+ * takes this lock first, always, before `lockSources` — the dataset-schema-then-sources
+ * order `deleteAxis` already follows. */
+export async function lockDatasetSchema(tx: Pick<Database, 'select'>, datasetId: string) {
   const [row] = await tx.select({ schema: datasets.schema }).from(datasets).where(eq(datasets.id, datasetId)).for('update');
   return (Array.isArray(row?.schema) ? row.schema : []) as Array<Record<string, unknown>>;
 }
