@@ -8,7 +8,7 @@ import {
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   resolveVariantList, suggestEntryValues, flattenEntry, pathFitsConcept, buildLinksNearScript,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
-  type VariantList, type VariantLinks, type VariantPicker,
+  type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
 } from '@robot/scraper';
 import { router, publicProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
@@ -21,7 +21,8 @@ import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirm
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
 import { rankProductLinks, describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
-import { sourceDefinitionHash, loadFieldCurrency } from '../verify/current-certification.js';
+import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency } from '../verify/current-certification.js';
+import { variantsRequired } from '../verify/variant-check.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
@@ -1154,8 +1155,8 @@ export const sourcesRouter = router({
       await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
         where: eq(sources.id, input.sourceId),
-        columns: { id: true, schemaDefinition: true, verificationSet: true },
-        with: { dataset: { columns: { schema: true } } },
+        columns: { id: true, schemaDefinition: true, verificationSet: true, variantSetup: true },
+        with: { dataset: { columns: { schema: true, variantMode: true } } },
       });
       if (!source) {
         throw new TRPCError({ code: 'NOT_FOUND', message: `Source ${input.sourceId} not found` });
@@ -1178,6 +1179,12 @@ export const sourcesRouter = router({
           expected: set.expected, ...(set.marks ? { marks: set.marks } : {}),
         }, contractFields(source.dataset?.schema));
         if (problems.length) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: problems.join('\n') });
+
+        // Variants (spec 2026-10-01): every product needs an answer, even "No variants on this product".
+        if (variantsRequired(source.dataset?.variantMode, source.variantSetup as VariantSetup | null) === 'yes'
+          && set.urls.some((u) => !set.variants?.[u])) {
+          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
+        }
       }
 
       const inFlight = await resolveInFlightVerification(ctx.db, input.sourceId);
@@ -1230,6 +1237,9 @@ export const sourcesRouter = router({
 
       const { currentKeys, unchangedKeys } = await loadFieldCurrency(ctx.db, input.sourceId);
       const fieldCount = source && Array.isArray(source.schemaDefinition) ? source.schemaDefinition.length : 0;
+      const v = await loadVariantCurrency(ctx.db, input.sourceId);
+      const variants: null | { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean; result: VariantVerification | null } =
+        v.required === 'no' ? null : { required: v.required, current: v.current, passed: v.passed, result: v.result };
 
       const captures = { ...(row.captures as Record<string, unknown>) };
       const stage = (captures._stage as string | undefined) ?? null;
@@ -1250,6 +1260,8 @@ export const sourcesRouter = router({
         // Fields whose latest result still matches them, passed or failed: a failure there is real, not stale.
         unchangedKeys,
         current: fieldCount > 0 && currentKeys.length === fieldCount,
+        // Variants (spec 2026-10-01): null when this website needs none; `current`/`passed` as `loadVariantCurrency` decides them.
+        variants,
       };
     }),
 
