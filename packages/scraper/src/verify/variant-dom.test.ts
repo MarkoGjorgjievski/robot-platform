@@ -32,6 +32,14 @@ describe('buildVariantPickerScript', () => {
     expect(pickers).toEqual([{ axis: 'size', options: ['8', '9'] }]);
   });
 
+  it('finds a select that is itself the matching control, in a plain div', async () => {
+    const selectHtml = `<html><body>
+      <div><label for="variant-size">Size</label><select id="variant-size"><option value="">Choose</option><option>S</option><option>M</option></select></div>
+    </body></html>`;
+    const pickers = await browser.setContentEvaluate<VariantPicker[]>(selectHtml, buildVariantPickerScript());
+    expect(pickers).toEqual([{ axis: 'size', options: ['S', 'M'] }]);
+  });
+
   it('finds a button group as a picker, with the axis from the matching data-* value', async () => {
     const buttonsHtml = `<html><body>
       <div data-option="color">

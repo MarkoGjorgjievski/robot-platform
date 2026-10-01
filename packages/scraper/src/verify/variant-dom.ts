@@ -16,7 +16,7 @@ const EXCLUDE_PATTERN = 'related|recommend|also|similar|recently|upsell|cross-?s
 /**
  * Also never a variant picker if a class/id TOKEN (split on whitespace, `-`, `_`; camelCase not
  * split) is exactly one of these. Unlike EXCLUDE_PATTERN, these are common enough fragments of
- * ordinary words (filter -> "size-table", sort -> "assorted-grid", tabs -> "comfortable-fit",
+ * ordinary words (tab -> "size-table", sort -> "assorted-grid", tabs -> "comfortable-fit",
  * "variant-table") that matching them as a substring wrongly excludes those controls (controller
  * ruling, fix round 2) — so they get their own regex, anchored to token boundaries.
  */
@@ -220,7 +220,7 @@ function radioGroupAxis(controlEl: Element, group: Element[], name: string, cont
 }
 
 /**
- * Every qualifying picker inside controlEl: a select with >=2 non-empty, non-placeholder
+ * Every qualifying picker inside controlEl: a select (controlEl itself, or one inside it) with >=2 non-empty, non-placeholder
  * options, else every radio group (shared name) with >=2 distinctly-labelled inputs, else >=2
  * buttons with distinct labels.
  */
@@ -229,7 +229,7 @@ function findPickersIn(
   controlRe: RegExp,
   labelForMap: Map<string, string>,
 ): Array<{ anchorEl: Element; options: string[]; axis: string }> {
-  const select = controlEl.querySelector('select');
+  const select = controlEl.matches('select') ? controlEl : controlEl.querySelector('select');
   if (select) {
     const opts: string[] = [];
     for (const o of Array.from((select as HTMLSelectElement).options)) {

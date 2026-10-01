@@ -29,6 +29,14 @@ describe('detectVariantLists', () => {
   it('ignores an image/related-item list — id + a generic axis-like key is not enough', () => {
     expect(detectVariantLists(cap([], [{ images: [{ id: 1, url: 'https://s.example/a.jpg', size: 'large' }, { id: 2, url: 'https://s.example/b.jpg', size: 'small' }] }]))).toEqual([]);
   });
+  it('ignores a recommendations list — a price per item is not a variant list without an option signal', () => {
+    const rec = (id: number) => ({ id, name: `Other product ${id}`, price: '19.99', url: `https://s.example/p/${id}` });
+    expect(detectVariantLists(cap([], [{ recommendations: [rec(1), rec(2), rec(3)] }]))).toEqual([]);
+  });
+  it('finds a price-per-entry API list once an entry carries an option', () => {
+    const l = detectVariantLists(cap([], [{ variants: [{ price: '5', size: 'S' }, { price: '6', size: 'M' }] }]));
+    expect(l[0]).toMatchObject({ source: 'api', path: 'variants', count: 2, axes: ['size'] });
+  });
   it('still finds a Shopify list identified by id + option1, with no sku/price', () => {
     const l = detectVariantLists(cap([], [{ product: { variants: [{ id: 1, option1: 'Red' }, { id: 2, option1: 'Blue' }] } }]));
     expect(l[0]).toMatchObject({ source: 'api', path: 'product.variants', count: 2, axes: ['option1'] });

@@ -173,10 +173,15 @@ function hasNarrowOptionSignal(e: PlainObject): boolean {
   return 'option1' in e || 'option2' in e || 'option3' in e || Array.isArray(e.options) || Array.isArray(e.selectedOptions);
 }
 
+/** Any `VARIANT_AXIS_KEYS` key, or an `options`/`selectedOptions` array: the signal a sku/price list needs before it reads as variants (a recommendations or cart list carries a price per item too). */
+function hasOptionSignal(e: PlainObject): boolean {
+  return Object.keys(e).some(isKnownAxisKey) || Array.isArray(e.options) || Array.isArray(e.selectedOptions);
+}
+
 function qualifiesAsApiVariantArray(arr: unknown[]): boolean {
   if (arr.length < 2 || !arr.every(isPlainObject)) return false;
   const objs = arr as PlainObject[];
-  if (objs.filter(hasSkuOrPrice).length >= 2) return true;
+  if (objs.filter(hasSkuOrPrice).length >= 2 && objs.some(hasOptionSignal)) return true;
   if (!objs.some(hasNarrowOptionSignal)) return false;
   return objs.filter(hasIdSignal).length >= 2;
 }
