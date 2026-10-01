@@ -4,7 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { datasets, projects, orgs, sources, type Database } from '@robot/db';
 import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure, type Context } from '../trpc';
-import { contractFields, contractAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
+import { contractFields, contractAxes, withoutAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { CATALOGUE } from '../schema-catalogue.js';
 import { resolveOrg } from '../auth/session.js';
@@ -174,7 +174,8 @@ export const datasetsRouter = router({
         .groupBy(datasets.id)
         .orderBy(datasets.name);
 
-      return results;
+      // Axis entries (spec 2026-10-01 §2) are not fields; the old dashboard reads every entry as one.
+      return results.map((r) => ({ ...r, schema: withoutAxes(r.schema) }));
     }),
 
   /** The project's contract (spec 4.1): the dataset schema's keyed fields, for the project home editor. */
@@ -228,7 +229,9 @@ export const datasetsRouter = router({
         );
       }
 
-      return dataset;
+      // Axis entries are not fields: the old dashboard's Output page renders and posts back every
+      // entry as one (`updateSchema` carries the stored axes forward on its own).
+      return { ...dataset, schema: withoutAxes(dataset.schema) };
     }),
 
   create: publicProcedure
@@ -273,7 +276,12 @@ export const datasetsRouter = router({
     .input(
       z.object({
         datasetId: z.string().uuid(),
-        schema: z.array(datasetSchemaFieldSchema),
+        // Axis entries posted back (by a caller that read the raw schema) are dropped before
+        // validation: axes change only via addAxis/renameAxis/deleteAxis, and the stored ones
+        // are carried forward below.
+        schema: z
+          .array(z.union([z.object({ kind: z.literal('axis') }).passthrough(), datasetSchemaFieldSchema]))
+          .transform((entries) => entries.filter((e): e is z.infer<typeof datasetSchemaFieldSchema> => !('kind' in e && e.kind === 'axis'))),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -422,6 +430,8 @@ export const datasetsRouter = router({
         name: f.name,
         level: effectiveLevel(f),
         levelIsDefault: f.level === undefined,
+        /** The level the field's concept implies: picking it resets the field (`setFieldLevel(null)`). */
+        defaultLevel: effectiveLevel({ concept: f.concept }),
       }));
       return { mode: (ds.variantMode as VariantMode) ?? 'ignore', fields, axes: contractAxes(ds.schema) };
     }),

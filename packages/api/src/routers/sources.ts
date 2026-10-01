@@ -1350,14 +1350,24 @@ export const sourcesRouter = router({
         }
         await lockSources(tx, datasetId);
 
+        // `from` is stored trimmed (plan 2 keys entry paths on it). Two entries
+        // naming the same new column (case-insensitive — e.g. detected `color`
+        // and `colour`, both "Colour") create it once and both map to it.
         const axes: Array<{ from: string; axisKey: string }> = [];
+        const createdByName = new Map<string, string>();
         if (input.method !== 'none') {
           for (const a of input.axes) {
+            const from = a.from.trim();
             if (a.newAxisName !== undefined) {
-              const created = await createAxis(tx, datasetId, a.newAxisName);
-              axes.push({ from: a.from, axisKey: created.key });
+              const nameKey = a.newAxisName.toLowerCase();
+              let axisKey = createdByName.get(nameKey);
+              if (axisKey === undefined) {
+                axisKey = (await createAxis(tx, datasetId, a.newAxisName)).key;
+                createdByName.set(nameKey, axisKey);
+              }
+              axes.push({ from, axisKey });
             } else {
-              axes.push({ from: a.from, axisKey: a.axisKey! });
+              axes.push({ from, axisKey: a.axisKey! });
             }
           }
         }

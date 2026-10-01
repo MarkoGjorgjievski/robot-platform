@@ -114,6 +114,14 @@ describe('effectiveSchema', () => {
     expect(result).toEqual([{ name: 'price', type: 'number' }]);
   });
 
+  it('falls back to selectorsJson.fields when the dataset schema holds only axes', () => {
+    const result = effectiveSchema({
+      dataset: { schema: [{ key: 'colour', name: 'Colour', kind: 'axis', concept: 'axis' }] },
+      selectorsJson: { fields: [{ name: 'price', type: 'number' }] },
+    });
+    expect(result).toEqual([{ name: 'price', type: 'number' }]);
+  });
+
   it('falls back to selectorsJson.fields when there is no dataset relation at all', () => {
     const result = effectiveSchema({
       selectorsJson: { fields: [{ name: 'price', type: 'number' }] },
