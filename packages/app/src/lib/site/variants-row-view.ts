@@ -113,6 +113,24 @@ function sameLinks(a: string[] | undefined, b: string[]): boolean {
 }
 
 /**
+ * Whether two hrefs are "the same page" for the purposes of picking a
+ * variant link that isn't the page itself: host + pathname (one trailing
+ * slash ignored) + query, case-insensitive on the host, fragment ignored —
+ * `?color=red` is kept because a query string can be a variant's own
+ * identity on some sites. Unparseable URLs fall back to a raw compare.
+ */
+function samePage(a: string, b: string): boolean {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    const norm = (u: URL) => `${u.hostname.toLowerCase()}${u.pathname.replace(/\/$/, '')}${u.search}`;
+    return norm(ua) === norm(ub);
+  } catch {
+    return a === b;
+  }
+}
+
+/**
  * The one-tick confirm (Rules): what pressing "Check this one" / the
  * confirm action writes for a page, from what its capture shows right now.
  * Keeps an existing `spot` — the customer's checked entry/variant page —
@@ -142,9 +160,27 @@ export function confirmAnswer(method: 'list' | 'links', page: DetectResult['page
   const unchanged = !!current?.spot && current.count === group.count && sameLinks(current.links, links);
   if (unchanged) return { count: group.count, labels, links, spot: current!.spot };
 
-  const notSelf = group.links.find((l) => l.href !== page.url);
+  const notSelf = group.links.find((l) => !samePage(l.href, page.url));
   const url = (notSelf ?? group.links[0]!).href;
   return { count: group.count, labels, links, spot: { index: 0, url, expected: {} } };
+}
+
+type Spot = NonNullable<VariantAnswer['spot']>;
+
+/** Whether an entry field is marked "From the product page" on a spot. */
+function fromProduct(spot: Spot | undefined, key: string): boolean {
+  return !!spot?.fromProduct?.includes(key);
+}
+
+/** The entry field's confirmed value on a spot, or undefined when it has none (blank counts as none). */
+function confirmedValue(spot: Spot | undefined, key: string): string | undefined {
+  const v = spot?.expected[key];
+  return v !== undefined && v.trim() !== '' ? v : undefined;
+}
+
+/** Whether an entry field counts as checked on a confirmed variant (Rules, `variantsNeed`): confirmed, or taken from the product page — the same two states `spotRows` renders as settled rows. */
+function entryFieldChecked(spot: Spot | undefined, key: string): boolean {
+  return fromProduct(spot, key) || confirmedValue(spot, key) !== undefined;
 }
 
 export type SpotRow = { key: string; name: string; state: 'suggested' | 'confirmed' | 'from-product' | 'needs-you'; value?: string; suggestion?: { value: string; path: string } };
@@ -157,9 +193,9 @@ export function spotRows(args: {
 }): SpotRow[] {
   const { fields, suggestions, answer } = args;
   return fields.map(({ key, name }) => {
-    if (answer?.spot?.fromProduct?.includes(key)) return { key, name, state: 'from-product' as const };
-    const confirmed = answer?.spot?.expected[key];
-    if (confirmed !== undefined && confirmed.trim() !== '') return { key, name, state: 'confirmed' as const, value: confirmed };
+    if (fromProduct(answer?.spot, key)) return { key, name, state: 'from-product' as const };
+    const confirmed = confirmedValue(answer?.spot, key);
+    if (confirmed !== undefined) return { key, name, state: 'confirmed' as const, value: confirmed };
     const suggestion = suggestions?.[key];
     if (suggestion) return { key, name, state: 'suggested' as const, suggestion };
     return { key, name, state: 'needs-you' as const };
@@ -190,11 +226,7 @@ export function variantsNeed(args: {
     for (let i = 0; i < urls.length; i++) {
       const a = answers[urls[i]!];
       if (!a || a.count <= 0) continue;
-      const checked = (key: string) => {
-        const expected = a.spot?.expected[key];
-        return (expected !== undefined && expected.trim() !== '') || !!a.spot?.fromProduct?.includes(key);
-      };
-      if (entryFieldKeys.some((key) => !checked(key))) return { kind: 'blocked', reason: `Check one variant of product ${i + 1}` };
+      if (entryFieldKeys.some((key) => !entryFieldChecked(a.spot, key))) return { kind: 'blocked', reason: `Check one variant of product ${i + 1}` };
     }
   }
 

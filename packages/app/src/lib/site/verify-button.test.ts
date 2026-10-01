@@ -75,6 +75,12 @@ describe('verifyButton with variants', () => {
     });
   });
 
+  it('fields and variants both pending, fields priced: the combined label carries the fields\' cost, not "free"', () => {
+    expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 2, aiAvailable: true, upperBoundUsd: 0.1, variants: { kind: 'pending' } })).toEqual({
+      label: 'Re-verify 2 fields and variants · up to $0.10', disabled: false,
+    });
+  });
+
   it('first run with variants pending: the label gains "and variants"', () => {
     expect(verifyButton({ ...base, aiAvailable: false, variants: { kind: 'pending' } })).toEqual({
       label: 'Verify 8 fields and variants · free', disabled: false,
