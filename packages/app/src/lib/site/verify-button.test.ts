@@ -60,6 +60,45 @@ describe('verifyButton', () => {
   });
 });
 
+describe('verifyButton with variants', () => {
+  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false };
+
+  it('no fields pending, variants pending: the variants-only label, free, enabled', () => {
+    expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 0, variants: { kind: 'pending' } })).toEqual({
+      label: 'Verify variants · free', disabled: false,
+    });
+  });
+
+  it('fields and variants both pending: the label gains "and variants"', () => {
+    expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 2, aiAvailable: false, variants: { kind: 'pending' } })).toEqual({
+      label: 'Re-verify 2 fields and variants · free', disabled: false,
+    });
+  });
+
+  it('first run with variants pending: the label gains "and variants"', () => {
+    expect(verifyButton({ ...base, aiAvailable: false, variants: { kind: 'pending' } })).toEqual({
+      label: 'Verify 8 fields and variants · free', disabled: false,
+    });
+  });
+
+  it('blocked with no field to run: the variants-only label, disabled, with the reason', () => {
+    expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 0, variants: { kind: 'blocked', reason: 'Confirm the variants of every product' } })).toEqual({
+      label: 'Verify variants · free', disabled: true, reason: 'Confirm the variants of every product',
+    });
+  });
+
+  it('blocked with a field run possible: fields verify, the reason shows beside it', () => {
+    expect(verifyButton({ ...base, variants: { kind: 'blocked', reason: 'Confirm the variants of every product' } })).toEqual({
+      label: 'Verify 8 fields · up to $0.25', disabled: false, reason: 'Confirm the variants of every product',
+    });
+  });
+
+  it('done or none: unchanged from the no-variants behaviour', () => {
+    expect(verifyButton({ ...base, variants: { kind: 'done' } })).toEqual({ label: 'Verify 8 fields · up to $0.25', disabled: false });
+    expect(verifyButton({ ...base, variants: { kind: 'none' } })).toEqual({ label: 'Verify 8 fields · up to $0.25', disabled: false });
+  });
+});
+
 function fv(passed: boolean) {
   return { key: 'k', cells: {}, certified: passed ? [{}] : [], weakEvidence: false, aiCalled: false, incomplete: false };
 }
