@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [Variants plan 1 (2026-10-01)](#variants-plan-1-2026-10-01).** A project can turn variants on (Fields page: No variants / One row per variant / One row per product, variants listed inside), each field says whether it differs per variant, and a website's Verification tab has a Variants step that reads the proof pages' screenshots — free — says how the site shows its variants ("Listed in the page data: 2 colours on every product") and records the method and its columns. Nothing is verified or extracted per variant yet: plan 2 verifies, plan 3 extracts. On branch `feat/variants-contract`, not merged.
+**Newest: [Variants plan 2 (2026-10-01)](#variants-plan-2-2026-10-01).** Verify now checks a website's variants too, free: the Verification table has a **Variants** row — each product's count ("2 colours", orange until its ✓), "No variants on this product", and, expanded, one variant checked per product (accept its suggested Price, SKU and Colour, type a value, or take a field "From the product page"). The button reads "Verify 5 fields and variants · …" or "Verify variants · free", and Go to Extract stays locked until the variants pass. Nothing is extracted per variant yet (plan 3). On branch `feat/variants-verification`, not merged.
+
+**Before it: [Variants plan 1 (2026-10-01)](#variants-plan-1-2026-10-01).** A project can turn variants on (Fields page: No variants / One row per variant / One row per product, variants listed inside), each field says whether it differs per variant, and a website's Verification tab has a Variants step that reads the proof pages' screenshots — free — says how the site shows its variants ("Listed in the page data: 2 colours on every product") and records the method and its columns. Nothing is verified or extracted per variant yet: plan 2 verifies, plan 3 extracts. On branch `feat/variants-contract`, not merged.
 
 **Before it: [Certification picks the right path (2026-09-29)](#certification-picks-the-right-path-2026-09-29).** A yes/no field, or one whose proof pages share a value, now certifies only on a path the customer confirmed, an element they marked, or a structured path named for it — Ikea's In stock stands on `offers.availability`, no longer on `priority`. Images match on host and path. On Ikea: **7 clicks** to Verify (was 24), 8 of 8 verified, free. The read-only audit flags one existing website for the customer to re-verify (Competitor prices / Ikea — In stock); nothing is re-certified automatically. Next: variants, a design of their own.
 
@@ -41,6 +43,33 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Variants plan 2 (2026-10-01)
+
+Spec: `docs/superpowers/specs/2026-10-01-variants-design.md` §4. Plan:
+`docs/superpowers/plans/2026-10-01-variants-plan2-verification-and-certification.md`. Branch
+`feat/variants-verification`, on top of plan 1; `git log --oneline main..HEAD` is the record.
+
+**What landed:**
+
+- **Engine (`@robot/scraper`, Tasks 1–2).** List certification (`certifyVariantList`: the confirmed list resolves on every proof page, the count matches what the customer confirmed, every entry field reads on every entry, no two entries read the same) and the link collector (`certifyVariantLinks`, links near a marked element). Failures use the plan's fixed sentences ("found 2 of 3 colours on product 1", "two colours on product 1 read the same: Black", …).
+- **API (Tasks 3–4).** Migration `0013_variant_results.sql` (`source_verifications.variant_results`). `sources.saveVariantAnswer` (row-locked, so a fields autosave never drops it, and refused for a page that is not a proof page), `sources.variantList` (a confirmed list's labels and per-entry suggestions), `sources.variantLinksNear`. Every Verify run checks the variants when the project wants them (`onlyKeys: []` runs the variants alone, free); `verificationStatus.variants` says required / current / passed; Extract is refused with "Set up this website's variants before extracting" or until the variant check is current and passed. Turning the project back to No variants unlocks Extract without re-verifying.
+- **App (Tasks 5–6).** `lib/site/variants-row-view.ts` (cell states, the one-tick confirm, spot-check rows, `variantsNeed`, `extractEnabled`) and `verifyButton`'s `variants`. `components/verification/variants-row.tsx`: the **Variants** row after the fields, only while the project wants variants and the website's method is "Listed in the page data" or "Linked as separate pages". A cell per product: orange count with ✓ ("Confirm the variants of product n"), grey "No variants" with ✓, green once confirmed, red with the product's message after a failed Verify. Expanded: the labels (first 8, "and k more"), **Not right?** (another list the page carries, or "No variants on this product"; for linked pages, "Mark the colour buttons on the screenshot", which opens that product's screenshot and searches near the click), and the checked variant — for a list, a sub-row per variant-level field and column (✓ the suggestion, type it, or "From the product page"; "Check this one" picks another variant); for linked pages, "Checking the Red page" with that page's screenshot state and Try again. Answers save 300 ms after the last change, newest wins; each save refreshes `sources.get` and `verificationStatus`. The detection query is shared with the Variants step (one key, looked at once).
+
+**How to check it, free.** `pnpm test:ui:app` with `pnpm dev:all` up. The smoke's shop now
+serves products 1 and 2 with 2 and 3 colours (each with SKU and price) and product 3 with none.
+After the plan 1 walk it adds SKU and In stock, accepts them, sees "2 colours" / "3 colours"
+orange and "No variants" grey, ticks all three, expands, accepts Price, SKU and Colour of the first
+variant on both, marks In stock "From the product page", checks the answers on the server, and
+reads the button ("… and variants · …") — never clicks it. Screens:
+`docs/testing/screens/app-site-verification-variants-row-{light,dark}.png` (and
+`…-variants-found-*`, now reading "2 colours on product 1, 3 on product 2, none on product 3").
+The live Verify (a keyless api-server on :4100, button asserted "· free", row turns green, Go to
+Extract unlocks) is the controller's step; its result goes here when run.
+
+**What plan 3 adds** (spec §5): a row per variant at extraction (list method: one page load;
+links method: one load per variant page, counted against the budget), `variant_key`, the budget
+and the export shapes. Picker-only variants stay out (spec §6).
 
 ## Variants plan 1 (2026-10-01)
 
