@@ -12,7 +12,7 @@ export type VariantPicker = { axis: string; options: string[] };
 /** A variant-like control: class/id/data-* name-or-value/aria-label matching one of these words. */
 const CONTROL_PATTERN = 'variant|swatch|colou?r|size|option|style|length|material';
 /** A control inside (or itself matching) one of these is never a product's own variant picker. */
-const EXCLUDE_PATTERN = 'related|recommend|also|similar|recently|upsell|cross-?sell|breadcrumb';
+const EXCLUDE_PATTERN = 'related|recommend|also|similar|recently|upsell|cross-?sell|breadcrumb|filter|facet|sort|refine|pagination|tabs?';
 
 // ---- Everything below runs INSIDE the page: stringified via toString() into the scripts at the
 // bottom of this file, each bound in the template to a `const` of the SAME name it is declared
@@ -46,6 +46,24 @@ function isExcluded(el: Element, excludeRe: RegExp): boolean {
     cur = cur.parentElement;
   }
   return false;
+}
+
+/** No rendered box (display:none or detached) or computed visibility:hidden — a duplicate, unseen control. */
+function isHidden(el: Element): boolean {
+  if (el.getClientRects().length === 0) return true;
+  return getComputedStyle(el).visibility === 'hidden';
+}
+
+/** Every label[for]'d element in the page, id -> trimmed text, built once per script run. */
+function buildLabelForMap(): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const lbl of Array.from(document.querySelectorAll('label[for]'))) {
+    const id = lbl.getAttribute('for');
+    if (!id || map.has(id)) continue;
+    const t = (lbl.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (t) map.set(id, t);
+  }
+  return map;
 }
 
 /** Resolves href against pageUrl; null for a fragment, javascript:, or non-http(s) link. */
@@ -90,15 +108,12 @@ function describeContainer(el: Element): string {
   return tag;
 }
 
-/** A radio input's label: an associated label[for], a wrapping label, else its value. */
-function radioLabel(input: Element): string {
+/** A radio input's OPTION label: an associated label[for] (via the shared map), a wrapping label, else its value. */
+function radioLabel(input: Element, labelForMap: Map<string, string>): string {
   const id = input.getAttribute('id');
   if (id) {
-    const lbl = Array.from(document.querySelectorAll('label')).find((l) => l.getAttribute('for') === id);
-    if (lbl) {
-      const t = (lbl.textContent ?? '').replace(/\s+/g, ' ').trim();
-      if (t) return t;
-    }
+    const t = labelForMap.get(id);
+    if (t) return t;
   }
   const wrap = input.closest('label');
   if (wrap) {
@@ -144,17 +159,14 @@ function matchedWord(el: Element, controlRe: RegExp): string | null {
   return null;
 }
 
-/** The control's label: aria-label, else an associated label[for]/legend, else the matching word. */
-function axisOf(controlEl: Element, anchorEl: Element, controlRe: RegExp): string {
+/** The control's label for a select/button-group picker: aria-label, else an associated label[for]/legend, else the matching word. */
+function axisOf(controlEl: Element, anchorEl: Element, controlRe: RegExp, labelForMap: Map<string, string>): string {
   const aria = (controlEl.getAttribute('aria-label') ?? '').trim();
   if (aria) return aria.toLowerCase();
   const anchorId = anchorEl.getAttribute('id');
   if (anchorId) {
-    const lbl = Array.from(document.querySelectorAll('label')).find((l) => l.getAttribute('for') === anchorId);
-    if (lbl) {
-      const t = (lbl.textContent ?? '').replace(/\s+/g, ' ').trim();
-      if (t) return t.toLowerCase();
-    }
+    const t = labelForMap.get(anchorId);
+    if (t) return t.toLowerCase();
   }
   const legend = controlEl.querySelector('legend');
   if (legend) {
@@ -165,35 +177,81 @@ function axisOf(controlEl: Element, anchorEl: Element, controlRe: RegExp): strin
   return word ? word.toLowerCase() : '';
 }
 
+/** True when fieldset's only radio inputs are exactly this group's (no sibling group sharing it). */
+function fieldsetOnlyHasGroup(fieldset: Element, group: Element[]): boolean {
+  const all = Array.from(fieldset.querySelectorAll('input[type="radio"]'));
+  if (all.length !== group.length) return false;
+  return all.every((r) => group.includes(r));
+}
+
 /**
- * The first qualifying picker inside controlEl: a select with >=2 non-empty options, else a
- * radio group (shared name) with >=2 distinctly-labelled inputs, else >=2 buttons with distinct
- * labels.
+ * A radio GROUP's axis — never an option's own label[for] (that names the option, not the
+ * group): the closest fieldset>legend that belongs to this group alone, else the control's own
+ * legend, else the control's aria-label, else the radios' shared name, else the matched word.
  */
-function findPickerIn(controlEl: Element): { anchorEl: Element; options: string[] } | null {
+function radioGroupAxis(controlEl: Element, group: Element[], name: string, controlRe: RegExp): string {
+  const fs = group[0]!.closest('fieldset');
+  if (fs && fieldsetOnlyHasGroup(fs, group)) {
+    const legend = fs.querySelector('legend');
+    const t = (legend?.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (t) return t.toLowerCase();
+  }
+  const controlLegend = controlEl.querySelector('legend');
+  if (controlLegend) {
+    const t = (controlLegend.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (t) return t.toLowerCase();
+  }
+  const aria = (controlEl.getAttribute('aria-label') ?? '').trim();
+  if (aria) return aria.toLowerCase();
+  if (name.trim()) return name.trim().toLowerCase();
+  const word = matchedWord(controlEl, controlRe);
+  return word ? word.toLowerCase() : '';
+}
+
+/**
+ * Every qualifying picker inside controlEl: a select with >=2 non-empty, non-placeholder
+ * options, else every radio group (shared name) with >=2 distinctly-labelled inputs, else >=2
+ * buttons with distinct labels.
+ */
+function findPickersIn(
+  controlEl: Element,
+  controlRe: RegExp,
+  labelForMap: Map<string, string>,
+): Array<{ anchorEl: Element; options: string[]; axis: string }> {
   const select = controlEl.querySelector('select');
   if (select) {
     const opts: string[] = [];
     for (const o of Array.from((select as HTMLSelectElement).options)) {
+      if (o.disabled) continue;
       const val = (o.value ?? '').trim();
+      if (val === '') continue;
       const text = (o.textContent ?? '').replace(/\s+/g, ' ').trim();
-      if (val !== '' && text !== '') opts.push(text);
+      if (text === '') continue;
+      if (/^(select|choose|pick|please)\b/i.test(text)) continue;
+      if (text.endsWith('...') || text.endsWith('…')) continue;
+      opts.push(text);
     }
-    if (opts.length >= 2) return { anchorEl: select, options: opts };
+    if (opts.length >= 2) return [{ anchorEl: select, options: opts, axis: axisOf(controlEl, select, controlRe, labelForMap) }];
   }
   const byName = new Map<string, Element[]>();
+  const order: string[] = [];
   for (const r of Array.from(controlEl.querySelectorAll('input[type="radio"]'))) {
     const name = r.getAttribute('name');
     if (!name) continue;
-    const group = byName.get(name) ?? [];
-    group.push(r);
-    byName.set(name, group);
+    if (!byName.has(name)) {
+      byName.set(name, []);
+      order.push(name);
+    }
+    byName.get(name)!.push(r);
   }
-  for (const group of byName.values()) {
+  const radioResults: Array<{ anchorEl: Element; options: string[]; axis: string }> = [];
+  for (const name of order) {
+    const group = byName.get(name)!;
     if (group.length < 2) continue;
-    const labels = group.map((r) => radioLabel(r)).filter((l) => l !== '');
-    if (labels.length >= 2) return { anchorEl: group[0]!, options: labels };
+    const labels = group.map((r) => radioLabel(r, labelForMap)).filter((l) => l !== '');
+    if (labels.length >= 2) radioResults.push({ anchorEl: group[0]!, options: labels, axis: radioGroupAxis(controlEl, group, name, controlRe) });
   }
+  if (radioResults.length > 0) return radioResults;
   const buttons = Array.from(controlEl.querySelectorAll('button'));
   if (buttons.length >= 2) {
     const seen = new Set<string>();
@@ -204,12 +262,12 @@ function findPickerIn(controlEl: Element): { anchorEl: Element; options: string[
       seen.add(label);
       labels.push(label);
     }
-    if (labels.length >= 2) return { anchorEl: controlEl, options: labels };
+    if (labels.length >= 2) return [{ anchorEl: controlEl, options: labels, axis: axisOf(controlEl, controlEl, controlRe, labelForMap) }];
   }
-  return null;
+  return [];
 }
 
-/** Evaluates (in a page) to VariantLinks[]: up to 3 link groups, largest first. */
+/** Evaluates (in a page) to VariantLinks[]: up to 3 link groups, largest first, no two with the same href set. */
 export function buildVariantLinksScript(pageUrl: string): string {
   return `(() => {
     ${PAGE_SCRIPT_PRELUDE}
@@ -218,6 +276,7 @@ export function buildVariantLinksScript(pageUrl: string): string {
     const pageUrl = ${JSON.stringify(pageUrl)};
     const isVariantControl = ${isVariantControl.toString()};
     const isExcluded = ${isExcluded.toString()};
+    const isHidden = ${isHidden.toString()};
     const resolveHref = ${resolveHref.toString()};
     const linkLabel = ${linkLabel.toString()};
     const describeContainer = ${describeContainer.toString()};
@@ -228,6 +287,7 @@ export function buildVariantLinksScript(pageUrl: string): string {
     for (const el of all) {
       if (!isVariantControl(el, controlRe)) continue;
       if (isExcluded(el, excludeRe)) continue;
+      if (isHidden(el)) continue;
       const seen = new Map();
       for (const a of el.querySelectorAll('a[href]')) {
         const href = a.getAttribute('href');
@@ -245,7 +305,17 @@ export function buildVariantLinksScript(pageUrl: string): string {
     // Nested matching controls: keep only the innermost control that holds the links (controller notes #3).
     const kept = candidates.filter((c) => !candidates.some((d) => d !== c && c.el.contains(d.el) && d.el !== c.el));
     kept.sort((a, b) => b.links.length - a.links.length);
-    return kept.slice(0, 3).map((c) => ({ container: describeContainer(c.el), count: c.links.length, links: c.links }));
+    // Drop a group whose sorted href set duplicates one already reported (e.g. a hidden mobile copy of a visible one).
+    const seenSets = new Set();
+    const out = [];
+    for (const c of kept) {
+      if (out.length >= 3) break;
+      const sig = c.links.map((l) => l.href).slice().sort().join('|');
+      if (seenSets.has(sig)) continue;
+      seenSets.add(sig);
+      out.push(c);
+    }
+    return out.map((c) => ({ container: describeContainer(c.el), count: c.links.length, links: c.links }));
   })()`;
 }
 
@@ -257,25 +327,29 @@ export function buildVariantPickerScript(): string {
     const excludeRe = /${EXCLUDE_PATTERN}/i;
     const isVariantControl = ${isVariantControl.toString()};
     const isExcluded = ${isExcluded.toString()};
+    const isHidden = ${isHidden.toString()};
+    const buildLabelForMap = ${buildLabelForMap.toString()};
     const radioLabel = ${radioLabel.toString()};
     const buttonLabel = ${buttonLabel.toString()};
     const matchedWord = ${matchedWord.toString()};
     const axisOf = ${axisOf.toString()};
-    const findPickerIn = ${findPickerIn.toString()};
+    const fieldsetOnlyHasGroup = ${fieldsetOnlyHasGroup.toString()};
+    const radioGroupAxis = ${radioGroupAxis.toString()};
+    const findPickersIn = ${findPickersIn.toString()};
+    const labelForMap = buildLabelForMap();
     const all = document.body ? document.body.querySelectorAll('*') : [];
     const candidates = [];
     for (const el of all) {
       if (!isVariantControl(el, controlRe)) continue;
       if (isExcluded(el, excludeRe)) continue;
-      const picker = findPickerIn(el);
-      if (!picker) continue;
-      candidates.push({ controlEl: el, picker });
+      if (isHidden(el)) continue;
+      for (const picker of findPickersIn(el, controlRe, labelForMap)) candidates.push({ controlEl: el, picker });
     }
     // Nested matching controls: keep only the innermost control that holds the picker (controller notes #3).
     const kept = candidates.filter((c) => !candidates.some((d) => d !== c && c.controlEl.contains(d.controlEl) && d.controlEl !== c.controlEl));
     // Dedupe pickers by element: two surviving controls could still point at the same select/button-group.
     const byAnchor = new Map();
     for (const k of kept) if (!byAnchor.has(k.picker.anchorEl)) byAnchor.set(k.picker.anchorEl, k);
-    return Array.from(byAnchor.values()).map((k) => ({ axis: axisOf(k.controlEl, k.picker.anchorEl, controlRe), options: k.picker.options }));
+    return Array.from(byAnchor.values()).map((k) => ({ axis: k.picker.axis, options: k.picker.options }));
   })()`;
 }
