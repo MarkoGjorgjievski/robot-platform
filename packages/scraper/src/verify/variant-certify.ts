@@ -140,9 +140,10 @@ function candidateKey(c: EntryPath): string {
  * suggestion(s) from each page's spot answer; an axis field's own axis
  * reading as a default; then the flattened leaves of each page's spot entry
  * whose value matches the confirmed one, concept-fitting leaves first, then
- * shorter paths. A boolean field never takes a non-concept-fitting leaf
- * (spec 2026-09-29 C2, mirrored by qualifiesForWeak in certify.ts) — an
- * accepted or axis candidate is unaffected, since the customer vouched for it.
+ * shorter paths. A boolean field never takes a non-concept-fitting leaf, nor
+ * the bare axis default (spec 2026-09-29 C2, mirrored by qualifiesForWeak in
+ * certify.ts) — a value match alone cannot tell those apart from any other
+ * path; only an accepted candidate is unaffected, since the customer vouched for it.
  */
 function candidatesForField(f: EntryField, pages: FittingPage[]): EntryPath[] {
   const out: EntryPath[] = [];
@@ -153,7 +154,9 @@ function candidatesForField(f: EntryField, pages: FittingPage[]): EntryPath[] {
     const path = p.answer.spot?.paths?.[f.key];
     if (path !== undefined) add(accepted(path));
   }
-  if (f.axisFrom !== undefined) add({ kind: 'axis', from: f.axisFrom });
+  // Same yes/no restriction as a leaf (spec 2026-09-29 C2): an axis reading cannot be told apart
+  // from any other path by value alone, so a boolean field never takes it as a bare default.
+  if (f.axisFrom !== undefined && f.type !== 'boolean') add({ kind: 'axis', from: f.axisFrom });
 
   const leafPaths: string[] = [];
   const leafSeen = new Set<string>();
@@ -243,6 +246,12 @@ export function certifyVariantList(input: {
       else if (k < p.answer.count) addFailure(p.url, `found ${k} of ${p.answer.count} ${noun} on product ${p.n}`);
       else addFailure(p.url, `found ${k} ${noun} on product ${p.n}, expected ${p.answer.count}`);
     }
+  } else {
+    // No answer with variants carried a list ref at all: there is nothing to certify
+    // against, so every page's resolved count reads as zero — same as an empty list.
+    for (const p of captured) {
+      if (p.answer.count > 0) addFailure(p.url, `found no ${noun} on product ${p.n}`);
+    }
   }
 
   const fitting: FittingPage[] = chosen
@@ -256,7 +265,9 @@ export function certifyVariantList(input: {
       const tuples = p.entries.map((e) => axisFields.map((f) => entryAxisValue(e, f.axisFrom!) ?? ''));
       findDup: for (let i = 0; i < tuples.length; i++) {
         for (let j = i + 1; j < tuples.length; j++) {
-          if (tuples[i]!.some((v) => v !== '') && tuples[i]!.every((v, k) => v === tuples[j]![k])) {
+          // Position-wise, the engine's own notion of "the same" (valuesEqual), not a raw string
+          // compare: "Black" and "black " read as one axis value, same as everywhere else here.
+          if (tuples[i]!.every((v, k) => valuesEqual('text', v, tuples[j]![k]))) {
             addFailure(p.url, `two ${noun} on product ${p.n} read the same: ${tuples[i]!.join('/')}`);
             break findDup;
           }

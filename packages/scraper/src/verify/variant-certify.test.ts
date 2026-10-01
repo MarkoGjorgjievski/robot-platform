@@ -90,6 +90,51 @@ describe('certifyVariantList', () => {
     expect(r.pages[U[1]!]).toEqual({ status: 'not_captured' });
     expect(r.passed).toBe(false);
   });
+  it('fails every product with variants when no answer carries a list to certify against', () => {
+    const a = answers();
+    delete a[U[0]!]!.list;
+    delete a[U[1]!]!.list;
+    const r = run(a);
+    expect(r.pages[U[0]!]).toEqual({ status: 'fail', message: 'found no colours on product 1' });
+    expect(r.pages[U[1]!]).toEqual({ status: 'fail', message: 'found no colours on product 2' });
+    expect(r.passed).toBe(false);
+  });
+  it('catches a duplicate even when case or whitespace differs', () => {
+    const c = captures();
+    c[U[0]!] = cap(U[0]!, [group([v('Black', 'A1', '10.00'), v('black ', 'A2', '11.00')])]);
+    expect(run(answers(), c).pages[U[0]!]).toEqual({ status: 'fail', message: 'two colours on product 1 read the same: Black' });
+  });
+  it('reports the partial from-product message on the first product not marking it, naming the first that does', () => {
+    const a = answers();
+    const s0 = a[U[0]!]!.spot!;
+    delete s0.expected.in_stock;
+    s0.fromProduct = ['in_stock'];
+    const r = run(a);
+    expect(r.pages[U[1]!]).toEqual({
+      status: 'fail',
+      message: 'In stock is taken from the product page on product 1 but from the list on product 2',
+    });
+  });
+  it('reports the missing-field message from the candidate proven on the most pages, not merely the first by priority', () => {
+    const urls = ['https://s.example/q/1', 'https://s.example/q/2', 'https://s.example/q/3'];
+    const list = { source: 'json-ld' as const, path: 'hasVariant' };
+    const page = (url: string, entries: Array<Record<string, string>>) => cap(url, [{ hasVariant: entries }]);
+    const c: Record<string, CaptureLike | null> = {
+      [urls[0]!]: page(urls[0]!, [{ a: 'X1', zzzvariant: 'X1' }, { a: 'o1', zzzvariant: 'o1' }]),
+      [urls[1]!]: page(urls[1]!, [{ a: 'WRONG', zzzvariant: 'Y1' }, { a: 'o2', zzzvariant: 'o2' }]),
+      [urls[2]!]: page(urls[2]!, [{ a: 'ALSO_WRONG', zzzvariant: 'Z1' }, { a: 'o3', zzzvariant: '' }]),
+    };
+    const a: Record<string, VariantAnswer> = {
+      [urls[0]!]: { count: 2, labels: ['x', 'o'], list, spot: spot({ code: 'X1' }) },
+      [urls[1]!]: { count: 2, labels: ['y', 'o'], list, spot: spot({ code: 'Y1' }) },
+      [urls[2]!]: { count: 2, labels: ['z', 'o'], list, spot: spot({ code: 'Z1' }) },
+    };
+    const fields: EntryField[] = [{ key: 'code', name: 'Code', type: 'text', concept: 'no_such_concept' }];
+    const r = certifyVariantList({ urls, captures: c, answers: a, fields, noun: 'codes' });
+    // 'a' is correct on page 1 only (score 1); 'zzzvariant' is correct on pages 1 and 2 (score 2) and
+    // only trips on page 3's other entry being blank. 'a' sorts first (shorter path) but must lose.
+    expect(r.pages[urls[2]!]).toEqual({ status: 'fail', message: 'Code missing on 1 of 2 codes on product 3' });
+  });
 });
 
 describe('suggestEntryValues', () => {
