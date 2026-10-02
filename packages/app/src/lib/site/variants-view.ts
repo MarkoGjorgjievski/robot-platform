@@ -64,10 +64,31 @@ function axisWord(raw: string): string {
   return m[1]!.replace(/^color$/, 'colour').replace(/^flavor$/, 'flavour');
 }
 
+/**
+ * Singular → plural for the twelve known variant words (Global Constraints),
+ * exact — not a mechanical "+s" ("capacity" → "capacities", "finish" →
+ * "finishes", not "capacitys"/"finishs"). The one table both `axisPlural`
+ * and the picker-only line (`knownPickerWord`/`pickerOnlyWords`) read.
+ */
+const KNOWN_PLURALS: Readonly<Record<string, string>> = {
+  colour: 'colours',
+  size: 'sizes',
+  length: 'lengths',
+  width: 'widths',
+  height: 'heights',
+  material: 'materials',
+  pattern: 'patterns',
+  style: 'styles',
+  capacity: 'capacities',
+  flavour: 'flavours',
+  scent: 'scents',
+  finish: 'finishes',
+};
+
 /** "colours", "sizes", "options", "lengths". */
 export function axisPlural(raw: string): string {
   const w = axisWord(raw);
-  return w.endsWith('s') ? w : `${w}s`;
+  return KNOWN_PLURALS[w] ?? (w.endsWith('s') ? w : `${w}s`);
 }
 
 /** The column name a new axis would get: "Colour", "Size", "Option 2". */
@@ -132,19 +153,11 @@ function shownElsewhere(d: DetectResult): Set<string> {
   return out;
 }
 
-/**
- * The known picker-only words (Global Constraints), in plain plurals: any
- * other picker name (a raw token such as "swatch" or "defaultColorNames")
- * is left out rather than pluralized as is.
- */
-const KNOWN_PICKER_WORDS: ReadonlySet<string> = new Set(['colour', 'size', 'length', 'width', 'height', 'material', 'pattern', 'style', 'capacity', 'flavour', 'scent', 'finish']);
-
-/** The known word a picker's axis name stands for, or undefined when it names none. Unlike `axisWord`, this never falls back to "option" or the raw text. */
+/** The known word a picker's axis name stands for, or undefined when it names none (a raw token such as "swatch" or "defaultColorNames"). Unlike `axisWord`, this never falls back to "option" or the raw text. */
 function knownPickerWord(raw: string): string | undefined {
   const m = KNOWN_WORDS.exec(raw.trim().toLowerCase());
   if (!m) return undefined;
-  const word = m[1]!.replace(/^color$/, 'colour').replace(/^flavor$/, 'flavour');
-  return KNOWN_PICKER_WORDS.has(word) ? word : undefined;
+  return m[1]!.replace(/^color$/, 'colour').replace(/^flavor$/, 'flavour');
 }
 
 /** The plural words of the axes found only in a picker, each once, known words only (Global Constraints): "sizes". */
@@ -155,8 +168,8 @@ function pickerOnlyWords(d: DetectResult): string[] {
     for (const picker of p.pickers) {
       if (picker.options.some((o) => elsewhere.has(o.trim().toLowerCase()))) continue;
       const word = knownPickerWord(picker.axis);
-      if (!word) continue;
-      const plural = `${word}s`;
+      const plural = word ? KNOWN_PLURALS[word] : undefined;
+      if (!plural) continue;
       if (!out.includes(plural)) out.push(plural);
     }
   }

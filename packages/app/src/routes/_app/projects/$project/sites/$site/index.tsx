@@ -60,7 +60,7 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
-import { extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
+import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -409,9 +409,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
     return [...keys];
   }, [variantsInfo.data, variantSetup]);
-  const noun = variantNoun(
-    (variantSetup?.axes ?? []).map((a) => variantsInfo.data?.axes.find((x) => x.key === a.axisKey)?.name).filter((n): n is string => !!n),
-  );
+  const noun = variantNoun(columnNames(variantSetup ?? null, variantsInfo.data?.axes ?? []));
 
   /**
    * Each product's elements once its screenshot has landed, for the row
