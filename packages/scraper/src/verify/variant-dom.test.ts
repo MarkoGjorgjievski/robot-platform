@@ -26,6 +26,21 @@ describe('buildVariantLinksScript', () => {
   });
 });
 
+describe('buildVariantLinksScript — path shape', () => {
+  const nikePage = `<html><body><main>
+  <div class="colorway-images" aria-label="Colour">
+    <a href="/t/air-force-1-white/CW2288-111">White</a><a href="/t/air-force-1-black/CW2288-001">Black</a>
+    <a href="/u/custom-nike-air-force-1-by-you">Design your own Nike By You product</a></div>
+  <div class="pdp-help-options"><a href="/help/a/returns">Return policy</a><a href="/help/a/pickup">Pick-up available</a></div>
+</main></body></html>`;
+  const PAGE = 'https://www.nike.com/t/air-force-1-white/CW2288-111';
+  it('drops the customise link and the help links (Nike)', async () => {
+    const groups = await browser.setContentEvaluate<VariantLinks[]>(nikePage, buildVariantLinksScript(PAGE));
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.links.map((l) => l.label)).toEqual(['White', 'Black']);
+  });
+});
+
 describe('buildVariantLinksScript — one normal form for links', () => {
   it('returns absolute, fragment-free hrefs, and two hrefs differing only by fragment are one link', async () => {
     const fragHtml = `<html><body>

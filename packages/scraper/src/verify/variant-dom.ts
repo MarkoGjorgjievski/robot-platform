@@ -5,6 +5,7 @@
 // scripts, dependency-free and self-contained like dom-scripts.ts; a later task
 // (API sources.detectVariants) runs these against proof-page captures.
 import { PAGE_SCRIPT_PRELUDE } from './dom-scripts.js';
+import { isLikelyVariantHref } from './variant-collector.js';
 
 export type VariantLinks = { container: string; count: number; links: Array<{ href: string; label: string }> };
 export type VariantPicker = { axis: string; options: string[] };
@@ -298,8 +299,7 @@ export function buildVariantLinksScript(pageUrl: string): string {
     const resolveHref = ${resolveHref.toString()};
     const linkLabel = ${linkLabel.toString()};
     const describeContainer = ${describeContainer.toString()};
-    let host = '';
-    try { host = new URL(pageUrl).host; } catch {}
+    const isLikelyVariantHref = ${isLikelyVariantHref.toString()};
     const all = document.body ? document.body.querySelectorAll('*') : [];
     const candidates = [];
     for (const el of all) {
@@ -311,10 +311,7 @@ export function buildVariantLinksScript(pageUrl: string): string {
         const href = a.getAttribute('href');
         if (!href) continue;
         const resolved = resolveHref(href, pageUrl);
-        if (!resolved) continue;
-        let u;
-        try { u = new URL(resolved); } catch { continue; }
-        if (u.host !== host) continue;
+        if (!resolved || !isLikelyVariantHref(pageUrl, resolved)) continue;
         if (seen.has(resolved)) continue;
         seen.set(resolved, linkLabel(a));
       }
