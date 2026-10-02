@@ -878,6 +878,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     answers: variantAnswers.answers,
     method: variantMethod,
     entryFieldKeys: entryFields.map((f) => f.key),
+    columnKeys,
   });
   const button = verifyButton({
     state: strip,

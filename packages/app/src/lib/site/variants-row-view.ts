@@ -209,8 +209,17 @@ function confirmedValue(spot: Spot | undefined, key: string): string | undefined
   return v !== undefined && v.trim() !== '' ? v : undefined;
 }
 
-/** Whether an entry field counts as checked on a confirmed variant (Rules, `variantsNeed`): confirmed, or taken from the product page — the same two states `spotRows` renders as settled rows. */
-function entryFieldChecked(spot: Spot | undefined, key: string): boolean {
+/**
+ * Whether an entry field counts as checked on a confirmed variant (Rules,
+ * `variantsNeed`): confirmed, or taken from the product page — the same two
+ * states `spotRows` renders as settled rows. A column (`isColumn`) can never
+ * be checked via from-product (Global Constraints: it differs per variant by
+ * definition) — a stale answer still holding it there (a website verified
+ * under the old rules) counts as not checked, the same way `spotRows` reads
+ * that row as `needs-you` rather than settled.
+ */
+function entryFieldChecked(spot: Spot | undefined, key: string, isColumn: boolean): boolean {
+  if (isColumn) return confirmedValue(spot, key) !== undefined;
   return fromProduct(spot, key) || confirmedValue(spot, key) !== undefined;
 }
 
@@ -261,8 +270,10 @@ export function variantsNeed(args: {
   variants: { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean } | null;
   urls: string[]; answers: Record<string, VariantAnswer>; method: 'list' | 'links' | null;
   entryFieldKeys: string[];
+  /** `entryFieldKeys`' columns (axis entry fields) — these can never read checked via from-product (see `entryFieldChecked`). */
+  columnKeys: string[];
 }): VariantsNeed {
-  const { variants, urls, answers, method, entryFieldKeys } = args;
+  const { variants, urls, answers, method, entryFieldKeys, columnKeys } = args;
   if (!variants) return { kind: 'none' };
   if (variants.required === 'setup-missing') return { kind: 'blocked', reason: "Set up this website's variants below" };
   if (urls.some((u) => { const a = answers[u]; return !a || (method !== null && !answerFitsMethod(method, a)); })) {
@@ -270,10 +281,11 @@ export function variantsNeed(args: {
   }
 
   if (method === 'list') {
+    const columns = new Set(columnKeys);
     for (let i = 0; i < urls.length; i++) {
       const a = answers[urls[i]!];
       if (!a || a.count <= 0) continue;
-      if (entryFieldKeys.some((key) => !entryFieldChecked(a.spot, key))) return { kind: 'blocked', reason: `Check one variant of product ${i + 1}` };
+      if (entryFieldKeys.some((key) => !entryFieldChecked(a.spot, key, columns.has(key)))) return { kind: 'blocked', reason: `Check one variant of product ${i + 1}` };
     }
   }
 
