@@ -115,14 +115,40 @@ describe('certifyVariantList', () => {
       message: 'In stock is taken from the product page on product 1 but from the list on product 2',
     });
   });
+  it('resolveVariantList drops stubs, so certification counts what detection counted', () => {
+    const c = cap(U[0]!, [{ '@type': 'ProductGroup', hasVariant: [{ '@type': 'Product', url: 'https://s.example/o' }, v('Black', 'A1', '10.00'), v('Red', 'A2', '11.00')] }]);
+    expect(resolveVariantList(c, LIST)).toHaveLength(2);
+  });
+  it('certifies sku on sku when both sku and mpn read the confirmed value', () => {
+    // mpn mirrors sku on every entry, so both paths fully match on value — the ranking
+    // (sku before mpn in CONCEPT_PATHS.sku) must be what breaks the tie.
+    const entry = (sku: string, color: string) => ({ '@type': 'Product', color, mpn: sku, sku, offers: { price: '10.00' } });
+    const c: Record<string, CaptureLike | null> = {
+      [U[0]!]: cap(U[0]!, [group([entry('A1', 'Black'), entry('A2', 'Red')])]),
+      [U[1]!]: cap(U[1]!, [group([entry('B1', 'Black'), entry('B2', 'Red')])]),
+      [U[2]!]: cap(U[2]!, [{ '@type': 'Product', name: 'Plain', sku: 'C1', offers: { price: '5.00' } }]),
+    };
+    const a: Record<string, VariantAnswer> = {
+      [U[0]!]: { count: 2, labels: ['Black', 'Red'], list: LIST, spot: spot({ sku: 'A1', colour: 'Black' }) },
+      [U[1]!]: { count: 2, labels: ['Black', 'Red'], list: LIST, spot: spot({ sku: 'B1', colour: 'Black' }) },
+      [U[2]!]: { count: 0, labels: [] },
+    };
+    const fields: EntryField[] = [
+      { key: 'sku', name: 'SKU', type: 'text', concept: 'sku' },
+      { key: 'colour', name: 'Colour', type: 'text', concept: 'axis', axisFrom: 'color' },
+    ];
+    const r = certifyVariantList({ urls: U, captures: c, answers: a, fields, noun: 'colours' });
+    expect(r.passed).toBe(true);
+    expect(r.entryPaths!.sku).toEqual({ kind: 'path', path: 'sku' });
+  });
   it('reports the missing-field message from the candidate proven on the most pages, not merely the first by priority', () => {
     const urls = ['https://s.example/q/1', 'https://s.example/q/2', 'https://s.example/q/3'];
     const list = { source: 'json-ld' as const, path: 'hasVariant' };
     const page = (url: string, entries: Array<Record<string, string>>) => cap(url, [{ hasVariant: entries }]);
     const c: Record<string, CaptureLike | null> = {
-      [urls[0]!]: page(urls[0]!, [{ a: 'X1', zzzvariant: 'X1' }, { a: 'o1', zzzvariant: 'o1' }]),
-      [urls[1]!]: page(urls[1]!, [{ a: 'WRONG', zzzvariant: 'Y1' }, { a: 'o2', zzzvariant: 'o2' }]),
-      [urls[2]!]: page(urls[2]!, [{ a: 'ALSO_WRONG', zzzvariant: 'Z1' }, { a: 'o3', zzzvariant: '' }]),
+      [urls[0]!]: page(urls[0]!, [{ a: 'X1', zzzvariant: 'X1', price: '1' }, { a: 'o1', zzzvariant: 'o1', price: '1' }]),
+      [urls[1]!]: page(urls[1]!, [{ a: 'WRONG', zzzvariant: 'Y1', price: '1' }, { a: 'o2', zzzvariant: 'o2', price: '1' }]),
+      [urls[2]!]: page(urls[2]!, [{ a: 'ALSO_WRONG', zzzvariant: 'Z1', price: '1' }, { a: 'o3', zzzvariant: '', price: '1' }]),
     };
     const a: Record<string, VariantAnswer> = {
       [urls[0]!]: { count: 2, labels: ['x', 'o'], list, spot: spot({ code: 'X1' }) },

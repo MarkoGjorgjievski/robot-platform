@@ -10,9 +10,9 @@ import { createHash } from 'node:crypto';
 import type { CaptureLike } from './certify.js';
 import { getByDotPath } from '../domain-cache.js';
 import { normalize, valuesEqual, type NormalizeContext } from './normalize.js';
-import { pathFitsConcept } from './field-fit.js';
+import { pathFitsConcept, conceptRank } from './field-fit.js';
 import { objectUrl, displayValue } from './structured-value.js';
-import { entryAxisValue } from './variant-detect.js';
+import { entryAxisValue, isVariantEntry } from './variant-detect.js';
 import type { CustomerFieldType, VariantListRef, VariantAnswer } from './types.js';
 
 /**
@@ -80,15 +80,18 @@ function apiBodies(capture: Pick<CaptureLike, 'interceptedRequests'>): unknown[]
 /**
  * Resolve a confirmed variant list ref against a fresh capture: the first
  * array found at `ref.path`, in the same containers detection scans, with at
- * least one plain object — only its plain objects kept. `null` when nothing
- * there resolves to such an array (the list moved or the page changed shape).
+ * least one plain object — only its variant entries kept (`isVariantEntry`,
+ * same stub filter `buildList` applies), so certification and `variantList`
+ * see the same entries detection counted. `null` when nothing there resolves
+ * to such an array (the list moved or the page changed shape), or every
+ * entry there is a stub.
  */
 export function resolveVariantList(capture: CaptureLike, ref: VariantListRef): Record<string, unknown>[] | null {
   const containers: unknown[] = ref.source === 'json-ld' ? jsonLdBlocks(capture.structuredData.ldJson) : apiBodies(capture);
   for (const c of containers) {
     const v = getByDotPath(c, ref.path);
     if (!Array.isArray(v)) continue;
-    const objs = v.filter(isPlainObject);
+    const objs = v.filter(isPlainObject).filter(isVariantEntry);
     if (objs.length > 0) return objs;
   }
   return null;
@@ -147,7 +150,13 @@ export function suggestEntryValues(entry: Record<string, unknown>, fields: Entry
       out[f.key] = from !== undefined && v !== undefined ? { value: v, path: `axis:${from}` } : null;
       continue;
     }
-    const hit = leaves.find((l) => pathFitsConcept(f.concept, l.path) && normalize(f.type, l.raw, ctx) !== null);
+    const fitting = leaves.filter((l) => pathFitsConcept(f.concept, l.path) && normalize(f.type, l.raw, ctx) !== null);
+    fitting.sort((a, b) => {
+      const ar = conceptRank(f.concept, a.path);
+      const br = conceptRank(f.concept, b.path);
+      return ar !== br ? ar - br : a.path.length - b.path.length;
+    });
+    const hit = fitting[0];
     out[f.key] = hit ? { value: displayValue(hit.raw) ?? String(hit.raw), path: hit.path } : null;
   }
   return out;
@@ -203,7 +212,13 @@ function candidatesForField(f: EntryField, pages: FittingPage[]): EntryPath[] {
   leafPaths.sort((a, b) => {
     const af = pathFitsConcept(f.concept, a) ? 0 : 1;
     const bf = pathFitsConcept(f.concept, b) ? 0 : 1;
-    return af !== bf ? af - bf : a.length - b.length;
+    if (af !== bf) return af - bf;
+    if (af === 0) {
+      const ar = conceptRank(f.concept, a);
+      const br = conceptRank(f.concept, b);
+      if (ar !== br) return ar - br;
+    }
+    return a.length - b.length;
   });
   for (const path of leafPaths) add({ kind: 'path', path });
 

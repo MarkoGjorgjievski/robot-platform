@@ -6,7 +6,7 @@ import {
   FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
-  resolveVariantList, suggestEntryValues, flattenEntry, pathFitsConcept, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
+  resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
 } from '@robot/scraper';
@@ -1538,8 +1538,8 @@ export const sourcesRouter = router({
           const values = axisFields.map((f) => suggestions[i]![f.key]?.value ?? '');
           if (values.some((v) => v !== '')) return values.join('/');
         }
-        const skuLeaf = flattenEntry(entry).find((l) => pathFitsConcept('sku', l.path) && typeof l.raw !== 'object');
-        if (skuLeaf) return String(skuLeaf.raw);
+        const skuSuggestion = suggestEntryValues(entry, [{ key: 'sku', name: 'SKU', type: 'text', concept: 'sku' }], { pageUrl: input.url }).sku;
+        if (skuSuggestion) return skuSuggestion.value;
         return `Variant ${i + 1}`;
       });
 
