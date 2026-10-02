@@ -85,10 +85,14 @@ const KNOWN_PLURALS: Readonly<Record<string, string>> = {
   finish: 'finishes',
 };
 
+/** A lower-cased word's plural: a known variant word's exact plural, else +s unless it already ends in s. The API's `variantNoun` keeps the same table (`packages/api/src/verify/variant-fields.ts`) — the app cannot import api code. */
+export function pluralOf(word: string): string {
+  return KNOWN_PLURALS[word] ?? (word.endsWith('s') ? word : `${word}s`);
+}
+
 /** "colours", "sizes", "options", "lengths". */
 export function axisPlural(raw: string): string {
-  const w = axisWord(raw);
-  return KNOWN_PLURALS[w] ?? (w.endsWith('s') ? w : `${w}s`);
+  return pluralOf(axisWord(raw));
 }
 
 /** The column name a new axis would get: "Colour", "Size", "Option 2". */

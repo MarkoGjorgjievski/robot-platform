@@ -11,7 +11,7 @@
  * server data in is what keeps the two in step, as `variants-view.ts` already
  * does for detection.
  */
-import type { DetectResult, VariantSetup } from './variants-view';
+import { pluralOf, type DetectResult, type VariantSetup } from './variants-view';
 
 export type VariantAnswer = {
   count: number;
@@ -66,9 +66,9 @@ export function reuseListAnswer(answer: VariantAnswer | undefined, listed: { cou
   return { count: listed.count, labels: listed.labels, list: answer.list };
 }
 
-/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, with "s" added; "variants" with two or more mapped columns, or none. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). Feed it `columnNames`, not one name per detected axis — several detected names can map to the same column. */
+/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, in its exact plural (`pluralOf`: "capacities", "finishes"); "variants" with two or more mapped columns, or none. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). Feed it `columnNames`, not one name per detected axis — several detected names can map to the same column. */
 export function variantNoun(axisNames: string[]): string {
-  return axisNames.length === 1 ? `${axisNames[0]!.toLowerCase()}s` : 'variants';
+  return axisNames.length === 1 ? pluralOf(axisNames[0]!.toLowerCase()) : 'variants';
 }
 
 /**
@@ -218,6 +218,22 @@ export function confirmAnswer(method: 'list' | 'links', page: DetectResult['page
 
 type Spot = NonNullable<VariantAnswer['spot']>;
 
+/**
+ * The answer as it may be saved (final review I1): a column (`columnKeys`)
+ * can never be "From the product page" (Global Constraints), so it is taken
+ * out of `spot.fromProduct` — an answer stored under the old rules would
+ * otherwise be refused on every save of that product. An emptied
+ * `fromProduct` is dropped. Applied to every save that keeps a spot.
+ */
+export function stripColumnsFromProduct(answer: VariantAnswer, columnKeys: string[]): VariantAnswer {
+  const spot = answer.spot;
+  if (!spot?.fromProduct) return answer;
+  const kept = spot.fromProduct.filter((k) => !columnKeys.includes(k));
+  if (kept.length === spot.fromProduct.length) return answer;
+  const { fromProduct: _dropped, ...rest } = spot;
+  return { ...answer, spot: kept.length > 0 ? { ...rest, fromProduct: kept } : rest };
+}
+
 /** Whether an entry field is marked "From the product page" on a spot. */
 function fromProduct(spot: Spot | undefined, key: string): boolean {
   return !!spot?.fromProduct?.includes(key);
@@ -286,6 +302,9 @@ export type VariantsNeed = { kind: 'none' } | { kind: 'blocked'; reason: string 
  * passed — the route reads `passed` off the loaded status for that, the
  * same way `extractEnabled` does.
  */
+/** `variantsNeed`'s reason for a list with no entry field, word for word certification's `problem` (`variant-certify.ts`). */
+export const NOTHING_READ_NO_FIELDS = 'Nothing is read from the variants — add a field that differs per variant';
+
 export function variantsNeed(args: {
   variants: { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean } | null;
   urls: string[]; answers: Record<string, VariantAnswer>; method: 'list' | 'links' | null;
@@ -301,6 +320,9 @@ export function variantsNeed(args: {
   }
 
   if (method === 'list') {
+    // A certified list reads something (final review I2 ruling): with no entry field at all
+    // there is nothing to read from the list — the same sentence certification gives.
+    if (entryFieldKeys.length === 0) return { kind: 'blocked', reason: NOTHING_READ_NO_FIELDS };
     const columns = new Set(columnKeys);
     for (let i = 0; i < urls.length; i++) {
       const a = answers[urls[i]!];
