@@ -150,7 +150,14 @@ export function suggestEntryValues(entry: Record<string, unknown>, fields: Entry
       out[f.key] = from !== undefined && v !== undefined ? { value: v, path: `axis:${from}` } : null;
       continue;
     }
-    const fitting = leaves.filter((l) => pathFitsConcept(f.concept, l.path) && normalize(f.type, l.raw, ctx) !== null);
+    // An object leaf (pushed by flattenEntry only when it carries a url) is readable only for a
+    // url/image field, via normalize's own objectUrl handling — never for any other type, where
+    // `normalize`'s text() would otherwise stringify it to "[object Object]" (ruling 2026-10-02
+    // plan 2b Task 2 addition B; read url objects only via the existing structured-value helpers).
+    const fitting = leaves.filter((l) => {
+      if (isPlainObject(l.raw) && f.type !== 'url' && f.type !== 'image') return false;
+      return pathFitsConcept(f.concept, l.path) && normalize(f.type, l.raw, ctx) !== null;
+    });
     fitting.sort((a, b) => {
       const ar = conceptRank(f.concept, a.path);
       const br = conceptRank(f.concept, b.path);
@@ -294,9 +301,20 @@ export function certifyVariantList(input: {
     }
   }
 
-  const fitting: FittingPage[] = chosen
+  const rawFitting: FittingPage[] = chosen
     ? captured.filter((p) => p.answer.count > 0 && fitsPage(chosen!, p)).map((p) => ({ ...p, entries: resolveFor(chosen!, p) ?? [] }))
     : [];
+
+  // Step 2b: a stored spot.index that no longer resolves to an entry on the freshly resolved
+  // (stub-filtered) list — e.g. stub filtering shrank it since the spot was confirmed — cannot
+  // certify anything on this page. It fails alone, with no field messages (2026-10-02 plan 2b
+  // Task 2 addition A), and is dropped from every check below.
+  const fitting: FittingPage[] = rawFitting.filter((p) => {
+    const idx = p.answer.spot?.index;
+    if (idx === undefined || (idx >= 0 && idx < p.entries.length)) return true;
+    addFailure(p.url, `Check one variant of product ${p.n} again`);
+    return false;
+  });
 
   // Step 3: duplicates — two entries giving the same tuple of axis values.
   const axisFields = fields.filter((f) => f.axisFrom !== undefined);
@@ -321,6 +339,16 @@ export function certifyVariantList(input: {
   const entryPaths: Record<string, EntryPath> = {};
 
   for (const f of fields) {
+    // An axis column can never be "from the product page" (Global Constraints): a page that marks
+    // it so fails there, alone, and the column gets no entry path at all — not even when every
+    // page marks it, unlike a non-axis field (plan 2026-10-02 2b Task 2).
+    if (f.axisFrom !== undefined) {
+      const marked = fitting.filter((p) => p.answer.spot?.fromProduct?.includes(f.key));
+      if (marked.length > 0) {
+        for (const p of marked) addFailure(p.url, `${f.name} differs per variant — it must come from the list`);
+        continue;
+      }
+    }
     const marks = fitting.map((p) => p.answer.spot?.fromProduct?.includes(f.key) ?? false);
     if (marks.length > 0 && marks.every((m) => m)) { fromProduct.push(f.key); continue; }
     if (marks.some((m) => m)) {
@@ -376,13 +404,22 @@ export function certifyVariantList(input: {
     if (msgs && msgs.length > 0) { out[p.url] = { status: 'fail', message: msgs[0]! }; continue; }
     out[p.url] = p.answer.count > 0 ? { status: 'pass', count: p.answer.count } : { status: 'none' };
   }
-  const passed = Object.values(out).every((r) => r.status !== 'fail' && r.status !== 'not_captured');
+  let passed = Object.values(out).every((r) => r.status !== 'fail' && r.status !== 'not_captured');
+
+  // A certified list reads something (Global Constraints): once every entry field is decided, at
+  // least one of them must have an entry path, or there is nothing a certified "list" method
+  // would ever read — website-level failure, even when no individual page failed.
+  const problem = fields.length > 0 && Object.keys(entryPaths).length === 0
+    ? 'Nothing is read from the variants — check at least one value of the checked variant'
+    : undefined;
+  if (problem) passed = false;
 
   return {
     passed,
     ...(chosen ? { list: chosen } : {}),
     entryPaths,
     ...(fromProduct.length ? { fromProduct } : {}),
+    ...(problem ? { problem } : {}),
     pages: out,
   };
 }
