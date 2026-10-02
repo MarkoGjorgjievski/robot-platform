@@ -18,7 +18,7 @@
 import type { IBrowser } from '@robot/browser';
 import {
   runExtraction, mergeRow, partitionSchemaByOrigin, discoverCandidateCatalogue,
-  runVerifiedExtraction, recordVerifiedPathStats,
+  runVerifiedExtraction, recordVerifiedPathStats, resolveVariantList, buildVariantRows,
   type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
@@ -63,7 +63,11 @@ export async function extractItem(
     : deps.schema;
   const partitions = partitionSchemaByOrigin(schema);
 
-  const persistRow = async (row: Record<string, unknown>, confidence: number, metadata: Record<string, unknown> = {}) => {
+  // `rows.length` is normally 1 — a list-method variants plan (Task 3) is the
+  // one path that persists several rows (one per variant) in the single
+  // extraction a product page produces. Every other caller passes a one-row
+  // array, so `data`/`rowCount` are byte-identical to the old persistRow.
+  const persistRows = async (rows: Record<string, unknown>[], confidence: number, metadata: Record<string, unknown> = {}) => {
     const [capture] = await db.insert(captures).values({
       sourceId: deps.sourceId,
       runId: deps.runId,
@@ -75,16 +79,17 @@ export async function extractItem(
       sourceId: deps.sourceId,
       captureId: capture!.id,
       runId: deps.runId,
-      data: [row],
-      rowCount: 1,
+      data: rows,
+      rowCount: rows.length,
       confidence,
     }).returning({ id: extractions.id });
 
     // `item.targetFields` IS the merge target list for a backfill item — the
     // same repair focus that narrowed the schema above is exactly what a
     // merge-aware `onDone` needs to know which cells this row is allowed to
-    // fill on the parent item.
-    return { row, extractionId: extraction?.id ?? null, targetFields: item.targetFields };
+    // fill on the parent item. The returned `row` stays the FIRST row, so
+    // existing callers (none of which know about variants) keep working.
+    return { row: rows[0] ?? {}, extractionId: extraction?.id ?? null, targetFields: item.targetFields };
   };
 
   if (deps.certification) {
@@ -135,7 +140,21 @@ export async function extractItem(
     // 70 s → 7 s Ikea change is checked, and what the next speed work reads.
     const t = verified.timings;
     if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms), ${hits}/${fields.length} fields`);
-    return persistRow(row, confidence, t ? { capture: t } : {});
+
+    // List-method variants: the certified list lives on this same page capture
+    // (certification Global Constraints, 2026-10-02) — a page that no longer
+    // carries it (resolveVariantList → null) just gets its own one-row
+    // extraction, exactly as a non-variants product does; the run never fails
+    // over it (Review Focus 1). `links` method and no plan at all both fall
+    // through to the single product row, unchanged.
+    if (deps.variantPlan?.method === 'list') {
+      const plan = deps.variantPlan;
+      const entries = verified.capture ? resolveVariantList(verified.capture, plan.list!) : null;
+      const built = buildVariantRows({ productRow: row, entries, plan, pageUrl: item.url });
+      return persistRows(built.rows, confidence, t ? { capture: t } : {});
+    }
+
+    return persistRows([row], confidence, t ? { capture: t } : {});
   }
 
   const extract = deps.extract ?? runExtraction;
@@ -168,5 +187,5 @@ export async function extractItem(
     pageNumber: item.pageNumber,
   });
 
-  return persistRow(row, Math.round((outcome.confidence ?? 0) * 100));
+  return persistRows([row], Math.round((outcome.confidence ?? 0) * 100));
 }

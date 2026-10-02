@@ -1,7 +1,7 @@
 // packages/api/src/crawl/extract-item.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import type { IBrowser } from '@robot/browser';
-import type { VerifiedField, VerifiedExtractionResult } from '@robot/scraper';
+import type { IBrowser, PageCapture } from '@robot/browser';
+import type { VerifiedField, VerifiedExtractionResult, VariantRunPlan } from '@robot/scraper';
 import { extractItem } from './extract-item.js';
 import type { ClaimedItem } from './claim-item.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -318,5 +318,119 @@ describe('extractItem — with a certification', () => {
     expect(extractVerified).not.toHaveBeenCalled();
     expect(runExtractionMock).not.toHaveBeenCalled(); // deps.extract stub was used instead of the default
     expect(result.row).toMatchObject({ title: 'Kallax' });
+  });
+
+  function captureExtraction() {
+    let data: unknown;
+    let rowCount: number | undefined;
+    const fakeDbCapturing = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          if ('data' in v) { data = v.data; rowCount = v.rowCount as number; }
+          return { returning: async () => [{ id: 'x' }] };
+        },
+      }),
+    } as never;
+    return { fakeDbCapturing, get data() { return data as Record<string, unknown>[]; }, get rowCount() { return rowCount; } };
+  }
+
+  // Task 3 (variants plan 3): a list-method product page becomes one row per
+  // variant in the one extraction — `buildVariantRows` (verify/variant-rows.ts)
+  // does the actual row-building; this is only about extractItem reading the
+  // list off the SAME page capture `runVerifiedExtraction` already took and
+  // persisting every row together.
+  describe('extractItem — list-method variants (Task 3)', () => {
+    const VARIANT_PLAN: VariantRunPlan = {
+      method: 'list',
+      list: { source: 'json-ld', path: 'hasVariant' },
+      entryPaths: {
+        sku: { kind: 'path', path: 'sku' },
+        color: { kind: 'axis', from: 'color' },
+      },
+      fromProduct: [],
+      axes: [{ key: 'color', name: 'Colour' }],
+      fields: [
+        { key: 'price', name: 'Price', type: 'money', level: 'product' },
+        { key: 'sku', name: 'SKU', type: 'text', level: 'variant' },
+      ],
+      skuKey: 'sku',
+    };
+
+    function fakeCapture(ldJson: unknown[]): PageCapture {
+      return {
+        url: ITEM.url,
+        html: '<html></html>',
+        structuredData: { ldJson, nextData: null, initialState: null, meta: {} },
+        interceptedRequests: [],
+      } as unknown as PageCapture;
+    }
+
+    it('turns a product page carrying a 2-colour hasVariant list into one extraction with 2 rows', async () => {
+      const capture = fakeCapture([{
+        '@type': 'Product',
+        hasVariant: [
+          { sku: 'SKU-BLK', color: 'Black' },
+          { sku: 'SKU-RED', color: 'Red' },
+        ],
+      }]);
+      const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+        data: { price: 129.99 }, stats: [], timings: null, capture,
+      });
+      const cap = captureExtraction();
+
+      const result = await extractItem(cap.fakeDbCapturing, ITEM, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {}, variantPlan: VARIANT_PLAN,
+      });
+
+      expect(cap.rowCount).toBe(2);
+      expect(cap.data).toHaveLength(2);
+      expect(cap.data.map((r) => r._variant_key)).toEqual(['SKU-BLK', 'SKU-RED']);
+      expect(cap.data.every((r) => r._product_key)).toBe(true);
+      // extractItem's return `row` stays the first row, for existing callers.
+      expect(result.row).toMatchObject({ _variant_key: 'SKU-BLK' });
+    });
+
+    // Review Focus 1: the site changed and the certified list is no longer on
+    // the page (resolveVariantList → null). The run never fails over it — the
+    // product gets its own one-row extraction, counted "without variants".
+    it('falls back to one row with a _product_key and no _variant_key when the page no longer carries the list', async () => {
+      const capture = fakeCapture([{ '@type': 'Product' }]); // no hasVariant at all
+      const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+        data: { price: 129.99 }, stats: [], timings: null, capture,
+      });
+      const cap = captureExtraction();
+
+      await extractItem(cap.fakeDbCapturing, ITEM, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {}, variantPlan: VARIANT_PLAN,
+      });
+
+      expect(cap.rowCount).toBe(1);
+      expect(cap.data).toHaveLength(1);
+      expect(cap.data[0]!._product_key).toBeTruthy();
+      expect(cap.data[0]!._variant_key).toBeUndefined();
+    });
+
+    // No plan at all: byte-for-byte today's behaviour — one row, rowCount 1,
+    // same shape as the pre-Task-3 certified-extraction tests above.
+    it('persists exactly one row, unchanged, when the run carries no variant plan', async () => {
+      const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+        data: { price: 129.99 }, stats: [], timings: null, capture: null,
+      });
+      const cap = captureExtraction();
+
+      const result = await extractItem(cap.fakeDbCapturing, ITEM, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {},
+      });
+
+      expect(cap.rowCount).toBe(1);
+      expect(cap.data).toEqual([result.row]);
+      expect(result.row).toMatchObject({ price: 129.99 });
+    });
   });
 });

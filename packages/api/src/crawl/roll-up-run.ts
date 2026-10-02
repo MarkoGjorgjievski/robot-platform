@@ -2,8 +2,9 @@
 // What a run's status is, given what happened to its items.
 
 import { and, eq, sql } from 'drizzle-orm';
-import { runs, runItems } from '@robot/db';
+import { runs, runItems, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
+import { summariseVariantRows, type VariantRunSummary } from '@robot/scraper';
 
 export type RunRollup = 'completed' | 'partial' | 'failed' | 'extracting' | 'cancelled';
 
@@ -51,20 +52,36 @@ export function rollUpStatus(
 }
 
 /**
- * Writes the run's final state and its extracted row count.
+ * Writes the run's final state, its extracted row count, and (variants plan
+ * 3) its variant summary.
  *
  * `resultCount` means EXTRACTED ROWS everywhere else in this codebase — the
- * dashboard renders it as "N rows" — so phase 1 deliberately leaves it null and
- * phase 2 is what fills it in.
+ * dashboard renders it as "N rows". It is the sum of `extractions.rowCount`
+ * for the run (`jsonb_array_length`, the same SQL `runs.getWithDetails`
+ * already sums), not the count of done items: a list-method variants run
+ * writes several rows in the one extraction a product page produces, so
+ * "rows" and "items" diverge there. For a run without variants the two are
+ * equal — only `extract-item.ts`/`merge-backfill.ts` ever insert into
+ * `extractions`, and both write exactly one row per item unless a variant
+ * plan says otherwise.
  *
- * The row count is derived from the DB (`kind='detail'` items at `status='done'`
- * — extract-item writes exactly one row per item, so that count IS the row
- * count), not taken from a caller-supplied number. A caller's own in-memory
- * counter is only ever that caller's partial view: two concurrent `executeRun`
- * loops on the same run would each know only the items *they* claimed, and
- * whichever call lands last would overwrite `resultCount` with an undercount.
- * Reading the DB instead means the true total is what gets written no matter
- * how many callers raced to finalise.
+ * This is derived from the DB, not taken from a caller-supplied number. A
+ * caller's own in-memory counter is only ever that caller's partial view: two
+ * concurrent `executeRun` loops on the same run would each know only the
+ * items *they* claimed, and whichever call lands last would overwrite
+ * `resultCount` with an undercount. Reading the DB instead means the true
+ * total is what gets written no matter how many callers raced to finalise.
+ *
+ * `variantSummary` is written only when the run's rows carry any
+ * `_product_key` (i.e. this is a variants run) — `summariseVariantRows`
+ * derives `variants`/`products`/`withoutVariants`/`partial` straight from the
+ * stored rows. `variantsSkippedForBudget` is NOT derivable from the rows
+ * (skipped pages were never extracted, so they never produced one) — Task 4's
+ * `queueVariantGroup` is the only place that increments it, straight onto
+ * `runs.variant_summary`. Controller ruling R1: this function must read
+ * whatever is already there as `skipped` and preserve it in the summary it
+ * writes, so a run that finalises after Task 4 has already recorded a skip
+ * does not lose it to a recompute that defaults back to 0.
  */
 export async function finaliseRun(
   db: typeof Database,
@@ -90,11 +107,32 @@ export async function finaliseRun(
     failed: Number(counts?.failed ?? 0),
   }, cancelled, limitReached);
 
+  const [rowTotal] = await db
+    .select({ total: sql<number>`coalesce(sum(jsonb_array_length(${extractions.data})), 0)::int` })
+    .from(extractions)
+    .where(eq(extractions.runId, runId));
+  const resultCount = Number(rowTotal?.total ?? 0);
+
+  const extractionRows = await db
+    .select({ data: extractions.data })
+    .from(extractions)
+    .where(eq(extractions.runId, runId));
+  const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data as Record<string, unknown>[] : []));
+  const hasVariantRows = allRows.some((r) => r._product_key !== undefined && r._product_key !== null);
+
+  let variantSummary: VariantRunSummary | undefined;
+  if (hasVariantRows) {
+    const [current] = await db.select({ variantSummary: runs.variantSummary }).from(runs).where(eq(runs.id, runId));
+    const skipped = (current?.variantSummary as VariantRunSummary | null)?.variantsSkippedForBudget ?? 0;
+    variantSummary = summariseVariantRows(allRows, skipped);
+  }
+
   await db.update(runs)
     .set({
       status,
-      resultCount: done,
+      resultCount,
       completedAt: status === 'extracting' ? null : new Date(),
+      ...(variantSummary ? { variantSummary } : {}),
     })
     .where(eq(runs.id, runId));
 
