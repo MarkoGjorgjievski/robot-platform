@@ -77,6 +77,36 @@ describe('certifyVariantList', () => {
     expect(r.fromProduct).toEqual(['in_stock']);
     expect(r.entryPaths!.in_stock).toBeUndefined();
   });
+  it('an axis column marked from the product page fails every page that marks it, and never certifies, even when every field is marked (Allbirds)', () => {
+    const a = answers();
+    for (const u of [U[0]!, U[1]!]) {
+      const s = a[u]!.spot!;
+      s.fromProduct = ['price', 'sku', 'in_stock', 'colour'];
+      s.expected = {};
+    }
+    const r = run(a);
+    expect(r.passed).toBe(false);
+    expect(r.pages[U[0]!]).toEqual({ status: 'fail', message: 'Colour differs per variant — it must come from the list' });
+    expect(r.pages[U[1]!]).toEqual({ status: 'fail', message: 'Colour differs per variant — it must come from the list' });
+    expect(r.entryPaths).toEqual({});
+    expect(r.problem).toBe('Nothing is read from the variants — check at least one value of the checked variant');
+  });
+  it('a column read from the list still certifies when only non-column fields are from the product page', () => {
+    const a = answers();
+    for (const u of [U[0]!, U[1]!]) { const s = a[u]!.spot!; delete s.expected.in_stock; delete s.expected.price; delete s.expected.sku; s.fromProduct = ['in_stock', 'price', 'sku']; }
+    const r = run(a);
+    expect(r.passed).toBe(true);
+    expect(r.entryPaths!.colour).toEqual({ kind: 'axis', from: 'color' });
+    expect(r.problem).toBeUndefined();
+  });
+  it('a stored spot.index past the end of the resolved list fails that page alone, with no field messages', () => {
+    const a = answers();
+    a[U[0]!]!.spot!.index = 5; // the fixture's list for product 1 has 2 entries
+    const r = run(a);
+    expect(r.pages[U[0]!]).toEqual({ status: 'fail', message: 'Check one variant of product 1 again' });
+    // Product 2's own fields still certify normally — the bad page is dropped, not the whole run.
+    expect(r.entryPaths!.sku).toEqual({ kind: 'path', path: 'sku' });
+  });
   it('a website where no product has variants fails as a whole', () => {
     const a: Record<string, VariantAnswer> = { [U[0]!]: { count: 0, labels: [] }, [U[1]!]: { count: 0, labels: [] }, [U[2]!]: { count: 0, labels: [] } };
     const c = { [U[0]!]: cap(U[0]!, []), [U[1]!]: cap(U[1]!, []), [U[2]!]: cap(U[2]!, []) };
@@ -170,6 +200,18 @@ describe('suggestEntryValues', () => {
       price: { value: '11.00', path: 'offers.price' }, sku: { value: 'A2', path: 'sku' },
       in_stock: { value: 'https://schema.org/InStock', path: 'offers.availability' }, colour: { value: 'Red', path: 'axis:color' },
     });
+  });
+  it('never suggests an object-valued leaf for a non-url/image field (never "[object Object]")', () => {
+    // `brand` has a url but no name: it concept-fits text field "brand" only as the whole object
+    // (flattenEntry pushes it as a leaf because it has a url), which must be skipped, not stringified.
+    const entry = { sku: 'X1', brand: { '@type': 'Organization', url: 'https://s.example/org' } };
+    const fields: EntryField[] = [{ key: 'brand', name: 'Brand', type: 'text', concept: 'brand' }];
+    expect(suggestEntryValues(entry, fields).brand).toBeNull();
+  });
+  it('still reads a structured object for a url/image field (unaffected by the object-leaf skip)', () => {
+    const entry = { sku: 'X1', brand: { '@type': 'Organization', url: 'https://s.example/org' } };
+    const fields: EntryField[] = [{ key: 'brand_url', name: 'Brand URL', type: 'url', concept: 'brand' }];
+    expect(suggestEntryValues(entry, fields).brand_url).toEqual({ value: 'https://s.example/org', path: 'brand' });
   });
 });
 
