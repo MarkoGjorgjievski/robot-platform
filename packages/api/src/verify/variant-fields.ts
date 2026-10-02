@@ -46,9 +46,25 @@ export function entryFieldsFor(datasetSchema: unknown, setup: VariantSetup | nul
   return fields;
 }
 
-/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, with "s" added; "variants" with two or more mapped columns, or none. */
+/**
+ * Exact plurals for the known variant words (final review M5). The same table as the app's
+ * `KNOWN_PLURALS` (`packages/app/src/lib/site/variants-view.ts`) — the app cannot import api
+ * code, so each package keeps its own copy; both are pinned by a test.
+ */
+const KNOWN_PLURALS: Readonly<Record<string, string>> = {
+  colour: 'colours', size: 'sizes', length: 'lengths', width: 'widths', height: 'heights',
+  material: 'materials', pattern: 'patterns', style: 'styles', capacity: 'capacities',
+  flavour: 'flavours', scent: 'scents', finish: 'finishes',
+};
+
+/** A lower-cased column name's plural: the known word's exact plural, else +s unless it already ends in s. */
+function plural(word: string): string {
+  return KNOWN_PLURALS[word] ?? (word.endsWith('s') ? word : `${word}s`);
+}
+
+/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, in its plural; "variants" with two or more mapped columns, or none. */
 export function variantNoun(datasetSchema: unknown, setup: VariantSetup | null): string {
   const fields = entryFieldsFor(datasetSchema, setup);
   const mapped = fields.filter((f) => f.axisFrom !== undefined);
-  return mapped.length === 1 ? `${mapped[0]!.name.toLowerCase()}s` : 'variants';
+  return mapped.length === 1 ? plural(mapped[0]!.name.toLowerCase()) : 'variants';
 }

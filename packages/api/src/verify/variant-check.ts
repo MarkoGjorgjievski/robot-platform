@@ -12,6 +12,7 @@ import {
   runVerifiedExtraction,
   normalize,
   normalizeVariantLink,
+  isLikelyVariantHref,
   type FieldVerification,
   type SchemaDefinitionField,
   type VariantPageResult,
@@ -111,6 +112,9 @@ export async function runVariantCheck(
     // Compared in the links' one normal form, so an answer stored with `#fragment` hrefs still finds its label.
     const linkIndex = spotUrl ? (answer.links ?? []).map(normalizeVariantLink).indexOf(normalizeVariantLink(spotUrl)) : -1;
     const label = (linkIndex >= 0 ? answer.labels[linkIndex] : undefined) ?? answer.labels[0] ?? 'variant';
+    // A stored checked page off the link path rule (an old answer pointing at e.g. Nike's `/u/…`
+    // customise page) is not a variant page: ask for a variant to be checked again (final review M3).
+    if (spotUrl && !isLikelyVariantHref(url, spotUrl)) { pages[url] = { status: 'fail', message: `Check one variant of product ${i + 1} again` }; continue; }
     const spot = spotUrl ? (await loadProofPageCaptures(sourceId, [spotUrl]))[spotUrl] : undefined;
     if (!spotUrl || !spot) { pages[url] = { status: 'fail', message: `Take the ${label} page's screenshot again` }; continue; }
     const { data } = await runVerifiedExtraction({ url: spotUrl, fields: verified }, { browser: deps.browser, capture: spot.capture });

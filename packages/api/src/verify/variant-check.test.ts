@@ -228,6 +228,21 @@ describe('runVariantCheck — links', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('links: a stored checked page off the link path rule asks to check a variant again (final review M3)', async () => {
+    const f = await linksWebsite('variant-check-spotoffpattern');
+    try {
+      const custom = 'https://variants.example/u/1-design-your-own';
+      // A capture exists for it, so without the rule this would read as the variant page and pass.
+      await seedProofPage(f.sourceId, custom, 'p1');
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      await storeAnswer(f.sourceId, URLS[0]!, { count: 2, labels: ['Black', 'Red'], links: [URLS[0]!, VARIANT_SHOP_SPOT_URL], spot: { index: 0, url: custom, expected: {} } });
+      const r = await check(f);
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'fail', message: 'Check one variant of product 1 again' });
+      expect(r.pages[URLS[1]!]).toEqual({ status: 'pass', count: 3 });
+      expect(r.passed).toBe(false);
+    } finally { await f.cleanup(); }
+  });
+
   it('links: a field the variant page does not carry fails that product', async () => {
     const f = await linksWebsite('variant-check-spotmiss');
     try {
@@ -354,5 +369,16 @@ describe('variantNoun', () => {
 
   it('is "variants" with no mapped column', () => {
     expect(variantNoun([], null)).toBe('variants');
+  });
+
+  it('uses the exact plural, the same table as the app (final review M5)', () => {
+    const one = (name: string) => variantNoun(
+      [{ key: 'a', name, kind: 'axis', concept: 'axis' }],
+      { method: 'list', axes: [{ from: 'x', axisKey: 'a' }], confirmedAt: '2026-10-01T00:00:00.000Z' },
+    );
+    expect(one('Capacity')).toBe('capacities');
+    expect(one('Finish')).toBe('finishes');
+    expect(one('Sizes')).toBe('sizes');
+    expect(one('Fit')).toBe('fits');
   });
 });
