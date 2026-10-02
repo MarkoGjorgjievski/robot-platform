@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [Variants plan 2 (2026-10-01)](#variants-plan-2-2026-10-01).** Verify now checks a website's variants too, free: the Verification table has a **Variants** row — each product's count ("2 colours", orange until its ✓), "No variants on this product", and, expanded, one variant checked per product (accept its suggested Price, SKU and Colour, type a value, or take a field "From the product page"). The button reads "Verify 5 fields and variants · …" or "Verify variants · free", and Go to Extract stays locked until the variants pass. Nothing is extracted per variant yet (plan 3). On branch `feat/variants-verification`, not merged.
+**Newest: [Variants plan 2b (2026-10-02)](#variants-plan-2b-2026-10-02).** Four fixes from a live check on Allbirds, Everlane and Nike (eight defects found): stub list entries ("Variant 1…" placeholders with no SKU, price or axis value) no longer count as variants; an axis column can never be confirmed "From the product page", on save or on screen; a variant link group drops an off-pattern link (Nike's "Design your own") instead of failing, and a locale path prefix compares two segments; and the on-screen wording is plain — `variantNoun` is "variants" unless exactly one column is mapped, the picker-only line shows only its twelve known words (no more "swatchs"/"defaultcolornames"), and a list with no detected column says so plainly instead of "Nothing of this kind…". The live check re-run is next. On branch `fix/variants-live-check`, not merged.
+
+**Before it: [Variants plan 2 (2026-10-01)](#variants-plan-2-2026-10-01).** Verify now checks a website's variants too, free: the Verification table has a **Variants** row — each product's count ("2 colours", orange until its ✓), "No variants on this product", and, expanded, one variant checked per product (accept its suggested Price, SKU and Colour, type a value, or take a field "From the product page"). The button reads "Verify 5 fields and variants · …" or "Verify variants · free", and Go to Extract stays locked until the variants pass. Nothing is extracted per variant yet (plan 3). On branch `feat/variants-verification`, not merged.
 
 **Before it: [Variants plan 1 (2026-10-01)](#variants-plan-1-2026-10-01).** A project can turn variants on (Fields page: No variants / One row per variant / One row per product, variants listed inside), each field says whether it differs per variant, and a website's Verification tab has a Variants step that reads the proof pages' screenshots — free — says how the site shows its variants ("Listed in the page data: 2 colours on every product") and records the method and its columns. Nothing is verified or extracted per variant yet: plan 2 verifies, plan 3 extracts. On branch `feat/variants-contract`, not merged.
 
@@ -43,6 +45,24 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Variants plan 2b (2026-10-02)
+
+Plan: `docs/superpowers/plans/2026-10-02-variants-plan2b-live-check-fixes.md`, written after a live
+check on Allbirds, Everlane and Nike found eight defects
+(`docs/testing/results/2026-10-02-variants-live-check.md`). Branch `fix/variants-live-check`,
+base `main` at `bb6c6ce`'s parent; `git log --oneline main..HEAD` is the record. Four tasks, all
+landed:
+
+1. **Scraper — stub entries are not variants** (`e8944ee`, `2fcd007`). A placeholder entry ("Variant 1…", no SKU, price or axis value beyond a stub) no longer counts toward detection (`isVariantEntry`, shared by `buildList`/`qualifiesAsApiVariantArray`) or certification; the real SKU concept is suggested before a raw barcode-looking key.
+2. **API/App — a column is never "From the product page"** (`bc2238e`, `a63fc45`, `c2dc0bc`). An axis column (it differs per variant by definition) can't be confirmed via from-product, on save or on screen; a stale answer from a website verified under the old rules now reads `needs-you` for that row, and the Verify bar agrees.
+3. **Scraper — link-group shape rules** (`014dceb`, `796dd43`). A variant link must stay under the product page's own path — an off-pattern link (Nike's "Design your own", `/u/…`) drops out of the group instead of failing it — and a locale path prefix (`/en-us/…`) compares two segments, not one.
+4. **Wording — the noun, picker words, a list without columns** (`a522343`). `variantNoun` (api `variant-fields.ts`, app `variants-row-view.ts`) is "variants" unless exactly one column is mapped, not just the first one found. The picker-only line (`variants-view.ts`) only ever shows the twelve known words (colours, sizes, lengths, widths, heights, materials, patterns, styles, capacities, flavours, scents, finishes) — no more "swatchs"/"defaultcolornames"/"unstyleds" — and disappears once none is left. A found list whose every page's list has no detected column (Everlane: the colour is only inside each entry's `name`) now carries `noColumns: true`, and the step says "These variants have no colour or size in the page data — they will be told apart by their SKU" instead of "Nothing of this kind…".
+
+**Next.** Re-run `docs/testing/ui-check-app-variants.mts` on Allbirds, Everlane and Nike (free, keyless
+:4100) and record the result in a new dated file. Expected (plan's "After the plan" section):
+Allbirds' real variant checked with Size/Colour unable to be from-product; Everlane's SKU certifies;
+Nike shows one colour group, without "Design your own" or help links.
 
 ## Variants plan 2 (2026-10-01)
 
