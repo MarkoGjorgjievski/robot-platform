@@ -60,12 +60,36 @@ describe('certifyVariantLinks', () => {
     const r = await certifyVariantLinks({ urls: U, captures: captures(), answers: a, noun: 'colours' }, { evalScript });
     expect(r.pages[U[0]!]).toEqual({ status: 'fail', message: 'found 1 of 2 colours on product 1' });
   });
+  it('a page whose confirmed links all fail the path rule fails, never reads as none (fix round 1 #1)', async () => {
+    const a = answers();
+    a[U[2]!] = {
+      count: 4,
+      labels: ['A', 'B', 'C', 'D'],
+      links: ['https://s.example/other/a', 'https://s.example/other/b', 'https://s.example/other/c', 'https://s.example/other/d'],
+    };
+    const r = await certifyVariantLinks({ urls: U, captures: captures(), answers: a, noun: 'colours' }, { evalScript });
+    expect(r.passed).toBe(false);
+    expect(r.pages[U[2]!]).toEqual({ status: 'fail', message: 'found no colours on product 3' });
+  });
 });
 
 describe('isLikelyVariantHref', () => {
   it('a root-level product page keeps root-level colour links', () => {
     expect(isLikelyVariantHref('https://shop.example/blue-shirt', 'https://shop.example/red-shirt')).toBe(true);
     expect(isLikelyVariantHref('https://www.nike.com/t/a/1', 'https://www.nike.com/help/a')).toBe(false);
+  });
+  it('a locale-prefixed page compares the locale plus the next segment (fix round 1 #2)', () => {
+    expect(isLikelyVariantHref('https://shop.example/en-gb/products/x', 'https://shop.example/en-gb/help/returns')).toBe(false);
+    expect(isLikelyVariantHref('https://shop.example/en-gb/products/x', 'https://shop.example/en-gb/products/y')).toBe(true);
+    expect(isLikelyVariantHref('https://shop.example/en-gb/products/x', 'https://shop.example/fr-fr/products/y')).toBe(false);
+  });
+  it('exactly two segments under a locale: any same-host link under the same locale qualifies (fix round 1 #2)', () => {
+    expect(isLikelyVariantHref('https://shop.example/en-gb/products', 'https://shop.example/en-gb/help')).toBe(true);
+    expect(isLikelyVariantHref('https://shop.example/en-gb/products', 'https://shop.example/fr-fr/products')).toBe(false);
+  });
+  it('compares segments case-insensitively (fix round 1 #3)', () => {
+    expect(isLikelyVariantHref('https://shop.example/T/a/1', 'https://shop.example/t/b/2')).toBe(true);
+    expect(isLikelyVariantHref('https://shop.example/en-GB/products/x', 'https://shop.example/EN-gb/Products/y')).toBe(true);
   });
 });
 

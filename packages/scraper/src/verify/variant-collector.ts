@@ -76,13 +76,19 @@ function resolveAgainst(href: string, pageUrl: string): string | null {
 }
 
 /**
- * A variant link's path shape (Global Constraints, plan 2026-10-02-variants-plan2b):
- * same host as pageUrl, and — when pageUrl's path has two or more segments — href's first
- * path segment equals pageUrl's (`/t/…` stays `/t/…`; `/u/…` and `/help/…` are dropped). A
- * single-segment page accepts any same-host link. Path segments are the non-empty parts of
- * `pathname` split on `/`. Both pageUrl and href are expected absolute (callers resolve first);
- * an unparseable URL never qualifies. The one implementation, spliced into every link-producing
- * in-page script (here and in variant-dom.ts) and used directly in certifyVariantLinks.
+ * A variant link's path shape (Global Constraints, plan 2026-10-02-variants-plan2b, fix round 1
+ * ruling on locale prefixes): same host as pageUrl, and — when pageUrl's path has two or more
+ * segments — href's first path segment equals pageUrl's, compared case-insensitively (`/t/…`
+ * stays `/t/…`; `/u/…` and `/help/…` are dropped). A single-segment page accepts any same-host
+ * link. When pageUrl's first segment looks like a language/locale prefix (exactly two letters,
+ * optionally `-`/`_` plus 2-4 more letters — `en`, `en-GB`, `de_DE`, `zh-Hant`) and pageUrl has
+ * three or more segments, the comparison instead covers the first TWO segments (locale and
+ * section), so `/en-gb/products/x` does not match `/en-gb/help/returns`; with exactly two
+ * segments under a locale, any same-host link sharing that locale qualifies (falls through to
+ * the one-segment comparison). Path segments are the non-empty parts of `pathname` split on `/`.
+ * Both pageUrl and href are expected absolute (callers resolve first); an unparseable URL never
+ * qualifies. The one implementation, spliced into every link-producing in-page script (here and
+ * in variant-dom.ts) and used directly in certifyVariantLinks.
  */
 export function isLikelyVariantHref(pageUrl: string, href: string): boolean {
   let page: URL;
@@ -93,7 +99,13 @@ export function isLikelyVariantHref(pageUrl: string, href: string): boolean {
   const pageSegments = page.pathname.split('/').filter(Boolean);
   if (pageSegments.length < 2) return true;
   const linkSegments = link.pathname.split('/').filter(Boolean);
-  return linkSegments[0] === pageSegments[0];
+  const sameSegment = (i: number): boolean =>
+    linkSegments.length > i && linkSegments[i]!.toLowerCase() === pageSegments[i]!.toLowerCase();
+  const localeRe = /^[a-z]{2}([-_][a-z]{2,4})?$/i;
+  if (pageSegments.length >= 3 && localeRe.test(pageSegments[0]!)) {
+    return sameSegment(0) && sameSegment(1);
+  }
+  return sameSegment(0);
 }
 
 /** The lowest common ancestor of a non-empty list of elements, by repeatedly widening until it contains every one. */
@@ -276,13 +288,17 @@ export async function certifyVariantLinks(
   // Every page's confirmed links in the one normal form (normalizeVariantLink), filtered through
   // the path-shape rule (isLikelyVariantHref): an off-pattern answer link (e.g. a stray "Design
   // your own" link saved before this rule existed) is ignored for every comparison below. The
-  // count used throughout is this filtered count, not the stored `answer.count`.
+  // count used for comparisons and messages is this filtered count, not the stored
+  // `answer.count` (the raw count) — but the raw count still decides whether the customer
+  // confirmed this page has variants at all (fix round 1 #1): a page with a raw count > 0 whose
+  // links are ALL off-pattern is not "none", it is a failure (nothing qualifying was found).
   const linksOf = new Map<string, string[]>(
     pages.map((p) => [p.url, normalizeVariantLinks(p.answer.links ?? []).filter((h) => isLikelyVariantHref(p.url, h))]),
   );
   const countOf = new Map<string, number>(pages.map((p) => [p.url, linksOf.get(p.url)!.length]));
+  const rawCountOf = new Map<string, number>(pages.map((p) => [p.url, p.answer.count]));
 
-  const withVariants = pages.filter((p) => countOf.get(p.url)! > 0);
+  const withVariants = pages.filter((p) => rawCountOf.get(p.url)! > 0);
   if (withVariants.length === 0) {
     const out: Record<string, VariantPageResult> = {};
     for (const p of pages) out[p.url] = p.capture ? { status: 'none' } : { status: 'not_captured' };
@@ -313,7 +329,8 @@ export async function certifyVariantLinks(
 
   const fitsPage = (idx: number, p: PageInfo): boolean => {
     const hrefs = hrefsByUrl.get(p.url)?.[idx] ?? [];
-    if (countOf.get(p.url)! === 0) return hrefs.length === 0;
+    if (rawCountOf.get(p.url)! === 0) return hrefs.length === 0;
+    if (countOf.get(p.url)! === 0) return false; // confirmed links all off-pattern: never fits, always a failure
     return hrefSetsEqual(hrefs, new Set(linksOf.get(p.url)!));
   };
 
@@ -337,20 +354,21 @@ export async function certifyVariantLinks(
       if (fitsPage(chosenIdx, p)) continue;
       const found = hrefsByUrl.get(p.url)?.[chosenIdx] ?? [];
       const k = found.length;
+      const raw = rawCountOf.get(p.url)!;
       const count = countOf.get(p.url)!;
       // "found {k} of {count}" counts the confirmed links actually found, not every link read:
       // the same number of links with different members is k of count, never "found 4, expected 4".
       const confirmed = new Set(linksOf.get(p.url)!);
       const matched = found.filter((h) => confirmed.has(h)).length;
-      if (count === 0) failures[p.url] = `product ${p.n} lists ${k} ${noun} — confirm them`;
-      else if (k === 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
+      if (raw === 0) failures[p.url] = `product ${p.n} lists ${k} ${noun} — confirm them`;
+      else if (count === 0 || k === 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
       else if (k > count) failures[p.url] = `found ${k} ${noun} on product ${p.n}, expected ${count}`;
       else failures[p.url] = `found ${matched} of ${count} ${noun} on product ${p.n}`;
     }
   } else {
     // No candidate at all: nothing can be read, same as every candidate reading empty.
     for (const p of captured) {
-      if (countOf.get(p.url)! > 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
+      if (rawCountOf.get(p.url)! > 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
     }
   }
 
@@ -359,8 +377,8 @@ export async function certifyVariantLinks(
     if (!p.capture) { out[p.url] = { status: 'not_captured' }; continue; }
     const msg = failures[p.url];
     if (msg) { out[p.url] = { status: 'fail', message: msg }; continue; }
-    const count = countOf.get(p.url)!;
-    out[p.url] = count > 0 ? { status: 'pass', count } : { status: 'none' };
+    const raw = rawCountOf.get(p.url)!;
+    out[p.url] = raw > 0 ? { status: 'pass', count: countOf.get(p.url)! } : { status: 'none' };
   }
   const passed = Object.values(out).every((r) => r.status !== 'fail' && r.status !== 'not_captured');
 
