@@ -107,6 +107,11 @@ describe('certifyVariantList', () => {
     // Product 2's own fields still certify normally — the bad page is dropped, not the whole run.
     expect(r.entryPaths!.sku).toEqual({ kind: 'path', path: 'sku' });
   });
+  it('a list with no entry fields reads nothing, so it never certifies (final review I2)', () => {
+    const r = certifyVariantList({ urls: U, captures: captures(), answers: answers(), fields: [], noun: 'variants' });
+    expect(r.passed).toBe(false);
+    expect(r.problem).toBe('Nothing is read from the variants — add a field that differs per variant');
+  });
   it('a website where no product has variants fails as a whole', () => {
     const a: Record<string, VariantAnswer> = { [U[0]!]: { count: 0, labels: [] }, [U[1]!]: { count: 0, labels: [] }, [U[2]!]: { count: 0, labels: [] } };
     const c = { [U[0]!]: cap(U[0]!, []), [U[1]!]: cap(U[1]!, []), [U[2]!]: cap(U[2]!, []) };

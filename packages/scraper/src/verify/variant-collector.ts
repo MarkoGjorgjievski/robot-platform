@@ -80,8 +80,9 @@ function resolveAgainst(href: string, pageUrl: string): string | null {
  * ruling on locale prefixes): same host as pageUrl, and — when pageUrl's path has two or more
  * segments — href's first path segment equals pageUrl's, compared case-insensitively (`/t/…`
  * stays `/t/…`; `/u/…` and `/help/…` are dropped). A single-segment page accepts any same-host
- * link. When pageUrl's first segment looks like a language/locale prefix (exactly two letters,
- * optionally `-`/`_` plus 2-4 more letters — `en`, `en-GB`, `de_DE`, `zh-Hant`) and pageUrl has
+ * link. When pageUrl's first segment is a language/locale prefix (a real ISO 639-1 two-letter
+ * language code, optionally `-`/`_` plus 2-4 more letters — `en`, `en-GB`, `de_DE`, `zh-Hant`;
+ * Walmart's `/ip/…` is a section, not a locale — final review M1 ruling) and pageUrl has
  * three or more segments, the comparison instead covers the first TWO segments (locale and
  * section), so `/en-gb/products/x` does not match `/en-gb/help/returns`; with exactly two
  * segments under a locale, any same-host link sharing that locale qualifies (falls through to
@@ -101,8 +102,12 @@ export function isLikelyVariantHref(pageUrl: string, href: string): boolean {
   const linkSegments = link.pathname.split('/').filter(Boolean);
   const sameSegment = (i: number): boolean =>
     linkSegments.length > i && linkSegments[i]!.toLowerCase() === pageSegments[i]!.toLowerCase();
-  const localeRe = /^[a-z]{2}([-_][a-z]{2,4})?$/i;
-  if (pageSegments.length >= 3 && localeRe.test(pageSegments[0]!)) {
+  // ISO 639-1 language codes, inlined (this function is spliced into in-page scripts via
+  // toString, so it may not reference anything outside its own body).
+  const languages = ' aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz ia id ie ig ii ik io is it iu ja jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu ';
+  const locale = /^([a-z]{2})(?:[-_][a-z]{2,4})?$/i.exec(pageSegments[0]!);
+  const isLocale = locale !== null && languages.includes(` ${locale[1]!.toLowerCase()} `);
+  if (pageSegments.length >= 3 && isLocale) {
     return sameSegment(0) && sameSegment(1);
   }
   return sameSegment(0);

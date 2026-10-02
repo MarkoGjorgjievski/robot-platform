@@ -116,12 +116,26 @@ const ENTRY_BASE_KEYS = new Set(['@type', '@id', 'url', 'name', 'image', 'descri
 export function isVariantEntry(entry: Record<string, unknown>): boolean {
   for (const k of Object.keys(entry)) {
     if (ENTRY_BASE_KEYS.has(k)) continue;
-    if (isKnownAxisKey(k)) return true;
-    if ((k === 'options' || k === 'selectedOptions') && Array.isArray(entry[k])) return true;
-    if (k === 'sku' || k === 'mpn' || k === 'productID' || k === 'price' || k === 'offers') return true;
-    if (/^gtin/i.test(k)) return true;
+    const v = entry[k];
+    if (k === 'options' || k === 'selectedOptions') {
+      if (Array.isArray(v) && v.length > 0) return true;
+      continue;
+    }
+    if (k === 'offers') {
+      if (v !== null && typeof v === 'object') return true;
+      continue;
+    }
+    const scalarKey = isKnownAxisKey(k) || k === 'sku' || k === 'mpn' || k === 'productID' || k === 'price' || /^gtin/i.test(k);
+    if (scalarKey && isNonEmptyScalar(v)) return true;
   }
   return false;
+}
+
+/** A non-empty string (after trimming), a finite number, or a boolean. */
+function isNonEmptyScalar(v: unknown): boolean {
+  if (typeof v === 'string') return v.trim() !== '';
+  if (typeof v === 'number') return Number.isFinite(v);
+  return typeof v === 'boolean';
 }
 
 function buildList(source: VariantList['source'], path: string, raw: unknown[], variesByAxes: string[] | null): VariantList | null {
