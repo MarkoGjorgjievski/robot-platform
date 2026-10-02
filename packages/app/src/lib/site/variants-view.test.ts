@@ -69,6 +69,27 @@ describe('axis words', () => {
     expect(axisLabel('option2')).toBe('Option 2');
     expect(axisLabel('material')).toBe('Material');
   });
+
+  it('plurals every one of the twelve known words exactly, not by mechanically adding "s"', () => {
+    const plurals: Record<string, string> = {
+      colour: 'colours',
+      size: 'sizes',
+      length: 'lengths',
+      width: 'widths',
+      height: 'heights',
+      material: 'materials',
+      pattern: 'patterns',
+      style: 'styles',
+      capacity: 'capacities',
+      flavour: 'flavours',
+      scent: 'scents',
+      finish: 'finishes',
+    };
+    for (const [singular, plural] of Object.entries(plurals)) {
+      expect(axisPlural(singular)).toBe(plural);
+      expect(axisPlural(singular.replace(/^colour$/, 'color').replace(/^flavour$/, 'flavor'))).toBe(plural);
+    }
+  });
 });
 
 describe('summaryLines', () => {
@@ -100,6 +121,14 @@ describe('summaryLines', () => {
       suggested: 'none',
     };
     expect(summaryLines(d)).toEqual(['Only in a picker on the page: colours — not collected in this version']);
+  });
+
+  it('picker-only capacity and finish use their exact plurals, not "capacitys"/"finishs"', () => {
+    const d: DetectResult = {
+      pages: [page(1, { pickers: [{ axis: 'capacity', options: ['1L'] }, { axis: 'finish', options: ['Matte'] }] })],
+      suggested: 'none',
+    };
+    expect(summaryLines(d)).toEqual(['Only in a picker on the page: capacities, finishes — not collected in this version']);
   });
 
   it('no picker line when no known word is left', () => {

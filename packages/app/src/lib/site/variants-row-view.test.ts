@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { variantCells, confirmAnswer, spotRows, variantsNeed, variantNoun, extractEnabled, answerFitsMethod, reuseListAnswer, type VariantAnswer, type VariantResultView } from './variants-row-view';
-import type { DetectResult } from './variants-view';
+import { variantCells, confirmAnswer, columnNames, spotRows, variantsNeed, variantNoun, extractEnabled, answerFitsMethod, reuseListAnswer, type VariantAnswer, type VariantResultView } from './variants-row-view';
+import type { DetectResult, VariantSetup } from './variants-view';
 
 const U = ['https://shop.example/a', 'https://shop.example/b', 'https://shop.example/c'];
 const L = { source: 'json-ld', path: 'hasVariant' };
@@ -22,6 +22,27 @@ describe('variantNoun', () => {
   });
   it('is "variants" with two or more mapped columns', () => {
     expect(variantNoun(['Size', 'Colour'])).toBe('variants');
+  });
+});
+
+describe('columnNames', () => {
+  it('dedupes by axisKey first: two detected names mapped to the same column count once', () => {
+    const setup: VariantSetup = { method: 'list', axes: [{ from: 'color', axisKey: 'c' }, { from: 'colour', axisKey: 'c' }], confirmedAt: '2026-10-01T00:00:00Z' };
+    const axes = [{ key: 'c', name: 'Colour' }];
+    expect(columnNames(setup, axes)).toEqual(['Colour']);
+    expect(variantNoun(columnNames(setup, axes))).toBe('colours');
+  });
+
+  it('two distinct columns', () => {
+    const setup: VariantSetup = { method: 'list', axes: [{ from: 'color', axisKey: 'c' }, { from: 'size', axisKey: 's' }], confirmedAt: '2026-10-01T00:00:00Z' };
+    const axes = [{ key: 'c', name: 'Colour' }, { key: 's', name: 'Size' }];
+    expect(columnNames(setup, axes)).toEqual(['Colour', 'Size']);
+  });
+
+  it('no setup, or a mapping whose column no longer exists on the schema, names nothing', () => {
+    expect(columnNames(null, [])).toEqual([]);
+    const setup: VariantSetup = { method: 'list', axes: [{ from: 'color', axisKey: 'gone' }], confirmedAt: '2026-10-01T00:00:00Z' };
+    expect(columnNames(setup, [])).toEqual([]);
   });
 });
 

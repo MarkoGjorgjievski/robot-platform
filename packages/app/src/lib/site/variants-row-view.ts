@@ -11,7 +11,7 @@
  * server data in is what keeps the two in step, as `variants-view.ts` already
  * does for detection.
  */
-import type { DetectResult } from './variants-view';
+import type { DetectResult, VariantSetup } from './variants-view';
 
 export type VariantAnswer = {
   count: number;
@@ -66,9 +66,30 @@ export function reuseListAnswer(answer: VariantAnswer | undefined, listed: { cou
   return { count: listed.count, labels: listed.labels, list: answer.list };
 }
 
-/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, with "s" added; "variants" with two or more mapped columns, or none. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). */
+/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, with "s" added; "variants" with two or more mapped columns, or none. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). Feed it `columnNames`, not one name per detected axis — several detected names can map to the same column. */
 export function variantNoun(axisNames: string[]): string {
   return axisNames.length === 1 ? `${axisNames[0]!.toLowerCase()}s` : 'variants';
+}
+
+/**
+ * Each column a website's variant setup maps, once (Global Constraints):
+ * several detected axis names mapped to the same column (`color` and
+ * `colour`, both "Colour") count as the one column, not one entry per
+ * mapping — in the order each column is first mapped. A mapping whose
+ * column no longer exists on the schema (a stale setup) names nothing.
+ * Feeds `variantNoun`.
+ */
+export function columnNames(setup: VariantSetup | null, axes: Array<{ key: string; name: string }>): string[] {
+  if (!setup) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const a of setup.axes) {
+    if (seen.has(a.axisKey)) continue;
+    seen.add(a.axisKey);
+    const name = axes.find((x) => x.key === a.axisKey)?.name;
+    if (name) out.push(name);
+  }
+  return out;
 }
 
 /** One entry's label: its axis values joined "/" ("Black/10C"), else its sku, else a 1-based placeholder. */
