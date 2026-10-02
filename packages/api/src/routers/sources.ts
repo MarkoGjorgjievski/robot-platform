@@ -1480,15 +1480,29 @@ export const sourcesRouter = router({
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       return ctx.db.transaction(async (tx) => {
-        const [locked] = await tx.select({ verificationSet: sources.verificationSet, variantSetup: sources.variantSetup }).from(sources).where(eq(sources.id, input.sourceId)).for('update');
+        const [locked] = await tx
+          .select({ verificationSet: sources.verificationSet, variantSetup: sources.variantSetup, datasetId: sources.datasetId })
+          .from(sources)
+          .where(eq(sources.id, input.sourceId))
+          .for('update');
         if (!locked) throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} not found` });
         const verificationSet = (locked.verificationSet as VerificationSet | null) ?? { urls: [], expected: {} };
         if (!verificationSet.urls.includes(input.url)) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: `That page is not one of this website's products` });
         }
-        if ((locked.variantSetup as VariantSetup | null)?.method === 'links' && input.answer) {
+        const setup = locked.variantSetup as VariantSetup | null;
+        if (setup?.method === 'links' && input.answer) {
           const problem = linksAnswerProblem(input.url, input.answer);
           if (problem) throw new TRPCError({ code: 'BAD_REQUEST', message: problem });
+        }
+        // A column (an axis entry field) can never be "from the product page" (Global
+        // Constraints, plan 2026-10-02 2b Task 2): it differs per variant by definition.
+        const markedFromProduct = input.answer?.spot?.fromProduct;
+        if (setup?.method === 'list' && markedFromProduct && markedFromProduct.length > 0) {
+          const [ds] = locked.datasetId ? await tx.select({ schema: datasets.schema }).from(datasets).where(eq(datasets.id, locked.datasetId)) : [];
+          const fields = entryFieldsFor(ds?.schema, setup);
+          const badColumn = fields.find((f) => f.axisFrom !== undefined && markedFromProduct.includes(f.key));
+          if (badColumn) throw new TRPCError({ code: 'BAD_REQUEST', message: `${badColumn.name} differs per variant — it must come from the list` });
         }
         const variants = { ...(verificationSet.variants ?? {}) };
         if (input.answer === null) delete variants[input.url];
