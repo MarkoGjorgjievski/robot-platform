@@ -103,8 +103,29 @@ function toEntry(raw: PlainObject, axes: string[]): Record<string, string> {
   return out;
 }
 
+const ENTRY_BASE_KEYS = new Set(['@type', '@id', 'url', 'name', 'image', 'description']);
+
+/**
+ * A variant entry carries at least one of: an axis value (a `VARIANT_AXIS_KEYS`
+ * key, or a non-empty `options`/`selectedOptions` array), a `sku`/`mpn`/`gtin*`/
+ * `productID`, a `price`, or an `offers` object or array — besides `@type`,
+ * `@id`, `url`, `name`, `image`, `description`. Everything else is a stub
+ * (plan 2026-10-02 Global Constraints): a "variant" that is only a link to the
+ * real product elsewhere, with nothing of its own to show or certify.
+ */
+export function isVariantEntry(entry: Record<string, unknown>): boolean {
+  for (const k of Object.keys(entry)) {
+    if (ENTRY_BASE_KEYS.has(k)) continue;
+    if (isKnownAxisKey(k)) return true;
+    if ((k === 'options' || k === 'selectedOptions') && Array.isArray(entry[k])) return true;
+    if (k === 'sku' || k === 'mpn' || k === 'productID' || k === 'price' || k === 'offers') return true;
+    if (/^gtin/i.test(k)) return true;
+  }
+  return false;
+}
+
 function buildList(source: VariantList['source'], path: string, raw: unknown[], variesByAxes: string[] | null): VariantList | null {
-  const objs = raw.filter(isPlainObject);
+  const objs = raw.filter(isPlainObject).filter(isVariantEntry);
   if (objs.length < 2) return null;
   const keys = new Set<string>();
   for (const o of objs) for (const k of axisKeysOf(o)) keys.add(k);
@@ -180,7 +201,8 @@ function hasOptionSignal(e: PlainObject): boolean {
 
 function qualifiesAsApiVariantArray(arr: unknown[]): boolean {
   if (arr.length < 2 || !arr.every(isPlainObject)) return false;
-  const objs = arr as PlainObject[];
+  const objs = (arr as PlainObject[]).filter(isVariantEntry);
+  if (objs.length < 2) return false;
   if (objs.filter(hasSkuOrPrice).length >= 2 && objs.some(hasOptionSignal)) return true;
   if (!objs.some(hasNarrowOptionSignal)) return false;
   return objs.filter(hasIdSignal).length >= 2;

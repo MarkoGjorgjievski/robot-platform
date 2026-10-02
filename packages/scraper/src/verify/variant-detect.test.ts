@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import nike from '../__fixtures__/corpus/nike-air-jordan-detail.json';
-import { detectVariantLists } from './variant-detect.js';
+import { detectVariantLists, isVariantEntry } from './variant-detect.js';
 import type { CaptureLike } from './certify.js';
 
 const cap = (ldJson: Record<string, unknown>[], apis: unknown[] = []): CaptureLike => ({ url: 'https://s.example/p/1', html: '', structuredData: { ldJson, nextData: null, initialState: null, meta: {} },
@@ -48,5 +48,22 @@ describe('detectVariantLists', () => {
   it('finds an AggregateOffer\'s combination variants (Ikea shape)', () => {
     const l = detectVariantLists(cap([{ '@type': 'Product', offers: { '@type': 'AggregateOffer', offers: [{ sku: 'IK-1', price: '20', color: 'Red' }, { sku: 'IK-2', price: '20', color: 'Blue' }] } }]));
     expect(l[0]).toMatchObject({ source: 'json-ld', path: 'offers.offers', count: 2, axes: ['color'] });
+  });
+
+  const stub = (size: number) => ({ '@type': 'Product', url: `https://s.example/p/other?size=${size}` });
+  const real = (size: string, sku: string) => ({ '@type': 'Product', size, sku, offers: { price: '100', availability: 'https://schema.org/InStock' } });
+
+  it('drops URL-only stub entries from a hasVariant list (Allbirds)', () => {
+    const lists = detectVariantLists(cap([{ '@type': 'ProductGroup', hasVariant: [stub(8), stub(9), stub(10), real('8', 'A-8'), real('9', 'A-9')] }]));
+    expect(lists).toHaveLength(1);
+    expect(lists[0]!.count).toBe(2);
+    expect(lists[0]!.entries.map((e) => e.sku)).toEqual(['A-8', 'A-9']);
+  });
+  it('a list of stubs plus one real entry is no list', () => {
+    expect(detectVariantLists(cap([{ '@type': 'ProductGroup', hasVariant: [stub(8), stub(9), real('8', 'A-8')] }]))).toEqual([]);
+  });
+  it('entries with only an axis value are variants', () => {
+    expect(isVariantEntry({ '@type': 'Product', size: 'M' })).toBe(true);
+    expect(isVariantEntry({ '@type': 'Product', url: 'https://s.example/x', name: 'x', image: 'i.jpg' })).toBe(false);
   });
 });

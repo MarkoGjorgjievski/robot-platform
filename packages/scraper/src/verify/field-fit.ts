@@ -26,6 +26,22 @@ export function pathFitsConcept(concept: string, path: string): boolean {
   return tails.some((t) => { const x = t.toLowerCase(); return p === x || p.endsWith(`.${x}`) || p.endsWith(`:${x}`); });
 }
 
+/**
+ * Where a concept-fitting path ranks in `CONCEPT_PATHS[concept]`'s vocabulary
+ * order: the index of the path's last segment (lower-cased, `[n]` stripped,
+ * split on "." or ":") among that concept's tails. Lower ranks first — for
+ * `sku` that puts `sku` before `productID`, `mpn` and `gtin` (plan 2026-10-02
+ * Global Constraints), so a barcode never outranks the real SKU. An unknown
+ * concept or a segment absent from its vocabulary ranks past every known one.
+ */
+export function conceptRank(concept: string, path: string): number {
+  const tails = CONCEPT_PATHS[concept];
+  if (!tails) return Number.MAX_SAFE_INTEGER;
+  const seg = path.replace(/\[\d+\]/g, '').split(/[.:]/).pop()!.toLowerCase();
+  const idx = tails.findIndex((t) => t.toLowerCase() === seg);
+  return idx === -1 ? tails.length : idx;
+}
+
 /** Normalises one expected value the way the same-value comparison (isWeakField, weakEvidence) needs: text case-insensitively, everything else via `normalize`, as `valuesEqual` does. Shared so the "is this weak" check and the "was this weak" flag can never disagree. */
 export function normalizeForWeak(type: CustomerFieldType, value: string): string | null {
   const n = normalize(type, value);
