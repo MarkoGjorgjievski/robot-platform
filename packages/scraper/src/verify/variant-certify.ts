@@ -408,10 +408,14 @@ export function certifyVariantList(input: {
 
   // A certified list reads something (Global Constraints): once every entry field is decided, at
   // least one of them must have an entry path, or there is nothing a certified "list" method
-  // would ever read — website-level failure, even when no individual page failed.
-  const problem = fields.length > 0 && Object.keys(entryPaths).length === 0
-    ? 'Nothing is read from the variants — check at least one value of the checked variant'
-    : undefined;
+  // would ever read — website-level failure, even when no individual page failed. With no entry
+  // fields at all (no variant-level field and no mapped column) there is nothing to check, so
+  // the sentence asks for a field instead (final review I2 ruling).
+  const problem = fields.length === 0
+    ? 'Nothing is read from the variants — add a field that differs per variant'
+    : Object.keys(entryPaths).length === 0
+      ? 'Nothing is read from the variants — check at least one value of the checked variant'
+      : undefined;
   if (problem) passed = false;
 
   return {

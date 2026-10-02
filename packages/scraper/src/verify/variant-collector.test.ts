@@ -87,6 +87,12 @@ describe('isLikelyVariantHref', () => {
     expect(isLikelyVariantHref('https://shop.example/en-gb/products', 'https://shop.example/en-gb/help')).toBe(true);
     expect(isLikelyVariantHref('https://shop.example/en-gb/products', 'https://shop.example/fr-fr/products')).toBe(false);
   });
+  it('a two-letter first segment that is not a language is a section, not a locale (Walmart /ip/)', () => {
+    expect(isLikelyVariantHref('https://www.walmart.com/ip/blue-shirt/123', 'https://www.walmart.com/ip/red-shirt/456')).toBe(true);
+    expect(isLikelyVariantHref('https://www.walmart.com/ip/blue-shirt/123', 'https://www.walmart.com/cp/shirts/7')).toBe(false);
+    expect(isLikelyVariantHref('https://shop.example/de_DE/products/x', 'https://shop.example/de_DE/help/y')).toBe(false);
+    expect(isLikelyVariantHref('https://shop.example/zh-Hant/products/x', 'https://shop.example/zh-Hant/help/y')).toBe(false);
+  });
   it('compares segments case-insensitively (fix round 1 #3)', () => {
     expect(isLikelyVariantHref('https://shop.example/T/a/1', 'https://shop.example/t/b/2')).toBe(true);
     expect(isLikelyVariantHref('https://shop.example/en-GB/products/x', 'https://shop.example/EN-gb/Products/y')).toBe(true);

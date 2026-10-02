@@ -62,6 +62,22 @@ describe('detectVariantLists', () => {
   it('a list of stubs plus one real entry is no list', () => {
     expect(detectVariantLists(cap([{ '@type': 'ProductGroup', hasVariant: [stub(8), stub(9), real('8', 'A-8')] }]))).toEqual([]);
   });
+  it('an empty options array or an empty value is not a variant (final review M2)', () => {
+    const base = { '@type': 'Product', url: 'https://s.example/x' };
+    expect(isVariantEntry({ ...base, options: [] })).toBe(false);
+    expect(isVariantEntry({ ...base, selectedOptions: [] })).toBe(false);
+    expect(isVariantEntry({ ...base, sku: null })).toBe(false);
+    expect(isVariantEntry({ ...base, color: '' })).toBe(false);
+    expect(isVariantEntry({ ...base, color: '  ' })).toBe(false);
+    expect(isVariantEntry({ ...base, gtin13: '' })).toBe(false);
+    expect(isVariantEntry({ ...base, price: {} })).toBe(false);
+    expect(isVariantEntry({ ...base, offers: null })).toBe(false);
+    expect(isVariantEntry({ ...base, options: [{ name: 'Size', value: 'M' }] })).toBe(true);
+    expect(isVariantEntry({ ...base, price: 0 })).toBe(true);
+    expect(isVariantEntry({ ...base, gtin13: '0123' })).toBe(true);
+    expect(isVariantEntry({ ...base, offers: { price: '1' } })).toBe(true);
+    expect(isVariantEntry({ ...base, offers: [{ price: '1' }] })).toBe(true);
+  });
   it('entries with only an axis value are variants', () => {
     expect(isVariantEntry({ '@type': 'Product', size: 'M' })).toBe(true);
     expect(isVariantEntry({ '@type': 'Product', url: 'https://s.example/x', name: 'x', image: 'i.jpg' })).toBe(false);
