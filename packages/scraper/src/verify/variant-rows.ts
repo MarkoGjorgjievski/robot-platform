@@ -76,13 +76,14 @@ export function buildVariantRows(args: {
   }
 
   const ctx: NormalizeContext = { pageUrl };
-  const productFields = plan.fields.filter((f) => f.level === 'product');
   const variantFields = plan.fields.filter((f) => f.level === 'variant');
 
   let anyPartial = false;
   const rows = entries.map((entry) => {
-    const row: Record<string, unknown> = {};
-    for (const f of productFields) row[f.key] = productRow[f.key];
+    // Start from the full product row (spread), so `_url`, `_page_number` and any other
+    // input/listing keys the caller carries survive onto every variant row, exactly as the
+    // no-entries branch above already does — not just the contract's product-level fields.
+    const row: Record<string, unknown> = { ...productRow };
 
     let rowPartial = false;
     for (const f of variantFields) {
