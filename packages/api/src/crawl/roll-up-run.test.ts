@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, runs, runItems, captures, extractions, sources, orgs, projects, datasets } from '@robot/db';
+import { summariseVariantRows } from '@robot/scraper';
 import { rollUpStatus, finaliseRun } from './roll-up-run.js';
 
 const SLUG = 'test-roll-up-run';
@@ -193,8 +194,9 @@ describe('finaliseRun', () => {
     expect(row!.resultCount).toBe(2); // not 1, the done-item count
   });
 
-  // variantSummary is derived from the rows themselves (summariseVariantRows)
-  // and written only when a run actually has variant rows.
+  // variantSummary is derived from the rows themselves via SQL aggregates
+  // (fix round 1 — see finaliseRun's doc comment) and written only when a
+  // run actually has variant rows.
   it('writes variantSummary from the rows when they carry a _product_key', async () => {
     const { sourceId, runId } = await seedRun();
     await db.insert(runItems).values([
@@ -251,5 +253,44 @@ describe('finaliseRun', () => {
 
     const [row] = await db.select().from(runs).where(eq(runs.id, runId));
     expect(row!.variantSummary).toMatchObject({ variantsSkippedForBudget: 3 });
+  });
+
+  // Fix round 1: finaliseRun now computes variants/products/withoutVariants/
+  // partial with SQL aggregates instead of `summariseVariantRows` over an
+  // in-memory row array. The two implementations must never silently drift
+  // apart, so this seeds a richer mix (a multi-variant product, a
+  // without-variants product, and a partial variant row) and asserts the SQL
+  // result (read back off the run) equals what `summariseVariantRows` (the
+  // scraper package's pure JS implementation, @robot/scraper) computes over
+  // the exact same rows.
+  it('agrees with summariseVariantRows (scraper) over the same seeded rows', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.insert(runItems).values([
+      { runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' },
+      { runId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'done' },
+      { runId, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0, status: 'done' },
+    ]);
+    const rowsByExtraction = [
+      [
+        { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+        { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-B', _variant_partial: true },
+      ],
+      [{ _product_key: 'https://example.com/p/2' }], // without variants
+      [{ _product_key: 'https://example.com/p/3', _variant_key: 'SKU-C' }],
+    ];
+    for (const [i, rows] of rowsByExtraction.entries()) {
+      await addExtraction(sourceId, runId, `https://example.com/p/${i + 1}`, rows);
+    }
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    const expected = summariseVariantRows(rowsByExtraction.flat(), 0);
+    expect(row!.variantSummary).toEqual(expected);
+    // Pinned explicitly too, so a bug shared by both implementations (which
+    // the equality check above would miss) still fails this test.
+    expect(row!.variantSummary).toEqual({
+      variants: 3, products: 3, withoutVariants: 1, partial: 1, variantsSkippedForBudget: 0,
+    });
   });
 });

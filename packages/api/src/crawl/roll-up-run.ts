@@ -4,7 +4,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { runs, runItems, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
-import { summariseVariantRows, type VariantRunSummary } from '@robot/scraper';
+import type { VariantRunSummary } from '@robot/scraper';
 
 export type RunRollup = 'completed' | 'partial' | 'failed' | 'extracting' | 'cancelled';
 
@@ -73,10 +73,18 @@ export function rollUpStatus(
  * total is what gets written no matter how many callers raced to finalise.
  *
  * `variantSummary` is written only when the run's rows carry any
- * `_product_key` (i.e. this is a variants run) — `summariseVariantRows`
- * derives `variants`/`products`/`withoutVariants`/`partial` straight from the
- * stored rows. `variantsSkippedForBudget` is NOT derivable from the rows
- * (skipped pages were never extracted, so they never produced one) — Task 4's
+ * `_product_key` (i.e. this is a variants run). `variants`/`products`/
+ * `withoutVariants`/`partial` are computed with SQL aggregates over
+ * `jsonb_array_elements(extractions.data)` — never by pulling every row of
+ * `data` into Node (fix round 1: this used to `flatMap` the run's full row
+ * set on every finalise, including once per healed backfill item, which is
+ * exactly the N-rows-in-memory cost this function exists to avoid). The
+ * aggregate SQL is intentionally the same semantics as
+ * `@robot/scraper`'s `summariseVariantRows` — see roll-up-run.test.ts's
+ * parity test, which runs both over the same seeded rows and asserts they
+ * agree, so the two can never silently drift apart.
+ * `variantsSkippedForBudget` is NOT derivable from the rows (skipped pages
+ * were never extracted, so they never produced one) — Task 4's
  * `queueVariantGroup` is the only place that increments it, straight onto
  * `runs.variant_summary`. Controller ruling R1: this function must read
  * whatever is already there as `skipped` and preserve it in the summary it
@@ -113,18 +121,59 @@ export async function finaliseRun(
     .where(eq(extractions.runId, runId));
   const resultCount = Number(rowTotal?.total ?? 0);
 
-  const extractionRows = await db
-    .select({ data: extractions.data })
-    .from(extractions)
-    .where(eq(extractions.runId, runId));
-  const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data as Record<string, unknown>[] : []));
-  const hasVariantRows = allRows.some((r) => r._product_key !== undefined && r._product_key !== null);
+  // Cheap first: does this run have ANY variant row at all? An EXISTS over
+  // jsonb_array_elements short-circuits on the first match and never
+  // materialises a row in Node — unlike reading `extractions.data` out and
+  // flatMap-ing it, which is what this used to do on every single finalise.
+  const existsResult = await db.execute(sql`
+    SELECT EXISTS (
+      SELECT 1 FROM extractions x, jsonb_array_elements(x.data) e
+      WHERE x.run_id = ${runId} AND e ? '_product_key'
+    ) AS has_variant_rows
+  `);
+  const existsRow = (existsResult as unknown as Array<{ has_variant_rows: boolean }>)[0];
+  const hasVariantRows = Boolean(existsRow?.has_variant_rows);
 
   let variantSummary: VariantRunSummary | undefined;
   if (hasVariantRows) {
     const [current] = await db.select({ variantSummary: runs.variantSummary }).from(runs).where(eq(runs.id, runId));
     const skipped = (current?.variantSummary as VariantRunSummary | null)?.variantsSkippedForBudget ?? 0;
-    variantSummary = summariseVariantRows(allRows, skipped);
+
+    // One pass over jsonb_array_elements, grouped by `_product_key`, entirely
+    // in Postgres. `without_variants` = product keys where NO row has a
+    // non-empty `_variant_key`; `partial` = product keys where ANY row has
+    // `_variant_partial: true` — the same per-product aggregation
+    // `summariseVariantRows` does with JS Sets, just computed as SQL
+    // aggregates instead of over a row array pulled into Node.
+    const aggResult = await db.execute(sql`
+      WITH run_rows AS (
+        SELECT e.value AS r
+        FROM extractions x, jsonb_array_elements(x.data) e
+        WHERE x.run_id = ${runId}
+      ), per_product AS (
+        SELECT
+          r ->> '_product_key' AS pk,
+          bool_or(coalesce(r ->> '_variant_key', '') <> '') AS has_variant,
+          bool_or(coalesce((r ->> '_variant_partial')::boolean, false)) AS is_partial
+        FROM run_rows
+        WHERE r ? '_product_key'
+        GROUP BY r ->> '_product_key'
+      )
+      SELECT
+        (SELECT count(*)::int FROM run_rows WHERE coalesce(r ->> '_variant_key', '') <> '') AS variants,
+        (SELECT count(*)::int FROM per_product) AS products,
+        (SELECT count(*)::int FROM per_product WHERE NOT has_variant) AS without_variants,
+        (SELECT count(*)::int FROM per_product WHERE is_partial) AS partial
+    `);
+    const agg = (aggResult as unknown as Array<{ variants: number; products: number; without_variants: number; partial: number }>)[0];
+
+    variantSummary = {
+      variants: Number(agg?.variants ?? 0),
+      products: Number(agg?.products ?? 0),
+      withoutVariants: Number(agg?.without_variants ?? 0),
+      partial: Number(agg?.partial ?? 0),
+      variantsSkippedForBudget: skipped,
+    };
   }
 
   await db.update(runs)
