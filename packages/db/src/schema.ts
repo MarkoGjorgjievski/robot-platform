@@ -472,6 +472,9 @@ export const runs = pgTable('runs', {
   targetFields: jsonb('target_fields'),
   // Field keys whose miss rate crossed DRIFT_MISS_SHARE in this run: string[].
   driftedFields: jsonb('drifted_fields'),
+  // VariantRunSummary (@robot/scraper verify/variant-rows.ts): set only when this run's
+  // extractions hold any variant row (spec 2026-10-02-variants-plan3). Null otherwise.
+  variantSummary: jsonb('variant_summary'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   index('runs_extractor_id_idx').on(table.extractorId),
@@ -519,6 +522,8 @@ export const runItems = pgTable('run_items', {
   targetFields: jsonb('target_fields'),
   /** Fields that came back absent after extraction, for this item: string[]. */
   absentFields: jsonb('absent_fields'),
+  /** The group's `_product_key` (variant-rows.ts), set only for a queued variant page (links method). Null otherwise. */
+  variantOf: text('variant_of'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('run_items_run_url_idx').on(table.runId, table.url),
