@@ -38,6 +38,12 @@ describe('buildVariantRows', () => {
     expect(r).toMatchObject({ withVariants: false, partial: false });
     expect(r.rows).toEqual([{ ...product, _product_key: 'https://s.example/p/1' }]);
   });
+
+  it('a productRow carrying _url and _page_number: every variant row keeps both', () => {
+    const productWithMeta = { ...product, _url: 'https://s.example/p/1', _page_number: 2 };
+    const r = buildVariantRows({ productRow: productWithMeta, entries, plan, pageUrl: 'https://s.example/p/1' });
+    for (const row of r.rows) expect(row).toMatchObject({ _url: 'https://s.example/p/1', _page_number: 2 });
+  });
 });
 
 describe('variantKeyOf', () => {
