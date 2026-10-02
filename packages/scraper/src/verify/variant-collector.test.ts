@@ -1,6 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
-import { buildLinksNearScript, certifyVariantLinks, normalizeVariantLink, normalizeVariantLinks } from './variant-collector.js';
+import {
+  buildLinksNearScript,
+  buildXPathHrefsScript,
+  certifyVariantLinks,
+  isLikelyVariantHref,
+  normalizeVariantLink,
+  normalizeVariantLinks,
+} from './variant-collector.js';
 import type { CaptureLike } from './certify.js';
 import type { VariantAnswer } from './types.js';
 
@@ -52,6 +59,32 @@ describe('certifyVariantLinks', () => {
     a[U[0]!] = { count: 2, labels: ['Black', 'Blue'], links: abs(['Black', 'Blue']) };
     const r = await certifyVariantLinks({ urls: U, captures: captures(), answers: a, noun: 'colours' }, { evalScript });
     expect(r.pages[U[0]!]).toEqual({ status: 'fail', message: 'found 1 of 2 colours on product 1' });
+  });
+});
+
+describe('isLikelyVariantHref', () => {
+  it('a root-level product page keeps root-level colour links', () => {
+    expect(isLikelyVariantHref('https://shop.example/blue-shirt', 'https://shop.example/red-shirt')).toBe(true);
+    expect(isLikelyVariantHref('https://www.nike.com/t/a/1', 'https://www.nike.com/help/a')).toBe(false);
+  });
+});
+
+describe('buildXPathHrefsScript', () => {
+  const nikePage = `<html><body><main>
+  <div class="colorway-images" aria-label="Colour">
+    <a href="/t/air-force-1-white/CW2288-111">White</a><a href="/t/air-force-1-black/CW2288-001">Black</a>
+    <a href="/u/custom-nike-air-force-1-by-you">Design your own Nike By You product</a></div>
+  <div class="pdp-help-options"><a href="/help/a/returns">Return policy</a><a href="/help/a/pickup">Pick-up available</a></div>
+</main></body></html>`;
+  const NIKE_PAGE = 'https://www.nike.com/t/air-force-1-white/CW2288-111';
+  const NIKE_XPATH = "//*[contains(concat(' ', normalize-space(@class), ' '), ' colorway-images ')]//a/@href";
+
+  it('a certified collector never yields an off-pattern link', async () => {
+    const result = await evalScript<string[][]>(nikePage, buildXPathHrefsScript([NIKE_XPATH], NIKE_PAGE));
+    expect(result[0]).toEqual([
+      'https://www.nike.com/t/air-force-1-white/CW2288-111',
+      'https://www.nike.com/t/air-force-1-black/CW2288-001',
+    ]);
   });
 });
 

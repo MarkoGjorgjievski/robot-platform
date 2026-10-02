@@ -75,6 +75,27 @@ function resolveAgainst(href: string, pageUrl: string): string | null {
   }
 }
 
+/**
+ * A variant link's path shape (Global Constraints, plan 2026-10-02-variants-plan2b):
+ * same host as pageUrl, and — when pageUrl's path has two or more segments — href's first
+ * path segment equals pageUrl's (`/t/…` stays `/t/…`; `/u/…` and `/help/…` are dropped). A
+ * single-segment page accepts any same-host link. Path segments are the non-empty parts of
+ * `pathname` split on `/`. Both pageUrl and href are expected absolute (callers resolve first);
+ * an unparseable URL never qualifies. The one implementation, spliced into every link-producing
+ * in-page script (here and in variant-dom.ts) and used directly in certifyVariantLinks.
+ */
+export function isLikelyVariantHref(pageUrl: string, href: string): boolean {
+  let page: URL;
+  let link: URL;
+  try { page = new URL(pageUrl); } catch { return false; }
+  try { link = new URL(href); } catch { return false; }
+  if (page.host !== link.host) return false;
+  const pageSegments = page.pathname.split('/').filter(Boolean);
+  if (pageSegments.length < 2) return true;
+  const linkSegments = link.pathname.split('/').filter(Boolean);
+  return linkSegments[0] === pageSegments[0];
+}
+
 /** The lowest common ancestor of a non-empty list of elements, by repeatedly widening until it contains every one. */
 function lowestCommonAncestor(elements: Element[]): Element | null {
   if (elements.length === 0) return null;
@@ -108,7 +129,8 @@ export function buildCollectorCandidatesScript(hrefs: string[], pageUrl: string)
   return `(() => {
     ${PAGE_SCRIPT_PRELUDE}
     const pageUrl = ${JSON.stringify(pageUrl)};
-    const hrefSet = new Set(${JSON.stringify(hrefs)});
+    const isLikelyVariantHref = ${isLikelyVariantHref.toString()};
+    const hrefSet = new Set(${JSON.stringify(hrefs)}.filter((h) => isLikelyVariantHref(pageUrl, h)));
     const utilityRe = new RegExp(${JSON.stringify(UTILITY_TOKEN_PATTERN)});
     const resolveAgainst = ${resolveAgainst.toString()};
     const lowestCommonAncestor = ${lowestCommonAncestor.toString()};
@@ -146,6 +168,7 @@ export function buildXPathHrefsScript(xpaths: string[], pageUrl: string): string
     const pageUrl = ${JSON.stringify(pageUrl)};
     const xpaths = ${JSON.stringify(xpaths)};
     const resolveAgainst = ${resolveAgainst.toString()};
+    const isLikelyVariantHref = ${isLikelyVariantHref.toString()};
     const out = [];
     for (const xp of xpaths) {
       const hrefs = [];
@@ -157,7 +180,7 @@ export function buildXPathHrefsScript(xpaths: string[], pageUrl: string): string
           const raw = attr && attr.value != null ? String(attr.value) : '';
           if (!raw) continue;
           const resolved = resolveAgainst(raw, pageUrl);
-          if (!resolved || seen.has(resolved)) continue;
+          if (!resolved || seen.has(resolved) || !isLikelyVariantHref(pageUrl, resolved)) continue;
           seen.add(resolved);
           hrefs.push(resolved);
         }
@@ -176,8 +199,7 @@ export function buildLinksNearScript(xpath: string, pageUrl: string): string {
     const resolveAgainst = ${resolveAgainst.toString()};
     const linkLabel = ${linkLabel.toString()};
     const describeContainer = ${describeContainer.toString()};
-    let host = '';
-    try { host = new URL(pageUrl).host; } catch {}
+    const isLikelyVariantHref = ${isLikelyVariantHref.toString()};
     const r = document.evaluate(${JSON.stringify(xpath)}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
     const node = r.singleNodeValue;
     const el = node && node.nodeType === 1 ? node : (node ? node.parentElement : null);
@@ -189,10 +211,7 @@ export function buildLinksNearScript(xpath: string, pageUrl: string): string {
         const href = a.getAttribute('href');
         if (!href) continue;
         const resolved = resolveAgainst(href, pageUrl);
-        if (!resolved) continue;
-        let u;
-        try { u = new URL(resolved); } catch { continue; }
-        if (u.host !== host) continue;
+        if (!resolved || !isLikelyVariantHref(pageUrl, resolved)) continue;
         if (seen.has(resolved)) continue;
         seen.set(resolved, linkLabel(a));
       }
@@ -254,17 +273,21 @@ export async function certifyVariantLinks(
     url, n: i + 1, answer: answers[url] ?? { count: 0, labels: [] }, capture: captures[url] ?? null,
   }));
 
-  const withVariants = pages.filter((p) => p.answer.count > 0);
+  // Every page's confirmed links in the one normal form (normalizeVariantLink), filtered through
+  // the path-shape rule (isLikelyVariantHref): an off-pattern answer link (e.g. a stray "Design
+  // your own" link saved before this rule existed) is ignored for every comparison below. The
+  // count used throughout is this filtered count, not the stored `answer.count`.
+  const linksOf = new Map<string, string[]>(
+    pages.map((p) => [p.url, normalizeVariantLinks(p.answer.links ?? []).filter((h) => isLikelyVariantHref(p.url, h))]),
+  );
+  const countOf = new Map<string, number>(pages.map((p) => [p.url, linksOf.get(p.url)!.length]));
+
+  const withVariants = pages.filter((p) => countOf.get(p.url)! > 0);
   if (withVariants.length === 0) {
     const out: Record<string, VariantPageResult> = {};
     for (const p of pages) out[p.url] = p.capture ? { status: 'none' } : { status: 'not_captured' };
     return { passed: false, problem: NO_PRODUCT_HAS_VARIANTS, pages: out };
   }
-
-  // Every page's confirmed links in the one normal form (normalizeVariantLink), once: an answer
-  // stored with `#fragment` hrefs (before detection stripped them) still matches the in-page
-  // resolution, which strips the fragment too.
-  const linksOf = new Map<string, string[]>(pages.map((p) => [p.url, normalizeVariantLinks(p.answer.links ?? [])]));
 
   // Step 3: gather candidates across every page that has variants, first-seen order, de-duplicated.
   const candidates: string[] = [];
@@ -290,7 +313,7 @@ export async function certifyVariantLinks(
 
   const fitsPage = (idx: number, p: PageInfo): boolean => {
     const hrefs = hrefsByUrl.get(p.url)?.[idx] ?? [];
-    if (p.answer.count === 0) return hrefs.length === 0;
+    if (countOf.get(p.url)! === 0) return hrefs.length === 0;
     return hrefSetsEqual(hrefs, new Set(linksOf.get(p.url)!));
   };
 
@@ -314,19 +337,20 @@ export async function certifyVariantLinks(
       if (fitsPage(chosenIdx, p)) continue;
       const found = hrefsByUrl.get(p.url)?.[chosenIdx] ?? [];
       const k = found.length;
+      const count = countOf.get(p.url)!;
       // "found {k} of {count}" counts the confirmed links actually found, not every link read:
       // the same number of links with different members is k of count, never "found 4, expected 4".
       const confirmed = new Set(linksOf.get(p.url)!);
       const matched = found.filter((h) => confirmed.has(h)).length;
-      if (p.answer.count === 0) failures[p.url] = `product ${p.n} lists ${k} ${noun} — confirm them`;
+      if (count === 0) failures[p.url] = `product ${p.n} lists ${k} ${noun} — confirm them`;
       else if (k === 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
-      else if (k > p.answer.count) failures[p.url] = `found ${k} ${noun} on product ${p.n}, expected ${p.answer.count}`;
-      else failures[p.url] = `found ${matched} of ${p.answer.count} ${noun} on product ${p.n}`;
+      else if (k > count) failures[p.url] = `found ${k} ${noun} on product ${p.n}, expected ${count}`;
+      else failures[p.url] = `found ${matched} of ${count} ${noun} on product ${p.n}`;
     }
   } else {
     // No candidate at all: nothing can be read, same as every candidate reading empty.
     for (const p of captured) {
-      if (p.answer.count > 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
+      if (countOf.get(p.url)! > 0) failures[p.url] = `found no ${noun} on product ${p.n}`;
     }
   }
 
@@ -335,7 +359,8 @@ export async function certifyVariantLinks(
     if (!p.capture) { out[p.url] = { status: 'not_captured' }; continue; }
     const msg = failures[p.url];
     if (msg) { out[p.url] = { status: 'fail', message: msg }; continue; }
-    out[p.url] = p.answer.count > 0 ? { status: 'pass', count: p.answer.count } : { status: 'none' };
+    const count = countOf.get(p.url)!;
+    out[p.url] = count > 0 ? { status: 'pass', count } : { status: 'none' };
   }
   const passed = Object.values(out).every((r) => r.status !== 'fail' && r.status !== 'not_captured');
 
