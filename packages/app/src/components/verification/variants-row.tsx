@@ -11,6 +11,7 @@ import {
   fittingAnswers,
   reuseListAnswer,
   spotRows,
+  stripColumnsFromProduct,
   variantCells,
   type SpotRow,
   type VariantAnswer,
@@ -248,7 +249,8 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
   function confirm(url: string) {
     const page = pageOf(url);
     if (!page) return;
-    const answer = confirmAnswer(method, page, answers[url]);
+    // An unchanged list keeps the stored spot: never send a column back in its fromProduct.
+    const answer = stripColumnsFromProduct(confirmAnswer(method, page, answers[url]), columnKeys);
     void save(url, answer, true).catch(() => {});
   }
 
@@ -264,7 +266,10 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
     const a = answers[url];
     if (!a) return;
     const spot = a.spot ?? { index: 0, expected: {} };
-    void save(url, { ...a, spot: change({ ...spot, expected: { ...spot.expected }, ...(spot.paths ? { paths: { ...spot.paths } } : {}) }) });
+    // Every spot save (accept, type, check another variant, from-product) drops a column a stale
+    // answer still holds in fromProduct — the server refuses one (final review I1).
+    const next = { ...a, spot: change({ ...spot, expected: { ...spot.expected }, ...(spot.paths ? { paths: { ...spot.paths } } : {}) }) };
+    void save(url, stripColumnsFromProduct(next, columnKeys));
   }
 
   const statusText: ReactNode =

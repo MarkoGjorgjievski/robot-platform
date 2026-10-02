@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { variantCells, confirmAnswer, columnNames, spotRows, variantsNeed, variantNoun, extractEnabled, answerFitsMethod, reuseListAnswer, type VariantAnswer, type VariantResultView } from './variants-row-view';
+import { variantCells, confirmAnswer, columnNames, spotRows, variantsNeed, variantNoun, extractEnabled, answerFitsMethod, reuseListAnswer, stripColumnsFromProduct, type VariantAnswer, type VariantResultView } from './variants-row-view';
 import type { DetectResult, VariantSetup } from './variants-view';
 
 const U = ['https://shop.example/a', 'https://shop.example/b', 'https://shop.example/c'];
@@ -19,6 +19,12 @@ describe('variantNoun', () => {
   });
   it('is "variants" with no mapped axis', () => {
     expect(variantNoun([])).toBe('variants');
+  });
+  it('uses the exact plural, the same table as the API (final review M5)', () => {
+    expect(variantNoun(['Capacity'])).toBe('capacities');
+    expect(variantNoun(['Finish'])).toBe('finishes');
+    expect(variantNoun(['Sizes'])).toBe('sizes');
+    expect(variantNoun(['Fit'])).toBe('fits');
   });
   it('is "variants" with two or more mapped columns', () => {
     expect(variantNoun(['Size', 'Colour'])).toBe('variants');
@@ -283,6 +289,20 @@ describe('variantsNeed', () => {
     });
   });
 
+  it('blocked: a list with no entry fields reads nothing (final review I2)', () => {
+    const answers: Record<string, VariantAnswer> = {
+      [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: {} } },
+      [U[1]!]: { count: 1, labels: ['Red'], list: L, spot: { index: 0, expected: {} } },
+      [U[2]!]: { count: 0, labels: [] },
+    };
+    expect(variantsNeed({ ...base, entryFieldKeys: [], answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({
+      kind: 'blocked', reason: 'Nothing is read from the variants — add a field that differs per variant',
+    });
+    // The links method reads its fields from each variant page, so it has no entry fields to need.
+    const links: Record<string, VariantAnswer> = { [U[0]!]: { count: 1, labels: ['Black'], links: [U[0]!] }, [U[1]!]: { count: 1, labels: ['Red'], links: [U[1]!] }, [U[2]!]: { count: 0, labels: [] } };
+    expect(variantsNeed({ ...base, method: 'links', entryFieldKeys: [], answers: links, variants: { required: 'yes', current: false, passed: false } })).toEqual({ kind: 'pending' });
+  });
+
   it('a non-column field held in fromProduct still counts as checked', () => {
     const answers: Record<string, VariantAnswer> = {
       [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: { colour: 'Black' }, fromProduct: ['sku'] } },
@@ -290,6 +310,32 @@ describe('variantsNeed', () => {
       [U[2]!]: { count: 0, labels: [] },
     };
     expect(variantsNeed({ ...base, entryFieldKeys: ['colour', 'sku'], columnKeys: ['colour'], answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({ kind: 'pending' });
+  });
+});
+
+describe('stripColumnsFromProduct', () => {
+  const old: VariantAnswer = { count: 2, labels: ['Black', 'Red'], list: L, spot: { index: 0, expected: { sku: 'A1' }, fromProduct: ['colour', 'price'] } };
+  it('drops a column from fromProduct, keeping the other fields (final review I1)', () => {
+    const saved = stripColumnsFromProduct(old, ['colour']);
+    expect(saved.spot!.fromProduct).toEqual(['price']);
+    expect(saved.spot!.expected).toEqual({ sku: 'A1' });
+    expect(saved.count).toBe(2);
+  });
+  it('drops fromProduct altogether when only columns were in it', () => {
+    const saved = stripColumnsFromProduct({ ...old, spot: { ...old.spot!, fromProduct: ['colour'] } }, ['colour']);
+    expect(saved.spot).toEqual({ index: 0, expected: { sku: 'A1' } });
+    expect('fromProduct' in saved.spot!).toBe(false);
+  });
+  it('a re-confirmed list that keeps the spot never carries a column in fromProduct', () => {
+    const p = page(U[0]!, { lists: [{ source: 'json-ld', path: 'hasVariant', count: 2, axes: ['color'], entries: [{ color: 'Black' }, { color: 'Red' }] }] });
+    const saved = stripColumnsFromProduct(confirmAnswer('list', p, old), ['colour']);
+    expect(saved.spot!.fromProduct).toEqual(['price']);
+  });
+  it('leaves an answer without a spot, or without fromProduct, as it is', () => {
+    const none: VariantAnswer = { count: 0, labels: [] };
+    expect(stripColumnsFromProduct(none, ['colour'])).toEqual(none);
+    const clean: VariantAnswer = { ...old, spot: { index: 0, expected: { colour: 'Black' } } };
+    expect(stripColumnsFromProduct(clean, ['colour'])).toEqual(clean);
   });
 });
 
