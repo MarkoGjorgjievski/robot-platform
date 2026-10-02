@@ -19,7 +19,7 @@ import type { IBrowser } from '@robot/browser';
 import {
   runExtraction, mergeRow, partitionSchemaByOrigin, discoverCandidateCatalogue,
   runVerifiedExtraction, recordVerifiedPathStats,
-  type ExtractionAgent, type OriginField, type SchemaDefinitionField,
+  type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
@@ -43,6 +43,10 @@ export type ExtractItemDeps = {
   schemaDefinition?: SchemaDefinitionField[];
   extractVerified?: typeof runVerifiedExtraction;
   recordStats?: typeof recordVerifiedPathStats;
+  /** The run's variant plan (loaded once by start-execution.ts), when this Source's
+   * certification carries variants. Task 3 reads this to build one row per variant;
+   * unset, extraction behaves exactly as it does today. */
+  variantPlan?: VariantRunPlan | null;
 };
 
 export async function extractItem(

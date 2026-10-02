@@ -12,6 +12,7 @@ import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
 import { loadCurrentCertification, type Certification } from '../verify/current-certification.js';
+import { loadVariantRunPlan } from './variant-run-plan.js';
 import { claimNextItem } from './claim-item.js';
 import { markItemDone, markItemFailed } from './record-outcome.js';
 import { mergeBackfillResult } from './merge-backfill.js';
@@ -155,10 +156,12 @@ export async function startExecution(
         ? await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true } })
         : null;
       const schemaDefinition = (sourceRow?.schemaDefinition as SchemaDefinitionField[] | null) ?? undefined;
+      // Read once per run, off the same certification — null unless it carries variants.
+      const variantPlan = await loadVariantRunPlan(db, sourceId, certification);
 
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),
-        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition }),
+        extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan }),
         onDone: buildOnDone(db, opts?.mergeToParent),
         onFailed: (itemId, message) => markItemFailed(db, itemId, message),
         // Both `cancelling` (the stop request) and `cancelled` (a stop another
