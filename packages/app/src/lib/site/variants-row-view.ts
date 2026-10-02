@@ -66,10 +66,9 @@ export function reuseListAnswer(answer: VariantAnswer | undefined, listed: { cou
   return { count: listed.count, labels: listed.labels, list: answer.list };
 }
 
-/** The plural word for this website's variants (Global Constraints): the first mapped axis's name, lower-cased, with "s" added; "variants" with no mapped axis. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). */
+/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, with "s" added; "variants" with two or more mapped columns, or none. Same rule as the API's `variantNoun` (`packages/api/src/verify/variant-fields.ts`). */
 export function variantNoun(axisNames: string[]): string {
-  const first = axisNames[0];
-  return first ? `${first.toLowerCase()}s` : 'variants';
+  return axisNames.length === 1 ? `${axisNames[0]!.toLowerCase()}s` : 'variants';
 }
 
 /** One entry's label: its axis values joined "/" ("Black/10C"), else its sku, else a 1-based placeholder. */

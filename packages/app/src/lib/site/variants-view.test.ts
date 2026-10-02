@@ -94,6 +94,22 @@ describe('summaryLines', () => {
     expect(summaryLines(pickerOnlySizes)).toEqual(['Only in a picker on the page: sizes — not collected in this version']);
   });
 
+  it('picker words that are not on the known list are left out', () => {
+    const d: DetectResult = {
+      pages: [page(1, { pickers: [{ axis: 'swatch', options: ['Red'] }, { axis: 'defaultColorNames', options: ['Red'] }, { axis: 'colour', options: ['Red', 'Blue'] }] })],
+      suggested: 'none',
+    };
+    expect(summaryLines(d)).toEqual(['Only in a picker on the page: colours — not collected in this version']);
+  });
+
+  it('no picker line when no known word is left', () => {
+    const d: DetectResult = {
+      pages: [page(1, { pickers: [{ axis: 'swatch', options: ['Red'] }, { axis: 'unstyled', options: ['Blue'] }] })],
+      suggested: 'none',
+    };
+    expect(summaryLines(d)).toEqual(['No variants found on these products']);
+  });
+
   it('a picker whose choices are also in the page data is not picker-only', () => {
     const d: DetectResult = {
       pages: [page(1, { lists: [colourList(['Red', 'Blue'])], pickers: [{ axis: 'colour', options: ['Red', 'Blue'] }] })],
@@ -167,9 +183,16 @@ describe('variantsStepState', () => {
       initialMethod: 'list',
       axes: [{ from: 'color', label: 'Colour', options: ['Red', 'Blue', 'Green'] }],
       pickerOnly: [],
+      noColumns: false,
     });
     const p = variantsStepState({ ...base, detection: pickerOnlySizes });
-    expect(p).toMatchObject({ kind: 'found', suggested: 'none', axes: [], pickerOnly: ['sizes'] });
+    expect(p).toMatchObject({ kind: 'found', suggested: 'none', axes: [], pickerOnly: ['sizes'], noColumns: false });
+  });
+
+  it('found over lists with no detected column carries noColumns', () => {
+    const noColumnList = { source: 'json-ld' as const, path: 'hasVariant', count: 6, axes: [], entries: [{ sku: 'S1' }] };
+    const d: DetectResult = { pages: [1, 2, 3].map((n) => page(n, { lists: [noColumnList] })), suggested: 'list' };
+    expect(variantsStepState({ ...base, detection: d })).toMatchObject({ kind: 'found', noColumns: true });
   });
 
   it('set: the stored method with each axis named by its project column', () => {

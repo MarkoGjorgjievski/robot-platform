@@ -14,11 +14,14 @@ function detection(pages: DetectResult['pages']): DetectResult {
 }
 
 describe('variantNoun', () => {
-  it('is the lower-cased first axis name plus "s"', () => {
+  it('is the single mapped column\'s plural', () => {
     expect(variantNoun(['Colour'])).toBe('colours');
   });
   it('is "variants" with no mapped axis', () => {
     expect(variantNoun([])).toBe('variants');
+  });
+  it('is "variants" with two or more mapped columns', () => {
+    expect(variantNoun(['Size', 'Colour'])).toBe('variants');
   });
 });
 

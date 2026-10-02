@@ -25,7 +25,16 @@ export type VariantsStepState =
   | { kind: 'off' }
   | { kind: 'no-pages'; reason: string }
   /** `initialMethod`: what the method choice opens on — the confirmed method when changing a setup, else the suggestion. */
-  | { kind: 'found'; summary: string[]; suggested: VariantMethod; initialMethod: VariantMethod; axes: Array<{ from: string; label: string; options: string[] }>; pickerOnly: string[] }
+  | {
+      kind: 'found';
+      summary: string[];
+      suggested: VariantMethod;
+      initialMethod: VariantMethod;
+      axes: Array<{ from: string; label: string; options: string[] }>;
+      pickerOnly: string[];
+      /** Every captured page with a list has one, but none of them found a column (Global Constraints): the list method has nothing to map. */
+      noColumns: boolean;
+    }
   | { kind: 'set'; method: VariantMethod; axes: Array<{ from: string; axisName: string }> };
 
 export const METHOD_LABELS: Record<VariantMethod, string> = {
@@ -123,15 +132,32 @@ function shownElsewhere(d: DetectResult): Set<string> {
   return out;
 }
 
-/** The plural words of the axes found only in a picker, each once: "sizes". */
+/**
+ * The known picker-only words (Global Constraints), in plain plurals: any
+ * other picker name (a raw token such as "swatch" or "defaultColorNames")
+ * is left out rather than pluralized as is.
+ */
+const KNOWN_PICKER_WORDS: ReadonlySet<string> = new Set(['colour', 'size', 'length', 'width', 'height', 'material', 'pattern', 'style', 'capacity', 'flavour', 'scent', 'finish']);
+
+/** The known word a picker's axis name stands for, or undefined when it names none. Unlike `axisWord`, this never falls back to "option" or the raw text. */
+function knownPickerWord(raw: string): string | undefined {
+  const m = KNOWN_WORDS.exec(raw.trim().toLowerCase());
+  if (!m) return undefined;
+  const word = m[1]!.replace(/^color$/, 'colour').replace(/^flavor$/, 'flavour');
+  return KNOWN_PICKER_WORDS.has(word) ? word : undefined;
+}
+
+/** The plural words of the axes found only in a picker, each once, known words only (Global Constraints): "sizes". */
 function pickerOnlyWords(d: DetectResult): string[] {
   const elsewhere = shownElsewhere(d);
   const out: string[] = [];
   for (const p of d.pages) {
     for (const picker of p.pickers) {
       if (picker.options.some((o) => elsewhere.has(o.trim().toLowerCase()))) continue;
-      const word = axisPlural(picker.axis);
-      if (!out.includes(word)) out.push(word);
+      const word = knownPickerWord(picker.axis);
+      if (!word) continue;
+      const plural = `${word}s`;
+      if (!out.includes(plural)) out.push(plural);
     }
   }
   return out;
@@ -164,6 +190,13 @@ export function summaryLines(d: DetectResult): string[] {
   const pickers = pickerOnlyWords(d);
   if (pickers.length > 0) lines.push(`Only in a picker on the page: ${pickers.join(', ')} — not collected in this version`);
   return lines.length > 0 ? lines : ['No variants found on these products'];
+}
+
+/** Whether every captured page's list (when it has one) found no column at all: the list method has nothing to map, though it found entries. */
+function noDetectedColumn(d: DetectResult): boolean {
+  const withList = d.pages.filter((p) => p.captured && p.lists.length > 0);
+  if (withList.length === 0) return false;
+  return withList.every((p) => p.lists[0]!.axes.length === 0);
 }
 
 /** The axes a method would collect, each with the choices seen across the proof pages, in the order first seen. */
@@ -226,6 +259,7 @@ export function variantsStepState(args: {
     initialMethod,
     axes: axesFor(detection, initialMethod),
     pickerOnly: pickerOnlyWords(detection),
+    noColumns: noDetectedColumn(detection),
   };
 }
 

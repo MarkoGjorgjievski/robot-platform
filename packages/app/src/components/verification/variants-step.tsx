@@ -118,6 +118,7 @@ export function VariantsStep({
             datasetId={datasetId}
             detection={detection.data!}
             summary={state.summary}
+            noColumns={state.noColumns}
             initialMethod={state.initialMethod}
             axes={axes}
             taken={taken}
@@ -136,6 +137,7 @@ function FoundForm({
   datasetId,
   detection,
   summary,
+  noColumns,
   initialMethod,
   axes,
   taken,
@@ -147,6 +149,8 @@ function FoundForm({
   datasetId: string | null;
   detection: DetectResult;
   summary: string[];
+  /** Every captured page's list (when it has one) found no column at all (Global Constraints). */
+  noColumns: boolean;
   initialMethod: VariantMethod;
   axes: Array<{ key: string; name: string }>;
   /** Field and column names a new column must not repeat. */
@@ -239,6 +243,8 @@ function FoundForm({
             </li>
           ))}
         </ul>
+      ) : method === 'list' && noColumns ? (
+        <p className="text-sm text-muted-foreground">These variants have no colour or size in the page data — they will be told apart by their SKU</p>
       ) : method !== 'none' ? (
         <p className="text-sm text-muted-foreground">Nothing of this kind on these products yet. Add a product with variants to check it.</p>
       ) : null}

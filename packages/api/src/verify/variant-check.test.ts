@@ -17,7 +17,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { VARIANT_SHOP, VARIANT_SHOP_URLS, VARIANT_SHOP_SPOT_URL } from '../test-helpers/variant-shop.js';
 import { writeCaptureFile } from './capture-store.js';
 import { runVariantCheck, currentVariantHash, variantsRequired } from './variant-check.js';
-import { entryFieldsFor } from './variant-fields.js';
+import { entryFieldsFor, variantNoun } from './variant-fields.js';
 import type { VariantSetup } from '../contract.js';
 
 const caller = createCallerFactory(appRouter)({ db, session: null });
@@ -328,5 +328,31 @@ describe('entryFieldsFor', () => {
     expect(fields.map((f) => f.key)).toEqual(['price', 'colour', 'size']);
     expect(fields.find((f) => f.key === 'colour')!.axisFrom).toEqual(['color', 'colour']);
     expect(fields.find((f) => f.key === 'size')!.axisFrom).toBe('size');
+  });
+});
+
+describe('variantNoun', () => {
+  const colourOnly = [{ key: 'colour', name: 'Colour', kind: 'axis', concept: 'axis' }];
+  const colourAndSize = [
+    { key: 'colour', name: 'Colour', kind: 'axis', concept: 'axis' },
+    { key: 'size', name: 'Size', kind: 'axis', concept: 'axis' },
+  ];
+
+  it('is the single mapped column\'s plural', () => {
+    const setup: VariantSetup = { method: 'list', axes: [{ from: 'colour', axisKey: 'colour' }], confirmedAt: '2026-10-01T00:00:00.000Z' };
+    expect(variantNoun(colourOnly, setup)).toBe('colours');
+  });
+
+  it('is "variants" for a setup mapping two columns', () => {
+    const setup: VariantSetup = {
+      method: 'list',
+      axes: [{ from: 'colour', axisKey: 'colour' }, { from: 'size', axisKey: 'size' }],
+      confirmedAt: '2026-10-01T00:00:00.000Z',
+    };
+    expect(variantNoun(colourAndSize, setup)).toBe('variants');
+  });
+
+  it('is "variants" with no mapped column', () => {
+    expect(variantNoun([], null)).toBe('variants');
   });
 });
