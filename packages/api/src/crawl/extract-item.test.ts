@@ -433,4 +433,115 @@ describe('extractItem — with a certification', () => {
       expect(result.row).toMatchObject({ price: 129.99 });
     });
   });
+
+  // Task 4 (variants plan 3): a links-method product page keeps its own one
+  // row, labelled from its own swatch, and queues its other variant pages in
+  // the same run as one group (queueVariantGroup; budget logic tested there).
+  describe('extractItem — links-method variants (Task 4)', () => {
+    const LINKS_PLAN: VariantRunPlan = {
+      method: 'links',
+      entryPaths: {},
+      fromProduct: [],
+      collector: '//div[@class="swatches"]//a/@href',
+      axes: [{ key: 'color', name: 'Colour' }],
+      fields: [{ key: 'price', name: 'Price', type: 'money', level: 'product' }],
+    };
+    const A = 'https://example.com/p/1';
+    const B = 'https://example.com/p/0-red';
+    const C = 'https://example.com/p/2-blue';
+    const SWATCHES = [
+      { href: A, label: 'Black' },
+      { href: B, label: 'Red' },
+      { href: C, label: 'Blue' },
+    ];
+    const capture = { url: A, html: '<html>swatches</html>' } as unknown as PageCapture;
+
+    function linksBrowser(links: Array<{ href: string; label: string }>) {
+      const calls: Array<{ html: string; script: string }> = [];
+      const browser = {
+        setContentEvaluate: async (html: string, script: string) => { calls.push({ html, script }); return links; },
+      } as unknown as IBrowser;
+      return { browser, calls };
+    }
+
+    async function run(item: ClaimedItem, links: Array<{ href: string; label: string }>, opts: { cap?: number } = {}) {
+      const { browser, calls } = linksBrowser(links);
+      const queueVariants = vi.fn(async () => ({ queued: 0, skippedForBudget: 0 }));
+      const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+        data: { price: 129.99 }, stats: [], timings: null, capture,
+      });
+      const cap = captureExtraction();
+      const result = await extractItem(cap.fakeDbCapturing, item, {
+        browser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {}, variantPlan: LINKS_PLAN, itemCap: opts.cap ?? 50, queueVariants,
+      });
+      return { result, cap, calls, queueVariants };
+    }
+
+    it('gives the page its own row labelled from its swatch, keyed by the group, and queues the 2 others', async () => {
+      const { cap, calls, queueVariants } = await run({ ...ITEM, url: A }, SWATCHES, { cap: 7 });
+
+      // The collector is read off the SAME capture the certified paths ran on.
+      expect(calls).toHaveLength(1);
+      expect(calls[0]!.html).toBe('<html>swatches</html>');
+      expect(calls[0]!.script).toContain('swatches');
+
+      expect(cap.rowCount).toBe(1);
+      expect(cap.data[0]).toMatchObject({
+        price: 129.99,
+        color: 'Black',
+        _product_key: B, // lexicographically smallest of the group
+        _variant_key: A, // no SKU/GTIN on the plan → its own page URL
+      });
+
+      expect(queueVariants).toHaveBeenCalledTimes(1);
+      const [, args] = queueVariants.mock.calls[0] as unknown as [unknown, Record<string, unknown>];
+      expect(args).toMatchObject({ runId: 'r', sourceId: 's', productKey: B, cap: 7 });
+      expect((args.urls as string[]).slice().sort()).toEqual([B, C].sort());
+      expect((args.from as ClaimedItem).url).toBe(A);
+    });
+
+    // Review Focus 2: two listing products that are colourways of each other.
+    it('computes the same _product_key from either member page', async () => {
+      const fromA = await run({ ...ITEM, url: A }, SWATCHES);
+      const fromC = await run({ ...ITEM, url: C }, SWATCHES);
+
+      expect(fromA.cap.data[0]!._product_key).toBe(B);
+      expect(fromC.cap.data[0]!._product_key).toBe(B);
+      expect(fromC.cap.data[0]).toMatchObject({ color: 'Blue', _variant_key: C });
+      const [, argsC] = fromC.queueVariants.mock.calls[0] as unknown as [unknown, { urls: string[] }];
+      expect(argsC.urls.slice().sort()).toEqual([A, B].sort());
+    });
+
+    it('a page with no swatch links is a product without variants: its own URL as key, no _variant_key, nothing queued', async () => {
+      const { cap, queueVariants } = await run({ ...ITEM, url: A }, []);
+
+      expect(cap.rowCount).toBe(1);
+      expect(cap.data[0]!._product_key).toBe(A);
+      expect(cap.data[0]!._variant_key).toBeUndefined();
+      expect(cap.data[0]!.color).toBeUndefined();
+      expect(queueVariants).not.toHaveBeenCalled();
+    });
+
+    it('does not set an axis value when the page\'s own URL is not among its links', async () => {
+      const { cap } = await run({ ...ITEM, url: A }, [SWATCHES[1]!, SWATCHES[2]!]);
+      expect(cap.data[0]!._product_key).toBe(B);
+      expect(cap.data[0]!.color).toBeUndefined();
+      expect(cap.data[0]!._variant_key).toBe(A);
+    });
+
+    it('does not persist the row when queueing fails, so a retry cannot double it', async () => {
+      const { browser } = linksBrowser(SWATCHES);
+      const cap = captureExtraction();
+      await expect(extractItem(cap.fakeDbCapturing, { ...ITEM, url: A }, {
+        browser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION,
+        extractVerified: async () => ({ data: { price: 1 }, stats: [], timings: null, capture }),
+        recordStats: async () => {}, variantPlan: LINKS_PLAN, itemCap: 50,
+        queueVariants: async () => { throw new Error('deadlock'); },
+      })).rejects.toThrow('deadlock');
+      expect(cap.data).toBeUndefined();
+    });
+  });
 });

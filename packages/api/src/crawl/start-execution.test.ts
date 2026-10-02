@@ -6,7 +6,8 @@
 // `markItemDone`/`markItemFailed`/`mergeBackfillResult` without a browser,
 // an API key, or a database.
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { db } from '@robot/db';
+import { eq } from 'drizzle-orm';
+import { db, orgs, projects, datasets, sources } from '@robot/db';
 import type { VariantRunPlan } from '@robot/scraper';
 import type { ClaimedItem } from './claim-item.js';
 import type { ExecuteDeps } from './execute-run.js';
@@ -249,5 +250,28 @@ describe('startExecution — variant plan wiring', () => {
     const execDeps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
     await execDeps.extractItem(dummyItem);
     expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ variantPlan: null }));
+  });
+
+  // Task 4: links-method variant pages are queued against the run's item cap,
+  // read once per run off the source's budget — never re-read per item.
+  it('passes the source budget item cap to extractItem', async () => {
+    const SLUG = 'test-start-execution-item-cap';
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    try {
+      const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+      const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+      const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US', budget: { max_items: 7 } }).returning();
+      const cert: Certification = { verificationId: 'v', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'shop.example.com' };
+      loadCurrentCertificationMock.mockResolvedValueOnce(cert);
+      loadVariantRunPlanMock.mockResolvedValueOnce({ method: 'links', collector: '//a/@href', entryPaths: {}, fromProduct: [], axes: [], fields: [] });
+
+      await startExecution(RUN_ID, source!.id, []);
+
+      const execDeps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+      await execDeps.extractItem(dummyItem);
+      expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ itemCap: 7 }));
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, org!.id));
+    }
   });
 });
