@@ -131,6 +131,8 @@ export type VariantsRowProps = {
   passed: boolean;
   /** The variant-level fields and mapped columns, contract order then columns. */
   entryFields: Array<{ key: string; name: string }>;
+  /** `entryFields`' keys that are mapped columns (axis entry fields) — these can never read "From the product page". */
+  columnKeys: string[];
   save: (url: string, answer: VariantAnswer | null, now?: boolean) => Promise<void>;
   /** Each product's last failed save, by url. */
   saveErrors: Record<string, string>;
@@ -201,7 +203,7 @@ function LabelList({ labels, count, checked, onCheck, locked, product }: { label
  * says whether an add-product column follows the products.
  */
 export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowProps; locked: boolean; hasAddHead: boolean }) {
-  const { sourceId, method, urls, noun, detection, result, resultCurrent, need, passed, entryFields, save, saveErrors, proofCaptures, onRetryProof, mark, onMark, onMarkDone } = props;
+  const { sourceId, method, urls, noun, detection, result, resultCurrent, need, passed, entryFields, columnKeys, save, saveErrors, proofCaptures, onRetryProof, mark, onMark, onMarkDone } = props;
   // An answer given under the other method reads as unanswered everywhere in the row (final review I3).
   const answers = fittingAnswers(method, props.answers);
   const [expanded, setExpanded] = useState(false);
@@ -494,13 +496,14 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
                     const listData = listOf(url)?.data;
                     const index = a.spot?.index ?? 0;
                     const suggestions = listData ? (listData.suggestions[index] ?? null) : null;
-                    const row = spotRows({ fields: [f], suggestions, answer: a })[0]!;
+                    const row = spotRows({ fields: [f], columnKeys, suggestions, answer: a })[0]!;
                     return (
                       <td key={i} className={cn(td, 'relative')}>
                         <SpotCell
                           row={row}
                           product={i + 1}
                           locked={locked}
+                          isColumn={columnKeys.includes(f.key)}
                           onAccept={(s) =>
                             spotChange(url, (spot) => ({ ...spot, expected: { ...spot.expected, [f.key]: s.value }, paths: { ...(spot.paths ?? {}), [f.key]: s.path } }))
                           }
@@ -580,6 +583,7 @@ function SpotCell({
   row,
   product,
   locked,
+  isColumn,
   onAccept,
   onType,
   onFromProduct,
@@ -587,11 +591,13 @@ function SpotCell({
   row: SpotRow;
   product: number;
   locked: boolean;
+  /** A column (an axis entry field) never offers "From the product page" (Global Constraints) — it differs per variant by definition. */
+  isColumn: boolean;
   onAccept: (s: { value: string; path: string }) => void;
   onType: (text: string) => void;
   onFromProduct: (on: boolean) => void;
 }) {
-  const from = (
+  const from = isColumn ? null : (
     <Button variant="ghost" size="xs" disabled={locked} aria-label={`${row.name} of product ${product} from the product page`} onClick={() => onFromProduct(true)} className="h-5 px-1 text-sm text-muted-foreground">
       From the product page
     </Button>

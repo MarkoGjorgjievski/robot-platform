@@ -398,6 +398,17 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
     return out;
   }, [variantsInfo.data, variantSetup]);
+  /** `entryFields`' keys that are mapped columns (axis entry fields) — never "From the product page" (Global Constraints). */
+  const columnKeys = useMemo(() => {
+    const info = variantsInfo.data;
+    if (!info) return [];
+    const keys = new Set<string>();
+    for (const a of variantSetup?.axes ?? []) {
+      const axis = info.axes.find((x) => x.key === a.axisKey);
+      if (axis) keys.add(axis.key);
+    }
+    return [...keys];
+  }, [variantsInfo.data, variantSetup]);
   const noun = variantNoun(
     (variantSetup?.axes ?? []).map((a) => variantsInfo.data?.axes.find((x) => x.key === a.axisKey)?.name).filter((n): n is string => !!n),
   );
@@ -1032,6 +1043,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         need,
         passed: !!variantsStatus?.current && !!variantsStatus.passed,
         entryFields,
+        columnKeys,
         save: variantAnswers.save,
         saveErrors: variantAnswers.errors,
         proofCaptures: captures.byUrl,

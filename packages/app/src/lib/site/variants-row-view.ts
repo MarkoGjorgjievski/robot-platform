@@ -216,15 +216,28 @@ function entryFieldChecked(spot: Spot | undefined, key: string): boolean {
 
 export type SpotRow = { key: string; name: string; state: 'suggested' | 'confirmed' | 'from-product' | 'needs-you'; value?: string; suggestion?: { value: string; path: string } };
 
-/** An entry field's row in the spot-check panel (Rules): from-product, then confirmed, then suggested, else needs-you. */
+/**
+ * An entry field's row in the spot-check panel (Rules): from-product, then
+ * confirmed, then suggested, else needs-you. A column (`columnKeys`, the axis
+ * entry fields) can never read `from-product` — it differs per variant by
+ * definition (Global Constraints) — so its row is never that state even when
+ * a stale answer still holds the key in `fromProduct` (a website verified
+ * under the old rules): that reads as `needs-you`, asking the customer to fix
+ * it, the same way an unanswered row does.
+ */
 export function spotRows(args: {
   fields: Array<{ key: string; name: string }>;
+  columnKeys: string[];
   suggestions: Record<string, { value: string; path: string } | null> | null;
   answer: VariantAnswer | undefined;
 }): SpotRow[] {
-  const { fields, suggestions, answer } = args;
+  const { fields, columnKeys, suggestions, answer } = args;
+  const columns = new Set(columnKeys);
   return fields.map(({ key, name }) => {
-    if (fromProduct(answer?.spot, key)) return { key, name, state: 'from-product' as const };
+    if (fromProduct(answer?.spot, key)) {
+      if (columns.has(key)) return { key, name, state: 'needs-you' as const };
+      return { key, name, state: 'from-product' as const };
+    }
     const confirmed = confirmedValue(answer?.spot, key);
     if (confirmed !== undefined) return { key, name, state: 'confirmed' as const, value: confirmed };
     const suggestion = suggestions?.[key];
