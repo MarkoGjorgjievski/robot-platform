@@ -147,26 +147,46 @@ describe('confirmAnswer', () => {
 describe('spotRows', () => {
   const fields = [{ key: 'colour', name: 'Colour' }, { key: 'material', name: 'Material' }];
 
-  it('from-product: listed in fromProduct', () => {
+  it('from-product: listed in fromProduct, for a non-column field', () => {
     const answer: VariantAnswer = { count: 1, labels: ['Black'], spot: { index: 0, expected: {}, fromProduct: ['material'] } };
-    const rows = spotRows({ fields, suggestions: null, answer });
+    const rows = spotRows({ fields, columnKeys: ['colour'], suggestions: null, answer });
     expect(rows.find((r) => r.key === 'material')).toEqual({ key: 'material', name: 'Material', state: 'from-product' });
   });
 
   it('confirmed: expected[key] is set', () => {
     const answer: VariantAnswer = { count: 1, labels: ['Black'], spot: { index: 0, expected: { colour: 'Black' } } };
-    const rows = spotRows({ fields, suggestions: null, answer });
+    const rows = spotRows({ fields, columnKeys: ['colour'], suggestions: null, answer });
     expect(rows.find((r) => r.key === 'colour')).toEqual({ key: 'colour', name: 'Colour', state: 'confirmed', value: 'Black' });
   });
 
   it('suggested: there is a suggestion and nothing confirmed', () => {
-    const rows = spotRows({ fields, suggestions: { colour: { value: 'Black', path: 'colour' } }, answer: undefined });
+    const rows = spotRows({ fields, columnKeys: ['colour'], suggestions: { colour: { value: 'Black', path: 'colour' } }, answer: undefined });
     expect(rows.find((r) => r.key === 'colour')).toEqual({ key: 'colour', name: 'Colour', state: 'suggested', suggestion: { value: 'Black', path: 'colour' } });
   });
 
   it('needs-you: nothing confirmed and no suggestion', () => {
-    const rows = spotRows({ fields, suggestions: { colour: null }, answer: undefined });
+    const rows = spotRows({ fields, columnKeys: ['colour'], suggestions: { colour: null }, answer: undefined });
     expect(rows.find((r) => r.key === 'colour')).toEqual({ key: 'colour', name: 'Colour', state: 'needs-you' });
+  });
+
+  it('a column is never from-product, even when listed in fromProduct (a website verified under the old rules)', () => {
+    const answer: VariantAnswer = { count: 1, labels: ['Black'], spot: { index: 0, expected: {}, fromProduct: ['colour', 'material'] } };
+    const rows = spotRows({ fields, columnKeys: ['colour'], suggestions: null, answer });
+    expect(rows.find((r) => r.key === 'colour')).toEqual({ key: 'colour', name: 'Colour', state: 'needs-you' });
+    // A non-column field marked the same way is unaffected.
+    expect(rows.find((r) => r.key === 'material')).toEqual({ key: 'material', name: 'Material', state: 'from-product' });
+  });
+
+  it('never returns from-product for any column key, across every state branch', () => {
+    const cases: Array<VariantAnswer | undefined> = [
+      { count: 1, labels: ['Black'], spot: { index: 0, expected: {}, fromProduct: ['colour'] } },
+      { count: 1, labels: ['Black'], spot: { index: 0, expected: { colour: 'Black' } } },
+      undefined,
+    ];
+    for (const answer of cases) {
+      const rows = spotRows({ fields, columnKeys: ['colour'], suggestions: { colour: { value: 'Black', path: 'colour' } }, answer });
+      expect(rows.find((r) => r.key === 'colour')?.state).not.toBe('from-product');
+    }
   });
 });
 
