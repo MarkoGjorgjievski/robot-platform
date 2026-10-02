@@ -46,9 +46,9 @@ export function entryFieldsFor(datasetSchema: unknown, setup: VariantSetup | nul
   return fields;
 }
 
-/** The plural word for this website's variants (Global Constraints): the first mapped axis's name, lower-cased, with "s" added; "variants" with no mapped axis. */
+/** The plural word for this website's variants (Global Constraints): one mapped column's name, lower-cased, with "s" added; "variants" with two or more mapped columns, or none. */
 export function variantNoun(datasetSchema: unknown, setup: VariantSetup | null): string {
   const fields = entryFieldsFor(datasetSchema, setup);
-  const firstAxis = fields.find((f) => f.axisFrom !== undefined);
-  return firstAxis ? `${firstAxis.name.toLowerCase()}s` : 'variants';
+  const mapped = fields.filter((f) => f.axisFrom !== undefined);
+  return mapped.length === 1 ? `${mapped[0]!.name.toLowerCase()}s` : 'variants';
 }
