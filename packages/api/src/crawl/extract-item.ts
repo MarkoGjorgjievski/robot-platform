@@ -19,11 +19,14 @@ import type { IBrowser } from '@robot/browser';
 import {
   runExtraction, mergeRow, partitionSchemaByOrigin, discoverCandidateCatalogue,
   runVerifiedExtraction, recordVerifiedPathStats, resolveVariantList, buildVariantRows,
+  buildXPathLinksScript, normalizeVariantLink, normalizeVariantLinks, groupKeyOf, variantKeyOf,
+  resolveBudget, itemCap,
   type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import type { ClaimedItem } from './claim-item.js';
+import { queueVariantGroup } from './queue-variant-pages.js';
 import type { Certification } from '../verify/current-certification.js';
 
 export type ExtractItemDeps = {
@@ -47,6 +50,12 @@ export type ExtractItemDeps = {
    * certification carries variants. Task 3 reads this to build one row per variant;
    * unset, extraction behaves exactly as it does today. */
   variantPlan?: VariantRunPlan | null;
+  /** The run's item cap, `itemCap(resolveBudget(source.budget))`, computed once per
+   * run by start-execution.ts. Links-method variant pages count against it. Unset
+   * falls back to the default budget's cap. */
+  itemCap?: number;
+  /** Injected so the links method can be tested without a database. */
+  queueVariants?: typeof queueVariantGroup;
 };
 
 export async function extractItem(
@@ -152,6 +161,53 @@ export async function extractItem(
       const entries = verified.capture ? resolveVariantList(verified.capture, plan.list!) : null;
       const built = buildVariantRows({ productRow: row, entries, plan, pageUrl: item.url });
       return persistRows(built.rows, confidence, t ? { capture: t } : {});
+    }
+
+    // Links-method variants (Task 4): this page is ONE variant — it keeps its
+    // own single row — and its swatch links (the certified collector, read off
+    // the same capture) name the rest of its group. Every member computes the
+    // same group, so the same `_product_key` (groupKeyOf: the smallest
+    // normalised URL), whichever is extracted first (Review Focus 2).
+    if (deps.variantPlan?.method === 'links') {
+      const plan = deps.variantPlan;
+      const ownUrl = normalizeVariantLink(item.url);
+      const links = verified.capture && plan.collector
+        ? (await deps.browser.setContentEvaluate<Array<{ href: string; label: string }> | null>(
+            verified.capture.html, buildXPathLinksScript(plan.collector, item.url))) ?? []
+        : [];
+
+      if (links.length === 0) {
+        // A product without variants (or a page that no longer carries the
+        // collector): its own URL is its key, and it has no `_variant_key`.
+        return persistRows([{ ...row, _product_key: ownUrl }], confidence, t ? { capture: t } : {});
+      }
+
+      const group = normalizeVariantLinks([item.url, ...links.map((l) => l.href)]);
+      const productKey = groupKeyOf(group);
+      const own: Record<string, unknown> = { ...row, _product_key: productKey };
+      const ownLink = links.find((l) => normalizeVariantLink(l.href) === ownUrl);
+      const firstAxis = plan.axes[0];
+      if (ownLink && firstAxis) own[firstAxis.key] = ownLink.label;
+      own._variant_key = variantKeyOf(own, plan, ownUrl);
+
+      // Queued BEFORE the row is persisted: a queueing failure fails the item
+      // with nothing written, so its retry cannot leave a second extraction
+      // (and a doubled row total) behind. queueVariantGroup itself skips every
+      // member already in the run.
+      const others = group.filter((u) => u !== ownUrl);
+      if (others.length > 0) {
+        const queue = deps.queueVariants ?? queueVariantGroup;
+        await queue(db, {
+          runId: deps.runId,
+          sourceId: deps.sourceId,
+          productKey,
+          urls: others,
+          from: item,
+          cap: deps.itemCap ?? itemCap(resolveBudget(null)),
+        });
+      }
+
+      return persistRows([own], confidence, t ? { capture: t } : {});
     }
 
     return persistRows([row], confidence, t ? { capture: t } : {});
