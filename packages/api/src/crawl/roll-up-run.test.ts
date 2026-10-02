@@ -1,7 +1,7 @@
 // packages/api/src/crawl/roll-up-run.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
+import { db, runs, runItems, captures, extractions, sources, orgs, projects, datasets } from '@robot/db';
 import { rollUpStatus, finaliseRun } from './roll-up-run.js';
 
 const SLUG = 'test-roll-up-run';
@@ -111,6 +111,13 @@ describe('finaliseRun', () => {
       { runId: run!.id, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0, status: 'done' },
       { runId: run!.id, kind: 'detail', url: 'https://example.com/p/4', inputIndex: 0, status: 'failed', error: 'blocked' },
     ]);
+    // Task 3: resultCount is now the sum of extractions.rowCount, not the
+    // done-item count — for a run without variants (one row per done item)
+    // the two are equal, which this exercises directly.
+    for (const i of [1, 2, 3]) {
+      const [capture] = await db.insert(captures).values({ sourceId: source!.id, runId: run!.id, url: `https://example.com/p/${i}` }).returning({ id: captures.id });
+      await db.insert(extractions).values({ sourceId: source!.id, captureId: capture!.id, runId: run!.id, data: [{ title: `item ${i}` }], rowCount: 1 });
+    }
 
     // No rowCount argument any more — the old signature let a caller (e.g. one
     // of two concurrent loops) hand in its own partial, in-memory count and
@@ -149,5 +156,100 @@ describe('finaliseRun', () => {
     // Non-terminal, so no completion timestamp is invented for a run that is
     // not actually done.
     expect(row!.completedAt).toBeNull();
+  });
+
+  async function seedRun() {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+    const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'extracting' }).returning();
+    return { sourceId: source!.id, runId: run!.id };
+  }
+
+  async function addExtraction(sourceId: string, runId: string, url: string, rows: Record<string, unknown>[]) {
+    const [capture] = await db.insert(captures).values({ sourceId, runId, url }).returning({ id: captures.id });
+    await db.insert(extractions).values({ sourceId, captureId: capture!.id, runId, data: rows, rowCount: rows.length });
+  }
+
+  // Task 3 (variants plan 3): `resultCount` is the sum of `rowCount` across
+  // the run's extractions, not the count of done items — a list-method
+  // product page's one extraction can hold several rows.
+  it('sums extractions.rowCount for resultCount, not the number of done items', async () => {
+    const { sourceId, runId } = await seedRun();
+    // One product page, extracted once (`kind='detail'`, one `done` item),
+    // but its extraction holds 2 variant rows.
+    await db.insert(runItems).values({ runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' });
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-B' },
+    ]);
+
+    const status = await finaliseRun(db, runId);
+    expect(status).toBe('completed');
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.resultCount).toBe(2); // not 1, the done-item count
+  });
+
+  // variantSummary is derived from the rows themselves (summariseVariantRows)
+  // and written only when a run actually has variant rows.
+  it('writes variantSummary from the rows when they carry a _product_key', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.insert(runItems).values([
+      { runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' },
+      { runId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'done' },
+    ]);
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-B' },
+    ]);
+    // A product without variants: its own row, _product_key set, no _variant_key.
+    await addExtraction(sourceId, runId, 'https://example.com/p/2', [
+      { _product_key: 'https://example.com/p/2' },
+    ]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toEqual({
+      variants: 2,
+      products: 2,
+      withoutVariants: 1,
+      partial: 0,
+      variantsSkippedForBudget: 0,
+    });
+  });
+
+  it('leaves variantSummary unwritten when no row carries a _product_key', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.insert(runItems).values({ runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' });
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [{ title: 'Kallax' }]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toBeNull();
+  });
+
+  // Controller ruling R1: Task 4's queueVariantGroup increments
+  // runs.variant_summary.variantsSkippedForBudget mid-run, straight onto the
+  // row. finaliseRun must read that existing value as `skipped` and preserve
+  // it in the summary it writes — it must not recompute back to 0.
+  it('preserves an existing variantsSkippedForBudget already recorded on the run', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.update(runs).set({
+      variantSummary: { variants: 0, products: 0, withoutVariants: 0, partial: 0, variantsSkippedForBudget: 3 },
+    }).where(eq(runs.id, runId));
+    await db.insert(runItems).values({ runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' });
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+    ]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toMatchObject({ variantsSkippedForBudget: 3 });
   });
 });
