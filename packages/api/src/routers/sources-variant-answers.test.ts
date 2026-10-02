@@ -247,4 +247,21 @@ describe('variants final review fixes', () => {
       expect((await answerOf(f.sourceId))![URLS[0]!]!.count).toBe(2);
     } finally { await f.cleanup(); }
   });
+
+  it('a column can never be from the product page', async () => {
+    const f = await website('variant-answers-column');
+    try {
+      await caller.sources.setVariantSetup({ sourceId: f.sourceId, method: 'list', axes: [{ from: 'color', newAxisName: 'Colour' }] });
+      const save = (fromProduct: string[]) =>
+        caller.sources.saveVariantAnswer({
+          sourceId: f.sourceId,
+          url: URLS[0]!,
+          answer: { count: 2, labels: ['Black', 'Red'], list: { source: 'json-ld', path: 'hasVariant' }, spot: { index: 0, expected: {}, fromProduct } },
+        });
+      await expect(save(['colour'])).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'Colour differs per variant — it must come from the list' });
+      // A non-column field is fine to mark from the product page.
+      await save(['price']);
+      expect((await answerOf(f.sourceId))![URLS[0]!]!.spot!.fromProduct).toEqual(['price']);
+    } finally { await f.cleanup(); }
+  });
 });
