@@ -52,6 +52,12 @@ describe('runVerifiedExtraction (shop-example/p1, real Chromium)', () => {
     expect(result.stats.filter((s) => s.hit)).toHaveLength(4);
   }, 30_000);
 
+  it('returns the supplied capture', async () => {
+    const capture = loadVerifyFixture('shop-example', 'p1');
+    const result = await runVerifiedExtraction({ url: URL, fields: [PRICE] }, { browser, capture });
+    expect(result.capture).toBe(capture);
+  }, 30_000);
+
   it('a field whose only path misses yields null and a miss stat', async () => {
     const capture = loadVerifyFixture('shop-example', 'p1');
     const dead: VerifiedField = {

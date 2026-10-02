@@ -28,6 +28,8 @@ export type VerifiedExtractionResult = {
   stats: Array<{ key: string; concept: string; path: CertifiedPath; hit: boolean; value?: unknown }>;
   /** The live capture's timings; null when the caller supplied the capture. */
   timings: CaptureTimings | null;
+  /** The capture this extraction used: the one the caller supplied, or the one it took. */
+  capture: PageCapture | null;
 };
 
 type Structured = Pick<PageCapture, 'structuredData' | 'interceptedRequests'>;
@@ -89,7 +91,7 @@ export async function runVerifiedExtraction(
       break;
     }
   }
-  return { data, stats, timings: deps.capture ? null : capture.timings ?? null };
+  return { data, stats, timings: deps.capture ? null : capture.timings ?? null, capture };
 }
 
 async function captureUnderLock(

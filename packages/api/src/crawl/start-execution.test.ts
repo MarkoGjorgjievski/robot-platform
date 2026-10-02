@@ -5,9 +5,57 @@
 // so it can be exercised against stubbed
 // `markItemDone`/`markItemFailed`/`mergeBackfillResult` without a browser,
 // an API key, or a database.
-import { describe, it, expect, vi } from 'vitest';
-import { buildOnDone, buildFinalise } from './start-execution.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { db } from '@robot/db';
+import type { VariantRunPlan } from '@robot/scraper';
+import type { ClaimedItem } from './claim-item.js';
+import type { ExecuteDeps } from './execute-run.js';
 import type { Certification } from '../verify/current-certification.js';
+
+// Task 2 (variants plan 3): `startExecution` loads the run's variant plan
+// once, off the same certification, and must thread it through to
+// `extractItem` as `deps.variantPlan`. Every collaborator `startExecution`
+// hard-wires (the browser session, `executeRun`, `extractItem`, the
+// certification/plan loaders) is mocked here so the wiring is checked
+// without a browser, an API key, or a real run row — `executeRun` itself is
+// mocked too, and its captured `extractItem` closure is invoked directly to
+// see what it passes through.
+const { executeRunMock, extractItemMock, loadCurrentCertificationMock, loadVariantRunPlanMock } = vi.hoisted(() => ({
+  // Typed with real parameters (even though unused) so `.mock.calls[0][1]` carries the
+  // `ExecuteDeps` type below, instead of inferring a zero-arg signature from `() => ...`.
+  executeRunMock: vi.fn(async (_runId: string, _deps: import('./execute-run.js').ExecuteDeps, _opts?: { limit?: number }) =>
+    ({ extracted: 0, failed: 0, recordingFailures: 0, cancelled: false, limitReached: false, status: 'completed' })),
+  extractItemMock: vi.fn(async (..._args: unknown[]) => ({ row: {}, extractionId: null, targetFields: null })),
+  loadCurrentCertificationMock: vi.fn(async (..._args: unknown[]) => null as import('../verify/current-certification.js').Certification | null),
+  loadVariantRunPlanMock: vi.fn(async (..._args: unknown[]) => null as import('@robot/scraper').VariantRunPlan | null),
+}));
+
+vi.mock('./execute-run.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./execute-run.js')>();
+  return { ...actual, executeRun: executeRunMock };
+});
+vi.mock('./extract-item.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./extract-item.js')>();
+  return { ...actual, extractItem: extractItemMock };
+});
+vi.mock('../verify/current-certification.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../verify/current-certification.js')>();
+  return { ...actual, loadCurrentCertification: loadCurrentCertificationMock };
+});
+vi.mock('./variant-run-plan.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./variant-run-plan.js')>();
+  return { ...actual, loadVariantRunPlan: loadVariantRunPlanMock };
+});
+vi.mock('../browser-session.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../browser-session.js')>();
+  return { ...actual, withBrowserSession: vi.fn(async (fn: (browser: unknown) => Promise<unknown>) => fn({} as never)) };
+});
+
+const { buildOnDone, buildFinalise, startExecution } = await import('./start-execution.js');
+
+const dummyItem: ClaimedItem = {
+  id: 'item-1', url: 'https://example.com/p/1', inputIndex: 0, inputValues: {}, listingValues: {}, pageNumber: null, attempts: 0, targetFields: null,
+};
 
 describe('buildOnDone', () => {
   it('calls only markItemDone when mergeToParent is not set', async () => {
@@ -160,5 +208,46 @@ describe('buildFinalise', () => {
     const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift });
 
     await expect(finalise(10, false, false)).resolves.toBe('completed');
+  });
+});
+
+describe('startExecution — variant plan wiring', () => {
+  afterEach(() => {
+    executeRunMock.mockClear();
+    extractItemMock.mockClear();
+    loadCurrentCertificationMock.mockReset();
+    loadVariantRunPlanMock.mockReset();
+  });
+
+  // Real (non-existent) UUIDs: a certified Source makes startExecution also read
+  // `schemaDefinition` straight off the `sources` table, which rejects a non-uuid id
+  // before this wiring is even reached.
+  const RUN_ID = '00000000-0000-0000-0000-00000000a001';
+  const SOURCE_ID = '00000000-0000-0000-0000-00000000a002';
+
+  it('loads the plan off the loaded certification and passes it to extractItem', async () => {
+    const cert: Certification = { verificationId: 'v', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'shop.example.com' };
+    const plan: VariantRunPlan = { method: 'list', entryPaths: {}, fromProduct: [], axes: [], fields: [] };
+    loadCurrentCertificationMock.mockResolvedValueOnce(cert);
+    loadVariantRunPlanMock.mockResolvedValueOnce(plan);
+
+    await startExecution(RUN_ID, SOURCE_ID, []);
+
+    expect(loadVariantRunPlanMock).toHaveBeenCalledWith(db, SOURCE_ID, cert);
+    expect(executeRunMock).toHaveBeenCalledTimes(1);
+    const execDeps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+    await execDeps.extractItem(dummyItem);
+    expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ variantPlan: plan }));
+  });
+
+  it('passes a null variant plan through unchanged when the certification carries none', async () => {
+    loadCurrentCertificationMock.mockResolvedValueOnce(null);
+    loadVariantRunPlanMock.mockResolvedValueOnce(null);
+
+    await startExecution(RUN_ID, SOURCE_ID, []);
+
+    const execDeps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
+    await execDeps.extractItem(dummyItem);
+    expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ variantPlan: null }));
   });
 });

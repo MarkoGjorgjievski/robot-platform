@@ -3,6 +3,7 @@ import { PlaywrightBrowser } from '@robot/browser';
 import {
   buildLinksNearScript,
   buildXPathHrefsScript,
+  buildXPathLinksScript,
   certifyVariantLinks,
   isLikelyVariantHref,
   normalizeVariantLink,
@@ -115,6 +116,16 @@ describe('buildXPathHrefsScript', () => {
       'https://www.nike.com/t/air-force-1-white/CW2288-111',
       'https://www.nike.com/t/air-force-1-black/CW2288-001',
     ]);
+  });
+
+  describe('buildXPathLinksScript', () => {
+    it('returns the links with labels', async () => {
+      const result = await evalScript<Array<{ href: string; label: string }>>(nikePage, buildXPathLinksScript(NIKE_XPATH, NIKE_PAGE));
+      expect(result).toEqual([
+        { href: 'https://www.nike.com/t/air-force-1-white/CW2288-111', label: 'White' },
+        { href: 'https://www.nike.com/t/air-force-1-black/CW2288-001', label: 'Black' },
+      ]);
+    });
   });
 });
 

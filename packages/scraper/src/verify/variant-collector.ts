@@ -208,6 +208,40 @@ export function buildXPathHrefsScript(xpaths: string[], pageUrl: string): string
   })()`;
 }
 
+/**
+ * Evaluates (in a page) to `Array<{ href, label }>`: the certified collector xpath's hrefs
+ * (same shape as `buildXPathHrefsScript` — resolved against pageUrl, fragment stripped,
+ * de-duplicated, filtered by `isLikelyVariantHref`), each labelled from its anchor element the
+ * way `buildVariantLinksScript` labels a link (`linkLabel`: text, else title, else aria-label,
+ * else an inner img's alt). The xpath is expected to end in `//a/@href` (the collector's own
+ * shape), so each matched attribute node's `ownerElement` is the anchor itself.
+ */
+export function buildXPathLinksScript(xpath: string, pageUrl: string): string {
+  return `(() => {
+    ${PAGE_SCRIPT_PRELUDE}
+    const pageUrl = ${JSON.stringify(pageUrl)};
+    const resolveAgainst = ${resolveAgainst.toString()};
+    const isLikelyVariantHref = ${isLikelyVariantHref.toString()};
+    const linkLabel = ${linkLabel.toString()};
+    const out = [];
+    const seen = new Set();
+    try {
+      const snap = document.evaluate(${JSON.stringify(xpath)}, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      for (let i = 0; i < snap.snapshotLength; i++) {
+        const attr = snap.snapshotItem(i);
+        const raw = attr && attr.value != null ? String(attr.value) : '';
+        if (!raw) continue;
+        const resolved = resolveAgainst(raw, pageUrl);
+        if (!resolved || seen.has(resolved) || !isLikelyVariantHref(pageUrl, resolved)) continue;
+        seen.add(resolved);
+        const el = attr && attr.ownerElement ? attr.ownerElement : null;
+        out.push({ href: resolved, label: el ? linkLabel(el) : '' });
+      }
+    } catch {}
+    return out;
+  })()`;
+}
+
 /** Evaluates (in a page) to VariantLinks | null: from the element at `xpath`, walks up to 3 ancestors until one holds >= 2 distinct same-host a[href], labelled like buildVariantLinksScript. */
 export function buildLinksNearScript(xpath: string, pageUrl: string): string {
   return `(() => {
