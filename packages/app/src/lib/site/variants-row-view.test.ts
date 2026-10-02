@@ -191,7 +191,7 @@ describe('spotRows', () => {
 });
 
 describe('variantsNeed', () => {
-  const base = { urls: U, answers: {} as Record<string, VariantAnswer>, method: 'list' as const, entryFieldKeys: ['colour'] };
+  const base = { urls: U, answers: {} as Record<string, VariantAnswer>, method: 'list' as const, entryFieldKeys: ['colour'], columnKeys: [] as string[] };
 
   it('none: variants null', () => {
     expect(variantsNeed({ ...base, variants: null })).toEqual({ kind: 'none' });
@@ -247,6 +247,26 @@ describe('variantsNeed', () => {
     };
     expect(variantsNeed({ ...base, method: 'links', answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({ kind: 'pending' });
   });
+
+  it('blocked: a column held in a stale fromProduct does not count as checked (a website verified under the old rules)', () => {
+    const answers: Record<string, VariantAnswer> = {
+      [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: {}, fromProduct: ['colour'] } },
+      [U[1]!]: { count: 1, labels: ['Red'], list: L, spot: { index: 0, expected: { colour: 'Red' } } },
+      [U[2]!]: { count: 0, labels: [] },
+    };
+    expect(variantsNeed({ ...base, columnKeys: ['colour'], answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({
+      kind: 'blocked', reason: 'Check one variant of product 1',
+    });
+  });
+
+  it('a non-column field held in fromProduct still counts as checked', () => {
+    const answers: Record<string, VariantAnswer> = {
+      [U[0]!]: { count: 1, labels: ['Black'], list: L, spot: { index: 0, expected: { colour: 'Black' }, fromProduct: ['sku'] } },
+      [U[1]!]: { count: 1, labels: ['Red'], list: L, spot: { index: 0, expected: { colour: 'Red' }, fromProduct: ['sku'] } },
+      [U[2]!]: { count: 0, labels: [] },
+    };
+    expect(variantsNeed({ ...base, entryFieldKeys: ['colour', 'sku'], columnKeys: ['colour'], answers, variants: { required: 'yes', current: false, passed: false } })).toEqual({ kind: 'pending' });
+  });
 });
 
 describe('extractEnabled', () => {
@@ -294,10 +314,10 @@ describe('an answer given under the other method (final review I3)', () => {
   it('the Verify bar asks for every product to be confirmed', () => {
     const answers: Record<string, VariantAnswer> = { [U[0]!]: listAnswer, [U[1]!]: { count: 0, labels: [] }, [U[2]!]: { count: 0, labels: [] } };
     const variants = { required: 'yes' as const, current: false, passed: false };
-    expect(variantsNeed({ variants, urls: U, answers, method: 'links', entryFieldKeys: [] })).toEqual({ kind: 'blocked', reason: 'Confirm the variants of every product' });
+    expect(variantsNeed({ variants, urls: U, answers, method: 'links', entryFieldKeys: [], columnKeys: [] })).toEqual({ kind: 'blocked', reason: 'Confirm the variants of every product' });
     const linksAnswers = { ...answers, [U[0]!]: linksAnswer };
-    expect(variantsNeed({ variants, urls: U, answers: linksAnswers, method: 'list', entryFieldKeys: [] })).toEqual({ kind: 'blocked', reason: 'Confirm the variants of every product' });
-    expect(variantsNeed({ variants, urls: U, answers: linksAnswers, method: 'links', entryFieldKeys: [] })).toEqual({ kind: 'pending' });
+    expect(variantsNeed({ variants, urls: U, answers: linksAnswers, method: 'list', entryFieldKeys: [], columnKeys: [] })).toEqual({ kind: 'blocked', reason: 'Confirm the variants of every product' });
+    expect(variantsNeed({ variants, urls: U, answers: linksAnswers, method: 'links', entryFieldKeys: [], columnKeys: [] })).toEqual({ kind: 'pending' });
   });
 });
 
