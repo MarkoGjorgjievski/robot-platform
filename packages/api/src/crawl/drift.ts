@@ -16,7 +16,16 @@ import type { Database } from '@robot/db';
  * couple of unlucky misses. */
 export function driftedKeys(rows: Array<Record<string, unknown>>, keys: string[]): string[] {
   if (rows.length < DRIFT_MIN_ROWS) return [];
-  return keys.filter((k) => rows.filter((r) => r[k] === null || r[k] === undefined || r[k] === '').length / rows.length >= DRIFT_MISS_SHARE);
+  // `_`-prefixed keys (`_product_key`, `_variant_key`, `_variant_partial`,
+  // `_url`, …) are this row's own provenance, never a certified field — the
+  // one caller (start-execution.ts's buildFinalise) only ever passes
+  // `Object.keys(certification.paths)`, which can't contain one, but a
+  // variants run's "without variants" rows carry no `_variant_key` at all
+  // (Global Constraints), so filtering here defends against a future caller
+  // flagging that absence as drift on its own bookkeeping.
+  return keys
+    .filter((k) => !k.startsWith('_'))
+    .filter((k) => rows.filter((r) => r[k] === null || r[k] === undefined || r[k] === '').length / rows.length >= DRIFT_MISS_SHARE);
 }
 
 /** Reads every row this run actually extracted, computes drift over the
