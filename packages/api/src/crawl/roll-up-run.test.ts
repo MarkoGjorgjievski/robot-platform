@@ -255,6 +255,27 @@ describe('finaliseRun', () => {
     expect(row!.variantSummary).toMatchObject({ variantsSkippedForBudget: 3 });
   });
 
+  // Task 4 fix round 1: the per-product skip map queueVariantGroup keeps (so
+  // the tally is exact) must survive finalise too, not just its sum.
+  it('preserves skippedByProduct alongside the recomputed counts', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.update(runs).set({
+      variantSummary: { variantsSkippedForBudget: 2, skippedByProduct: { 'https://example.com/p/0': 2 } },
+    }).where(eq(runs.id, runId));
+    await db.insert(runItems).values({ runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' });
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+    ]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toEqual({
+      variants: 1, products: 1, withoutVariants: 0, partial: 0,
+      variantsSkippedForBudget: 2, skippedByProduct: { 'https://example.com/p/0': 2 },
+    });
+  });
+
   // Fix round 1: finaliseRun now computes variants/products/withoutVariants/
   // partial with SQL aggregates instead of `summariseVariantRows` over an
   // in-memory row array. The two implementations must never silently drift
