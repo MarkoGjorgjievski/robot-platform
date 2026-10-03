@@ -66,6 +66,52 @@ async function loadParentData(parentItemId: string): Promise<Record<string, unkn
   return (parentItem!.extraction!.data as Record<string, unknown>[])[0]!;
 }
 
+/** All rows of the parent item's extraction, plus its `rowCount` column — for
+ * the multi-row (variants) merge path, where every row matters, not just row 0. */
+async function loadParentRowsAndCount(parentItemId: string): Promise<{ rows: Record<string, unknown>[]; rowCount: number | null }> {
+  const parentItem = await db.query.runItems.findFirst({
+    where: eq(runItems.id, parentItemId),
+    with: { extraction: true },
+  });
+  return {
+    rows: parentItem!.extraction!.data as Record<string, unknown>[],
+    rowCount: parentItem!.extraction!.rowCount,
+  };
+}
+
+/** A parent-run item whose extraction holds several rows (a list-method
+ * variants extraction, Task 3) instead of the ordinary single row. */
+async function seedParentItemWithRows(
+  sourceId: string, parentRunId: string, rows: Record<string, unknown>[], absentFields: string[] = [],
+) {
+  const [capture] = await db.insert(captures).values({ sourceId, runId: parentRunId, url: 'https://example.com/p/1', metadata: {} }).returning();
+  const [extraction] = await db.insert(extractions).values({
+    sourceId, captureId: capture!.id, runId: parentRunId, data: rows, rowCount: rows.length,
+  }).returning();
+  const [parentItem] = await db.insert(runItems).values({
+    runId: parentRunId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0,
+    status: 'done', extractionId: extraction!.id, absentFields,
+  }).returning();
+  return parentItem!.id;
+}
+
+/** A backfill item whose own re-extraction also holds several rows — what a
+ * backfill re-extraction of a list-method product page actually yields
+ * (extractItem, Task 3). `row` (what a merge-aware `onDone` threads in
+ * directly) is `rows[0]`, mirroring extract-item.ts's persistRows contract;
+ * `mergeBackfillResult` reads the rest back off `extractionId`. */
+async function seedBackfillItemWithRows(sourceId: string, backfillRunId: string, parentItemId: string, rows: Record<string, unknown>[]) {
+  const [capture] = await db.insert(captures).values({ sourceId, runId: backfillRunId, url: 'https://example.com/p/1', metadata: {} }).returning();
+  const [extraction] = await db.insert(extractions).values({
+    sourceId, captureId: capture!.id, runId: backfillRunId, data: rows, rowCount: rows.length,
+  }).returning();
+  const [backfillItem] = await db.insert(runItems).values({
+    runId: backfillRunId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0,
+    status: 'running', parentId: parentItemId,
+  }).returning();
+  return { backfillItemId: backfillItem!.id, extractionId: extraction!.id, row: rows[0]! };
+}
+
 async function loadParentItem(parentItemId: string) {
   const [row] = await db.select().from(runItems).where(eq(runItems.id, parentItemId));
   return row!;
@@ -274,5 +320,100 @@ describe('mergeBackfillResult', () => {
     }).returning();
 
     await expect(mergeBackfillResult(db, plainItem!.id, null, { title: 'x' }, ['title'])).resolves.toBeUndefined();
+  });
+
+  describe('a parent extraction holding several rows (variants)', () => {
+    // Review Focus 4: a parent with rows A1 (missing price) and A2 (missing
+    // price), plus a backfill result with A2 price:21 and A1 price:20 (order
+    // DELIBERATELY reversed from the parent's), fills each row by its own
+    // `_variant_key` — never row 0's value copied to all.
+    it('fills each variant row by its own _variant_key, not by position', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'A1', price: null },
+        { _variant_key: 'A2', price: null },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'A2', price: 21 },
+        { _variant_key: 'A1', price: 20 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+      const { rows, rowCount } = await loadParentRowsAndCount(parentItemId);
+      expect(rows.find((r) => r._variant_key === 'A1')!.price).toBe(20);
+      expect(rows.find((r) => r._variant_key === 'A2')!.price).toBe(21);
+      expect(rowCount).toBe(2);
+    });
+
+    it('never overwrites an already-filled cell on a matched row', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'A1', price: 5 },
+        { _variant_key: 'A2', price: null },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'A1', price: 999 },
+        { _variant_key: 'A2', price: 21 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+      const { rows } = await loadParentRowsAndCount(parentItemId);
+      expect(rows.find((r) => r._variant_key === 'A1')!.price).toBe(5);
+      expect(rows.find((r) => r._variant_key === 'A2')!.price).toBe(21);
+    });
+
+    it('appends a backfill row whose _variant_key matches no parent row, without removing any parent row', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'A1', price: null },
+        { _variant_key: 'A2', price: 9 },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'A1', price: 20 },
+        { _variant_key: 'A3', price: 30 }, // new variant, not in the parent
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+      const { rows, rowCount } = await loadParentRowsAndCount(parentItemId);
+      expect(rowCount).toBe(3);
+      expect(rows.find((r) => r._variant_key === 'A1')!.price).toBe(20);
+      expect(rows.find((r) => r._variant_key === 'A2')!.price).toBe(9); // untouched, never removed
+      expect(rows.find((r) => r._variant_key === 'A3')!.price).toBe(30); // appended whole
+    });
+
+    it('marks a target field absent only when it is still missing on at least one row after the merge', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'A1', price: null },
+        { _variant_key: 'A2', price: null },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'A1', price: 20 },
+        { _variant_key: 'A2', price: null }, // still missing on this row
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+      expect((await loadParentItem(parentItemId)).absentFields).toEqual(['price']);
+    });
+
+    it('clears a previously-absent field once the merge fills it on every row', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'A1', price: null },
+        { _variant_key: 'A2', price: null },
+      ], ['price']);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'A1', price: 20 },
+        { _variant_key: 'A2', price: 21 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+      expect((await loadParentItem(parentItemId)).absentFields).toEqual([]);
+    });
   });
 });

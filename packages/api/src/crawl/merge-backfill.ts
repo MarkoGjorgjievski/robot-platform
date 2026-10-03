@@ -104,33 +104,117 @@ export async function mergeBackfillResult(
     return;
   }
 
-  const data0: Record<string, unknown> = {
-    ...(((parentItem.extraction.data as Record<string, unknown>[] | null)?.[0]) ?? {}),
-  };
+  const parentRows = ((parentItem.extraction.data as Record<string, unknown>[] | null) ?? []) as Record<string, unknown>[];
 
-  const stillMissing: string[] = [];
-  const newlyFilled: string[] = [];
-  for (const field of targetFields) {
-    if (!isEmpty(data0[field])) continue; // filled parent cells are never touched
-    if (!isEmpty(row[field])) {
-      data0[field] = row[field];
-      newlyFilled.push(field);
-    } else {
-      stillMissing.push(field);
+  // Today's path, byte-for-byte: a single-row extraction merges the
+  // backfill's one `row` straight into row 0 by position (the only position
+  // there is). Untouched on purpose — Review Focus 4 only changes behaviour
+  // when the parent holds several rows.
+  if (parentRows.length <= 1) {
+    const data0: Record<string, unknown> = { ...(parentRows[0] ?? {}) };
+
+    const stillMissing: string[] = [];
+    const newlyFilled: string[] = [];
+    for (const field of targetFields) {
+      if (!isEmpty(data0[field])) continue; // filled parent cells are never touched
+      if (!isEmpty(row[field])) {
+        data0[field] = row[field];
+        newlyFilled.push(field);
+      } else {
+        stillMissing.push(field);
+      }
+    }
+
+    const absentSet = new Set((parentItem.absentFields as string[] | null) ?? []);
+    for (const field of stillMissing) absentSet.add(field);
+    for (const field of newlyFilled) absentSet.delete(field);
+
+    await db.update(extractions)
+      .set({ data: [data0], rowCount: 1 })
+      .where(eq(extractions.id, parentItem.extraction.id));
+
+    await db.update(runItems)
+      .set({ absentFields: Array.from(absentSet) })
+      .where(eq(runItems.id, parentItem.id));
+    return;
+  }
+
+  // Several rows (a list-method variants extraction, Task 3): the backfill
+  // item's `row` parameter is only `rows[0]` (extract-item.ts's persistRows
+  // contract, kept for every non-variants caller) — the full re-extracted
+  // row set lives in the backfill's own extraction, fetched here by
+  // `extractionId`. Rows are matched to the parent's rows by `_variant_key`,
+  // never by position (Review Focus 4: row 0's value must never be copied to
+  // every row). A backfill row whose key matches no parent row is new data
+  // (e.g. a variant that appeared since the original run) and is appended
+  // whole; parent rows are never removed.
+  const backfillRows = await loadBackfillRows(db, extractionId, row);
+
+  const parentIndexByKey = new Map<string, number>();
+  parentRows.forEach((r, i) => {
+    const key = r._variant_key;
+    if (typeof key === 'string' && key !== '') parentIndexByKey.set(key, i);
+  });
+
+  const mergedRows = parentRows.map((r) => ({ ...r }));
+  const appendedRows: Record<string, unknown>[] = [];
+
+  for (const backfillRow of backfillRows) {
+    const key = backfillRow._variant_key;
+    const parentIndex = typeof key === 'string' && key !== '' ? parentIndexByKey.get(key) : undefined;
+    if (parentIndex === undefined) {
+      appendedRows.push(backfillRow);
+      continue;
+    }
+    const target = mergedRows[parentIndex]!;
+    for (const field of targetFields) {
+      if (!isEmpty(target[field])) continue; // filled parent cells are never touched
+      if (!isEmpty(backfillRow[field])) target[field] = backfillRow[field];
     }
   }
 
+  const finalRows = [...mergedRows, ...appendedRows];
+
+  // A target field counts as still-absent for the item iff it remains empty
+  // on at least one of the item's rows after the merge — some rows filled
+  // and others not is not yet the honest "confirmed absent" the gate needs.
   const absentSet = new Set((parentItem.absentFields as string[] | null) ?? []);
-  for (const field of stillMissing) absentSet.add(field);
-  for (const field of newlyFilled) absentSet.delete(field);
+  for (const field of targetFields) {
+    const missingAnywhere = finalRows.some((r) => isEmpty(r[field]));
+    if (missingAnywhere) absentSet.add(field);
+    else absentSet.delete(field);
+  }
 
   await db.update(extractions)
-    .set({ data: [data0] })
+    .set({ data: finalRows, rowCount: finalRows.length })
     .where(eq(extractions.id, parentItem.extraction.id));
 
   await db.update(runItems)
     .set({ absentFields: Array.from(absentSet) })
     .where(eq(runItems.id, parentItem.id));
+}
+
+/**
+ * The backfill item's full set of re-extracted rows. `onDone` (execute-run.ts)
+ * only threads `row` (= `rows[0]`, extract-item.ts's persistRows contract) to
+ * keep every non-variants caller's signature unchanged — the rest of a
+ * multi-row re-extraction lives in the backfill's own extraction record,
+ * read here by `extractionId`. Falls back to `[row]` when there is no
+ * extraction id (defensive; every merge-enabled caller passes one) or its
+ * row set can't be read, so a single element is still available to merge.
+ */
+async function loadBackfillRows(
+  db: typeof Database,
+  extractionId: string | null,
+  row: Record<string, unknown>,
+): Promise<Record<string, unknown>[]> {
+  if (extractionId) {
+    const [backfillExtraction] = await db.select({ data: extractions.data }).from(extractions)
+      .where(eq(extractions.id, extractionId));
+    const rows = backfillExtraction?.data;
+    if (Array.isArray(rows) && rows.length > 0) return rows as Record<string, unknown>[];
+  }
+  return [row];
 }
 
 /**

@@ -36,6 +36,37 @@ describe('driftedKeys', () => {
     ];
     expect(driftedKeys(rows, ['price'])).toEqual([]);
   });
+
+  // Drift guard (variants plan 3, Task 5): driftedKeys already flattens
+  // every row (flagDrift's flatMap of each extraction's `data` array) — a
+  // variants run's rows, one per variant, are no different from any other
+  // run's rows by the time they reach here. This guards that a variant
+  // field missing on most of a run's variant rows still flags drift, and
+  // that the row's own provenance keys (`_variant_key`, `_product_key`,
+  // `_variant_partial`) never count as fields — even one genuinely
+  // "missing" on most rows (a "without variants" row carries no
+  // `_variant_key` at all, Global Constraints) must never be flagged as
+  // drift against the run's own bookkeeping.
+  it('flags a variant field missing on most variant rows, and never counts `_`-prefixed keys as fields', () => {
+    const rows = [
+      // 8 of 10 rows are proper variant rows: `_variant_key` set, but
+      // `size` missing on every one of them — well over the 0.2 share.
+      ...Array.from({ length: 8 }, (_, i) => ({ _product_key: 'p1', _variant_key: `v${i}`, price: 9.99, size: null })),
+      // 2 of 10 rows are from products without variants (Global
+      // Constraints: no `_variant_key` at all) — `size` IS filled on
+      // these, so `size`'s own miss share stays exactly 8/10. But this is
+      // also exactly enough missing `_variant_key`s (2/10 = 0.2) to cross
+      // DRIFT_MISS_SHARE on `_variant_key` itself, were it not filtered.
+      ...Array.from({ length: 2 }, (_, i) => ({ _product_key: `p${2 + i}`, price: 9.99, size: 'L' })),
+    ];
+
+    expect(driftedKeys(rows, ['price', 'size'])).toEqual(['size']);
+
+    // `_variant_key`'s miss share (0.2) sits exactly at the threshold that
+    // flags `size` above — proving it is excluded by the `_`-prefix guard,
+    // not merely under the threshold by coincidence.
+    expect(driftedKeys(rows, ['_product_key', '_variant_key', '_variant_partial'])).toEqual([]);
+  });
 });
 
 const SLUG = 'test-drift';
