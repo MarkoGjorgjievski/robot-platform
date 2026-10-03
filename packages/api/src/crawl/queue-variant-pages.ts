@@ -11,8 +11,8 @@
 // Concurrency: the count-check-insert-or-tally is one short transaction that
 // holds the run row's lock (SELECT … FOR UPDATE), so two extractions of the
 // same run — a resumed loop, a second api-server — can never both see room
-// for their groups and together overshoot the cap, nor tally one group twice
-// for one call. No page load ever happens inside it.
+// for their groups and together overshoot the cap. The skipped tally is kept
+// per product (skippedByProduct), so it is exact. No page load happens inside it.
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { runItems } from '@robot/db';
@@ -58,20 +58,43 @@ export async function queueVariantGroup(db: typeof Database, args: {
         inputIndex: args.from.inputIndex,
         inputValues: args.from.inputValues,
       }))).onConflictDoNothing().returning({ id: runItems.id });
+      // Rare: an earlier member's call skipped this product, and the cap has
+      // room now — its pages are queued after all, so withdraw its skip.
+      await setSkippedByProduct(tx, args.runId,
+        sql`coalesce(variant_summary->'skippedByProduct', '{}'::jsonb) - ${args.productKey}::text`,
+        sql`variant_summary->'skippedByProduct' ? ${args.productKey}::text`);
       return { queued: inserted.length, skippedForBudget: 0 };
     }
 
-    // finaliseRun reads this as `skipped` (ruling R1) and preserves it when it
-    // writes the run's full variant summary.
-    await tx.execute(sql`
-      UPDATE runs
-         SET variant_summary = jsonb_set(
-               coalesce(variant_summary, '{}'::jsonb),
-               '{variantsSkippedForBudget}',
-               to_jsonb(coalesce((variant_summary->>'variantsSkippedForBudget')::int, 0) + ${missing.length}::int)
-             )
-       WHERE id = ${args.runId}
-    `);
+    // SET per product, never added: two members of one product that are both
+    // already in the run each recompute the same `missing`, and must count it
+    // once (Task 4 fix round 1).
+    await setSkippedByProduct(tx, args.runId,
+      sql`coalesce(variant_summary->'skippedByProduct', '{}'::jsonb) || jsonb_build_object(${args.productKey}::text, ${missing.length}::int)`);
     return { queued: 0, skippedForBudget: missing.length };
   });
+}
+
+type Tx = Parameters<Parameters<typeof Database.transaction>[0]>[0];
+
+/**
+ * Writes `runs.variant_summary.skippedByProduct` (product key → its skipped
+ * page count) to `nextMap`, and `variantsSkippedForBudget` to the sum of that
+ * map's values — the number finaliseRun reads as `skipped` (ruling R1). Every
+ * other summary key is kept. Runs inside the caller's locked transaction.
+ */
+async function setSkippedByProduct(tx: Tx, runId: string, nextMap: ReturnType<typeof sql>, onlyIf?: ReturnType<typeof sql>) {
+  await tx.execute(sql`
+    UPDATE runs r
+       SET variant_summary = x.s || jsonb_build_object(
+             'variantsSkippedForBudget',
+             (SELECT coalesce(sum(e.v::int), 0) FROM jsonb_each_text(x.s->'skippedByProduct') AS e(k, v))
+           )
+      FROM (
+        SELECT jsonb_set(coalesce(variant_summary, '{}'::jsonb), '{skippedByProduct}', ${nextMap}) AS s
+          FROM runs
+         WHERE id = ${runId}
+      ) x
+     WHERE r.id = ${runId}${onlyIf ? sql` AND ${onlyIf}` : sql``}
+  `);
 }

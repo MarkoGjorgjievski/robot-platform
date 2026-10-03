@@ -181,7 +181,12 @@ export async function finaliseRun(
       status,
       resultCount,
       completedAt: status === 'extracting' ? null : new Date(),
-      ...(variantSummary ? { variantSummary } : {}),
+      // Merged onto what is already there, not overwritten: queueVariantGroup
+      // keeps `skippedByProduct` (the per-product map behind the skipped sum,
+      // Task 4 fix round 1) on this same column, and it must survive finalise.
+      ...(variantSummary
+        ? { variantSummary: sql`coalesce(${runs.variantSummary}, '{}'::jsonb) || ${JSON.stringify(variantSummary)}::jsonb` }
+        : {}),
     })
     .where(eq(runs.id, runId));
 

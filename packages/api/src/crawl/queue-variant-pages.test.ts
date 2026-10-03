@@ -79,15 +79,43 @@ describe('queueVariantGroup', () => {
 
     expect(out).toEqual({ queued: 0, skippedForBudget: 2 });
     expect((await detailItems(runId)).map((i) => i.url).sort()).toEqual(['https://shop.example/p/a', 'https://shop.example/p/x']);
-    expect(await summaryOf(runId)).toEqual({ variantsSkippedForBudget: 2 });
-
-    // A second skipped group adds to the tally, keeping whatever else the summary holds.
-    await db.update(runs).set({ variantSummary: { variantsSkippedForBudget: 2, other: 'kept' } }).where(eq(runs.id, runId));
-    await queueVariantGroup(db, {
-      runId, sourceId, productKey: 'https://shop.example/p/x',
-      urls: ['https://shop.example/p/y', 'https://shop.example/p/z'], from: FROM, cap: 3,
+    expect(await summaryOf(runId)).toEqual({
+      variantsSkippedForBudget: 2,
+      skippedByProduct: { 'https://shop.example/p/a': 2 },
     });
-    expect(await summaryOf(runId)).toEqual({ variantsSkippedForBudget: 4, other: 'kept' });
+  });
+
+  // Fix round 1: the tally is per product and SET, not added — two members of
+  // one product both already in the run each recompute the same missing pages.
+  it('counts a product\'s skipped pages once, however many of its members ask, and adds another product\'s own count', async () => {
+    const A = 'https://shop.example/p/a';
+    const B = 'https://shop.example/p/b';
+    const { runId, sourceId } = await seedRun([A, B, 'https://shop.example/p/x']);
+    const group = { runId, sourceId, productKey: A, from: FROM, cap: 4 }; // 3 present + 2 missing = 5 > 4
+
+    await db.update(runs).set({ variantSummary: { other: 'kept' } }).where(eq(runs.id, runId));
+    // Member A's extraction asks for B, C, D; member B's asks for A, C, D.
+    expect(await queueVariantGroup(db, { ...group, urls: [B, 'https://shop.example/p/c', 'https://shop.example/p/d'] }))
+      .toEqual({ queued: 0, skippedForBudget: 2 });
+    expect(await queueVariantGroup(db, { ...group, urls: [A, 'https://shop.example/p/c', 'https://shop.example/p/d'] }))
+      .toEqual({ queued: 0, skippedForBudget: 2 });
+    expect(await summaryOf(runId)).toEqual({ other: 'kept', variantsSkippedForBudget: 2, skippedByProduct: { [A]: 2 } });
+
+    // A second product's skip adds its own count.
+    await queueVariantGroup(db, {
+      runId, sourceId, productKey: 'https://shop.example/p/x', from: FROM, cap: 4,
+      urls: ['https://shop.example/p/y', 'https://shop.example/p/z', 'https://shop.example/p/w'],
+    });
+    expect(await summaryOf(runId)).toEqual({
+      other: 'kept', variantsSkippedForBudget: 5, skippedByProduct: { [A]: 2, 'https://shop.example/p/x': 3 },
+    });
+
+    // The cap frees up (rare): the product's group is queued after all, so its skip is withdrawn.
+    expect(await queueVariantGroup(db, { ...group, cap: 50, urls: [B, 'https://shop.example/p/c', 'https://shop.example/p/d'] }))
+      .toEqual({ queued: 2, skippedForBudget: 0 });
+    expect(await summaryOf(runId)).toEqual({
+      other: 'kept', variantsSkippedForBudget: 3, skippedByProduct: { 'https://shop.example/p/x': 3 },
+    });
   });
 
   it('queues a group exactly at the cap', async () => {
