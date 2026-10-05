@@ -176,6 +176,24 @@ describe('certifyVariantList', () => {
     expect(r.passed).toBe(true);
     expect(r.entryPaths!.sku).toEqual({ kind: 'path', path: 'sku' });
   });
+  it('an axis column with no reading candidate drops the "or mark it from the product page" advice (N1)', () => {
+    const a = answers();
+    a[U[0]!]!.spot!.expected.colour = 'Purple'; // product 1's entry 0 is actually "Black"
+    const r = run(a);
+    expect(r.pages[U[0]!]).toEqual({
+      status: 'fail',
+      message: "Colour on the checked variant of product 1 isn't in the list — check the value",
+    });
+  });
+  it('a non-axis column with no reading candidate keeps the full advice', () => {
+    const a = answers();
+    a[U[0]!]!.spot!.expected.sku = 'ZZZ'; // product 1's entry 0 sku is actually "A1"
+    const r = run(a);
+    expect(r.pages[U[0]!]).toEqual({
+      status: 'fail',
+      message: "SKU on the checked variant of product 1 isn't in the list — check the value or mark it from the product page",
+    });
+  });
   it('reports the missing-field message from the candidate proven on the most pages, not merely the first by priority', () => {
     const urls = ['https://s.example/q/1', 'https://s.example/q/2', 'https://s.example/q/3'];
     const list = { source: 'json-ld' as const, path: 'hasVariant' };

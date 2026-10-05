@@ -378,7 +378,11 @@ export function certifyVariantList(input: {
 
     for (const p of fitting) {
       if (!candidates.some((c) => readsA(c, p))) {
-        addFailure(p.url, `${f.name} on the checked variant of product ${p.n} isn't in the list — check the value or mark it from the product page`);
+        // An axis column can never be marked from the product page (Step 4's own rule, above) —
+        // so telling the customer to do that here would be wrong advice (plan 2026-10-02-variants-
+        // plan3 wording leftover N1, live check 2). Every other field keeps the full message.
+        const advice = f.axisFrom !== undefined ? 'check the value' : 'check the value or mark it from the product page';
+        addFailure(p.url, `${f.name} on the checked variant of product ${p.n} isn't in the list — ${advice}`);
       }
     }
     let best: EntryPath | null = null;
