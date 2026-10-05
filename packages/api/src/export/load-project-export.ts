@@ -103,6 +103,6 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
   };
 }
 
-export function projectExportFilename(x: ProjectExport, extension: 'csv' | 'json'): string {
+export function projectExportFilename(x: ProjectExport, extension: 'csv' | 'json' | 'xlsx'): string {
   return `${x.project.slug}-${x.generatedAt.slice(0, 10)}.${extension}`;
 }

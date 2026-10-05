@@ -32,9 +32,16 @@ describe('GET /export/projects/:file', () => {
     expect((await res.json()).rowCount).toBe(1);
   });
 
+  it('serves xlsx with the project filename and content type', async () => {
+    const res = await app.request(`/projects/${sample.project.id}.xlsx`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="acme-2026-09-21.xlsx"');
+  });
+
   it('404s an unknown project, a malformed id and an unknown format', async () => {
     expect((await app.request('/projects/22222222-2222-2222-2222-222222222222.csv')).status).toBe(404);
     expect((await app.request('/projects/not-a-uuid.csv')).status).toBe(404);
-    expect((await app.request(`/projects/${sample.project.id}.xlsx`)).status).toBe(404);
+    expect((await app.request(`/projects/${sample.project.id}.pdf`)).status).toBe(404);
   });
 });
