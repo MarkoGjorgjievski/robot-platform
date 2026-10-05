@@ -27,6 +27,7 @@ import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
+import { startDriftCheck, latestDriftCheck, latestDriftedRun } from '../verify/run-drift-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
 
@@ -1289,6 +1290,29 @@ export const sourcesRouter = router({
         // Variants (spec 2026-10-01): null when this website needs none; `current`/`passed` as `loadVariantCurrency` decides them.
         variants,
       };
+    }),
+
+  // ─── Drift repair (plan 2026-10-05, Task 2) ─────────────────────────────
+
+  /**
+   * Start the free drift check on demand, or get the one already running.
+   * It is about the website's latest run that flagged drift (null when none);
+   * it re-captures the proof pages and changes nothing but its own row and
+   * those captures.
+   */
+  checkDrift: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      return startDriftCheck(input.sourceId, await latestDriftedRun(input.sourceId));
+    }),
+
+  /** The website's latest drift check (null when it never had one), with the date of the run it is about. */
+  driftCheck: publicProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      return latestDriftCheck(input.sourceId);
     }),
 
   // ─── Variants (spec 2026-10-01 §3): how a website exposes variants ──────

@@ -21,6 +21,7 @@ import { isRunCancelled } from './is-cancelled.js';
 import { executeRun, type ExecuteDeps } from './execute-run.js';
 import { extractItem } from './extract-item.js';
 import { flagDrift } from './drift.js';
+import { startDriftCheck } from '../verify/run-drift-check.js';
 import { safeErrorMessage } from './plan-source.js';
 import { addRunCost, costSince } from './record-run-cost.js';
 
@@ -86,8 +87,13 @@ export function buildOnDone(
  * missing one run's drift flag is a much smaller loss than corrupting that
  * run's status.
  *
+ * When drift is flagged, the free drift check (drift repair, spec D3) starts
+ * right after, un-awaited, handed each drifted field's empty share — inside
+ * the same try, so a check that fails to start is logged like a failed flag
+ * and never touches the run's status either.
+ *
  * Pulled out and exported, mirroring `buildOnDone` above, so this is testable
- * with stubbed `finaliseRun`/`flagDrift` — no browser, no real DB.
+ * with stubbed `finaliseRun`/`flagDrift`/`startDriftCheck` — no browser, no real DB.
  */
 export function buildFinalise(
   db: typeof Database,
@@ -97,10 +103,12 @@ export function buildFinalise(
   deps: {
     finaliseRun?: typeof finaliseRun;
     flagDrift?: typeof flagDrift;
+    startDriftCheck?: typeof startDriftCheck;
   } = {},
 ): ExecuteDeps['finalise'] {
   const doFinaliseRun = deps.finaliseRun ?? finaliseRun;
   const doFlagDrift = deps.flagDrift ?? flagDrift;
+  const doStartDriftCheck = deps.startDriftCheck ?? startDriftCheck;
 
   return async (_rowCount, cancelled, limitReached) => {
     const status = await doFinaliseRun(db, runId, cancelled, limitReached);
@@ -109,7 +117,11 @@ export function buildFinalise(
     // a partial, still-growing sample.
     if (certification && status !== 'extracting') {
       try {
-        await doFlagDrift(db, runId, sourceId, Object.keys(certification.paths));
+        const drift = await doFlagDrift(db, runId, sourceId, Object.keys(certification.paths));
+        if (drift.keys.length > 0) {
+          void doStartDriftCheck(sourceId, runId, { emptyShare: drift.emptyShare })
+            .catch((err) => console.error(`[crawl] drift check failed to start for run ${runId}:`, err));
+        }
       } catch (err) {
         console.error(`[crawl] drift flagging failed for run ${runId}:`, err);
       }

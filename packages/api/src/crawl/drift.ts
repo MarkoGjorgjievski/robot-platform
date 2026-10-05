@@ -23,21 +23,40 @@ export function driftedKeys(rows: Array<Record<string, unknown>>, keys: string[]
   // variants run's "without variants" rows carry no `_variant_key` at all
   // (Global Constraints), so filtering here defends against a future caller
   // flagging that absence as drift on its own bookkeeping.
-  return keys
-    .filter((k) => !k.startsWith('_'))
-    .filter((k) => rows.filter((r) => r[k] === null || r[k] === undefined || r[k] === '').length / rows.length >= DRIFT_MISS_SHARE);
+  const own = keys.filter((k) => !k.startsWith('_'));
+  const shares = emptyShares(rows, own);
+  return own.filter((k) => shares[k]! >= DRIFT_MISS_SHARE);
+}
+
+/** Pure: each key's share of `rows` where it is null/undefined/empty-string — the miss share drift is judged on, and what the drift check reports as "% of products empty". An empty `rows` is 0 for every key. */
+export function emptyShares(rows: Array<Record<string, unknown>>, keys: string[]): Record<string, number> {
+  return Object.fromEntries(keys.map((k) => [k, rows.length === 0 ? 0 : rows.filter((r) => r[k] === null || r[k] === undefined || r[k] === '').length / rows.length]));
+}
+
+/** Every row a run extracted, flattened across its extractions. */
+async function runRows(db: Database, runId: string): Promise<Array<Record<string, unknown>>> {
+  const found = await db.query.extractions.findMany({ where: eq(extractions.runId, runId), columns: { data: true } });
+  return found.flatMap((e) => (Array.isArray(e.data) ? (e.data as Array<Record<string, unknown>>) : []));
+}
+
+/** Each key's empty share in a finished run, read from its extractions — how a drift check started on demand learns the shares `flagDrift` handed the automatic one. */
+export async function runEmptyShares(db: Database, runId: string, keys: string[]): Promise<Record<string, number>> {
+  return emptyShares(await runRows(db, runId), keys);
 }
 
 /** Reads every row this run actually extracted, computes drift over the
  * certified field keys, and persists it — always on the run (even an empty
  * array is the honest "checked, nothing drifted"), and on the Source as
  * `null` rather than `[]` when nothing drifted, matching the column's
- * existing "absent means clean" convention (run-source-verification.ts). */
-export async function flagDrift(db: Database, runId: string, sourceId: string, keys: string[]): Promise<string[]> {
-  const found = await db.query.extractions.findMany({ where: eq(extractions.runId, runId), columns: { data: true } });
-  const rows = found.flatMap((e) => (Array.isArray(e.data) ? (e.data as Array<Record<string, unknown>>) : []));
+ * existing "absent means clean" convention (run-source-verification.ts).
+ *
+ * Returns the drifted keys and each one's empty share in this run (drift
+ * repair Task 2): the caller hands the shares to the drift check it starts,
+ * which shows them as "% of products empty". */
+export async function flagDrift(db: Database, runId: string, sourceId: string, keys: string[]): Promise<{ keys: string[]; emptyShare: Record<string, number> }> {
+  const rows = await runRows(db, runId);
   const drifted = driftedKeys(rows, keys);
   await db.update(runs).set({ driftedFields: drifted }).where(eq(runs.id, runId));
   await db.update(sources).set({ driftedFields: drifted.length ? drifted : null, updatedAt: new Date() }).where(eq(sources.id, sourceId));
-  return drifted;
+  return { keys: drifted, emptyShare: emptyShares(rows, drifted) };
 }
