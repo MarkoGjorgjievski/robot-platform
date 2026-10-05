@@ -110,9 +110,10 @@ describe('classifyDrift', () => {
     const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
     expect(r.result).toBe('changed');
     expect(r.path).toEqual(priceCertified[0]);
-    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99' });
-    expect(r.pages[p2]).toEqual({ status: 'ok', value: '229.99' });
-    expect(r.pages[U[2]!]).toEqual({ status: 'ok', value: '149.00' });
+    // I3: every deciding page is read, and marked whether it differs from the stored expected value.
+    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99', changed: false });
+    expect(r.pages[p2]).toEqual({ status: 'ok', value: '229.99', changed: true });
+    expect(r.pages[U[2]!]).toEqual({ status: 'ok', value: '149.00', changed: false });
   }, 30_000);
 
   it('changed to a new key: price moved to offers.salePrice with new values on every page, the old key gone everywhere → changed', async () => {
@@ -130,7 +131,7 @@ describe('classifyDrift', () => {
     const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
     expect(r.result).toBe('changed');
     expect(r.path).toEqual({ source: 'json-ld', path: 'offers.salePrice', transform: 'identity' });
-    for (const u of U) expect(r.pages[u]).toEqual({ status: 'ok', value: newPrices[u] });
+    for (const u of U) expect(r.pages[u]).toEqual({ status: 'ok', value: newPrices[u], changed: true });
   }, 30_000);
 
   it('missing field: removed from data and DOM on every page → lost', async () => {
@@ -179,6 +180,48 @@ describe('classifyDrift', () => {
     expect(r.result).toBe('other-layout');
     expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99' });
     expect(r.pages[U[1]!]).toEqual({ status: 'ok', value: '219.99' });
+  }, 30_000);
+
+  it('I1: moved price with page 3 gone → moved on pages 1–2, page-gone on 3', async () => {
+    const captures: Record<string, DriftCapture | null> = baseCaptures();
+    for (const u of [U[0]!, U[1]!]) {
+      const stripped = stripPriceSources(captures[u]!);
+      const match = stripped.html.match(/<span class="now">(\$[\d.]+)<\/span>/);
+      if (!match) throw new Error('fixture missing the "now" price span');
+      const html = stripped.html.replace(match[0]!, '').replace('<p class="stock">', `<div class="sale-price">${match[1]!}</div><p class="stock">`);
+      captures[u] = { ...stripped, html, boxes: await boxesFor(html) };
+    }
+    captures[U[2]!] = null;
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
+    expect(r.result).toBe('moved');
+    expect(r.path?.source).toBe('xpath');
+    expect(r.pages[U[2]!]).toEqual({ status: 'page-gone' });
+    for (const u of [U[0]!, U[1]!]) {
+      const page = r.pages[u];
+      expect(page.status).toBe('ok');
+      if (page.status === 'ok') {
+        expect(page.value).toBe(`$${priceExpected[u]}`);
+        expect(page.mark?.xpaths).toContain(r.path!.path);
+      }
+    }
+  }, 60_000);
+
+  it('I1/M1: price moved to another key with the SAME values, page 3 gone → moved, never "changed" to identical values', async () => {
+    const captures: Record<string, DriftCapture | null> = baseCaptures();
+    for (const u of [U[0]!, U[1]!]) {
+      const stripped = stripPriceSources(captures[u]!);
+      const html = stripped.html.replace(/<span class="now">\$[\d.]+<\/span>/, '');
+      const ldJson = stripped.structuredData.ldJson.map((block) => {
+        const b = block as Record<string, unknown>;
+        return { ...b, offers: { ...(b.offers as Record<string, unknown>), salePrice: priceExpected[u]! } };
+      });
+      captures[u] = { ...stripped, html, structuredData: { ...stripped.structuredData, ldJson } };
+    }
+    captures[U[2]!] = null;
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
+    expect(r.result).toBe('moved');
+    expect(r.path).toMatchObject({ source: 'json-ld', path: 'offers.salePrice' });
+    expect(r.pages[U[2]!]).toEqual({ status: 'page-gone' });
   }, 30_000);
 
   it('Review Focus 4: a weak boolean field never calls a random same-everywhere value "moved"', async () => {

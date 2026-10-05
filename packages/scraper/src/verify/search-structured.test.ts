@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { searchStructured, resolveStructured } from './search-structured.js';
+import { searchStructured, resolveStructured, searchStructuredByConcept } from './search-structured.js';
+import { applyTransform } from './transforms.js';
 
 const capture = {
   url: 'https://shop.example/p/1',
@@ -62,5 +63,19 @@ describe('resolveStructured', () => {
     expect(resolveStructured(capture, 'json-ld', 'offers.price')).toBe('129.99');
     expect(resolveStructured(capture, 'meta', 'og:title')).toBe('Widget A');
     expect(resolveStructured(capture, 'api', 'nope.x')).toBeUndefined();
+  });
+});
+
+describe('searchStructuredByConcept', () => {
+  it('money: a key named for cents reads through cents_to_units (priceCents: 22999 → 229.99), not identity', () => {
+    const c = { ...capture, interceptedRequests: [{ ...capture.interceptedRequests[0]!, parsedJson: { item: { priceCents: 22999 } } }] };
+    const found = searchStructuredByConcept(c, 'money', 'price');
+    const cents = found.find((x) => x.path === 'item.priceCents');
+    expect(cents?.transform).toBe('cents_to_units');
+    expect(applyTransform(cents!.raw, cents!.transform)).toBe(229.99);
+  });
+  it('money: a key not named for cents keeps identity first', () => {
+    const found = searchStructuredByConcept(capture, 'money', 'price');
+    expect(found.find((x) => x.path === 'offers.price')?.transform).toBe('identity');
   });
 });

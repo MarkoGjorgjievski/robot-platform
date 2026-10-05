@@ -1,6 +1,7 @@
 import type { PageCapture } from '@robot/browser';
 import { getByDotPath } from '../domain-cache.js';
-import { inferTransform, inferTransformForType } from './transforms.js';
+import { applyTransform, inferTransform, inferTransformForType } from './transforms.js';
+import { normalize } from './normalize.js';
 import { pathFitsConcept } from './field-fit.js';
 import type { CustomerFieldType, Transform } from './types.js';
 
@@ -63,7 +64,23 @@ export type ConceptCandidate = { source: 'api' | 'json-ld' | 'meta'; path: strin
  * `searchStructured`, this never filters on value: it is for drift's
  * "changed" search, which is hunting for a path whose value is now
  * different, not one that matches anything in particular.
+ *
+ * Money in cents: for a `money` field, a leaf whose last segment names cents
+ * (`priceCents`, `price_cents`) fits the concept when the name without the
+ * cents suffix does, and reads through `cents_to_units` rather than
+ * `identity` — `priceCents: 22999` is 229.99, never "22999". Every other
+ * leaf keeps `inferTransformForType`'s order.
  */
+const CENTS_SEGMENT = /cents?$/i;
+
+function centsBasePath(path: string): string | null {
+  const segs = path.split('.');
+  const last = segs[segs.length - 1]!;
+  if (!CENTS_SEGMENT.test(last)) return null;
+  const base = last.replace(/[_-]?cents?$/i, '');
+  return base === '' ? null : [...segs.slice(0, -1), base].join('.');
+}
+
 export function searchStructuredByConcept(
   capture: Pick<PageCapture, 'url' | 'structuredData' | 'interceptedRequests'>,
   type: CustomerFieldType,
@@ -73,9 +90,14 @@ export function searchStructuredByConcept(
   const out: ConceptCandidate[] = [];
   const seen = new Set<string>();
   const consider = (source: ConceptCandidate['source'], path: string, raw: unknown) => {
-    if (!pathFitsConcept(concept, path)) return;
-    const transform = inferTransformForType(type, raw, ctx);
+    const centsBase = type === 'money' ? centsBasePath(path) : null;
+    if (!pathFitsConcept(concept, path) && !(centsBase !== null && pathFitsConcept(concept, centsBase))) return;
+    let transform = inferTransformForType(type, raw, ctx);
     if (transform === null) return;
+    if (centsBase !== null && transform !== 'cents_to_units') {
+      const asUnits = applyTransform(raw, 'cents_to_units');
+      if (asUnits !== raw && normalize(type, asUnits, ctx) !== null) transform = 'cents_to_units';
+    }
     const id = `${source} ${path}`;
     if (seen.has(id)) return;
     seen.add(id);
