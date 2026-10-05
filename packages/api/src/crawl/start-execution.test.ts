@@ -184,7 +184,7 @@ describe('buildFinalise', () => {
 
   it('calls only finaliseRun and returns its status when certification is null', async () => {
     const finaliseRunStub = vi.fn(async () => 'completed' as const);
-    const flagDrift = vi.fn(async () => []);
+    const flagDrift = vi.fn(async () => ({ keys: [] as string[], emptyShare: {} as Record<string, number> }));
     const finalise = buildFinalise({} as never, 'run-1', 'source-1', null, { finaliseRun: finaliseRunStub, flagDrift });
 
     const status = await finalise(10, false, false);
@@ -196,7 +196,7 @@ describe('buildFinalise', () => {
 
   it('flags drift with the certified keys once finaliseRun settles to a terminal status', async () => {
     const finaliseRunStub = vi.fn(async () => 'completed' as const);
-    const flagDrift = vi.fn(async () => []);
+    const flagDrift = vi.fn(async () => ({ keys: [] as string[], emptyShare: {} as Record<string, number> }));
     const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift });
 
     const status = await finalise(10, false, false);
@@ -208,7 +208,7 @@ describe('buildFinalise', () => {
 
   it('does not flag drift while the run is still extracting', async () => {
     const finaliseRunStub = vi.fn(async () => 'extracting' as const);
-    const flagDrift = vi.fn(async () => []);
+    const flagDrift = vi.fn(async () => ({ keys: [] as string[], emptyShare: {} as Record<string, number> }));
     const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift });
 
     const status = await finalise(10, false, false);
@@ -223,6 +223,37 @@ describe('buildFinalise', () => {
     const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift });
 
     await expect(finalise(10, false, false)).resolves.toBe('completed');
+  });
+
+  // Drift repair Task 2 (spec D3): the repair check runs automatically when a run flags drift.
+  it('starts a drift check with the run and each drifted field\'s empty share when drift is flagged', async () => {
+    const finaliseRunStub = vi.fn(async () => 'completed' as const);
+    const flagDrift = vi.fn(async () => ({ keys: ['price'], emptyShare: { price: 0.4 } }));
+    const startDriftCheck = vi.fn(async () => ({ checkId: 'c', status: 'started' as const }));
+    const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift, startDriftCheck });
+
+    await expect(finalise(10, false, false)).resolves.toBe('completed');
+    expect(startDriftCheck).toHaveBeenCalledOnce();
+    expect(startDriftCheck).toHaveBeenCalledWith('source-1', 'run-1', { emptyShare: { price: 0.4 } });
+  });
+
+  it('starts no drift check when nothing drifted', async () => {
+    const finaliseRunStub = vi.fn(async () => 'completed' as const);
+    const flagDrift = vi.fn(async () => ({ keys: [] as string[], emptyShare: {} as Record<string, number> }));
+    const startDriftCheck = vi.fn(async () => ({ checkId: 'c', status: 'started' as const }));
+    const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift, startDriftCheck });
+
+    await finalise(10, false, false);
+    expect(startDriftCheck).not.toHaveBeenCalled();
+  });
+
+  it('a drift check that fails to start never changes the run\'s status', async () => {
+    const finaliseRunStub = vi.fn(async () => 'partial' as const);
+    const flagDrift = vi.fn(async () => ({ keys: ['price'], emptyShare: { price: 1 } }));
+    const startDriftCheck = vi.fn(async () => { throw new Error('db down'); });
+    const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift, startDriftCheck });
+
+    await expect(finalise(10, false, false)).resolves.toBe('partial');
   });
 });
 

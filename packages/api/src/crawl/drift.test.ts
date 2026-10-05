@@ -104,7 +104,8 @@ describe('flagDrift', () => {
     const { runId, sourceId } = await seedRunWithRows(rows);
 
     const drifted = await flagDrift(db, runId, sourceId, ['price', 'name']);
-    expect(drifted).toEqual(['price']);
+    // Each drifted key's empty share in this run comes back for the drift check (drift repair Task 2).
+    expect(drifted).toEqual({ keys: ['price'], emptyShare: { price: 0.3 } });
 
     const [run] = await db.select().from(runs).where(eq(runs.id, runId));
     expect(run!.driftedFields).toEqual(['price']);
@@ -117,7 +118,7 @@ describe('flagDrift', () => {
     const { runId, sourceId } = await seedRunWithRows(rows);
 
     const drifted = await flagDrift(db, runId, sourceId, ['price']);
-    expect(drifted).toEqual([]);
+    expect(drifted).toEqual({ keys: [], emptyShare: {} });
 
     const [run] = await db.select().from(runs).where(eq(runs.id, runId));
     expect(run!.driftedFields).toEqual([]);
