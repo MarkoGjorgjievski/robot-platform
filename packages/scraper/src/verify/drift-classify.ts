@@ -16,8 +16,14 @@ import type { DomHit, DomNeedle } from './dom-scripts.js';
 import type { CertifiedPath, ConfirmedPath, Mark, SchemaDefinitionField } from './types.js';
 
 export type DriftPage =
-  /** `changed` is set on a `changed` result only: whether this page's value differs from the stored expected one (type-aware, `valuesEqual`), so the app lists and accepts only those pages. */
-  | { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean }
+  /**
+   * Set on a `changed` result only: `changed` says whether this page's value
+   * differs from the stored expected one (type-aware, `valuesEqual`), so the
+   * app lists and accepts only those pages; `was` is that stored expected
+   * value as the check read it — the "(was {old})" half of the row, which must
+   * not follow the board once the customer accepts the new value.
+   */
+  | { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean; was?: string }
   | { status: 'page-gone' };
 
 export type DriftFieldResult = {
@@ -192,7 +198,7 @@ async function tryChanged(
       const raw = valsByUrl.get(url)!.get(id);
       const changed = !valuesEqual(field.type, raw, expected[url] ?? '', { pageUrl: capture.url });
       if (changed) differsSomewhere = true;
-      pages[url] = { status: 'ok', value: displayValue(raw) ?? String(raw), mark: markFor(candidate, capture), changed };
+      pages[url] = { status: 'ok', value: displayValue(raw) ?? String(raw), mark: markFor(candidate, capture), changed, was: expected[url] ?? '' };
     }
     if (!differsSomewhere) continue;
     return { key: field.key, result: 'changed', path: candidate, pages };
