@@ -1186,7 +1186,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // The Verification tab's banner, and the moved row's repair action.
     await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
     await waitForHydration(page, 'input[aria-label="Listing page"]');
-    const banner = page.getByRole('alert');
+    const banner = page.getByRole('status').filter({ hasText: 'stopped extracting' });
     await expect.poll(() => banner.innerText(), { timeout: 20_000 }).toBe('Price stopped extracting');
     expect(await rowStatusText('Price'), 'Price does not read as verified before the repair').toContain('verified');
     const acceptMove = page.getByRole('button', { name: 'Accept new location for Price', exact: true });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { driftBadge, driftBanner, driftRows, acceptMoved, acceptChanged, type DriftCheckView, type DriftCheckResultsLike } from './drift-view';
+import { driftBadge, driftBanner, driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from './drift-view';
 import { emptyBoard, answer, type Board, type Mark } from './verification-model';
 
 describe('driftBadge', () => {
@@ -96,6 +96,12 @@ describe('driftBanner', () => {
     });
   });
 
+  it('I2: a check closed as stalled (failed) shows the result text, never "Checking what changed…", without percentages when it has no shares', () => {
+    const check: DriftCheckView = { status: 'failed', results: null, runAt: new Date('2026-09-26T10:00:00Z') };
+    const banner = driftBanner({ driftedFields: ['price'], fieldNames: FIELD_NAMES, check });
+    expect(banner).toEqual({ kind: 'result', text: 'Price stopped extracting in the run of 26 Sep' });
+  });
+
   it('accepts runAt as an ISO string, not only a Date', () => {
     const check: DriftCheckView = { status: 'done', results: null, runAt: '2026-09-26T10:00:00Z' };
     expect(driftBanner({ driftedFields: ['price'], fieldNames: FIELD_NAMES, check })).toEqual({
@@ -181,6 +187,65 @@ describe('driftRows', () => {
     expect(rows.title).toEqual([
       { kind: 'other-layout', text: 'The products you verified still work; some others differ — See missed products', runId: 'run-9' },
     ]);
+  });
+
+  it('M5: a moved row with no mark on any page offers no "Accept new location"', () => {
+    const results: DriftCheckResultsLike = {
+      runId: null,
+      fields: { price: { result: 'moved', pages: { [URLS[0]!]: { status: 'ok', value: '19.99' }, [URLS[1]!]: { status: 'ok', value: '24.99' } } } },
+    };
+    const rows = driftRows({ fieldKeys: ['price'], urls: URLS, results, values: {} });
+    expect(rows.price).toEqual([{ kind: 'moved', text: 'Moved on the page', marks: {} }]);
+    expect(canAcceptMoved({})).toBe(false);
+    expect(canAcceptMoved({ [URLS[0]!]: MARK })).toBe(true);
+  });
+
+  it("I3: from the classifier's real shape (every deciding page read), lists and accepts only the pages whose value changed", () => {
+    const results: DriftCheckResultsLike = {
+      runId: null,
+      fields: {
+        price: {
+          result: 'changed',
+          pages: {
+            [URLS[0]!]: { status: 'ok', value: '129.99', changed: false, was: '129.99' },
+            [URLS[1]!]: { status: 'ok', value: '229.99', changed: true, was: '219.99' },
+            [URLS[2]!]: { status: 'ok', value: '149.00', changed: false, was: '149.00' },
+          },
+        },
+      },
+    };
+    const values = { price: { [URLS[0]!]: '129.99', [URLS[1]!]: '219.99', [URLS[2]!]: '149.00' } };
+    const rows = driftRows({ fieldKeys: ['price'], urls: URLS, results, values });
+    expect(rows.price).toEqual([{ kind: 'changed', text: 'Page now shows 229.99 (was 219.99)', values: { [URLS[1]!]: { value: '229.99' } } }]);
+
+    // Accepting changes only that page: the others keep their value and mark.
+    let board = emptyBoard();
+    board = answer(board, 'price', URLS[0]!, { value: '129.99', mark: MARK });
+    board = answer(board, 'price', URLS[1]!, { value: '219.99', mark: MARK });
+    board = answer(board, 'price', URLS[2]!, { value: '149.00', mark: MARK });
+    const row = rows.price![0]!;
+    if (row.kind !== 'changed') throw new Error('expected a changed row');
+    const next = acceptChanged(board, 'price', row.values);
+    expect(next.answers.price![URLS[0]!]).toEqual({ value: '129.99', mark: MARK });
+    expect(next.answers.price![URLS[1]!]).toEqual({ value: '229.99', mark: null });
+    expect(next.answers.price![URLS[2]!]).toEqual({ value: '149.00', mark: MARK });
+  });
+
+  it('M4: "was" is the stored expected value, not the board — it still reads the old value after the new one is accepted', () => {
+    const results: DriftCheckResultsLike = {
+      runId: null,
+      fields: { price: { result: 'changed', pages: { [URLS[1]!]: { status: 'ok', value: '229.99', changed: true, was: '219.99' } } } },
+    };
+    // After "Accept new values" and its autosave, the board and the stored set both hold 229.99.
+    const afterAccept = { price: { [URLS[1]!]: '229.99' } };
+    expect(driftRows({ fieldKeys: ['price'], urls: URLS, results, values: afterAccept }).price![0]).toMatchObject({ text: 'Page now shows 229.99 (was 219.99)' });
+
+    // A row without the check's own `was` falls back to the stored set (server state).
+    const legacy: DriftCheckResultsLike = { runId: null, fields: { price: { result: 'changed', pages: { [URLS[1]!]: { status: 'ok', value: '229.99' } } } } };
+    const stored = storedExpected({ urls: URLS, expected: { price: { [URLS[1]!]: '219.99' } } });
+    expect(stored).toEqual({ price: { [URLS[1]!]: '219.99' } });
+    expect(driftRows({ fieldKeys: ['price'], urls: URLS, results: legacy, values: stored }).price![0]).toMatchObject({ text: 'Page now shows 229.99 (was 219.99)' });
+    expect(storedExpected(null)).toEqual({});
   });
 
   it('builds a lost row', () => {
@@ -287,6 +352,12 @@ describe('acceptChanged', () => {
     const board = emptyBoard();
     const next = acceptChanged(board, 'price', { [URLS[0]!]: { value: '24.99' } });
     expect(next.answers.price![URLS[0]!]).toEqual({ value: '24.99', mark: null });
+  });
+
+  it('drops a stale structured `via`: the new value is the evidence now', () => {
+    const board = answer(emptyBoard(), 'price', URLS[0]!, { value: '19.99', mark: null, via: { source: 'json-ld', path: 'offers.price' } });
+    const next = acceptChanged(board, 'price', { [URLS[0]!]: { value: '24.99', mark: MARK } });
+    expect(next.answers.price![URLS[0]!]).toEqual({ value: '24.99', mark: MARK });
   });
 
   it('replaces an existing answer for that field and url', () => {

@@ -61,7 +61,7 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
-import { driftRows, acceptMoved, acceptChanged, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
+import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
@@ -368,23 +368,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     : null;
   const fieldNames = useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.name])), [fields]);
 
-  // Drift repair (plan 2026-10-05 Task 4): the board's own current value per
-  // drifted field/url — the "was {old}" half of a changed row's text.
+  // Drift repair (plan 2026-10-05 Task 4): the stored (server) expected
+  // values — the fallback for a changed row's "was {old}" when the check did
+  // not record the value it compared against. Never the live board: after
+  // "Accept new values" the board holds the new value (final review M4).
   // `driftByField` itself is built below, once `urls` exists.
   const driftedKeys = source.driftedFields ?? [];
-  const driftValues = useMemo(() => {
-    const out: Record<string, Record<string, string>> = {};
-    for (const key of driftedKeys) {
-      const byUrl: Record<string, string> = {};
-      for (const c of board.cards) {
-        const v = board.answers[key]?.[c.url]?.value;
-        if (v !== undefined) byUrl[c.url] = v;
-      }
-      out[key] = byUrl;
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driftedKeys.join(','), board.answers, board.cards]);
+  const driftValues = useMemo(() => storedExpected(source.verificationSet), [source.verificationSet]);
 
   // A run that lands while the tab is open refreshes what it changed.
   const sawActive = useRef(false);
@@ -1061,7 +1051,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     return rows.map((row): DriftLine => {
       switch (row.kind) {
         case 'moved':
-          return { kind: 'moved', text: row.text, onAccept: () => setBoard((b) => acceptMoved(b, f.key, row.marks)) };
+          // No mark on any page: nothing to accept, so no button (final review M5).
+          return { kind: 'moved', text: row.text, onAccept: canAcceptMoved(row.marks) ? () => setBoard((b) => acceptMoved(b, f.key, row.marks)) : null };
         case 'changed':
           return { kind: 'changed', text: row.text, onAccept: () => setBoard((b) => acceptChanged(b, f.key, row.values)) };
         case 'other-layout':
