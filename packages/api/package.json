@@ -22,6 +22,7 @@
     "@robot/scraper": "workspace:*",
     "@trpc/server": "^11.0.0",
     "drizzle-orm": "^0.44.0",
+    "exceljs": "^4.4.0",
     "superjson": "^2.2.0",
     "zod": "^3.24.0"
   },

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DETAIL_URL_FIELD } from '@robot/scraper';
-import { deriveColumns, buildRunExport, exportFilename } from './build-run-export.js';
+import { deriveColumns, buildRunExport, exportFilename, shapeRows } from './build-run-export.js';
 
 const RUN = {
   id: '3f1c2b4a-0000-0000-0000-000000000000',
@@ -245,5 +245,172 @@ describe('exportFilename', () => {
       extractionData: [],
     });
     expect(exportFilename(envelope, 'csv')).toBe('new-egg-gpus-2026-3f1c2b4a-2026-08-19.csv');
+  });
+
+  it('names an xlsx download the same way', () => {
+    const envelope = buildRunExport({ run: RUN, source: SOURCE, captureUrl: null, extractionData: [] });
+    expect(exportFilename(envelope, 'xlsx')).toBe('newegg-gpu-3f1c2b4a-2026-08-19.xlsx');
+  });
+});
+
+const PRODUCT_FIELD = { key: 'title', name: 'Title', level: 'product' as const };
+const BRAND_FIELD = { key: 'brand', name: 'Brand', level: 'product' as const };
+const PRICE_FIELD = { key: 'price', name: 'Price', level: 'variant' as const };
+const SKU_FIELD = { key: 'sku', name: 'SKU', level: 'variant' as const };
+const COLOUR_AXIS = { key: 'color', name: 'Colour' };
+
+describe('shapeRows', () => {
+  it('leaves a flat run unchanged, just renaming field keys to their names', () => {
+    const result = shapeRows({
+      rows: [{ title: 'Chair', brand: 'Acme' }],
+      shape: 'flat',
+      fields: [PRODUCT_FIELD, BRAND_FIELD],
+      axes: [],
+    });
+    expect(result.columns).toEqual(['Title', 'Brand']);
+    expect(result.rows).toEqual([{ Title: 'Chair', Brand: 'Acme' }]);
+    expect(result.json).toEqual(result.rows);
+  });
+
+  it('row_per_variant orders columns product fields, axes, variant fields, product_key, variant_key', () => {
+    const result = shapeRows({
+      rows: [
+        { title: 'Chair', brand: 'Acme', color: 'Red', price: 10, sku: 'A1', _product_key: 'p1', _variant_key: 'A1' },
+        { title: 'Chair', brand: 'Acme', color: 'Blue', price: 12, sku: 'A2', _product_key: 'p1', _variant_key: 'A2' },
+      ],
+      shape: 'row_per_variant',
+      fields: [PRODUCT_FIELD, BRAND_FIELD, PRICE_FIELD, SKU_FIELD],
+      axes: [COLOUR_AXIS],
+    });
+    expect(result.columns).toEqual(['Title', 'Brand', 'Colour', 'Price', 'SKU', 'product_key', 'variant_key']);
+    expect(result.rows).toEqual([
+      { Title: 'Chair', Brand: 'Acme', Colour: 'Red', Price: 10, SKU: 'A1', product_key: 'p1', variant_key: 'A1' },
+      { Title: 'Chair', Brand: 'Acme', Colour: 'Blue', Price: 12, SKU: 'A2', product_key: 'p1', variant_key: 'A2' },
+    ]);
+    expect(result.json).toEqual(result.rows);
+  });
+
+  it('row_per_variant fills a product-without-variants row with null axis/variant cells and no variant_key', () => {
+    const result = shapeRows({
+      rows: [{ title: 'Table', brand: 'Acme', _product_key: 'p2' }],
+      shape: 'row_per_variant',
+      fields: [PRODUCT_FIELD, BRAND_FIELD, PRICE_FIELD, SKU_FIELD],
+      axes: [COLOUR_AXIS],
+    });
+    expect(result.rows).toEqual([
+      { Title: 'Table', Brand: 'Acme', Colour: null, Price: null, SKU: null, product_key: 'p2', variant_key: null },
+    ]);
+  });
+
+  it('never exports _variant_partial', () => {
+    const result = shapeRows({
+      rows: [{ title: 'Chair', price: null, _product_key: 'p1', _variant_key: 'A1', _variant_partial: true }],
+      shape: 'row_per_variant',
+      fields: [PRODUCT_FIELD, PRICE_FIELD],
+      axes: [],
+    });
+    expect(result.rows[0]).not.toHaveProperty('_variant_partial');
+  });
+
+  // Review Focus 5: a product with no variants gets `variants: []` in nested
+  // JSON, never dropped — and a "; "-joined but present row in CSV/XLSX.
+  describe('nested', () => {
+    const rows = [
+      { title: 'Chair', brand: 'Acme', color: 'Red', price: 10, sku: 'A1', _product_key: 'p1', _variant_key: 'A1' },
+      { title: 'Chair', brand: 'Acme', color: 'Blue', price: 12, sku: 'A2', _product_key: 'p1', _variant_key: 'A2' },
+      { title: 'Table', brand: 'Acme', _product_key: 'p2' },
+    ];
+    const fields = [PRODUCT_FIELD, BRAND_FIELD, PRICE_FIELD, SKU_FIELD];
+    const axes = [COLOUR_AXIS];
+
+    it('gives one JSON object per product, with an empty variants array for a product with none', () => {
+      const result = shapeRows({ rows, shape: 'nested', fields, axes });
+      expect(result.json).toEqual([
+        {
+          Title: 'Chair',
+          Brand: 'Acme',
+          product_key: 'p1',
+          variants: [
+            { variant_key: 'A1', Colour: 'Red', Price: 10, SKU: 'A1' },
+            { variant_key: 'A2', Colour: 'Blue', Price: 12, SKU: 'A2' },
+          ],
+        },
+        { Title: 'Table', Brand: 'Acme', product_key: 'p2', variants: [] },
+      ]);
+    });
+
+    it('gives one CSV/XLSX row per product, joining each variant column with "; "', () => {
+      const result = shapeRows({ rows, shape: 'nested', fields, axes });
+      expect(result.columns).toEqual(['Title', 'Brand', 'Colour', 'Price', 'SKU', 'product_key']);
+      expect(result.rows).toEqual([
+        { Title: 'Chair', Brand: 'Acme', Colour: 'Red; Blue', Price: '10; 12', SKU: 'A1; A2', product_key: 'p1' },
+        { Title: 'Table', Brand: 'Acme', Colour: '', Price: '', SKU: '', product_key: 'p2' },
+      ]);
+    });
+  });
+});
+
+describe('buildRunExport with variants', () => {
+  const DATASET_SCHEMA = [
+    { key: 'title', name: 'Title', type: 'text', concept: 'product_name' },
+    { key: 'price', name: 'Price', type: 'money', concept: 'price' },
+    { key: 'sku', name: 'SKU', type: 'text', concept: 'sku' },
+    { key: 'color', name: 'Colour', kind: 'axis', concept: 'axis' },
+  ];
+  const VARIANT_ROWS = [
+    { title: 'Chair', color: 'Red', price: 10, sku: 'A1', _product_key: 'p1', _variant_key: 'A1' },
+    { title: 'Chair', color: 'Blue', price: 12, sku: 'A2', _product_key: 'p1', _variant_key: 'A2' },
+  ];
+
+  it('exports row_per_variant in contract order with product_key/variant_key columns', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: SOURCE,
+      captureUrl: null,
+      extractionData: VARIANT_ROWS,
+      dataset: { schema: DATASET_SCHEMA, variantMode: 'row_per_variant' },
+    });
+    expect(result.fields).toEqual(['Title', 'Colour', 'Price', 'SKU', 'product_key', 'variant_key']);
+    expect(result.rows).toEqual([
+      { Title: 'Chair', Colour: 'Red', Price: 10, SKU: 'A1', product_key: 'p1', variant_key: 'A1' },
+      { Title: 'Chair', Colour: 'Blue', Price: 12, SKU: 'A2', product_key: 'p1', variant_key: 'A2' },
+    ]);
+    expect(result.json).toBeUndefined();
+    expect(result.types).toEqual({ Title: 'text', Price: 'money', SKU: 'text' });
+  });
+
+  it('exports nested with a json field distinct from the CSV/XLSX rows', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: SOURCE,
+      captureUrl: null,
+      extractionData: VARIANT_ROWS,
+      dataset: { schema: DATASET_SCHEMA, variantMode: 'nested' },
+    });
+    expect(result.fields).toEqual(['Title', 'Colour', 'Price', 'SKU', 'product_key']);
+    expect(result.rows).toEqual([{ Title: 'Chair', Colour: 'Red; Blue', Price: '10; 12', SKU: 'A1; A2', product_key: 'p1' }]);
+    expect(result.json).toEqual([
+      {
+        Title: 'Chair',
+        product_key: 'p1',
+        variants: [
+          { variant_key: 'A1', Colour: 'Red', Price: 10, SKU: 'A1' },
+          { variant_key: 'A2', Colour: 'Blue', Price: 12, SKU: 'A2' },
+        ],
+      },
+    ]);
+  });
+
+  it('stays flat when the run produced no _product_key rows, even on a row_per_variant project', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: SOURCE,
+      captureUrl: null,
+      extractionData: [{ title: 'Kallax', price: 79 }],
+      dataset: { schema: DATASET_SCHEMA, variantMode: 'row_per_variant' },
+    });
+    expect(result.fields).toEqual(['title', 'price']);
+    expect(result.rows).toEqual([{ title: 'Kallax', price: 79 }]);
+    expect(result.json).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@
 import { and, desc, eq, isNotNull, inArray } from 'drizzle-orm';
 import { datasets, projects, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
-import { contractFields } from '../contract.js';
+import { contractFields, contractAxes, effectiveLevel, type VariantMode } from '../contract.js';
 import { loadRunExport } from './load-run-export.js';
 
 export type ProjectExport = {
@@ -37,9 +37,25 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
   const dataset = await db.query.datasets.findFirst({
     where: eq(datasets.projectId, project.id),
     orderBy: (d, { asc }) => [asc(d.createdAt)],
-    columns: { id: true, schema: true },
+    columns: { id: true, schema: true, variantMode: true },
   });
-  const contractNames = dataset ? contractFields(dataset.schema).map((f) => exportColumnName(f.name)) : [];
+  // Column order (plan 2026-10-02-variants-plan3: "the project export applies
+  // the same shape per website"): an `ignore` project keeps the contract's raw
+  // storage order unchanged — several VARIANT_CONCEPTS fields (price, sku, ...)
+  // default to `variant` level even outside a variants project, and reordering
+  // them here would break the flat-run byte-identical guarantee. Only a
+  // variants project reorders to product fields, then axes, then variant
+  // fields — the same order `shapeRows` gives each website's own export.
+  const variantMode = (dataset?.variantMode as VariantMode | undefined) ?? 'ignore';
+  const contract = dataset ? contractFields(dataset.schema) : [];
+  const contractNames =
+    variantMode === 'ignore'
+      ? contract.map((f) => exportColumnName(f.name))
+      : [
+          ...contract.filter((f) => effectiveLevel(f) === 'product').map((f) => exportColumnName(f.name)),
+          ...contractAxes(dataset?.schema).map((a) => exportColumnName(a.name)),
+          ...contract.filter((f) => effectiveLevel(f) === 'variant').map((f) => exportColumnName(f.name)),
+        ];
 
   const sites = dataset
     ? await db.select({ id: sources.id, name: sources.name, slug: sources.slug }).from(sources).where(eq(sources.datasetId, dataset.id)).orderBy(sources.name)
