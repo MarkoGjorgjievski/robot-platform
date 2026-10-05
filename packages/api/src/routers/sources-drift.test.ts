@@ -16,6 +16,7 @@ vi.mock('../verify/run-drift-check.js', async (importOriginal) => {
   return { ...real, startDriftCheck: (s: string, r: string | null, o: Parameters<typeof real.startDriftCheck>[2] = {}) => real.startDriftCheck(s, r, { ...o, fire: false }) };
 });
 
+const { DRIFT_CHECK_STALL_MS } = await import('../verify/run-drift-check.js');
 const caller = createCallerFactory(appRouter)({ db, session: null });
 
 async function signIn(email: string) {
@@ -58,6 +59,21 @@ describe('sources.checkDrift / sources.driftCheck', () => {
     try {
       await db.insert(driftChecks).values({ sourceId: f.sourceId, status: 'done', results: { runId: null, fields: {} }, completedAt: new Date() });
       expect(await caller.sources.driftCheck({ sourceId: f.sourceId })).toMatchObject({ status: 'done', results: { runId: null, fields: {} }, runAt: null });
+    } finally { await f.cleanup(); }
+  });
+
+  it('I2: a running check older than 10 minutes reads back failed / stalled (closed on read); a younger one stays running', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'drift-router-stall', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const [young] = await db.insert(driftChecks).values({ sourceId: f.sourceId, status: 'running', createdAt: new Date(Date.now() - 60_000) }).returning();
+      expect(await caller.sources.driftCheck({ sourceId: f.sourceId })).toMatchObject({ id: young!.id, status: 'running' });
+
+      await db.update(driftChecks).set({ createdAt: new Date(Date.now() - DRIFT_CHECK_STALL_MS - 1000) }).where(eq(driftChecks.id, young!.id));
+      const latest = await caller.sources.driftCheck({ sourceId: f.sourceId });
+      expect(latest).toMatchObject({ id: young!.id, status: 'failed', results: null });
+      expect(latest!.completedAt).not.toBeNull();
+      const row = (await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, young!.id) }))!;
+      expect(row).toMatchObject({ status: 'failed', error: 'stalled' });
     } finally { await f.cleanup(); }
   });
 

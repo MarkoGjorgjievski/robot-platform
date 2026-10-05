@@ -26,7 +26,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
 import { loadCurrentCertification } from './current-certification.js';
-import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptures, type ProofPageCaptureRecord } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageCaptureRecord } from './proof-page-capture.js';
 
 type Session = typeof withBrowserSession;
 
@@ -45,20 +45,19 @@ export const DRIFT_CHECK_STALL_MS = 10 * 60 * 1000;
  * The capture function behind a real check: a new proof-page capture row per
  * url, run here (awaited) rather than fired, in the proof-page captures' shared
  * three slots — the tab's captures and the check's together never exceed three browsers. Only the capture
- * this call took counts — `loadProofPageCaptures` returns the newest
- * *successful* capture per url, so a page that fails now would otherwise be
- * answered by an older capture that worked, and a gone page would read as
- * still there.
+ * this call took counts, read back by its own capture id: a page that fails
+ * now must not be answered by an older capture that worked (a gone page would
+ * read as still there), and a tab capture of the same url finishing later
+ * must not turn ours into a false page-gone (final review M3).
  */
 export function captureProofPagesWith(session: Session = withBrowserSession): CaptureProofPagesFn {
   return async (sourceId, urls) => {
     const taken = await Promise.all(urls.map(async (url) => {
       const { captureId } = await startProofPageCapture(sourceId, url, { fire: false });
       await runProofPageCaptureInSlot(captureId, session);
-      return [url, captureId] as const;
+      return [url, await loadProofPageCaptureById(captureId)] as const;
     }));
-    const loaded = await loadProofPageCaptures(sourceId, urls);
-    return Object.fromEntries(taken.map(([url, id]) => [url, loaded[url]?.ref.captureId === id ? loaded[url]! : null]));
+    return Object.fromEntries(taken);
   };
 }
 
@@ -178,13 +177,25 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
   }
 }
 
-/** The latest drift check for a website, with the date of the run it is about (null when none). */
+/**
+ * The latest drift check for a website, with the date of the run it is about (null when none).
+ * A `running` row older than `DRIFT_CHECK_STALL_MS` is a crash leftover: it is closed as
+ * `failed` / `'stalled'` on the way, so the tab stops showing "Checking what changed…"
+ * forever (final review I2; `resolveStalledProofPage`'s rule).
+ */
 export async function latestDriftCheck(sourceId: string) {
-  const row = await db.query.driftChecks.findFirst({
+  let row = await db.query.driftChecks.findFirst({
     where: eq(driftChecks.sourceId, sourceId),
     orderBy: [desc(driftChecks.createdAt)],
   });
   if (!row) return null;
+  if (row.status === 'running' && Date.now() - row.createdAt.getTime() >= DRIFT_CHECK_STALL_MS) {
+    const [closed] = await db.update(driftChecks)
+      .set({ status: 'failed', error: 'stalled', completedAt: new Date() })
+      .where(and(eq(driftChecks.id, row.id), eq(driftChecks.status, 'running')))
+      .returning();
+    row = closed ?? (await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, row.id) })) ?? row;
+  }
   const run = row.runId ? await db.query.runs.findFirst({ where: eq(runs.id, row.runId), columns: { completedAt: true } }) : null;
   // While running, the row's results hold only the up-front shares (`{ key, emptyShare }` per field) — not a
   // DriftCheckResults — so `results` is null until done, and the shares are handed out on their own.

@@ -160,6 +160,16 @@ export async function loadProofPageCaptures(sourceId: string, urls: string[]): P
   return out;
 }
 
+/** One proof-page capture by its id, with its capture file loaded — null unless that row is captured (failed, still capturing, or its file is missing). Freshness is the caller's concern: this is for reading back a capture just taken. */
+export async function loadProofPageCaptureById(captureId: string): Promise<ProofPageCaptureRecord | null> {
+  const r = await db.query.captures.findFirst({ where: eq(captures.id, captureId), columns: { id: true, metadata: true } });
+  const m = r ? capturedProofPage(r.metadata) : null;
+  if (!r || !m) return null;
+  const capture = await readCaptureFile(r.id);
+  if (!capture) return null;
+  return { ref: { captureId: r.id, capturedAt: m.capturedAt, ...(m.tiles[0] ? { screenshotUrl: m.tiles[0] } : {}) }, capture, meta: m };
+}
+
 export type ProofPageCaptureState = { captureId: string; status: 'capturing' | 'captured' | 'failed'; error?: string };
 
 /** The newest proof-page capture per URL in whatever state — what a reloaded screen resumes from. Stalled rows are closed on the way; a captured one past the reuse window reads as missing, so the screen re-captures. */
