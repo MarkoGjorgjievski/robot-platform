@@ -16,7 +16,8 @@ import type { DomHit, DomNeedle } from './dom-scripts.js';
 import type { CertifiedPath, ConfirmedPath, Mark, SchemaDefinitionField } from './types.js';
 
 export type DriftPage =
-  | { status: 'ok'; value: string | null; mark?: Mark }
+  /** `changed` is set on a `changed` result only: whether this page's value differs from the stored expected one (type-aware, `valuesEqual`), so the app lists and accepts only those pages. */
+  | { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean }
   | { status: 'page-gone' };
 
 export type DriftFieldResult = {
@@ -111,8 +112,14 @@ async function tryMoved(
   field: SchemaDefinitionField, expected: Record<string, string>, captures: Record<string, DriftCapture | null>,
   decidingUrls: string[], confirmed: ConfirmedPath[] | undefined, markXPaths: string[] | undefined, deps: DriftDeps,
 ): Promise<DriftFieldResult | null> {
-  const { candidates } = await gatherCandidates(field, expected, captures, { runDomSearch: deps.runDomSearch });
-  const verification = await certify({ field, expected, captures, candidates, confirmed, markXPaths }, deps);
+  // Only the deciding pages take part: a page-gone page (null capture) would
+  // make certify's page set incomplete and refuse every path, so a field that
+  // really moved would read as lost (final review I1). certify's own rules
+  // still hold on the subset — two deciding pages still need a path carrying both.
+  const decidingCaptures = Object.fromEntries(decidingUrls.map((u) => [u, captures[u]!]));
+  const decidingExpected = Object.fromEntries(decidingUrls.map((u) => [u, expected[u]!]));
+  const { candidates } = await gatherCandidates(field, decidingExpected, decidingCaptures, { runDomSearch: deps.runDomSearch });
+  const verification = await certify({ field, expected: decidingExpected, captures: decidingCaptures, candidates, confirmed, markXPaths }, deps);
   if (verification.certified.length === 0) return null;
   if (!decidingUrls.every((u) => verification.cells[u]?.status === 'pass')) return null;
   const pages: Record<string, DriftPage> = {};
@@ -130,8 +137,10 @@ async function tryMoved(
  * paths found by `searchStructuredByConcept` on the captured pages (any value
  * of the field's type — this never filters on value, since a path holding a
  * NEW value is exactly what "changed" is looking for), the first path that
- * reads a valid value on every deciding page and the expected value on none
- * of the pages where it differs.
+ * reads a valid value on every deciding page and a value different from the
+ * expected one on at least one of them (final review M1: a path reading every
+ * expected value is not "changed"). Each page is marked `changed` by
+ * `valuesEqual`, so the app lists and accepts only the pages that differ (I3).
  *
  * A text field the customer did not verify as URLs (no deciding page's
  * expected value is URL-shaped) never takes a URL-shaped value from the
@@ -177,11 +186,15 @@ async function tryChanged(
     }
     if (!validEverywhere) continue;
     const pages: Record<string, DriftPage> = {};
+    let differsSomewhere = false;
     for (const url of decidingUrls) {
       const capture = captures[url]!;
       const raw = valsByUrl.get(url)!.get(id);
-      pages[url] = { status: 'ok', value: displayValue(raw) ?? String(raw), mark: markFor(candidate, capture) };
+      const changed = !valuesEqual(field.type, raw, expected[url] ?? '', { pageUrl: capture.url });
+      if (changed) differsSomewhere = true;
+      pages[url] = { status: 'ok', value: displayValue(raw) ?? String(raw), mark: markFor(candidate, capture), changed };
     }
+    if (!differsSomewhere) continue;
     return { key: field.key, result: 'changed', path: candidate, pages };
   }
   return null;
