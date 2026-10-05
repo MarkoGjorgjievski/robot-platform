@@ -86,8 +86,9 @@ export function createExportRoutes(deps: ExportDeps) {
     if (!x) return c.json({ error: 'Project not found' }, 404);
     // Final review M5: `types` exists only for the xlsx writer — stripped from
     // the JSON the way `toJsonEnvelope` strips it for a run, so no project's
-    // JSON gains a key it did not have before variants.
-    const { types: _types, ...jsonEnvelope } = x;
+    // JSON gains a key it did not have before variants. `nested` (D2) is a
+    // filename-naming signal only, stripped the same way.
+    const { types: _types, nested: _nested, ...jsonEnvelope } = x;
     const body =
       parsed.format === 'csv' ? toCsv(x.fields, x.rows)
       : parsed.format === 'json' ? toJson(jsonEnvelope)

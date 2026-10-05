@@ -251,6 +251,29 @@ describe('exportFilename', () => {
     const envelope = buildRunExport({ run: RUN, source: SOURCE, captureUrl: null, extractionData: [] });
     expect(exportFilename(envelope, 'xlsx')).toBe('newegg-gpu-3f1c2b4a-2026-08-19.xlsx');
   });
+
+  // D2 (live check, 2026-10-05): the nested shape is lossy in CSV/XLSX, so
+  // the file name carries that — flat and row_per_variant are unchanged
+  // (covered above and by the row_per_variant test in "buildRunExport with
+  // variants" below, which asserts `result.json` is undefined).
+  it('marks a nested-shape run\'s json file name "-variants-nested"', () => {
+    const envelope = buildRunExport({
+      run: RUN, source: SOURCE, captureUrl: null,
+      extractionData: [{ title: 'Chair', _product_key: 'p1', _variant_key: 'A1' }],
+      dataset: { schema: [{ key: 'title', name: 'Title', type: 'text' }], variantMode: 'nested' },
+    });
+    expect(exportFilename(envelope, 'json')).toBe('newegg-gpu-3f1c2b4a-2026-08-19-variants-nested.json');
+  });
+
+  it('marks a nested-shape run\'s csv and xlsx file names "-variants-joined"', () => {
+    const envelope = buildRunExport({
+      run: RUN, source: SOURCE, captureUrl: null,
+      extractionData: [{ title: 'Chair', _product_key: 'p1', _variant_key: 'A1' }],
+      dataset: { schema: [{ key: 'title', name: 'Title', type: 'text' }], variantMode: 'nested' },
+    });
+    expect(exportFilename(envelope, 'csv')).toBe('newegg-gpu-3f1c2b4a-2026-08-19-variants-joined.csv');
+    expect(exportFilename(envelope, 'xlsx')).toBe('newegg-gpu-3f1c2b4a-2026-08-19-variants-joined.xlsx');
+  });
 });
 
 const PRODUCT_FIELD = { key: 'title', name: 'Title', level: 'product' as const };

@@ -6,6 +6,7 @@ import { datasets, projects, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { contractFields, contractAxes, effectiveLevel, type VariantMode } from '../contract.js';
 import { loadRunExport } from './load-run-export.js';
+import { variantsSuffix } from './build-run-export.js';
 
 export type ProjectExport = {
   project: { id: string; name: string; slug: string };
@@ -19,6 +20,13 @@ export type ProjectExport = {
    *  built from the contract exactly like `buildRunExport`'s own `types`.
    *  Absent when there is no dataset/contract to offer one. */
   types?: Record<string, string>;
+  /** D2 (live check, 2026-10-05): true when any website's latest run shaped
+   *  nested (its own `RunExport.json` was present) — drives the lossy
+   *  filename note on `projectExportFilename`, the same way a single run's
+   *  does. The project's own `rows`/`fields` always carry the joined
+   *  CSV/XLSX shape (never the nested per-product JSON structure), so this
+   *  is a naming signal only. */
+  nested: boolean;
 };
 
 export const WEBSITE_COLUMN = 'Website';
@@ -84,9 +92,11 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
   const rows: Record<string, unknown>[] = [];
   const extras: string[] = [];
   const websites: ProjectExport['websites'] = [];
+  let nested = false;
   for (const site of sites) {
     const run = latestBySource.get(site.id);
     const runExport = run ? await loadRunExport(db, run.id) : null;
+    if (runExport?.json !== undefined) nested = true;
     const siteRows = runExport?.rows ?? [];
     for (const r of siteRows) {
       // `exportColumnName` has already moved any customer `Website` key out of
@@ -110,9 +120,11 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
     rowCount: rows.length,
     generatedAt: new Date().toISOString(),
     types: Object.keys(types).length > 0 ? types : undefined,
+    nested,
   };
 }
 
 export function projectExportFilename(x: ProjectExport, extension: 'csv' | 'json' | 'xlsx'): string {
-  return `${x.project.slug}-${x.generatedAt.slice(0, 10)}.${extension}`;
+  const suffix = variantsSuffix(x.nested, extension);
+  return `${x.project.slug}-${x.generatedAt.slice(0, 10)}${suffix}.${extension}`;
 }

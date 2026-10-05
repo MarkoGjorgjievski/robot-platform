@@ -98,6 +98,26 @@ describe('GET /export/runs/:id.json for a nested-shape run', () => {
     const res = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.csv`));
     expect(await res.text()).toBe('Title,product_key\r\nChair,p1\r\n');
   });
+
+  // D2 (live check, 2026-10-05): the nested shape is lossy in CSV/XLSX
+  // (joined cells, no variant_key) — the file name says so.
+  it('names the json download "-variants-nested"', async () => {
+    const res = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.json`));
+    expect(res.headers.get('content-disposition')).toBe(
+      'attachment; filename="newegg-gpu-3f1c2b4a-2026-08-19-variants-nested.json"',
+    );
+  });
+
+  it('names the csv and xlsx downloads "-variants-joined"', async () => {
+    const csv = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.csv`));
+    expect(csv.headers.get('content-disposition')).toBe(
+      'attachment; filename="newegg-gpu-3f1c2b4a-2026-08-19-variants-joined.csv"',
+    );
+    const xlsx = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.xlsx`));
+    expect(xlsx.headers.get('content-disposition')).toBe(
+      'attachment; filename="newegg-gpu-3f1c2b4a-2026-08-19-variants-joined.xlsx"',
+    );
+  });
 });
 
 describe('export route errors', () => {

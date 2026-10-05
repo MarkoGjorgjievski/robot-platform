@@ -411,9 +411,21 @@ function slugify(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+/** D2 (live check, 2026-10-05): the nested shape's CSV/XLSX row is lossy (axis
+ *  and variant columns "; "-joined per product, no `variant_key`) by design
+ *  (Global Constraints, "Export shapes"), so its file name says so. `json` is
+ *  present on the envelope only for that shape (see `RunExport.json`), so its
+ *  presence is the shape signal here — a flat or row_per_variant file's name
+ *  is unchanged. */
+export function variantsSuffix(nested: boolean, extension: 'csv' | 'json' | 'xlsx'): string {
+  if (!nested) return '';
+  return extension === 'json' ? '-variants-nested' : '-variants-joined';
+}
+
 export function exportFilename(runExport: RunExport, extension: 'csv' | 'json' | 'xlsx'): string {
   // A run that never completed still has a creation date to name the file by.
   const date = (runExport.run.completedAt ?? runExport.run.createdAt).slice(0, 10);
   const name = runExport.source ? slugify(runExport.source.slug) : 'run';
-  return `${name}-${runExport.run.id.slice(0, 8)}-${date}.${extension}`;
+  const suffix = variantsSuffix(runExport.json !== undefined, extension);
+  return `${name}-${runExport.run.id.slice(0, 8)}-${date}${suffix}.${extension}`;
 }
