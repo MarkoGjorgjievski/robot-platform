@@ -215,7 +215,7 @@ describe('variantCountLines', () => {
   it('the three counts, in order, with no skipped line when nothing was skipped', () => {
     expect(variantCountLines(summary())).toEqual([
       '13 variants from 5 products',
-      '1 products without variants',
+      '1 product without variants',
       '2 products with partial variants',
     ]);
   });
@@ -223,11 +223,24 @@ describe('variantCountLines', () => {
   it('adds the skipped line, last, only when it is above zero', () => {
     expect(variantCountLines(summary({ variantsSkippedForBudget: 4 }))).toEqual([
       '13 variants from 5 products',
-      '1 products without variants',
+      '1 product without variants',
       '2 products with partial variants',
       '4 variant pages skipped for the budget',
     ]);
     expect(variantCountLines(summary({ variantsSkippedForBudget: 0 }))).toHaveLength(3);
+  });
+
+  // D1 (live check, 2026-10-05): a count of exactly 1 reads as singular,
+  // everywhere a count appears, not just "products".
+  it('uses the singular for every count that is exactly 1', () => {
+    expect(variantCountLines(summary({
+      variants: 1, products: 1, withoutVariants: 1, partial: 1, variantsSkippedForBudget: 1,
+    }))).toEqual([
+      '1 variant from 1 product',
+      '1 product without variants',
+      '1 product with partial variants',
+      '1 variant page skipped for the budget',
+    ]);
   });
 });
 

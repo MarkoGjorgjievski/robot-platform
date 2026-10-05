@@ -1142,7 +1142,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     const main = page.locator('main');
     await expect.poll(() => main.innerText(), { timeout: 20_000 }).toContain('5 variants from 3 products');
     const text = await main.innerText();
-    expect(text, 'the "without variants" count is missing').toContain('1 products without variants');
+    expect(text, 'the "without variants" count is missing').toContain('1 product without variants');
     expect(text, 'the "partial variants" count is missing').toContain('0 products with partial variants');
     expect(text, 'the skipped-for-budget count is missing').toContain('2 variant pages skipped for the budget');
 
