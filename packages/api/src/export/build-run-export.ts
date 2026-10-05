@@ -148,13 +148,46 @@ function joinCell(values: unknown[]): string {
 }
 
 /**
+ * Assigns each preferred name a column name unique within the list (ruling,
+ * fix round 1: "column-name collisions must never lose data"). A later name
+ * already taken gets a numbered suffix — "Price (2)", "Price (3)" — rather
+ * than overwriting the earlier column. Names are given in priority order by
+ * the caller: a customer field or axis is always listed ahead of a synthetic
+ * `product_key`/`variant_key` slot, so a customer field named "variant_key"
+ * keeps the plain name and the synthetic column becomes "variant_key (2)".
+ * One `used` set per call, so each call defines its own namespace — the
+ * outer per-product object and each nested per-variant object (shape
+ * `nested`) never collide with each other, only within themselves.
+ */
+function uniqueNames(preferred: string[]): string[] {
+  const used = new Set<string>();
+  return preferred.map((name) => {
+    let candidate = name;
+    let n = 2;
+    while (used.has(candidate)) { candidate = `${name} (${n})`; n += 1; }
+    used.add(candidate);
+    return candidate;
+  });
+}
+
+/** Splits a flat, already-deduplicated name list back into the per-source
+ *  groups `uniqueNames` was given, in the same order, via a shared cursor. */
+function takeNames(names: string[], cursor: { i: number }, count: number): string[] {
+  const slice = names.slice(cursor.i, cursor.i + count);
+  cursor.i += count;
+  return slice;
+}
+
+/**
  * Shapes a run's rows for export in the project's variant shape (plan
  * 2026-10-02-variants-plan3, Global Constraints "Export shapes"). `rows` are
  * keyed by field/axis key exactly as `buildVariantRows`
  * (packages/scraper/src/verify/variant-rows.ts) produces them — plus
  * `_product_key`, `_variant_key` and (for a partial row) `_variant_partial`,
  * which never reaches the output. `fields` and `axes` supply the customer
- * display name for every key.
+ * display name for every key; `uniqueNames` resolves any collision between
+ * them (or with a synthetic `product_key`/`variant_key` column) before any
+ * row is built, so every row uses the exact same column-name mapping.
  */
 export function shapeRows(args: {
   rows: Record<string, unknown>[];
@@ -165,47 +198,78 @@ export function shapeRows(args: {
   const { rows, shape, fields, axes } = args;
 
   if (shape === 'flat') {
-    const columns = fields.map((f) => f.name);
+    const names = uniqueNames(fields.map((f) => f.name));
     const outRows = rows.map((r) => {
       const o: Record<string, unknown> = {};
-      for (const f of fields) o[f.name] = r[f.key] ?? null;
+      fields.forEach((f, i) => { o[names[i]!] = r[f.key] ?? null; });
       return o;
     });
-    return { columns, rows: outRows, json: outRows };
+    return { columns: names, rows: outRows, json: outRows };
   }
 
   const productFields = fields.filter((f) => f.level === 'product');
   const variantFields = fields.filter((f) => f.level === 'variant');
 
   if (shape === 'row_per_variant') {
-    const columns = [
+    const names = uniqueNames([
       ...productFields.map((f) => f.name),
       ...axes.map((a) => a.name),
       ...variantFields.map((f) => f.name),
       'product_key',
       'variant_key',
-    ];
+    ]);
+    const cursor = { i: 0 };
+    const productNames = takeNames(names, cursor, productFields.length);
+    const axisNames = takeNames(names, cursor, axes.length);
+    const variantNames = takeNames(names, cursor, variantFields.length);
+    const [productKeyName, variantKeyName] = takeNames(names, cursor, 2) as [string, string];
+
     const outRows = rows.map((r) => {
       const o: Record<string, unknown> = {};
-      for (const f of productFields) o[f.name] = r[f.key] ?? null;
-      for (const a of axes) o[a.name] = r[a.key] ?? null;
-      for (const f of variantFields) o[f.name] = r[f.key] ?? null;
-      o.product_key = r._product_key ?? null;
-      o.variant_key = r._variant_key ?? null;
+      productFields.forEach((f, i) => { o[productNames[i]!] = r[f.key] ?? null; });
+      axes.forEach((a, i) => { o[axisNames[i]!] = r[a.key] ?? null; });
+      variantFields.forEach((f, i) => { o[variantNames[i]!] = r[f.key] ?? null; });
+      o[productKeyName] = r._product_key ?? null;
+      o[variantKeyName] = r._variant_key ?? null;
       return o;
     });
-    return { columns, rows: outRows, json: outRows };
+    return { columns: names, rows: outRows, json: outRows };
   }
 
   // nested — lossy in CSV/XLSX (spec: "Documented as lossy"): every member
   // row's axis and variant-level values join into one "; "-separated cell
-  // per product row. Only the JSON side keeps the per-variant structure.
-  const columns = [
+  // per product row. Only the JSON side keeps the per-variant structure, in
+  // its own column-name namespace (a variant-level field named the same as
+  // a product-level one can never collide, since nothing flattens them into
+  // the same object there).
+  const csvNames = uniqueNames([
     ...productFields.map((f) => f.name),
     ...axes.map((a) => a.name),
     ...variantFields.map((f) => f.name),
     'product_key',
-  ];
+  ]);
+  const csvCursor = { i: 0 };
+  const csvProductNames = takeNames(csvNames, csvCursor, productFields.length);
+  const csvAxisNames = takeNames(csvNames, csvCursor, axes.length);
+  const csvVariantNames = takeNames(csvNames, csvCursor, variantFields.length);
+  const [csvProductKeyName] = takeNames(csvNames, csvCursor, 1) as [string];
+
+  const jsonOuterNames = uniqueNames([...productFields.map((f) => f.name), 'product_key']);
+  const jsonOuterCursor = { i: 0 };
+  const jsonProductNames = takeNames(jsonOuterNames, jsonOuterCursor, productFields.length);
+  const [jsonProductKeyName] = takeNames(jsonOuterNames, jsonOuterCursor, 1) as [string];
+
+  // Computed once, outside the per-product loop below: every variant's inner
+  // object shares this one name mapping, same as every row shares `csvNames`/
+  // `jsonOuterNames` above — the mapping is shape-defined, not row-dependent.
+  // Customer fields/axes precede the synthetic `variant_key` here too, same
+  // priority order as everywhere else, so a variant-level field named
+  // "variant_key" keeps the plain name inside the nested variant object.
+  const innerNames = uniqueNames([...axes.map((a) => a.name), ...variantFields.map((f) => f.name), 'variant_key']);
+  const innerCursor = { i: 0 };
+  const innerAxisNames = takeNames(innerNames, innerCursor, axes.length);
+  const innerVariantNames = takeNames(innerNames, innerCursor, variantFields.length);
+  const [innerVariantKeyName] = takeNames(innerNames, innerCursor, 1) as [string];
 
   const order: unknown[] = [];
   const groups = new Map<unknown, Record<string, unknown>[]>();
@@ -227,27 +291,27 @@ export function shapeRows(args: {
     const hasVariants = members.some((m) => m._variant_key !== undefined && m._variant_key !== null && m._variant_key !== '');
 
     const row: Record<string, unknown> = {};
-    for (const f of productFields) row[f.name] = first[f.key] ?? null;
-    for (const a of axes) row[a.name] = joinCell(members.map((m) => m[a.key]));
-    for (const f of variantFields) row[f.name] = joinCell(members.map((m) => m[f.key]));
-    row.product_key = pk ?? null;
+    productFields.forEach((f, i) => { row[csvProductNames[i]!] = first[f.key] ?? null; });
+    axes.forEach((a, i) => { row[csvAxisNames[i]!] = joinCell(members.map((m) => m[a.key])); });
+    variantFields.forEach((f, i) => { row[csvVariantNames[i]!] = joinCell(members.map((m) => m[f.key])); });
+    row[csvProductKeyName] = pk ?? null;
     outRows.push(row);
 
     const jo: Record<string, unknown> = {};
-    for (const f of productFields) jo[f.name] = first[f.key] ?? null;
-    jo.product_key = pk ?? null;
+    productFields.forEach((f, i) => { jo[jsonProductNames[i]!] = first[f.key] ?? null; });
+    jo[jsonProductKeyName] = pk ?? null;
     jo.variants = hasVariants
       ? members.map((m) => {
-          const v: Record<string, unknown> = { variant_key: m._variant_key ?? null };
-          for (const a of axes) v[a.name] = m[a.key] ?? null;
-          for (const f of variantFields) v[f.name] = m[f.key] ?? null;
+          const v: Record<string, unknown> = { [innerVariantKeyName]: m._variant_key ?? null };
+          axes.forEach((a, i) => { v[innerAxisNames[i]!] = m[a.key] ?? null; });
+          variantFields.forEach((f, i) => { v[innerVariantNames[i]!] = m[f.key] ?? null; });
           return v;
         })
       : [];
     jsonRows.push(jo);
   }
 
-  return { columns, rows: outRows, json: jsonRows };
+  return { columns: csvNames, rows: outRows, json: jsonRows };
 }
 
 export function buildRunExport(input: RunExportInput): RunExport {

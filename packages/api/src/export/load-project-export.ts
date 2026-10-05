@@ -15,6 +15,10 @@ export type ProjectExport = {
   websites: Array<{ id: string; name: string; slug: string; runId: string | null; completedAt: string | null; rowCount: number }>;
   rowCount: number;
   generatedAt: string;
+  /** Column name → field type, for `toXlsx`'s "numbers as numbers" rule —
+   *  built from the contract exactly like `buildRunExport`'s own `types`.
+   *  Absent when there is no dataset/contract to offer one. */
+  types?: Record<string, string>;
 };
 
 export const WEBSITE_COLUMN = 'Website';
@@ -56,6 +60,11 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
           ...contractAxes(dataset?.schema).map((a) => exportColumnName(a.name)),
           ...contract.filter((f) => effectiveLevel(f) === 'variant').map((f) => exportColumnName(f.name)),
         ];
+  // Fix round 1 (spec): the project's xlsx needs the same "numbers as
+  // numbers" rule the run export gets, keyed by the same exported column
+  // name `rows` actually uses.
+  const types: Record<string, string> = {};
+  for (const f of contract) types[exportColumnName(f.name)] = f.type;
 
   const sites = dataset
     ? await db.select({ id: sources.id, name: sources.name, slug: sources.slug }).from(sources).where(eq(sources.datasetId, dataset.id)).orderBy(sources.name)
@@ -100,6 +109,7 @@ export async function loadProjectExport(db: typeof Database, projectId: string):
     websites,
     rowCount: rows.length,
     generatedAt: new Date().toISOString(),
+    types: Object.keys(types).length > 0 ? types : undefined,
   };
 }
 
