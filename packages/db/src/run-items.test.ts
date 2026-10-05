@@ -13,7 +13,7 @@ describe('run_items table', () => {
     expect(columns).toEqual([
       'absent_fields', 'attempts', 'completed_at', 'created_at', 'error', 'extraction_id', 'id',
       'input_index', 'input_values', 'kind', 'listing_values', 'page_number',
-      'parent_id', 'run_id', 'started_at', 'status', 'target_fields', 'url',
+      'parent_id', 'run_id', 'started_at', 'status', 'target_fields', 'url', 'variant_of',
     ]);
   });
 
