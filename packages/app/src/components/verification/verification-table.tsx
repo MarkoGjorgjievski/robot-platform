@@ -18,10 +18,11 @@ export type TableCell = { value: string; state: Segment; selected: boolean; onCl
  * The drift check's repair line(s) for a field (plan 2026-10-05 Task 4),
  * built by the route from `driftRows` (`lib/site/drift-view.ts`) — the text
  * is already the plan's exact copy; this only says what each action does.
- * `onSeeMissed` is null when the check carries no `runId` to link to.
+ * `onSeeMissed` is null when the check carries no `runId` to link to; a
+ * moved line's `onAccept` is null when it carries no mark to accept.
  */
 export type DriftLine =
-  | { kind: 'moved'; text: string; onAccept: () => void }
+  | { kind: 'moved'; text: string; onAccept: (() => void) | null }
   | { kind: 'changed'; text: string; onAccept: () => void }
   | { kind: 'other-layout'; text: string; onSeeMissed: (() => void) | null }
   | { kind: 'lost'; text: string; onMarkAgain: () => void }
@@ -112,9 +113,11 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
             return (
               <div key={i} className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-warn">{line.text}</span>
-                <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept new location for ${field.name}`} onClick={line.onAccept}>
-                  Accept new location
-                </Button>
+                {line.onAccept ? (
+                  <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept new location for ${field.name}`} onClick={line.onAccept}>
+                    Accept new location
+                  </Button>
+                ) : null}
               </div>
             );
           case 'changed':
@@ -152,7 +155,7 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
                 {line.items.map((it) => (
                   <div key={it.product} className="flex flex-wrap items-center gap-2">
                     <span className="text-sm text-warn">{it.text}</span>
-                    <Button variant="outline" size="xs" disabled={locked} aria-label={`Replace product ${it.product}`} onClick={it.onReplace}>
+                    <Button variant="outline" size="xs" disabled={locked} aria-label={`Replace product ${it.product} (${field.name})`} onClick={it.onReplace}>
                       Replace product {it.product}
                     </Button>
                   </div>

@@ -79,7 +79,7 @@ export function driftBanner(args: {
 // --- Task 4: repair actions on the drifted rows -----------------------------
 
 /** `@robot/scraper`'s `DriftPage`, re-declared (see the file's own doc comment). */
-export type DriftPageLike = { status: 'ok'; value: string | null; mark?: Mark } | { status: 'page-gone' };
+export type DriftPageLike = { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean; was?: string } | { status: 'page-gone' };
 
 /** `@robot/scraper`'s `DriftFieldResult`, narrowed to what `driftRows` reads. */
 export type DriftFieldResultLike = {
@@ -97,6 +97,27 @@ export type DriftRow =
   | { kind: 'lost'; text: string }
   | { kind: 'page-gone'; texts: Array<{ url: string; text: string }> };
 
+/**
+ * Whether a `moved` row has anything for "Accept new location" to write: a
+ * mark on at least one page. A move found through a structured path, or an
+ * element outside the page's box map, carries none — accepting would change
+ * nothing and ask for no Verify, so the action is not offered (final review M5).
+ */
+export function canAcceptMoved(marks: Record<string, Mark>): boolean {
+  return Object.keys(marks).length > 0;
+}
+
+/**
+ * The stored expected values (`sources.verificationSet.expected`, the server's
+ * copy) — what a `changed` row's "(was {old})" falls back to when the check
+ * did not record one. Never the live board: once the customer accepts the new
+ * values the board holds them, and "was" would echo the new value (final review M4).
+ */
+export function storedExpected(verificationSet: unknown): Record<string, Record<string, string>> {
+  const expected = (verificationSet as { expected?: Record<string, Record<string, string>> } | null)?.expected;
+  return expected && typeof expected === 'object' ? expected : {};
+}
+
 /** The gone pages among `urls` (in product order), as the row text the Global Constraints give for each. */
 function pageGoneRow(pages: Record<string, DriftPageLike>, urls: string[]): DriftRow | null {
   const texts = urls
@@ -111,8 +132,14 @@ function pageGoneRow(pages: Record<string, DriftPageLike>, urls: string[]): Drif
  * verbatim), plus a `page-gone` row beside it for any proof page that no
  * longer loads — one entry per gone product, whatever the field's own result.
  *
- * `values[key][url]` is the board's current (pre-repair) expected value for
- * that field and page — the "was {old}" half of a `changed` row's text.
+ * A `changed` row lists, and accepts, only the pages whose value differs
+ * from the stored expected one (the check's own `changed` flag; final review
+ * I3). Its "was {old}" is the expected value the check compared against
+ * (`page.was`), else `values[key][url]` — the stored expected values
+ * (`storedExpected`), never the live board (M4).
+ *
+ * A `moved` row with no mark on any page reads "Moved on the page" alone:
+ * there is no new location to accept (`canAcceptMoved`, M5).
  *
  * A field in `fieldKeys` with no entry in `results.fields` (not classified
  * yet, e.g. the check is still running) is skipped — its row appears once the
@@ -140,7 +167,7 @@ export function driftRows(args: {
           const p = r.pages[url];
           if (p?.status === 'ok' && p.mark) marks[url] = p.mark;
         }
-        rows.push({ kind: 'moved', text: 'Moved on the page — Accept new location', marks });
+        rows.push({ kind: 'moved', text: canAcceptMoved(marks) ? 'Moved on the page — Accept new location' : 'Moved on the page', marks });
         break;
       }
       case 'changed': {
@@ -149,8 +176,11 @@ export function driftRows(args: {
         urls.forEach((url, i) => {
           const p = r.pages[url];
           if (p?.status !== 'ok' || p.value === null) return;
+          const was = p.was ?? values[key]?.[url] ?? '';
+          // Unchanged pages are not part of the change. A row written before the
+          // check marked pages (no `changed` flag) falls back to plain text equality.
+          if (p.changed === false || (p.changed === undefined && p.value === was)) return;
           vals[url] = p.mark ? { value: p.value, mark: p.mark } : { value: p.value };
-          const was = values[key]?.[url] ?? '';
           lines.push({ n: i + 1, line: `Page now shows ${p.value} (was ${was})` });
         });
         // A single affected product reads as the plain template; more than one
