@@ -89,6 +89,21 @@ describe('loadProjectExport', () => {
     }
   });
 
+  it('carries a column name → field type map for toXlsx, built from the contract', async () => {
+    const p = await caller.projects.create({ name: `Export types ${Date.now()}` });
+    try {
+      const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' });
+      const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
+      const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
+      await seedRun(a.sourceId, [{ [title.key]: 'Chair', [price.key]: 10 }], new Date('2026-09-01T00:00:00Z'));
+
+      const x = (await loadProjectExport(db, p.id))!;
+      expect(x.types).toEqual({ Title: 'text', Price: 'money' });
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p.id));
+    }
+  });
+
   it('shapes a variants project (row_per_variant): product fields, axes, variant fields, then product_key/variant_key', async () => {
     const p = await caller.projects.create({ name: `Export variants ${Date.now()}` });
     try {

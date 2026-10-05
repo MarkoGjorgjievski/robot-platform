@@ -348,6 +348,76 @@ describe('shapeRows', () => {
       ]);
     });
   });
+
+  // Fix round 1, ruling: a column-name collision never loses data — the
+  // later column gets a numbered suffix, and a synthetic product_key/
+  // variant_key column yields to a customer field of the same name.
+  describe('column-name collisions', () => {
+    it('keeps both values under distinct headers when an axis is named like a field', () => {
+      const priceField = { key: 'price', name: 'Price', level: 'product' as const };
+      const priceAxis = { key: 'price_axis', name: 'Price' };
+      const result = shapeRows({
+        rows: [{ price: 10, price_axis: 'Large', _product_key: 'p1', _variant_key: 'v1' }],
+        shape: 'row_per_variant',
+        fields: [priceField],
+        axes: [priceAxis],
+      });
+      expect(result.columns).toEqual(['Price', 'Price (2)', 'product_key', 'variant_key']);
+      expect(result.rows).toEqual([{ Price: 10, 'Price (2)': 'Large', product_key: 'p1', variant_key: 'v1' }]);
+    });
+
+    it('keeps a field named variant_key and renames the synthetic column to "variant_key (2)" (row_per_variant)', () => {
+      const variantKeyField = { key: 'vk', name: 'variant_key', level: 'variant' as const };
+      const result = shapeRows({
+        rows: [{ vk: 'customer-value', _product_key: 'p1', _variant_key: 'synthetic-value' }],
+        shape: 'row_per_variant',
+        fields: [variantKeyField],
+        axes: [],
+      });
+      expect(result.columns).toEqual(['variant_key', 'product_key', 'variant_key (2)']);
+      expect(result.rows).toEqual([{ variant_key: 'customer-value', product_key: 'p1', 'variant_key (2)': 'synthetic-value' }]);
+    });
+
+    it('keeps a field named product_key and renames the synthetic column, in nested CSV and JSON alike', () => {
+      const productKeyField = { key: 'pk', name: 'product_key', level: 'product' as const };
+      const result = shapeRows({
+        rows: [{ pk: 'customer-value', _product_key: 'synthetic-value', _variant_key: 'v1' }],
+        shape: 'nested',
+        fields: [productKeyField],
+        axes: [],
+      });
+      expect(result.columns).toEqual(['product_key', 'product_key (2)']);
+      expect(result.rows).toEqual([{ product_key: 'customer-value', 'product_key (2)': 'synthetic-value' }]);
+      expect(result.json).toEqual([{ product_key: 'customer-value', 'product_key (2)': 'synthetic-value', variants: [{ variant_key: 'v1' }] }]);
+    });
+
+    it('keeps a variant-level field named variant_key inside the nested JSON variants array, renaming the synthetic one', () => {
+      const variantKeyField = { key: 'vk', name: 'variant_key', level: 'variant' as const };
+      const result = shapeRows({
+        rows: [{ vk: 'customer-value', _product_key: 'p1', _variant_key: 'synthetic-value' }],
+        shape: 'nested',
+        fields: [variantKeyField],
+        axes: [],
+      });
+      expect(result.json).toEqual([
+        { product_key: 'p1', variants: [{ variant_key: 'customer-value', 'variant_key (2)': 'synthetic-value' }] },
+      ]);
+    });
+
+    it('resolves three-way collisions with ascending suffixes', () => {
+      const a = { key: 'a', name: 'Dup', level: 'product' as const };
+      const b = { key: 'b', name: 'Dup', level: 'product' as const };
+      const c = { key: 'c', name: 'Dup', level: 'product' as const };
+      const result = shapeRows({
+        rows: [{ a: 1, b: 2, c: 3 }],
+        shape: 'flat',
+        fields: [a, b, c],
+        axes: [],
+      });
+      expect(result.columns).toEqual(['Dup', 'Dup (2)', 'Dup (3)']);
+      expect(result.rows).toEqual([{ Dup: 1, 'Dup (2)': 2, 'Dup (3)': 3 }]);
+    });
+  });
 });
 
 describe('buildRunExport with variants', () => {
