@@ -1,5 +1,5 @@
 // packages/api/src/crawl/merge-backfill.test.ts
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, orgs, projects, datasets, sources, runs, runItems, captures, extractions } from '@robot/db';
 import { mergeBackfillResult } from './merge-backfill.js';
@@ -364,7 +364,11 @@ describe('mergeBackfillResult', () => {
       expect(rows.find((r) => r._variant_key === 'A2')!.price).toBe(21);
     });
 
-    it('appends a backfill row whose _variant_key matches no parent row, without removing any parent row', async () => {
+    // Fix round 1, controller ruling: supersedes the brief's "unmatched new
+    // rows are appended" for a parent that already has rows — a repair
+    // fills cells, it does not add variants. A re-extracted row whose key
+    // matches nothing is dropped (logged), never appended as a new row.
+    it('drops a backfill row whose _variant_key matches no parent row — not appended, matched rows still fill, nothing removed', async () => {
       const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
       const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
         { _variant_key: 'A1', price: null },
@@ -372,16 +376,53 @@ describe('mergeBackfillResult', () => {
       ]);
       const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
         { _variant_key: 'A1', price: 20 },
-        { _variant_key: 'A3', price: 30 }, // new variant, not in the parent
+        { _variant_key: 'A3', price: 30 }, // matches no parent row — dropped, not appended
       ]);
+      const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+      try {
+        await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
 
-      const { rows, rowCount } = await loadParentRowsAndCount(parentItemId);
-      expect(rowCount).toBe(3);
-      expect(rows.find((r) => r._variant_key === 'A1')!.price).toBe(20);
-      expect(rows.find((r) => r._variant_key === 'A2')!.price).toBe(9); // untouched, never removed
-      expect(rows.find((r) => r._variant_key === 'A3')!.price).toBe(30); // appended whole
+        const { rows, rowCount } = await loadParentRowsAndCount(parentItemId);
+        expect(rowCount).toBe(2); // unchanged — no row appended
+        expect(rows).toHaveLength(2);
+        expect(rows.find((r) => r._variant_key === 'A1')!.price).toBe(20); // matched row still filled
+        expect(rows.find((r) => r._variant_key === 'A2')!.price).toBe(9); // untouched, never removed
+        expect(rows.find((r) => r._variant_key === 'A3')).toBeUndefined(); // never appended
+        expect(warned).toHaveBeenCalledTimes(1);
+      } finally {
+        warned.mockRestore();
+      }
+    });
+
+    // Test (b), fix round 1: NONE of the re-extracted rows match the
+    // parent's keys — no rows appended, parent rows unchanged, rowCount
+    // unchanged.
+    it('when no re-extracted row matches any parent key, appends nothing and leaves rows and rowCount unchanged', async () => {
+      const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+      const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+        { _variant_key: 'A1', price: null },
+        { _variant_key: 'A2', price: null },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _variant_key: 'B1', price: 20 },
+        { _variant_key: 'B2', price: 21 },
+      ]);
+      const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+        const { rows, rowCount } = await loadParentRowsAndCount(parentItemId);
+        expect(rowCount).toBe(2);
+        expect(rows).toEqual([
+          { _variant_key: 'A1', price: null },
+          { _variant_key: 'A2', price: null },
+        ]);
+        expect(warned).toHaveBeenCalledTimes(1);
+      } finally {
+        warned.mockRestore();
+      }
     });
 
     it('marks a target field absent only when it is still missing on at least one row after the merge', async () => {

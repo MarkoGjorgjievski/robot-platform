@@ -434,6 +434,63 @@ describe('extractItem — with a certification', () => {
     });
   });
 
+  // Fix round 1 (reviewer finding, Critical): a backfill's focus filter
+  // narrows the request to `targetFields ∪ input fields` — without this
+  // fix, repairing just `price` on a variants plan would drop the SKU
+  // field from the re-extraction request, `variantKeyOf` would fall back
+  // to axes/own-URL for every re-extracted row, and mergeBackfillResult
+  // would see every row as "unmatched" against the parent's SKU-derived
+  // `_variant_key`s.
+  describe('extractItem — a backfill narrowed to one field keeps the variant key fields (Fix round 1)', () => {
+    const SCHEMA_WITH_SKU = [
+      { name: 'price', type: 'number', origin: 'detail' as const },
+      { name: 'sku', type: 'string', origin: 'detail' as const },
+      { name: 'requested_category', type: 'string', origin: 'input' as const, input_column: 'category_slug' },
+    ];
+    const PLAN_WITH_SKU_KEY: VariantRunPlan = {
+      method: 'list',
+      list: { source: 'json-ld', path: 'hasVariant' },
+      entryPaths: {},
+      fromProduct: [],
+      axes: [],
+      fields: [{ key: 'price', name: 'Price', type: 'money', level: 'product' }],
+      skuKey: 'sku',
+    };
+
+    it('a backfill item targeting only `price` still requests `sku` (the plan\'s skuKey)', async () => {
+      let seenFields: VerifiedField[] = [];
+      const extractVerified = async (req: { fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
+        seenFields = req.fields;
+        return { data: { price: 21 }, stats: [], timings: null, capture: null };
+      };
+
+      await extractItem(fakeDb, { ...ITEM, targetFields: ['price'] }, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: SCHEMA_WITH_SKU,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {}, variantPlan: PLAN_WITH_SKU_KEY,
+      });
+
+      expect(seenFields.map((f) => f.key)).toContain('sku');
+      expect(seenFields.map((f) => f.key)).toContain('price');
+    });
+
+    it('a plain (non-repair) item still asks for every detail field, unaffected by the key-fields addition', async () => {
+      let seenFields: VerifiedField[] = [];
+      const extractVerified = async (req: { fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
+        seenFields = req.fields;
+        return { data: { price: 21, sku: 'SKU-1' }, stats: [], timings: null, capture: null };
+      };
+
+      await extractItem(fakeDb, { ...ITEM, targetFields: null }, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: SCHEMA_WITH_SKU,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {}, variantPlan: PLAN_WITH_SKU_KEY,
+      });
+
+      expect(seenFields.map((f) => f.key).sort()).toEqual(['price', 'sku']);
+    });
+  });
+
   // Task 4 (variants plan 3): a links-method product page keeps its own one
   // row, labelled from its own swatch, and queues its other variant pages in
   // the same run as one group (queueVariantGroup; budget logic tested there).
