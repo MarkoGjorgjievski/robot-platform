@@ -87,7 +87,7 @@ export function createExportRoutes(deps: ExportDeps) {
     const body =
       parsed.format === 'csv' ? toCsv(x.fields, x.rows)
       : parsed.format === 'json' ? toJson(x)
-      : new Uint8Array(await toXlsx(x.fields, x.rows));
+      : new Uint8Array(await toXlsx(x.fields, x.rows, x.types));
     return c.body(body as string | Uint8Array<ArrayBuffer>, 200, {
       'content-type': contentTypeFor(parsed.format),
       'content-disposition': `attachment; filename="${projectExportFilename(x, parsed.format)}"`,
