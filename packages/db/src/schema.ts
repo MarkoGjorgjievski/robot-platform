@@ -418,6 +418,33 @@ export const sourceVerificationsRelations = relations(sourceVerifications, ({ on
   source: one(sources, { fields: [sourceVerifications.sourceId], references: [sources.id] }),
 }));
 
+// ─── Drift Checks (2026-10-05) ──────────────────────────────────────────────
+// Free, automatic (after a run flags drift) or on-demand recheck of a drifted
+// field's proof pages: what happened to it (other-layout / moved / changed /
+// lost), per @robot/scraper verify/drift-classify.ts. Never writes
+// certification itself — only this row and the proof-page captures it takes
+// (plan 2026-10-05-drift-repair, Global Constraints).
+
+export const driftChecks = pgTable('drift_checks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  runId: uuid('run_id').references(() => runs.id, { onDelete: 'set null' }),
+  // 'running' | 'done' | 'failed'
+  status: varchar('status', { length: 12 }).notNull().default('running'),
+  // DriftCheckResults (@robot/scraper verify/drift-classify.ts)
+  results: jsonb('results'),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (table) => [
+  index('drift_checks_source_id_idx').on(table.sourceId),
+]);
+
+export const driftChecksRelations = relations(driftChecks, ({ one }) => ({
+  source: one(sources, { fields: [driftChecks.sourceId], references: [sources.id] }),
+  run: one(runs, { fields: [driftChecks.runId], references: [runs.id] }),
+}));
+
 // ─── Extractions (AI Scraper) ───────────────────────────────────────────────
 
 export const extractions = pgTable('extractions', {
