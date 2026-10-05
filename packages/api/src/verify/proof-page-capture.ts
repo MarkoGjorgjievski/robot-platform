@@ -12,8 +12,11 @@ import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
 import { createLimiter } from './limiter.js';
 
-/** At most three product-page captures run at once — a real browser tab each, so a burst of "mark this page" clicks does not pile up unbounded Chromium processes. */
-const captureSlots = createLimiter(3);
+/**
+ * At most three product-page captures run at once — a real browser tab each, so a burst of "mark this page" clicks does not pile up unbounded Chromium processes.
+ * Shared by every proof-page capture in the process: the Verification tab's and the drift check's together (drift repair Task 2, fix round 1).
+ */
+export const captureSlots = createLimiter(3);
 
 /**
  * Captures started in this process still queued for a slot (final review M4).
@@ -51,11 +54,19 @@ export async function startProofPageCapture(sourceId: string, url: string, opts:
   const meta: ProofPageMeta = { kind: 'proof-page', status: 'capturing', url, startedAt: new Date().toISOString() };
   const [row] = await db.insert(captures).values({ sourceId, url, metadata: meta }).returning({ id: captures.id });
   if (opts.fire ?? true) {
-    const id = row!.id;
-    waitingForSlot.add(id);
-    void captureSlots(() => runProofPageCapture(id, opts.session)).finally(() => waitingForSlot.delete(id));
+    void runProofPageCaptureInSlot(row!.id, opts.session);
   }
   return { captureId: row!.id };
+}
+
+/**
+ * Run a capture once one of the shared `captureSlots` is free, resolving when it is done. While it
+ * queues it is marked as waiting, so the stall rule never closes it for time spent in the queue.
+ * Never rejects (`runProofPageCapture` does not).
+ */
+export function runProofPageCaptureInSlot(captureId: string, session?: Session): Promise<void> {
+  waitingForSlot.add(captureId);
+  return captureSlots(() => runProofPageCapture(captureId, session)).finally(() => waitingForSlot.delete(captureId));
 }
 
 export async function runProofPageCapture(captureId: string, session: Session = withBrowserSession): Promise<void> {
