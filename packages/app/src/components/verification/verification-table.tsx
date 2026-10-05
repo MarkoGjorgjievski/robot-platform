@@ -13,6 +13,20 @@ import { cellLabel, type Badge, type Field, type RowStatus, type Segment } from 
  * (spec 2026-09-29 A7) — supplied only for a suggestion found in one place.
  */
 export type TableCell = { value: string; state: Segment; selected: boolean; onClick: () => void; onAccept?: () => void };
+
+/**
+ * The drift check's repair line(s) for a field (plan 2026-10-05 Task 4),
+ * built by the route from `driftRows` (`lib/site/drift-view.ts`) — the text
+ * is already the plan's exact copy; this only says what each action does.
+ * `onSeeMissed` is null when the check carries no `runId` to link to.
+ */
+export type DriftLine =
+  | { kind: 'moved'; text: string; onAccept: () => void }
+  | { kind: 'changed'; text: string; onAccept: () => void }
+  | { kind: 'other-layout'; text: string; onSeeMissed: (() => void) | null }
+  | { kind: 'lost'; text: string; onMarkAgain: () => void }
+  | { kind: 'page-gone'; items: Array<{ product: number; text: string; onReplace: () => void }> };
+
 export type TableRow = {
   field: Field;
   cells: TableCell[];
@@ -23,6 +37,8 @@ export type TableRow = {
   /** Agreed, majority or same-everywhere ("Accept anyway"): what the status column's one action does. */
   onAccept: () => void;
   onToggle: () => void;
+  /** Shown under the row whatever `expanded` is — a field can be both drifted and expanded. */
+  drift?: DriftLine[];
 };
 
 /** The 2 px rail a value cell carries in its state colour (spec §4: never a background wash). */
@@ -79,6 +95,74 @@ function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; 
     case 'accepted':
       return <BadgeView badge={badge} />;
   }
+}
+
+/**
+ * The drift line(s) under a drifted row (plan 2026-10-05 Task 4): the exact
+ * copy from `driftRows`, plus the one action each kind carries — disabled
+ * with the same lock as every other row action, except "See missed
+ * products", a navigation rather than a board edit.
+ */
+function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]; locked: boolean }) {
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, i) => {
+        switch (line.kind) {
+          case 'moved':
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-warn">{line.text}</span>
+                <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept new location for ${field.name}`} onClick={line.onAccept}>
+                  Accept new location
+                </Button>
+              </div>
+            );
+          case 'changed':
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-warn">{line.text}</span>
+                <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept new values for ${field.name}`} onClick={line.onAccept}>
+                  Accept new values
+                </Button>
+              </div>
+            );
+          case 'lost':
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-warn">{line.text}</span>
+                <Button variant="outline" size="xs" disabled={locked} aria-label={`Mark ${field.name} again`} onClick={line.onMarkAgain}>
+                  Mark it again
+                </Button>
+              </div>
+            );
+          case 'other-layout':
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-warn">{line.text}</span>
+                {line.onSeeMissed ? (
+                  <Button variant="outline" size="xs" onClick={line.onSeeMissed}>
+                    See missed products
+                  </Button>
+                ) : null}
+              </div>
+            );
+          case 'page-gone':
+            return (
+              <div key={i} className="space-y-1.5">
+                {line.items.map((it) => (
+                  <div key={it.product} className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-warn">{it.text}</span>
+                    <Button variant="outline" size="xs" disabled={locked} aria-label={`Replace product ${it.product}`} onClick={it.onReplace}>
+                      Replace product {it.product}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            );
+        }
+      })}
+    </div>
+  );
 }
 
 /**
@@ -206,6 +290,14 @@ export function VerificationTable({
                   <StatusCell field={row.field} status={row.status} badge={row.badge} locked={locked} onAccept={row.onAccept} />
                 </td>
               </tr>
+
+              {row.drift && row.drift.length > 0 ? (
+                <tr>
+                  <td colSpan={totalCols} className="border-t border-line bg-panel px-3 py-2">
+                    <DriftLines field={row.field} lines={row.drift} locked={locked} />
+                  </td>
+                </tr>
+              ) : null}
 
               {row.expanded ? (
                 <tr>

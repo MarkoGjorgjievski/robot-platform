@@ -8,7 +8,7 @@ import { AddProductCard } from '../../../../../../components/verification/produc
 import { ProductCard } from '../../../../../../components/verification/product-card';
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
-import { VerificationTable, type TableRow } from '../../../../../../components/verification/verification-table';
+import { VerificationTable, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
 import { DriftBanner } from '../../../../../../components/verification/drift-banner';
 import { VariantsStep, detectVariantsQuery } from '../../../../../../components/verification/variants-step';
@@ -61,7 +61,7 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
-import type { DriftCheckView } from '../../../../../../lib/site/drift-view';
+import { driftRows, acceptMoved, acceptChanged, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
@@ -368,6 +368,24 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     : null;
   const fieldNames = useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.name])), [fields]);
 
+  // Drift repair (plan 2026-10-05 Task 4): the board's own current value per
+  // drifted field/url — the "was {old}" half of a changed row's text.
+  // `driftByField` itself is built below, once `urls` exists.
+  const driftedKeys = source.driftedFields ?? [];
+  const driftValues = useMemo(() => {
+    const out: Record<string, Record<string, string>> = {};
+    for (const key of driftedKeys) {
+      const byUrl: Record<string, string> = {};
+      for (const c of board.cards) {
+        const v = board.answers[key]?.[c.url]?.value;
+        if (v !== undefined) byUrl[c.url] = v;
+      }
+      out[key] = byUrl;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driftedKeys.join(','), board.answers, board.cards]);
+
   // A run that lands while the tab is open refreshes what it changed.
   const sawActive = useRef(false);
   useEffect(() => {
@@ -383,6 +401,19 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   // --- Captures, one per product with a page.
   const urls = useMemo(() => board.cards.map((c) => c.url).filter((u) => u.trim() !== ''), [board.cards]);
+  // Drift repair (Task 4), continued: one row per drifted field, against the
+  // same product order/urls everything else in this tab uses.
+  const driftByField = useMemo(
+    () =>
+      driftRows({
+        fieldKeys: driftedKeys,
+        urls,
+        results: (driftCheckQuery.data?.results as DriftCheckResultsLike | undefined) ?? null,
+        values: driftValues,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues],
+  );
   const captures = useProofCaptures(sourceId, urls);
   const captureIdsKey = JSON.stringify(captures.captureIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1017,11 +1048,66 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     };
   }
 
+  /**
+   * The drift check's repair line(s) for a field (plan 2026-10-05 Task 4):
+   * `driftRows`' pure result, turned into the one callback each kind needs.
+   * `acceptMoved`/`acceptChanged` only ever touch this field's cells, so
+   * they go through `setBoard` and the autosave exactly like any other edit
+   * — accepting never auto-verifies (Global Constraints).
+   */
+  function driftLinesFor(f: Field): DriftLine[] | undefined {
+    const rows = driftByField[f.key];
+    if (!rows) return undefined;
+    return rows.map((row): DriftLine => {
+      switch (row.kind) {
+        case 'moved':
+          return { kind: 'moved', text: row.text, onAccept: () => setBoard((b) => acceptMoved(b, f.key, row.marks)) };
+        case 'changed':
+          return { kind: 'changed', text: row.text, onAccept: () => setBoard((b) => acceptChanged(b, f.key, row.values)) };
+        case 'other-layout':
+          return {
+            kind: 'other-layout',
+            text: row.text,
+            onSeeMissed: row.runId
+              ? () =>
+                  void navigate({
+                    to: '/projects/$project/sites/$site/runs/$run',
+                    params: { project: projectSlug, site: siteSlug, run: row.runId! },
+                  })
+              : null,
+          };
+        case 'lost':
+          // "That product" is whichever is open (or the first, none is) — the
+          // same reveal a click on an empty cell already gives (Global
+          // Constraints: "Mark it again" opens mark mode for the field).
+          return {
+            kind: 'lost',
+            text: row.text,
+            onMarkAgain: () => {
+              const product = selected + 1;
+              setPopover(null);
+              select({ product, field: f.key });
+              setReveal((r) => ({ n: r.n + 1, product, field: f.key }));
+            },
+          };
+        case 'page-gone':
+          return {
+            kind: 'page-gone',
+            items: row.texts.map((t) => {
+              const i = board.cards.findIndex((c) => c.url === t.url);
+              return { product: i + 1, text: t.text, onReplace: () => { if (i >= 0) onDrop(i); } };
+            }),
+          };
+      }
+    });
+  }
+
   const rows: TableRow[] = fields.map((f, fi) => {
     const a = selectedUrl ? board.answers[f.key]?.[selectedUrl] : undefined;
     const typed = a && a.mark === null ? a.value : '';
     return {
       field: f,
+      drift: driftLinesFor(f),
       status: statuses[fi]!,
       cells: board.cards.map((c, i) => ({
         value: displayValue(f, board.answers[f.key]?.[c.url]?.value ?? live[f.key]?.[c.url]?.value ?? ''),
