@@ -11,6 +11,7 @@ const sample: ProjectExport = {
   rowCount: 1,
   generatedAt: '2026-09-21T10:00:00.000Z',
   types: { Title: 'text', Price: 'money' },
+  nested: false,
 };
 const app = createExportRoutes({
   loadRunExport: async () => null,
@@ -68,5 +69,24 @@ describe('GET /export/projects/:file', () => {
     expect((await app.request('/projects/22222222-2222-2222-2222-222222222222.csv')).status).toBe(404);
     expect((await app.request('/projects/not-a-uuid.csv')).status).toBe(404);
     expect((await app.request(`/projects/${sample.project.id}.pdf`)).status).toBe(404);
+  });
+
+  // D2 (live check, 2026-10-05): a project whose dataset exports nested marks
+  // its file name as lossy, same wording as a single run's.
+  describe('a project with a nested-shape website', () => {
+    const nestedSample: ProjectExport = { ...sample, project: { ...sample.project, id: '33333333-3333-3333-3333-333333333333' }, nested: true };
+    const nestedApp = createExportRoutes({
+      loadRunExport: async () => null,
+      loadProjectExport: async (id) => (id === nestedSample.project.id ? nestedSample : null),
+    });
+
+    it('names the json "-variants-nested" and the csv/xlsx "-variants-joined"', async () => {
+      expect((await nestedApp.request(`/projects/${nestedSample.project.id}.json`)).headers.get('content-disposition'))
+        .toBe('attachment; filename="acme-2026-09-21-variants-nested.json"');
+      expect((await nestedApp.request(`/projects/${nestedSample.project.id}.csv`)).headers.get('content-disposition'))
+        .toBe('attachment; filename="acme-2026-09-21-variants-joined.csv"');
+      expect((await nestedApp.request(`/projects/${nestedSample.project.id}.xlsx`)).headers.get('content-disposition'))
+        .toBe('attachment; filename="acme-2026-09-21-variants-joined.xlsx"');
+    });
   });
 });
