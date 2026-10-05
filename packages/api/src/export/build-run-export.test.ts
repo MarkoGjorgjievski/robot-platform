@@ -318,11 +318,14 @@ describe('shapeRows', () => {
     const rows = [
       { title: 'Chair', brand: 'Acme', color: 'Red', price: 10, sku: 'A1', _product_key: 'p1', _variant_key: 'A1' },
       { title: 'Chair', brand: 'Acme', color: 'Blue', price: 12, sku: 'A2', _product_key: 'p1', _variant_key: 'A2' },
-      { title: 'Table', brand: 'Acme', _product_key: 'p2' },
+      { title: 'Table', brand: 'Acme', price: 15, sku: 'T1', _product_key: 'p2' },
     ];
     const fields = [PRODUCT_FIELD, BRAND_FIELD, PRICE_FIELD, SKU_FIELD];
     const axes = [COLOUR_AXIS];
 
+    // Final review I4 (ruling a): a product without variants keeps
+    // `variants: []` and carries its variant-level values (Price, SKU) on the
+    // product object itself — never dropped from the JSON.
     it('gives one JSON object per product, with an empty variants array for a product with none', () => {
       const result = shapeRows({ rows, shape: 'nested', fields, axes });
       expect(result.json).toEqual([
@@ -335,7 +338,7 @@ describe('shapeRows', () => {
             { variant_key: 'A2', Colour: 'Blue', Price: 12, SKU: 'A2' },
           ],
         },
-        { Title: 'Table', Brand: 'Acme', product_key: 'p2', variants: [] },
+        { Title: 'Table', Brand: 'Acme', Price: 15, SKU: 'T1', product_key: 'p2', variants: [] },
       ]);
     });
 
@@ -344,7 +347,7 @@ describe('shapeRows', () => {
       expect(result.columns).toEqual(['Title', 'Brand', 'Colour', 'Price', 'SKU', 'product_key']);
       expect(result.rows).toEqual([
         { Title: 'Chair', Brand: 'Acme', Colour: 'Red; Blue', Price: '10; 12', SKU: 'A1; A2', product_key: 'p1' },
-        { Title: 'Table', Brand: 'Acme', Colour: '', Price: '', SKU: '', product_key: 'p2' },
+        { Title: 'Table', Brand: 'Acme', Colour: '', Price: '15', SKU: 'T1', product_key: 'p2' },
       ]);
     });
   });
@@ -482,5 +485,29 @@ describe('buildRunExport with variants', () => {
     expect(result.fields).toEqual(['title', 'price']);
     expect(result.rows).toEqual([{ title: 'Kallax', price: 79 }]);
     expect(result.json).toBeUndefined();
+  });
+
+  // Final review M8: the type map is keyed by the FINAL column name — a field
+  // renamed by uniqueNames ("Price (2)") keeps its number typing, and the
+  // column that took the plain name does not inherit it.
+  it('keys the xlsx type map by the final column name after a collision rename', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: SOURCE,
+      captureUrl: null,
+      extractionData: [{ title: 'Chair', size: 'Large', price: 10, sku: 'A1', _product_key: 'p1', _variant_key: 'A1' }],
+      dataset: {
+        schema: [
+          { key: 'title', name: 'Title', type: 'text', concept: 'product_name' },
+          { key: 'price', name: 'Price', type: 'money', concept: 'price' },
+          { key: 'sku', name: 'SKU', type: 'text', concept: 'sku' },
+          { key: 'size', name: 'Price', kind: 'axis', concept: 'axis' },
+        ],
+        variantMode: 'row_per_variant',
+      },
+    });
+    expect(result.fields).toEqual(['Title', 'Price', 'Price (2)', 'SKU', 'product_key', 'variant_key']);
+    expect(result.rows[0]).toMatchObject({ Price: 'Large', 'Price (2)': 10 });
+    expect(result.types).toEqual({ Title: 'text', 'Price (2)': 'money', SKU: 'text' });
   });
 });
