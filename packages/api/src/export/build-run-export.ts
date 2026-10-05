@@ -64,6 +64,17 @@ export type RunExport = {
    *  `fields`/`rows` carry for CSV and XLSX. Absent (never serialized) for
    *  every other shape, so a flat run's JSON export is untouched. */
   json?: unknown;
+  /** D3: present only alongside `json` — the outer product object's own keys,
+   *  in order (product fields, then variant fields a without-variants
+   *  product carries on itself per ruling I4, then `product_key`, then
+   *  `variants`). This is what the nested JSON response's `fields` should
+   *  say, in place of `fields` above (which stays the CSV/XLSX shape's
+   *  columns, for `fields`/`rows`'s own CSV use). */
+  jsonFields?: string[];
+  /** D3: present only alongside `json` — the inner `variants[]` object's own
+   *  keys, in order (`variant_key`, then axis names, then variant field
+   *  names). */
+  variantFields?: string[];
   /** Column name → field type, for `toXlsx`'s "numbers as numbers" rule.
    *  Absent when there is no type information to offer (no customer schema,
    *  no dataset), so a flat run's envelope is untouched too. */
@@ -206,7 +217,15 @@ export function shapeRows(args: {
   shape: ExportShape;
   fields: ShapeField[];
   axes: ShapeAxis[];
-}): { columns: string[]; rows: Record<string, unknown>[]; json: unknown; types: Record<string, string> } {
+}): {
+  columns: string[]; rows: Record<string, unknown>[]; json: unknown; types: Record<string, string>;
+  /** `nested` only (D3): the outer product object's own keys, in order —
+   *  what `json`'s `fields` should describe, distinct from `columns` (the
+   *  CSV/XLSX shape). */
+  jsonFields?: string[];
+  /** `nested` only (D3): the inner `variants[]` object's own keys, in order. */
+  jsonVariantFields?: string[];
+} {
   const { rows, shape, fields, axes } = args;
 
   if (shape === 'flat') {
@@ -329,7 +348,20 @@ export function shapeRows(args: {
     jsonRows.push(jo);
   }
 
-  return { columns: csvNames, rows: outRows, json: jsonRows, types: typesByColumn([...productFields, ...variantFields], [...csvProductNames, ...csvVariantNames]) };
+  // D3: the outer object's keys in order (product fields, then variant
+  // fields a without-variants product carries on itself per ruling I4,
+  // then `product_key`, then the literal `variants` key every row has —
+  // see the `jo`/`jo.variants` build above), and the inner `variants[]`
+  // object's keys in order (`variant_key`, then axes, then variant fields —
+  // the `v` build above).
+  const jsonFields = [...jsonProductNames, ...jsonOuterVariantNames, jsonProductKeyName, 'variants'];
+  const jsonVariantFields = [innerVariantKeyName, ...innerAxisNames, ...innerVariantNames];
+
+  return {
+    columns: csvNames, rows: outRows, json: jsonRows,
+    types: typesByColumn([...productFields, ...variantFields], [...csvProductNames, ...csvVariantNames]),
+    jsonFields, jsonVariantFields,
+  };
 }
 
 export function buildRunExport(input: RunExportInput): RunExport {
@@ -347,6 +379,8 @@ export function buildRunExport(input: RunExportInput): RunExport {
   let outFields: string[];
   let outRows: Record<string, unknown>[];
   let json: unknown;
+  let jsonFields: string[] | undefined;
+  let variantFields: string[] | undefined;
   const types: Record<string, string> = {};
 
   if (shape === 'flat') {
@@ -379,7 +413,11 @@ export function buildRunExport(input: RunExportInput): RunExport {
     });
     outFields = shaped.columns;
     outRows = shaped.rows;
-    if (shape === 'nested') json = shaped.json;
+    if (shape === 'nested') {
+      json = shaped.json;
+      jsonFields = shaped.jsonFields;
+      variantFields = shaped.jsonVariantFields;
+    }
     Object.assign(types, shaped.types);
   }
 
@@ -403,6 +441,8 @@ export function buildRunExport(input: RunExportInput): RunExport {
     fields: outFields,
     rows: outRows,
     json,
+    jsonFields,
+    variantFields,
     types: presentOrUndefined(types),
   };
 }

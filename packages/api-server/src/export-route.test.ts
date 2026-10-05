@@ -86,12 +86,24 @@ describe('GET /export/runs/:id.json for a nested-shape run', () => {
     fields: ['Title', 'product_key'],
     rows: [{ Title: 'Chair', product_key: 'p1' }],
     json: [{ Title: 'Chair', product_key: 'p1', variants: [{ variant_key: 'v1', Price: 10 }] }],
+    jsonFields: ['Title', 'product_key', 'variants'],
+    variantFields: ['variant_key', 'Price'],
   };
 
   it('serves the json-specific per-product rows, not the flattened CSV/XLSX ones', async () => {
     const res = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.json`));
     const body = await res.json();
     expect(body.rows).toEqual(NESTED_ENVELOPE.json);
+  });
+
+  // D3 (live check, 2026-10-05): `fields` on the nested JSON response
+  // describes the product object (`jsonFields`), not the CSV shape, and a
+  // new `variantFields` describes the inner `variants[]` object.
+  it('describes the nested JSON shape with jsonFields/variantFields, not the CSV columns', async () => {
+    const res = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.json`));
+    const body = await res.json();
+    expect(body.fields).toEqual(['Title', 'product_key', 'variants']);
+    expect(body.variantFields).toEqual(['variant_key', 'Price']);
   });
 
   it('serves the flattened rows for csv', async () => {

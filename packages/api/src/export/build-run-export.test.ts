@@ -497,6 +497,35 @@ describe('buildRunExport with variants', () => {
     ]);
   });
 
+  // D3 (live check, 2026-10-05): the nested JSON's own `fields` (the outer
+  // product object's keys) and `variantFields` (the inner `variants[]`
+  // object's keys) — distinct from `fields`/`rows`, which stay the CSV/XLSX
+  // shape (asserted above: ['Title', 'Colour', 'Price', 'SKU', 'product_key']).
+  it('exposes jsonFields and variantFields describing the nested JSON shape, not the CSV one', () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: SOURCE,
+      captureUrl: null,
+      extractionData: VARIANT_ROWS,
+      dataset: { schema: DATASET_SCHEMA, variantMode: 'nested' },
+    });
+    expect(result.jsonFields).toEqual(['Title', 'Price', 'SKU', 'product_key', 'variants']);
+    expect(result.variantFields).toEqual(['variant_key', 'Colour', 'Price', 'SKU']);
+  });
+
+  it('leaves jsonFields and variantFields unset for row_per_variant and flat', () => {
+    const rowPerVariant = buildRunExport({
+      run: RUN, source: SOURCE, captureUrl: null, extractionData: VARIANT_ROWS,
+      dataset: { schema: DATASET_SCHEMA, variantMode: 'row_per_variant' },
+    });
+    expect(rowPerVariant.jsonFields).toBeUndefined();
+    expect(rowPerVariant.variantFields).toBeUndefined();
+
+    const flat = buildRunExport({ run: RUN, source: SOURCE, captureUrl: null, extractionData: [{ title: 'Kallax' }] });
+    expect(flat.jsonFields).toBeUndefined();
+    expect(flat.variantFields).toBeUndefined();
+  });
+
   it('stays flat when the run produced no _product_key rows, even on a row_per_variant project', () => {
     const result = buildRunExport({
       run: RUN,
