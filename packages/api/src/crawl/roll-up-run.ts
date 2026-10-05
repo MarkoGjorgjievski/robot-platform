@@ -73,7 +73,8 @@ export function rollUpStatus(
  * total is what gets written no matter how many callers raced to finalise.
  *
  * `variantSummary` is written only when the run's rows carry any
- * `_product_key` (i.e. this is a variants run). `variants`/`products`/
+ * `_product_key` (i.e. this is a variants run) or a queued variant page of
+ * the run failed (see computeVariantSummary). `variants`/`products`/
  * `withoutVariants`/`partial` are computed with SQL aggregates over
  * `jsonb_array_elements(extractions.data)` — never by pulling every row of
  * `data` into Node (fix round 1: this used to `flatMap` the run's full row
@@ -121,60 +122,7 @@ export async function finaliseRun(
     .where(eq(extractions.runId, runId));
   const resultCount = Number(rowTotal?.total ?? 0);
 
-  // Cheap first: does this run have ANY variant row at all? An EXISTS over
-  // jsonb_array_elements short-circuits on the first match and never
-  // materialises a row in Node — unlike reading `extractions.data` out and
-  // flatMap-ing it, which is what this used to do on every single finalise.
-  const existsResult = await db.execute(sql`
-    SELECT EXISTS (
-      SELECT 1 FROM extractions x, jsonb_array_elements(x.data) e
-      WHERE x.run_id = ${runId} AND e ? '_product_key'
-    ) AS has_variant_rows
-  `);
-  const existsRow = (existsResult as unknown as Array<{ has_variant_rows: boolean }>)[0];
-  const hasVariantRows = Boolean(existsRow?.has_variant_rows);
-
-  let variantSummary: VariantRunSummary | undefined;
-  if (hasVariantRows) {
-    const [current] = await db.select({ variantSummary: runs.variantSummary }).from(runs).where(eq(runs.id, runId));
-    const skipped = (current?.variantSummary as VariantRunSummary | null)?.variantsSkippedForBudget ?? 0;
-
-    // One pass over jsonb_array_elements, grouped by `_product_key`, entirely
-    // in Postgres. `without_variants` = product keys where NO row has a
-    // non-empty `_variant_key`; `partial` = product keys where ANY row has
-    // `_variant_partial: true` — the same per-product aggregation
-    // `summariseVariantRows` does with JS Sets, just computed as SQL
-    // aggregates instead of over a row array pulled into Node.
-    const aggResult = await db.execute(sql`
-      WITH run_rows AS (
-        SELECT e.value AS r
-        FROM extractions x, jsonb_array_elements(x.data) e
-        WHERE x.run_id = ${runId}
-      ), per_product AS (
-        SELECT
-          r ->> '_product_key' AS pk,
-          bool_or(coalesce(r ->> '_variant_key', '') <> '') AS has_variant,
-          bool_or(coalesce((r ->> '_variant_partial')::boolean, false)) AS is_partial
-        FROM run_rows
-        WHERE r ? '_product_key'
-        GROUP BY r ->> '_product_key'
-      )
-      SELECT
-        (SELECT count(*)::int FROM run_rows WHERE coalesce(r ->> '_variant_key', '') <> '') AS variants,
-        (SELECT count(*)::int FROM per_product) AS products,
-        (SELECT count(*)::int FROM per_product WHERE NOT has_variant) AS without_variants,
-        (SELECT count(*)::int FROM per_product WHERE is_partial) AS partial
-    `);
-    const agg = (aggResult as unknown as Array<{ variants: number; products: number; without_variants: number; partial: number }>)[0];
-
-    variantSummary = {
-      variants: Number(agg?.variants ?? 0),
-      products: Number(agg?.products ?? 0),
-      withoutVariants: Number(agg?.without_variants ?? 0),
-      partial: Number(agg?.partial ?? 0),
-      variantsSkippedForBudget: skipped,
-    };
-  }
+  const variantSummary = await computeVariantSummary(db, runId);
 
   await db.update(runs)
     .set({
@@ -191,4 +139,95 @@ export async function finaliseRun(
     .where(eq(runs.id, runId));
 
   return status;
+}
+
+/**
+ * The run's variant counts, computed in SQL from its rows (see finaliseRun's
+ * doc comment), or `undefined` when the run has neither a variant row nor a
+ * failed queued variant page. Final review I3: a queued variant page
+ * (`variant_of` set) that failed to load never produced a row, so its
+ * product key is unioned into the partial set here — and into the products,
+ * should no row of that key exist.
+ */
+async function computeVariantSummary(
+  db: typeof Database,
+  runId: string,
+): Promise<VariantRunSummary | undefined> {
+  // Cheap first: does this run have ANY variant row at all? An EXISTS over
+  // jsonb_array_elements short-circuits on the first match and never
+  // materialises a row in Node — unlike reading `extractions.data` out and
+  // flatMap-ing it, which is what this used to do on every single finalise.
+  const existsResult = await db.execute(sql`
+    SELECT (
+      EXISTS (
+        SELECT 1 FROM extractions x, jsonb_array_elements(x.data) e
+        WHERE x.run_id = ${runId} AND e ? '_product_key'
+      ) OR EXISTS (
+        SELECT 1 FROM run_items
+        WHERE run_id = ${runId} AND kind = 'detail' AND status = 'failed' AND variant_of IS NOT NULL
+      )
+    ) AS has_variant_rows
+  `);
+  const existsRow = (existsResult as unknown as Array<{ has_variant_rows: boolean }>)[0];
+  if (!existsRow?.has_variant_rows) return undefined;
+
+  const [current] = await db.select({ variantSummary: runs.variantSummary }).from(runs).where(eq(runs.id, runId));
+  const skipped = (current?.variantSummary as VariantRunSummary | null)?.variantsSkippedForBudget ?? 0;
+
+  // One pass over jsonb_array_elements, grouped by `_product_key`, entirely
+  // in Postgres. `without_variants` = product keys where NO row has a
+  // non-empty `_variant_key`; `partial` = product keys where ANY row has
+  // `_variant_partial: true` — the same per-product aggregation
+  // `summariseVariantRows` does with JS Sets, just computed as SQL
+  // aggregates instead of over a row array pulled into Node — unioned with
+  // every product key a failed queued variant page points at (I3).
+  const aggResult = await db.execute(sql`
+    WITH run_rows AS (
+      SELECT e.value AS r
+      FROM extractions x, jsonb_array_elements(x.data) e
+      WHERE x.run_id = ${runId}
+    ), per_product AS (
+      SELECT
+        r ->> '_product_key' AS pk,
+        bool_or(coalesce(r ->> '_variant_key', '') <> '') AS has_variant,
+        bool_or(coalesce((r ->> '_variant_partial')::boolean, false)) AS is_partial
+      FROM run_rows
+      WHERE r ? '_product_key'
+      GROUP BY r ->> '_product_key'
+    ), failed_variant_of AS (
+      SELECT DISTINCT variant_of AS pk
+      FROM run_items
+      WHERE run_id = ${runId} AND kind = 'detail' AND status = 'failed' AND variant_of IS NOT NULL
+    )
+    SELECT
+      (SELECT count(*)::int FROM run_rows WHERE coalesce(r ->> '_variant_key', '') <> '') AS variants,
+      (SELECT count(*)::int FROM (SELECT pk FROM per_product UNION SELECT pk FROM failed_variant_of) k) AS products,
+      (SELECT count(*)::int FROM per_product WHERE NOT has_variant) AS without_variants,
+      (SELECT count(*)::int FROM (SELECT pk FROM per_product WHERE is_partial UNION SELECT pk FROM failed_variant_of) k) AS partial
+  `);
+  const agg = (aggResult as unknown as Array<{ variants: number; products: number; without_variants: number; partial: number }>)[0];
+
+  return {
+    variants: Number(agg?.variants ?? 0),
+    products: Number(agg?.products ?? 0),
+    withoutVariants: Number(agg?.without_variants ?? 0),
+    partial: Number(agg?.partial ?? 0),
+    variantsSkippedForBudget: skipped,
+  };
+}
+
+/**
+ * Final review M4: a summary-only recompute. A repair's cell-fill merge
+ * (merge-backfill.ts) can clear `_variant_partial` on the parent run's rows
+ * but never changes an item's done/failed status, so it must not roll the
+ * run's status up — it calls this instead of finaliseRun. Writes nothing for
+ * a run without variants; keeps every other summary key (`skippedByProduct`),
+ * as finaliseRun does.
+ */
+export async function refreshVariantSummary(db: typeof Database, runId: string): Promise<void> {
+  const variantSummary = await computeVariantSummary(db, runId);
+  if (!variantSummary) return;
+  await db.update(runs)
+    .set({ variantSummary: sql`coalesce(${runs.variantSummary}, '{}'::jsonb) || ${JSON.stringify(variantSummary)}::jsonb` })
+    .where(eq(runs.id, runId));
 }

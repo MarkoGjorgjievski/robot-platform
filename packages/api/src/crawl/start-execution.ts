@@ -7,7 +7,7 @@
 
 import { eq } from 'drizzle-orm';
 import { SchemaAgent, snapshotUsage } from '@robot/agent';
-import { resolveBudget, itemCap, type OriginField, type SchemaDefinitionField } from '@robot/scraper';
+import { resolveBudget, itemCap, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
 import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
@@ -50,18 +50,22 @@ export function buildOnDone(
     markItemDone?: typeof markItemDone;
     markItemFailed?: typeof markItemFailed;
     mergeBackfillResult?: typeof mergeBackfillResult;
+    /** The run's variant plan, if any: lets the merge clear `_variant_partial`
+     * on rows a repair completed (final review M4). */
+    variantPlan?: VariantRunPlan | null;
   } = {},
 ): ExecuteDeps['onDone'] {
   const doMarkDone = deps.markItemDone ?? markItemDone;
   const doMarkFailed = deps.markItemFailed ?? markItemFailed;
   const doMerge = deps.mergeBackfillResult ?? mergeBackfillResult;
+  const planArg: [VariantRunPlan] | [] = deps.variantPlan ? [deps.variantPlan] : [];
 
   if (!mergeToParent) {
     return (itemId, extractionId) => doMarkDone(db, itemId, extractionId);
   }
   return async (itemId, extractionId, row, targetFields) => {
     try {
-      await doMerge(db, itemId, extractionId, row, targetFields ?? []);
+      await doMerge(db, itemId, extractionId, row, targetFields ?? [], ...planArg);
     } catch (err) {
       await doMarkFailed(db, itemId, `merge failed: ${safeErrorMessage(err)}`);
       return;
@@ -165,7 +169,7 @@ export async function startExecution(
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),
         extractItem: (item) => extractItem(db, item, { browser, agent, sourceId, runId, schema, certification, schemaDefinition, variantPlan, itemCap: runItemCap }),
-        onDone: buildOnDone(db, opts?.mergeToParent),
+        onDone: buildOnDone(db, opts?.mergeToParent, { variantPlan }),
         onFailed: (itemId, message) => markItemFailed(db, itemId, message),
         // Both `cancelling` (the stop request) and `cancelled` (a stop another
         // loop already carried out) end this loop — see is-cancelled.ts.

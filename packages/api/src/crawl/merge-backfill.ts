@@ -13,7 +13,8 @@
 import { desc, eq } from 'drizzle-orm';
 import { captures, extractions, runItems, runs } from '@robot/db';
 import type { db as Database } from '@robot/db';
-import { finaliseRun } from './roll-up-run.js';
+import type { VariantRunPlan } from '@robot/scraper';
+import { finaliseRun, refreshVariantSummary } from './roll-up-run.js';
 import { isCancelledStatus } from './is-cancelled.js';
 
 function isEmpty(value: unknown): boolean {
@@ -26,6 +27,9 @@ export async function mergeBackfillResult(
   extractionId: string | null,
   row: Record<string, unknown>,
   targetFields: string[],
+  /** The run's variant plan, when its certification carries variants — used
+   * only to clear `_variant_partial` on rows a repair completed (M4). */
+  variantPlan?: VariantRunPlan | null,
 ): Promise<void> {
   const backfillItem = await db.query.runItems.findFirst({
     where: eq(runItems.id, backfillItemId),
@@ -63,15 +67,21 @@ export async function mergeBackfillResult(
     const captureId = await resolveCaptureId(db, extractionId, parentItem.runId);
     if (!captureId) return;
 
+    // Final review C1: every row of the backfill's own extraction, not only
+    // `row` (= its rows[0]) — a healed list-method product keeps all of its
+    // variant rows.
+    const healRows = await loadBackfillRows(db, extractionId, row);
+
     const [extraction] = await db.insert(extractions).values({
       sourceId: parentRun.sourceId,
       captureId,
       runId: parentItem.runId,
-      data: [row],
-      rowCount: 1,
+      data: healRows,
+      rowCount: healRows.length,
     }).returning({ id: extractions.id });
 
-    const stillMissing = targetFields.filter((field) => isEmpty(row[field]));
+    // Still missing = empty on any heal row (the multi-row rule below).
+    const stillMissing = targetFields.filter((field) => healRows.some((r) => isEmpty(r[field])));
     const absentSet = new Set((parentItem.absentFields as string[] | null) ?? []);
     for (const field of stillMissing) absentSet.add(field);
 
@@ -129,6 +139,8 @@ export async function mergeBackfillResult(
     for (const field of stillMissing) absentSet.add(field);
     for (const field of newlyFilled) absentSet.delete(field);
 
+    const clearedPartial = clearResolvedPartials([data0], variantPlan);
+
     await db.update(extractions)
       .set({ data: [data0], rowCount: 1 })
       .where(eq(extractions.id, parentItem.extraction.id));
@@ -136,6 +148,8 @@ export async function mergeBackfillResult(
     await db.update(runItems)
       .set({ absentFields: Array.from(absentSet) })
       .where(eq(runItems.id, parentItem.id));
+
+    if (clearedPartial) await refreshVariantSummary(db, parentItem.runId);
     return;
   }
 
@@ -199,6 +213,8 @@ export async function mergeBackfillResult(
     else absentSet.delete(field);
   }
 
+  const clearedPartial = clearResolvedPartials(finalRows, variantPlan);
+
   await db.update(extractions)
     .set({ data: finalRows, rowCount: finalRows.length })
     .where(eq(extractions.id, parentItem.extraction.id));
@@ -206,6 +222,37 @@ export async function mergeBackfillResult(
   await db.update(runItems)
     .set({ absentFields: Array.from(absentSet) })
     .where(eq(runItems.id, parentItem.id));
+
+  if (clearedPartial) await refreshVariantSummary(db, parentItem.runId);
+}
+
+/**
+ * Final review M4: drops `_variant_partial` from every row (mutated in place)
+ * whose partial-making keys are all filled now — the same keys
+ * `buildVariantRows` (scraper/verify/variant-rows.ts) flags a row partial on:
+ * a variant-level field with an entry path that is not taken from the
+ * product, and a mapped axis with an entry path. Returns whether any flag was
+ * cleared, so the caller refreshes the run's variant summary (summary only —
+ * a cell fill never changes an item's done/failed status). Without a plan
+ * (a non-variants run, or a caller that has none) nothing is cleared.
+ */
+function clearResolvedPartials(rows: Record<string, unknown>[], plan: VariantRunPlan | null | undefined): boolean {
+  if (!plan) return false;
+  const keys = [
+    ...plan.fields
+      .filter((f) => f.level === 'variant' && !plan.fromProduct.includes(f.key) && plan.entryPaths[f.key])
+      .map((f) => f.key),
+    ...plan.axes.filter((a) => plan.entryPaths[a.key]).map((a) => a.key),
+  ];
+  let cleared = false;
+  for (const r of rows) {
+    if (!r._variant_partial) continue;
+    if (keys.every((k) => !isEmpty(r[k]))) {
+      delete r._variant_partial;
+      cleared = true;
+    }
+  }
+  return cleared;
 }
 
 /**
