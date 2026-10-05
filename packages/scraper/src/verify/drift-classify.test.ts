@@ -115,6 +115,24 @@ describe('classifyDrift', () => {
     expect(r.pages[U[2]!]).toEqual({ status: 'ok', value: '149.00' });
   }, 30_000);
 
+  it('changed to a new key: price moved to offers.salePrice with new values on every page, the old key gone everywhere → changed', async () => {
+    const captures = baseCaptures();
+    const newPrices: Record<string, string> = { [U[0]!]: '139.99', [U[1]!]: '229.99', [U[2]!]: '159.00' };
+    for (const u of U) {
+      const stripped = stripPriceSources(captures[u]!);
+      const html = stripped.html.replace(/<span class="now">\$[\d.]+<\/span>/, '');
+      const ldJson = stripped.structuredData.ldJson.map((block) => {
+        const b = block as Record<string, unknown>;
+        return { ...b, offers: { ...(b.offers as Record<string, unknown>), salePrice: newPrices[u]! } };
+      });
+      captures[u] = { ...stripped, html, structuredData: { ...stripped.structuredData, ldJson } };
+    }
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
+    expect(r.result).toBe('changed');
+    expect(r.path).toEqual({ source: 'json-ld', path: 'offers.salePrice', transform: 'identity' });
+    for (const u of U) expect(r.pages[u]).toEqual({ status: 'ok', value: newPrices[u] });
+  }, 30_000);
+
   it('missing field: removed from data and DOM on every page → lost', async () => {
     const captures = baseCaptures();
     for (const u of U) {
