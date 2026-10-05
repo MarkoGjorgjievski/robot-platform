@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import ExcelJS from 'exceljs';
 import { createExportRoutes } from './export.js';
 import type { ProjectExport } from '@robot/api/export';
 
@@ -9,6 +10,7 @@ const sample: ProjectExport = {
   websites: [{ id: 'a', name: 'Alpha', slug: 'alpha', runId: 'r', completedAt: '2026-09-02T00:00:00.000Z', rowCount: 1 }],
   rowCount: 1,
   generatedAt: '2026-09-21T10:00:00.000Z',
+  types: { Title: 'text', Price: 'money' },
 };
 const app = createExportRoutes({
   loadRunExport: async () => null,
@@ -37,6 +39,20 @@ describe('GET /export/projects/:file', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(res.headers.get('content-disposition')).toBe('attachment; filename="acme-2026-09-21.xlsx"');
+  });
+
+  // Fix round 1 (spec): the project's xlsx types a money column as a real
+  // Excel number, same as a run's own xlsx export.
+  it('stores a money column as a real number in the project xlsx, using the types map', async () => {
+    const res = await app.request(`/projects/${sample.project.id}.xlsx`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const workbook = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(buffer as any);
+    const sheet = workbook.getWorksheet('Data')!;
+    const priceCell = sheet.getRow(2).getCell(3).value;
+    expect(priceCell).toBe(10);
+    expect(typeof priceCell).toBe('number');
   });
 
   it('404s an unknown project, a malformed id and an unknown format', async () => {
