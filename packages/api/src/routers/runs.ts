@@ -109,8 +109,14 @@ export const runsRouter = router({
           createdAt: run.createdAt,
           // The variant counts this run produced (variants plan 3,
           // `finaliseRun`'s `VariantRunSummary`) — `null` for a run that never
-          // wrote one (not a variants run, or not finalised yet).
-          variantSummary: run.variantSummary,
+          // wrote one (not a variants run, or not finalised yet). Final review
+          // I2: mid-run, queueVariantGroup stores only the skip tally
+          // (`skippedByProduct`, `variantsSkippedForBudget`) on this column —
+          // that is not a summary yet, so it reads as null until finaliseRun
+          // has written the `variants` count.
+          variantSummary: typeof (run.variantSummary as { variants?: unknown } | null)?.variants === 'number'
+            ? run.variantSummary
+            : null,
           // `formatPlanLog`'s free-text "warning: .../error: input N: ..."
           // lines — the only place a PERSISTED run's plan warnings/errors
           // survive (the mutation response is gone once the page reloads).
