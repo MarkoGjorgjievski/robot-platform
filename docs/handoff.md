@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [Variants plan 2b (2026-10-02)](#variants-plan-2b-2026-10-02).** Four fixes from a live check on Allbirds, Everlane and Nike (eight defects found): stub list entries ("Variant 1…" placeholders with no SKU, price or axis value) no longer count as variants; an axis column can never be confirmed "From the product page", on save or on screen; a variant link group drops an off-pattern link (Nike's "Design your own") instead of failing, and a locale path prefix compares two segments; and the on-screen wording is plain — `variantNoun` is "variants" unless exactly one column is mapped, the picker-only line shows only its twelve known words (no more "swatchs"/"defaultcolornames"), and a list with no detected column says so plainly instead of "Nothing of this kind…". The live check re-run is next. On branch `fix/variants-live-check`, not merged.
+**Newest: [Variants plan 3 (2026-10-02)](#variants-plan-3-2026-10-02).** Extraction, export and reporting catch up with plan 1/2's setup and verification: a run now writes one row per variant (list method: one page load; links method: one load per variant page, counted against the budget), `_product_key`/`_variant_key`, drift and backfill repair each row by its own key, and the project's CSV/JSON/XLSX exports carry the axis and key columns in the project's chosen shape. The run page shows the variant counts, the axis/key columns in its results sheet, and a Download Excel link next to CSV/JSON; two wording leftovers from the plan 2b live check (N1, N3) are fixed. On branch `feat/variants-extraction`, not merged; the controller's live free extraction (CSV/JSON/XLSX against a real Everlane/Nike budget-3 run on keyless :4100) is still to run.
+
+**Before it: [Variants plan 2b (2026-10-02)](#variants-plan-2b-2026-10-02).** Four fixes from a live check on Allbirds, Everlane and Nike (eight defects found): stub list entries ("Variant 1…" placeholders with no SKU, price or axis value) no longer count as variants; an axis column can never be confirmed "From the product page", on save or on screen; a variant link group drops an off-pattern link (Nike's "Design your own") instead of failing, and a locale path prefix compares two segments; and the on-screen wording is plain — `variantNoun` is "variants" unless exactly one column is mapped, the picker-only line shows only its twelve known words (no more "swatchs"/"defaultcolornames"), and a list with no detected column says so plainly instead of "Nothing of this kind…". The live check re-run is next. On branch `fix/variants-live-check`, not merged.
 
 **Before it: [Variants plan 2 (2026-10-01)](#variants-plan-2-2026-10-01).** Verify now checks a website's variants too, free: the Verification table has a **Variants** row — each product's count ("2 colours", orange until its ✓), "No variants on this product", and, expanded, one variant checked per product (accept its suggested Price, SKU and Colour, type a value, or take a field "From the product page"). The button reads "Verify 5 fields and variants · …" or "Verify variants · free", and Go to Extract stays locked until the variants pass. Nothing is extracted per variant yet (plan 3). On branch `feat/variants-verification`, not merged.
 
@@ -45,6 +47,69 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Variants plan 3 (2026-10-02)
+
+Plan: `docs/superpowers/plans/2026-10-02-variants-plan3-extraction-export-reporting.md`. Branch
+`feat/variants-extraction`, on `main` at `05f18d8` (the plan commit); `git log --oneline main..HEAD`
+is the record. Seven tasks; this entry covers all of them. Plan 1 set up a website's variants,
+plan 2 verified them, plan 2b fixed what the live check found — this is the plan that finally
+extracts, exports and reports them.
+
+**What landed:**
+
+- **DB + scraper (Task 1, `0632b1e`, `d342036`).** `run_items.variant_of` and `runs.variant_summary`
+  (jsonb). `buildVariantRows`/`variantKeyOf`/`groupKeyOf` (`packages/scraper/src/verify/variant-rows.ts`):
+  a certified product row turns into one row per variant, keyed by SKU, else GTIN, else (links
+  method) the variant's own URL, else its axis values joined " · "; a variant row starts from the
+  full product row so provenance keys (`_url`, etc.) survive.
+- **Scraper + API plumbing (Task 2, `639bc91`).** `verified-extraction.ts` returns the capture;
+  `extract-item.ts`/`start-execution.ts` read the run's `VariantRunPlan` (`loadVariantRunPlan`) at
+  start; `variant-collector.ts`'s `buildXPathLinksScript` reads link hrefs with their labels.
+- **List method (Task 3, `9a42634`).** A list-method product's one page load becomes one
+  extraction holding every variant's row, cross-validated like any other field.
+- **Links method + budget (Task 4, `177fb45`, `fad3c60`, `36a71fa`).** A links-method product
+  queues its variant pages as one group (`queueVariantGroup`) within the run's budget; a group that
+  would not fit is not queued at all (never half-queued), and the skip is tallied once per product
+  (`skippedByProduct` on `runs.variant_summary`, merged — never reset — across finalises).
+  `finaliseRun` computes `variants`/`products`/`withoutVariants`/`partial` in one SQL aggregate over
+  `jsonb_array_elements`, never by pulling a run's rows into Node; a parity test runs the same
+  aggregate against `@robot/scraper`'s `summariseVariantRows` over the same seeded rows so the two
+  can never silently drift apart.
+- **Backfill and drift (Task 5, `96532fc`, `df9868f`).** A repair fills each variant row by its own
+  `_variant_key`, never row 0's value copied onto every row; a repeated repair always re-reads the
+  key fields and never appends a second copy of a row it already has.
+- **Export (Task 6, `40b963d`, `bbd4c0a`, `f65f0df`, `5c63855`).** A run's CSV/JSON/XLSX export
+  (`build-run-export.ts`'s `shapeRows`) picks `flat` / `row_per_variant` / `nested` by whether the
+  run produced variant rows and the project's `variantMode`; `row_per_variant` adds the axis columns
+  and `product_key`/`variant_key`; `nested` is lossy in CSV/XLSX ("; "-joined per product) but keeps
+  the true per-variant `variants: []` array in JSON, including an empty array for a product with no
+  variants (never dropped). Column-name collisions never lose data — a later name gets " (2)", " (3)"
+  — and the project's whole-export route now serves `.xlsx` too, with its own types map (the fix
+  round that made a numeric cell an actual number, not a string, in the sheet).
+- **Run page, wording, smoke, this entry (Task 7).** `run-screen-view.ts`'s `variantCountLines`: the
+  four count lines under the run facts, in the plan's exact wording, the skipped line only above
+  zero, empty for a non-variants run. `runs.getWithDetails` also returns `variantSummary`, the
+  project's `variantMode` and its mapped, deduped axis columns. The results sheet adds the axis
+  columns and a Variant key column after the product fields, only for a run whose own rows carry
+  `_product_key` — not merely a project with variants turned on. A Download Excel link sits beside
+  CSV and JSON (`exportUrl` takes `'xlsx'`). Two wording leftovers from the plan 2b live check: **N1**
+  — an axis column's "isn't in the list" message no longer suggests marking it from the product page
+  (it never can be); **N3** — a links group whose detected axis word is generic (`option`, `variant`,
+  `swatch`, `style`) proposes "Colour" as its new column, not the word itself (Nike's colourway
+  picker). The route smoke (`routes-smoke.test.ts`) opens a run page it seeds directly
+  (`seedCompletedVariantsRun`, `@robot/api`'s own test-helper pattern) rather than through Verify or
+  Extract — both are categorically off the table on a server with an Anthropic key — and checks the
+  count lines, the Colour/Variant key columns and all three download links.
+
+**How to check it, free.** `pnpm -r test` (api, app, scraper all green — 692 + 644 + 907 tests) and
+`tsc --noEmit` in all three. `pnpm test:ui:app` with `pnpm dev:all` up walks the whole app shell,
+including the new run-page test; it never clicks Verify or Extract.
+
+**What's left — the live run (controller, not this task):** the plan's "After the plan" step —
+Everlane (list) and Nike (links) through tRPC on a keyless :4100, verify, a real budget-3 run, then
+download CSV/JSON/XLSX and record rows per product, keys, the counts and the time per product in a
+new dated results file under `docs/testing/results/`. Not started as of this entry.
 
 ## Variants plan 2b (2026-10-02)
 
