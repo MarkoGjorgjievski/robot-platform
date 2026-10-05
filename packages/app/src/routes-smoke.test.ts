@@ -54,9 +54,10 @@ import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppRouter } from '@robot/api/routers';
-// By relative path: the shop-example pages are a test helper of `@robot/api`,
-// not part of its public surface.
+// By relative path: these are test helpers of `@robot/api`, not part of its
+// public surface.
 import { SHOP_EXAMPLE } from '../../api/src/test-helpers/shop-example';
+import { seedCompletedVariantsRun } from '../../api/src/test-helpers/seed-variants-run';
 
 const ENABLED = process.env.RUN_UI_SMOKE === '1';
 const APP = process.env.APP_URL ?? 'http://localhost:3000';
@@ -1091,6 +1092,74 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await shootViewportBothThemes(page, 'app-site-verification-variants-row');
     expect(problems, `the Variants row logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 300_000);
+
+  // Task 7 (variants plan 3): the run page's variant counts, axis/key columns
+  // and Excel link. Nothing here can be proven against a real extraction —
+  // Verify and Extract are off-limits on this server (an Anthropic key is
+  // present) — so the run opened here was never run: its one capture and
+  // extraction are inserted directly (`seedCompletedVariantsRun`), the same
+  // way `@robot/api`'s own tests seed a run. No extraction starts.
+  it("the run page shows an existing run's variant counts, axis/key columns and Excel link", async () => {
+    expect(projectSlug, 'there is no project to open a run on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to open a run on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const [project, site] = await Promise.all([
+      api.projects.get.query({ projectSlug: projectSlug! }),
+      api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! }),
+    ]);
+    expect(project.datasetId, 'the project has no dataset to read fields and axes from').not.toBeNull();
+    const variants = await api.datasets.variants.query({ datasetId: project.datasetId! });
+    const keyOf = (name: string) => variants.fields.find((f) => f.name === name)?.key;
+    const colourKey = variants.axes.find((a) => a.name === 'Colour')?.key;
+    const [titleKey, priceKey, ratingKey, skuKey, inStockKey] = ['Title', 'Price', 'Rating', 'SKU', 'In stock'].map(keyOf);
+    for (const [name, key] of [['Title', titleKey], ['Price', priceKey], ['Rating', ratingKey], ['SKU', skuKey], ['In stock', inStockKey], ['Colour', colourKey]] as const) {
+      expect(key, `no key for ${name} — the variants walk above did not set it up`).toBeTruthy();
+    }
+
+    // Three products: two with variants (2 and 3, as the Variants row above
+    // confirmed), one without — the same shape `summariseVariantRows` reports
+    // on. `variantsSkippedForBudget` is set here directly: nothing in this
+    // run genuinely hit a budget, but the fourth count line only has a code
+    // path to prove when it is above zero.
+    const variantRow = (n: number, colour: string, sku: string) => ({
+      [titleKey!]: `Widget ${n}`, [priceKey!]: 129.99, [ratingKey!]: 4.5, [skuKey!]: sku, [inStockKey!]: true,
+      [colourKey!]: colour, _product_key: `seeded-${n}`, _variant_key: sku, _url: `${SHOP}/p/${n}`,
+    });
+    const rows = [
+      variantRow(1, 'Red', 'p1-red'), variantRow(1, 'Blue', 'p1-blue'),
+      variantRow(2, 'Black', 'p2-black'), variantRow(2, 'White', 'p2-white'), variantRow(2, 'Grey', 'p2-grey'),
+      { [titleKey!]: 'Widget 3', [priceKey!]: 149.0, [ratingKey!]: 4.9, [skuKey!]: 'p3', [inStockKey!]: true, _product_key: 'seeded-3', _url: `${SHOP}/p/3` },
+    ];
+    const variantSummary = { variants: 5, products: 3, withoutVariants: 1, partial: 0, variantsSkippedForBudget: 2 };
+    const runId = await seedCompletedVariantsRun(site.id, { rows, variantSummary });
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}/runs/${runId}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+
+    // The four count lines (spec §5.3), in order, the skipped line included
+    // because this seed set it above zero.
+    const main = page.locator('main');
+    await expect.poll(() => main.innerText(), { timeout: 20_000 }).toContain('5 variants from 3 products');
+    const text = await main.innerText();
+    expect(text, 'the "without variants" count is missing').toContain('1 products without variants');
+    expect(text, 'the "partial variants" count is missing').toContain('0 products with partial variants');
+    expect(text, 'the skipped-for-budget count is missing').toContain('2 variant pages skipped for the budget');
+
+    // The results sheet: the axis column and the variant key, after the
+    // product fields — not merely present somewhere, but real table columns.
+    expect(await page.getByRole('columnheader', { name: 'Colour' }).count(), 'no Colour column in the sheet').toBe(1);
+    expect(await page.getByRole('columnheader', { name: 'Variant key' }).count(), 'no Variant key column in the sheet').toBe(1);
+
+    // CSV, JSON and Excel: real anchors (downloadable), pointing at this run.
+    for (const [label, ext] of [['Download CSV', 'csv'], ['Download JSON', 'json'], ['Download Excel', 'xlsx']] as const) {
+      const link = page.getByRole('link', { name: label, exact: true });
+      expect(await link.count(), `no ${label} link`).toBe(1);
+      expect(await link.getAttribute('href'), `${label}'s href is not this run's ${ext} file`).toContain(`/${runId}.${ext}`);
+    }
+
+    expect(problems, `the seeded run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 60_000);
 
   it('a rename on the Settings tab reaches the server and comes back', async () => {
     expect(websiteSlug, 'there is no website to rename').not.toBeNull();
