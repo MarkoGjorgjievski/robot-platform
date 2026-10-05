@@ -14,7 +14,9 @@ export type ExportSchemaField = { name: string; enabled?: boolean };
  *  the project's variant setting); `row_per_variant` and `nested` apply only
  *  to a run that did produce variant rows, per the project's `variantMode`. */
 export type ExportShape = 'flat' | 'row_per_variant' | 'nested';
-export type ShapeField = { key: string; name: string; level: 'product' | 'variant' };
+/** `type` (the contract field type) is optional: when set, `shapeRows` returns
+ *  it in `types`, keyed by the field's FINAL column name (final review M8). */
+export type ShapeField = { key: string; name: string; level: 'product' | 'variant'; type?: string };
 export type ShapeAxis = { key: string; name: string };
 
 export type RunExportInput = {
@@ -141,6 +143,16 @@ function presentOrUndefined<T extends object>(o: T): T | undefined {
   return Object.keys(o).length > 0 ? o : undefined;
 }
 
+/** Final review M8: column name → field type, keyed by each field's final
+ *  (uniqueNames) column name — `names[i]` is the column `fields[i]` exports
+ *  under — so a renamed "Price (2)" keeps its number typing and the column
+ *  that took the plain name never inherits a type that is not its own. */
+function typesByColumn(fields: ShapeField[], names: string[]): Record<string, string> {
+  const types: Record<string, string> = {};
+  fields.forEach((f, i) => { if (f.type) types[names[i]!] = f.type; });
+  return types;
+}
+
 function joinCell(values: unknown[]): string {
   return values
     .map((v) => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v)))
@@ -194,7 +206,7 @@ export function shapeRows(args: {
   shape: ExportShape;
   fields: ShapeField[];
   axes: ShapeAxis[];
-}): { columns: string[]; rows: Record<string, unknown>[]; json: unknown } {
+}): { columns: string[]; rows: Record<string, unknown>[]; json: unknown; types: Record<string, string> } {
   const { rows, shape, fields, axes } = args;
 
   if (shape === 'flat') {
@@ -204,7 +216,7 @@ export function shapeRows(args: {
       fields.forEach((f, i) => { o[names[i]!] = r[f.key] ?? null; });
       return o;
     });
-    return { columns: names, rows: outRows, json: outRows };
+    return { columns: names, rows: outRows, json: outRows, types: typesByColumn(fields, names) };
   }
 
   const productFields = fields.filter((f) => f.level === 'product');
@@ -233,7 +245,7 @@ export function shapeRows(args: {
       o[variantKeyName] = r._variant_key ?? null;
       return o;
     });
-    return { columns: names, rows: outRows, json: outRows };
+    return { columns: names, rows: outRows, json: outRows, types: typesByColumn([...productFields, ...variantFields], [...productNames, ...variantNames]) };
   }
 
   // nested — lossy in CSV/XLSX (spec: "Documented as lossy"): every member
@@ -254,9 +266,14 @@ export function shapeRows(args: {
   const csvVariantNames = takeNames(csvNames, csvCursor, variantFields.length);
   const [csvProductKeyName] = takeNames(csvNames, csvCursor, 1) as [string];
 
-  const jsonOuterNames = uniqueNames([...productFields.map((f) => f.name), 'product_key']);
+  // Final review I4 (ruling a): the product object's namespace also holds the
+  // variant-level fields, which a product WITHOUT variants carries on itself
+  // (its `variants` stays `[]`). Product fields keep priority, then variant
+  // fields, then the synthetic `product_key` — the CSV's order.
+  const jsonOuterNames = uniqueNames([...productFields.map((f) => f.name), ...variantFields.map((f) => f.name), 'product_key']);
   const jsonOuterCursor = { i: 0 };
   const jsonProductNames = takeNames(jsonOuterNames, jsonOuterCursor, productFields.length);
+  const jsonOuterVariantNames = takeNames(jsonOuterNames, jsonOuterCursor, variantFields.length);
   const [jsonProductKeyName] = takeNames(jsonOuterNames, jsonOuterCursor, 1) as [string];
 
   // Computed once, outside the per-product loop below: every variant's inner
@@ -299,6 +316,7 @@ export function shapeRows(args: {
 
     const jo: Record<string, unknown> = {};
     productFields.forEach((f, i) => { jo[jsonProductNames[i]!] = first[f.key] ?? null; });
+    if (!hasVariants) variantFields.forEach((f, i) => { jo[jsonOuterVariantNames[i]!] = first[f.key] ?? null; });
     jo[jsonProductKeyName] = pk ?? null;
     jo.variants = hasVariants
       ? members.map((m) => {
@@ -311,7 +329,7 @@ export function shapeRows(args: {
     jsonRows.push(jo);
   }
 
-  return { columns: csvNames, rows: outRows, json: jsonRows };
+  return { columns: csvNames, rows: outRows, json: jsonRows, types: typesByColumn([...productFields, ...variantFields], [...csvProductNames, ...csvVariantNames]) };
 }
 
 export function buildRunExport(input: RunExportInput): RunExport {
@@ -356,13 +374,13 @@ export function buildRunExport(input: RunExportInput): RunExport {
     const shaped = shapeRows({
       rows,
       shape,
-      fields: contract.map((f) => ({ key: f.key, name: f.name, level: effectiveLevel(f) })),
+      fields: contract.map((f) => ({ key: f.key, name: f.name, level: effectiveLevel(f), type: f.type })),
       axes: axes.map((a) => ({ key: a.key, name: a.name })),
     });
     outFields = shaped.columns;
     outRows = shaped.rows;
     if (shape === 'nested') json = shaped.json;
-    for (const f of contract) types[f.name] = f.type;
+    Object.assign(types, shaped.types);
   }
 
   return {
