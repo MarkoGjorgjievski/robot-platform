@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, orgs, projects, datasets, sources } from '@robot/db';
-import type { VariantRunPlan } from '@robot/scraper';
+import { HARD_ITEM_CEILING, type VariantRunPlan } from '@robot/scraper';
 import type { ClaimedItem } from './claim-item.js';
 import type { ExecuteDeps } from './execute-run.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -266,9 +266,10 @@ describe('startExecution — variant plan wiring', () => {
     expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ variantPlan: null }));
   });
 
-  // Task 4: links-method variant pages are queued against the run's item cap,
-  // read once per run off the source's budget — never re-read per item.
-  it('passes the source budget item cap to extractItem', async () => {
+  // Budget option 1 (Marko, 2026-10-05): links-method variant pages are queued
+  // against HARD_ITEM_CEILING, not the source's item budget — the website's
+  // item budget counts products only; a product's variant pages ride along.
+  it('passes HARD_ITEM_CEILING as the item cap to extractItem, not the source budget', async () => {
     const SLUG = 'test-start-execution-item-cap';
     const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
     try {
@@ -283,7 +284,7 @@ describe('startExecution — variant plan wiring', () => {
 
       const execDeps = executeRunMock.mock.calls[0]![1] as ExecuteDeps;
       await execDeps.extractItem(dummyItem);
-      expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ itemCap: 7 }));
+      expect(extractItemMock).toHaveBeenCalledWith(db, dummyItem, expect.objectContaining({ itemCap: HARD_ITEM_CEILING }));
     } finally {
       await db.delete(orgs).where(eq(orgs.id, org!.id));
     }
