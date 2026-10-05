@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, orgs, projects, datasets, sources, runs, runItems, captures, extractions } from '@robot/db';
+import type { VariantRunPlan } from '@robot/scraper';
 import { mergeBackfillResult } from './merge-backfill.js';
 
 const SLUG = 'test-merge-backfill';
@@ -46,10 +47,10 @@ async function seedParentItemWithExtraction(
  * fix round 2) — the item row's `extractionId` column is deliberately NOT set
  * yet at merge time, since `mergeBackfillResult` runs before `markItemDone`.
  */
-async function seedBackfillItem(sourceId: string, backfillRunId: string, parentItemId: string) {
+async function seedBackfillItem(sourceId: string, backfillRunId: string, parentItemId: string, data: Record<string, unknown>[] = [{}]) {
   const [capture] = await db.insert(captures).values({ sourceId, runId: backfillRunId, url: 'https://example.com/p/1', metadata: {} }).returning();
   const [extraction] = await db.insert(extractions).values({
-    sourceId, captureId: capture!.id, runId: backfillRunId, data: [{}], rowCount: 1,
+    sourceId, captureId: capture!.id, runId: backfillRunId, data, rowCount: data.length,
   }).returning();
   const [backfillItem] = await db.insert(runItems).values({
     runId: backfillRunId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0,
@@ -186,7 +187,7 @@ describe('mergeBackfillResult', () => {
     const [parentItem] = await db.insert(runItems).values({
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
     }).returning();
-    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id, [{ title: 'Healed', isbn: '999' }]);
 
     await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed', isbn: '999' }, ['title', 'isbn']);
 
@@ -216,7 +217,7 @@ describe('mergeBackfillResult', () => {
     const [parentItem] = await db.insert(runItems).values({
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/4', inputIndex: 0, status: 'failed', error: 'blocked',
     }).returning();
-    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id, [{ title: 'Healed' }]);
 
     await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed' }, ['title', 'isbn']);
 
@@ -243,7 +244,7 @@ describe('mergeBackfillResult', () => {
     const [parentItem] = await db.insert(runItems).values({
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
     }).returning();
-    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id, [{ title: 'Healed' }]);
     // Stale rollup, as if finaliseRun ran back when only the first item was done.
     await db.update(runs).set({ status: 'partial', resultCount: 1, completedAt: new Date() }).where(eq(runs.id, parentRunId));
 
@@ -283,7 +284,7 @@ describe('mergeBackfillResult', () => {
     await db.insert(runItems).values({
       runId: parentRunId, kind: 'detail', url: 'https://example.com/p/3', inputIndex: 0, status: 'pending',
     });
-    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, failedItem!.id);
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, failedItem!.id, [{ title: 'Healed' }]);
 
     await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed' }, ['title']);
 
@@ -455,6 +456,117 @@ describe('mergeBackfillResult', () => {
       await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
 
       expect((await loadParentItem(parentItemId)).absentFields).toEqual([]);
+    });
+  });
+
+  // Final review C1: a list-method product whose page failed on the first
+  // pass and was healed by a repair must get every variant row back, not
+  // only the first.
+  it('heals a failed parent item with every row of a multi-row backfill extraction', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const [parentItem] = await db.insert(runItems).values({
+      runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
+    }).returning();
+    const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItem!.id, [
+      { _product_key: 'https://example.com/p/2', _variant_key: 'A1', price: 20 },
+      { _product_key: 'https://example.com/p/2', _variant_key: 'A2', price: null },
+    ]);
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+    const healed = await loadParentItem(parentItem!.id);
+    expect(healed.status).toBe('done');
+    const [extraction] = await db.select().from(extractions).where(eq(extractions.id, healed.extractionId!));
+    expect(extraction!.data).toEqual([
+      { _product_key: 'https://example.com/p/2', _variant_key: 'A1', price: 20 },
+      { _product_key: 'https://example.com/p/2', _variant_key: 'A2', price: null },
+    ]);
+    expect(extraction!.rowCount).toBe(2);
+    // Still missing = empty on any heal row.
+    expect(healed.absentFields).toEqual(['price']);
+
+    const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+    expect(parentRun!.resultCount).toBe(2);
+  });
+
+  // Final review M4: once a repair fills a partial variant row's last empty
+  // variant field / axis, the row is no longer partial, and the run's
+  // partial count follows — without its status being rolled up.
+  describe('clearing _variant_partial after a repair (variants)', () => {
+    const plan: VariantRunPlan = {
+      method: 'list',
+      list: { path: 'offers' } as never,
+      entryPaths: { price: { kind: 'path', path: 'price' }, colour: { kind: 'axis', from: 'color' } },
+      fromProduct: [],
+      axes: [{ key: 'colour', name: 'Colour' }],
+      fields: [
+        { key: 'title', name: 'Title', type: 'text', level: 'product' },
+        { key: 'price', name: 'Price', type: 'number', level: 'variant' },
+        { key: 'stock', name: 'Stock', type: 'text', level: 'variant' }, // no entry path: always null, never partial
+      ],
+    };
+
+    async function seedPartialRun(rows: Record<string, unknown>[]) {
+      const ids = await seedOrgSourceRuns();
+      await db.update(runs).set({
+        status: 'partial', resultCount: rows.length,
+        variantSummary: { variants: rows.length, products: 1, withoutVariants: 0, partial: 1, variantsSkippedForBudget: 0 },
+      }).where(eq(runs.id, ids.parentRunId));
+      const parentItemId = await seedParentItemWithRows(ids.sourceId, ids.parentRunId, rows);
+      return { ...ids, parentItemId };
+    }
+
+    it('clears the flag on a multi-row parent row whose variant fields and axes are now filled, and refreshes the summary only', async () => {
+      const { sourceId, parentRunId, backfillRunId, parentItemId } = await seedPartialRun([
+        { _product_key: 'p', _variant_key: 'A1', title: null, price: 20, colour: 'Red', stock: null },
+        { _product_key: 'p', _variant_key: 'A2', title: null, price: null, colour: 'Blue', stock: null, _variant_partial: true },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _product_key: 'p', _variant_key: 'A1', price: 20 },
+        { _product_key: 'p', _variant_key: 'A2', price: 21 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price'], plan);
+
+      const { rows } = await loadParentRowsAndCount(parentItemId);
+      expect(rows.find((r) => r._variant_key === 'A2')).not.toHaveProperty('_variant_partial');
+      const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+      expect(parentRun!.variantSummary).toMatchObject({ partial: 0, variants: 2 });
+      expect(parentRun!.status).toBe('partial'); // no status roll-up
+      expect(parentRun!.resultCount).toBe(2);
+    });
+
+    it('keeps the flag while an axis of the row is still empty', async () => {
+      const { sourceId, parentRunId, backfillRunId, parentItemId } = await seedPartialRun([
+        { _product_key: 'p', _variant_key: 'A1', price: 20, colour: 'Red' },
+        { _product_key: 'p', _variant_key: 'A2', price: null, colour: null, _variant_partial: true },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _product_key: 'p', _variant_key: 'A2', price: 21 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price'], plan);
+
+      const { rows } = await loadParentRowsAndCount(parentItemId);
+      expect(rows.find((r) => r._variant_key === 'A2')!._variant_partial).toBe(true);
+      const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+      expect(parentRun!.variantSummary).toMatchObject({ partial: 1 });
+    });
+
+    it('clears the flag on a single-row variants parent too', async () => {
+      const { sourceId, parentRunId, backfillRunId, parentItemId } = await seedPartialRun([
+        { _product_key: 'p', _variant_key: 'A1', price: null, colour: 'Red', _variant_partial: true },
+      ]);
+      const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+        { _product_key: 'p', _variant_key: 'A1', price: 20 },
+      ]);
+
+      await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price'], plan);
+
+      const { rows } = await loadParentRowsAndCount(parentItemId);
+      expect(rows).toEqual([{ _product_key: 'p', _variant_key: 'A1', price: 20, colour: 'Red' }]);
+      const [parentRun] = await db.select().from(runs).where(eq(runs.id, parentRunId));
+      expect(parentRun!.variantSummary).toMatchObject({ partial: 0 });
     });
   });
 });

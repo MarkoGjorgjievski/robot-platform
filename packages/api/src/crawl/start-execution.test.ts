@@ -113,6 +113,20 @@ describe('buildOnDone', () => {
     expect(order).toEqual(['mergeBackfillResult', 'markItemDone']);
   });
 
+  // Final review M4: the run's variant plan reaches the merge, so a repair can
+  // clear `_variant_partial` on the rows it completed.
+  it('threads the run\'s variant plan into mergeBackfillResult when there is one', async () => {
+    const markItemDone = vi.fn(async () => {});
+    const markItemFailed = vi.fn(async () => {});
+    const mergeBackfillResult = vi.fn(async () => {});
+    const variantPlan = { method: 'list' as const, entryPaths: {}, fromProduct: [], axes: [], fields: [] };
+    const onDone = buildOnDone({} as never, true, { markItemDone, markItemFailed, mergeBackfillResult, variantPlan });
+
+    await onDone('item-1', 'ext-1', { title: 'x' }, ['title']);
+
+    expect(mergeBackfillResult).toHaveBeenCalledWith({}, 'item-1', 'ext-1', { title: 'x' }, ['title'], expect.objectContaining({ method: 'list' }));
+  });
+
   it('defaults targetFields to [] for mergeBackfillResult when the item carried no focus', async () => {
     const markItemDone = vi.fn(async () => {});
     const markItemFailed = vi.fn(async () => {});

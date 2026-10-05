@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, runs, runItems, captures, extractions, sources, orgs, projects, datasets } from '@robot/db';
 import { summariseVariantRows } from '@robot/scraper';
-import { rollUpStatus, finaliseRun } from './roll-up-run.js';
+import { rollUpStatus, finaliseRun, refreshVariantSummary } from './roll-up-run.js';
 
 const SLUG = 'test-roll-up-run';
 let orgId: string | null = null;
@@ -312,6 +312,80 @@ describe('finaliseRun', () => {
     // the equality check above would miss) still fails this test.
     expect(row!.variantSummary).toEqual({
       variants: 3, products: 3, withoutVariants: 1, partial: 1, variantsSkippedForBudget: 0,
+    });
+  });
+
+  // Final review I3: a queued variant page that failed to load has no
+  // extraction, so it can only be seen through its run_item's variant_of.
+  it('counts a product partial when one of its queued variant pages failed to load', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.insert(runItems).values([
+      { runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' },
+      { runId, kind: 'detail', url: 'https://example.com/p/1-blue', inputIndex: 0, status: 'failed', error: 'timeout', variantOf: 'https://example.com/p/1' },
+      { runId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'done' },
+    ]);
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+    ]);
+    await addExtraction(sourceId, runId, 'https://example.com/p/2', [
+      { _product_key: 'https://example.com/p/2', _variant_key: 'SKU-B' },
+    ]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toEqual({
+      variants: 2, products: 2, withoutVariants: 0, partial: 1, variantsSkippedForBudget: 0,
+    });
+  });
+
+  it('counts a failed variant page\'s product as a product even when no row of that key exists', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.insert(runItems).values([
+      { runId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'done' },
+      { runId, kind: 'detail', url: 'https://example.com/p/9-red', inputIndex: 0, status: 'failed', error: 'timeout', variantOf: 'https://example.com/p/9' },
+    ]);
+    await addExtraction(sourceId, runId, 'https://example.com/p/2', [
+      { _product_key: 'https://example.com/p/2', _variant_key: 'SKU-B' },
+    ]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toMatchObject({ products: 2, partial: 1 });
+  });
+});
+
+// Final review M4: a repair fills cells without rolling the run's status up,
+// but its variant counts must still follow the rows.
+describe('refreshVariantSummary', () => {
+  it('recomputes the variant counts only — status, resultCount and completedAt are untouched', async () => {
+    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    orgId = org!.id;
+    const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
+    const [source] = await db.insert(sources).values({ datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US' }).returning();
+    const completedAt = new Date('2026-10-01T00:00:00Z');
+    const [run] = await db.insert(runs).values({
+      sourceId: source!.id, status: 'partial', resultCount: 7, completedAt,
+      variantSummary: { variants: 1, products: 1, withoutVariants: 0, partial: 1, variantsSkippedForBudget: 2, skippedByProduct: { x: 2 } },
+    }).returning();
+    await db.insert(runItems).values({ runId: run!.id, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'pending' });
+    const [capture] = await db.insert(captures).values({ sourceId: source!.id, runId: run!.id, url: 'https://example.com/p/1' }).returning({ id: captures.id });
+    await db.insert(extractions).values({
+      sourceId: source!.id, captureId: capture!.id, runId: run!.id, rowCount: 1,
+      data: [{ _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' }],
+    });
+
+    await refreshVariantSummary(db, run!.id);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, run!.id));
+    expect(row!.status).toBe('partial');
+    expect(row!.resultCount).toBe(7);
+    expect(row!.completedAt).toEqual(completedAt);
+    expect(row!.variantSummary).toEqual({
+      variants: 1, products: 1, withoutVariants: 0, partial: 0,
+      variantsSkippedForBudget: 2, skippedByProduct: { x: 2 },
     });
   });
 });
