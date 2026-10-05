@@ -1,0 +1,44 @@
+{
+  "run": {
+    "id": "0b6311e1-fd89-40a5-860f-a73aa58fddf6",
+    "status": "completed",
+    "startedAt": "2026-10-05T11:34:54.084Z",
+    "completedAt": "2026-10-05T11:35:19.465Z",
+    "createdAt": "2026-10-05T11:34:54.084Z",
+    "rowCount": 3
+  },
+  "source": {
+    "slug": "nike",
+    "name": "Nike",
+    "url": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100"
+  },
+  "fields": [
+    "Title",
+    "Colour",
+    "Price",
+    "product_key"
+  ],
+  "rows": [
+    {
+      "Title": "Nike Air Force 1 '07 Men's Shoes",
+      "product_key": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100",
+      "variants": [
+        {
+          "variant_key": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CW2288-111",
+          "Colour": "White/White",
+          "Price": 115
+        },
+        {
+          "variant_key": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CW2288-001",
+          "Colour": "Black/Black",
+          "Price": 115
+        },
+        {
+          "variant_key": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100",
+          "Colour": "White/Black",
+          "Price": 115
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "run": {
+    "id": "3b7a8f92-8a3f-4a1e-83cc-6141302ac8d0",
+    "status": "completed",
+    "startedAt": "2026-10-05T11:29:35.743Z",
+    "completedAt": "2026-10-05T11:30:27.503Z",
+    "createdAt": "2026-10-05T11:29:35.745Z",
+    "rowCount": 18
+  },
+  "source": {
+    "slug": "everlane",
+    "name": "Everlane",
+    "url": "https://www.everlane.com/products/mens-surplus-tee-black"
+  },
+  "fields": [
+    "Price",
+    "SKU",
+    "product_key"
+  ],
+  "rows": [
+    {
+      "product_key": "https://www.everlane.com/products/mens-organic-cotton-crew-tee-white",
+      "variants": [
+        {
+          "variant_key": "M-T-CTN-ORGN-CR-WHT-XS",
+          "Price": 47,
+          "SKU": "M-T-CTN-ORGN-CR-WHT-XS"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR-WHT-S",
+          "Price": 47,
+          "SKU": "M-T-CTN-ORGN-CR-WHT-S"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR-WHT-M",
+          "Price": 47,
+          "SKU": "M-T-CTN-ORGN-CR-WHT-M"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR-WHT-L",
+          "Price": 47,
+          "SKU": "M-T-CTN-ORGN-CR-WHT-L"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR-WHT-B",
+          "Price": 47,
+          "SKU": "M-T-CTN-ORGN-CR-WHT-B"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR-WHT-AB",
+          "Price": 47,
+          "SKU": "M-T-CTN-ORGN-CR-WHT-AB"
+        }
+      ]
+    },
+    {
+      "product_key": "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white",
+      "variants": [
+        {
+          "variant_key": "M-T-CTN-ORGN-CR.2-WHT-XS",
+          "Price": 180,
+          "SKU": "M-T-CTN-ORGN-CR.2-WHT-XS"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR.2-WHT-S",
+          "Price": 180,
+          "SKU": "M-T-CTN-ORGN-CR.2-WHT-S"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR.2-WHT-M",
+          "Price": 180,
+          "SKU": "M-T-CTN-ORGN-CR.2-WHT-M"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR.2-WHT-L",
+          "Price": 180,
+          "SKU": "M-T-CTN-ORGN-CR.2-WHT-L"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR.2-WHT-B",
+          "Price": 180,
+          "SKU": "M-T-CTN-ORGN-CR.2-WHT-B"
+        },
+        {
+          "variant_key": "M-T-CTN-ORGN-CR.2-WHT-AB",
+          "Price": 180,
+          "SKU": "M-T-CTN-ORGN-CR.2-WHT-AB"
+        }
+      ]
+    },
+    {
+      "product_key": "https://www.everlane.com/products/mens-surplus-tee-black",
+      "variants": [
+        {
+          "variant_key": "M-T-CTN-HVY-SS-BLK-XS",
+          "Price": 73,
+          "SKU": "M-T-CTN-HVY-SS-BLK-XS"
+        },
+        {
+          "variant_key": "M-T-CTN-HVY-SS-BLK-S",
+          "Price": 73,
+          "SKU": "M-T-CTN-HVY-SS-BLK-S"
+        },
+        {
+          "variant_key": "M-T-CTN-HVY-SS-BLK-M",
+          "Price": 73,
+          "SKU": "M-T-CTN-HVY-SS-BLK-M"
+        },
+        {
+          "variant_key": "M-T-CTN-HVY-SS-BLK-L",
+          "Price": 73,
+          "SKU": "M-T-CTN-HVY-SS-BLK-L"
+        },
+        {
+          "variant_key": "M-T-CTN-HVY-SS-BLK-B",
+          "Price": 73,
+          "SKU": "M-T-CTN-HVY-SS-BLK-B"
+        },
+        {
+          "variant_key": "M-T-CTN-HVY-SS-BLK-AB",
+          "Price": 73,
+          "SKU": "M-T-CTN-HVY-SS-BLK-AB"
+        }
+      ]
+    }
+  ]
+}

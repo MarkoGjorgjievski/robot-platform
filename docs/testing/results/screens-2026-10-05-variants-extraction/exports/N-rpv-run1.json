@@ -1,0 +1,45 @@
+{
+  "run": {
+    "id": "5f759916-ebf9-434d-974a-32db779589c8",
+    "status": "completed",
+    "startedAt": "2026-10-05T11:33:49.374Z",
+    "completedAt": "2026-10-05T11:34:17.983Z",
+    "createdAt": "2026-10-05T11:33:49.381Z",
+    "rowCount": 3
+  },
+  "source": {
+    "slug": "nike",
+    "name": "Nike",
+    "url": "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-400"
+  },
+  "fields": [
+    "Title",
+    "Colour",
+    "Price",
+    "product_key",
+    "variant_key"
+  ],
+  "rows": [
+    {
+      "Title": "Nike Air Force 1 '07 Men's Shoes",
+      "Colour": "White/White",
+      "Price": 115,
+      "product_key": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100",
+      "variant_key": "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CW2288-111"
+    },
+    {
+      "Title": "Nike Air Force 1 '07 LV8 Men's Shoes",
+      "Colour": "Fir/Sail/Coconut Milk/Black",
+      "Price": 86.97,
+      "product_key": "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-002",
+      "variant_key": "https://www.nike.com/t/air-force-1-07-lv8-mens-shoes-5PBzpHVE/IM5752-300"
+    },
+    {
+      "Title": "Nike Air Force 1 '07 LV8 Men's Shoes",
+      "Colour": "Navy/Worn Blue/Summit White/Navy",
+      "Price": 86.97,
+      "product_key": "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-002",
+      "variant_key": "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-400"
+    }
+  ]
+}

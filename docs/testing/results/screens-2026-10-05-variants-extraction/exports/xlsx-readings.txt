@@ -1,0 +1,40 @@
+## ext-E-export-rpv
+=== xlsx: HTTP 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet 7100 bytes -> E-rpv.xlsx
+sheet "Data" rows=19 cols=4
+  r1: "Price" | "SKU" | "product_key" | "variant_key"
+  r2: 47 | "M-T-CTN-ORGN-CR-WHT-XS" | "https://www.everlane.com/products/mens-organic-cotton-crew-tee-white" | "M-T-CTN-ORGN-CR-WHT-XS"
+  r3: 47 | "M-T-CTN-ORGN-CR-WHT-S" | "https://www.everlane.com/products/mens-organic-cotton-crew-tee-white" | "M-T-CTN-ORGN-CR-WHT-S"
+  r4: 47 | "M-T-CTN-ORGN-CR-WHT-M" | "https://www.everlane.com/products/mens-organic-cotton-crew-tee-white" | "M-T-CTN-ORGN-CR-WHT-M"
+  r5: 47 | "M-T-CTN-ORGN-CR-WHT-L" | "https://www.everlane.com/products/mens-organic-cotton-crew-tee-white" | "M-T-CTN-ORGN-CR-WHT-L"
+## ext-E-export-nested
+=== xlsx: HTTP 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet 6787 bytes -> E-nested.xlsx
+sheet "Data" rows=4 cols=3
+  r1: "Price" | "SKU" | "product_key"
+  r2: "47; 47; 47; 47; 47; 47" | "M-T-CTN-ORGN-CR-WHT-XS; M-T-CTN-ORGN-CR-WHT-S; M-T-CTN-ORGN-CR-WHT-M; M-T-CTN-ORGN-CR-WHT-L; M-T-CTN-ORGN-CR-WHT-B; M-T-CTN-ORGN-CR-WHT-AB" | "https://www.everlane.com/products/mens-organic-cotton-crew-tee-white"
+  r3: "180; 180; 180; 180; 180; 180" | "M-T-CTN-ORGN-CR.2-WHT-XS; M-T-CTN-ORGN-CR.2-WHT-S; M-T-CTN-ORGN-CR.2-WHT-M; M-T-CTN-ORGN-CR.2-WHT-L; M-T-CTN-ORGN-CR.2-WHT-B; M-T-CTN-ORGN-CR.2-WHT-AB" | "https://www.everlane.com/products/mens-essential-organic-crew-uniform-white"
+  r4: "73; 73; 73; 73; 73; 73" | "M-T-CTN-HVY-SS-BLK-XS; M-T-CTN-HVY-SS-BLK-S; M-T-CTN-HVY-SS-BLK-M; M-T-CTN-HVY-SS-BLK-L; M-T-CTN-HVY-SS-BLK-B; M-T-CTN-HVY-SS-BLK-AB" | "https://www.everlane.com/products/mens-surplus-tee-black"
+## ext-N-export-rpv1
+=== xlsx: HTTP 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet 6862 bytes -> N-rpv-run1.xlsx
+sheet "Data" rows=4 cols=5
+  r1: "Title" | "Colour" | "Price" | "product_key" | "variant_key"
+  r2: "Nike Air Force 1 '07 Men's Shoes" | "White/White" | 115 | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100" | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CW2288-111"
+  r3: "Nike Air Force 1 '07 LV8 Men's Shoes" | "Fir/Sail/Coconut Milk/Black" | 86.97 | "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-002" | "https://www.nike.com/t/air-force-1-07-lv8-mens-shoes-5PBzpHVE/IM5752-300"
+  r4: "Nike Air Force 1 '07 LV8 Men's Shoes" | "Navy/Worn Blue/Summit White/Navy" | 86.97 | "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-002" | "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-400"
+## ext-N-export-rpv2
+=== xlsx: HTTP 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet 6764 bytes -> N-rpv-run2.xlsx
+sheet "Data" rows=4 cols=5
+  r1: "Title" | "Colour" | "Price" | "product_key" | "variant_key"
+  r2: "Nike Air Force 1 '07 Men's Shoes" | "White/White" | 115 | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100" | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CW2288-111"
+  r3: "Nike Air Force 1 '07 Men's Shoes" | "Black/Black" | 115 | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100" | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CW2288-001"
+  r4: "Nike Air Force 1 '07 Men's Shoes" | "White/Black" | 115 | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100" | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100"
+## ext-N-export-nested1
+=== xlsx: HTTP 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet 6791 bytes -> N-nested-run1.xlsx
+sheet "Data" rows=3 cols=4
+  r1: "Title" | "Colour" | "Price" | "product_key"
+  r2: "Nike Air Force 1 '07 Men's Shoes" | "White/White" | 115 | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100"
+  r3: "Nike Air Force 1 '07 LV8 Men's Shoes" | "Fir/Sail/Coconut Milk/Black; Navy/Worn Blue/Summit White/Navy" | "86.97; 86.97" | "https://www.nike.com/t/air-force-1-07-lv8-denim-mens-shoes-5PBzpHVE/IR0951-002"
+## ext-N-export-nested2
+=== xlsx: HTTP 200 application/vnd.openxmlformats-officedocument.spreadsheetml.sheet 6688 bytes -> N-nested-run2.xlsx
+sheet "Data" rows=2 cols=4
+  r1: "Title" | "Colour" | "Price" | "product_key"
+  r2: "Nike Air Force 1 '07 Men's Shoes" | "White/White; Black/Black; White/Black" | "115; 115; 115" | "https://www.nike.com/t/air-force-1-07-mens-shoes-DZejrQoC/CT2302-100"
