@@ -55,11 +55,11 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 Spec: `docs/superpowers/specs/2026-09-28-table-first-and-drift-repair-design.md`, Part B (B1–B5)
 and decision D3 ("the repair check runs automatically when a run flags drift"); Part A is
 Table-first verification, below. Plan: `docs/superpowers/plans/2026-10-05-drift-repair.md`.
-Branch `feat/drift-repair`, base `main` at `e9fb23a`. A Source with a verified schema already
+Branch `feat/drift-repair`, base `9f3fc79`. A Source with a verified schema already
 flags drift at run time (`flagDrift`, existing, unchanged); what this plan adds is the free check
 that says *what happened* to a flagged field, and the way to repair it.
 
-**What landed** (`git log --oneline e9fb23a..HEAD`):
+**What landed** (`git log --oneline 9f3fc79..HEAD`; `8472d52`, a `run_items.variant_of` db test missed in variants plan 3, is on the branch too but is not part of this plan):
 
 | Commit | What |
 |---|---|
@@ -67,7 +67,8 @@ that says *what happened* to a flagged field, and the way to repair it.
 | `130789c`, `cba4fa0`, `ff0c03e` | `runDriftCheck`/`startDriftCheck` (`packages/api/src/verify/run-drift-check.ts`) and `sources.checkDrift`/`driftCheck`: the same stall rule Verify uses, a real default capture function, a drifted text field never reads a schema.org URL as its "changed" value from the concept search, and the check's proof-page captures share the Verification tab's own three-browser limiter rather than adding three more (Task 2) |
 | `c0cf190` | the website's badge ("n fields stopped extracting") and the Verification tab's banner ("{Fields} stopped extracting in the run of {date} ({pct} % of products empty)") — `packages/app/src/lib/site/drift-view.ts`'s `driftBadge`/`driftBanner`, `drift-banner.tsx` — exact wording and dates from the Global Constraints (Task 3) |
 | `32212bf` | the drift row's own line and action under a drifted field — "Moved on the page — Accept new location", "Page now shows X (was Y) — Accept new values", "Not found on the page — Mark it again", "Product n no longer loads — Replace product n" — `acceptMoved`/`acceptChanged` in `drift-view.ts`, wired into `verification-table.tsx`'s `DriftLines` and the Verification route; accepting touches only that field's cells (another field's pending edit survives) and still needs a Verify — nothing is auto-accepted (Task 4) |
-| this task (`f377a6e` and this docs commit) | end to end on a local site whose layout changes, the app smoke, these docs (Task 5) |
+| `288b8cb`, `7519b23` | end to end on a local site whose layout changes, the app smoke, these docs (Task 5) |
+| `bb97f09`, `e99c13b`, `f8cd6a9`, `186fc7a` and this docs commit | the final review's fix wave: a page-gone proof page no longer blocks `moved` (the moved search runs on the captured pages only), `changed` needs a value that differs somewhere and marks each page `changed` with the expected value it was compared against (`was`), a money key named for cents reads through `cents_to_units`; `sources.driftCheck` closes a `running` check older than 10 minutes as `failed`/`stalled` on read; the check reads its captures back by id; a `changed` row lists and accepts only the products that changed and keeps the stored "was"; a `moved` row with no marks offers no "Accept new location"; the banner is `role="status"` and "Replace product n" is labelled with its field. M7 (rows from an older drift episode) is deferred |
 
 **Proven free, with no AI call:**
 
@@ -78,10 +79,11 @@ that says *what happened* to a flagged field, and the way to repair it.
   certification directly (the `hashOf` pattern `sources-verify.test.ts` and
   `require-certification-variants.test.ts` use — `runVerification` is never called, so nothing
   here can reach a model even with a key in `.env`) and `driftedFields: ['price', 'title']`.
-  `runDriftCheck`, with its real default capture function, finds price `moved` to an XPath under
-  `.amount` and title `other-layout` (its own JSON-LD path is untouched by the layout change),
-  and touches nothing on the `sources` row or in `source_verifications` — only its own
-  `drift_checks` row and the three proof-page `captures` it took.
+  A first check under layout A finds both fields `other-layout`; after the switch to layout B a
+  second check, with its real default capture function, finds price `moved` to an XPath under
+  `.amount` (with a mark on every page) and title `other-layout` (its own JSON-LD path is
+  untouched by the layout change). Neither touches the `sources` row or `source_verifications` —
+  only their own `drift_checks` rows and the proof-page `captures` they took (three each).
 - **The live smoke** (`packages/app/src/routes-smoke.test.ts`, `pnpm test:ui:app`, 18 tests,
   green in both themes): a real drift check needs a browser and a real Verify is off-limits on
   this server, so this case seeds its state directly — `packages/api/src/test-helpers/seed-drift-check.ts`
@@ -92,10 +94,11 @@ that says *what happened* to a flagged field, and the way to repair it.
   that clicking "Accept new location" keeps the value, attaches the new mark, autosaves, and the
   row's badge flips from "verified" to "changed since verified" — a Verify is never clicked.
 
-**Gate:** `@robot/api`'s full suite (727 tests) is green except two pre-existing timeouts in
-`sources-marks.test.ts` under `--maxWorkers=2` with the new real-browser end-to-end test running
-alongside it — both pass cleanly in isolation, so this is resource contention on this dev
-machine, not a regression. `tsc` is clean in `@robot/api`, `@robot/app` and `@robot/scraper`.
+**Gate:** after the fix wave, the full suites are green under `--maxWorkers=2`: `@robot/scraper`
+921, `@robot/api` 729, `@robot/app` 682, `@robot/db` 21. (Before it, two `sources-marks.test.ts`
+tests had timed out under contention with the real-browser end-to-end test; they passed in
+isolation and did not recur in the fix wave's run.) `tsc` is clean in `@robot/api`, `@robot/app`,
+`@robot/scraper` and `@robot/db`.
 
 **How to check it:** `pnpm --filter @robot/api exec vitest run src/verify/drift-end-to-end.test.ts`
 (free, no servers needed) and, with `pnpm dev:all` running, `RUN_UI_SMOKE=1 pnpm --filter @robot/app exec vitest run src/routes-smoke.test.ts` (free, live).
