@@ -87,7 +87,9 @@ function SiteLayout() {
       project={projectSlug}
       site={siteSlug}
       website={
-        site.data ? { id: site.data.id, name: site.data.name, hostname: site.data.hostname } : null
+        site.data
+          ? { id: site.data.id, name: site.data.name, hostname: site.data.hostname, driftedFields: site.data.driftedFields }
+          : null
       }
     >
       <Outlet />

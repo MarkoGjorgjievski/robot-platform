@@ -3,7 +3,10 @@ import { verifiedLabel, websitesView, type WebsiteRow } from './websites-view';
 
 const NOW = new Date('2026-09-21T12:00:00Z');
 function row(over: Partial<WebsiteRow> & { name: string }): WebsiteRow {
-  return { id: over.name, slug: over.name.toLowerCase(), url: `https://${over.name.toLowerCase()}.example.com/`, verifiedFields: 0, lastRun: null, ...over };
+  return {
+    id: over.name, slug: over.name.toLowerCase(), url: `https://${over.name.toLowerCase()}.example.com/`,
+    verifiedFields: 0, lastRun: null, driftedFields: null, ...over,
+  };
 }
 
 describe('verifiedLabel', () => {
@@ -36,5 +39,10 @@ describe('websitesView', () => {
   it('one row is "1 row"', () => {
     const [v] = websitesView([row({ name: 'A', lastRun: { status: 'completed', createdAt: NOW, completedAt: NOW, resultCount: 1 } })], 2, NOW);
     expect(v!.rowsLabel).toBe('1 row');
+  });
+
+  it('carries the drift badge (plan 2026-10-05 Task 3)', () => {
+    const [v] = websitesView([row({ name: 'A', driftedFields: ['price'] })], 2, NOW);
+    expect(v!.driftBadge).toBe('1 field stopped extracting');
   });
 });

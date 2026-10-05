@@ -42,6 +42,8 @@ describe('projects.get', () => {
       const zed = got.websites.find((s) => s.id === w.sourceId)!;
       expect(zed.url).toBe('https://zed.example.com/x');
       expect(zed.verifiedFields).toBe(0);
+      // No drift check has ever run on it (plan 2026-10-05 Task 3).
+      expect(zed.driftedFields).toBeNull();
       expect(zed.lastRun?.status).toBe('completed');
       expect(zed.lastRun?.resultCount).toBe(3);
       expect(got.websites.find((s) => s.name === 'Alpha shop')!.lastRun).toBeNull();

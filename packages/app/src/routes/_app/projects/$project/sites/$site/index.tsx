@@ -10,6 +10,7 @@ import { PageViewer, type Overlay } from '../../../../../../components/verificat
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
 import { VerificationTable, type TableRow } from '../../../../../../components/verification/verification-table';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
+import { DriftBanner } from '../../../../../../components/verification/drift-banner';
 import { VariantsStep, detectVariantsQuery } from '../../../../../../components/verification/variants-step';
 import { useVariantAnswers, type VariantsRowProps } from '../../../../../../components/verification/variants-row';
 import type { FieldHint } from '../../../../../../components/verification/field-details';
@@ -60,6 +61,7 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
+import type { DriftCheckView } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
@@ -342,6 +344,29 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const currentKeys = useMemo(() => status?.currentKeys ?? [], [status?.currentKeys]);
   // A failure is shown only while the field still reads as it did when it failed.
   const unchangedKeys = useMemo(() => status?.unchangedKeys ?? [], [status?.unchangedKeys]);
+
+  // --- Drift (plan 2026-10-05 Task 3): the website's latest free check,
+  // polled only while it is still running — the same "only while active" rule
+  // `statusQuery` uses just above, for the same reason.
+  const driftCheckQuery = trpc.sources.driftCheck.useQuery(
+    { sourceId },
+    { refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false) },
+  );
+  const driftCheck: DriftCheckView | null = driftCheckQuery.data
+    ? {
+        status: driftCheckQuery.data.status,
+        // `results` is null until the check is done; `emptyShare` carries the
+        // run's percentages early (API `driftCheck`'s own doc comment) — folded
+        // in here so `driftBanner` has one shape to read regardless of status.
+        results:
+          driftCheckQuery.data.results ??
+          (Object.keys(driftCheckQuery.data.emptyShare).length > 0
+            ? { fields: Object.fromEntries(Object.entries(driftCheckQuery.data.emptyShare).map(([k, v]) => [k, { emptyShare: v }])) }
+            : null),
+        runAt: driftCheckQuery.data.runAt,
+      }
+    : null;
+  const fieldNames = useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.name])), [fields]);
 
   // A run that lands while the tab is open refreshes what it changed.
   const sawActive = useRef(false);
@@ -1128,6 +1153,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         }}
         stage={stage}
       />
+
+      <DriftBanner driftedFields={source.driftedFields} fieldNames={fieldNames} check={driftCheck} />
 
       {board.cards.length > 0 ? (
         <div className="space-y-2">

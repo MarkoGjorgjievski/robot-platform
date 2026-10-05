@@ -86,6 +86,10 @@ export function WebsitesTable({
                     {site.hostname ? (
                       <div className="truncate font-mono text-sm text-muted-foreground">{site.hostname}</div>
                     ) : null}
+                    {/* A field that stopped extracting (plan 2026-10-05 Task 3), in warn
+                        colour — under the address, never a wash behind the row (spec §4
+                        reasoning, same as the Verified rail above). */}
+                    {site.driftBadge ? <div className="truncate text-sm text-warn">{site.driftBadge}</div> : null}
                   </td>
                   <td className="py-2.5 pr-3 pl-3 whitespace-nowrap">
                     {/* The rail is on the label, not on the cell: a cell-height

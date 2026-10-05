@@ -1,6 +1,7 @@
 import { runDotState, type RunDotStatus } from './run-dot-view';
 import { relativeTime } from './projects-view';
 import { hostnameOf } from './site-name';
+import { driftBadge } from './site/drift-view';
 
 /** One website of `projects.get`, narrowed to what the table reads. */
 export type WebsiteRow = {
@@ -10,6 +11,8 @@ export type WebsiteRow = {
   url: string | null;
   verifiedFields: number;
   lastRun: { status: string; createdAt: Date; completedAt: Date | null; resultCount: number | null } | null;
+  /** This website's currently-drifted fields (plan 2026-10-05 Task 3), null once none are. */
+  driftedFields: string[] | null;
 };
 
 /** How far a website's certification has got — drawn as a 2 px rail, never a wash (spec §4). */
@@ -26,6 +29,8 @@ export type WebsiteView = {
   lastRunLabel: string | null;
   /** "120 rows" from the last run, or null when it produced no count. */
   rowsLabel: string | null;
+  /** "{n} fields stopped extracting", in warn colour (Global Constraints); null when nothing has. */
+  driftBadge: string | null;
 };
 
 /**
@@ -61,6 +66,7 @@ export function websitesView(rows: readonly WebsiteRow[], totalFields: number, n
         lastRunState: runDotState(w.lastRun),
         lastRunLabel: w.lastRun ? relativeTime(w.lastRun.createdAt, now) : null,
         rowsLabel: count == null ? null : `${count} ${count === 1 ? 'row' : 'rows'}`,
+        driftBadge: driftBadge(w.driftedFields),
       };
     });
 }

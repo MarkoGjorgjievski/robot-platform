@@ -164,7 +164,12 @@ export const projectsRouter = router({
 
       const siteRows = dataset
         ? await ctx.db
-            .select({ id: sources.id, slug: sources.slug, name: sources.name, url: sources.urlTemplate })
+            .select({
+              id: sources.id, slug: sources.slug, name: sources.name, url: sources.urlTemplate,
+              // The website's current drift, if any (plan 2026-10-05 Task 3): the
+              // table's per-row badge reads this, same as the website's own header.
+              driftedFields: sources.driftedFields,
+            })
             .from(sources)
             .where(eq(sources.datasetId, dataset.id))
             .orderBy(sources.name)
@@ -188,6 +193,7 @@ export const projectsRouter = router({
       const websites = await Promise.all(
         siteRows.map(async (s) => ({
           ...s,
+          driftedFields: s.driftedFields as string[] | null,
           verifiedFields: (await loadFieldCurrency(ctx.db, s.id)).currentKeys.length,
           lastRun: lastRunBySource.get(s.id) ?? null,
         })),
