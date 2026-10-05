@@ -87,6 +87,29 @@ async function seedRunWithSingleExtraction(rows: Array<Record<string, unknown>>)
   return run!.id;
 }
 
+/** A source whose dataset carries a contract (with an axis entry) and a variant mode, for the variant-summary coverage below. */
+async function seedVariantSource(variantMode: string) {
+  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  orgId = org!.id;
+  const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
+  const schema = [
+    { key: 'title', name: 'Title', type: 'text', concept: 'title' },
+    { key: 'colour', name: 'Colour', kind: 'axis', concept: 'axis' },
+  ];
+  const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema, variantMode }).returning();
+  const [source] = await db.insert(sources).values({
+    datasetId: dataset!.id, name: SLUG, slug: SLUG, country: 'US',
+    selectorsJson: { fields: [{ name: 'title', type: 'string' }] },
+  }).returning();
+  return source!.id;
+}
+
+async function seedRunWithVariantSummary(variantMode: string, variantSummary: Record<string, unknown> | null) {
+  const sourceId = await seedVariantSource(variantMode);
+  const [run] = await db.insert(runs).values({ sourceId, status: 'completed', variantSummary }).returning();
+  return run!.id;
+}
+
 afterEach(async () => {
   if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
   orgId = null;
@@ -161,6 +184,27 @@ describe('runsRouter', () => {
       const result = await caller.runs.getWithDetails({ id: runId });
       expect(result?.extraction?.data).toEqual([{ title: 'Only' }]);
       expect(result?.extraction?.rowCount).toBe(1);
+    });
+  });
+
+  describe('getWithDetails — variant summary, mode and axis columns (variants plan 3)', () => {
+    it('returns the variant summary, the project\'s variant mode and its mapped axis columns', async () => {
+      const summary = { variants: 5, products: 2, withoutVariants: 1, partial: 0, variantsSkippedForBudget: 2 };
+      const runId = await seedRunWithVariantSummary('row_per_variant', summary);
+
+      const result = await caller.runs.getWithDetails({ id: runId });
+      expect(result?.run.variantSummary).toEqual(summary);
+      expect(result?.variantMode).toBe('row_per_variant');
+      expect(result?.axisColumns).toEqual([{ key: 'colour', name: 'Colour' }]);
+    });
+
+    it('is null/"ignore"/empty for a run with no variant summary', async () => {
+      const runId = await seedRunWithSingleExtraction([{ title: 'Only' }]);
+
+      const result = await caller.runs.getWithDetails({ id: runId });
+      expect(result?.run.variantSummary).toBeNull();
+      expect(result?.variantMode).toBe('ignore');
+      expect(result?.axisColumns).toEqual([]);
     });
   });
 

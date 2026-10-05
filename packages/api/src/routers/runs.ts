@@ -3,6 +3,7 @@ import { eq, desc, asc, sql } from 'drizzle-orm';
 import { runs, captures, extractions, datasets, projects, sources } from '@robot/db';
 import { router, publicProcedure, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
+import { contractAxes, type VariantMode } from '../contract.js';
 
 const VIEW_ROW_CAP = 500;
 
@@ -25,7 +26,10 @@ export const runsRouter = router({
             },
             with: {
               dataset: {
-                columns: { id: true, slug: true, name: true, projectId: true },
+                // `schema`/`variantMode` (variants plan 3): the project's axis
+                // columns and its row/nested choice, so the run page can show
+                // them without a second round-trip.
+                columns: { id: true, slug: true, name: true, projectId: true, schema: true, variantMode: true },
                 with: {
                   project: {
                     columns: { id: true, slug: true, name: true, orgId: true },
@@ -78,6 +82,21 @@ export const runsRouter = router({
 
       const allRows = extractionRows.flatMap((e) => (Array.isArray(e.data) ? e.data : []));
 
+      // The project's variant setting and its mapped axis columns (variants
+      // plan 3): read off the dataset's own schema, not the run — a run never
+      // carries its own copy of the contract. Deduped by key: `contractAxes`
+      // already returns one entry per schema axis, but a caller that reads
+      // this as a column list should never have to defend against a schema
+      // array holding the same axis key twice.
+      const variantMode = (run.source?.dataset?.variantMode as VariantMode | undefined) ?? 'ignore';
+      const axisColumns: Array<{ key: string; name: string }> = [];
+      const seenAxisKeys = new Set<string>();
+      for (const a of contractAxes(run.source?.dataset?.schema ?? null)) {
+        if (seenAxisKeys.has(a.key)) continue;
+        seenAxisKeys.add(a.key);
+        axisColumns.push({ key: a.key, name: a.name });
+      }
+
       return {
         run: {
           id: run.id,
@@ -88,6 +107,10 @@ export const runsRouter = router({
           errorMessage: run.errorMessage,
           inputLabel: run.inputLabel,
           createdAt: run.createdAt,
+          // The variant counts this run produced (variants plan 3,
+          // `finaliseRun`'s `VariantRunSummary`) — `null` for a run that never
+          // wrote one (not a variants run, or not finalised yet).
+          variantSummary: run.variantSummary,
           // `formatPlanLog`'s free-text "warning: .../error: input N: ..."
           // lines — the only place a PERSISTED run's plan warnings/errors
           // survive (the mutation response is gone once the page reloads).
@@ -103,6 +126,12 @@ export const runsRouter = router({
           targetFields: run.targetFields as string[] | null,
         },
         source: run.source,
+        // The project's variant setting and its mapped axis columns (variants
+        // plan 3) — read once here so the run page's results sheet can add
+        // them without a second round-trip. `'ignore'`/`[]` for a project
+        // that never turned variants on.
+        variantMode,
+        axisColumns,
         // The reverse breadcrumb — see the Promise.all query above.
         backfillRuns,
         // id + url only. `screenshotPath` used to ride along here, but no
