@@ -206,6 +206,17 @@ describe('runsRouter', () => {
       expect(result?.variantMode).toBe('ignore');
       expect(result?.axisColumns).toEqual([]);
     });
+
+    // Final review I2: mid-run, queueVariantGroup has written only the skip
+    // tally — not a summary the run page can show yet.
+    it('is null while the stored summary holds only the mid-run skip tally (no variants count)', async () => {
+      const runId = await seedRunWithVariantSummary('row_per_variant', {
+        skippedByProduct: { 'https://example.com/p/1': 3 }, variantsSkippedForBudget: 3,
+      });
+
+      const result = await caller.runs.getWithDetails({ id: runId });
+      expect(result?.run.variantSummary).toBeNull();
+    });
   });
 
   // mvp-simplification task 10: the probe confirm gate reads `run.logs` (via
