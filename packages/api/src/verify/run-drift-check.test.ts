@@ -19,7 +19,7 @@ import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { writeCaptureFile } from './capture-store.js';
-import type { ProofPageCaptureRecord } from './proof-page-capture.js';
+import { startProofPageCapture, type ProofPageCaptureRecord } from './proof-page-capture.js';
 
 // No agent, ever (Global Constraints): both ways a model could be reached are spied on.
 const { agentCtor, proposeSpy } = vi.hoisted(() => ({ agentCtor: vi.fn(), proposeSpy: vi.fn() }));
@@ -72,7 +72,7 @@ function driftedPages(): Record<string, PageCapture> {
   const out: Record<string, PageCapture> = {};
   for (const u of U) {
     const c = clone(PAGES[u]!);
-    for (const block of c.structuredData.ldJson as Array<{ offers: Record<string, unknown> }>) { delete block.offers.price; delete block.offers.availability; }
+    for (const block of c.structuredData.ldJson as Array<{ offers: Record<string, unknown> }>) delete block.offers.price;
     delete c.structuredData.meta['product:price:amount'];
     for (const r of c.interceptedRequests) delete (r.parsedJson as { item: Record<string, unknown> }).item.priceCents;
     const now = c.html.match(/<span class="now">(\$[\d.]+)<\/span>/)!;
@@ -255,5 +255,33 @@ describe('the default capture function', () => {
       const fresh = await db.select({ n: count() }).from(captures).where(and(eq(captures.sourceId, f.sourceId)));
       expect(fresh[0]!.n).toBe(4); // three new rows plus the old one
     } finally { await f.cleanup(); }
+  });
+
+  it('shares the proof-page browser limit: with the tab\'s three captures running, the check waits for a slot', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'drift-slots', fields: [{ name: 'Title', type: 'text' }] });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const sessionOf = (capture: (u: string) => Promise<PageCapture>) => async <T,>(fn: (b: IBrowser) => Promise<T>) =>
+      fn({ launch: async () => {}, close: async () => {}, capture } as unknown as IBrowser);
+    try {
+      // The Verification tab's captures hold every slot.
+      const holders = await Promise.all([0, 1, 2].map(() => startProofPageCapture(f.sourceId, f.urls[0]!, { session: sessionOf(async (u) => { await gate; return fakeCapture(u); }) })));
+      const driftCalls: string[] = [];
+      const pending = captureProofPagesWith(sessionOf(async (u) => { driftCalls.push(u); return fakeCapture(u); }))(f.sourceId, [f.urls[1]!]);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(driftCalls).toEqual([]); // queued behind the tab's captures, not a fourth browser
+
+      release();
+      const got = await pending;
+      expect(driftCalls).toEqual([f.urls[1]]);
+      expect(got[f.urls[1]!]!.meta.status).toBe('captured');
+      for (const h of holders) {
+        for (let i = 0; i < 100; i++) {
+          const m = (await db.query.captures.findFirst({ where: eq(captures.id, h.captureId) }))!.metadata as { status: string };
+          if (m.status !== 'capturing') break;
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+    } finally { release(); await f.cleanup(); }
   });
 });

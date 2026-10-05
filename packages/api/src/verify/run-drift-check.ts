@@ -26,8 +26,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
 import { loadCurrentCertification } from './current-certification.js';
-import { createLimiter } from './limiter.js';
-import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, type ProofPageCaptureRecord } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptures, type ProofPageCaptureRecord } from './proof-page-capture.js';
 
 type Session = typeof withBrowserSession;
 
@@ -42,12 +41,10 @@ export type CaptureProofPagesFn = (sourceId: string, urls: string[]) => Promise<
  */
 export const DRIFT_CHECK_STALL_MS = 10 * 60 * 1000;
 
-/** Drift-check captures across the process: three at a time, a real browser tab each. */
-const driftCaptureSlots = createLimiter(3);
-
 /**
  * The capture function behind a real check: a new proof-page capture row per
- * url, run here (awaited, three at a time) rather than fired. Only the capture
+ * url, run here (awaited) rather than fired, in the proof-page captures' shared
+ * three slots — the tab's captures and the check's together never exceed three browsers. Only the capture
  * this call took counts — `loadProofPageCaptures` returns the newest
  * *successful* capture per url, so a page that fails now would otherwise be
  * answered by an older capture that worked, and a gone page would read as
@@ -57,7 +54,7 @@ export function captureProofPagesWith(session: Session = withBrowserSession): Ca
   return async (sourceId, urls) => {
     const taken = await Promise.all(urls.map(async (url) => {
       const { captureId } = await startProofPageCapture(sourceId, url, { fire: false });
-      await driftCaptureSlots(() => runProofPageCapture(captureId, session));
+      await runProofPageCaptureInSlot(captureId, session);
       return [url, captureId] as const;
     }));
     const loaded = await loadProofPageCaptures(sourceId, urls);
