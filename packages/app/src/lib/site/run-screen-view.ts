@@ -179,7 +179,10 @@ export type VariantSummary = {
  * line only when it is above zero.
  */
 export function variantCountLines(summary: VariantSummary | null | undefined): string[] {
-  if (!summary) return [];
+  // Final review I2: mid-run the stored summary can be only the skip tally
+  // (`skippedByProduct`/`variantsSkippedForBudget`, queue-variant-pages.ts) —
+  // not a summary to show yet, and never a reason to throw.
+  if (!summary || typeof summary.variants !== 'number') return [];
   const lines = [
     `${summary.variants.toLocaleString('en-US')} variants from ${summary.products.toLocaleString('en-US')} products`,
     `${summary.withoutVariants.toLocaleString('en-US')} products without variants`,
