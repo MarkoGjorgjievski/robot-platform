@@ -93,23 +93,39 @@ describe('drift repair: end to end on a local site whose layout changes', () => 
       const before = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) }))!;
       expect((await db.select({ n: count() }).from(captures).where(eq(captures.sourceId, f.sourceId)))[0]!.n).toBe(0);
 
+      type Results = { fields: Record<string, { result: string; path?: { source: string; path: string }; pages: Record<string, { status: string; mark?: { xpaths: string[] } }> }> };
+      /** One check, start to finish, with the real default capture function (`defaultCaptureProofPages`), real Chromium, against `site`'s own `127.0.0.1` address — never stubbed. */
+      const check = async () => {
+        const { checkId, status } = await startDriftCheck(f.sourceId, null, { fire: false });
+        expect(status).toBe('started');
+        await runDriftCheck(checkId);
+        const row = await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, checkId) });
+        expect(row?.status).toBe('done');
+        expect(row?.error).toBeNull();
+        return row!.results as Results;
+      };
+
+      // Layout A is what the seeded certification was proven on: both fields
+      // still read every expected value (final review M6).
+      site.setLayout('A');
+      const underA = await check();
+      expect(underA.fields[priceKey]).toMatchObject({ result: 'other-layout' });
+      expect(underA.fields[titleKey]).toMatchObject({ result: 'other-layout' });
+
       // The layout changes under the certified paths above: price drops out
-      // of the JSON-LD and moves into `.amount`; title is untouched.
+      // of the JSON-LD and moves into `.amount`; title is untouched. A second
+      // start after a `done` row starts a new check.
       site.setLayout('B');
-
-      const { checkId, status } = await startDriftCheck(f.sourceId, null, { fire: false });
-      expect(status).toBe('started');
-      // The real default capture function (`defaultCaptureProofPages`), real
-      // Chromium, against `site`'s own `127.0.0.1` address — never stubbed.
-      await runDriftCheck(checkId);
-
-      const row = await db.query.driftChecks.findFirst({ where: eq(driftChecks.id, checkId) });
-      expect(row?.status).toBe('done');
-      expect(row?.error).toBeNull();
-      const results = row!.results as { fields: Record<string, { result: string; path?: { source: string; path: string } }> };
+      const results = await check();
       expect(results.fields[priceKey]).toMatchObject({ result: 'moved' });
       expect(results.fields[priceKey]?.path?.source).toBe('xpath');
       expect(results.fields[priceKey]?.path?.path.toLowerCase()).toContain('amount');
+      // Every page carries the new element's mark, so "Accept new location" has something to write (final review M5).
+      for (const u of site.urls) {
+        const page = results.fields[priceKey]!.pages[u]!;
+        expect(page.status).toBe('ok');
+        expect(page.mark?.xpaths).toContain(results.fields[priceKey]!.path!.path);
+      }
       expect(results.fields[titleKey]).toMatchObject({ result: 'other-layout' });
 
       // The check is free and changes nothing by itself (Global Constraints):
@@ -119,7 +135,7 @@ describe('drift repair: end to end on a local site whose layout changes', () => 
       expect(after.schemaDefinition).toEqual(before.schemaDefinition);
       expect(after.driftedFields).toEqual(before.driftedFields);
       expect((await db.select({ n: count() }).from(sourceVerifications).where(eq(sourceVerifications.sourceId, f.sourceId)))[0]!.n).toBe(1);
-      expect((await db.select({ n: count() }).from(captures).where(eq(captures.sourceId, f.sourceId)))[0]!.n).toBe(site.urls.length);
+      expect((await db.select({ n: count() }).from(captures).where(eq(captures.sourceId, f.sourceId)))[0]!.n).toBe(2 * site.urls.length); // two checks, three pages each
 
       expect(agentCtor).not.toHaveBeenCalled();
       expect(proposeSpy).not.toHaveBeenCalled();

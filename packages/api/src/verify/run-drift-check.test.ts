@@ -257,6 +257,30 @@ describe('the default capture function', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('M3: reads back its own capture by id — a later tab capture of the same url does not turn ours into null', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'drift-own-capture', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      let tabCaptureId: string | null = null;
+      const session = async <T,>(fn: (b: IBrowser) => Promise<T>) => fn({
+        launch: async () => {}, close: async () => {},
+        capture: async (u: string) => {
+          // While ours runs, the Verification tab starts and finishes a capture of the same url: a newer captured row.
+          const now = new Date(Date.now() + 5_000);
+          const iso = now.toISOString();
+          const [tab] = await db.insert(captures).values({ sourceId: f.sourceId, url: u, createdAt: now, metadata: { kind: 'proof-page', status: 'captured', url: u, startedAt: iso, capturedAt: iso, tiles: [], boxes: [], pageHeight: 0, capturedHeight: 0, contentHeight: 0 } }).returning({ id: captures.id });
+          await writeCaptureFile(tab!.id, fakeCapture(u));
+          tabCaptureId = tab!.id;
+          return fakeCapture(u);
+        },
+      } as unknown as IBrowser);
+      const got = await captureProofPagesWith(session)(f.sourceId, [url]);
+      expect(got[url]).not.toBeNull();
+      expect(got[url]!.meta.status).toBe('captured');
+      expect(got[url]!.ref.captureId).not.toBe(tabCaptureId);
+    } finally { await f.cleanup(); }
+  });
+
   it('shares the proof-page browser limit: with the tab\'s three captures running, the check waits for a slot', async () => {
     const f = await createProjectWithSource(caller, { tag: 'drift-slots', fields: [{ name: 'Title', type: 'text' }] });
     let release!: () => void;
