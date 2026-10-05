@@ -7,7 +7,7 @@
 
 import { eq } from 'drizzle-orm';
 import { SchemaAgent, snapshotUsage } from '@robot/agent';
-import { resolveBudget, itemCap, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
+import { HARD_ITEM_CEILING, type OriginField, type SchemaDefinitionField, type VariantRunPlan } from '@robot/scraper';
 import { db, runs, sources } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import { withBrowserSession } from '../browser-session.js';
@@ -157,14 +157,16 @@ export async function startExecution(
       // these same certified keys.
       const certification = await loadCurrentCertification(db, sourceId);
       const sourceRow = certification
-        ? await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, budget: true } })
+        ? await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true } })
         : null;
       const schemaDefinition = (sourceRow?.schemaDefinition as SchemaDefinitionField[] | null) ?? undefined;
       // Read once per run, off the same certification — null unless it carries variants.
       const variantPlan = await loadVariantRunPlan(db, sourceId, certification);
-      // The run's item cap, also read once: links-method variant pages are
-      // queued against it as whole groups (queue-variant-pages.ts).
-      const runItemCap = itemCap(resolveBudget(sourceRow?.budget));
+      // The run's item cap for links-method variant pages (queue-variant-pages.ts):
+      // HARD_ITEM_CEILING, not the source's item budget. Marko, 2026-10-05: the
+      // budget counts products; variant pages ride along, up to the run's hard
+      // limit of 5,000 pages — planning of products still uses the source budget.
+      const runItemCap = HARD_ITEM_CEILING;
 
       await executeRun(runId, {
         claim: (id) => claimNextItem(db, id),

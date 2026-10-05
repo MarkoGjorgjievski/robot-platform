@@ -172,7 +172,12 @@ async function computeVariantSummary(
   if (!existsRow?.has_variant_rows) return undefined;
 
   const [current] = await db.select({ variantSummary: runs.variantSummary }).from(runs).where(eq(runs.id, runId));
-  const skipped = (current?.variantSummary as VariantRunSummary | null)?.variantsSkippedForBudget ?? 0;
+  const storedSummary = current?.variantSummary as (VariantRunSummary & { skippedByProduct?: Record<string, number> }) | null;
+  const skipped = storedSummary?.variantsSkippedForBudget ?? 0;
+  // Budget option 1 (Marko, 2026-10-05): a product with pages skipped for
+  // HARD_ITEM_CEILING counts as partial — its export is missing colours it
+  // never got to extract, same as a variant page that failed to load.
+  const skippedByProductKeys = Object.keys(storedSummary?.skippedByProduct ?? {});
 
   // One pass over jsonb_array_elements, grouped by `_product_key`, entirely
   // in Postgres. `without_variants` = product keys where NO row has a
@@ -180,7 +185,9 @@ async function computeVariantSummary(
   // `_variant_partial: true` — the same per-product aggregation
   // `summariseVariantRows` does with JS Sets, just computed as SQL
   // aggregates instead of over a row array pulled into Node — unioned with
-  // every product key a failed queued variant page points at (I3).
+  // every product key a failed queued variant page points at (I3), and with
+  // every product key `skippedByProduct` names (budget option 1), deduped by
+  // the UNION.
   const aggResult = await db.execute(sql`
     WITH run_rows AS (
       SELECT e.value AS r
@@ -198,12 +205,18 @@ async function computeVariantSummary(
       SELECT DISTINCT variant_of AS pk
       FROM run_items
       WHERE run_id = ${runId} AND kind = 'detail' AND status = 'failed' AND variant_of IS NOT NULL
+    ), skipped_for_ceiling AS (
+      SELECT unnest(ARRAY[${sql.join(skippedByProductKeys.map((k) => sql`${k}`), sql`, `)}]::text[]) AS pk
     )
     SELECT
       (SELECT count(*)::int FROM run_rows WHERE coalesce(r ->> '_variant_key', '') <> '') AS variants,
       (SELECT count(*)::int FROM (SELECT pk FROM per_product UNION SELECT pk FROM failed_variant_of) k) AS products,
       (SELECT count(*)::int FROM per_product WHERE NOT has_variant) AS without_variants,
-      (SELECT count(*)::int FROM (SELECT pk FROM per_product WHERE is_partial UNION SELECT pk FROM failed_variant_of) k) AS partial
+      (SELECT count(*)::int FROM (
+         SELECT pk FROM per_product WHERE is_partial
+         UNION SELECT pk FROM failed_variant_of
+         UNION SELECT pk FROM skipped_for_ceiling
+       ) k) AS partial
   `);
   const agg = (aggResult as unknown as Array<{ variants: number; products: number; without_variants: number; partial: number }>)[0];
 

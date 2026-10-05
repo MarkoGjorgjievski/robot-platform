@@ -6,6 +6,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { and, eq } from 'drizzle-orm';
 import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
+import { HARD_ITEM_CEILING } from '@robot/scraper';
 import { queueVariantGroup } from './queue-variant-pages.js';
 import type { ClaimedItem } from './claim-item.js';
 
@@ -143,6 +144,37 @@ describe('queueVariantGroup', () => {
     expect(third).toEqual({ queued: 0, skippedForBudget: 0 });
     expect(fourth).toEqual({ queued: 0, skippedForBudget: 0 });
     expect(await detailItems(runId)).toHaveLength(3);
+  });
+
+  // Budget option 1 (Marko, 2026-10-05): the cap variant pages are checked
+  // against is HARD_ITEM_CEILING, not the source's (much smaller) item
+  // budget — start-execution.ts wires HARD_ITEM_CEILING in as the cap, so
+  // queueVariantGroup itself just needs to behave correctly at that scale.
+  it('queues a group that would exceed a small source item cap but fits HARD_ITEM_CEILING', async () => {
+    const { runId, sourceId } = await seedRun(['https://shop.example/p/a']);
+    const urls = Array.from({ length: 10 }, (_, i) => `https://shop.example/p/v${i}`);
+
+    const out = await queueVariantGroup(db, {
+      runId, sourceId, productKey: 'https://shop.example/p/a', urls, from: FROM, cap: HARD_ITEM_CEILING,
+    });
+
+    expect(out).toEqual({ queued: 10, skippedForBudget: 0 });
+  });
+
+  it('skips a group whole when it would exceed HARD_ITEM_CEILING, and tallies it as skipped', async () => {
+    const { runId, sourceId } = await seedRun(['https://shop.example/p/a']);
+    // 1 already present + (HARD_ITEM_CEILING + 1) missing > HARD_ITEM_CEILING.
+    const urls = Array.from({ length: HARD_ITEM_CEILING + 1 }, (_, i) => `https://shop.example/p/v${i}`);
+
+    const out = await queueVariantGroup(db, {
+      runId, sourceId, productKey: 'https://shop.example/p/a', urls, from: FROM, cap: HARD_ITEM_CEILING,
+    });
+
+    expect(out).toEqual({ queued: 0, skippedForBudget: HARD_ITEM_CEILING + 1 });
+    expect(await summaryOf(runId)).toEqual({
+      variantsSkippedForBudget: HARD_ITEM_CEILING + 1,
+      skippedByProduct: { 'https://shop.example/p/a': HARD_ITEM_CEILING + 1 },
+    });
   });
 
   it('does nothing for an empty group', async () => {

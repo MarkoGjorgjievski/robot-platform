@@ -257,7 +257,12 @@ describe('finaliseRun', () => {
 
   // Task 4 fix round 1: the per-product skip map queueVariantGroup keeps (so
   // the tally is exact) must survive finalise too, not just its sum.
-  it('preserves skippedByProduct alongside the recomputed counts', async () => {
+  // Budget option 1 (Marko, 2026-10-05): a product named in skippedByProduct
+  // now also counts as partial, even when (as here, synthetically) no row of
+  // its own key was ever extracted — `partial` and `skippedByProduct` are
+  // deduped by the union, so a product that is ALSO partial for an unrelated
+  // reason (see the next test) is still counted once.
+  it('preserves skippedByProduct alongside the recomputed counts, and counts it as partial', async () => {
     const { sourceId, runId } = await seedRun();
     await db.update(runs).set({
       variantSummary: { variantsSkippedForBudget: 2, skippedByProduct: { 'https://example.com/p/0': 2 } },
@@ -271,7 +276,7 @@ describe('finaliseRun', () => {
 
     const [row] = await db.select().from(runs).where(eq(runs.id, runId));
     expect(row!.variantSummary).toEqual({
-      variants: 1, products: 1, withoutVariants: 0, partial: 0,
+      variants: 1, products: 1, withoutVariants: 0, partial: 1,
       variantsSkippedForBudget: 2, skippedByProduct: { 'https://example.com/p/0': 2 },
     });
   });
@@ -339,6 +344,35 @@ describe('finaliseRun', () => {
     });
   });
 
+  // Budget option 1 (Marko, 2026-10-05): the live-check shape — a product's
+  // own page IS extracted (so it already counts as a product), but some of
+  // its other colourways were skipped whole for HARD_ITEM_CEILING. It must
+  // now show as partial too, not just skipped.
+  it('counts a product partial when its pages were skipped for the item ceiling, even though its own row was extracted', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.update(runs).set({
+      variantSummary: { variantsSkippedForBudget: 2, skippedByProduct: { 'https://example.com/p/1': 2 } },
+    }).where(eq(runs.id, runId));
+    await db.insert(runItems).values([
+      { runId, kind: 'detail', url: 'https://example.com/p/1', inputIndex: 0, status: 'done' },
+      { runId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'done' },
+    ]);
+    await addExtraction(sourceId, runId, 'https://example.com/p/1', [
+      { _product_key: 'https://example.com/p/1', _variant_key: 'SKU-A' },
+    ]);
+    await addExtraction(sourceId, runId, 'https://example.com/p/2', [
+      { _product_key: 'https://example.com/p/2', _variant_key: 'SKU-B' },
+    ]);
+
+    await finaliseRun(db, runId);
+
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.variantSummary).toEqual({
+      variants: 2, products: 2, withoutVariants: 0, partial: 1,
+      variantsSkippedForBudget: 2, skippedByProduct: { 'https://example.com/p/1': 2 },
+    });
+  });
+
   it('counts a failed variant page\'s product as a product even when no row of that key exists', async () => {
     const { sourceId, runId } = await seedRun();
     await db.insert(runItems).values([
@@ -383,8 +417,10 @@ describe('refreshVariantSummary', () => {
     expect(row!.status).toBe('partial');
     expect(row!.resultCount).toBe(7);
     expect(row!.completedAt).toEqual(completedAt);
+    // Budget option 1 (Marko, 2026-10-05): `x` is named in skippedByProduct,
+    // so it counts as partial even though no row of that key exists here.
     expect(row!.variantSummary).toEqual({
-      variants: 1, products: 1, withoutVariants: 0, partial: 0,
+      variants: 1, products: 1, withoutVariants: 0, partial: 1,
       variantsSkippedForBudget: 2, skippedByProduct: { x: 2 },
     });
   });

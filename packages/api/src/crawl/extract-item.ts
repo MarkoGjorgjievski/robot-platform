@@ -20,7 +20,7 @@ import {
   runExtraction, mergeRow, partitionSchemaByOrigin, discoverCandidateCatalogue,
   runVerifiedExtraction, recordVerifiedPathStats, resolveVariantList, buildVariantRows,
   buildXPathLinksScript, normalizeVariantLink, normalizeVariantLinks, groupKeyOf, variantKeyOf,
-  resolveBudget, itemCap,
+  HARD_ITEM_CEILING,
   type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
@@ -50,9 +50,10 @@ export type ExtractItemDeps = {
    * certification carries variants. Task 3 reads this to build one row per variant;
    * unset, extraction behaves exactly as it does today. */
   variantPlan?: VariantRunPlan | null;
-  /** The run's item cap, `itemCap(resolveBudget(source.budget))`, computed once per
-   * run by start-execution.ts. Links-method variant pages count against it. Unset
-   * falls back to the default budget's cap. */
+  /** The cap links-method variant pages are queued against: `HARD_ITEM_CEILING`,
+   * computed once per run by start-execution.ts (Marko, 2026-10-05 — the website's
+   * item budget counts products only; a product's variant pages ride along).
+   * Unset falls back to the default budget's cap. */
   itemCap?: number;
   /** Injected so the links method can be tested without a database. */
   queueVariants?: typeof queueVariantGroup;
@@ -221,7 +222,7 @@ export async function extractItem(
           productKey,
           urls: others,
           from: item,
-          cap: deps.itemCap ?? itemCap(resolveBudget(null)),
+          cap: deps.itemCap ?? HARD_ITEM_CEILING,
         });
       }
 
