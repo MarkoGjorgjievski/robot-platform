@@ -42,6 +42,7 @@
 - **Budget:**
   - The run's item cap is `itemCap(resolveBudget(source.budget))`. Queued variant pages count against it. A group is queued only when all of its not-yet-queued members fit in the remaining cap; otherwise none are queued, and the summary counts them under `variantsSkippedForBudget`.
   - The run never stops to ask (spec §1).
+  - **Changed 2026-10-05 (Marko, budget option 1, after the live extraction):** variant pages no longer count against the source's item budget — the cap is `HARD_ITEM_CEILING` instead, and a product with pages skipped for it now also counts as partial. See `docs/testing/results/2026-10-05-variants-live-extraction.md` and spec §5.
 - **Run row total:** `runs.resultCount` becomes the sum of `extractions.rowCount` for the run, not the count of done items. For a run without variants the two are equal.
 - **Export shapes** (spec §5.2, decision §9.2):
   - **`row_per_variant`:** columns are product-level fields (contract order), then axis columns (axis order), then variant-level fields (contract order), then `product_key`, `variant_key`.

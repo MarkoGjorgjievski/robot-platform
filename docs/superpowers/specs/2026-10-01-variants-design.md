@@ -131,9 +131,11 @@ Per product page, after the product's certified fields are extracted:
   queued as a page of the same run, extracted with the website's certified
   fields, and given its axis value from the link's label. One page load per
   variant.
-  - Variant pages count against the website's item budget; a product's
-    variants are planned together, so the budget never cuts a product's
-    variants halfway.
+  - The website's item budget counts products; a product's variant pages
+    come with it, up to the run's hard limit of 5,000 pages, and a product's
+    variants are queued together, so the limit never cuts a product's
+    variants halfway. (Changed 2026-10-05, Marko: option 1 after the live
+    extraction.)
   - A variant URL also found on the listing is extracted once, as a variant
     of its product.
 - **No variants on a product:** one row with the product's own values; axis
