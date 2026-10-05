@@ -34,6 +34,15 @@ describe('GET /export/projects/:file', () => {
     expect((await res.json()).rowCount).toBe(1);
   });
 
+  // Final review M5: `types` is for the xlsx writer only — the JSON keeps the
+  // shape it had before variants (no new key for any project).
+  it('leaves the xlsx types map out of the JSON envelope', async () => {
+    const res = await app.request(`/projects/${sample.project.id}.json`);
+    const body = await res.json();
+    expect(body).not.toHaveProperty('types');
+    expect(Object.keys(body).sort()).toEqual(['fields', 'generatedAt', 'project', 'rowCount', 'rows', 'websites']);
+  });
+
   it('serves xlsx with the project filename and content type', async () => {
     const res = await app.request(`/projects/${sample.project.id}.xlsx`);
     expect(res.status).toBe(200);
