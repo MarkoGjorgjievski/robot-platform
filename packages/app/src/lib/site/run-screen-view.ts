@@ -178,18 +178,25 @@ export type VariantSummary = {
  * can render it with no extra `if`. Exact wording, in this order; the skipped
  * line only when it is above zero.
  */
+// D1 (live check, 2026-10-05): "1 products" reads as a typo, not a count.
+function plural(n: number, word: string): string {
+  return n === 1 ? word : `${word}s`;
+}
+
 export function variantCountLines(summary: VariantSummary | null | undefined): string[] {
   // Final review I2: mid-run the stored summary can be only the skip tally
   // (`skippedByProduct`/`variantsSkippedForBudget`, queue-variant-pages.ts) —
   // not a summary to show yet, and never a reason to throw.
   if (!summary || typeof summary.variants !== 'number') return [];
   const lines = [
-    `${summary.variants.toLocaleString('en-US')} variants from ${summary.products.toLocaleString('en-US')} products`,
-    `${summary.withoutVariants.toLocaleString('en-US')} products without variants`,
-    `${summary.partial.toLocaleString('en-US')} products with partial variants`,
+    `${summary.variants.toLocaleString('en-US')} ${plural(summary.variants, 'variant')} from `
+      + `${summary.products.toLocaleString('en-US')} ${plural(summary.products, 'product')}`,
+    `${summary.withoutVariants.toLocaleString('en-US')} ${plural(summary.withoutVariants, 'product')} without variants`,
+    `${summary.partial.toLocaleString('en-US')} ${plural(summary.partial, 'product')} with partial variants`,
   ];
   if (summary.variantsSkippedForBudget > 0) {
-    lines.push(`${summary.variantsSkippedForBudget.toLocaleString('en-US')} variant pages skipped for the budget`);
+    lines.push(`${summary.variantsSkippedForBudget.toLocaleString('en-US')} `
+      + `${plural(summary.variantsSkippedForBudget, 'variant page')} skipped for the budget`);
   }
   return lines;
 }
