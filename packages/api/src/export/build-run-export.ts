@@ -357,9 +357,16 @@ export function shapeRows(args: {
   const jsonFields = [...jsonProductNames, ...jsonOuterVariantNames, jsonProductKeyName, 'variants'];
   const jsonVariantFields = [innerVariantKeyName, ...innerAxisNames, ...innerVariantNames];
 
+  // D4 (live check, 2026-10-05): a nested CSV/XLSX axis or variant-level
+  // column is always "; "-joined text (`joinCell` above stringifies every
+  // member, even a lone one) — only product-level columns keep their type,
+  // so `toXlsx`'s "numbers as numbers" rule never parses a joined cell back
+  // into a real number. Without this, a one-variant product's "115" (which
+  // happens to parse) became a number while a two-variant product's
+  // "86.97; 86.97" (which does not) stayed text, mixing types in one column.
   return {
     columns: csvNames, rows: outRows, json: jsonRows,
-    types: typesByColumn([...productFields, ...variantFields], [...csvProductNames, ...csvVariantNames]),
+    types: typesByColumn(productFields, csvProductNames),
     jsonFields, jsonVariantFields,
   };
 }

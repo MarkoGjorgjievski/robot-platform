@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import ExcelJS from 'exceljs';
 import { DETAIL_URL_FIELD } from '@robot/scraper';
 import { deriveColumns, buildRunExport, exportFilename, shapeRows } from './build-run-export.js';
+import { toXlsx } from './xlsx.js';
 
 const RUN = {
   id: '3f1c2b4a-0000-0000-0000-000000000000',
@@ -373,6 +375,22 @@ describe('shapeRows', () => {
         { Title: 'Table', Brand: 'Acme', Colour: '', Price: '15', SKU: 'T1', product_key: 'p2' },
       ]);
     });
+
+    // D4 (live check, 2026-10-05): a joined column is a string whatever the
+    // variant count, so it must never be typed "money"/"number" — otherwise
+    // toXlsx parses a lone product's joined cell (which happens to look like
+    // a plain number) back into a real number while a multi-variant
+    // product's ("10; 12") stays text, mixing types in one column. Only
+    // product-level columns keep their type.
+    it('excludes axis and variant-level columns from types, keeping only product-level ones', () => {
+      const typedFields = [
+        { ...PRODUCT_FIELD, type: 'text' },
+        { ...PRICE_FIELD, type: 'money' },
+        { ...SKU_FIELD, type: 'text' },
+      ];
+      const result = shapeRows({ rows, shape: 'nested', fields: typedFields, axes });
+      expect(result.types).toEqual({ Title: 'text' });
+    });
   });
 
   // Fix round 1, ruling: a column-name collision never loses data — the
@@ -511,6 +529,41 @@ describe('buildRunExport with variants', () => {
     });
     expect(result.jsonFields).toEqual(['Title', 'Price', 'SKU', 'product_key', 'variants']);
     expect(result.variantFields).toEqual(['variant_key', 'Colour', 'Price', 'SKU']);
+  });
+
+  // D4 (live check, 2026-10-05): a one-variant product's joined Price cell
+  // ("115") happens to parse as a number, a two-variant product's
+  // ("86.97; 86.97") does not — before the fix, that mixed real Excel
+  // numbers with text in the same XLSX column. Both must come back as text.
+  it('keeps a one-variant and a two-variant product\'s joined money column as text in XLSX', async () => {
+    const result = buildRunExport({
+      run: RUN,
+      source: SOURCE,
+      captureUrl: null,
+      extractionData: [
+        { title: 'Chair', color: 'Red', price: 115, sku: 'S1', _product_key: 'p1', _variant_key: 'S1' },
+        { title: 'Lamp', color: 'A', price: 86.97, sku: 'S2a', _product_key: 'p2', _variant_key: 'S2a' },
+        { title: 'Lamp', color: 'B', price: 86.97, sku: 'S2b', _product_key: 'p2', _variant_key: 'S2b' },
+      ],
+      dataset: { schema: DATASET_SCHEMA, variantMode: 'nested' },
+    });
+    expect(result.rows).toEqual([
+      { Title: 'Chair', Colour: 'Red', Price: '115', SKU: 'S1', product_key: 'p1' },
+      { Title: 'Lamp', Colour: 'A; B', Price: '86.97; 86.97', SKU: 'S2a; S2b', product_key: 'p2' },
+    ]);
+
+    const buffer = await toXlsx(result.fields, result.rows, result.types);
+    const workbook = new ExcelJS.Workbook();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await workbook.xlsx.load(buffer as any);
+    const sheet = workbook.getWorksheet('Data')!;
+    const priceColumn = result.fields.indexOf('Price') + 1;
+    const oneVariantCell = sheet.getRow(2).getCell(priceColumn).value;
+    const twoVariantCell = sheet.getRow(3).getCell(priceColumn).value;
+    expect(oneVariantCell).toBe('115');
+    expect(typeof oneVariantCell).toBe('string');
+    expect(twoVariantCell).toBe('86.97; 86.97');
+    expect(typeof twoVariantCell).toBe('string');
   });
 
   it('leaves jsonFields and variantFields unset for row_per_variant and flat', () => {
