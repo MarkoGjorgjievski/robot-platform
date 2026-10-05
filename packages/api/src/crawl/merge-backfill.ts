@@ -145,9 +145,17 @@ export async function mergeBackfillResult(
   // row set lives in the backfill's own extraction, fetched here by
   // `extractionId`. Rows are matched to the parent's rows by `_variant_key`,
   // never by position (Review Focus 4: row 0's value must never be copied to
-  // every row). A backfill row whose key matches no parent row is new data
-  // (e.g. a variant that appeared since the original run) and is appended
-  // whole; parent rows are never removed.
+  // every row).
+  //
+  // Fix round 1, controller ruling (supersedes the brief's "unmatched new
+  // rows are appended" for THIS path — the parent extraction already has
+  // rows): a repair fills cells, it does not add variants. A re-extracted
+  // row whose `_variant_key` matches no parent row is never appended here —
+  // only logged and counted. (Appending whole rows stays correct for the
+  // OTHER path above, where the parent had none at all — the heal path.) An
+  // unmatched row is expected whenever the backfill's own re-extraction
+  // dropped the key-composing field; extract-item.ts's focus filter now
+  // always keeps `skuKey`/`gtinKey` precisely to make that rare.
   const backfillRows = await loadBackfillRows(db, extractionId, row);
 
   const parentIndexByKey = new Map<string, number>();
@@ -157,13 +165,13 @@ export async function mergeBackfillResult(
   });
 
   const mergedRows = parentRows.map((r) => ({ ...r }));
-  const appendedRows: Record<string, unknown>[] = [];
+  let unmatchedCount = 0;
 
   for (const backfillRow of backfillRows) {
     const key = backfillRow._variant_key;
     const parentIndex = typeof key === 'string' && key !== '' ? parentIndexByKey.get(key) : undefined;
     if (parentIndex === undefined) {
-      appendedRows.push(backfillRow);
+      unmatchedCount++;
       continue;
     }
     const target = mergedRows[parentIndex]!;
@@ -173,7 +181,13 @@ export async function mergeBackfillResult(
     }
   }
 
-  const finalRows = [...mergedRows, ...appendedRows];
+  if (unmatchedCount > 0) {
+    console.warn(
+      `[crawl] mergeBackfillResult: item ${parentItem.id} — ${unmatchedCount} re-extracted row(s) matched no parent _variant_key; dropped, not appended (a repair fills cells, it does not add variants).`,
+    );
+  }
+
+  const finalRows = mergedRows;
 
   // A target field counts as still-absent for the item iff it remains empty
   // on at least one of the item's rows after the merge — some rows filled

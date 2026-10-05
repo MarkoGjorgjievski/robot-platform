@@ -66,9 +66,22 @@ export async function extractItem(
   // A repair item's focus narrows what we ask the detail page for. `origin:
   // 'input'` fields always survive the filter — they cost nothing to keep and
   // mergeRow needs them to fill in the row's input columns.
+  //
+  // Fix round 1 (reviewer finding, Critical): a variants plan's key-composing
+  // fields (`skuKey`/`gtinKey`) must survive the filter too, even when
+  // neither is the repair's own target. `variantKeyOf` (scraper/verify/
+  // variant-rows.ts) prefers the SKU, then the GTIN, over axes/URL — so a
+  // backfill that narrows the request to (say) just `price` would re-extract
+  // without the SKU, `variantKeyOf` would fall back to axes/own-URL for
+  // every re-extracted row, and none of those keys would match the parent's
+  // SKU-derived `_variant_key`s in mergeBackfillResult — every row looking
+  // "unmatched" and (pre-fix-round-2) appended as a duplicate.
   const focus = item.targetFields;
+  const keyFields = new Set<string>();
+  if (deps.variantPlan?.skuKey) keyFields.add(deps.variantPlan.skuKey);
+  if (deps.variantPlan?.gtinKey) keyFields.add(deps.variantPlan.gtinKey);
   const schema = focus
-    ? deps.schema.filter((f) => focus.includes(f.name) || f.origin === 'input')
+    ? deps.schema.filter((f) => focus.includes(f.name) || f.origin === 'input' || keyFields.has(f.name))
     : deps.schema;
   const partitions = partitionSchemaByOrigin(schema);
 
