@@ -48,6 +48,8 @@ export function markFromXPath(boxes: Box[], xpath: string): Mark | undefined {
   return box ? { xpaths: box.xpaths, text: box.text, rect: box.rect } : undefined;
 }
 
+const URL_SHAPED = /^https?:\/\//i;
+
 function pathId(p: { source: string; path: string; transform: string }): string {
   return `${p.source} ${p.path} ${p.transform}`;
 }
@@ -130,6 +132,13 @@ async function tryMoved(
  * NEW value is exactly what "changed" is looking for), the first path that
  * reads a valid value on every deciding page and the expected value on none
  * of the pages where it differs.
+ *
+ * A text field the customer did not verify as URLs (no deciding page's
+ * expected value is URL-shaped) never takes a URL-shaped value from the
+ * concept search: schema.org's `offers.availability` ("https://schema.org/
+ * InStock") fits an availability concept, but "Page now shows
+ * https://schema.org/InStock (was In stock)" is not what happened to a stock
+ * line. The old certified paths are not filtered — they are the field's own.
  */
 async function tryChanged(
   field: SchemaDefinitionField, expected: Record<string, string>, certified: CertifiedPath[],
@@ -137,6 +146,8 @@ async function tryChanged(
 ): Promise<DriftFieldResult | null> {
   const pool: CertifiedPath[] = [...certified];
   const seen = new Set(pool.map(pathId));
+  const fromConceptSearch = new Set<string>();
+  const rejectUrls = field.type === 'text' && !decidingUrls.some((u) => URL_SHAPED.test((expected[u] ?? '').trim()));
   for (const url of decidingUrls) {
     const capture = captures[url]!;
     const found = searchStructuredByConcept(capture, field.type, field.concept);
@@ -145,6 +156,7 @@ async function tryChanged(
       const id = pathId(candidate);
       if (seen.has(id)) continue;
       seen.add(id);
+      fromConceptSearch.add(id);
       pool.push(candidate);
     }
   }
@@ -159,7 +171,9 @@ async function tryChanged(
     for (const url of decidingUrls) {
       const capture = captures[url]!;
       const raw = valsByUrl.get(url)!.get(id);
-      if (normalize(field.type, raw, { pageUrl: capture.url }) === null) { validEverywhere = false; break; }
+      const value = normalize(field.type, raw, { pageUrl: capture.url });
+      if (value === null) { validEverywhere = false; break; }
+      if (rejectUrls && fromConceptSearch.has(id) && URL_SHAPED.test(String(value).trim())) { validEverywhere = false; break; }
     }
     if (!validEverywhere) continue;
     const pages: Record<string, DriftPage> = {};
