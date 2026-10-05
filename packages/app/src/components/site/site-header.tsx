@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { Page } from '../page';
 import { Skeleton } from '../ui/skeleton';
+import { driftBadge } from '../../lib/site/drift-view';
 import { InlineRename } from './inline-rename';
 import { SiteTabs } from './site-tabs';
 
 /** What the header reads off `sources.get`. */
-export type SiteHeaderWebsite = { id: string; name: string; hostname: string };
+export type SiteHeaderWebsite = { id: string; name: string; hostname: string; driftedFields: string[] | null };
 
 /**
  * The website's page: its name on the left, the address it collects from on the
@@ -26,6 +27,7 @@ export function SiteHeader({
   website: SiteHeaderWebsite | null;
   children: ReactNode;
 }) {
+  const badge = website ? driftBadge(website.driftedFields) : null;
   return (
     <Page
       // The title is the thing being loaded, so it waits as a bar rather than
@@ -40,14 +42,19 @@ export function SiteHeader({
       }
       // Not a control, so it is not a button: the address is what this website
       // is, said once, quietly, in the mono the rest of the app uses for hosts.
+      // A field that stopped extracting (plan 2026-10-05 Task 3) sits under it,
+      // in warn colour — on every tab, not only Verification, since drift is
+      // true of the website itself.
       actions={
-        website?.hostname ? (
-          // `block` so `truncate` applies at all (overflow does nothing on an
-          // inline box), and a max-width so a long host caps its own min-content
-          // contribution instead of widening the title row on a phone.
-          <span className="block max-w-[40vw] truncate font-mono text-sm text-muted-foreground">
-            {website.hostname}
-          </span>
+        website && (website.hostname || badge) ? (
+          <div className="flex max-w-[40vw] flex-col items-end gap-1">
+            {/* `block` so `truncate` applies at all (overflow does nothing on an
+                inline box), and a max-width so a long host caps its own
+                min-content contribution instead of widening the title row on a
+                phone. */}
+            {website.hostname ? <span className="block w-full truncate font-mono text-sm text-muted-foreground">{website.hostname}</span> : null}
+            {badge ? <span className="block w-full truncate text-sm text-warn">{badge}</span> : null}
+          </div>
         ) : undefined
       }
     >
