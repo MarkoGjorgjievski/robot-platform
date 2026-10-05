@@ -58,6 +58,7 @@ import type { AppRouter } from '@robot/api/routers';
 // public surface.
 import { SHOP_EXAMPLE } from '../../api/src/test-helpers/shop-example';
 import { seedCompletedVariantsRun } from '../../api/src/test-helpers/seed-variants-run';
+import { seedDriftCheck } from '../../api/src/test-helpers/seed-drift-check';
 
 const ENABLED = process.env.RUN_UI_SMOKE === '1';
 const APP = process.env.APP_URL ?? 'http://localhost:3000';
@@ -1159,6 +1160,45 @@ describe.skipIf(!ENABLED)('app shell', () => {
     }
 
     expect(problems, `the seeded run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 60_000);
+
+  // Drift repair (plan 2026-10-05, Task 5): the free check itself needs a
+  // real browser and never runs here, and a real Verify is off-limits on this
+  // server. What this run proves is the wiring around it — seeded directly
+  // against the database, the way the run page's test above seeds a run —
+  // on this same website, after every screenshot of it has already been
+  // taken, so this never changes what those earlier screens photographed.
+  it("a seeded drift check shows the website's badge, the Verification banner and a working \"Accept new location\"", async () => {
+    expect(projectSlug, 'there is no project to seed a drift check on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to seed a drift check on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const priceKey = site.fields.find((f) => f.name === 'Price')?.key;
+    expect(priceKey, 'Price has no key to seed a drift check against').toBeTruthy();
+    await seedDriftCheck(site.id, priceKey!);
+
+    // The website row's badge, on the project home.
+    await page.goto(`${APP}/projects/${projectSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    const row = page.locator('tbody tr').filter({ hasText: WEBSITE_HOST });
+    await expect.poll(() => row.innerText(), { timeout: 20_000 }).toContain('1 field stopped extracting');
+
+    // The Verification tab's banner, and the moved row's repair action.
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const banner = page.getByRole('alert');
+    await expect.poll(() => banner.innerText(), { timeout: 20_000 }).toBe('Price stopped extracting');
+    expect(await rowStatusText('Price'), 'Price does not read as verified before the repair').toContain('verified');
+    const acceptMove = page.getByRole('button', { name: 'Accept new location for Price', exact: true });
+    await acceptMove.waitFor({ timeout: 10_000 });
+
+    // Clicking it keeps the value, attaches the new mark, autosaves, and the
+    // field now needs a Verify (Global Constraints: "Nothing is auto-accepted").
+    await acceptMove.click();
+    await expect.poll(() => rowStatusText('Price'), { timeout: 20_000, message: 'Price never read as needing a new Verify' }).toContain('changed since verified');
+    expect(await cellState('Price', 1), 'accepting the move lost product 1’s value').not.toBeNull();
+
+    expect(problems, `the seeded drift check logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 60_000);
 
   it('a rename on the Settings tab reaches the server and comes back', async () => {
