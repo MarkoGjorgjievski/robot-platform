@@ -1,6 +1,7 @@
 import type { PageCapture } from '@robot/browser';
 import { getByDotPath } from '../domain-cache.js';
-import { inferTransform } from './transforms.js';
+import { inferTransform, inferTransformForType } from './transforms.js';
+import { pathFitsConcept } from './field-fit.js';
 import type { CustomerFieldType, Transform } from './types.js';
 
 export type StructuredCandidate = { source: 'api' | 'json-ld' | 'meta'; path: string; transform: Transform; raw: unknown };
@@ -40,6 +41,40 @@ export function searchStructured(
   const seen = new Set<string>();
   const consider = (source: StructuredCandidate['source'], path: string, raw: unknown) => {
     const transform = inferTransform(type, raw, expected, ctx);
+    if (transform === null) return;
+    const id = `${source} ${path}`;
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push({ source, path, transform, raw });
+  };
+  for (const body of apiBodies(capture)) walk(body, '', 0, (p, v) => consider('api', p, v));
+  for (const block of capture.structuredData.ldJson) walk(block, '', 0, (p, v) => consider('json-ld', p, v));
+  for (const [k, v] of Object.entries(capture.structuredData.meta)) consider('meta', k, v);
+  return out;
+}
+
+export type ConceptCandidate = { source: 'api' | 'json-ld' | 'meta'; path: string; transform: Transform; raw: unknown };
+
+/**
+ * Structured leaves that could stand for a field by LOCATION alone: the
+ * path fits the field's concept (`pathFitsConcept`), and the raw value
+ * parses as the field's type via some transform — picked the way
+ * `inferTransform` would, just without an expected value to match. Unlike
+ * `searchStructured`, this never filters on value: it is for drift's
+ * "changed" search, which is hunting for a path whose value is now
+ * different, not one that matches anything in particular.
+ */
+export function searchStructuredByConcept(
+  capture: Pick<PageCapture, 'url' | 'structuredData' | 'interceptedRequests'>,
+  type: CustomerFieldType,
+  concept: string,
+): ConceptCandidate[] {
+  const ctx = { pageUrl: capture.url };
+  const out: ConceptCandidate[] = [];
+  const seen = new Set<string>();
+  const consider = (source: ConceptCandidate['source'], path: string, raw: unknown) => {
+    if (!pathFitsConcept(concept, path)) return;
+    const transform = inferTransformForType(type, raw, ctx);
     if (transform === null) return;
     const id = `${source} ${path}`;
     if (seen.has(id)) return;

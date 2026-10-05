@@ -32,3 +32,18 @@ export function inferTransform(type: CustomerFieldType, raw: unknown, expected: 
   }
   return null;
 }
+
+/**
+ * The first transform that makes `raw` parse as this type at all — same
+ * order as `inferTransform`, but with no expected value to match: used where
+ * a candidate's value doesn't matter, only that it IS some valid instance of
+ * the type (drift's "changed" search, which is hunting for a value that has
+ * changed, not one that matches anything).
+ */
+export function inferTransformForType(type: CustomerFieldType, raw: unknown, ctx?: NormalizeContext): Transform | null {
+  for (const t of APPLICABLE[type]) {
+    const v = applyTransform(raw, t);
+    if (normalize(type, v, ctx) !== null) return t;
+  }
+  return null;
+}

@@ -7,10 +7,9 @@
 // code only, no model call, ever (plan 2026-10-05-drift-repair Global
 // Constraints). Read certify.ts first — this follows its conventions.
 import { certify, gatherCandidates, type CaptureLike, type CertifyDeps } from './certify.js';
-import { resolveStructured, searchStructured } from './search-structured.js';
+import { resolveStructured, searchStructuredByConcept } from './search-structured.js';
 import { normalize, valuesEqual, type NormalizeContext } from './normalize.js';
 import { applyTransform } from './transforms.js';
-import { pathFitsConcept } from './field-fit.js';
 import { displayValue } from './structured-value.js';
 import type { Box } from './box-map.js';
 import type { DomHit, DomNeedle } from './dom-scripts.js';
@@ -126,9 +125,11 @@ async function tryMoved(
 
 /**
  * Changed: among the old certified paths, plus the concept-fitting structured
- * paths found by `searchStructured` on the captured pages (any value of the
- * field's type), the first path that reads a valid value on every deciding
- * page and the expected value on none of the pages where it differs.
+ * paths found by `searchStructuredByConcept` on the captured pages (any value
+ * of the field's type — this never filters on value, since a path holding a
+ * NEW value is exactly what "changed" is looking for), the first path that
+ * reads a valid value on every deciding page and the expected value on none
+ * of the pages where it differs.
  */
 async function tryChanged(
   field: SchemaDefinitionField, expected: Record<string, string>, certified: CertifiedPath[],
@@ -138,9 +139,8 @@ async function tryChanged(
   const seen = new Set(pool.map(pathId));
   for (const url of decidingUrls) {
     const capture = captures[url]!;
-    const found = searchStructured(capture, field.type, expected[url] ?? '');
+    const found = searchStructuredByConcept(capture, field.type, field.concept);
     for (const s of found) {
-      if (!pathFitsConcept(field.concept, s.path)) continue;
       const candidate: CertifiedPath = { source: s.source, path: s.path, transform: s.transform };
       const id = pathId(candidate);
       if (seen.has(id)) continue;
