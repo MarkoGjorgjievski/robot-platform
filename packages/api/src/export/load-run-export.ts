@@ -11,7 +11,10 @@ export async function loadRunExport(db: typeof Database, runId: string): Promise
   const run = await db.query.runs.findFirst({
     where: eq(runs.id, runId),
     with: {
-      source: { columns: { slug: true, name: true, urlTemplate: true, selectorsJson: true, schemaDefinition: true } },
+      source: {
+        columns: { slug: true, name: true, urlTemplate: true, selectorsJson: true, schemaDefinition: true },
+        with: { dataset: { columns: { schema: true, variantMode: true } } },
+      },
     },
   });
   if (!run) return null;
@@ -43,5 +46,6 @@ export async function loadRunExport(db: typeof Database, runId: string): Promise
     source: run.source ?? null,
     captureUrl: latestCapture?.url ?? null,
     extractionData: rows,
+    dataset: run.source?.dataset ?? null,
   });
 }

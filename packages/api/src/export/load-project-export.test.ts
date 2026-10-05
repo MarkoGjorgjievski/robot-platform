@@ -89,6 +89,50 @@ describe('loadProjectExport', () => {
     }
   });
 
+  it('shapes a variants project (row_per_variant): product fields, axes, variant fields, then product_key/variant_key', async () => {
+    const p = await caller.projects.create({ name: `Export variants ${Date.now()}` });
+    try {
+      const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text', concept: 'product_name' });
+      const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
+      const axis = await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Colour' });
+      await caller.datasets.setVariantMode({ datasetId: p.datasetId, mode: 'row_per_variant' });
+      const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
+
+      await seedRun(a.sourceId, [
+        { [title.key]: 'Chair', [axis.key]: 'Red', [price.key]: 10, _product_key: 'p1', _variant_key: 'v1' },
+        { [title.key]: 'Chair', [axis.key]: 'Blue', [price.key]: 12, _product_key: 'p1', _variant_key: 'v2' },
+      ], new Date('2026-09-01T00:00:00Z'));
+
+      const x = (await loadProjectExport(db, p.id))!;
+      expect(x.fields).toEqual(['Website', 'Title', 'Colour', 'Price', 'product_key', 'variant_key']);
+      expect(x.rows).toEqual([
+        { Website: 'Alpha', Title: 'Chair', Colour: 'Red', Price: 10, product_key: 'p1', variant_key: 'v1' },
+        { Website: 'Alpha', Title: 'Chair', Colour: 'Blue', Price: 12, product_key: 'p1', variant_key: 'v2' },
+      ]);
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p.id));
+    }
+  });
+
+  it('keeps raw contract storage order for an `ignore` project even when a field defaults to variant level', async () => {
+    // `price` is a VARIANT_CONCEPTS field, so it would default to `variant`
+    // level under effectiveLevel — but this project never turned variants on,
+    // so reordering by level here must not happen (today's byte-identical
+    // column order for a flat project).
+    const p = await caller.projects.create({ name: `Export flat order ${Date.now()}` });
+    try {
+      const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
+      const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text', concept: 'product_name' });
+      const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
+      await seedRun(a.sourceId, [{ [price.key]: 10, [title.key]: 'Chair' }], new Date('2026-09-01T00:00:00Z'));
+
+      const x = (await loadProjectExport(db, p.id))!;
+      expect(x.fields).toEqual(['Website', 'Price', 'Title']);
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p.id));
+    }
+  });
+
   it('lists a website with no completed run with a null run and no rows', async () => {
     const p = await caller.projects.create({ name: `Export empty ${Date.now()}` });
     try {
