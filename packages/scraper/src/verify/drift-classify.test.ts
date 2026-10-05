@@ -145,6 +145,32 @@ describe('classifyDrift', () => {
     for (const u of U) expect(r.pages[u]).toEqual({ status: 'ok', value: null });
   }, 30_000);
 
+  it('a text field whose element is gone is lost, never "changed" to a URL-shaped structured value (offers.availability)', async () => {
+    const stockField: SchemaDefinitionField = { key: 'stock', name: 'Stock', type: 'text', description: 'stock line', concept: 'availability' };
+    const stockCertified: CertifiedPath[] = [{ source: 'xpath', path: "//p[@class='stock']", transform: 'identity' }];
+    const stockExpected = { [U[0]!]: 'In stock', [U[1]!]: 'In stock', [U[2]!]: 'Out of stock' };
+    const captures = baseCaptures();
+    for (const u of U) {
+      const c = captures[u]!;
+      // The element is gone; JSON-LD's offers.availability ("https://schema.org/InStock") stays.
+      captures[u] = { ...c, html: c.html.replace(/<p class="stock">[^<]*<\/p>/, '') };
+      expect(JSON.stringify(captures[u]!.structuredData.ldJson)).toContain('schema.org/');
+    }
+    const r = await classifyDrift({ field: stockField, expected: stockExpected, certified: stockCertified, captures }, deps());
+    expect(r.result).toBe('lost');
+  }, 30_000);
+
+  it('a text field the customer verified as URLs may still be "changed" to new URL values', async () => {
+    const linkField: SchemaDefinitionField = { key: 'availability_url', name: 'Availability', type: 'text', description: 'availability', concept: 'availability' };
+    const certified: CertifiedPath[] = [{ source: 'xpath', path: "//p[@class='stock']", transform: 'identity' }];
+    const expected = { [U[0]!]: 'https://schema.org/OutOfStock', [U[1]!]: 'https://schema.org/OutOfStock', [U[2]!]: 'https://schema.org/InStock' };
+    const captures = baseCaptures();
+    for (const u of U) captures[u] = { ...captures[u]!, html: captures[u]!.html.replace(/<p class="stock">[^<]*<\/p>/, '') };
+    const r = await classifyDrift({ field: linkField, expected, certified, captures }, deps());
+    expect(r.result).toBe('changed');
+    expect(r.path).toEqual({ source: 'json-ld', path: 'offers.availability', transform: 'identity' });
+  }, 30_000);
+
   it('page gone: page 3 null → page-gone for page 3, the others still deciding', async () => {
     const captures = baseCaptures();
     const withGone: Record<string, DriftCapture | null> = { ...captures, [U[2]!]: null };
