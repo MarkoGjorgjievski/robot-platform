@@ -50,9 +50,22 @@ function contentTypeFor(format: Format): string {
  * flat run's JSON export byte-identical to before: `json`/`types` are never
  * present on its envelope, so picking exactly these four keys reproduces
  * exactly what `toJson` serialized previously.
+ *
+ * D3: `fields` (the CSV/XLSX columns) describes `rows`, not `json` — a
+ * nested product object's own keys are different (and carry a without-
+ * variants product's variant-level values directly, ruling I4) and its
+ * inner `variants[]` object's keys are different again. For a nested
+ * envelope (`json` present), `fields` is swapped for `jsonFields` and a new
+ * `variantFields` key is added; every other shape's response is untouched.
  */
-function toJsonEnvelope(x: { run: unknown; source: unknown; fields: string[]; rows: Record<string, unknown>[]; json?: unknown }): string {
-  return toJson({ run: x.run, source: x.source, fields: x.fields, rows: x.json ?? x.rows });
+function toJsonEnvelope(x: {
+  run: unknown; source: unknown; fields: string[]; rows: Record<string, unknown>[];
+  json?: unknown; jsonFields?: string[]; variantFields?: string[];
+}): string {
+  if (x.json !== undefined) {
+    return toJson({ run: x.run, source: x.source, fields: x.jsonFields, variantFields: x.variantFields, rows: x.json });
+  }
+  return toJson({ run: x.run, source: x.source, fields: x.fields, rows: x.rows });
 }
 
 export function createExportRoutes(deps: ExportDeps) {
