@@ -84,9 +84,13 @@ export function createExportRoutes(deps: ExportDeps) {
     if (!parsed) return c.notFound();
     const x = await deps.loadProjectExport(parsed.id);
     if (!x) return c.json({ error: 'Project not found' }, 404);
+    // Final review M5: `types` exists only for the xlsx writer — stripped from
+    // the JSON the way `toJsonEnvelope` strips it for a run, so no project's
+    // JSON gains a key it did not have before variants.
+    const { types: _types, ...jsonEnvelope } = x;
     const body =
       parsed.format === 'csv' ? toCsv(x.fields, x.rows)
-      : parsed.format === 'json' ? toJson(x)
+      : parsed.format === 'json' ? toJson(jsonEnvelope)
       : new Uint8Array(await toXlsx(x.fields, x.rows, x.types));
     return c.body(body as string | Uint8Array<ArrayBuffer>, 200, {
       'content-type': contentTypeFor(parsed.format),
