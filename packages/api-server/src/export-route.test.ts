@@ -66,6 +66,40 @@ describe('GET /export/runs/:id.json', () => {
   });
 });
 
+describe('GET /export/runs/:id.xlsx', () => {
+  it('serves the run rows as an xlsx workbook', async () => {
+    const res = await appWith(ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.xlsx`));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(res.headers.get('content-disposition')).toBe(
+      'attachment; filename="newegg-gpu-3f1c2b4a-2026-08-19.xlsx"',
+    );
+    // An xlsx file is a zip archive — its first two bytes are the "PK" signature.
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Array.from(bytes.slice(0, 2))).toEqual([0x50, 0x4b]);
+  });
+});
+
+describe('GET /export/runs/:id.json for a nested-shape run', () => {
+  const NESTED_ENVELOPE: RunExport = {
+    ...ENVELOPE,
+    fields: ['Title', 'product_key'],
+    rows: [{ Title: 'Chair', product_key: 'p1' }],
+    json: [{ Title: 'Chair', product_key: 'p1', variants: [{ variant_key: 'v1', Price: 10 }] }],
+  };
+
+  it('serves the json-specific per-product rows, not the flattened CSV/XLSX ones', async () => {
+    const res = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.json`));
+    const body = await res.json();
+    expect(body.rows).toEqual(NESTED_ENVELOPE.json);
+  });
+
+  it('serves the flattened rows for csv', async () => {
+    const res = await appWith(NESTED_ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.csv`));
+    expect(await res.text()).toBe('Title,product_key\r\nChair,p1\r\n');
+  });
+});
+
 describe('export route errors', () => {
   it('responds 404 when the run does not exist', async () => {
     const res = await appWith(null).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.csv`));
@@ -87,7 +121,7 @@ describe('export route errors', () => {
   });
 
   it('responds 404 for an unsupported format', async () => {
-    const res = await appWith(ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.xlsx`));
+    const res = await appWith(ENVELOPE).fetch(new Request(`http://localhost/export/runs/${RUN_ID}.pdf`));
     expect(res.status).toBe(404);
   });
 
