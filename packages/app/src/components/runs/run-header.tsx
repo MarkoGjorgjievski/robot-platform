@@ -109,6 +109,13 @@ export function RunHeader({
             >
               Download JSON
             </a>
+            <a
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              href={exportUrl('runs', runId, 'xlsx')}
+              download
+            >
+              Download Excel
+            </a>
           </>
         ) : (
           <>
@@ -117,6 +124,9 @@ export function RunHeader({
             </Button>
             <Button variant="outline" size="sm" disabled>
               Download JSON
+            </Button>
+            <Button variant="outline" size="sm" disabled>
+              Download Excel
             </Button>
           </>
         )}

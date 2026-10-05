@@ -159,6 +159,39 @@ export function fillLabel(fill: number): string {
 }
 
 /**
+ * `runs.variantSummary` (`@robot/scraper`'s `VariantRunSummary`, read back as
+ * plain JSON over tRPC — declared locally rather than imported, same reason
+ * `variants-view.ts` declares its own detection types: the app never imports
+ * `@robot/scraper` into a browser bundle).
+ */
+export type VariantSummary = {
+  variants: number;
+  products: number;
+  withoutVariants: number;
+  partial: number;
+  variantsSkippedForBudget: number;
+};
+
+/**
+ * The run page's variant counts (spec 2026-10-02-variants-plan3 §5.3), shown
+ * only on a variants run — an empty array for every other run, so the caller
+ * can render it with no extra `if`. Exact wording, in this order; the skipped
+ * line only when it is above zero.
+ */
+export function variantCountLines(summary: VariantSummary | null | undefined): string[] {
+  if (!summary) return [];
+  const lines = [
+    `${summary.variants.toLocaleString('en-US')} variants from ${summary.products.toLocaleString('en-US')} products`,
+    `${summary.withoutVariants.toLocaleString('en-US')} products without variants`,
+    `${summary.partial.toLocaleString('en-US')} products with partial variants`,
+  ];
+  if (summary.variantsSkippedForBudget > 0) {
+    lines.push(`${summary.variantsSkippedForBudget.toLocaleString('en-US')} variant pages skipped for the budget`);
+  }
+  return lines;
+}
+
+/**
  * `FieldClassification`'s verdict in words. "dead" is the engine's own name for
  * a cached path that has stopped answering; what the customer needs to read is
  * what that means for the field in front of them.

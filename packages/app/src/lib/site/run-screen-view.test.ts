@@ -14,6 +14,7 @@ import {
   runStatusLine,
   selectAllLabel,
   shortRunId,
+  variantCountLines,
   workListNote,
 } from './run-screen-view';
 
@@ -192,6 +193,35 @@ describe('fillLabel', () => {
     expect(fillLabel(0.125)).toBe('13% filled');
     expect(fillLabel(0)).toBe('0% filled');
     expect(fillLabel(1)).toBe('100% filled');
+  });
+});
+
+describe('variantCountLines', () => {
+  const summary = (over: Partial<Parameters<typeof variantCountLines>[0]> = {}) => ({
+    variants: 13, products: 5, withoutVariants: 1, partial: 2, variantsSkippedForBudget: 0, ...over,
+  });
+
+  it('is empty with no summary', () => {
+    expect(variantCountLines(null)).toEqual([]);
+    expect(variantCountLines(undefined)).toEqual([]);
+  });
+
+  it('the three counts, in order, with no skipped line when nothing was skipped', () => {
+    expect(variantCountLines(summary())).toEqual([
+      '13 variants from 5 products',
+      '1 products without variants',
+      '2 products with partial variants',
+    ]);
+  });
+
+  it('adds the skipped line, last, only when it is above zero', () => {
+    expect(variantCountLines(summary({ variantsSkippedForBudget: 4 }))).toEqual([
+      '13 variants from 5 products',
+      '1 products without variants',
+      '2 products with partial variants',
+      '4 variant pages skipped for the budget',
+    ]);
+    expect(variantCountLines(summary({ variantsSkippedForBudget: 0 }))).toHaveLength(3);
   });
 });
 

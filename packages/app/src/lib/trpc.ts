@@ -17,7 +17,7 @@ export const trpc = createTRPCReact<AppRouter>();
  * ordinary `<a href download>` rather than something this app assembles in
  * memory. Unauthenticated by UUID today; plan 6 puts it behind the session.
  */
-export function exportUrl(kind: 'projects' | 'runs', id: string, format: 'csv' | 'json'): string {
+export function exportUrl(kind: 'projects' | 'runs', id: string, format: 'csv' | 'json' | 'xlsx'): string {
   return `${API_URL}/export/${kind}/${id}.${format}`;
 }
 
