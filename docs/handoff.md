@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [Variants plan 3 (2026-10-02)](#variants-plan-3-2026-10-02).** Extraction, export and reporting catch up with plan 1/2's setup and verification: a run now writes one row per variant (list method: one page load; links method: one load per variant page, counted against the budget), `_product_key`/`_variant_key`, drift and backfill repair each row by its own key, and the project's CSV/JSON/XLSX exports carry the axis and key columns in the project's chosen shape. The run page shows the variant counts, the axis/key columns in its results sheet, and a Download Excel link next to CSV/JSON; two wording leftovers from the plan 2b live check (N1, N3) are fixed. On branch `feat/variants-extraction`, not merged; the controller's live free extraction (CSV/JSON/XLSX against a real Everlane/Nike budget-3 run on keyless :4100) is still to run.
+**Newest: [Drift repair, Part B (2026-10-05)](#drift-repair-part-b-2026-10-05).** When a run flags a field as drifted, a free check re-captures the website's proof pages and says what happened: `other-layout` (its own certified path still reads every expected value), `moved` (found mechanically at a new element), `changed` (reads a valid new value), or `lost`, with `page-gone` per proof page that no longer loads — never a model call, never a write outside its own `drift_checks` row and the proof-page `captures` it takes. The customer sees it on the website ("n fields stopped extracting"), the Verification tab's banner, and a repair line under the drifted row ("Accept new location" / "Accept new values" / "Mark it again" / "Replace product n"); accepting touches only that field's cells through the normal autosave and still needs a Verify. Proven end to end on a local site whose layout changes (real Chromium, zero AI) and live-smoked against the running app with a seeded check. On branch `feat/drift-repair`, not merged.
+
+**Before it: [Variants plan 3 (2026-10-02)](#variants-plan-3-2026-10-02).** Extraction, export and reporting catch up with plan 1/2's setup and verification: a run now writes one row per variant (list method: one page load; links method: one load per variant page, counted against the budget), `_product_key`/`_variant_key`, drift and backfill repair each row by its own key, and the project's CSV/JSON/XLSX exports carry the axis and key columns in the project's chosen shape. The run page shows the variant counts, the axis/key columns in its results sheet, and a Download Excel link next to CSV/JSON; two wording leftovers from the plan 2b live check (N1, N3) are fixed. On branch `feat/variants-extraction`, not merged; the controller's live free extraction (CSV/JSON/XLSX against a real Everlane/Nike budget-3 run on keyless :4100) is still to run.
 
 **Before it: [Variants plan 2b (2026-10-02)](#variants-plan-2b-2026-10-02).** Four fixes from a live check on Allbirds, Everlane and Nike (eight defects found): stub list entries ("Variant 1…" placeholders with no SKU, price or axis value) no longer count as variants; an axis column can never be confirmed "From the product page", on save or on screen; a variant link group drops an off-pattern link (Nike's "Design your own") instead of failing, and a locale path prefix compares two segments; and the on-screen wording is plain — `variantNoun` is "variants" unless exactly one column is mapped, the picker-only line shows only its twelve known words (no more "swatchs"/"defaultcolornames"), and a list with no detected column says so plainly instead of "Nothing of this kind…". The live check re-run is next. On branch `fix/variants-live-check`, not merged.
 
@@ -47,6 +49,64 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Drift repair, Part B (2026-10-05)
+
+Spec: `docs/superpowers/specs/2026-09-28-table-first-and-drift-repair-design.md`, Part B (B1–B5)
+and decision D3 ("the repair check runs automatically when a run flags drift"); Part A is
+Table-first verification, below. Plan: `docs/superpowers/plans/2026-10-05-drift-repair.md`.
+Branch `feat/drift-repair`, base `main` at `e9fb23a`. A Source with a verified schema already
+flags drift at run time (`flagDrift`, existing, unchanged); what this plan adds is the free check
+that says *what happened* to a flagged field, and the way to repair it.
+
+**What landed** (`git log --oneline e9fb23a..HEAD`):
+
+| Commit | What |
+|---|---|
+| `887fbc6`, `836190f` | `drift_checks` (migration 0015) and `classifyDrift` (`packages/scraper/src/verify/drift-classify.ts`): `other-layout` → `moved` → `changed` → `lost`, in that order, reusing certification's own `gatherCandidates`/`certify`/`resolveStructured` — never the AI fallback (Task 1) |
+| `130789c`, `cba4fa0`, `ff0c03e` | `runDriftCheck`/`startDriftCheck` (`packages/api/src/verify/run-drift-check.ts`) and `sources.checkDrift`/`driftCheck`: the same stall rule Verify uses, a real default capture function, a drifted text field never reads a schema.org URL as its "changed" value from the concept search, and the check's proof-page captures share the Verification tab's own three-browser limiter rather than adding three more (Task 2) |
+| `c0cf190` | the website's badge ("n fields stopped extracting") and the Verification tab's banner ("{Fields} stopped extracting in the run of {date} ({pct} % of products empty)") — `packages/app/src/lib/site/drift-view.ts`'s `driftBadge`/`driftBanner`, `drift-banner.tsx` — exact wording and dates from the Global Constraints (Task 3) |
+| `32212bf` | the drift row's own line and action under a drifted field — "Moved on the page — Accept new location", "Page now shows X (was Y) — Accept new values", "Not found on the page — Mark it again", "Product n no longer loads — Replace product n" — `acceptMoved`/`acceptChanged` in `drift-view.ts`, wired into `verification-table.tsx`'s `DriftLines` and the Verification route; accepting touches only that field's cells (another field's pending edit survives) and still needs a Verify — nothing is auto-accepted (Task 4) |
+| this task (`f377a6e` and this docs commit) | end to end on a local site whose layout changes, the app smoke, these docs (Task 5) |
+
+**Proven free, with no AI call:**
+
+- **End to end** (`packages/api/src/verify/drift-end-to-end.test.ts`): real Chromium against
+  `packages/api/src/test-helpers/drift-site.ts`'s own `127.0.0.1` server — three product pages,
+  layout A (price in the JSON-LD and in a `.price` element) switched live to layout B (no JSON-LD
+  price; price in `.amount`). A customer-schema source is seeded with a clean, current
+  certification directly (the `hashOf` pattern `sources-verify.test.ts` and
+  `require-certification-variants.test.ts` use — `runVerification` is never called, so nothing
+  here can reach a model even with a key in `.env`) and `driftedFields: ['price', 'title']`.
+  `runDriftCheck`, with its real default capture function, finds price `moved` to an XPath under
+  `.amount` and title `other-layout` (its own JSON-LD path is untouched by the layout change),
+  and touches nothing on the `sources` row or in `source_verifications` — only its own
+  `drift_checks` row and the three proof-page `captures` it took.
+- **The live smoke** (`packages/app/src/routes-smoke.test.ts`, `pnpm test:ui:app`, 18 tests,
+  green in both themes): a real drift check needs a browser and a real Verify is off-limits on
+  this server, so this case seeds its state directly — `packages/api/src/test-helpers/seed-drift-check.ts`
+  writes one finished, `moved` drift check for Price plus the "verified" baseline it is about,
+  on the smoke's own throwaway website, after every screenshot of it was already taken (so this
+  case never changes what the earlier theme walks photographed). It asserts the project home's
+  "1 field stopped extracting", the Verification tab's "Price stopped extracting" banner, and
+  that clicking "Accept new location" keeps the value, attaches the new mark, autosaves, and the
+  row's badge flips from "verified" to "changed since verified" — a Verify is never clicked.
+
+**Gate:** `@robot/api`'s full suite (727 tests) is green except two pre-existing timeouts in
+`sources-marks.test.ts` under `--maxWorkers=2` with the new real-browser end-to-end test running
+alongside it — both pass cleanly in isolation, so this is resource contention on this dev
+machine, not a regression. `tsc` is clean in `@robot/api`, `@robot/app` and `@robot/scraper`.
+
+**How to check it:** `pnpm --filter @robot/api exec vitest run src/verify/drift-end-to-end.test.ts`
+(free, no servers needed) and, with `pnpm dev:all` running, `RUN_UI_SMOKE=1 pnpm --filter @robot/app exec vitest run src/routes-smoke.test.ts` (free, live).
+
+**Not in this plan:** drift for variant entry paths and links collectors (fields only); email
+alerts and auto-accepting a repair (spec C); Jev (parked); coverage repair of variant rows other
+than the first (deferred from variants plan 3).
+
+**Next:** merge `feat/drift-repair`; decide whether spec C (alerts / auto-accept) is worth
+building, or whether the next work is elsewhere (variants plan 3's live controller check is still
+outstanding, below).
 
 ## Variants plan 3 (2026-10-02)
 
