@@ -600,5 +600,16 @@ describe('extractItem — with a certification', () => {
       })).rejects.toThrow('deadlock');
       expect(cap.data).toBeUndefined();
     });
+
+    // Final review I1: a repair fills cells, it does not crawl — a repair
+    // item (targetFields set) never queues its variant group, but keeps its
+    // own row's keys exactly as an original extraction computes them.
+    it('a repair item (targetFields set) does not queue its variant group, and keeps its own keys', async () => {
+      const { cap, queueVariants } = await run({ ...ITEM, url: A, targetFields: ['price'] }, SWATCHES);
+
+      expect(queueVariants).not.toHaveBeenCalled();
+      expect(cap.rowCount).toBe(1);
+      expect(cap.data[0]).toMatchObject({ color: 'Black', _product_key: B, _variant_key: A });
+    });
   });
 });

@@ -207,8 +207,13 @@ export async function extractItem(
       // with nothing written, so its retry cannot leave a second extraction
       // (and a doubled row total) behind. queueVariantGroup itself skips every
       // member already in the run.
+      //
+      // Final review I1: only an original extraction queues. A repair item
+      // (`targetFields` set — a backfill or repair-sweep run) fills cells on
+      // its parent; it does not crawl, and siblings queued into that child
+      // run would never merge back anywhere.
       const others = group.filter((u) => u !== ownUrl);
-      if (others.length > 0) {
+      if (others.length > 0 && item.targetFields == null) {
         const queue = deps.queueVariants ?? queueVariantGroup;
         await queue(db, {
           runId: deps.runId,
