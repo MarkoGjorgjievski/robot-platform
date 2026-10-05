@@ -167,6 +167,23 @@ describe('axesFor', () => {
   it('no variants offers nothing', () => {
     expect(axesFor(listOnTwo, 'none')).toEqual([]);
   });
+
+  it('a links group whose detected axis word is generic defaults its new column to Colour, not the word itself (N3)', () => {
+    const optionLinks = { container: 'div.items', count: 2, links: [{ href: 'https://shop.example/p/1-a', label: 'A' }, { href: 'https://shop.example/p/1-b', label: 'B' }] };
+    const d: DetectResult = { pages: [page(1, { links: [optionLinks] })], suggested: 'links' };
+    // No known word in the container and no matching picker: linksWord falls back to "option".
+    expect(axesFor(d, 'links')).toEqual([{ from: 'option', label: 'Colour', options: ['A', 'B'] }]);
+  });
+
+  it('a links group named by a picker axis of "variant" or "swatch" also defaults to Colour', () => {
+    const swatchLinks = { container: 'div.items', count: 1, links: [{ href: 'https://shop.example/p/1-red', label: 'Red' }] };
+    const d: DetectResult = { pages: [page(1, { links: [swatchLinks], pickers: [{ axis: 'swatch', options: ['Red'] }] })], suggested: 'links' };
+    expect(axesFor(d, 'links')).toEqual([{ from: 'swatch', label: 'Colour', options: ['Red'] }]);
+  });
+
+  it('the list method is unaffected by N3 — a generic word there keeps its own label', () => {
+    expect(axisLabel('option2')).toBe('Option 2');
+  });
 });
 
 describe('variantsStepState', () => {

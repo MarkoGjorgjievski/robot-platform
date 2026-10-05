@@ -18,6 +18,8 @@ import {
   resultsNote,
   resultsSummary,
   runFacts,
+  variantCountLines,
+  type VariantSummary,
 } from '../../../../../../../lib/site/run-screen-view';
 import { trpc } from '../../../../../../../lib/trpc';
 import { useUnauthorizedRedirect } from '../../../../../../../lib/use-unauthorized-redirect';
@@ -98,6 +100,25 @@ function RunScreen() {
     [site.data],
   );
 
+  // Whether THIS run produced variant rows — not whether the project has
+  // variants turned on, which a run started before that change, or one on a
+  // website that found none, never carries (same `_product_key` test
+  // `buildRunExport` uses). Only then does the sheet gain the axis columns
+  // and the variant key: a flat run's sheet must stay exactly what it was.
+  const isVariantsRun = useMemo(
+    () => rows.some((r) => r._product_key !== undefined && r._product_key !== null),
+    [rows],
+  );
+  const axisColumns = detail.data?.axisColumns ?? [];
+  // Axis columns after the product fields, then the variant key last — the
+  // same order the export's `row_per_variant`/`nested` shapes use
+  // (`build-run-export.ts`'s `shapeRows`), so the sheet and the download read
+  // the same way.
+  const sheetColumns = useMemo(
+    () => (isVariantsRun ? [...columns, ...axisColumns, { key: '_variant_key', name: 'Variant key' }] : columns),
+    [columns, axisColumns, isVariantsRun],
+  );
+
   // Derived before the early returns, not after: the coverage query's `enabled`
   // reads all three, and a hook cannot live below a `return`.
   const inputLabel = detail.data?.run.inputLabel ?? null;
@@ -176,6 +197,7 @@ function RunScreen() {
 
   const { run, source, capture, extraction, backfillRuns } = detail.data;
   const rowCount = extraction?.rowCount ?? 0;
+  const variantLines = variantCountLines(run.variantSummary as VariantSummary | null);
 
   // The screen's ONE results sheet. The sample gate owns it while it is showing
   // — the customer is being asked to judge those rows, so they belong under the
@@ -201,7 +223,7 @@ function RunScreen() {
     </div>
   ) : (
     <ResultsTable
-      columns={columns}
+      columns={sheetColumns}
       rows={rows}
       absentByUrl={absentByUrl}
       summary={resultsSummary(rowCount, extraction?.confidence ?? null)}
@@ -221,6 +243,17 @@ function RunScreen() {
       />
 
       <RunFacts facts={runFacts(run)} />
+
+      {/* The variant counts (spec §5.3), shown only on a run that produced
+          variant rows — `variantCountLines` is already empty for every
+          other run, so there is nothing to gate here beyond that. */}
+      {variantLines.length > 0 ? (
+        <ul className="rise mb-3 list-none text-base text-muted-foreground">
+          {variantLines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
 
       {/* The state colour on the words, with no tinted box behind them (spec §4).
           `whitespace-pre-line` because an engine error can arrive with its own

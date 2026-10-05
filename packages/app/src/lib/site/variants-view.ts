@@ -112,6 +112,23 @@ function linksWord(group: DetectedLinks, pickers: DetectedPicker[]): string {
   return picker ? axisWord(picker.axis) : 'option';
 }
 
+/**
+ * A links group's detected axis word that names nothing in particular — the
+ * "option" fallback, or a raw token (`variant`, `swatch`) that passed through
+ * `axisWord` unrecognised, or the one known word ("style") that is itself
+ * sometimes a generic label rather than a real axis name (wording leftover
+ * N3, live check 2: Nike's colourway picker named "Option"). A link group
+ * naming one of these proposes "Colour" rather than "Option"/"Variant"/
+ * "Swatch"/"Style" as its new column — colour is overwhelmingly what a
+ * links-method variant picker is for, and the customer can still rename it.
+ */
+const GENERIC_LINK_WORDS: ReadonlySet<string> = new Set(['option', 'variant', 'swatch', 'style']);
+
+/** The column name a new links-group axis would get: "Colour" for a generic word (N3), else `axisLabel`'s own answer. */
+function linksAxisLabel(from: string): string {
+  return GENERIC_LINK_WORDS.has(from.trim().toLowerCase()) ? 'Colour' : axisLabel(from);
+}
+
 /** How many of one list's variants there are, and the word for them: distinct values of its one axis, else every entry as a "variant". */
 function listCount(list: DetectedList): { n: number; word: string } {
   if (list.axes.length === 1) {
@@ -240,7 +257,7 @@ export function axesFor(d: DetectResult, method: VariantMethod): Array<{ from: s
       }
     }
   }
-  return [...byFrom].map(([from, options]) => ({ from, label: axisLabel(from), options }));
+  return [...byFrom].map(([from, options]) => ({ from, label: method === 'links' ? linksAxisLabel(from) : axisLabel(from), options }));
 }
 
 export function variantsStepState(args: {
