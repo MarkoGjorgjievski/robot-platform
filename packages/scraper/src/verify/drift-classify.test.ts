@@ -111,9 +111,9 @@ describe('classifyDrift', () => {
     expect(r.result).toBe('changed');
     expect(r.path).toEqual(priceCertified[0]);
     // I3: every deciding page is read, and marked whether it differs from the stored expected value.
-    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99', changed: false });
-    expect(r.pages[p2]).toEqual({ status: 'ok', value: '229.99', changed: true });
-    expect(r.pages[U[2]!]).toEqual({ status: 'ok', value: '149.00', changed: false });
+    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99', changed: false, was: '129.99' });
+    expect(r.pages[p2]).toEqual({ status: 'ok', value: '229.99', changed: true, was: '219.99' });
+    expect(r.pages[U[2]!]).toEqual({ status: 'ok', value: '149.00', changed: false, was: '149.00' });
   }, 30_000);
 
   it('changed to a new key: price moved to offers.salePrice with new values on every page, the old key gone everywhere → changed', async () => {
@@ -131,7 +131,7 @@ describe('classifyDrift', () => {
     const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
     expect(r.result).toBe('changed');
     expect(r.path).toEqual({ source: 'json-ld', path: 'offers.salePrice', transform: 'identity' });
-    for (const u of U) expect(r.pages[u]).toEqual({ status: 'ok', value: newPrices[u], changed: true });
+    for (const u of U) expect(r.pages[u]).toEqual({ status: 'ok', value: newPrices[u], changed: true, was: priceExpected[u] });
   }, 30_000);
 
   it('missing field: removed from data and DOM on every page → lost', async () => {
