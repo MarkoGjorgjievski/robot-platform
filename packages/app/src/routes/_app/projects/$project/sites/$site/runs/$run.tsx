@@ -110,10 +110,12 @@ function RunScreen() {
     [rows],
   );
   const axisColumns = detail.data?.axisColumns ?? [];
-  // Axis columns after the product fields, then the variant key last — the
-  // same order the export's `row_per_variant`/`nested` shapes use
-  // (`build-run-export.ts`'s `shapeRows`), so the sheet and the download read
-  // the same way.
+  // Every field first, in the website's own field order (product- and
+  // variant-level alike), then the axis columns, then the variant key last.
+  // This is NOT the export's order: `build-run-export.ts`'s `shapeRows` puts
+  // product fields, then axes, then variant-level fields, then
+  // product_key/variant_key — so the sheet and the download can list the
+  // same columns in a different order.
   const sheetColumns = useMemo(
     () => (isVariantsRun ? [...columns, ...axisColumns, { key: '_variant_key', name: 'Variant key' }] : columns),
     [columns, axisColumns, isVariantsRun],

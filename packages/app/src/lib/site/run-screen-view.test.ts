@@ -206,6 +206,12 @@ describe('variantCountLines', () => {
     expect(variantCountLines(undefined)).toEqual([]);
   });
 
+  // Final review I2: mid-run, the stored summary is only the skip tally.
+  it('is empty for a summary missing its variants count (the mid-run skip tally), rather than throwing', () => {
+    const tally = { skippedByProduct: { 'https://example.com/p/1': 3 }, variantsSkippedForBudget: 3 } as unknown as Parameters<typeof variantCountLines>[0];
+    expect(variantCountLines(tally)).toEqual([]);
+  });
+
   it('the three counts, in order, with no skipped line when nothing was skipped', () => {
     expect(variantCountLines(summary())).toEqual([
       '13 variants from 5 products',
