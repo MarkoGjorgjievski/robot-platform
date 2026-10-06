@@ -9,7 +9,7 @@
 // `source_verifications` rows, so a hash mismatch — not a stored flag — is
 // what tells a caller a field moved on since that run.
 
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { sources, sourceVerifications } from '@robot/db';
 import type { Database } from '@robot/db';
 import {
@@ -64,33 +64,30 @@ function latestCleanRun(db: Database, sourceId: string) {
   });
 }
 
+/** The one clean-run row either `fieldCurrencyOf` or its batched sibling reads from. */
+type CleanRunRow = { id: string; completedAt: Date | null; results: unknown; variantResults?: unknown };
+
 /**
- * Per-field currency (spec 4.4). The latest completed, error-free run is the
- * only one consulted; a field is current when that run holds a passing result
- * for it whose `fieldHash` equals the hash of the field as it stands now.
- * Rows written before phase 2 carry no `fieldHash` and are never current.
+ * The hash comparison itself (spec 4.4), given the source row and its one
+ * clean-run row (if any) — kept separate from fetching either, so
+ * `loadFieldCurrencyBatch` can read every source's row in one query and still
+ * decide currency exactly the way `loadFieldCurrency` does for one.
+ *
+ * A field is current when the run holds a passing result for it whose
+ * `fieldHash` equals the hash of the field as it stands now. Rows written
+ * before phase 2 carry no `fieldHash` and are never current.
  *
  * `unchangedKeys` is the wider set: fields whose latest result still
  * describes the field as it stands now (matching `fieldHash`), passed or
  * failed. It is what tells "fails on product 2" apart from "changed since
  * verified" — a failing field is never current, but it can be unchanged.
  */
-export async function loadFieldCurrency(db: Database, sourceId: string): Promise<FieldCurrency> {
-  const source = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { schemaDefinition: true, verificationSet: true },
-  });
-  return fieldCurrencyOf(db, sourceId, source);
-}
-
-/** `loadFieldCurrency` on a source row the caller already read. */
-async function fieldCurrencyOf(db: Database, sourceId: string, source: { schemaDefinition: unknown; verificationSet: unknown } | undefined): Promise<FieldCurrency> {
+function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknown } | undefined, row: CleanRunRow | undefined): FieldCurrency {
   if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [], unchangedKeys: [] };
   const fields = source.schemaDefinition as SchemaDefinitionField[];
   const set = source.verificationSet as VerificationSet;
 
-  const row = await latestCleanRun(db, sourceId);
-  if (!row) return { latest: null, currentKeys: [], unchangedKeys: [] };
+  if (!row || !row.completedAt) return { latest: null, currentKeys: [], unchangedKeys: [] };
   const results = row.results as Record<string, FieldVerification>;
 
   const unchangedKeys = fields
@@ -106,7 +103,59 @@ async function fieldCurrencyOf(db: Database, sourceId: string, source: { schemaD
   });
 
   const variantResults = (row.variantResults as VariantVerification | null | undefined) ?? null;
-  return { latest: { id: row.id, completedAt: row.completedAt!, results, variantResults }, currentKeys, unchangedKeys };
+  return { latest: { id: row.id, completedAt: row.completedAt, results, variantResults }, currentKeys, unchangedKeys };
+}
+
+/**
+ * Per-field currency (spec 4.4): one source, one query for its latest
+ * completed, error-free run.
+ */
+export async function loadFieldCurrency(db: Database, sourceId: string): Promise<FieldCurrency> {
+  const source = await db.query.sources.findFirst({
+    where: eq(sources.id, sourceId),
+    columns: { schemaDefinition: true, verificationSet: true },
+  });
+  return fieldCurrencyOf(db, sourceId, source);
+}
+
+/** `loadFieldCurrency` on a source row the caller already read. */
+async function fieldCurrencyOf(db: Database, sourceId: string, source: { schemaDefinition: unknown; verificationSet: unknown } | undefined): Promise<FieldCurrency> {
+  if (!source || !Array.isArray(source.schemaDefinition) || !source.verificationSet) return { latest: null, currentKeys: [], unchangedKeys: [] };
+  const row = await latestCleanRun(db, sourceId);
+  return currencyOf(source, row ?? undefined);
+}
+
+/**
+ * `loadFieldCurrency`, batched (ops overview, cut-over Task 3): every source's
+ * latest clean run is read in ONE query (`selectDistinctOn`, same shape
+ * `projects.get`'s last-run read uses for `runs`), rather than one
+ * `loadFieldCurrency` call per source — so an ops page listing every
+ * customer website never loops a per-source read beyond this single batch.
+ * Reuses `currencyOf`'s hash logic verbatim, so a source's currency here is
+ * never allowed to drift from what `loadFieldCurrency` would say for it alone.
+ */
+export async function loadFieldCurrencyBatch(
+  db: Database,
+  sourcesIn: Array<{ id: string; schemaDefinition: unknown; verificationSet: unknown }>,
+): Promise<Map<string, FieldCurrency>> {
+  const ids = sourcesIn.filter((s) => Array.isArray(s.schemaDefinition) && s.verificationSet).map((s) => s.id);
+
+  const rows = ids.length
+    ? await db
+        .selectDistinctOn([sourceVerifications.sourceId], {
+          sourceId: sourceVerifications.sourceId,
+          id: sourceVerifications.id,
+          completedAt: sourceVerifications.completedAt,
+          results: sourceVerifications.results,
+          variantResults: sourceVerifications.variantResults,
+        })
+        .from(sourceVerifications)
+        .where(and(inArray(sourceVerifications.sourceId, ids), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)))
+        .orderBy(sourceVerifications.sourceId, desc(sourceVerifications.completedAt), desc(sourceVerifications.id))
+    : [];
+  const rowBySource = new Map(rows.map((r) => [r.sourceId, r]));
+
+  return new Map(sourcesIn.map((s) => [s.id, currencyOf(s, rowBySource.get(s.id) ?? undefined)]));
 }
 
 export type VariantCurrency = { required: VariantsRequired; current: boolean; passed: boolean; result: VariantVerification | null };
