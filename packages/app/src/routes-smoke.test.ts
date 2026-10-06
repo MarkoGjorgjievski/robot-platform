@@ -171,9 +171,10 @@ function serveShop(): Promise<{ server: Server; origin: string }> {
 }
 
 /**
- * Plan 2's three screens, each with the one thing that proves it is the real
- * screen and not an empty shell: the website that was just added, the field that
- * was just picked, and the empty sheet a project with no run has.
+ * Plan 2's three screens plus the cut-over's Settings, each with the one thing
+ * that proves it is the real screen and not an empty shell: the website that
+ * was just added, the field that was just picked, the empty sheet a project
+ * with no run has, and the project's own name in its Name row.
  */
 const PROJECT_SCREENS = [
   {
@@ -205,6 +206,16 @@ const PROJECT_SCREENS = [
       // Nothing has run, and running anything costs money: the empty state is
       // the only honest state this screen can be in here.
       expect(await page.locator('main').innerText(), 'Output is not in its empty state').toContain('No rows yet');
+    },
+  },
+  {
+    name: 'settings',
+    route: '/settings',
+    assert: async () => {
+      expect(
+        await page.getByRole('textbox', { name: 'Name', exact: true }).inputValue(),
+        'the Name row does not hold the project name',
+      ).toBe(PROJECT_NAME);
     },
   },
 ] as const;
@@ -691,7 +702,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
           `${screen.name} is not in the ${theme} theme`,
         ).toBe(theme);
         expect(await page.locator('h1').count(), `${screen.name} has no page title`).toBeGreaterThan(0);
-        // The project's own section of the sidebar: its name, its three links.
+        // The project's own section of the sidebar: its name, its four links.
         expect(
           await page.locator('aside').getByRole('link', { name: 'Fields' }).count(),
           `${screen.name} lost the sidebar's project section`,
@@ -1228,6 +1239,36 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await again.blur();
     await expect.poll(() => page.locator('h1 input').inputValue(), { timeout: 20_000 }).toBe(WEBSITE_NAME);
     expect(problems, `renaming logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 120_000);
+
+  it('a rename on the project Settings page reaches the server and comes back (cut-over Task 1)', async () => {
+    expect(projectSlug, 'there is no project to rename').not.toBeNull();
+    const renamed = `${PROJECT_NAME} renamed`;
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/settings`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+
+    // `ProjectInlineRename` commits on blur, and the sidebar's project section
+    // reads the same `projects.get` query — so it agreeing is the round trip,
+    // not an optimistic echo.
+    const nameRow = page.getByRole('textbox', { name: 'Name', exact: true });
+    await nameRow.fill(renamed);
+    await nameRow.blur();
+    await expect.poll(() => page.locator('aside').innerText(), { timeout: 20_000 }).toContain(renamed);
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+    expect(
+      await page.getByRole('textbox', { name: 'Name', exact: true }).inputValue(),
+      'the rename did not survive the reload',
+    ).toBe(renamed);
+
+    // Back to the name the screens above are captured under.
+    const again = page.getByRole('textbox', { name: 'Name', exact: true });
+    await again.fill(PROJECT_NAME);
+    await again.blur();
+    await expect.poll(() => page.locator('aside').innerText(), { timeout: 20_000 }).toContain(PROJECT_NAME);
+    expect(problems, `renaming the project logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 120_000);
 
   it('renaming the account reaches the server and the sidebar', async () => {

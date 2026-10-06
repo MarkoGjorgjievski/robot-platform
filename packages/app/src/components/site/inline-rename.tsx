@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { trpc } from '../../lib/trpc';
+import { projectNameProblem } from '../../lib/project-settings-view';
 
 /**
  * The website's name, edited where it is read — in the page title.
@@ -43,9 +44,89 @@ export function InlineRename({
   ariaLabel?: string;
   size?: 'title' | 'row';
 }) {
-  const sizeClass = SIZE[size];
   const utils = trpc.useUtils();
   const rename = trpc.sources.rename.useMutation();
+  return (
+    <RenameField
+      name={name}
+      ariaLabel={ariaLabel}
+      size={size}
+      onCommit={async (next) => {
+        await rename.mutateAsync({ sourceId, name: next });
+        // The name is on this page, on the project's websites table and on the
+        // sidebar's website line — two queries hold all three.
+        await Promise.all([utils.sources.get.invalidate(), utils.projects.get.invalidate()]);
+      }}
+    />
+  );
+}
+
+/**
+ * The project's name, edited the same way (cut-over Task 1): the project
+ * Settings page's Name row embeds this beside `InlineRename`'s own kind,
+ * owning `projects.rename` the way `InlineRename` owns `sources.rename`. The
+ * project's rename is a page of its own rather than a title-row edit, so
+ * nothing calls this at `size="title"` yet — but the same component is ready
+ * for that the day a project page grows one.
+ *
+ * `orgSlug` is the session's active org (cut-over Task 1, ruling R1): passed
+ * explicitly, the way `projects.get`/`projects.list` take it, rather than
+ * relying on `projects.rename`'s `'default'` fallback — which Task 5 removes.
+ */
+export function ProjectInlineRename({
+  projectId,
+  orgSlug,
+  name,
+  ariaLabel = 'Project name',
+  size = 'title',
+}: {
+  projectId: string;
+  orgSlug: string;
+  name: string;
+  ariaLabel?: string;
+  size?: 'title' | 'row';
+}) {
+  const utils = trpc.useUtils();
+  const rename = trpc.projects.rename.useMutation();
+  return (
+    <RenameField
+      name={name}
+      ariaLabel={ariaLabel}
+      size={size}
+      problem={projectNameProblem}
+      onCommit={async (next) => {
+        await rename.mutateAsync({ projectId, name: next, orgSlug });
+        await Promise.all([utils.projects.get.invalidate(), utils.projects.list.invalidate()]);
+      }}
+    />
+  );
+}
+
+/**
+ * The shared editor both `InlineRename` and `ProjectInlineRename` render: a
+ * borderless input inheriting its caller's type, committing on blur. Each
+ * caller owns its own mutation and invalidation — this owns only the draft,
+ * the Escape-to-revert handling, and the one failure message every rename
+ * shares.
+ *
+ * `problem`, when given, is checked before `onCommit` and shown instead of
+ * saving — the project rename's "Enter a name" rather than the website's
+ * long-standing silent revert on an empty or unchanged edit.
+ */
+function RenameField({
+  name,
+  ariaLabel,
+  size,
+  onCommit,
+  problem,
+}: {
+  name: string;
+  ariaLabel: string;
+  size: 'title' | 'row';
+  onCommit: (next: string) => Promise<void>;
+  problem?: (next: string) => string | null;
+}) {
+  const sizeClass = SIZE[size];
 
   const [draft, setDraft] = useState(name);
   const [error, setError] = useState<string | null>(null);
@@ -74,15 +155,22 @@ export function InlineRename({
       return;
     }
     const next = draft.trim();
-    if (!next || next === name) {
+    if (problem) {
+      const reason = problem(next);
+      if (reason) {
+        setError(reason);
+        return;
+      }
+    } else if (!next) {
+      setDraft(name);
+      return;
+    }
+    if (next === name) {
       setDraft(name);
       return;
     }
     try {
-      await rename.mutateAsync({ sourceId, name: next });
-      // The name is on this page, on the project's websites table and on the
-      // sidebar's website line — two queries hold all three.
-      await Promise.all([utils.sources.get.invalidate(), utils.projects.get.invalidate()]);
+      await onCommit(next);
     } catch {
       // No cause is named: from the browser a failure could be the network, the
       // api-server, the database or a bug.

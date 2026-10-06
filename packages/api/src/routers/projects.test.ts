@@ -150,6 +150,14 @@ describe('projects live in the session organisation', () => {
 
       // The owner still renames it, so the guard has not simply closed the door.
       expect((await callerA.projects.rename({ projectId: p.id, name: `Renamed ${tag}` })).name).toBe(`Renamed ${tag}`);
+
+      // Cut-over Task 1, ruling R1: the app passes its own org slug explicitly
+      // (`get`/`list`/`create`'s own input shape) rather than omitting it and
+      // trusting the fallback below. A session still wins over whatever is
+      // passed, so this is accepted and renames the same project again.
+      expect(
+        (await callerA.projects.rename({ projectId: p.id, name: `Renamed again ${tag}`, orgSlug: a.session.org.slug })).name,
+      ).toBe(`Renamed again ${tag}`);
     } finally {
       for (const r of [a, b]) await dropIdentity(r);
     }

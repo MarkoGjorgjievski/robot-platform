@@ -303,14 +303,19 @@ export const projectsRouter = router({
    * A project outside the resolved org is NOT_FOUND, same as if it never
    * existed, rather than renameable by anyone who knows its id — the same rule
    * `delete` enforces, and this is the other write in the set.
-   * TODO(cut-over, spec 2026-09-21 §2): the `'default'` fallback exists only for the
-   * old dashboard, which calls this with no session at all. Once it is retired, drop
+   * `orgSlug` is optional and read the same way `get`/`list`/`create` read it
+   * (cut-over Task 1, ruling R1): a session always wins in `resolveOrg`, so a
+   * signed-in caller's own org is what is checked regardless of this field —
+   * the app still passes its active org slug explicitly rather than relying
+   * on the `'default'` fallback below, which exists only for the old
+   * dashboard's session-less calls.
+   * TODO(cut-over, spec 2026-09-21 §2): once the old dashboard is retired, drop
    * the fallback and require a session here too.
    */
   rename: publicProcedure
-    .input(z.object({ projectId: z.string().uuid(), name: z.string().trim().min(1).max(255) }))
+    .input(z.object({ projectId: z.string().uuid(), name: z.string().trim().min(1).max(255), orgSlug: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, 'default');
+      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
       const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
       if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       const [row] = await ctx.db
