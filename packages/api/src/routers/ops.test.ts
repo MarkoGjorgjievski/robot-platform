@@ -340,6 +340,7 @@ describe('ops.website', () => {
       expect(result.org).toMatchObject({ id: op.org.id, name: op.org.name, slug: op.org.slug });
       expect(result.operatorIsMember).toBe(true);
       expect(result.proofUrls).toEqual(urls);
+      expect(result.verified).toEqual({ current: 2, total: 2 });
 
       expect(result.fields.map((f) => f.key)).toEqual([priceKey, nameKey]);
       const priceField = result.fields.find((f) => f.key === priceKey)!;
@@ -389,6 +390,46 @@ describe('ops.website', () => {
     } finally {
       await dropIdentity(op);
       await dropIdentity(other);
+    }
+  });
+
+  it("reads the summary strip's per-field currency independently of the all-or-nothing certified-paths gate", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-partial-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    try {
+      const host = `test-ops4-partial-${tag}.example.com`;
+      const urls = [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
+      const built = await createProjectWithSource(op.caller, {
+        tag: `ops4-partial-${tag}`,
+        fields: [{ name: 'Price', type: 'money' }, { name: 'Name', type: 'text' }],
+        urls,
+        expected: { Price: Object.fromEntries(urls.map((u) => [u, '9.99'])), Name: Object.fromEntries(urls.map((u) => [u, 'Widget'])) },
+      });
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, built.sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+      const fields = source!.schemaDefinition as SchemaDefinitionField[];
+      const set = source!.verificationSet as VerificationSet;
+      const priceField = fields.find((f) => f.key === built.keys.Price)!;
+      const certified: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
+      const cells = Object.fromEntries(set.urls.map((u) => [u, { status: 'pass' as const, found: 'x', path: certified }]));
+      // Only Price gets a result row — Name has none, so it is neither current nor unchanged.
+      await db.insert(sourceVerifications).values({
+        sourceId: built.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        allPassed: true,
+        results: { [priceField.key]: { key: priceField.key, cells, certified: [certified], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: fieldHash(priceField, set) } },
+      });
+
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+      expect(result.verified).toEqual({ current: 1, total: 2 });
+      // The all-or-nothing certification gate (spec 4.4) means NEITHER field's
+      // approved-paths list shows anything until every field is current.
+      expect(result.fields.every((f) => f.paths.length === 0)).toBe(true);
+
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
     }
   });
 });
