@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Activity, FolderKanban, Gauge, Menu, Search, Settings } from 'lucide-react';
+import { Activity, ArrowLeftRight, FolderKanban, Gauge, Menu, Search, Settings } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { OrgSwitcher } from './org-switcher';
 import { ProjectSection } from './project-section';
@@ -58,6 +58,18 @@ export function SidebarBody({ session, onSearch, onNavigate }: SidebarProps) {
       </div>
 
       <div className="flex flex-col gap-1 border-t border-line p-2">
+        {/* Operators only (ops mode, 2026-10-06); a customer never sees this. */}
+        {session.isOperator ? (
+          <Link
+            to="/ops"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-base text-muted-foreground hover:text-text"
+          >
+            <ArrowLeftRight className="size-4 shrink-0" />
+            Back to ops
+          </Link>
+        ) : null}
+
         <button
           type="button"
           onClick={onSearch}
