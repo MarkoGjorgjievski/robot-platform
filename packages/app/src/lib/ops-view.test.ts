@@ -292,12 +292,13 @@ describe('backupsSummary', () => {
 });
 
 describe('fieldFlag', () => {
-  it('ranks drift above a shared source above a weak first path, and is null otherwise', () => {
-    expect(fieldFlag({ drifted: true, oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
-    expect(fieldFlag({ drifted: false, oneSource: true, firstPathPct: 40 })).toBe('Backups share one source');
-    expect(fieldFlag({ drifted: false, oneSource: false, firstPathPct: 40 })).toBe('First path finds it on 40 %');
-    expect(fieldFlag({ drifted: false, oneSource: false, firstPathPct: 90 })).toBeNull();
-    expect(fieldFlag({ drifted: false, oneSource: false, firstPathPct: null })).toBeNull();
+  it('ranks drift above changed-since-verified above a shared source above a weak first path, and is null otherwise', () => {
+    expect(fieldFlag({ drifted: true, changed: true, oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
+    expect(fieldFlag({ drifted: false, changed: true, oneSource: true, firstPathPct: 40 })).toBe('Changed since verified');
+    expect(fieldFlag({ drifted: false, changed: false, oneSource: true, firstPathPct: 40 })).toBe('Backups share one source');
+    expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: 40 })).toBe('First path finds it on 40 %');
+    expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: 90 })).toBeNull();
+    expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: null })).toBeNull();
   });
 });
 

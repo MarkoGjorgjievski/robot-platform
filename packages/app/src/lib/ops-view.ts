@@ -146,7 +146,16 @@ export type OpsPathSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 export type OpsFieldPath = { source: OpsPathSource; path: string; provenOn?: string[]; uses: number; hits: number; container?: string };
 
 /** One section of `ops.website`'s `fields` — a contract field's certified paths, in try order. */
-export type OpsField = { key: string; name: string; type: string; paths: OpsFieldPath[] };
+/**
+ * `current` — the field's latest verification result passed and still
+ * matches the field as it stands now (`loadFieldCurrency`'s `currentKeys`).
+ * `changed` — a result exists but is not current, typically because the
+ * field, its proof pages or its expected values changed since that result
+ * ran; its (possibly stale) paths are still shown, flagged. `none` — no
+ * result at all: "Not verified yet" (reviewer fix round 1).
+ */
+export type OpsFieldState = 'current' | 'changed' | 'none';
+export type OpsField = { key: string; name: string; type: string; state: OpsFieldState; paths: OpsFieldPath[] };
 
 /** Kind, in the customer's own words (Global Constraints) — never the internal `CertifiedSource` vocabulary. */
 const PATH_KIND: Record<OpsPathSource, string> = { api: 'API', 'json-ld': 'Page data', meta: 'Meta', xpath: 'Page element' };
@@ -220,12 +229,14 @@ export function backupsSummary(paths: ReadonlyArray<Pick<OpsFieldPath, 'source'>
 }
 
 /**
- * The collapsed row's warn flag (Global Constraints): the first that
- * applies, drift outranking a shared source outranking a weak first path —
- * never more than one shown at once. `null` when none applies.
+ * The collapsed row's warn flag (Global Constraints, reviewer fix round 1):
+ * the first that applies — drift outranks a field that changed since it was
+ * verified, which outranks a shared source, which outranks a weak first
+ * path — never more than one shown at once. `null` when none applies.
  */
-export function fieldFlag(args: { drifted: boolean; oneSource: boolean; firstPathPct: number | null }): string | null {
+export function fieldFlag(args: { drifted: boolean; changed: boolean; oneSource: boolean; firstPathPct: number | null }): string | null {
   if (args.drifted) return 'Stopped extracting';
+  if (args.changed) return 'Changed since verified';
   if (args.oneSource) return 'Backups share one source';
   if (args.firstPathPct !== null && args.firstPathPct < 90) return `First path finds it on ${args.firstPathPct} %`;
   return null;

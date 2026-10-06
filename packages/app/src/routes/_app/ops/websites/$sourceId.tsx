@@ -88,8 +88,11 @@ function fieldRowInfo(field: OpsField, driftedFieldNames: readonly string[]) {
   // `driftedFieldNames` carries names, not keys (Global Constraints), so
   // membership by name is the one way a field row knows it is the drifted one.
   const drifted = driftedFieldNames.includes(field.name);
-  const flag = fieldFlag({ drifted, oneSource: !!warn, firstPathPct });
-  return { firstPathPct, warn, drifted, flag };
+  // A result exists but is no longer current — the field, its proof pages or
+  // its expected values changed since it ran (reviewer fix round 1).
+  const changed = field.state === 'changed';
+  const flag = fieldFlag({ drifted, changed, oneSource: !!warn, firstPathPct });
+  return { firstPathPct, warn, drifted, changed, flag };
 }
 
 function OpsWebsitePage() {
@@ -384,10 +387,12 @@ function FieldRow({
           <span className="font-medium">{field.name}</span> <span className="text-sm text-muted-foreground">{typeLabel}</span>
         </span>
         <span className="hidden text-sm text-muted-foreground sm:inline">
-          {hasPaths ? backupsSummary(field.paths) : 'Not verified yet'}
+          {hasPaths ? backupsSummary(field.paths) : field.state === 'none' ? 'Not verified yet' : 'No working path'}
         </span>
         <span className="text-sm whitespace-nowrap">
-          {info.firstPathPct === null ? (
+          {field.state === 'none' ? (
+            <span className="text-muted-foreground">Not verified yet</span>
+          ) : info.firstPathPct === null ? (
             <span className="text-muted-foreground">Not needed yet</span>
           ) : (
             <>
@@ -398,22 +403,25 @@ function FieldRow({
         <span className={`text-sm whitespace-nowrap ${info.flag ? 'text-warn' : ''}`}>{info.flag}</span>
       </button>
 
-      {expanded ? (
-        <div id={`ops-field-${field.key}`} className="px-4 pb-4">
-          {hasPaths ? (
-            <>
-              <ol className="relative ml-[9px] space-y-3 border-l-2 border-line pl-6">
-                {field.paths.map((p, i) => (
-                  <LadderStep key={i} path={p} index={i} proofUrls={proofUrls} />
-                ))}
-              </ol>
-              {info.warn ? <p className="mt-3 border-l-2 border-warn pl-3 text-sm text-warn">{info.warn}</p> : null}
-            </>
-          ) : (
-            <p className="py-2 text-sm text-muted-foreground">Not verified yet.</p>
-          )}
-        </div>
-      ) : null}
+      {/* Kept in the DOM and toggled with `hidden` rather than unmounted, so
+          the button's `aria-controls` always names an element that exists
+          (reviewer fix round 1, minor). */}
+      <div id={`ops-field-${field.key}`} className="px-4 pb-4" hidden={!expanded}>
+        {hasPaths ? (
+          <>
+            <ol className="relative ml-[9px] space-y-3 border-l-2 border-line pl-6">
+              {field.paths.map((p, i) => (
+                <LadderStep key={i} path={p} index={i} proofUrls={proofUrls} />
+              ))}
+            </ol>
+            {info.warn ? <p className="mt-3 border-l-2 border-warn pl-3 text-sm text-warn">{info.warn}</p> : null}
+          </>
+        ) : (
+          <p className="py-2 text-sm text-muted-foreground">
+            {field.state === 'none' ? 'Not verified yet.' : 'No path currently works.'}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
