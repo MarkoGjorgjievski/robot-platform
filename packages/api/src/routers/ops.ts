@@ -5,7 +5,7 @@ import { datasets, memberships, orgs, projects, runs, sourceVerifications, sourc
 import { lookupDomainCache, type FieldPathSet, type SchemaDefinitionField } from '@robot/scraper';
 import { router, publicProcedure, opsProcedure } from '../trpc.js';
 import { isCustomerSchema } from '../crawl/effective-schema.js';
-import { loadCurrentCertification, loadFieldCurrencyBatch } from '../verify/current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-certification.js';
 import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { monthBounds } from './usage.js';
 
@@ -190,8 +190,14 @@ export const opsRouter = router({
     }
 
     const fields = row.schemaDefinition as SchemaDefinitionField[];
-    const [cert, membership, lastRunBySource, drift] = await Promise.all([
+    const [cert, fieldCurrency, membership, lastRunBySource, drift] = await Promise.all([
       loadCurrentCertification(db, row.sourceId),
+      // The summary strip's "Verified" cell reads the table's own per-field
+      // currency (plan "Ops design": "as in the table") — partial counts
+      // allowed — never `cert`'s all-or-nothing gate, which the "Approved
+      // paths" section below uses instead (certified paths exist only once
+      // EVERY field is current).
+      loadFieldCurrency(db, row.sourceId),
       db.query.memberships.findFirst({ where: and(eq(memberships.userId, ctx.session.user.id), eq(memberships.orgId, row.orgId)) }),
       lastRunsBySource(db, [row.sourceId]),
       latestDriftCheck(row.sourceId),
@@ -212,6 +218,7 @@ export const opsRouter = router({
       project: { name: row.projectName, slug: row.projectSlug },
       website: { name: row.sourceName, slug: row.sourceSlug, host: safeHost(row.url) },
       operatorIsMember: !!membership,
+      verified: { current: fieldCurrency.currentKeys.length, total: fields.length },
       fields: fields.map((f) => {
         const concept = cert?.concepts[f.key] ?? f.concept;
         const certified = cert?.paths[f.key] ?? [];
