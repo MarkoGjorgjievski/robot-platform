@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ONE_SOURCE_WARNING,
   OPS_REASONS,
+  backupsSummary,
+  decodeOpsOverviewState,
   defaultOpsView,
+  driftNoticeLines,
+  encodeOpsOverviewState,
+  fieldFlag,
   isDrifted,
   lastRunFailed,
   lastRunText,
@@ -9,12 +15,19 @@ import {
   moneyText,
   needsAttention,
   notFullyVerified,
+  oneSourceWarning,
   opsRowOrder,
+  pathKind,
+  pathPercent,
+  provenText,
+  runStatsText,
+  siteLastRunText,
   sortFooterText,
   sortRowsBy,
   totalsText,
   verifiedState,
   verifiedText,
+  type OpsFieldPath,
   type OpsWebsiteRow,
 } from './ops-view';
 
@@ -179,5 +192,228 @@ describe('matchesOpsQuery', () => {
     expect(matchesOpsQuery(r, 'northwind')).toBe(true);
     expect(matchesOpsQuery(r, 'footwear')).toBe(true);
     expect(matchesOpsQuery(r, 'allbirds')).toBe(false);
+  });
+});
+
+// ─── `/ops/websites/$sourceId` (cut-over Task 4) ────────────────────────────
+
+function path(over: Partial<OpsFieldPath>): OpsFieldPath {
+  return { source: 'api', path: 'x', uses: 0, hits: 0, ...over };
+}
+
+describe('pathKind', () => {
+  it('names each certified source in the customer\'s own words (Global Constraints)', () => {
+    expect(pathKind('api')).toBe('API');
+    expect(pathKind('json-ld')).toBe('Page data');
+    expect(pathKind('meta')).toBe('Meta');
+    expect(pathKind('xpath')).toBe('Page element');
+  });
+});
+
+describe('provenText', () => {
+  const proofUrls = ['https://x.example/p/1', 'https://x.example/p/2', 'https://x.example/p/3'];
+
+  it('reads "all proof pages" with no provenOn', () => {
+    expect(provenText(undefined, proofUrls)).toBe('all proof pages');
+  });
+
+  it('names one page singular', () => {
+    expect(provenText([proofUrls[0]!], proofUrls)).toBe('product 1');
+  });
+
+  it('joins two pages with "and"', () => {
+    expect(provenText([proofUrls[0]!, proofUrls[2]!], proofUrls)).toBe('products 1 and 3');
+  });
+
+  it('joins three or more with a comma and a trailing "and"', () => {
+    expect(provenText([proofUrls[0]!, proofUrls[1]!, proofUrls[2]!], proofUrls)).toBe('products 1, 2 and 3');
+  });
+
+  it('sorts by position, not by the order provenOn lists them', () => {
+    expect(provenText([proofUrls[2]!, proofUrls[0]!], proofUrls)).toBe('products 1 and 3');
+  });
+
+  it('falls back to "all proof pages" when none of provenOn\'s urls are on the current proof list', () => {
+    expect(provenText(['https://gone.example/p/9'], proofUrls)).toBe('all proof pages');
+  });
+});
+
+describe('runStatsText / pathPercent', () => {
+  it('reads "Not needed yet" for 0 uses, never "0 %"', () => {
+    expect(runStatsText(0, 0)).toBe('Not needed yet');
+    expect(pathPercent(0, 0)).toBeNull();
+  });
+
+  it('reads "{hits} of {uses} ({pct} %)", rounded', () => {
+    expect(runStatsText(1248, 812)).toBe('812 of 1248 (65 %)');
+    expect(pathPercent(1248, 812)).toBe(65);
+  });
+
+  it('reads 100 % when every use hit', () => {
+    expect(runStatsText(8, 8)).toBe('8 of 8 (100 %)');
+  });
+});
+
+describe('oneSourceWarning', () => {
+  it('is null for a single path, however it reads', () => {
+    expect(oneSourceWarning([path({ source: 'api' })])).toBeNull();
+  });
+
+  it('fires for three api paths with no recorded containers', () => {
+    const paths = [path({ source: 'api' }), path({ source: 'api' }), path({ source: 'api' })];
+    expect(oneSourceWarning(paths)).toBe(ONE_SOURCE_WARNING);
+  });
+
+  it('fires for api paths that all share the same recorded container', () => {
+    const paths = [path({ source: 'api', container: 'https://x.example/api/a' }), path({ source: 'api', container: 'https://x.example/api/a' })];
+    expect(oneSourceWarning(paths)).toBe(ONE_SOURCE_WARNING);
+  });
+
+  it('is null for api paths with two different recorded containers', () => {
+    const paths = [path({ source: 'api', container: 'https://x.example/api/a' }), path({ source: 'api', container: 'https://x.example/api/b' })];
+    expect(oneSourceWarning(paths)).toBeNull();
+  });
+
+  it('fires for every path being json-ld', () => {
+    expect(oneSourceWarning([path({ source: 'json-ld' }), path({ source: 'json-ld' })])).toBe(ONE_SOURCE_WARNING);
+  });
+
+  it('is absent for an api + json-ld mix', () => {
+    expect(oneSourceWarning([path({ source: 'api' }), path({ source: 'json-ld' })])).toBeNull();
+  });
+});
+
+describe('backupsSummary', () => {
+  it('names the first path\'s kind and the backup count', () => {
+    expect(backupsSummary([path({ source: 'api' })])).toBe('API, no backups');
+    expect(backupsSummary([path({ source: 'api' }), path({ source: 'json-ld' })])).toBe('API, 1 backup');
+    expect(backupsSummary([path({ source: 'json-ld' }), path({ source: 'api' }), path({ source: 'api' })])).toBe('Page data, 2 backups');
+  });
+});
+
+describe('fieldFlag', () => {
+  it('ranks drift above a shared source above a weak first path, and is null otherwise', () => {
+    expect(fieldFlag({ drifted: true, oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
+    expect(fieldFlag({ drifted: false, oneSource: true, firstPathPct: 40 })).toBe('Backups share one source');
+    expect(fieldFlag({ drifted: false, oneSource: false, firstPathPct: 40 })).toBe('First path finds it on 40 %');
+    expect(fieldFlag({ drifted: false, oneSource: false, firstPathPct: 90 })).toBeNull();
+    expect(fieldFlag({ drifted: false, oneSource: false, firstPathPct: null })).toBeNull();
+  });
+});
+
+describe('siteLastRunText', () => {
+  it('reads "No runs" with no last run', () => {
+    expect(siteLastRunText(null)).toBe('No runs');
+  });
+
+  it('reads "Completed {time}, {rows} rows"', () => {
+    expect(siteLastRunText({ status: 'completed', at: '2026-10-06T10:00:00Z', rows: 1248 }, NOW)).toBe('Completed 2 h ago, 1,248 rows');
+  });
+
+  it('reads "Failed {time}" with no row count', () => {
+    expect(siteLastRunText({ status: 'failed', at: '2026-10-06T11:25:00Z', rows: null }, NOW)).toBe('Failed 35 min ago');
+  });
+
+  it('reads "Running" alone, whatever its time or rows', () => {
+    expect(siteLastRunText({ status: 'running', at: NOW.toISOString(), rows: null }, NOW)).toBe('Running');
+  });
+});
+
+describe('driftNoticeLines', () => {
+  const proofUrls = ['https://x.example/p/1', 'https://x.example/p/2', 'https://x.example/p/3'];
+  const fieldNames = { price: 'Price', size: 'Size' };
+
+  it('is empty with no results', () => {
+    expect(driftNoticeLines({ driftedKeys: ['price'], fieldNames, results: null, proofUrls })).toEqual([]);
+  });
+
+  it('names moved, other-layout and lost with their exact texts', () => {
+    expect(
+      driftNoticeLines({
+        driftedKeys: ['price', 'size'],
+        fieldNames,
+        results: {
+          fields: {
+            price: { key: 'price', result: 'moved', pages: {} },
+            size: { key: 'size', result: 'lost', pages: {} },
+          },
+        },
+        proofUrls,
+      }),
+    ).toEqual([
+      { name: 'Price', text: 'Moved on the page — a new location is proposed' },
+      { name: 'Size', text: 'Not found on the page' },
+    ]);
+  });
+
+  it('reads "Page now shows {new} (was {old})" for a single changed page, naming pages when more than one changed', () => {
+    const one = driftNoticeLines({
+      driftedKeys: ['price'],
+      fieldNames,
+      results: { fields: { price: { key: 'price', result: 'changed', pages: { [proofUrls[0]!]: { status: 'ok', value: '12.99', was: '9.99', changed: true } } } } },
+      proofUrls,
+    });
+    expect(one).toEqual([{ name: 'Price', text: 'Page now shows 12.99 (was 9.99)' }]);
+
+    const two = driftNoticeLines({
+      driftedKeys: ['price'],
+      fieldNames,
+      results: {
+        fields: {
+          price: {
+            key: 'price',
+            result: 'changed',
+            pages: {
+              [proofUrls[0]!]: { status: 'ok', value: '12.99', was: '9.99', changed: true },
+              [proofUrls[2]!]: { status: 'ok', value: '14.99', was: '10.99', changed: true },
+            },
+          },
+        },
+      },
+      proofUrls,
+    });
+    expect(two).toEqual([{ name: 'Price', text: 'Page now shows 12.99 (was 9.99) on product 1; Page now shows 14.99 (was 10.99) on product 3' }]);
+  });
+
+  it('skips an unchanged page and ignores a field with no entry in results', () => {
+    expect(
+      driftNoticeLines({
+        driftedKeys: ['price', 'size'],
+        fieldNames,
+        results: { fields: { price: { key: 'price', result: 'changed', pages: { [proofUrls[0]!]: { status: 'ok', value: '9.99', changed: false } } } } },
+        proofUrls,
+      }),
+    ).toEqual([{ name: 'Price', text: 'Page now shows a different value' }]);
+  });
+
+  it('adds one "Product {n} no longer loads" line per gone proof page, alongside the field\'s own result', () => {
+    expect(
+      driftNoticeLines({
+        driftedKeys: ['price'],
+        fieldNames,
+        results: { fields: { price: { key: 'price', result: 'lost', pages: { [proofUrls[1]!]: { status: 'page-gone' } } } } },
+        proofUrls,
+      }),
+    ).toEqual([
+      { name: 'Price', text: 'Not found on the page' },
+      { name: 'Price', text: 'Product 2 no longer loads' },
+    ]);
+  });
+});
+
+describe('encodeOpsOverviewState / decodeOpsOverviewState', () => {
+  it('round-trips every field', () => {
+    const state = { view: 'attention' as const, reason: 'drift' as const, q: 'nike', customer: 'org-1', sort: 'spend-desc' as const };
+    expect(decodeOpsOverviewState(encodeOpsOverviewState(state))).toEqual(state);
+  });
+
+  it('encodes nothing for empty state, and decodes that back to empty', () => {
+    expect(encodeOpsOverviewState({})).toBe('');
+    expect(decodeOpsOverviewState('')).toEqual({});
+    expect(decodeOpsOverviewState(undefined)).toEqual({});
+  });
+
+  it('drops an invalid or tampered value rather than carrying it through', () => {
+    expect(decodeOpsOverviewState('view=nonsense&reason=nonsense&sort=nonsense')).toEqual({});
   });
 });
