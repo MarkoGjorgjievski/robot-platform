@@ -206,6 +206,21 @@ describe('classifyDrift', () => {
     }
   }, 60_000);
 
+  it('moved needs at least two working pages: pages 2–3 gone → never "moved" from page 1 alone', async () => {
+    const captures: Record<string, DriftCapture | null> = baseCaptures();
+    const stripped = stripPriceSources(captures[U[0]!]!);
+    const match = stripped.html.match(/<span class="now">(\$[\d.]+)<\/span>/);
+    if (!match) throw new Error('fixture missing the "now" price span');
+    const html = stripped.html.replace(match[0]!, '').replace('<p class="stock">', `<div class="sale-price">${match[1]!}</div><p class="stock">`);
+    captures[U[0]!] = { ...stripped, html, boxes: await boxesFor(html) };
+    captures[U[1]!] = null;
+    captures[U[2]!] = null;
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures }, deps());
+    expect(r.result).not.toBe('moved');
+    expect(r.pages[U[1]!]).toEqual({ status: 'page-gone' });
+    expect(r.pages[U[2]!]).toEqual({ status: 'page-gone' });
+  }, 60_000);
+
   it('I1/M1: price moved to another key with the SAME values, page 3 gone → moved, never "changed" to identical values', async () => {
     const captures: Record<string, DriftCapture | null> = baseCaptures();
     for (const u of [U[0]!, U[1]!]) {
