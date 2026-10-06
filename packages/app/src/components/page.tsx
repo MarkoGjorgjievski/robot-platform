@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
  */
 export function Page({
   title,
+  subtitle,
   actions,
   children,
 }: {
@@ -22,6 +23,8 @@ export function Page({
    * `as="span"`, not the default `div`.
    */
   title: ReactNode;
+  /** A line under the title, in secondary text (the ops overview's "Every customer's websites…"). Most screens leave this off. */
+  subtitle?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
 }) {
@@ -32,7 +35,10 @@ export function Page({
             a long unbroken name would set this row's width and push the page
             sideways rather than shrinking. What the title does with the room it
             is given — wrap, truncate — is the title's own business. */}
-        <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.011em]">{title}</h1>
+        <div className="min-w-0">
+          <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.011em]">{title}</h1>
+          {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
+        </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>
       {children}
