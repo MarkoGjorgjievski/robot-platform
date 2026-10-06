@@ -122,6 +122,10 @@ async function tryMoved(
   // make certify's page set incomplete and refuse every path, so a field that
   // really moved would read as lost (final review I1). certify's own rules
   // still hold on the subset — two deciding pages still need a path carrying both.
+  // A move is a proposal the customer may accept as a new mark: one page alone
+  // can't tell the field's element from any other element showing the same
+  // value, so "moved" needs at least two working pages (as certification does).
+  if (decidingUrls.length < 2) return null;
   const decidingCaptures = Object.fromEntries(decidingUrls.map((u) => [u, captures[u]!]));
   const decidingExpected = Object.fromEntries(decidingUrls.map((u) => [u, expected[u]!]));
   const { candidates } = await gatherCandidates(field, decidingExpected, decidingCaptures, { runDomSearch: deps.runDomSearch });
