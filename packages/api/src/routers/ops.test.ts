@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { db, projects, runs, sourceVerifications, sources, users } from '@robot/db';
-import { eq } from 'drizzle-orm';
+import { db, domainIntelligence, projects, runs, sourceVerifications, sources, users } from '@robot/db';
+import { and, eq } from 'drizzle-orm';
 import { fieldHash, type CertifiedPath, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, createCallerFactory, isOperatorEmail, opsProcedure } from '../trpc.js';
 import { appRouter } from './index.js';
@@ -257,5 +257,138 @@ describe('ops.websites', () => {
   it('gives UNAUTHORIZED to a signed-out caller', async () => {
     const { caller } = callerWith(null);
     await expect(caller.ops.websites()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+});
+
+describe('ops.website', () => {
+  const ORIGINAL = process.env.OPS_EMAILS;
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.OPS_EMAILS;
+    else process.env.OPS_EMAILS = ORIGINAL;
+  });
+
+  async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
+    await db.delete(projects).where(eq(projects.orgId, r.org.id));
+    await deleteOwnOrg(r.org.id);
+    await db.delete(users).where(eq(users.id, r.user.id));
+  }
+
+  /** Certifies each field in `pathsByKey` with its own ranked certified paths
+   * (try order preserved), against the source's own verification set — same
+   * hash-matching shape `certifyAllFields`/`seedDriftCheck` write directly,
+   * without a real Verify. A field missing from `pathsByKey` still gets a
+   * trivial passing certification so the whole source reads as current. */
+  async function certifyPaths(sourceId: string, pathsByKey: Record<string, CertifiedPath[]>): Promise<void> {
+    const source = await db.query.sources.findFirst({ where: eq(sources.id, sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+    const fields = (source!.schemaDefinition ?? []) as SchemaDefinitionField[];
+    const set = (source!.verificationSet ?? { urls: [], expected: {} }) as VerificationSet;
+    const results: Record<string, FieldVerification> = {};
+    for (const field of fields) {
+      const certified = pathsByKey[field.key] ?? [{ source: 'json-ld' as const, path: 'x', transform: 'identity' as const }];
+      const cells = Object.fromEntries(set.urls.map((u) => [u, { status: 'pass' as const, found: 'x', path: certified[0]! }]));
+      results[field.key] = { key: field.key, cells, certified, weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: fieldHash(field, set) };
+    }
+    await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results });
+  }
+
+  it("gets its fields' certified paths in try order, named with the contract's own field names, with real run stats, 0/0 for a path the domain store never recorded, and the api container only where stats carry one", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-op-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    const host = `test-ops4-${tag}.example.com`;
+    const urls = [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
+    try {
+      const built = await createProjectWithSource(op.caller, {
+        tag: `ops4-${tag}`,
+        fields: [{ name: 'Price', type: 'money' }, { name: 'Name', type: 'text' }],
+        urls,
+        expected: {
+          Price: Object.fromEntries(urls.map((u) => [u, '9.99'])),
+          Name: Object.fromEntries(urls.map((u) => [u, 'Widget'])),
+        },
+      });
+
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, built.sourceId), columns: { schemaDefinition: true } });
+      const fields = source!.schemaDefinition as SchemaDefinitionField[];
+      const priceKey = built.keys.Price!;
+      const nameKey = built.keys.Name!;
+      const priceConcept = fields.find((f) => f.key === priceKey)!.concept;
+
+      const pricePrimary: CertifiedPath = { source: 'api', path: 'product.price', transform: 'identity' };
+      const priceBackup: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity', provenOn: [urls[0]!, urls[2]!] };
+      const namePath: CertifiedPath = { source: 'json-ld', path: 'name', transform: 'identity' };
+      await certifyPaths(built.sourceId, { [priceKey]: [pricePrimary, priceBackup], [nameKey]: [namePath] });
+
+      await db.insert(domainIntelligence).values({
+        domain: host,
+        pageType: 'detail',
+        fieldPaths: {
+          [priceConcept]: {
+            paths: [{
+              path: 'product.price', source: 'verified', origin: 'api', transform: 'identity',
+              confidence: 1, hits: 5, misses: 1, lastValue: '9.99', lastUsedAt: new Date().toISOString(),
+              lastUrl: `https://${host}/api/product`,
+            }],
+            conflictCount: 0,
+          },
+        },
+      });
+
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+
+      expect(result.sourceId).toBe(built.sourceId);
+      expect(result.org).toMatchObject({ id: op.org.id, name: op.org.name, slug: op.org.slug });
+      expect(result.operatorIsMember).toBe(true);
+      expect(result.proofUrls).toEqual(urls);
+
+      expect(result.fields.map((f) => f.key)).toEqual([priceKey, nameKey]);
+      const priceField = result.fields.find((f) => f.key === priceKey)!;
+      expect(priceField.name).toBe('Price');
+      expect(priceField.paths).toEqual([
+        { source: 'api', path: 'product.price', uses: 6, hits: 5, container: `https://${host}/api/product` },
+        { source: 'json-ld', path: 'offers.price', provenOn: [urls[0], urls[2]], uses: 0, hits: 0 },
+      ]);
+
+      const nameField = result.fields.find((f) => f.key === nameKey)!;
+      expect(nameField.name).toBe('Name');
+      expect(nameField.paths).toEqual([{ source: 'json-ld', path: 'name', uses: 0, hits: 0 }]);
+
+      await db.delete(domainIntelligence).where(and(eq(domainIntelligence.domain, host), eq(domainIntelligence.pageType, 'detail')));
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+    }
+  });
+
+  it("gives FORBIDDEN to a signed-in non-operator, and UNAUTHORIZED to a signed-out caller", async () => {
+    const tag = Date.now();
+    process.env.OPS_EMAILS = '';
+    const plain = await signIn(`ops-site-plain-${tag}@example.com`);
+    try {
+      const built = await createProjectWithSource(plain.caller, { tag: `ops4-forbidden-${tag}`, fields: [{ name: 'Price', type: 'money' }] });
+      await expect(plain.caller.ops.website({ sourceId: built.sourceId })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      await expect(callerWith(null).caller.ops.website({ sourceId: built.sourceId })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await built.cleanup();
+    } finally {
+      await dropIdentity(plain);
+    }
+  });
+
+  it('gives NOT_FOUND for a source that is not a customer-schema website, and reports operatorIsMember false for a website in an org the operator does not belong to', async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-op2-${tag}@example.com`);
+    const other = await signIn(`ops-site-other-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    try {
+      await expect(op.caller.ops.website({ sourceId: '00000000-0000-0000-0000-000000000000' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+      const built = await createProjectWithSource(other.caller, { tag: `ops4-othermember-${tag}`, fields: [{ name: 'Price', type: 'money' }] });
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+      expect(result.operatorIsMember).toBe(false);
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+      await dropIdentity(other);
+    }
   });
 });

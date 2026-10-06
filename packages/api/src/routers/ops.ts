@@ -1,9 +1,12 @@
+import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
-import { datasets, orgs, projects, runs, sourceVerifications, sources, type Database } from '@robot/db';
-import type { SchemaDefinitionField } from '@robot/scraper';
+import { datasets, memberships, orgs, projects, runs, sourceVerifications, sources, type Database } from '@robot/db';
+import { lookupDomainCache, type FieldPathSet, type SchemaDefinitionField } from '@robot/scraper';
 import { router, publicProcedure, opsProcedure } from '../trpc.js';
 import { isCustomerSchema } from '../crawl/effective-schema.js';
-import { loadFieldCurrencyBatch } from '../verify/current-certification.js';
+import { loadCurrentCertification, loadFieldCurrencyBatch } from '../verify/current-certification.js';
+import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { monthBounds } from './usage.js';
 
 /** The host for the quiet mono line under a website's name. Never throws: a
@@ -144,5 +147,100 @@ export const opsRouter = router({
         spentThisMonthUsd: spendBySource.get(r.sourceId) ?? 0,
       };
     });
+  }),
+
+  /**
+   * One website's approved paths, readable (plan "Ops design"): every
+   * contract field, with its currently certified paths in try order, named
+   * with the customer's own field name — never the internal concept — and
+   * each path's real run hit rate from the domain store. Never "cache" in
+   * the output: the store is "approved paths" wording lives in the app.
+   *
+   * `cert` is null for a website that is not (or no longer) fully certified
+   * (spec 4.4) — its fields still list, each with an empty `paths` array,
+   * so an unverified website reads as "nothing approved yet" rather than a
+   * server error.
+   */
+  website: opsProcedure.input(z.object({ sourceId: z.string().uuid() })).query(async ({ ctx, input }) => {
+    const db = ctx.db;
+    const [row] = await db
+      .select({
+        sourceId: sources.id,
+        sourceName: sources.name,
+        sourceSlug: sources.slug,
+        url: sources.urlTemplate,
+        schemaDefinition: sources.schemaDefinition,
+        verificationSet: sources.verificationSet,
+        driftedFields: sources.driftedFields,
+        orgId: orgs.id,
+        orgName: orgs.name,
+        orgSlug: orgs.slug,
+        projectName: projects.name,
+        projectSlug: projects.slug,
+      })
+      .from(sources)
+      .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+      .innerJoin(projects, eq(datasets.projectId, projects.id))
+      .innerJoin(orgs, eq(projects.orgId, orgs.id))
+      .where(eq(sources.id, input.sourceId))
+      .limit(1);
+
+    if (!row || !isCustomerSchema({ schemaDefinition: row.schemaDefinition })) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: `Website ${input.sourceId} is not in ops` });
+    }
+
+    const fields = row.schemaDefinition as SchemaDefinitionField[];
+    const [cert, membership, lastRunBySource, drift] = await Promise.all([
+      loadCurrentCertification(db, row.sourceId),
+      db.query.memberships.findFirst({ where: and(eq(memberships.userId, ctx.session.user.id), eq(memberships.orgId, row.orgId)) }),
+      lastRunsBySource(db, [row.sourceId]),
+      latestDriftCheck(row.sourceId),
+    ]);
+
+    // One read of the domain store for the whole page — never one per path
+    // (M3's hostname is the only key a verified-path stat is ever booked
+    // under, so there is exactly one row to read, whatever the field count).
+    const domainCache = cert ? await lookupDomainCache(cert.hostname, 'detail') : null;
+    const fieldPaths = (domainCache?.fieldPaths ?? {}) as Record<string, FieldPathSet>;
+
+    const driftedKeys = Array.isArray(row.driftedFields) ? (row.driftedFields as string[]) : [];
+    const lastRun = lastRunBySource.get(row.sourceId) ?? null;
+
+    return {
+      sourceId: row.sourceId,
+      org: { id: row.orgId, name: row.orgName, slug: row.orgSlug },
+      project: { name: row.projectName, slug: row.projectSlug },
+      website: { name: row.sourceName, slug: row.sourceSlug, host: safeHost(row.url) },
+      operatorIsMember: !!membership,
+      fields: fields.map((f) => {
+        const concept = cert?.concepts[f.key] ?? f.concept;
+        const certified = cert?.paths[f.key] ?? [];
+        const stats = fieldPaths[concept]?.paths ?? [];
+        return {
+          key: f.key,
+          name: f.name,
+          type: f.type,
+          paths: certified.map((p) => {
+            // A verified stat's identity is (origin, path) — `sameVerified` in
+            // domain-cache.ts, matched here by source + path alone (Review
+            // Focus 3: a pruned or never-run path just has no match, never an error).
+            const stat = stats.find((s) => s.source === 'verified' && s.origin === p.source && s.path === p.path);
+            return {
+              source: p.source,
+              path: p.path,
+              ...(p.provenOn ? { provenOn: p.provenOn } : {}),
+              uses: (stat?.hits ?? 0) + (stat?.misses ?? 0),
+              hits: stat?.hits ?? 0,
+              ...(p.source === 'api' && stat?.lastUrl ? { container: stat.lastUrl } : {}),
+            };
+          }),
+        };
+      }),
+      drift: drift ? { status: drift.status, results: drift.results } : null,
+      driftedFieldNames: driftedKeys.map((key) => fields.find((f) => f.key === key)?.name ?? key),
+      driftRunAt: drift?.runAt ? drift.runAt.toISOString() : null,
+      lastRun: lastRun ? { status: lastRun.status, at: lastRun.createdAt.toISOString(), rows: lastRun.resultCount } : null,
+      proofUrls: (row.verificationSet as { urls?: string[] } | null)?.urls ?? [],
+    };
   }),
 });
