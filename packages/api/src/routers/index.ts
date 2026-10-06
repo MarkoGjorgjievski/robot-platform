@@ -5,6 +5,7 @@ import { projectsRouter } from './projects';
 import { datasetsRouter } from './datasets';
 import { sourcesRouter } from './sources';
 import { domainsRouter } from './domains';
+import { opsRouter } from './ops.js';
 import { runsRouter } from './runs';
 import { crawlRouter } from './crawl';
 import { scraperRouter } from './scraper';
@@ -17,6 +18,7 @@ export const appRouter = router({
   datasets: datasetsRouter,
   sources: sourcesRouter,
   domains: domainsRouter,
+  ops: opsRouter,
   runs: runsRouter,
   crawl: crawlRouter,
   scraper: scraperRouter,
