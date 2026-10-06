@@ -1,6 +1,10 @@
 /** The project section of the sidebar and the breadcrumb (spec 2026-09-21 §3). Pure. */
 export type ProjectNavItem = {
-  to: '/projects/$project' | '/projects/$project/fields' | '/projects/$project/output';
+  to:
+    | '/projects/$project'
+    | '/projects/$project/fields'
+    | '/projects/$project/output'
+    | '/projects/$project/settings';
   label: string;
   /** The home is the section's index: active only on its own path, or every child would light it too. */
   exact: boolean;
@@ -10,6 +14,7 @@ export const PROJECT_NAV: readonly ProjectNavItem[] = [
   { to: '/projects/$project', label: 'Websites', exact: true },
   { to: '/projects/$project/fields', label: 'Fields', exact: false },
   { to: '/projects/$project/output', label: 'Output', exact: false },
+  { to: '/projects/$project/settings', label: 'Settings', exact: false },
 ];
 
 /**
