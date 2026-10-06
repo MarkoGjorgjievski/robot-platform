@@ -345,6 +345,7 @@ describe('ops.website', () => {
       expect(result.fields.map((f) => f.key)).toEqual([priceKey, nameKey]);
       const priceField = result.fields.find((f) => f.key === priceKey)!;
       expect(priceField.name).toBe('Price');
+      expect(priceField.state).toBe('current');
       expect(priceField.paths).toEqual([
         { source: 'api', path: 'product.price', uses: 6, hits: 5, container: `https://${host}/api/product` },
         { source: 'json-ld', path: 'offers.price', provenOn: [urls[0], urls[2]], uses: 0, hits: 0 },
@@ -352,6 +353,7 @@ describe('ops.website', () => {
 
       const nameField = result.fields.find((f) => f.key === nameKey)!;
       expect(nameField.name).toBe('Name');
+      expect(nameField.state).toBe('current');
       expect(nameField.paths).toEqual([{ source: 'json-ld', path: 'name', uses: 0, hits: 0 }]);
 
       await db.delete(domainIntelligence).where(and(eq(domainIntelligence.domain, host), eq(domainIntelligence.pageType, 'detail')));
@@ -393,7 +395,7 @@ describe('ops.website', () => {
     }
   });
 
-  it("reads the summary strip's per-field currency independently of the all-or-nothing certified-paths gate", async () => {
+  it("shows a partially verified website's current field's paths and stats, reporting the unverified one as 'none' (reviewer fix round 1: no longer gated by the whole-site all-or-nothing cert)", async () => {
     const tag = Date.now();
     const op = await signIn(`ops-site-partial-${tag}@example.com`);
     process.env.OPS_EMAILS = op.user.email;
@@ -420,12 +422,76 @@ describe('ops.website', () => {
         allPassed: true,
         results: { [priceField.key]: { key: priceField.key, cells, certified: [certified], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: fieldHash(priceField, set) } },
       });
+      // Domain-store stats for Price's own path — proves hostname now comes
+      // from `verificationSet.urls[0]` directly, not the (null, on a partial
+      // site) whole-site cert, so a current field's real stats still surface.
+      await db.insert(domainIntelligence).values({
+        domain: host,
+        pageType: 'detail',
+        fieldPaths: {
+          [priceField.concept]: {
+            paths: [{
+              path: 'offers.price', source: 'verified', origin: 'json-ld', transform: 'identity',
+              confidence: 1, hits: 3, misses: 0, lastValue: '9.99', lastUsedAt: new Date().toISOString(),
+            }],
+            conflictCount: 0,
+          },
+        },
+      });
 
       const result = await op.caller.ops.website({ sourceId: built.sourceId });
       expect(result.verified).toEqual({ current: 1, total: 2 });
-      // The all-or-nothing certification gate (spec 4.4) means NEITHER field's
-      // approved-paths list shows anything until every field is current.
-      expect(result.fields.every((f) => f.paths.length === 0)).toBe(true);
+
+      const priceOut = result.fields.find((f) => f.key === priceField.key)!;
+      expect(priceOut.state).toBe('current');
+      expect(priceOut.paths).toEqual([{ source: 'json-ld', path: 'offers.price', uses: 3, hits: 3 }]);
+
+      const nameOut = result.fields.find((f) => f.key !== priceField.key)!;
+      expect(nameOut.state).toBe('none');
+      expect(nameOut.paths).toEqual([]);
+
+      await db.delete(domainIntelligence).where(and(eq(domainIntelligence.domain, host), eq(domainIntelligence.pageType, 'detail')));
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+    }
+  });
+
+  it("marks a field 'changed' when its latest result's hash no longer matches the field as it stands now, and still shows its stale paths", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-changed-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    try {
+      const host = `test-ops4-changed-${tag}.example.com`;
+      const urls = [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
+      const built = await createProjectWithSource(op.caller, {
+        tag: `ops4-changed-${tag}`,
+        fields: [{ name: 'Price', type: 'money' }],
+        urls,
+        expected: { Price: Object.fromEntries(urls.map((u) => [u, '9.99'])) },
+      });
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, built.sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+      const fields = source!.schemaDefinition as SchemaDefinitionField[];
+      const priceField = fields.find((f) => f.key === built.keys.Price)!;
+      const set = source!.verificationSet as VerificationSet;
+      const stalePath: CertifiedPath = { source: 'xpath', path: "//span[@class='old-price']", transform: 'identity' };
+      const cells = Object.fromEntries(set.urls.map((u) => [u, { status: 'pass' as const, found: 'x', path: stalePath }]));
+      // A fieldHash that cannot match `fieldHash(priceField, set)` — the field
+      // (or its proof pages/expected values) changed since this result ran.
+      await db.insert(sourceVerifications).values({
+        sourceId: built.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        allPassed: true,
+        results: { [priceField.key]: { key: priceField.key, cells, certified: [stalePath], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: 'stale-hash-does-not-match' } },
+      });
+
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+      expect(result.verified).toEqual({ current: 0, total: 1 });
+
+      const priceOut = result.fields.find((f) => f.key === priceField.key)!;
+      expect(priceOut.state).toBe('changed');
+      expect(priceOut.paths).toEqual([{ source: 'xpath', path: "//span[@class='old-price']", uses: 0, hits: 0 }]);
 
       await built.cleanup();
     } finally {
