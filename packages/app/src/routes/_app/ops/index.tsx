@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { RefreshCw } from 'lucide-react';
 import { Page } from '../../../components/page';
 import { Button } from '../../../components/ui/button';
@@ -12,6 +12,7 @@ import { runDotState } from '../../../lib/run-dot-view';
 import {
   OPS_REASONS,
   defaultOpsView,
+  encodeOpsOverviewState,
   lastRunText,
   matchesOpsQuery,
   moneyText,
@@ -22,6 +23,7 @@ import {
   totalsText,
   verifiedState,
   verifiedText,
+  type OpsOverviewState,
   type OpsSortKey,
   type OpsWebsiteRow,
 } from '../../../lib/ops-view';
@@ -29,13 +31,7 @@ import { trpc } from '../../../lib/trpc';
 import { useUnauthorizedRedirect } from '../../../lib/use-unauthorized-redirect';
 
 /** Shareable state (plan "Ops design"): view, reason, search, customer and sort all live in the URL. */
-export type OpsOverviewSearch = {
-  view?: 'attention' | 'all';
-  reason?: 'drift' | 'failed' | 'unverified';
-  q?: string;
-  customer?: string;
-  sort?: OpsSortKey;
-};
+export type OpsOverviewSearch = OpsOverviewState;
 
 const SORT_KEYS: OpsSortKey[] = ['run-desc', 'run-asc', 'spend-desc', 'spend-asc'];
 const REASON_KEYS = OPS_REASONS.map((r) => r.key);
@@ -253,7 +249,9 @@ function OpsOverviewPage() {
 
                 <tbody>
                   {loading ? <LoadingRows /> : null}
-                  {!loading && visible.map((row) => <OpsRow key={row.sourceId} row={row} onCustomerClick={() => patchSearch({ customer: row.org.id })} />)}
+                  {!loading && visible.map((row) => (
+                    <OpsRow key={row.sourceId} row={row} from={search} onCustomerClick={() => patchSearch({ customer: row.org.id })} />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -304,18 +302,24 @@ function problemLine(row: OpsWebsiteRow, runFailed: boolean): string | null {
   return null;
 }
 
-function OpsRow({ row, onCustomerClick }: { row: OpsWebsiteRow; onCustomerClick: () => void }) {
+function OpsRow({ row, from, onCustomerClick }: { row: OpsWebsiteRow; from: OpsOverviewSearch; onCustomerClick: () => void }) {
   const runState = row.lastRun ? runDotState({ status: row.lastRun.status }) : 'idle';
   const problem = problemLine(row, runState === 'failed');
+  const fromState = encodeOpsOverviewState(from);
 
   return (
     <tr className="border-b border-line transition-colors last:border-0 hover:bg-raised">
       <td className="max-w-0 px-4 py-2.5">
-        {/* Task 4 adds the real `/ops/websites/$sourceId` route; a plain anchor
-            until then — same destination, no router type to satisfy yet. */}
-        <a href={`/ops/websites/${row.sourceId}`} className="block truncate text-text underline-offset-4 hover:underline">
+        {/* `from` carries this view back to the breadcrumb's first two crumbs
+            (Ops design: "keeping the overview's URL state"). */}
+        <Link
+          to="/ops/websites/$sourceId"
+          params={{ sourceId: row.sourceId }}
+          search={fromState ? { from: fromState } : {}}
+          className="block truncate text-text underline-offset-4 hover:underline"
+        >
           {row.website.name}
-        </a>
+        </Link>
         {row.website.host ? <div className="truncate font-mono text-sm text-muted-foreground">{row.website.host}</div> : null}
         {problem ? <div className={`truncate text-sm ${row.drifted > 0 ? 'text-warn' : 'text-fail'}`}>{problem}</div> : null}
       </td>

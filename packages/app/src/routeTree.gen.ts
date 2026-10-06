@@ -19,6 +19,7 @@ import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppOpsIndexRouteImport } from './routes/_app/ops/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectRouteImport } from './routes/_app/projects/$project'
+import { Route as AppOpsWebsitesSourceIdRouteImport } from './routes/_app/ops/websites/$sourceId'
 import { Route as AppProjectsProjectIndexRouteImport } from './routes/_app/projects/$project/index'
 import { Route as AppProjectsProjectFieldsRouteImport } from './routes/_app/projects/$project/fields'
 import { Route as AppProjectsProjectOutputRouteImport } from './routes/_app/projects/$project/output'
@@ -77,6 +78,11 @@ const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
 const AppProjectsProjectRoute = AppProjectsProjectRouteImport.update({
   id: '/projects/$project',
   path: '/projects/$project',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOpsWebsitesSourceIdRoute = AppOpsWebsitesSourceIdRouteImport.update({
+  id: '/ops/websites/$sourceId',
+  path: '/ops/websites/$sourceId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsProjectIndexRoute = AppProjectsProjectIndexRouteImport.update({
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/projects/$project': typeof AppProjectsProjectRouteWithChildren
   '/ops/': typeof AppOpsIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
+  '/ops/websites/$sourceId': typeof AppOpsWebsitesSourceIdRoute
   '/projects/$project/fields': typeof AppProjectsProjectFieldsRoute
   '/projects/$project/output': typeof AppProjectsProjectOutputRoute
   '/projects/$project/settings': typeof AppProjectsProjectSettingsRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/usage': typeof AppUsageRoute
   '/ops': typeof AppOpsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/ops/websites/$sourceId': typeof AppOpsWebsitesSourceIdRoute
   '/projects/$project/fields': typeof AppProjectsProjectFieldsRoute
   '/projects/$project/output': typeof AppProjectsProjectOutputRoute
   '/projects/$project/settings': typeof AppProjectsProjectSettingsRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/_app/projects/$project': typeof AppProjectsProjectRouteWithChildren
   '/_app/ops/': typeof AppOpsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/ops/websites/$sourceId': typeof AppOpsWebsitesSourceIdRoute
   '/_app/projects/$project/fields': typeof AppProjectsProjectFieldsRoute
   '/_app/projects/$project/output': typeof AppProjectsProjectOutputRoute
   '/_app/projects/$project/settings': typeof AppProjectsProjectSettingsRoute
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
     | '/projects/$project'
     | '/ops/'
     | '/projects/'
+    | '/ops/websites/$sourceId'
     | '/projects/$project/fields'
     | '/projects/$project/output'
     | '/projects/$project/settings'
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
     | '/usage'
     | '/ops'
     | '/projects'
+    | '/ops/websites/$sourceId'
     | '/projects/$project/fields'
     | '/projects/$project/output'
     | '/projects/$project/settings'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '/_app/projects/$project'
     | '/_app/ops/'
     | '/_app/projects/'
+    | '/_app/ops/websites/$sourceId'
     | '/_app/projects/$project/fields'
     | '/_app/projects/$project/output'
     | '/_app/projects/$project/settings'
@@ -343,6 +355,13 @@ declare module '@tanstack/react-router' {
       path: '/projects/$project'
       fullPath: '/projects/$project'
       preLoaderRoute: typeof AppProjectsProjectRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ops/websites/$sourceId': {
+      id: '/_app/ops/websites/$sourceId'
+      path: '/ops/websites/$sourceId'
+      fullPath: '/ops/websites/$sourceId'
+      preLoaderRoute: typeof AppOpsWebsitesSourceIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects/$project/': {
@@ -473,6 +492,7 @@ interface AppRouteChildren {
   AppProjectsProjectRoute: typeof AppProjectsProjectRouteWithChildren
   AppOpsIndexRoute: typeof AppOpsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
+  AppOpsWebsitesSourceIdRoute: typeof AppOpsWebsitesSourceIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -483,6 +503,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProjectsProjectRoute: AppProjectsProjectRouteWithChildren,
   AppOpsIndexRoute: AppOpsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
+  AppOpsWebsitesSourceIdRoute: AppOpsWebsitesSourceIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

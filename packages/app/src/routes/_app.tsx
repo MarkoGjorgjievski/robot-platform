@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
-import { Link, Outlet, createFileRoute, redirect, useLocation } from '@tanstack/react-router';
+import { Link, Outlet, createFileRoute, redirect, useLocation, useParams, useSearch } from '@tanstack/react-router';
 import { CommandMenu, useCommandMenuShortcut } from '../components/shell/command-menu';
 import { OpsSidebar, OpsSidebarSheet } from '../components/shell/ops-sidebar';
 import { useProjectSlug } from '../components/shell/project-section';
 import { Sidebar, SidebarSheet } from '../components/shell/sidebar';
+import { decodeOpsOverviewState } from '../lib/ops-view';
 import { crumbs } from '../lib/project-nav-view';
 import { trpc } from '../lib/trpc';
 import { useSiteSlugs } from './_app/projects/$project/sites/$site';
@@ -61,14 +62,39 @@ function AppLayout() {
   );
 }
 
-/** "Ops / All websites" (spec "Ops design", `/ops` top bar). The overview is
- * the only ops page so far; a website page (Task 4) will add its own crumb. */
+/**
+ * "Ops / All websites[ / {website}]" (spec "Ops design", `/ops` top bar).
+ * The first two crumbs always return to `/ops`, restoring exactly the
+ * search state the operator left it in: the website page's own `from`
+ * search param carries it here, encoded by `encodeOpsOverviewState` on the
+ * overview's row link and decoded back by `decodeOpsOverviewState` ("Ops
+ * design": "keeping the overview's URL state").
+ */
 function OpsBreadcrumb() {
+  const { sourceId } = useParams({ strict: false }) as { sourceId?: string };
+  const search = useSearch({ strict: false }) as { from?: string };
+  const website = trpc.ops.website.useQuery({ sourceId: sourceId! }, { enabled: !!sourceId });
+  const backSearch = decodeOpsOverviewState(search.from);
+
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-      <span className="truncate">Ops</span>
+      <Link to="/ops" search={backSearch} className="truncate hover:text-text">
+        Ops
+      </Link>
       <span aria-hidden className="text-muted-foreground">/</span>
-      <span className="truncate">All websites</span>
+      {sourceId ? (
+        <Link to="/ops" search={backSearch} className="truncate hover:text-text">
+          All websites
+        </Link>
+      ) : (
+        <span className="truncate">All websites</span>
+      )}
+      {sourceId ? (
+        <>
+          <span aria-hidden className="text-muted-foreground">/</span>
+          <b className="truncate font-medium text-text">{website.data?.website.name ?? ''}</b>
+        </>
+      ) : null}
     </nav>
   );
 }
