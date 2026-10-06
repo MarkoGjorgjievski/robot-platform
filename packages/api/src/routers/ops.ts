@@ -2,10 +2,10 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { datasets, memberships, orgs, projects, runs, sourceVerifications, sources, type Database } from '@robot/db';
-import { lookupDomainCache, type FieldPathSet, type SchemaDefinitionField } from '@robot/scraper';
+import { lookupDomainCache, type FieldPathSet, type FieldVerification, type SchemaDefinitionField } from '@robot/scraper';
 import { router, publicProcedure, opsProcedure } from '../trpc.js';
 import { isCustomerSchema } from '../crawl/effective-schema.js';
-import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-certification.js';
+import { loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-certification.js';
 import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { monthBounds } from './usage.js';
 
@@ -151,15 +151,23 @@ export const opsRouter = router({
 
   /**
    * One website's approved paths, readable (plan "Ops design"): every
-   * contract field, with its currently certified paths in try order, named
-   * with the customer's own field name — never the internal concept — and
-   * each path's real run hit rate from the domain store. Never "cache" in
-   * the output: the store is "approved paths" wording lives in the app.
+   * contract field, with its own latest result's certified paths in try
+   * order, named with the customer's own field name — never the internal
+   * concept — and each path's real run hit rate from the domain store.
+   * Never "cache" in the output: the store is "approved paths" wording
+   * lives in the app.
    *
-   * `cert` is null for a website that is not (or no longer) fully certified
-   * (spec 4.4) — its fields still list, each with an empty `paths` array,
-   * so an unverified website reads as "nothing approved yet" rather than a
-   * server error.
+   * Reviewer fix round 1 (critical): a field's paths used to come from
+   * `loadCurrentCertification`, whose `cert` is null unless EVERY contract
+   * field is current (spec 4.4) — a website with even one unverified field
+   * showed NOTHING approved for any field, including ones that were
+   * perfectly current. Each field now reads its own latest result directly
+   * from `loadFieldCurrency`'s one run, independent of every other field:
+   * `state: 'current'` (passed, hash matches — in `currentKeys`), `'changed'`
+   * (a result exists but is not current — typically because the field, its
+   * proof pages or its expected values changed since that result ran) with
+   * its stale paths still shown and flagged, or `'none'` (no result at all —
+   * "Not verified yet").
    */
   website: opsProcedure.input(z.object({ sourceId: z.string().uuid() })).query(async ({ ctx, input }) => {
     const db = ctx.db;
@@ -190,23 +198,27 @@ export const opsRouter = router({
     }
 
     const fields = row.schemaDefinition as SchemaDefinitionField[];
-    const [cert, fieldCurrency, membership, lastRunBySource, drift] = await Promise.all([
-      loadCurrentCertification(db, row.sourceId),
-      // The summary strip's "Verified" cell reads the table's own per-field
-      // currency (plan "Ops design": "as in the table") — partial counts
-      // allowed — never `cert`'s all-or-nothing gate, which the "Approved
-      // paths" section below uses instead (certified paths exist only once
-      // EVERY field is current).
+    const [fieldCurrency, membership, lastRunBySource, drift] = await Promise.all([
+      // The one read every field's state, paths and the strip's "Verified"
+      // count (plan "Ops design": "as in the table") all come from — partial
+      // counts allowed, never an all-or-nothing gate.
       loadFieldCurrency(db, row.sourceId),
       db.query.memberships.findFirst({ where: and(eq(memberships.userId, ctx.session.user.id), eq(memberships.orgId, row.orgId)) }),
       lastRunsBySource(db, [row.sourceId]),
       latestDriftCheck(row.sourceId),
     ]);
+    const results = (fieldCurrency.latest?.results ?? {}) as Record<string, FieldVerification>;
 
+    // Hostname for the domain store's stats: `verificationSet.urls[0]`
+    // directly (same derivation `loadCertificationState` uses for the
+    // whole-site cert), never gated on every field being current — a
+    // partially verified website still has proof pages, and its current
+    // fields' stats must still surface (reviewer fix round 1).
+    const hostname = safeHost((row.verificationSet as { urls?: string[] } | null)?.urls?.[0] ?? null);
     // One read of the domain store for the whole page — never one per path
     // (M3's hostname is the only key a verified-path stat is ever booked
     // under, so there is exactly one row to read, whatever the field count).
-    const domainCache = cert ? await lookupDomainCache(cert.hostname, 'detail') : null;
+    const domainCache = hostname ? await lookupDomainCache(hostname, 'detail') : null;
     const fieldPaths = (domainCache?.fieldPaths ?? {}) as Record<string, FieldPathSet>;
 
     const driftedKeys = Array.isArray(row.driftedFields) ? (row.driftedFields as string[]) : [];
@@ -220,13 +232,19 @@ export const opsRouter = router({
       operatorIsMember: !!membership,
       verified: { current: fieldCurrency.currentKeys.length, total: fields.length },
       fields: fields.map((f) => {
-        const concept = cert?.concepts[f.key] ?? f.concept;
-        const certified = cert?.paths[f.key] ?? [];
-        const stats = fieldPaths[concept]?.paths ?? [];
+        const result = results[f.key];
+        const state: 'current' | 'changed' | 'none' = fieldCurrency.currentKeys.includes(f.key)
+          ? 'current'
+          : result
+            ? 'changed'
+            : 'none';
+        const certified = result?.certified ?? [];
+        const stats = fieldPaths[f.concept]?.paths ?? [];
         return {
           key: f.key,
           name: f.name,
           type: f.type,
+          state,
           paths: certified.map((p) => {
             // A verified stat's identity is (origin, path) — `sameVerified` in
             // domain-cache.ts, matched here by source + path alone (Review
