@@ -9,7 +9,8 @@ import { trpc } from '../lib/trpc';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: ({ context }) => {
-    if (context.session) throw redirect({ to: '/projects' });
+    // An operator (ops mode, 2026-10-06) lands on /ops, not /projects.
+    if (context.session) throw redirect({ to: context.session.isOperator ? '/ops' : '/projects' });
   },
   component: LoginPage,
 });
@@ -35,9 +36,11 @@ function LoginPage() {
       // leave the next account looking at the last one's rows.
       queryClient.clear();
       // The session lives in a cookie the root route reads on the server, so the
-      // router has to re-run its beforeLoad before we move.
+      // router has to re-run its beforeLoad before we move. `/` is the fork
+      // that sends an operator to /ops and everyone else to /projects, now
+      // that the invalidated session carries `isOperator`.
       await router.invalidate();
-      await navigate({ to: '/projects' });
+      await navigate({ to: '/' });
     } catch (err) {
       setError(signInErrorMessage(err));
     }

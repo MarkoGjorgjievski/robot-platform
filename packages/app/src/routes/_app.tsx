@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
-import { Link, Outlet, createFileRoute, redirect } from '@tanstack/react-router';
+import { Link, Outlet, createFileRoute, redirect, useLocation } from '@tanstack/react-router';
 import { CommandMenu, useCommandMenuShortcut } from '../components/shell/command-menu';
+import { OpsSidebar, OpsSidebarSheet } from '../components/shell/ops-sidebar';
 import { useProjectSlug } from '../components/shell/project-section';
 import { Sidebar, SidebarSheet } from '../components/shell/sidebar';
 import { crumbs } from '../lib/project-nav-view';
@@ -13,10 +14,19 @@ import { useSiteSlugs } from './_app/projects/$project/sites/$site';
  *
  * `beforeLoad` both gates and narrows: returning the session puts a non-null
  * one into every child route's context, so no screen has to re-check it.
+ *
+ * A staff account with no organisation memberships never sees a customer
+ * screen (ops mode, 2026-10-06): every org route sends it to `/ops` instead.
+ * The check is `isOperator` only — a non-operator always has at least one
+ * org (sign-in mints a personal one), so this can never loop with `/ops`'s
+ * own non-operator redirect back to `/projects`.
  */
 export const Route = createFileRoute('/_app')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, location }) => {
     if (!context.session) throw redirect({ to: '/login' });
+    if (context.session.isOperator && context.session.orgs.length === 0 && location.pathname !== '/ops') {
+      throw redirect({ to: '/ops' });
+    }
     return { session: context.session };
   },
   component: AppLayout,
@@ -27,15 +37,20 @@ function AppLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   useCommandMenuShortcut(openSearch);
+  const inOps = useLocation({ select: (l) => l.pathname }).startsWith('/ops');
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar session={session} onSearch={openSearch} />
+      {inOps ? <OpsSidebar session={session} /> : <Sidebar session={session} onSearch={openSearch} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-3 border-b border-line bg-bg px-5 md:px-8">
-          <SidebarSheet session={session} onSearch={openSearch} />
-          <Breadcrumb org={session.currentOrg.name} />
+          {inOps ? (
+            <OpsSidebarSheet session={session} />
+          ) : (
+            <SidebarSheet session={session} onSearch={openSearch} />
+          )}
+          {inOps ? <OpsBreadcrumb /> : <Breadcrumb org={session.currentOrg.name} />}
         </header>
 
         <Outlet />
@@ -43,6 +58,18 @@ function AppLayout() {
 
       <CommandMenu open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
+  );
+}
+
+/** "Ops / All websites" (spec "Ops design", `/ops` top bar). The overview is
+ * the only ops page so far; a website page (Task 4) will add its own crumb. */
+function OpsBreadcrumb() {
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+      <span className="truncate">Ops</span>
+      <span aria-hidden className="text-muted-foreground">/</span>
+      <span className="truncate">All websites</span>
+    </nav>
   );
 }
 
