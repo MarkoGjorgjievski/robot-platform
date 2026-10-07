@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { datasets, projects, sources, type Database } from '@robot/db';
 import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { router, publicProcedure, type Context } from '../trpc';
+import { router, publicProcedure, protectedProcedure, type Context } from '../trpc';
 import { contractFields, contractAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { CATALOGUE } from '../schema-catalogue.js';
@@ -34,14 +34,12 @@ async function loadDataset(db: Database, datasetId: string) {
 }
 
 /**
- * `loadDataset`, inside the resolved org (spec 2026-09-21 §6 as restated). A
+ * `loadDataset`, inside the session's org (spec 2026-09-21 §6 as restated). A
  * dataset whose project belongs to another org is NOT_FOUND — the same word as
  * for one that does not exist, so a guessed id learns nothing.
- * TODO(cut-over, spec 2026-09-21 §2): the `'default'` fallback exists only for the
- * old dashboard, which calls these with no session; drop it when it is retired.
  */
 async function loadDatasetInOrg(ctx: Context, datasetId: string) {
-  const org = await resolveOrg(ctx, 'default');
+  const org = resolveOrg(ctx);
   const ds = await loadDataset(ctx.db, datasetId);
   const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, ds.projectId), columns: { orgId: true } });
   if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${datasetId} not found` });
@@ -156,23 +154,8 @@ export const datasetsRouter = router({
   /** The field catalogue for step 1 of the Schema tab (spec 2026-09-18 §2.1): static, all types at once. */
   catalogue: publicProcedure.query(() => CATALOGUE),
 
-  create: publicProcedure
-    .input(
-      z.object({
-        projectId: z.string().uuid(),
-        name: z.string().min(1).max(255),
-        slug: z.string().min(1).max(255),
-        description: z.string().nullable().optional(),
-        schema: z.union([z.record(z.unknown()), z.array(z.unknown())]).nullable().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [dataset] = await ctx.db.insert(datasets).values(input).returning();
-      return dataset;
-    }),
-
   /** Spec 4.3: add a field to the project's contract; every website gets it empty. */
-  addField: publicProcedure
+  addField: protectedProcedure
     .input(z.object({
       datasetId: z.string().uuid(),
       name: z.string().trim().min(1).max(100),
@@ -202,7 +185,7 @@ export const datasetsRouter = router({
       });
     }),
 
-  renameField: publicProcedure
+  renameField: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), name: z.string().trim().min(1).max(100) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -220,7 +203,7 @@ export const datasetsRouter = router({
     }),
 
   /** Refused while any website has a current certification for the field (spec 4.3). Concept is left alone: it is the cache bridge. */
-  retypeField: publicProcedure
+  retypeField: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), type: z.enum(CUSTOMER_FIELD_TYPES) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -240,7 +223,7 @@ export const datasetsRouter = router({
       return { key: input.key, type: input.type, affectedSourceIds };
     }),
 
-  deleteField: publicProcedure
+  deleteField: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -255,7 +238,7 @@ export const datasetsRouter = router({
     }),
 
   /** "Verified on n of m websites" per field, for the project home (spec 5.3). */
-  fieldStatus: publicProcedure
+  fieldStatus: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -270,7 +253,7 @@ export const datasetsRouter = router({
     }),
 
   /** The Variants setting, every field's effective level, and the project's axes (spec 2026-10-01 §2). */
-  variants: publicProcedure
+  variants: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -286,7 +269,7 @@ export const datasetsRouter = router({
     }),
 
   /** Never deletes axes, levels or website setups (Review Focus 2, spec 2026-10-01 §2). */
-  setVariantMode: publicProcedure
+  setVariantMode: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), mode: z.enum(['ignore', 'row_per_variant', 'nested']) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -300,7 +283,7 @@ export const datasetsRouter = router({
    * on the dataset's contract field and plays no part in `fieldHash`, so a
    * verified field's currency is untouched by this (constraints, ruling 5).
    */
-  setFieldLevel: publicProcedure
+  setFieldLevel: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), level: z.enum(['product', 'variant']).nullable() }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -323,14 +306,14 @@ export const datasetsRouter = router({
     }),
 
   /** Spec 2026-10-01 §2: a new axis column; `key` via `deriveKey`, name free among fields and axes. */
-  addAxis: publicProcedure
+  addAxis: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), name: z.string().trim().min(1).max(100) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
       return ctx.db.transaction((tx) => createAxis(tx, ds.id, input.name));
     }),
 
-  renameAxis: publicProcedure
+  renameAxis: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1), name: z.string().trim().min(1).max(100) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);
@@ -355,7 +338,7 @@ export const datasetsRouter = router({
    * the refusal: it either commits its mapping first and this call then sees it under
    * lock, or it blocks on `lockSources` until this transaction (and its delete) commits.
    */
-  deleteAxis: publicProcedure
+  deleteAxis: protectedProcedure
     .input(z.object({ datasetId: z.string().uuid(), key: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const ds = await loadDatasetInOrg(ctx, input.datasetId);

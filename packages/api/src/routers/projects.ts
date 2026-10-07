@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { eq, sql, and, desc, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { projects, datasets, sources, runs } from '@robot/db';
-import { router, publicProcedure, type Context } from '../trpc';
+import { router, protectedProcedure, type Context } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
 import { loadCurrentCertification, loadFieldCurrency } from '../verify/current-certification.js';
@@ -13,29 +13,23 @@ import { loadProjectExport } from '../export/load-project-export.js';
 const OUTPUT_ROW_CAP = 500;
 
 /**
- * The project by slug, inside the resolved org (spec 2026-09-21 §6 as
- * restated). `orgSlug` is honoured only when given explicitly — a
- * session-less caller that wants a specific org (a test, a CLI) still names
- * it, the way `sources.get` does. Null when it is not there — callers decide
- * between NOT_FOUND and a null answer.
+ * The project by slug, inside the session's org (spec 2026-09-21 §6 as
+ * restated). Null when it is not there — callers decide between NOT_FOUND
+ * and a null answer.
  */
-async function findProjectInOrg(ctx: Context, projectSlug: string, orgSlug?: string) {
-  const org = await resolveOrg(ctx, orgSlug);
+async function findProjectInOrg(ctx: Context, projectSlug: string) {
+  const org = resolveOrg(ctx);
   return ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, projectSlug)) });
 }
 
+/**
+ * Every procedure here needs a session and works in the session's org only
+ * (cut-over; spec 2026-09-21 §2, §6-7). No input names an org.
+ */
 export const projectsRouter = router({
-  /**
-   * Cut-over Task 5: dropped the `orgSlug ?? 'default'` shim the old
-   * dashboard's session-less calls relied on. A session-less caller with no
-   * `orgSlug` now gets `resolveOrg`'s UNAUTHORIZED, never the seeded
-   * `default` org's projects (Review Focus 4) — an explicit `orgSlug` still
-   * works (tests, CLIs), same as `projects.get`.
-   */
-  list: publicProcedure
-    .input(z.object({ orgSlug: z.string().optional() }).optional())
-    .query(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input?.orgSlug);
+  list: protectedProcedure
+    .query(async ({ ctx }) => {
+      const org = resolveOrg(ctx);
       const base = await ctx.db
         .select({
           id: projects.id,
@@ -99,29 +93,6 @@ export const projectsRouter = router({
       }));
     }),
 
-  listByOrg: publicProcedure
-    .input(z.object({ orgId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const results = await ctx.db
-        .select({
-          id: projects.id,
-          orgId: projects.orgId,
-          name: projects.name,
-          slug: projects.slug,
-          description: projects.description,
-          createdAt: projects.createdAt,
-          updatedAt: projects.updatedAt,
-          datasetCount: sql<number>`count(${datasets.id})::int`,
-        })
-        .from(projects)
-        .leftJoin(datasets, eq(projects.id, datasets.projectId))
-        .where(eq(projects.orgId, input.orgId))
-        .groupBy(projects.id)
-        .orderBy(projects.name);
-
-      return results;
-    }),
-
   /**
    * The project home in one round trip (spec 2026-09-21 §5): the project, its
    * contract, and every website with how many fields are verified on it and
@@ -129,10 +100,10 @@ export const projectsRouter = router({
    * a website that has certified 3 of 8 fields says so, rather than reading as
    * unverified until every field is.
    */
-  get: publicProcedure
-    .input(z.object({ projectSlug: z.string().min(1), orgSlug: z.string().optional() }))
+  get: protectedProcedure
+    .input(z.object({ projectSlug: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
+      const project = await findProjectInOrg(ctx, input.projectSlug);
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
 
       const dataset = await ctx.db.query.datasets.findFirst({
@@ -195,10 +166,10 @@ export const projectsRouter = router({
     }),
 
   /** The Output screen (spec 2026-09-21 §5): the project export, capped for the browser. The file has everything. */
-  output: publicProcedure
-    .input(z.object({ projectSlug: z.string().min(1), orgSlug: z.string().optional() }))
+  output: protectedProcedure
+    .input(z.object({ projectSlug: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
+      const project = await findProjectInOrg(ctx, input.projectSlug);
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
       // Narrow, but real: the project was found a line ago, and one deleted in
       // between should still read as gone rather than as a server fault.
@@ -210,12 +181,12 @@ export const projectsRouter = router({
   /**
    * The customer names the project (spec 2, 5.2). It gets one dataset named
    * after it: the project's field list and output table (spec 4.1). Lives
-   * in the session's org — see the TODO on `list` above for the `default` shim.
+   * in the session's org.
    */
-  create: publicProcedure
-    .input(z.object({ name: z.string().trim().min(1).max(255), description: z.string().trim().max(2000).optional(), orgSlug: z.string().optional() }))
+  create: protectedProcedure
+    .input(z.object({ name: z.string().trim().min(1).max(255), description: z.string().trim().max(2000).optional() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug);
+      const org = resolveOrg(ctx);
 
       const slug = await uniqueSlug(slugify(input.name), async (s) =>
         !!(await ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, s)), columns: { id: true } })),
@@ -235,19 +206,14 @@ export const projectsRouter = router({
     }),
 
   /**
-   * A project outside the resolved org is NOT_FOUND, same as if it never
+   * A project outside the session's org is NOT_FOUND, same as if it never
    * existed, rather than renameable by anyone who knows its id — the same rule
    * `delete` enforces, and this is the other write in the set.
-   * `orgSlug` is optional and read the same way `get`/`list`/`create` read it
-   * (cut-over Task 1, ruling R1): a session always wins in `resolveOrg`, so a
-   * signed-in caller's own org is what is checked regardless of this field.
-   * The old dashboard's implicit `'default'` fallback is gone (cut-over Task
-   * 5): a session-less caller now names an org explicitly, or is UNAUTHORIZED.
    */
-  rename: publicProcedure
-    .input(z.object({ projectId: z.string().uuid(), name: z.string().trim().min(1).max(255), orgSlug: z.string().optional() }))
+  rename: protectedProcedure
+    .input(z.object({ projectId: z.string().uuid(), name: z.string().trim().min(1).max(255) }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug);
+      const org = resolveOrg(ctx);
       const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
       if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       const [row] = await ctx.db
@@ -262,15 +228,13 @@ export const projectsRouter = router({
   /**
    * Test and cleanup use only for now: cascades datasets, sources and runs,
    * and bypasses the confirmed-source refusal that `sources.delete` enforces.
-   * A project outside the resolved org is NOT_FOUND, same as if it never
-   * existed, rather than deletable by anyone who knows its id. The old
-   * dashboard's implicit `'default'` fallback is gone (cut-over Task 5): a
-   * session-less caller now names an org explicitly, or is UNAUTHORIZED.
+   * A project outside the session's org is NOT_FOUND, same as if it never
+   * existed, rather than deletable by anyone who knows its id.
    */
-  delete: publicProcedure
-    .input(z.object({ projectId: z.string().uuid(), orgSlug: z.string().optional() }))
+  delete: protectedProcedure
+    .input(z.object({ projectId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug);
+      const org = resolveOrg(ctx);
       const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
       if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       const rows = await ctx.db.delete(projects).where(eq(projects.id, input.projectId)).returning({ id: projects.id });

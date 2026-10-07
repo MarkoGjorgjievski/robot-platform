@@ -1,6 +1,6 @@
 // The session cookie and what it resolves to (spec 2026-09-21 §2). `resolveOrg`
-// is the shim that keeps the old dashboard working: with a session the org is
-// the session's; without one it is the `orgSlug` the old app still sends.
+// is the caller's org: the session's and nothing else. The old dashboard's
+// `orgSlug` shim was removed at cut-over (spec §6-7); no input picks an org.
 import { randomBytes, createHash } from 'node:crypto';
 import { and, eq, gt } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
@@ -47,10 +47,8 @@ export async function loadSession(db: Database, token: string): Promise<SessionI
   };
 }
 
-export async function resolveOrg(ctx: Pick<Context, 'db' | 'session'>, orgSlug?: string): Promise<{ id: string; slug: string }> {
-  if (ctx.session) return { id: ctx.session.org.id, slug: ctx.session.org.slug };
-  if (!orgSlug) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
-  const org = await ctx.db.query.orgs.findFirst({ where: eq(orgs.slug, orgSlug), columns: { id: true, slug: true } });
-  if (!org) throw new TRPCError({ code: 'NOT_FOUND', message: `Organisation ${orgSlug} not found` });
-  return org;
+/** The signed-in caller's org. UNAUTHORIZED without a session: no input ever picks an org. */
+export function resolveOrg(ctx: Pick<Context, 'session'>): { id: string; slug: string } {
+  if (!ctx.session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
+  return { id: ctx.session.org.id, slug: ctx.session.org.slug };
 }

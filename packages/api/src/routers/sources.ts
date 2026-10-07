@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
-import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
+import { sources, datasets, projects, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
@@ -10,7 +10,7 @@ import {
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
 } from '@robot/scraper';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
 import { sourceInOrg, captureInOrg } from '../auth/scope.js';
@@ -238,118 +238,11 @@ async function setInputPages(
 }
 
 export const sourcesRouter = router({
-  listByDataset: publicProcedure
-    .input(z.object({ datasetId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const results = await ctx.db
-        .select({
-          id: sources.id,
-          datasetId: sources.datasetId,
-          domainId: sources.domainId,
-          domainName: domains.name,
-          name: sources.name,
-          slug: sources.slug,
-          country: sources.country,
-          locale: sources.locale,
-          currency: sources.currency,
-          dataCenter: sources.dataCenter,
-          proxyType: sources.proxyType,
-          loginPool: sources.loginPool,
-          maximumInputs: sources.maximumInputs,
-          runnerFramework: sources.runnerFramework,
-          schemaValues: sources.schemaValues,
-          variant: sources.variant,
-          robotTemplate: sources.robotTemplate,
-          parameters: sources.parameters,
-          isActive: sources.isActive,
-          sourceType: sources.sourceType,
-          urlPattern: sources.urlPattern,
-          selectorsJson: sources.selectorsJson,
-          aiStatus: sources.aiStatus,
-          createdAt: sources.createdAt,
-          updatedAt: sources.updatedAt,
-        })
-        .from(sources)
-        .leftJoin(domains, eq(sources.domainId, domains.id))
-        .where(eq(sources.datasetId, input.datasetId))
-        .orderBy(sources.name);
-
-      return results;
-    }),
-
-  getBySlug: publicProcedure
-    .input(
-      z.object({
-        orgSlug: z.string(),
-        projectSlug: z.string(),
-        datasetSlug: z.string(),
-        sourceSlug: z.string(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
-        .select({
-          sourceId: sources.id,
-          orgId: orgs.id,
-          orgName: orgs.name,
-          datasetId: datasets.id,
-          datasetName: datasets.name,
-          datasetSchema: datasets.schema,
-          domainId: sources.domainId,
-          domainName: domains.name,
-        })
-        .from(sources)
-        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-        .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .innerJoin(orgs, eq(projects.orgId, orgs.id))
-        .leftJoin(domains, eq(sources.domainId, domains.id))
-        .where(
-          and(
-            eq(orgs.slug, input.orgSlug),
-            eq(projects.slug, input.projectSlug),
-            eq(datasets.slug, input.datasetSlug),
-            eq(sources.slug, input.sourceSlug),
-          ),
-        )
-        .limit(1);
-
-      const row = rows[0];
-      if (!row) {
-        throw new Error(
-          `Source not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}/${input.sourceSlug}`,
-        );
-      }
-
-      const [source] = await ctx.db
-        .select()
-        .from(sources)
-        .where(eq(sources.id, row.sourceId))
-        .limit(1);
-
-      if (!source) {
-        throw new Error(
-          `Source not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}/${input.sourceSlug}`,
-        );
-      }
-
-      return {
-        ...source,
-        orgId: row.orgId,
-        orgName: row.orgName,
-        datasetId: row.datasetId,
-        datasetName: row.datasetName,
-        datasetSchema: row.datasetSchema,
-        domainName: row.domainName,
-      };
-    }),
-
   /** The website loader for its page (spec 2026-09-21 §5): the row, its project and the contract, in one round trip. */
-  // TODO(cut-over, spec 2026-09-21 §2): `input.orgSlug ?? 'default'` falls back to the seeded
-  // `default` org for the old dashboard's session-less callers. Once it is retired, drop the fallback.
-  get: publicProcedure
-    .input(z.object({ projectSlug: z.string().min(1), sourceSlug: z.string().min(1), orgSlug: z.string().optional() }))
+  get: protectedProcedure
+    .input(z.object({ projectSlug: z.string().min(1), sourceSlug: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
+      const org = resolveOrg(ctx);
       const project = await ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, input.projectSlug)), columns: { id: true, name: true, slug: true } });
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
       const row = await ctx.db
@@ -384,33 +277,7 @@ export const sourcesRouter = router({
       };
     }),
 
-  create: publicProcedure
-    .input(
-      z.object({
-        datasetId: z.string().uuid().nullish(),
-        domainId: z.string().uuid().nullish(),
-        name: z.string().min(1).max(255),
-        slug: z.string().min(1).max(255),
-        country: z.string().min(1).max(10),
-        locale: z.string().max(10).nullish(),
-        currency: z.string().max(10).nullish(),
-        dataCenter: z.string().max(10).nullish(),
-        proxyType: z.string().max(50).nullish(),
-        loginPool: z.string().max(100).nullish(),
-        maximumInputs: z.number().int().positive().nullish(),
-        runnerFramework: z.string().max(50).nullish(),
-        schemaValues: z.record(z.string()).optional().default({}),
-        variant: z.string().max(50).optional(),
-        robotTemplate: z.string().max(255).optional(),
-        parameters: z.record(z.unknown()).optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [source] = await ctx.db.insert(sources).values(input).returning();
-      return source;
-    }),
-
-  update: publicProcedure
+  update: protectedProcedure
     .input(
       // Only what a live caller actually sends: Source Config's mode toggle
       // (`listingMode` — Finding 5 / ruling R7, the minimal REAL "switch
@@ -490,16 +357,14 @@ export const sourcesRouter = router({
    * `updateBinding` creates the input set the first time it has URLs to put
    * in it.
    */
-  // TODO(cut-over, spec 2026-09-21 §2): `resolveOrg(ctx, 'default')` falls back to the seeded
-  // `default` org for the old dashboard's session-less callers. Once it is retired, drop the fallback.
-  createInProject: publicProcedure
+  createInProject: protectedProcedure
     .input(z.object({
       projectSlug: z.string().min(1),
       name: z.string().trim().min(1).max(255),
       url: httpUrl,
     }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, 'default');
+      const org = resolveOrg(ctx);
       const project = await ctx.db.query.projects.findFirst({
         where: and(eq(projects.orgId, org.id), eq(projects.slug, input.projectSlug)),
         with: { datasets: { orderBy: (d, { asc }) => [asc(d.createdAt)], limit: 1, columns: { id: true, schema: true } } },
@@ -537,7 +402,7 @@ export const sourcesRouter = router({
       return { sourceId: source!.id, projectSlug: project.slug, sourceSlug };
     }),
 
-  rename: publicProcedure
+  rename: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), name: z.string().trim().min(1).max(255) }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -561,7 +426,7 @@ export const sourcesRouter = router({
    * Refuses an off-host URL outright (unlike `setProductUrls`, which just
    * drops them) since a listing page's host IS the site being crawled.
    */
-  setListingPages: publicProcedure
+  setListingPages: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(50) }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -588,7 +453,7 @@ export const sourcesRouter = router({
    * seed nothing — but the item half of the budget is not about paging: it is
    * what caps how many of these URLs `planRun` plans at all. See `ALL_BUDGET`.
    */
-  setProductUrls: publicProcedure
+  setProductUrls: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(5000) }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -620,7 +485,7 @@ export const sourcesRouter = router({
    * rather than throwing: that is the ordinary state of a website whose
    * pages have never been saved, which is exactly when the tab asks.
    */
-  inputRows: publicProcedure
+  inputRows: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -654,7 +519,7 @@ export const sourcesRouter = router({
    * Verify would leave that run's results describing a binding that no
    * longer exists.
    */
-  updateBinding: publicProcedure
+  updateBinding: protectedProcedure
     .input(bindingInput)
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -784,7 +649,7 @@ export const sourcesRouter = router({
    * template group's full size (not just the capped ranking), a sample of
    * it, and whether a pager was detected on the page.
    */
-  checkListingPage: publicProcedure
+  checkListingPage: protectedProcedure
     .input(z.object({ listingUrl: httpUrl }))
     .mutation(async ({ input }) => {
       const { anchors, html } = await withBrowserSession(async (browser) => {
@@ -797,7 +662,7 @@ export const sourcesRouter = router({
     }),
 
   /** Start capturing one proof page for marking (spec 2026-09-18 §3.1). Poll `proofPageCapture`. */
-  captureProofPage: publicProcedure
+  captureProofPage: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl }))
     .mutation(async ({ ctx, input }) => {
       // The guard is the existence check for every caller that has a session:
@@ -812,7 +677,7 @@ export const sourcesRouter = router({
     }),
 
   /** Where one proof-page capture has got to: the row the stepper polls while its screenshot is taken. */
-  proofPageCapture: publicProcedure
+  proofPageCapture: protectedProcedure
     .input(z.object({ captureId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await captureInOrg(ctx, input.captureId);
@@ -834,7 +699,7 @@ export const sourcesRouter = router({
     }),
 
   /** Where each product's capture stands, newest per URL: how a reloaded Verification tab finds the captures it already started. */
-  proofPageCaptures: publicProcedure
+  proofPageCaptures: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), urls: z.array(httpUrl).min(1).max(VERIFY_URL_MAX) }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -847,7 +712,7 @@ export const sourcesRouter = router({
    * suggestions' indices point into, so a screen holding a newer capture can
    * tell the answer is stale instead of outlining the wrong element.
    */
-  suggestMarks: publicProcedure
+  suggestMarks: protectedProcedure
     .input(z.object({ captureId: z.string().uuid(), fieldKeys: z.array(z.string()).optional() }))
     .query(async ({ ctx, input }) => {
       await captureInOrg(ctx, input.captureId);
@@ -872,7 +737,7 @@ export const sourcesRouter = router({
    * result per field (`null` where nothing resolved, or where page 1 has no
    * value to carry).
    */
-  transferMarks: publicProcedure
+  transferMarks: protectedProcedure
     .input(z.object({
       sourceId: z.string().uuid(),
       fromUrl: httpUrl,
@@ -935,7 +800,7 @@ export const sourcesRouter = router({
    * the same guard `sources.delete` already uses for "confirmed") is what
    * makes this idempotent.
    */
-  confirm: publicProcedure
+  confirm: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -978,7 +843,7 @@ export const sourcesRouter = router({
    * guard against a client bug or a future caller reaching this endpoint on
    * data that matters, not a UI-enforced-only rule.
    */
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1010,7 +875,7 @@ export const sourcesRouter = router({
    * before spending anything. `aiAvailable` tells it whether AI fallback can
    * even run at all (no key = mechanical/XPath-only verification).
    */
-  verifyEstimate: publicProcedure
+  verifyEstimate: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1083,7 +948,7 @@ export const sourcesRouter = router({
    * closed out with `errorMessage: 'stalled'` so it can never wedge this
    * Source, and a fresh verification starts in its place.
    */
-  verify: publicProcedure
+  verify: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1158,7 +1023,7 @@ export const sourcesRouter = router({
    * ref — surfaced here as `stage` and stripped from the `captures` map so
    * callers never mistake it for one.
    */
-  verificationStatus: publicProcedure
+  verificationStatus: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1211,7 +1076,7 @@ export const sourcesRouter = router({
    * it re-captures the proof pages and changes nothing but its own row and
    * those captures.
    */
-  checkDrift: publicProcedure
+  checkDrift: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1219,7 +1084,7 @@ export const sourcesRouter = router({
     }),
 
   /** The website's latest drift check (null when it never had one), with the date of the run it is about. */
-  driftCheck: publicProcedure
+  driftCheck: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1243,7 +1108,7 @@ export const sourcesRouter = router({
    * A source with no verification set, or one with no proof URLs yet,
    * answers `{ pages: [], suggested: 'none' }` — nothing to inspect.
    */
-  detectVariants: publicProcedure
+  detectVariants: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1308,7 +1173,7 @@ export const sourcesRouter = router({
    * this call and a concurrent `deleteAxis` can never deadlock on each
    * other's locks: one always blocks behind the other instead of racing it.
    */
-  setVariantSetup: publicProcedure
+  setVariantSetup: protectedProcedure
     .input(z.object({
       sourceId: z.string().uuid(),
       method: z.enum(['list', 'links', 'none']),
@@ -1410,7 +1275,7 @@ export const sourcesRouter = router({
    * outlive the page it was about (Review Focus 2), so this refuses instead
    * of writing an orphan.
    */
-  saveVariantAnswer: publicProcedure
+  saveVariantAnswer: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, answer: variantAnswerInput.nullable() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1460,7 +1325,7 @@ export const sourcesRouter = router({
    * customer picked the wrong ref) — the caller re-detects rather than
    * being shown an empty list as if it were real.
    */
-  variantList: publicProcedure
+  variantList: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, list: z.object({ source: z.enum(['json-ld', 'api']), path: z.string().min(1).max(300) }) }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -1504,7 +1369,7 @@ export const sourcesRouter = router({
    * capture of `url`, or nothing near the marked element groups into a
    * link set.
    */
-  variantLinksNear: publicProcedure
+  variantLinksNear: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid(), url: httpUrl, xpath: z.string().min(1).max(2000) }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
