@@ -9,6 +9,7 @@ import {
   encodeOpsOverviewState,
   fieldFlag,
   isDrifted,
+  isOpsPath,
   lastRunFailed,
   lastRunText,
   matchesOpsQuery,
@@ -46,6 +47,23 @@ function row(over: Partial<OpsWebsiteRow> & { sourceId: string }): OpsWebsiteRow
     ...over,
   };
 }
+
+describe('isOpsPath', () => {
+  it('is true for /ops itself and every route below it', () => {
+    expect(isOpsPath('/ops')).toBe(true);
+    expect(isOpsPath('/ops/websites/abc-123')).toBe(true);
+    expect(isOpsPath('/ops/anything/nested/deeper')).toBe(true);
+  });
+
+  // Final review M5: the no-org redirect must never bounce an ops route —
+  // a bare string-equality check against '/ops' would have done exactly
+  // that for every route below it.
+  it('is false for a customer route, including one that merely starts with the same letters', () => {
+    expect(isOpsPath('/projects')).toBe(false);
+    expect(isOpsPath('/opsy')).toBe(false);
+    expect(isOpsPath('/opsy/websites')).toBe(false);
+  });
+});
 
 describe('isDrifted / lastRunFailed / notFullyVerified / needsAttention', () => {
   it('reads each reason independently', () => {

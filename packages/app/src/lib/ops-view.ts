@@ -20,6 +20,19 @@ export type OpsWebsiteRow = {
   spentThisMonthUsd: number;
 };
 
+/**
+ * Is this pathname inside ops mode? `/ops` itself and every route below it
+ * (`/ops/websites/<id>`, …) — never a customer route that merely starts with
+ * the same four letters (`/opsy` is not ops). Final review M5: `_app.tsx`'s
+ * no-org redirect used to compare against the exact string `/ops`, which
+ * would have bounced an operator with no orgs on `/ops/websites/<id>` back
+ * to `/ops` — a prefix check (on the path segment, not just the string) is
+ * what "never bounce /ops/*" means.
+ */
+export function isOpsPath(pathname: string): boolean {
+  return pathname === '/ops' || pathname.startsWith('/ops/');
+}
+
 /** The field stopped extracting (Global Constraints). */
 export function isDrifted(row: Pick<OpsWebsiteRow, 'drifted'>): boolean {
   return row.drifted > 0;
