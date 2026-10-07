@@ -1,14 +1,14 @@
 import { z } from 'zod';
 import { eq, desc, asc, sql } from 'drizzle-orm';
 import { runs, captures, extractions, datasets, projects, sources } from '@robot/db';
-import { router, publicProcedure, protectedProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { contractAxes, type VariantMode } from '../contract.js';
 
 const VIEW_ROW_CAP = 500;
 
 export const runsRouter = router({
-  getWithDetails: publicProcedure
+  getWithDetails: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await runInOrg(ctx, input.id);
@@ -165,7 +165,7 @@ export const runsRouter = router({
       };
     }),
 
-  listBySource: publicProcedure
+  listBySource: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -184,8 +184,7 @@ export const runsRouter = router({
 
   /**
    * Every run in the session's organisation, newest first (spec 2026-09-21
-   * §5, the org-wide Runs page). Session-only — the old dashboard has no such
-   * screen, so there is no `orgSlug` to shim. Scoped through the run's
+   * §5, the org-wide Runs page). Scoped through the run's
    * website → project → org in one join; a run with no website (a legacy row)
    * belongs to nobody and is not listed, as `runInOrg` also rules.
    */

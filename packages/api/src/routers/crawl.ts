@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, runs, runItems, sources } from '@robot/db';
-import { router, publicProcedure } from '../trpc';
+import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
@@ -43,7 +43,7 @@ export const crawlRouter = router({
   // mvp-simplification task 7) — `sources.confirm` calls the exact same
   // function at full budget (`probe: false`), so there is exactly one
   // implementation of "what a plan run does" rather than two that can drift.
-  plan: publicProcedure
+  plan: protectedProcedure
     .input(z.object({
       sourceId: z.string().uuid(),
       /** A quick, single-row planning pass to sanity-check a Source before committing it to a full crawl. */
@@ -74,7 +74,7 @@ export const crawlRouter = router({
    * diagnosis panel (`diagnose-run.ts`) explain the failure instead of
    * silently reporting an empty sample.
    */
-  probeAndSample: publicProcedure
+  probeAndSample: protectedProcedure
     .input(z.object({ sourceId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
@@ -207,7 +207,7 @@ export const crawlRouter = router({
    * the shape of the crawl reads top to bottom: which pages were walked, and what
    * each one yielded.
    */
-  items: publicProcedure
+  items: protectedProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await runInOrg(ctx, input.runId);
@@ -251,7 +251,7 @@ export const crawlRouter = router({
       return { items, counts };
     }),
 
-  status: publicProcedure
+  status: protectedProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await runInOrg(ctx, input.runId);
@@ -278,7 +278,7 @@ export const crawlRouter = router({
       return { status: run.status, counts, rowCount: run.resultCount ?? 0, errorMessage: run.errorMessage };
     }),
 
-  cancel: publicProcedure
+  cancel: protectedProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       await runInOrg(ctx, input.runId);
@@ -304,7 +304,7 @@ export const crawlRouter = router({
       return { status: 'cancelling' as const };
     }),
 
-  execute: publicProcedure
+  execute: protectedProcedure
     .input(z.object({
       runId: z.string().uuid(),
       retryFailed: z.boolean().optional(),
@@ -407,7 +407,7 @@ export const crawlRouter = router({
    * what's already in the DB (`coverage.ts`), consumed verbatim by the
    * repair-run tasks that follow this one.
    */
-  coverage: publicProcedure
+  coverage: protectedProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await runInOrg(ctx, input.runId);
@@ -428,7 +428,7 @@ export const crawlRouter = router({
    * whether or not the most recent verify is current. `certified` keeps its
    * old meaning and its old (narrower) consumer, `backfillPreview`'s "free" label.
    */
-  misses: publicProcedure
+  misses: protectedProcedure
     .input(z.object({ runId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       await runInOrg(ctx, input.runId);
@@ -451,7 +451,7 @@ export const crawlRouter = router({
    * derivation (backfill.ts) over the same coverage load `crawl.coverage`
    * uses.
    */
-  backfillPreview: publicProcedure
+  backfillPreview: protectedProcedure
     .input(z.object({
       runId: z.string().uuid(),
       targetFields: z.array(z.string().min(1)).optional(),
@@ -490,7 +490,7 @@ export const crawlRouter = router({
    * no-dead-fields case, where the value is irrelevant) takes the plain path
    * straight through `startExecution`.
    */
-  backfill: publicProcedure
+  backfill: protectedProcedure
     .input(z.object({
       runId: z.string().uuid(),
       targetFields: z.array(z.string().min(1)).optional(),

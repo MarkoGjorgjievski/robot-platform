@@ -67,21 +67,16 @@ export function InlineRename({
  * owning `projects.rename` the way `InlineRename` owns `sources.rename`. The
  * project's rename is a page of its own rather than a title-row edit, so
  * nothing calls this at `size="title"` yet — but the same component is ready
- * for that the day a project page grows one.
- *
- * `orgSlug` is the session's active org (cut-over Task 1, ruling R1): passed
- * explicitly, the way `projects.get`/`projects.list` take it, rather than
- * relying on `projects.rename`'s `'default'` fallback — which Task 5 removes.
+ * for that the day a project page grows one. `projects.rename` works in the
+ * session's org, so no org is passed.
  */
 export function ProjectInlineRename({
   projectId,
-  orgSlug,
   name,
   ariaLabel = 'Project name',
   size = 'title',
 }: {
   projectId: string;
-  orgSlug: string;
   name: string;
   ariaLabel?: string;
   size?: 'title' | 'row';
@@ -95,7 +90,7 @@ export function ProjectInlineRename({
       size={size}
       problem={projectNameProblem}
       onCommit={async (next) => {
-        await rename.mutateAsync({ projectId, name: next, orgSlug });
+        await rename.mutateAsync({ projectId, name: next });
         await Promise.all([utils.projects.get.invalidate(), utils.projects.list.invalidate()]);
       }}
     />

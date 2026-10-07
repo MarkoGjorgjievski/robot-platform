@@ -62,7 +62,6 @@ function SettingsScreen() {
           <Row label="Name">
             <ProjectInlineRename
               projectId={project.data.id}
-              orgSlug={session.currentOrg.slug}
               name={project.data.name}
               ariaLabel="Name"
               size="row"
