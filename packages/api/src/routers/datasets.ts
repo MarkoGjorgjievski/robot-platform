@@ -9,21 +9,6 @@ import { loadFieldCurrency } from '../verify/current-certification.js';
 import { CATALOGUE } from '../schema-catalogue.js';
 import { resolveOrg } from '../auth/session.js';
 
-/** One Dataset schema field. `origin` says WHERE the field is resolved; absent means 'detail'. */
-export const datasetSchemaFieldSchema = z.object({
-  name: z.string().min(1),
-  type: z.string().min(1),
-  required: z.boolean().optional(),
-  description: z.string().optional(),
-  origin: z.enum(['detail', 'listing', 'input', 'system']).optional(),
-  input_column: z.string().optional(),
-  /** The customer's explicit candidate choice for this field (v2.5 serving order). */
-  candidate: z.object({ concept: z.string().min(1), label: z.string().min(1) }).optional(),
-  /** The contract key + cache-bridge concept (spec 4.1/4.3), round-tripped by `updateSchema`. */
-  key: z.string().optional(),
-  concept: z.string().optional(),
-});
-
 async function loadDataset(db: Database, datasetId: string) {
   const ds = await db.query.datasets.findFirst({
     where: eq(datasets.id, datasetId),
