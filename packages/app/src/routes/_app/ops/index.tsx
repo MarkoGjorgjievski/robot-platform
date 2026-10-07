@@ -260,7 +260,7 @@ function OpsOverviewPage() {
               <div className="flex flex-col items-center gap-2.5 px-4 py-10 text-center">
                 {view === 'attention' && noActiveFilter ? (
                   <>
-                    <RunDot status="done" />
+                    <RunDot status="done" decorative />
                     <p className="text-base font-medium">Nothing needs you right now.</p>
                     <p className="text-sm text-muted-foreground">All {rows.length} websites are verified and their last runs finished.</p>
                     <Button variant="outline" onClick={() => patchSearch({ view: 'all' })}>

@@ -498,4 +498,52 @@ describe('ops.website', () => {
       await dropIdentity(op);
     }
   });
+
+  // Final review M6: 'changed' used to cover both a true hash mismatch and
+  // "same hash, but the result failed" — this is the second case, which the
+  // app labels "Didn't pass verification" rather than "Changed since
+  // verified". Same fieldHash as `fieldHash(priceField, set)` (nothing about
+  // the binding moved), but a failing cell, so it's unchanged yet not current.
+  it("marks a field 'failed' when its latest result's hash still matches but it didn't pass, distinct from 'changed'", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-failed-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    try {
+      const host = `test-ops4-failed-${tag}.example.com`;
+      const urls = [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
+      const built = await createProjectWithSource(op.caller, {
+        tag: `ops4-failed-${tag}`,
+        fields: [{ name: 'Price', type: 'money' }],
+        urls,
+        expected: { Price: Object.fromEntries(urls.map((u) => [u, '9.99'])) },
+      });
+      const source = await db.query.sources.findFirst({ where: eq(sources.id, built.sourceId), columns: { schemaDefinition: true, verificationSet: true } });
+      const fields = source!.schemaDefinition as SchemaDefinitionField[];
+      const priceField = fields.find((f) => f.key === built.keys.Price)!;
+      const set = source!.verificationSet as VerificationSet;
+      const certified: CertifiedPath = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
+      // Passes on the first two proof pages, fails on the third — not all
+      // cells 'pass', so it's never in `currentKeys`, but the fieldHash below
+      // is the real, current one, so it stays in `unchangedKeys`.
+      const cells = Object.fromEntries(set.urls.map((u, i) => [u, { status: (i === 2 ? 'fail' : 'pass') satisfies 'fail' | 'pass', found: 'x', path: certified }]));
+      await db.insert(sourceVerifications).values({
+        sourceId: built.sourceId,
+        definitionHash: 'x',
+        completedAt: new Date(),
+        allPassed: false,
+        results: { [priceField.key]: { key: priceField.key, cells, certified: [certified], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: fieldHash(priceField, set) } },
+      });
+
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+      expect(result.verified).toEqual({ current: 0, total: 1 });
+
+      const priceOut = result.fields.find((f) => f.key === priceField.key)!;
+      expect(priceOut.state).toBe('failed');
+      expect(priceOut.paths).toEqual([{ source: 'json-ld', path: 'offers.price', uses: 0, hits: 0 }]);
+
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+    }
+  });
 });
