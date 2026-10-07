@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, datasets, sources, inputSets, sourceVerifications, users } from '@robot/db';
+import { db, projects, sources, inputSets, sourceVerifications, users } from '@robot/db';
 import { fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 async function project(name: string) {
-  const p = await caller.projects.create({ name });
+  const p = await caller.projects.create({ name, orgSlug: 'default' });
   projectIds.push(p.id);
   return p;
 }
@@ -111,55 +111,6 @@ describe('variants on the contract', () => {
       if (a) await dropIdentity(a);
       if (b) await dropIdentity(b);
     }
-  });
-});
-
-describe('datasets.updateSchema preserves axes and levels it does not know about', () => {
-  it('keeps axis entries and a field level through a bulk save of origins', async () => {
-    const p = await project(`${tag} preserve`);
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
-    const axis = await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Colour' });
-    await caller.datasets.setFieldLevel({ datasetId: p.datasetId, key: f.key, level: 'product' });
-
-    await caller.datasets.updateSchema({
-      datasetId: p.datasetId,
-      schema: [{ key: f.key, name: 'Price', type: 'money', concept: 'price', origin: 'detail' }],
-    });
-
-    const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
-    const schema = ds?.schema as Array<Record<string, unknown>>;
-    expect(schema.find((e) => e.key === f.key)).toMatchObject({ key: f.key, level: 'product', origin: 'detail' });
-    expect(schema.find((e) => e.key === axis.key)).toEqual(axis);
-  });
-
-  it('round-trips exactly what getBySlug returned (the old dashboard\'s save), axes kept but never shown', async () => {
-    const p = await project(`${tag} roundtrip`);
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
-    const axis = await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Colour' });
-    const row = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!;
-
-    const got = await caller.datasets.getBySlug({ orgSlug: 'default', projectSlug: p.slug, datasetSlug: row.slug });
-    const shown = got.schema as Array<Record<string, unknown>>;
-    expect(shown.map((e) => e.key)).toEqual([f.key]);
-    const listed = await caller.datasets.listByProject({ projectId: p.id });
-    expect((listed[0]!.schema as Array<Record<string, unknown>>).map((e) => e.key)).toEqual([f.key]);
-
-    await caller.datasets.updateSchema({ datasetId: p.datasetId, schema: shown.map((e) => ({ ...e, origin: 'listing' })) as never });
-    const after = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!.schema as Array<Record<string, unknown>>;
-    expect(after.find((e) => e.key === f.key)).toMatchObject({ origin: 'listing' });
-    expect(after.find((e) => e.key === axis.key)).toEqual(axis);
-  });
-
-  it('accepts and discards axis entries a caller posts back, keeping the stored axes', async () => {
-    const p = await project(`${tag} postaxis`);
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
-    const axis = await caller.datasets.addAxis({ datasetId: p.datasetId, name: 'Colour' });
-    const raw = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!.schema as Array<Record<string, unknown>>;
-
-    await caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [...raw, { key: 'bogus', name: 'Bogus', kind: 'axis', concept: 'axis' }] as never });
-    const after = (await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) }))!.schema as Array<Record<string, unknown>>;
-    expect(after.filter((e) => e.kind === 'axis')).toEqual([axis]);
-    expect(after.find((e) => e.key === f.key)).toBeTruthy();
   });
 });
 

@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 async function freshProject(name = 'Proj') {
-  const p = await caller.projects.create({ name });
+  const p = await caller.projects.create({ name, orgSlug: 'default' });
   projectIds.push(p.id);
   return p;
 }

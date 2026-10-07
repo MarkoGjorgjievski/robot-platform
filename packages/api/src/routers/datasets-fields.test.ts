@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 async function project(name = 'Fields') {
-  const p = await caller.projects.create({ name });
+  const p = await caller.projects.create({ name, orgSlug: 'default' });
   projectIds.push(p.id);
   return p;
 }
@@ -156,14 +156,6 @@ describe('datasets.renameField / retypeField / deleteField', () => {
   });
 });
 
-describe('datasets.getContract', () => {
-  it('returns the added field', async () => {
-    const p = await project();
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-    expect(await caller.datasets.getContract({ datasetId: p.datasetId })).toEqual([{ key: f.key, name: 'Price', type: 'money', concept: 'price' }]);
-  });
-});
-
 // End-to-end proof (spec 4.3/4.4): adding a field must not disturb another
 // field's current certification, and must seed the new field into a
 // website's EXISTING verification set (not just a source that has none yet).
@@ -226,46 +218,6 @@ describe('datasets.fieldStatus', () => {
   });
 });
 
-describe('datasets.updateSchema keeps keys', () => {
-  it('does not drop key or concept when an operator saves origins', async () => {
-    const p = await project();
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-    await caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [{ key: f.key, name: 'Price', type: 'money', concept: 'price', origin: 'detail' }] });
-    const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
-    expect((ds?.schema as Array<Record<string, unknown>>)[0]).toMatchObject({ key: 'price', concept: 'price', origin: 'detail' });
-  });
-
-  // updateSchema is a bulk save for the non-contract parts of the dataset
-  // schema. A keyed entry's name/type are the contract (spec 4.1/4.3) and
-  // are changed exclusively via renameField/retypeField/addField/deleteField
-  // — retypeField in particular refuses while a website has a current
-  // certification (loadFieldCurrency). Without this guard, updateSchema
-  // could bulk-save past that lock.
-  it('refuses a keyed type change', async () => {
-    const p = await project();
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-    await expect(
-      caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [{ key: f.key, name: 'Price', type: 'text', concept: 'price' }] }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-  });
-
-  it('refuses a keyed name change', async () => {
-    const p = await project();
-    const f = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-    await expect(
-      caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [{ key: f.key, name: 'Cost', type: 'money', concept: 'price' }] }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-  });
-
-  it('refuses dropping a keyed entry', async () => {
-    const p = await project();
-    await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-    await expect(
-      caller.datasets.updateSchema({ datasetId: p.datasetId, schema: [] }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-  });
-});
-
 describe('datasets.catalogue', () => {
   it('returns the catalogue', async () => {
     const c = await caller.datasets.catalogue();
@@ -281,8 +233,6 @@ describe('datasets.addField with a catalogue description and concept', () => {
       const r = await caller.datasets.addField({ datasetId: f.datasetId, name: 'Currency', type: 'text', description: 'The currency of the price', concept: 'currency' });
       expect(r.concept).toBe('currency');
       expect(r.description).toBe('The currency of the price');
-      const contract = await caller.datasets.getContract({ datasetId: f.datasetId });
-      expect(contract.find((c) => c.key === r.key)).toMatchObject({ concept: 'currency', description: 'The currency of the price' });
       const src = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { schemaDefinition: true } });
       expect((src!.schemaDefinition as Array<{ key: string; description: string; concept: string }>).find((d) => d.key === r.key)).toMatchObject({ description: 'The currency of the price', concept: 'currency' });
     } finally { await f.cleanup(); }

@@ -283,54 +283,6 @@ describe('sources.confirm', () => {
   });
 });
 
-describe('sources.listByProject', () => {
-  it('includes confirmedAt (null until confirm) and urlCount (InputSet row count)', async () => {
-    const f = await createProjectWithSource(caller, { tag: 'list-source', fields: [] });
-    try {
-      // Point the source at a manually-inserted InputSet — `updateBinding`
-      // always writes exactly VERIFY_URL_COUNT (or 1, listing) rows, so an
-      // arbitrary row count is set up directly rather than through the
-      // contract/binding flow (this Source carries no fields at all).
-      const urls = [
-        'https://test-list-source-a.example.com/c/1',
-        'https://test-list-source-b.example.com/c/2',
-      ];
-      const [inputSet] = await db
-        .insert(inputSets)
-        .values({
-          projectId: f.projectId,
-          type: 'direct',
-          name: 'Listing test',
-          columns: [{ name: 'url', primary: true }],
-          rows: urls.map((url) => ({ url })),
-        })
-        .returning({ id: inputSets.id });
-      await db.update(sources).set({ inputSetId: inputSet!.id, listingMode: 'listing_to_detail' }).where(eq(sources.id, f.sourceId));
-
-      const before = await caller.sources.listByProject({ orgSlug: 'default', projectSlug: f.projectSlug });
-      const beforeRow = before.find((s) => s.id === f.sourceId);
-      expect(beforeRow).toBeDefined();
-      expect(beforeRow!.confirmedAt).toBeNull();
-      expect(beforeRow!.urlCount).toBe(2);
-      expect(beforeRow!.listingMode).toBe('listing_to_detail');
-      expect(beforeRow!.selectorsJson).toBeNull();
-
-      planSourceMock.mockResolvedValue({
-        runId: '22222222-2222-2222-2222-222222222222',
-        status: 'planned', itemCount: 2, listingPages: 0,
-        warnings: [], errors: [], inputs: [], cacheWarm: false,
-      });
-      await caller.sources.confirm({ sourceId: f.sourceId });
-
-      const after = await caller.sources.listByProject({ orgSlug: 'default', projectSlug: f.projectSlug });
-      const afterRow = after.find((s) => s.id === f.sourceId);
-      expect(afterRow!.confirmedAt).toBeInstanceOf(Date);
-    } finally {
-      await f.cleanup();
-    }
-  });
-});
-
 describe('sources.delete', () => {
   it('deletes an UNCONFIRMED Source and its own InputSet', async () => {
     const urls = [

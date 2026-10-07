@@ -13,25 +13,29 @@ import { loadProjectExport } from '../export/load-project-export.js';
 const OUTPUT_ROW_CAP = 500;
 
 /**
- * The project by slug, inside the resolved org (spec 2026-09-21 §6 as restated:
- * the procedures a rebuilt screen calls take the org from the session; the old
- * dashboard still names it). Null when it is not there — callers decide between
- * NOT_FOUND and a null answer.
- * TODO(cut-over, spec 2026-09-21 §2): drop the `'default'` fallback with the old dashboard.
+ * The project by slug, inside the resolved org (spec 2026-09-21 §6 as
+ * restated). `orgSlug` is honoured only when given explicitly — a
+ * session-less caller that wants a specific org (a test, a CLI) still names
+ * it, the way `sources.get` does. Null when it is not there — callers decide
+ * between NOT_FOUND and a null answer.
  */
 async function findProjectInOrg(ctx: Context, projectSlug: string, orgSlug?: string) {
-  const org = await resolveOrg(ctx, orgSlug ?? 'default');
+  const org = await resolveOrg(ctx, orgSlug);
   return ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, projectSlug)) });
 }
 
 export const projectsRouter = router({
-  // TODO(cut-over, spec 2026-09-21 §2): the `orgSlug ?? 'default'` fallback exists only for the
-  // old dashboard, which calls this with no input at all. Once it is retired, drop the fallback
-  // and let a session-less, orgSlug-less call fail UNAUTHORIZED like every other org-scoped route.
+  /**
+   * Cut-over Task 5: dropped the `orgSlug ?? 'default'` shim the old
+   * dashboard's session-less calls relied on. A session-less caller with no
+   * `orgSlug` now gets `resolveOrg`'s UNAUTHORIZED, never the seeded
+   * `default` org's projects (Review Focus 4) — an explicit `orgSlug` still
+   * works (tests, CLIs), same as `projects.get`.
+   */
   list: publicProcedure
     .input(z.object({ orgSlug: z.string().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input?.orgSlug ?? 'default');
+      const org = await resolveOrg(ctx, input?.orgSlug);
       const base = await ctx.db
         .select({
           id: projects.id,
@@ -116,28 +120,6 @@ export const projectsRouter = router({
         .orderBy(projects.name);
 
       return results;
-    }),
-
-  getBySlug: publicProcedure
-    .input(z.object({ projectSlug: z.string(), orgSlug: z.string().optional() }))
-    .query(async ({ ctx, input }) => {
-      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
-      if (!project) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: `Project not found: ${input.projectSlug}` });
-      }
-
-      const full = await ctx.db.query.projects.findFirst({
-        where: eq(projects.id, project.id),
-        with: {
-          datasets: true,
-        },
-      });
-
-      if (!full) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: `Project not found: ${input.projectSlug}` });
-      }
-
-      return full;
     }),
 
   /**
@@ -225,53 +207,6 @@ export const projectsRouter = router({
       return { ...x, rows: x.rows.slice(0, OUTPUT_ROW_CAP) };
     }),
 
-  getWithStats: publicProcedure
-    .input(z.object({ projectSlug: z.string(), orgSlug: z.string().optional() }))
-    .query(async ({ ctx, input }) => {
-      const project = await findProjectInOrg(ctx, input.projectSlug, input.orgSlug);
-      if (!project) return null;
-
-      const [datasetCount, sourceCount, runCount, lastRun] = await Promise.all([
-        ctx.db
-          .select({ c: sql<number>`count(*)::int` })
-          .from(datasets)
-          .where(eq(datasets.projectId, project.id))
-          .then((r) => r[0]?.c ?? 0),
-        ctx.db
-          .select({ c: sql<number>`count(${sources.id})::int` })
-          .from(sources)
-          .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-          .where(eq(datasets.projectId, project.id))
-          .then((r) => r[0]?.c ?? 0),
-        ctx.db
-          .select({ c: sql<number>`count(${runs.id})::int` })
-          .from(runs)
-          .innerJoin(sources, eq(runs.sourceId, sources.id))
-          .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-          .where(eq(datasets.projectId, project.id))
-          .then((r) => r[0]?.c ?? 0),
-        ctx.db
-          .select({
-            id: runs.id,
-            sourceId: runs.sourceId,
-            sourceSlug: sources.slug,
-            status: runs.status,
-            createdAt: runs.createdAt,
-            completedAt: runs.completedAt,
-            resultCount: runs.resultCount,
-          })
-          .from(runs)
-          .innerJoin(sources, eq(runs.sourceId, sources.id))
-          .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-          .where(eq(datasets.projectId, project.id))
-          .orderBy(desc(runs.createdAt))
-          .limit(1)
-          .then((r) => r[0] ?? null),
-      ]);
-
-      return { project, datasetCount, sourceCount, runCount, lastRun };
-    }),
-
   /**
    * The customer names the project (spec 2, 5.2). It gets one dataset named
    * after it: the project's field list and output table (spec 4.1). Lives
@@ -280,7 +215,7 @@ export const projectsRouter = router({
   create: publicProcedure
     .input(z.object({ name: z.string().trim().min(1).max(255), description: z.string().trim().max(2000).optional(), orgSlug: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
+      const org = await resolveOrg(ctx, input.orgSlug);
 
       const slug = await uniqueSlug(slugify(input.name), async (s) =>
         !!(await ctx.db.query.projects.findFirst({ where: and(eq(projects.orgId, org.id), eq(projects.slug, s)), columns: { id: true } })),
@@ -305,17 +240,14 @@ export const projectsRouter = router({
    * `delete` enforces, and this is the other write in the set.
    * `orgSlug` is optional and read the same way `get`/`list`/`create` read it
    * (cut-over Task 1, ruling R1): a session always wins in `resolveOrg`, so a
-   * signed-in caller's own org is what is checked regardless of this field —
-   * the app still passes its active org slug explicitly rather than relying
-   * on the `'default'` fallback below, which exists only for the old
-   * dashboard's session-less calls.
-   * TODO(cut-over, spec 2026-09-21 §2): once the old dashboard is retired, drop
-   * the fallback and require a session here too.
+   * signed-in caller's own org is what is checked regardless of this field.
+   * The old dashboard's implicit `'default'` fallback is gone (cut-over Task
+   * 5): a session-less caller now names an org explicitly, or is UNAUTHORIZED.
    */
   rename: publicProcedure
     .input(z.object({ projectId: z.string().uuid(), name: z.string().trim().min(1).max(255), orgSlug: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
+      const org = await resolveOrg(ctx, input.orgSlug);
       const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
       if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       const [row] = await ctx.db
@@ -331,15 +263,14 @@ export const projectsRouter = router({
    * Test and cleanup use only for now: cascades datasets, sources and runs,
    * and bypasses the confirmed-source refusal that `sources.delete` enforces.
    * A project outside the resolved org is NOT_FOUND, same as if it never
-   * existed, rather than deletable by anyone who knows its id.
-   * TODO(cut-over, spec 2026-09-21 §2): the `'default'` fallback exists only for the
-   * old dashboard, which calls this with no session at all (its smoke-test cleanup
-   * included). Once it is retired, drop the fallback and require a session here too.
+   * existed, rather than deletable by anyone who knows its id. The old
+   * dashboard's implicit `'default'` fallback is gone (cut-over Task 5): a
+   * session-less caller now names an org explicitly, or is UNAUTHORIZED.
    */
   delete: publicProcedure
-    .input(z.object({ projectId: z.string().uuid() }))
+    .input(z.object({ projectId: z.string().uuid(), orgSlug: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, 'default');
+      const org = await resolveOrg(ctx, input.orgSlug);
       const project = await ctx.db.query.projects.findFirst({ where: eq(projects.id, input.projectId), columns: { id: true, orgId: true } });
       if (!project || project.orgId !== org.id) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectId} not found` });
       const rows = await ctx.db.delete(projects).where(eq(projects.id, input.projectId)).returning({ id: projects.id });

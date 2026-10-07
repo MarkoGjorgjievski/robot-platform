@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { datasets, projects, orgs, sources, type Database } from '@robot/db';
+import { datasets, projects, sources, type Database } from '@robot/db';
 import { CUSTOMER_FIELD_TYPES, DETAIL_URL_FIELD, deriveConcept, deriveKey, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure, type Context } from '../trpc';
-import { contractFields, contractAxes, withoutAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
+import { contractFields, contractAxes, effectiveLevel, type ContractField, type ContractAxis, type VariantMode, type FieldLevel, type VariantSetup } from '../contract.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { CATALOGUE } from '../schema-catalogue.js';
 import { resolveOrg } from '../auth/session.js';
@@ -153,86 +153,8 @@ async function propagate(
 }
 
 export const datasetsRouter = router({
-  listByProject: publicProcedure
-    .input(z.object({ projectId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const results = await ctx.db
-        .select({
-          id: datasets.id,
-          projectId: datasets.projectId,
-          name: datasets.name,
-          slug: datasets.slug,
-          description: datasets.description,
-          schema: datasets.schema,
-          createdAt: datasets.createdAt,
-          updatedAt: datasets.updatedAt,
-          sourceCount: sql<number>`count(${sources.id})::int`,
-        })
-        .from(datasets)
-        .leftJoin(sources, eq(datasets.id, sources.datasetId))
-        .where(eq(datasets.projectId, input.projectId))
-        .groupBy(datasets.id)
-        .orderBy(datasets.name);
-
-      // Axis entries (spec 2026-10-01 §2) are not fields; the old dashboard reads every entry as one.
-      return results.map((r) => ({ ...r, schema: withoutAxes(r.schema) }));
-    }),
-
-  /** The project's contract (spec 4.1): the dataset schema's keyed fields, for the project home editor. */
-  getContract: publicProcedure
-    .input(z.object({ datasetId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => contractFields((await loadDatasetInOrg(ctx, input.datasetId)).schema)),
-
   /** The field catalogue for step 1 of the Schema tab (spec 2026-09-18 §2.1): static, all types at once. */
   catalogue: publicProcedure.query(() => CATALOGUE),
-
-  getBySlug: publicProcedure
-    .input(
-      z.object({
-        orgSlug: z.string(),
-        projectSlug: z.string(),
-        datasetSlug: z.string(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
-        .select({ datasetId: datasets.id })
-        .from(datasets)
-        .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .innerJoin(orgs, eq(projects.orgId, orgs.id))
-        .where(
-          and(
-            eq(orgs.slug, input.orgSlug),
-            eq(projects.slug, input.projectSlug),
-            eq(datasets.slug, input.datasetSlug),
-          ),
-        )
-        .limit(1);
-
-      const row = rows[0];
-      if (!row) {
-        throw new Error(
-          `Dataset not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}`,
-        );
-      }
-
-      const dataset = await ctx.db.query.datasets.findFirst({
-        where: eq(datasets.id, row.datasetId),
-        with: {
-          sources: true,
-        },
-      });
-
-      if (!dataset) {
-        throw new Error(
-          `Dataset not found: ${input.orgSlug}/${input.projectSlug}/${input.datasetSlug}`,
-        );
-      }
-
-      // Axis entries are not fields: the old dashboard's Output page renders and posts back every
-      // entry as one (`updateSchema` carries the stored axes forward on its own).
-      return { ...dataset, schema: withoutAxes(dataset.schema) };
-    }),
 
   create: publicProcedure
     .input(
@@ -247,79 +169,6 @@ export const datasetsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [dataset] = await ctx.db.insert(datasets).values(input).returning();
       return dataset;
-    }),
-
-  /**
-   * Bulk-saves the dataset schema — but only the parts of it that aren't the
-   * contract (spec 4.1/4.3): a keyed entry's `name` and `type` are changed
-   * exclusively via `renameField`/`retypeField` (the latter gated by
-   * `loadFieldCurrency`'s certification lock), and keyed entries are added
-   * or dropped exclusively via `addField`/`deleteField` (the latter
-   * propagating to every website). Without this guard, a caller could
-   * bulk-save a renamed or retyped keyed entry straight past those checks —
-   * in particular past `retypeField`'s refusal to retype a field a website
-   * has already verified. Unkeyed legacy entries, and every other property
-   * of a keyed entry (`origin`, `candidate`, `required`, `input_column`,
-   * `description`), may still change freely here.
-   *
-   * Pre-existing behaviour, now also covering axes: unlike `addField` et al.,
-   * this reads the current schema outside any transaction and writes it back
-   * wholesale with a plain `UPDATE`, no `lockDatasetSchema` row lock. A
-   * concurrent `addAxis`/`setFieldLevel`/`addField` commit between this read
-   * and this write is silently overwritten by this call's stale copy (echoed
-   * back via the `axes`/`level` carry-forward added above, but from the
-   * pre-write snapshot, not a re-read). Left as-is: this procedure is the old
-   * dashboard's bulk "save origins" call, already scoped down to the parts of
-   * the schema it owns, not a new race introduced here.
-   */
-  updateSchema: publicProcedure
-    .input(
-      z.object({
-        datasetId: z.string().uuid(),
-        // Axis entries posted back (by a caller that read the raw schema) are dropped before
-        // validation: axes change only via addAxis/renameAxis/deleteAxis, and the stored ones
-        // are carried forward below.
-        schema: z
-          .array(z.union([z.object({ kind: z.literal('axis') }).passthrough(), datasetSchemaFieldSchema]))
-          .transform((entries) => entries.filter((e): e is z.infer<typeof datasetSchemaFieldSchema> => !('kind' in e && e.kind === 'axis'))),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const current = await ctx.db.query.datasets.findFirst({ where: eq(datasets.id, input.datasetId), columns: { schema: true } });
-      if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: `Dataset ${input.datasetId} not found` });
-      const currentByKey = new Map(contractFields(current.schema).map((f) => [f.key, f]));
-      const axes = contractAxes(current.schema);
-      const incomingKeys = new Set<string>();
-      for (const entry of input.schema) {
-        if (typeof entry.key !== 'string' || entry.key.length === 0) continue; // legacy unkeyed entry: free to change
-        incomingKeys.add(entry.key);
-        const existing = currentByKey.get(entry.key);
-        if (!existing) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Fields are added and removed with addField and deleteField' });
-        if (existing.name !== entry.name || existing.type !== entry.type) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'Field names and types are changed with renameField and retypeField' });
-        }
-      }
-      if (incomingKeys.size !== currentByKey.size) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Fields are added and removed with addField and deleteField' });
-      }
-
-      // This save doesn't know about `level` (changed exclusively via
-      // `setFieldLevel`, spec 2026-10-01 §2) or axis entries (their own kind
-      // of schema entry, added/renamed/deleted exclusively via
-      // `addAxis`/`renameAxis`/`deleteAxis`) — both are carried forward
-      // unchanged rather than dropped by a caller that never saw them.
-      const nextFields = input.schema.map((entry) => {
-        if (typeof entry.key !== 'string' || entry.key.length === 0) return entry;
-        const existing = currentByKey.get(entry.key)!;
-        return existing.level !== undefined ? { ...entry, level: existing.level } : entry;
-      });
-
-      const [updated] = await ctx.db
-        .update(datasets)
-        .set({ schema: [...nextFields, ...axes] })
-        .where(eq(datasets.id, input.datasetId))
-        .returning();
-      return updated;
     }),
 
   /** Spec 4.3: add a field to the project's contract; every website gets it empty. */

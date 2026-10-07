@@ -16,7 +16,7 @@ afterEach(async () => {
 const U = ['https://shop.example/p/1', 'https://shop.example/p/2', 'https://shop.example/p/3'];
 
 async function seeded() {
-  const p = await caller.projects.create({ name: 'Binding' });
+  const p = await caller.projects.create({ name: 'Binding', orgSlug: 'default' });
   projectIds.push(p.id);
   await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
   const s = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: 'https://shop.example/' });

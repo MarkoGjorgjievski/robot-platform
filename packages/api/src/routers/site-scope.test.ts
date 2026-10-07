@@ -122,18 +122,26 @@ describe('website and run procedures are scoped to the session org', () => {
     }
   });
 
-  it('still answers a session-less caller the way the old dashboard calls it', async () => {
-    const bare = createCallerFactory(appRouter)({ db, session: null });
-    const p = await bare.projects.create({ name: `Shim ${tag}` });
+  // `projects.create`/`list`/`rename`/`delete` dropped their session-less
+  // `'default'` fallback at cut-over (Task 5); `sources.get`/`rename` did
+  // not, so a session-less caller that names the org explicitly still
+  // reaches them. (`sources.createInProject` always resolves the seeded
+  // `default` org and is untouched here — exercising it session-lessly
+  // would mean writing into that org, which these tests never do.)
+  it('sources.get/rename still answer a session-less caller that names the org', async () => {
+    let a: Awaited<ReturnType<typeof signIn>> | undefined;
     try {
-      const w = await bare.sources.createInProject({ projectSlug: p.slug, name: 'Shim shop', url: 'https://shim.example.com/' });
-      const got = await bare.sources.get({ projectSlug: p.slug, sourceSlug: w.sourceSlug, orgSlug: 'default' });
+      a = await signIn(`${tag}-shim@example.com`);
+      const p = await a.caller.projects.create({ name: `Shim ${tag}` });
+      const w = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Shim shop', url: 'https://shim.example.com/' });
+      const bare = createCallerFactory(appRouter)({ db, session: null });
+      const got = await bare.sources.get({ projectSlug: p.slug, sourceSlug: w.sourceSlug, orgSlug: a.session.org.slug });
       expect(got.id).toBe(w.sourceId);
       expect(got.hostname).toBe('shim.example.com');
       const renamed = await bare.sources.rename({ sourceId: w.sourceId, name: 'Shim shop 2' });
       expect(renamed.name).toBe('Shim shop 2');
     } finally {
-      await db.delete(projects).where(eq(projects.id, p.id));
+      if (a) await dropIdentity(a);
     }
   });
 });

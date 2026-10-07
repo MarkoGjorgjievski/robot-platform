@@ -33,28 +33,31 @@ describe('contract procedures are org-scoped', () => {
       const f = await a.caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
 
       const nf = { code: 'NOT_FOUND' };
-      await expect(b.caller.datasets.getContract({ datasetId: p.datasetId })).rejects.toMatchObject(nf);
+      await expect(b.caller.datasets.variants({ datasetId: p.datasetId })).rejects.toMatchObject(nf);
       await expect(b.caller.datasets.fieldStatus({ datasetId: p.datasetId })).rejects.toMatchObject(nf);
       await expect(b.caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' })).rejects.toMatchObject(nf);
       await expect(b.caller.datasets.renameField({ datasetId: p.datasetId, key: f.key, name: 'Cost' })).rejects.toMatchObject(nf);
       await expect(b.caller.datasets.retypeField({ datasetId: p.datasetId, key: f.key, type: 'text' })).rejects.toMatchObject(nf);
       await expect(b.caller.datasets.deleteField({ datasetId: p.datasetId, key: f.key })).rejects.toMatchObject(nf);
 
-      expect((await a.caller.datasets.getContract({ datasetId: p.datasetId })).map((x) => x.name)).toEqual(['Price']);
+      expect((await a.caller.datasets.variants({ datasetId: p.datasetId })).fields.map((x) => x.name)).toEqual(['Price']);
       await a.caller.datasets.renameField({ datasetId: p.datasetId, key: f.key, name: 'Cost' });
-      expect((await a.caller.datasets.getContract({ datasetId: p.datasetId })).map((x) => x.name)).toEqual(['Cost']);
+      expect((await a.caller.datasets.variants({ datasetId: p.datasetId })).fields.map((x) => x.name)).toEqual(['Cost']);
     } finally {
       if (a) await dropIdentity(a);
       if (b) await dropIdentity(b);
     }
   });
 
-  it('a session-less caller still reaches the default org\'s datasets (the old dashboard)', async () => {
+  // `datasets.*` field procedures keep their session-less `'default'`-org
+  // fallback (cut-over Task 5 touched only `projects.list/create/rename/delete`);
+  // `orgSlug: 'default'` here is the explicit ask, not the removed implicit shim.
+  it('a session-less caller that names the org still reaches its datasets', async () => {
     const bare = createCallerFactory(appRouter)({ db, session: null });
-    const p = await bare.projects.create({ name: `Shim ${tag}` });
+    const p = await bare.projects.create({ name: `Shim ${tag}`, orgSlug: 'default' });
     try {
       await bare.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-      expect((await bare.datasets.getContract({ datasetId: p.datasetId })).length).toBe(1);
+      expect((await bare.datasets.variants({ datasetId: p.datasetId })).fields.length).toBe(1);
     } finally {
       await db.delete(projects).where(eq(projects.id, p.id));
     }

@@ -198,86 +198,9 @@ describe('sources.updateBinding', () => {
   });
 });
 
-describe('sources.findProductPages', () => {
-  it('captures the listing page (no AI) and returns the ranked product links', async () => {
-    const captureMock = vi.fn().mockResolvedValue({ html: '<html></html>' });
-    const setContentEvaluateMock = vi.fn().mockResolvedValue([
-      { href: '/p/air-1-123456789012', text: 'Air 1' },
-      { href: '/p/air-2-123456789013', text: 'Air 2' },
-      { href: '/c/shoes', text: 'Shoes' },
-    ]);
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: captureMock, setContentEvaluate: setContentEvaluateMock }),
-    );
-
-    const result = await caller.sources.findProductPages({ listingUrl: 'https://test-find-products.example.com/c/shoes' });
-
-    expect(result.urls).toEqual([
-      'https://test-find-products.example.com/p/air-1-123456789012',
-      'https://test-find-products.example.com/p/air-2-123456789013',
-    ]);
-    expect(withBrowserSessionMock).toHaveBeenCalledTimes(1);
-    expect(captureMock).toHaveBeenCalledWith('https://test-find-products.example.com/c/shoes', expect.objectContaining({ interceptNetworkRequests: false }));
-    expect(setContentEvaluateMock).toHaveBeenCalledWith('<html></html>', expect.any(String));
-  });
-
-  it('rejects a non-URL listingUrl', async () => {
-    try {
-      await caller.sources.findProductPages({ listingUrl: 'not-a-url' });
-      throw new Error('should have thrown');
-    } catch (err) {
-      expectZodValidationError(err);
-    }
-  });
-
-  // Important defect (review round 1): `z.string().url()` alone accepts any
-  // scheme the WHATWG URL parser recognizes, so a `file://` (or `javascript:`,
-  // `data:`, ...) listingUrl would have reached `withBrowserSession` and been
-  // handed to a real browser to navigate to. `httpUrl`'s refine must reject it
-  // during input parsing, before the browser session is ever opened.
-  it('rejects a file:// listingUrl as BAD_REQUEST, without ever calling withBrowserSession', async () => {
-    try {
-      await caller.sources.findProductPages({ listingUrl: 'file:///etc/passwd' });
-      throw new Error('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(TRPCError);
-      expect((err as TRPCError).code).toBe('BAD_REQUEST');
-    }
-    expect(withBrowserSessionMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('sources.listByProject — schema columns', () => {
-  it('includes schemaDefinition, verificationSet, driftedFields', async () => {
-    const urls = [
-      'https://test-schema-list.example.com/p/1',
-      'https://test-schema-list.example.com/p/2',
-      'https://test-schema-list.example.com/p/3',
-    ];
-    const f = await createProjectWithSource(caller, {
-      tag: 'schema-list',
-      urls,
-      fields: [{ name: 'Price', type: 'money', description: 'x' }],
-      expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
-    });
-    try {
-      const list = await caller.sources.listByProject({ orgSlug: 'default', projectSlug: f.projectSlug });
-      const row = list.find((s) => s.id === f.sourceId);
-      expect(row).toBeDefined();
-      expect(row!.schemaDefinition).toEqual([
-        { key: 'price', name: 'Price', type: 'money', description: 'x', concept: 'price' },
-      ]);
-      expect((row as { verificationSet: unknown }).verificationSet).toBeDefined();
-      expect((row as { driftedFields: unknown }).driftedFields).toBeNull();
-    } finally {
-      await f.cleanup();
-    }
-  });
-});
-
 describe('appRouter shape', () => {
-  it('exposes updateBinding/findProductPages on sources', () => {
+  it('exposes updateBinding/checkListingPage on sources', () => {
     expect(typeof caller.sources.updateBinding).toBe('function');
-    expect(typeof caller.sources.findProductPages).toBe('function');
+    expect(typeof caller.sources.checkListingPage).toBe('function');
   });
 });
