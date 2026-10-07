@@ -1185,6 +1185,14 @@ describe.skipIf(!ENABLED)('app shell', () => {
       expect(await link.getAttribute('href'), `${label}'s href is not this run's ${ext} file`).toContain(`/${runId}.${ext}`);
     }
 
+    // Final review I1: the CSV link's own href actually downloads, as the
+    // signed-in throwaway — the export route now requires the session cookie
+    // a plain `<a href download>` navigation carries the same way the
+    // browser just did for every page in this walk.
+    const csvHref = await page.getByRole('link', { name: 'Download CSV', exact: true }).getAttribute('href');
+    const csvRes = await fetch(csvHref!, { headers: { cookie: await sessionCookie(context) } });
+    expect(csvRes.status, `the run's CSV link did not download (${csvHref})`).toBe(200);
+
     expect(problems, `the seeded run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 60_000);
 
