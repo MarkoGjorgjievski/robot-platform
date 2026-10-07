@@ -5,13 +5,12 @@
 // module boundary so this exercises ONLY the router's own logic — what it
 // passes down, and whether it starts execution at all — without a real
 // planner, browser, or extraction loop.
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, sources, orgs, projects, datasets, runs } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
+import { db, sources, projects, datasets, runs } from '@robot/db';
 import { PROBE_SAMPLE_LIMIT } from '../crawl/probe.js';
 import type { PlanSourceResult } from '../crawl/plan-source.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 const { planSourceMock, startExecutionMock, markRunExtractingMock } = vi.hoisted(() => ({
   planSourceMock: vi.fn(),
@@ -40,13 +39,17 @@ vi.mock('../crawl/mark-extracting.js', async (importOriginal) => {
   return { ...actual, markRunExtracting: markRunExtractingMock };
 });
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('crawl-probe');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const SLUG = 'test-crawl-probe';
 let orgId: string | null = null;
 
 /** org → project → dataset → Source, no InputSet needed: planSource is mocked. */
 async function makeSource() {
-  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -69,7 +72,7 @@ afterEach(async () => {
   planSourceMock.mockReset();
   startExecutionMock.mockReset();
   markRunExtractingMock.mockReset();
-  if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+  if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
 
@@ -300,7 +303,7 @@ describe('crawl.probeAndSample', () => {
 
 describe('crawl.probeAndSample — certification gate', () => {
   it('refuses a customer Source with no current certification, before touching planSource', async () => {
-    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     orgId = org!.id;
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
     const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();

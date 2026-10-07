@@ -1,17 +1,16 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
 import { db, sources, sourceVerifications, captures } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { runSourceVerification, writeStage } from './run-source-verification.js';
 import { writeCaptureFile } from './capture-store.js';
 import { loadVariantCurrency } from './current-certification.js';
 import { VARIANT_SHOP } from '../test-helpers/variant-shop.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // `runSourceVerification` never launches a real browser or calls
 // `@robot/scraper`'s `runVerification` for real — both are stubbed here, the
@@ -41,8 +40,11 @@ afterEach(() => {
   withBrowserSessionMock.mockClear();
 });
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('run-source-verification');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 function fakeCapture(url: string, html: string): PageCapture {
   return {

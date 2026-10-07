@@ -1,12 +1,12 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources } from '@robot/db';
 import { itemCap, resolveBudget } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // The Extract tab's free per-row listing check. Like `sources.findProductPages`
 // (sources-schema.test.ts), it launches a real browser via `withBrowserSession`
@@ -20,8 +20,11 @@ afterEach(() => {
   withBrowserSessionMock.mockReset();
 });
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-extract');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 function expectZodValidationError(err: unknown): asserts err is TRPCError {
   if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);

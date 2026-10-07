@@ -1,14 +1,14 @@
 // packages/api/src/routers/sources-drift.test.ts
 // sources.checkDrift / sources.driftCheck (drift repair Task 2): the on-demand
 // start and the latest check, both org-scoped.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, driftChecks, projects, runs, sources, users } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
 
 // The job itself is covered in run-drift-check.test.ts; here it is never fired (no browser, no network).
 vi.mock('../verify/run-drift-check.js', async (importOriginal) => {
@@ -17,7 +17,11 @@ vi.mock('../verify/run-drift-check.js', async (importOriginal) => {
 });
 
 const { DRIFT_CHECK_STALL_MS } = await import('../verify/run-drift-check.js');
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-drift');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 async function signIn(email: string) {
   const cookies: Record<string, string | null> = {};

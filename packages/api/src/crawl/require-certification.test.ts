@@ -3,19 +3,21 @@
 // (no customer schema) is untouched, a customer Source without a current
 // certification is refused outright, and a certified one hands back exactly
 // what loadCurrentCertification would.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { requireCertification } from './require-certification.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('require-certification');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 async function makeSchemaSource(tag: string) {
   const urls = [

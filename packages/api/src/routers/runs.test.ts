@@ -1,14 +1,16 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
-import { db, runs, sources, orgs, projects, datasets, captures, extractions } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
+import { db, runs, sources, projects, datasets, captures, extractions } from '@robot/db';
 import { loadRunExport } from '../export/load-run-export.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('runs');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 function expectZodValidationError(err: unknown) {
   if (!(err instanceof TRPCError)) throw new Error(`expected TRPCError, got ${err}`);
@@ -24,7 +26,7 @@ const SLUG = 'test-runs-getwithdetails';
 let orgId: string | null = null;
 
 async function seedSource() {
-  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -89,7 +91,7 @@ async function seedRunWithSingleExtraction(rows: Array<Record<string, unknown>>)
 
 /** A source whose dataset carries a contract (with an axis entry) and a variant mode, for the variant-summary coverage below. */
 async function seedVariantSource(variantMode: string) {
-  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const schema = [
@@ -111,7 +113,7 @@ async function seedRunWithVariantSummary(variantMode: string, variantSummary: Re
 }
 
 afterEach(async () => {
-  if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+  if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
 
@@ -135,16 +137,14 @@ describe('runsRouter', () => {
       }
     });
 
-    it('returns null for unknown run id', async () => {
-      const result = await caller.runs.getWithDetails({ id: '00000000-0000-0000-0000-000000000000' });
-      expect(result).toBeNull();
+    it("is NOT_FOUND for an unknown run id — the same word as for another org's run", async () => {
+      await expect(caller.runs.getWithDetails({ id: '00000000-0000-0000-0000-000000000000' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
   });
 
   describe('listBySource', () => {
-    it('returns empty array for unknown sourceId', async () => {
-      const result = await caller.runs.listBySource({ sourceId: '00000000-0000-0000-0000-000000000000' });
-      expect(result).toEqual([]);
+    it("is NOT_FOUND for an unknown sourceId — the same word as for another org's website", async () => {
+      await expect(caller.runs.listBySource({ sourceId: '00000000-0000-0000-0000-000000000000' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
   });
 

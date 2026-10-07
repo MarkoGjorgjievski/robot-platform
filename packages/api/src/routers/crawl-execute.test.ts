@@ -1,15 +1,14 @@
 // packages/api/src/routers/crawl-execute.test.ts
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { db, runs, runItems, sources, orgs, projects, datasets } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
+import { db, runs, runItems, sources, projects, datasets } from '@robot/db';
 import { safeErrorMessage } from './crawl.js';
 import { executeRun } from '../crawl/execute-run.js';
 import { claimNextItem } from '../crawl/claim-item.js';
 import { markItemDone } from '../crawl/record-outcome.js';
 import { finaliseRun } from '../crawl/roll-up-run.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // Finding 1 (final-review-findings.md): `crawl.execute` is the resume/retry
 // path for EVERY non-initial execution of a backfill run (Retry-N-failed,
@@ -24,12 +23,16 @@ vi.mock('../crawl/start-execution.js', async (importOriginal) => {
   return { ...actual, startExecution: startExecutionMock };
 });
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('crawl-execute');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const SLUG = 'test-crawl-execute';
 let orgId: string | null = null;
 
 async function seedPlannedRun() {
-  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -49,7 +52,7 @@ async function seedPlannedRun() {
  * crawl.status's counters are scoped to detail items or leak listing rows in.
  */
 async function seedRunWithDoneListingAndMixedDetails() {
-  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -67,7 +70,7 @@ async function seedRunWithDoneListingAndMixedDetails() {
 
 afterEach(async () => {
   startExecutionMock.mockReset();
-  if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+  if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
 
@@ -225,7 +228,7 @@ describe('crawl.execute', () => {
 
 describe('crawl.execute — certification gate', () => {
   async function seedCustomerSchemaRun() {
-    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     orgId = org!.id;
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
     const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -260,7 +263,7 @@ describe('crawl.execute — certification gate', () => {
 // except extractItem (no browser) and the limit itself.
 describe('executeRun — a limit-stopped run rolls up through the real finalise path', () => {
   async function seedRunWithPendingDetailItems(count: number) {
-    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     orgId = org!.id;
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
     const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -329,7 +332,7 @@ describe('safeErrorMessage', () => {
 // reclaim has to happen — unconditionally, not behind retryFailed.
 describe('crawl.execute — stale running items', () => {
   async function seedRunWithStaleRunningItem(startedMinutesAgo: number) {
-    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     orgId = org!.id;
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
     const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();
@@ -395,7 +398,7 @@ describe('crawl.execute — stale running items', () => {
 // operator retried instead of using the original backfill click.
 describe('crawl.execute — mergeToParent for backfill runs (Finding 1)', () => {
   async function seedBackfillRunWithFailedItem() {
-    const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     orgId = org!.id;
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
     const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: SLUG, slug: SLUG, schema: [] }).returning();

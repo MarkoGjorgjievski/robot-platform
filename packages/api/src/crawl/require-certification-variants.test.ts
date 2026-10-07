@@ -4,19 +4,22 @@
 // variants and the website's variants are not set up, or not verified as
 // they stand now; ignoring variants, or "no variants on this website",
 // gates exactly as before.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VariantVerification, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { requireCertification } from './require-certification.js';
 import { currentVariantHash } from '../verify/variant-check.js';
 import { loadVariantCurrency } from '../verify/current-certification.js';
 import type { VariantSetup } from '../contract.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('require-certification-variants');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 async function makeSource(tag: string) {
   const urls = [`https://test-reqvar-${tag}.example.com/p/1`, `https://test-reqvar-${tag}.example.com/p/2`, `https://test-reqvar-${tag}.example.com/p/3`];

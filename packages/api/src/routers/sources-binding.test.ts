@@ -1,11 +1,14 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, projects, sources, inputSets, sourceVerifications } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-binding');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const projectIds: string[] = [];
 afterEach(async () => {
   for (const id of projectIds.splice(0)) {
@@ -16,7 +19,7 @@ afterEach(async () => {
 const U = ['https://shop.example/p/1', 'https://shop.example/p/2', 'https://shop.example/p/3'];
 
 async function seeded() {
-  const p = await caller.projects.create({ name: 'Binding', orgSlug: 'default' });
+  const p = await caller.projects.create({ name: 'Binding' });
   projectIds.push(p.id);
   await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
   const s = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Shop', url: 'https://shop.example/' });

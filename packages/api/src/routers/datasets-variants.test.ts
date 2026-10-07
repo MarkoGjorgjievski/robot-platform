@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, projects, sources, inputSets, sourceVerifications, users } from '@robot/db';
 import { fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
@@ -6,10 +6,14 @@ import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('datasets-variants');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const tag = `variants-${Date.now()}`;
 const projectIds: string[] = [];
 afterEach(async () => {
@@ -20,7 +24,7 @@ afterEach(async () => {
 });
 
 async function project(name: string) {
-  const p = await caller.projects.create({ name, orgSlug: 'default' });
+  const p = await caller.projects.create({ name });
   projectIds.push(p.id);
   return p;
 }

@@ -1,11 +1,14 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { db, projects, sources, inputSets, datasets } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-project');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const projectIds: string[] = [];
 
 afterEach(async () => {
@@ -17,7 +20,7 @@ afterEach(async () => {
 });
 
 async function freshProject(name = 'Proj') {
-  const p = await caller.projects.create({ name, orgSlug: 'default' });
+  const p = await caller.projects.create({ name });
   projectIds.push(p.id);
   return p;
 }

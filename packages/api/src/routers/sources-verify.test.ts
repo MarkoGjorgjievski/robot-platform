@@ -1,10 +1,9 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { VERIFY_STALL_MS, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // `sources.verify` fires `runSourceVerification` (verify/run-source-verification.ts)
 // without awaiting it — stubbed here so this file exercises ONLY sources.ts's
@@ -20,8 +19,11 @@ afterEach(() => {
   runSourceVerificationMock.mockClear();
 });
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-verify');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 function urlsFor(tag: string): string[] {
   return [

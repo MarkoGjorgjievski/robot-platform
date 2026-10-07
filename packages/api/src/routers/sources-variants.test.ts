@@ -12,7 +12,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -30,7 +30,11 @@ vi.mock('../browser-session.js', async (importOriginal) => {
   return { ...real, withBrowserSession: withBrowserSessionMock };
 });
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-variants');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 /** A product-page fixture: `withVariants` puts a two-entry `hasVariant` list (color axis) in the
  * JSON-LD, so `detectVariantLists` reports a `list`; without it, a single plain `Product` block. */
@@ -91,7 +95,7 @@ async function seedProofPage(sourceId: string, url: string, label: string, withV
 }
 
 async function project(name: string) {
-  return caller.projects.create({ name, orgSlug: 'default' });
+  return caller.projects.create({ name });
 }
 
 async function signIn(email: string) {

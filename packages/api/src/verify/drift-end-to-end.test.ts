@@ -13,10 +13,9 @@ import { join } from 'node:path';
 import { eq, count } from 'drizzle-orm';
 import { db, captures, driftChecks, sources, sourceVerifications } from '@robot/db';
 import type { CertifiedPath, SchemaDefinitionField, VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startDriftSite, type DriftSite } from '../test-helpers/drift-site.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // No agent, ever (Global Constraints): both ways a model could be reached are
 // spied on, the same `run-drift-check.test.ts` already does for Task 2 —
@@ -36,7 +35,11 @@ vi.mock('../../../scraper/src/verify/ai-fallback.ts', async (importOriginal) => 
 const scraper = await import('@robot/scraper');
 const { startDriftCheck, runDriftCheck } = await import('./run-drift-check.js');
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('drift-end-to-end');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 /** The current per-field hash of a source's field, as the server computes it (sources-verify.test.ts's own `hashOf`). */
 async function hashOf(sourceId: string, key: string): Promise<string> {

@@ -1,12 +1,11 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
-import { db, sources, orgs, projects, datasets, inputSets, runs, runItems } from '@robot/db';
+import { db, sources, projects, datasets, inputSets, runs, runItems } from '@robot/db';
 import type { PlanRunOutcome } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { PROBE_BUDGET } from '../crawl/probe.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // planRun needs a real browser and (for anything interesting) an API key, so the
 // router's OWN behaviour — run status, what it persists, what it returns — can
@@ -28,8 +27,11 @@ vi.mock('@robot/browser', async (importOriginal) => {
   return { ...actual, PlaywrightBrowser: StubBrowser };
 });
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('crawl');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 const CRAWL_TEST_SLUG_PREFIX = 'test-crawl-';
 
@@ -64,10 +66,14 @@ describe('crawlRouter.plan', () => {
   });
 
   it('rejects a source with no InputSet to plan from', async () => {
-    // isSandbox: true satisfies the sources_non_sandbox_requires_dataset CHECK
-    // without needing a project/dataset chain — inputSetId is left null, which
-    // is exactly the precondition this test exercises.
+    // inputSetId is left null, which is exactly the precondition this test
+    // exercises. The source sits in a dataset of the caller's org: a website
+    // outside it is NOT_FOUND before any precondition is looked at.
+    const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const [project] = await db.insert(projects).values({ orgId: me.session.org.id, name: 'x', slug: `crawl-noinput-${stamp}` }).returning({ id: projects.id });
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: 'x', slug: `crawl-noinput-${stamp}`, schema: [] }).returning({ id: datasets.id });
     const [source] = await db.insert(sources).values({
+      datasetId: dataset!.id,
       name: 'crawl test source (no input set)',
       slug: `${CRAWL_TEST_SLUG_PREFIX}no-inputset`,
       country: 'us',
@@ -89,7 +95,7 @@ describe('crawlRouter.plan', () => {
 describe('crawlRouter.plan — certification gate', () => {
   it('refuses a full plan (probe: false) on a customer Source with no current certification', async () => {
     const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const [org] = await db.insert(orgs).values({ name: `crawl-cert-${stamp}`, slug: `crawl-cert-${stamp}` }).returning({ id: orgs.id });
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: 'x', slug: `crawl-cert-${stamp}` }).returning({ id: projects.id });
     const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: 'x', slug: `crawl-cert-${stamp}`, schema: [] }).returning({ id: datasets.id });
     const [source] = await db.insert(sources).values({
@@ -102,7 +108,6 @@ describe('crawlRouter.plan — certification gate', () => {
     } finally {
       await db.delete(sources).where(eq(sources.id, source!.id));
       await db.delete(projects).where(eq(projects.id, project!.id));
-      await db.delete(orgs).where(eq(orgs.id, org!.id));
     }
   });
 });
@@ -120,7 +125,7 @@ const OUTCOME_BASE: PlanRunOutcome = {
 /** org → project → InputSet → sandbox Source, torn down by the returned cleanup. */
 async function makePlannableSource(rows: Array<Record<string, unknown>> = [{ slug: 'a' }, { slug: 'b' }]) {
   const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  const [org] = await db.insert(orgs).values({ name: `crawl test ${stamp}`, slug: `crawl-test-${stamp}` }).returning({ id: orgs.id });
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: 'crawl test', slug: `crawl-test-${stamp}` }).returning({ id: projects.id });
   const [inputSet] = await db.insert(inputSets).values({
     projectId: project!.id,
@@ -129,7 +134,9 @@ async function makePlannableSource(rows: Array<Record<string, unknown>> = [{ slu
     columns: [{ name: 'slug', primary: true }],
     rows,
   }).returning({ id: inputSets.id });
+  const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: 'crawl test', slug: `crawl-test-${stamp}`, schema: [] }).returning({ id: datasets.id });
   const [source] = await db.insert(sources).values({
+    datasetId: dataset!.id,
     name: 'crawl test source',
     slug: `${CRAWL_TEST_SLUG_PREFIX}${stamp}`,
     country: 'us',
@@ -146,7 +153,6 @@ async function makePlannableSource(rows: Array<Record<string, unknown>> = [{ slu
     cleanup: async () => {
       await db.delete(sources).where(eq(sources.id, source!.id));
       await db.delete(projects).where(eq(projects.id, project!.id));
-      await db.delete(orgs).where(eq(orgs.id, org!.id));
     },
   };
 }
@@ -339,11 +345,19 @@ describe('crawlRouter.items', () => {
   });
 
   it('returns an empty work list for a run that has none', async () => {
-    const result = await caller.crawl.items({ runId: '00000000-0000-0000-0000-000000000000' });
-    // `running` is in the shape too, matching crawl.status — a reader that
-    // reports per-status counts has to account for every status an item can
-    // hold, or its numbers stop summing to the total it prints beside them.
-    expect(result).toEqual({ items: [], counts: { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 } });
+    const fixture = await makePlannableSource();
+    const [run] = await db.insert(runs).values({ sourceId: fixture.sourceId, status: 'completed' }).returning({ id: runs.id });
+    try {
+      const result = await caller.crawl.items({ runId: run!.id });
+      // `running` is in the shape too, matching crawl.status — a reader that
+      // reports per-status counts has to account for every status an item can
+      // hold, or its numbers stop summing to the total it prints beside them.
+      expect(result).toEqual({ items: [], counts: { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 } });
+    } finally { await fixture.cleanup(); }
+  });
+
+  it('is NOT_FOUND for a run id that does not exist', async () => {
+    await expect(caller.crawl.items({ runId: '00000000-0000-0000-0000-000000000000' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   // Task 10 (repair-engine): the run page wires ResultsTable's absent-cell
@@ -352,9 +366,11 @@ describe('crawlRouter.items', () => {
   // extracted yet.
   it('returns each item\'s absentFields', async () => {
     const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    const [org] = await db.insert(orgs).values({ name: `crawl-items-${stamp}`, slug: `crawl-items-${stamp}` }).returning({ id: orgs.id });
+    const org = me.session.org; // the signed-in caller's org: procedures only see their own
     const [project] = await db.insert(projects).values({ orgId: org!.id, name: 'x', slug: `crawl-items-${stamp}` }).returning({ id: projects.id });
+    const [dataset] = await db.insert(datasets).values({ projectId: project!.id, name: 'x', slug: `crawl-items-${stamp}`, schema: [] }).returning({ id: datasets.id });
     const [source] = await db.insert(sources).values({
+      datasetId: dataset!.id,
       name: 'crawl items test source', slug: `crawl-items-src-${stamp}`, country: 'us', isSandbox: true,
     }).returning({ id: sources.id });
     const [run] = await db.insert(runs).values({ sourceId: source!.id, status: 'completed' }).returning({ id: runs.id });
@@ -370,7 +386,6 @@ describe('crawlRouter.items', () => {
     } finally {
       await db.delete(sources).where(eq(sources.id, source!.id));
       await db.delete(projects).where(eq(projects.id, project!.id));
-      await db.delete(orgs).where(eq(orgs.id, org!.id));
     }
   });
 });

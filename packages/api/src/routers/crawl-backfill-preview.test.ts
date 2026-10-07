@@ -1,14 +1,17 @@
 // packages/api/src/routers/crawl-backfill-preview.test.ts
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, runs, runItems, extractions, captures, sources, sourceVerifications, orgs, projects, datasets } from '@robot/db';
+import { db, runs, runItems, extractions, captures, sources, sourceVerifications, projects, datasets } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { sourceDefinitionHash } from '../verify/current-certification.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('crawl-backfill-preview');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const SLUG = 'test-crawl-backfill-preview';
 let orgId: string | null = null;
 
@@ -20,7 +23,7 @@ let orgId: string | null = null;
  * `isbn` fills 0/2 (dead).
  */
 async function seedRunWithGapItems() {
-  const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({
@@ -52,7 +55,7 @@ async function seedRunWithGapItems() {
 
 /** A run whose only detail item fills every field — no gaps at all. */
 async function seedRunWithNoGaps() {
-  const [org] = await db.insert(orgs).values({ name: `${SLUG}-clean`, slug: `${SLUG}-clean` }).returning();
+  const org = me.session.org; // the signed-in caller's org: procedures only see their own
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
   const [dataset] = await db.insert(datasets).values({
@@ -78,7 +81,7 @@ async function seedRunWithNoGaps() {
 }
 
 afterEach(async () => {
-  if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+  if (orgId) await db.delete(projects).where(eq(projects.orgId, orgId));
   orgId = null;
 });
 
