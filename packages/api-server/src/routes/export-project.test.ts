@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import { createExportRoutes } from './export.js';
 import type { ProjectExport } from '@robot/api/export';
+import type { SessionInfo } from '@robot/api/auth';
 
 const sample: ProjectExport = {
   project: { id: '11111111-1111-1111-1111-111111111111', name: 'Acme', slug: 'acme' },
@@ -13,9 +14,21 @@ const sample: ProjectExport = {
   types: { Title: 'text', Price: 'money' },
   nested: false,
 };
+const SESSION: SessionInfo = {
+  token: 't',
+  user: { id: 'u1', email: 'owner@example.com', name: 'Owner', avatarColour: '#000', theme: 'light' },
+  org: { id: 'org-1', slug: 'owner-org', name: 'Owner Org', personal: true },
+  role: 'owner',
+};
+const COOKIE = { cookie: 'robot_session=valid-token' };
+const nestedId = '33333333-3333-3333-3333-333333333333';
+
 const app = createExportRoutes({
   loadRunExport: async () => null,
   loadProjectExport: async (id) => (id === sample.project.id ? sample : null),
+  loadSession: async () => SESSION,
+  orgIdForProject: async (id) => (id === sample.project.id || id === nestedId ? SESSION.org.id : null),
+  orgIdForRun: async () => null,
 });
 
 describe('GET /export/projects/:file', () => {
@@ -74,10 +87,13 @@ describe('GET /export/projects/:file', () => {
   // D2 (live check, 2026-10-05): a project whose dataset exports nested marks
   // its file name as lossy, same wording as a single run's.
   describe('a project with a nested-shape website', () => {
-    const nestedSample: ProjectExport = { ...sample, project: { ...sample.project, id: '33333333-3333-3333-3333-333333333333' }, nested: true };
+    const nestedSample: ProjectExport = { ...sample, project: { ...sample.project, id: nestedId }, nested: true };
     const nestedApp = createExportRoutes({
       loadRunExport: async () => null,
       loadProjectExport: async (id) => (id === nestedSample.project.id ? nestedSample : null),
+      loadSession: async () => SESSION,
+      orgIdForProject: async (id) => (id === nestedSample.project.id ? SESSION.org.id : null),
+      orgIdForRun: async () => null,
     });
 
     it('names the json "-variants-nested" and the csv/xlsx "-variants-joined"', async () => {
@@ -89,4 +105,43 @@ describe('GET /export/projects/:file', () => {
         .toBe('attachment; filename="acme-2026-09-21-variants-joined.xlsx"');
     });
   });
+});
+
+// Final review I1: gated the same way as the run route — signed out is 401, a
+// project belonging to another org is 404 indistinguishably from one that
+// doesn't exist, and the owning org's session gets a 200 in every format.
+describe('GET /export/projects/:file session gating', () => {
+  const noSessionApp = createExportRoutes({
+    loadRunExport: async () => null,
+    loadProjectExport: async (id) => (id === sample.project.id ? sample : null),
+    loadSession: async () => null,
+    orgIdForProject: async (id) => (id === sample.project.id ? SESSION.org.id : null),
+    orgIdForRun: async () => null,
+  });
+  const otherOrgApp = createExportRoutes({
+    loadRunExport: async () => null,
+    loadProjectExport: async (id) => (id === sample.project.id ? sample : null),
+    loadSession: async () => SESSION,
+    orgIdForProject: async () => 'some-other-org',
+    orgIdForRun: async () => null,
+  });
+
+  for (const format of ['csv', 'json', 'xlsx'] as const) {
+    it(`responds 401 for ${format} with no session`, async () => {
+      const res = await noSessionApp.request(`/projects/${sample.project.id}.${format}`);
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: 'Sign in first' });
+    });
+
+    it(`responds 404 for ${format} when the project belongs to another org`, async () => {
+      const res = await otherOrgApp.request(`/projects/${sample.project.id}.${format}`, { headers: COOKIE });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: 'Project not found' });
+    });
+
+    it(`responds 200 for ${format} when the session's org owns the project`, async () => {
+      const res = await app.request(`/projects/${sample.project.id}.${format}`, { headers: COOKIE });
+      expect(res.status).toBe(200);
+    });
+  }
 });

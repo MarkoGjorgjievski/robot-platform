@@ -3,3 +3,4 @@ export { buildRunExport, deriveColumns, exportFilename, shapeRows, type RunExpor
 export { loadRunExport } from './load-run-export.js';
 export { loadProjectExport, projectExportFilename, WEBSITE_COLUMN, type ProjectExport } from './load-project-export.js';
 export { toXlsx } from './xlsx.js';
+export { orgIdForRun, orgIdForProject } from './org-for-export.js';
