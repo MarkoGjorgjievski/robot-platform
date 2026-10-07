@@ -8,7 +8,22 @@ type: project
 
 ## Read this first
 
-**Newest: [Staff access (2026-10-07)](#staff-access-2026-10-07).** An operator can work inside a customer's organisation from ops ("Work on this website"), for at most 8 hours, under a banner; deleting things and managing the organisation are blocked, and every change is logged and shown to the customer in their Settings ("Robot staff activity") and to staff in ops ("Staff activity"). On branch `feat/staff-access`, not merged. **To use it yourself:** add your address to `OPS_EMAILS` in `.env` and restart your api-server.
+**State on 2026-10-07: everything below is merged into `main`** (variants plans 1–3 and 2b, drift repair Part B, the cut-over, staff access). Where a section below says "on branch …, not merged", that was true when it was written and is no longer. `main` is not pushed.
+
+**The next work, in order (2026-10-07; supersedes the 2026-09-11 list further down):**
+
+1. **Backups that all come from one source.** A field's certified paths can all be sibling keys of one API response (Ikea's price: five paths, one response), so they fail together and aren't real backups. Ops only *shows* it ("All backups read the same response — if it changes, they fail together"). The fix changes certification — at most one or two paths per source, so backups come from different sources — and needs a short design first (spec → plan), like drift repair. Marko's pick for next, 2026-10-07.
+2. **Variant and drift loose ends**, each small:
+   - the repair sweep reads only a product's first row (`data[0]`), so missing values on variant rows 1..n are never repaired;
+   - the export has no column for each variant page's own URL;
+   - drift: an old episode can show when the automatic check fails to start (M7);
+   - empty `offers` (`[]`/`{}`) counted as variant entries;
+   - `gtin8`/`gtin12`/`gtin14` missing from the SKU vocabulary;
+   - a self-plus-one link pair counted in the variants summary (N2).
+3. **Clean up test projects in Marko's own org** (e.g. "Site marks-from" at test-marks-from.example.com, left by earlier test runs). List them first; delete only what Marko approves; `pg_dump` before.
+4. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
+
+**Newest: [Staff access (2026-10-07)](#staff-access-2026-10-07).** An operator can work inside a customer's organisation from ops ("Work on this website"), for at most 8 hours, under a banner; deleting things and managing the organisation are blocked, and every change is logged and shown to the customer in their Settings ("Robot staff activity") and to staff in ops ("Staff activity"). Merged (`1c6aede`). **To use it yourself:** add your address to `OPS_EMAILS` in `.env` and restart your api-server.
 
 **Before it: [Cut-over (plan 6, 2026-10-07)](#cut-over-plan-6-2026-10-07).** `@robot/dashboard` is deleted — `@robot/app` is the only customer UI now. Staff get a read-only ops mode (`/ops`): one row per customer website across every org, problems first, and a website page showing its certified paths in customer words with real run hit rates. On branch `feat/cut-over`.
 
@@ -34,7 +49,7 @@ type: project
 
 **What a customer can do today, live and free:** create a project, name its fields, add a website with three product pages and expected values, verify (Ikea reads 8 of 8 fields verified; a re-verify of certified paths costs nothing), set listing pages on the Extract tab (each checked for product links and a pager), sample three products (the probe, no AI), and see the run sentence with both dropdowns on all. Screenshots of every state: `docs/testing/screens/` (its README says which is which).
 
-**The next work, in order:**
+**The next work as of 2026-09-11 (superseded by the 2026-10-07 list at the top; kept for history):**
 
 1. **Click Extract once, on a real website, for free.** The plan-then-execute path from the Extract tab has never run live (phase 4 stopped short of it on purpose). Ikea's eight fields are all mechanical, so a full Extract there spends nothing; "custom 5 products across custom 1 page" is the cheapest proof. Watch the run page's results sheet (it now falls back to the contract's columns) and the Runs tab.
 2. **A second website through the whole flow**, one whose fields need AI, under the budget rule: never click a Verify or Extract that shows a dollar amount without Marko's say-so. This is also the only way to capture the Verifying strip's rough time (no current screenshot; see the README's "no current capture" note).
