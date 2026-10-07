@@ -3,12 +3,13 @@ import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { trpcServer } from '@hono/trpc-server';
 import { appRouter } from '@robot/api/routers';
-import { loadRunExport, loadProjectExport, orgIdForRun, orgIdForProject } from '@robot/api/export';
+import { loadRunExport, loadProjectExport, orgIdForRun, orgIdForProject, orgIdForCaptureFile } from '@robot/api/export';
 import { loadSession } from '@robot/api/auth';
 import { db } from '@robot/db';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createExportRoutes } from './routes/export.js';
+import { createCaptureGate } from './routes/captures-gate.js';
 import { sessionTokenFrom } from './session-cookie.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -21,6 +22,7 @@ export type AppDeps = {
   loadSession: (token: string) => ReturnType<typeof loadSession>;
   orgIdForRun: (runId: string) => ReturnType<typeof orgIdForRun>;
   orgIdForProject: (projectId: string) => ReturnType<typeof orgIdForProject>;
+  orgIdForCaptureFile: (filename: string) => ReturnType<typeof orgIdForCaptureFile>;
 };
 
 export function createApp(deps: Partial<AppDeps> = {}) {
@@ -29,6 +31,7 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadSessionForToken = deps.loadSession ?? ((token: string) => loadSession(db, token));
   const loadRunOrgId = deps.orgIdForRun ?? ((runId: string) => orgIdForRun(db, runId));
   const loadProjectOrgId = deps.orgIdForProject ?? ((projectId: string) => orgIdForProject(db, projectId));
+  const loadCaptureOrgId = deps.orgIdForCaptureFile ?? ((filename: string) => orgIdForCaptureFile(db, filename));
   const app = new Hono();
 
   // CORS — the app shell (:3000)
@@ -77,8 +80,15 @@ export function createApp(deps: Partial<AppDeps> = {}) {
     })
   );
 
-  // Static screenshots — served from packages/api-server/public/captures/
+  // Static screenshots — served from packages/api-server/public/captures/.
+  // Gated the same way `/export/*` is (see captures-gate.ts): no session is
+  // 401, a file belonging to another org (or no capture at all) is 404, and
+  // a filename that isn't a bare, safe segment is 400 before either check.
   // Path is computed relative to the compiled output's location.
+  app.use(
+    '/captures/*',
+    createCaptureGate({ loadSession: loadSessionForToken, orgIdForCaptureFile: loadCaptureOrgId })
+  );
   app.use(
     '/captures/*',
     serveStatic({
