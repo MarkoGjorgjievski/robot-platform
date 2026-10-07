@@ -568,6 +568,21 @@ afterAll(async () => {
 });
 
 describe.skipIf(!ENABLED)('app shell', () => {
+  // Cut-over Task 5 (Global Constraints, Review Focus 1/the app side of it):
+  // a non-operator throwaway account never sees ops mode's own chrome, and
+  // typing the ops URL redirects it away rather than erroring or rendering.
+  it('a fresh throwaway account never sees ops mode, and /ops redirects it to /projects', async () => {
+    await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+    const bodyText = await page.locator('body').innerText();
+    expect(bodyText).not.toContain('Robot ops');
+    expect(bodyText).not.toContain('All websites');
+    expect(bodyText).not.toContain('Back to ops');
+
+    await page.goto(`${APP}/ops`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.waitForURL(`${APP}/projects`, { timeout: 30_000 });
+  });
+
   it('a project created through the dialog appears in the table', async () => {
     problems.length = 0;
     await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
