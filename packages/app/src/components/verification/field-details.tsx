@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -57,6 +58,7 @@ export function FieldDetails({
   locked,
   onType,
   onDescription,
+  focusTyped = 0,
 }: {
   field: Field;
   /** 1-based: the product Type it, and its input's aria-label, refer to. */
@@ -69,7 +71,17 @@ export function FieldDetails({
   locked: boolean;
   onType: (value: string) => void;
   onDescription: (text: string) => void;
+  /** Bumped by the caller when "Type it" is chosen for this field (spec 2026-10-07 §2); each new value focuses the input. */
+  focusTyped?: number;
 }) {
+  const typedRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusTyped > 0) {
+      typedRef.current?.focus();
+      typedRef.current?.select();
+    }
+  }, [focusTyped]);
+
   const saved = typedError === undefined && typed.trim() !== '';
 
   return (
@@ -100,6 +112,7 @@ export function FieldDetails({
       <div>
         <span className="mb-1 block text-sm text-muted-foreground">Type it</span>
         <Input
+          ref={typedRef}
           aria-label={`${field.name} on product ${productNumber}`}
           value={typed}
           disabled={locked}
