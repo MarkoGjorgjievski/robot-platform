@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [Drift repair, Part B (2026-10-05)](#drift-repair-part-b-2026-10-05).** When a run flags a field as drifted, a free check re-captures the website's proof pages and says what happened: `other-layout` (its own certified path still reads every expected value), `moved` (found mechanically at a new element), `changed` (reads a valid new value), or `lost`, with `page-gone` per proof page that no longer loads — never a model call, never a write outside its own `drift_checks` row and the proof-page `captures` it takes. The customer sees it on the website ("n fields stopped extracting"), the Verification tab's banner, and a repair line under the drifted row ("Accept new location" / "Accept new values" / "Mark it again" / "Replace product n"); accepting touches only that field's cells through the normal autosave and still needs a Verify. Proven end to end on a local site whose layout changes (real Chromium, zero AI) and live-smoked against the running app with a seeded check. On branch `feat/drift-repair`, not merged.
+**Newest: [Cut-over (plan 6, 2026-10-07)](#cut-over-plan-6-2026-10-07).** `@robot/dashboard` is deleted — `@robot/app` is the only customer UI now. Staff get a read-only ops mode (`/ops`): one row per customer website across every org, problems first, and a website page showing its certified paths in customer words with real run hit rates. On branch `feat/cut-over`.
+
+**Before it: [Drift repair, Part B (2026-10-05)](#drift-repair-part-b-2026-10-05).** When a run flags a field as drifted, a free check re-captures the website's proof pages and says what happened: `other-layout` (its own certified path still reads every expected value), `moved` (found mechanically at a new element), `changed` (reads a valid new value), or `lost`, with `page-gone` per proof page that no longer loads — never a model call, never a write outside its own `drift_checks` row and the proof-page `captures` it takes. The customer sees it on the website ("n fields stopped extracting"), the Verification tab's banner, and a repair line under the drifted row ("Accept new location" / "Accept new values" / "Mark it again" / "Replace product n"); accepting touches only that field's cells through the normal autosave and still needs a Verify. Proven end to end on a local site whose layout changes (real Chromium, zero AI) and live-smoked against the running app with a seeded check. On branch `feat/drift-repair`, not merged.
 
 **Before it: [Variants plan 3 (2026-10-02)](#variants-plan-3-2026-10-02).** Extraction, export and reporting catch up with plan 1/2's setup and verification: a run now writes one row per variant (list method: one page load; links method: one load per variant page, counted against the budget), `_product_key`/`_variant_key`, drift and backfill repair each row by its own key, and the project's CSV/JSON/XLSX exports carry the axis and key columns in the project's chosen shape. The run page shows the variant counts, the axis/key columns in its results sheet, and a Download Excel link next to CSV/JSON; two wording leftovers from the plan 2b live check (N1, N3) are fixed. On branch `feat/variants-extraction`, not merged; the controller's live free extraction (CSV/JSON/XLSX against a real Everlane/Nike budget-3 run on keyless :4100) is still to run.
 
@@ -49,6 +51,74 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Cut-over (plan 6, 2026-10-07)
+
+Plan: `docs/superpowers/plans/2026-10-06-cut-over.md`. Five tasks: project rename (Task 1),
+operators by email allowlist (Task 2), the ops overview (Task 3), the ops website page
+(Task 4), and this one — deleting `@robot/dashboard` and everything that existed only for it
+(Task 5). All five are done; this section is the "what changed" summary the plan asked for.
+
+**Operators.** `OPS_EMAILS` in `.env` is a comma-separated allowlist, matched
+case-insensitively and trimmed; empty or unset means nobody is an operator. To make yourself
+one: add your email to `OPS_EMAILS`, restart `pnpm dev:all` (the api-server reads it once at
+startup, via `@robot/db`'s `.env` load — it is not re-read per request), then sign in normally.
+An operator lands on `/ops` instead of `/projects` after sign-in (and `/` redirects there too);
+the sidebar becomes the ops shell ("Robot ops" / "Staff", one nav item, "All websites"); a
+non-operator who hits `/ops*` is redirected to `/projects`. Every `ops.*` procedure (`ops.me`
+excepted) throws FORBIDDEN for a signed-in non-operator and UNAUTHORIZED signed-out. Ops is
+read-only — no mutation exists in `ops.*` — and an operator's own org memberships never filter
+what `/ops` shows: it lists every org's customer-schema websites, theirs included.
+
+**The ops pages.** `/ops` is one row per website across every org — customer, project,
+website, "Verified: {c} of {n} fields" (or "Not verified"), the drift count ("Stopped
+extracting") or "—", the last run's status and relative time (or "No runs"), and spend this
+month from the same source `usage.byProject` uses — ordered drift first, then a failed last
+run, then not verified, then by recent activity. Its row links to `/ops/websites/{sourceId}`:
+header (customer, project, website, host, and an "Open in the app" link, disabled with a title
+when the operator isn't a member of that org), one section per contract field named in the
+customer's own words, each field's certified paths in try order (kind, the path itself, which
+proof pages it's proven on, and "{hits} of {uses} ({pct}%)" from real run stats — "Not needed
+yet" rather than "0%" for a path with no uses), a one-source warning when every path for a
+field reads the same API response or JSON-LD block, and the latest drift check. No "cache"
+anywhere on these pages — the store is called "approved paths".
+
+**Deleted with `@robot/dashboard`:** the whole package (95 files); the dashboard-only
+procedures `domains.*` (the whole router), `datasets.listByProject` / `getBySlug` /
+`getContract` / `updateSchema`, `projects.getBySlug` / `getWithStats`, and
+`sources.listByProject` / `findProductPages`; the already-dead `scraper.analyze` / `extract` /
+`setRowSelector` (the whole router, now empty) — `pnpm --filter @robot/api dogfood` was the one
+real caller the scraper procedures had left, and now drives `@robot/scraper`'s
+`runAnalysis`/`runExtraction` directly instead of going through the deleted router; root
+`package.json`'s `dev` alias and `test:ui`; the `:3456` CORS origin; and the two stale
+`docs/testing/ui-check-schema-*.mts` scripts. `projects.rename` stayed — the app's project
+Settings page (Task 1) calls it.
+
+**The shim.** `projects.list` / `create` / `rename` / `delete` no longer fall back to the
+seeded `default` org when a caller has no session and names no `orgSlug` — that silent
+fallback (`orgSlug ?? 'default'`, `DEFAULT_ORG_SLUG`) existed only for the old dashboard's
+session-less calls, and is gone with it. A session-less, org-less call to any of the four now
+gets `resolveOrg`'s UNAUTHORIZED, never the `default` org's projects. An **explicit** `orgSlug`
+still works session-lessly — the same thing `projects.get` and `sources.get` already allow, and
+exactly what the test suite's ~20 files of session-less fixture setup (`createProjectWithSource`
+and a handful of direct `projects.create` calls) now do, in place of the removed implicit
+default. `pnpm db:adopt-default` (making a real account the owner of `default`) is untouched and
+still the way an existing checkout's seeded projects become visible after a first sign-in.
+`sources.*`'s and `datasets.*`'s own, separate `orgSlug ?? 'default'` fallbacks (`sources.get`,
+`sources.createInProject`, `loadDatasetInOrg`) and `auth/scope.ts`'s session-less early return
+(`sourceInOrg`/`runInOrg`) were **not** touched — out of this task's named scope (Global
+Constraints named only the four `projects.*` procedures) and each still has a live, non-dashboard
+reason to allow an explicit or id-addressed session-less call. Revisit them in a later pass if
+that's wanted; they are not the dashboard's shim.
+
+**Dropped, not built:** the field-origin/candidate editor (Marko, 2026-10-06 — the "open
+decision for cut-over" below is now decided: it doesn't come back); ops actions (re-verify,
+re-run, impersonate — ops stays read-only); the project domain pages and the old domain-cache
+screens (`/projects/$project/domains`, `/domains/$domain` and the `/ops/domains` screens the
+dashboard had — replaced by the ops overview and website page, Tasks 2–4). The certification
+change behind the one-source warning (at most one or two paths per source) and the unauthenticated
+project/run export routes (noted below, still open) are unchanged by this plan — each needs its
+own design.
 
 ## Drift repair, Part B (2026-10-05)
 
@@ -347,7 +417,7 @@ one (accepted in the spec).
 **Next: variants**, a design of its own (spec §6). Decided up front: the customer chooses variant
 handling at setup — usually one row per variant — and a run never stops to ask. Until then A4 leaves
 a combination or variant product (Ikea's BILLY / OXBERG) to a person. Then Part B of the 2026-09-28
-spec, drift repair, and plan 6, the cut-over.
+spec, drift repair, and plan 6, the cut-over. *(Both done — see [Cut-over (plan 6)](#cut-over-plan-6-2026-10-07) above.)*
 
 ## Table-first verification (2026-09-28)
 
@@ -474,7 +544,7 @@ out until the table-first rule is measured; this run is that first measurement.
 
 **Next.** Part B of the same spec, **drift repair**: a verified website that stops extracting a
 field is flagged today (`sources.driftedFields`) but nothing shows it or proposes the fix. Then
-plan 6, the cut-over (deleting `@robot/dashboard`).
+plan 6, the cut-over (deleting `@robot/dashboard`). *(Done — see [Cut-over (plan 6)](#cut-over-plan-6-2026-10-07) above.)*
 
 ## App redesign, plan 5: the Verification tab (2026-09-25)
 
@@ -649,7 +719,7 @@ shows: `docs/testing/screens/README.md`.
   domain cache.
 
 **Next.** Plan 6: cut-over (delete `@robot/dashboard` once `@robot/app` has
-parity).
+parity). *(Done — see [Cut-over (plan 6)](#cut-over-plan-6-2026-10-07) above.)*
 
 ## App redesign, plan 4: the organisation (2026-09-24)
 
@@ -766,7 +836,7 @@ checking Marko's own organisation.
 member — an "add an existing user by email" row is ~20 lines when wanted;
 invitations by email remain outside the design (spec §9).
 
-**Next.** Plan 5: the stepper's steps 2–3. Then plan 6: cut-over.
+**Next.** Plan 5: the stepper's steps 2–3. Then plan 6: cut-over. *(Both done — see [Cut-over (plan 6)](#cut-over-plan-6-2026-10-07) above.)*
 
 ## App redesign, plan 3: the website (2026-09-22)
 
@@ -1039,6 +1109,17 @@ screen reads "This project does not exist in <org>" with a working way out
 ("All projects" hits the route gate and lands on `/login`). The wording
 corrects itself the day the shim goes.
 
+*(Cut-over Task 5, 2026-10-07: done, but narrower than "Eleven procedures" above.
+Global Constraints named only `projects.list/create/rename/delete` — those four
+dropped the fallback, so `/projects` (`projects.list`) now gets the real
+UNAUTHORIZED on an expired, org-less session. `projects.get`/`output` — what a
+project screen itself calls — keep their own `orgSlug ?? 'default'` fallback
+unchanged, so a project screen's `useUnauthorizedRedirect` is still dormant the
+way this paragraph describes. `datasets.*`, `sources.*` (except the two
+dashboard-only procedures, now deleted) and `runs.*` were left exactly as this
+paragraph found them — out of Task 5's named scope, each for its own live
+reason. `domains.*` is gone entirely, dashboard-only.)*
+
 **What the old Output screen had that was not rebuilt.** `@robot/dashboard`'s
 Output page let a customer see, per field, where a value came from and choose
 between candidate paths — the field-origin / candidate editor. Plan 2's Output
@@ -1046,9 +1127,18 @@ is the sheet and the file, nothing else. Whether that editor comes back at all
 is **an open decision for cut-over**: it is an operator's tool wearing a
 customer's clothes, and `/ops/domains` may be its real home.
 
+*(Decided at cut-over, Marko 2026-10-06: dropped. It does not come back, and
+`/ops/domains` was never built — the ops overview and website page, Tasks
+2–4, replaced that whole idea with per-field certified paths in customer
+words.)*
+
 **The export route is unauthenticated by project UUID**, exactly like the run
 export it copies. Anyone holding the id can fetch the file without a session.
 Recorded, not fixed: plan 6 puts both routes behind the session.
+
+*(Still open — Task 5 did not touch this. Neither export route gained a
+session check; both are unauthenticated by id exactly as this paragraph
+describes.)*
 
 **What the look-only check found, and what it fixed.** One real defect, on every
 locked row of Acne's Fields screen: the type read **"Mon", "Te", "Numb"**. The
@@ -1213,6 +1303,13 @@ the org straight from the caller's input and ignore the session, and each
 migrates to `resolveOrg` when its screen is rebuilt in plans 2–4. Migration:
 `packages/db/drizzle/0010_identity.sql`.
 
+*(Done, cut-over Task 5, exactly as predicted: `projects.list/create/delete/rename`
+dropped `orgSlug ?? 'default'`, and `DEFAULT_ORG_SLUG` is gone with
+`@robot/dashboard`, the only place it lived. `projects.getBySlug`/`getWithStats`
+are deleted too, dashboard-only. `domains.*` is deleted whole. `sources.*` and
+`datasets.*` still resolve the org the way this paragraph describes — unchanged,
+each for its own reason, see the note above.)*
+
 **The incident (read before touching the dev database).** While executing an
 earlier task of this plan, an implementer signed in ad hoc against the dev
 database. Sign-in then *adopted* the seeded `default` org, and the cleanup that
@@ -1322,6 +1419,10 @@ or removed (`orgs.setRole/remove` refuse every owner). Plan 6 —
 `@robot/api/test-helpers/identity` is a public export of a test-only module
 (it imports vitest); the sign-ins in `orgs.test.ts` and `projects.test.ts` sit
 outside their `try`, unlike `auth.test.ts`.
+
+*(Still open — cut-over Task 5 did not touch either: it is test-hygiene
+unrelated to deleting `@robot/dashboard`, not in the plan's Global
+Constraints or File map.)*
 
 **Next: plan 2** — project home, fields, output (spec §5 rows 3 to 5).
 
