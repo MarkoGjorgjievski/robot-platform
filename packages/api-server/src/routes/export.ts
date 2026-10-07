@@ -1,14 +1,20 @@
 // Data export as plain HTTP, deliberately outside tRPC: a URL a customer can
 // open, curl or hand to a script, rather than a payload that only exists inside
-// the SPA. Unauthenticated like every other surface here — the run UUID is the
-// only thing standing between a caller and the data.
+// the SPA. Gated the same way as the tRPC context (final review I1): the
+// `robot_session` cookie is loaded the same way, and the run's / project's
+// org must equal the session's. No session is 401; another org's id (or one
+// that doesn't exist) is 404 — the two are indistinguishable on purpose, so a
+// guessed id never learns whether it was wrong or just not the caller's.
 //
-// The project route is the same bargain: `/export/projects/<project uuid>.csv`
-// is unauthenticated by the project UUID exactly like the run route. Cut-over
-// (spec 2026-09-21 §7, plan 6) puts both behind the session.
+// The app's download links are plain `<a href download>` navigations
+// (packages/app/src/lib/trpc.ts's `exportUrl`), so the browser attaches the
+// `robot_session` cookie the same way it does for any other same-site request
+// to :4000 — no `credentials: 'include'` needed, because this isn't a fetch.
 
 import { Hono } from 'hono';
 import { toCsv, toJson, toXlsx, exportFilename, projectExportFilename, type RunExport, type ProjectExport } from '@robot/api/export';
+import type { SessionInfo } from '@robot/api/auth';
+import { sessionTokenFrom } from '../session-cookie.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -16,6 +22,9 @@ const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreads
 export type ExportDeps = {
   loadRunExport: (runId: string) => Promise<RunExport | null>;
   loadProjectExport: (projectId: string) => Promise<ProjectExport | null>;
+  loadSession: (token: string) => Promise<SessionInfo | null>;
+  orgIdForRun: (runId: string) => Promise<string | null>;
+  orgIdForProject: (projectId: string) => Promise<string | null>;
 };
 
 type Format = 'csv' | 'json' | 'xlsx';
@@ -75,6 +84,12 @@ export function createExportRoutes(deps: ExportDeps) {
     const parsed = parseFile(c.req.param('file'));
     if (!parsed) return c.notFound();
 
+    const session = await deps.loadSession(sessionTokenFrom(c.req.header('cookie')));
+    if (!session) return c.json({ error: 'Sign in first' }, 401);
+
+    const orgId = await deps.orgIdForRun(parsed.id);
+    if (orgId !== session.org.id) return c.json({ error: 'Run not found' }, 404);
+
     const runExport = await deps.loadRunExport(parsed.id);
     if (!runExport) return c.json({ error: 'Run not found' }, 404);
 
@@ -95,6 +110,13 @@ export function createExportRoutes(deps: ExportDeps) {
   app.get('/projects/:file', async (c) => {
     const parsed = parseFile(c.req.param('file'));
     if (!parsed) return c.notFound();
+
+    const session = await deps.loadSession(sessionTokenFrom(c.req.header('cookie')));
+    if (!session) return c.json({ error: 'Sign in first' }, 401);
+
+    const orgId = await deps.orgIdForProject(parsed.id);
+    if (orgId !== session.org.id) return c.json({ error: 'Project not found' }, 404);
+
     const x = await deps.loadProjectExport(parsed.id);
     if (!x) return c.json({ error: 'Project not found' }, 404);
     // Final review M5: `types` exists only for the xlsx writer — stripped from

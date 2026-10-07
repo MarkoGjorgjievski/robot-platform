@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, users } from '@robot/db';
-import { deleteOwnOrg } from '@robot/api/test-helpers/identity';
+import { db, users, runs } from '@robot/db';
+import { deleteOwnOrg, signedInCaller } from '@robot/api/test-helpers/identity';
+import { createProjectWithSource } from '@robot/api/test-helpers/customer-source';
 import { createApp } from './app.js';
 
 describe('api-server app', () => {
@@ -110,6 +111,47 @@ describe.skipIf(!process.env.DATABASE_URL)('session cookie', () => {
     } finally {
       await deleteOwnOrg(org.id);
       await db.delete(users).where(eq(users.id, user.id));
+    }
+  });
+});
+
+// Final review I1, end to end against the real DB: the export routes load the
+// session the same way the tRPC context does, so a real `robot_session`
+// cookie from a real sign-in gates them exactly like everything else.
+describe.skipIf(!process.env.DATABASE_URL)('export route session gating (real DB)', () => {
+  it('is 401 signed out, 404 for another org, 200 in every format for the owning org', async () => {
+    const app = createApp();
+    const owner = await signedInCaller('export-gating-owner');
+    const other = await signedInCaller('export-gating-other');
+    const site = await createProjectWithSource(owner.caller, { tag: 'export-gating', fields: [{ name: 'Title', type: 'text' }] });
+    const [run] = await db.insert(runs).values({ sourceId: site.sourceId, status: 'completed', completedAt: new Date() }).returning();
+    const ownerCookie = { cookie: `robot_session=${owner.session.token}` };
+    const otherCookie = { cookie: `robot_session=${other.session.token}` };
+
+    try {
+      for (const format of ['csv', 'json', 'xlsx'] as const) {
+        const runPath = `/export/runs/${run!.id}.${format}`;
+        const projectPath = `/export/projects/${site.projectId}.${format}`;
+
+        const runNoSession = await app.fetch(new Request(`http://localhost${runPath}`));
+        expect(runNoSession.status).toBe(401);
+        const projectNoSession = await app.fetch(new Request(`http://localhost${projectPath}`));
+        expect(projectNoSession.status).toBe(401);
+
+        const runOtherOrg = await app.fetch(new Request(`http://localhost${runPath}`, { headers: otherCookie }));
+        expect(runOtherOrg.status).toBe(404);
+        const projectOtherOrg = await app.fetch(new Request(`http://localhost${projectPath}`, { headers: otherCookie }));
+        expect(projectOtherOrg.status).toBe(404);
+
+        const runOwnOrg = await app.fetch(new Request(`http://localhost${runPath}`, { headers: ownerCookie }));
+        expect(runOwnOrg.status).toBe(200);
+        const projectOwnOrg = await app.fetch(new Request(`http://localhost${projectPath}`, { headers: ownerCookie }));
+        expect(projectOwnOrg.status).toBe(200);
+      }
+    } finally {
+      await site.cleanup();
+      await owner.cleanup();
+      await other.cleanup();
     }
   });
 });

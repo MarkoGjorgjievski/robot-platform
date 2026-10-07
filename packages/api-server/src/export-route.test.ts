@@ -1,8 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { createApp } from './app.js';
 import type { RunExport } from '@robot/api/export';
+import type { SessionInfo } from '@robot/api/auth';
 
 const RUN_ID = '3f1c2b4a-1111-4111-8111-111111111111';
+
+const SESSION: SessionInfo = {
+  token: 't',
+  user: { id: 'u1', email: 'owner@example.com', name: 'Owner', avatarColour: '#000', theme: 'light' },
+  org: { id: 'org-1', slug: 'owner-org', name: 'Owner Org', personal: true },
+  role: 'owner',
+};
+const COOKIE = { cookie: 'robot_session=valid-token' };
 
 const ENVELOPE: RunExport = {
   run: {
@@ -18,9 +27,21 @@ const ENVELOPE: RunExport = {
   rows: [{ title: 'Kallax, white', price: 79 }],
 };
 
-/** The app with its DB loader replaced, so route behaviour is testable offline. */
-function appWith(envelope: RunExport | null) {
-  return createApp({ loadRunExport: async () => envelope });
+/** The app with its DB loader replaced, so route behaviour is testable offline.
+ *  Defaults to a signed-in request for the run's own org — the shape every
+ *  pre-existing test in this file exercises — unless overridden. */
+function appWith(envelope: RunExport | null, opts: { session?: SessionInfo | null; orgId?: string | null } = {}) {
+  const session = opts.session === undefined ? SESSION : opts.session;
+  const orgId = opts.orgId === undefined ? SESSION.org.id : opts.orgId;
+  return createApp({
+    loadRunExport: async () => envelope,
+    loadSession: async () => session,
+    orgIdForRun: async () => orgId,
+  });
+}
+
+function get(app: ReturnType<typeof createApp>, path: string, headers: Record<string, string> = COOKIE) {
+  return app.fetch(new Request(`http://localhost${path}`, { headers }));
 }
 
 describe('GET /export/runs/:id.csv', () => {
@@ -163,4 +184,32 @@ describe('export route errors', () => {
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('title,price\r\n');
   });
+});
+
+// Final review I1: the run route is gated the same way the tRPC context is —
+// signed out is 401, a run belonging to another org is 404 indistinguishably
+// from one that doesn't exist, and the owning org's session gets a 200 in
+// every format.
+describe('GET /export/runs/:file session gating', () => {
+  for (const format of ['csv', 'json', 'xlsx'] as const) {
+    it(`responds 401 for ${format} with no session`, async () => {
+      const app = appWith(ENVELOPE, { session: null });
+      const res = await get(app, `/export/runs/${RUN_ID}.${format}`, {});
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: 'Sign in first' });
+    });
+
+    it(`responds 404 for ${format} when the run belongs to another org`, async () => {
+      const app = appWith(ENVELOPE, { orgId: 'some-other-org' });
+      const res = await get(app, `/export/runs/${RUN_ID}.${format}`);
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: 'Run not found' });
+    });
+
+    it(`responds 200 for ${format} when the session's org owns the run`, async () => {
+      const app = appWith(ENVELOPE);
+      const res = await get(app, `/export/runs/${RUN_ID}.${format}`);
+      expect(res.status).toBe(200);
+    });
+  }
 });

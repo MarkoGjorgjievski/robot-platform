@@ -15,7 +15,9 @@ export const trpc = createTRPCReact<AppRouter>();
  * The file, not the screen: the api-server serves the export as a real HTTP
  * download (`/export/projects/<uuid>.csv`), so the download control is an
  * ordinary `<a href download>` rather than something this app assembles in
- * memory. Unauthenticated by UUID today; plan 6 puts it behind the session.
+ * memory. The route is gated by the `robot_session` cookie (final review
+ * I1) — a plain navigation carries it the same way any other same-site
+ * request to :4000 does, no `credentials: 'include'` needed here.
  */
 export function exportUrl(kind: 'projects' | 'runs', id: string, format: 'csv' | 'json' | 'xlsx'): string {
   return `${API_URL}/export/${kind}/${id}.${format}`;

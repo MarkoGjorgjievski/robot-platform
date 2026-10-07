@@ -7,6 +7,8 @@ import { TRPCError } from '@trpc/server';
 import { memberships, orgs, sessions, users, type Database } from '@robot/db';
 import type { Context, SessionInfo } from '../trpc.js';
 
+export type { SessionInfo };
+
 export const SESSION_COOKIE = 'robot_session';
 export const SESSION_MAX_AGE_S = 30 * 24 * 3600;
 
