@@ -94,22 +94,21 @@ real caller the scraper procedures had left, and now drives `@robot/scraper`'s
 `docs/testing/ui-check-schema-*.mts` scripts. `projects.rename` stayed — the app's project
 Settings page (Task 1) calls it.
 
-**The shim.** `projects.list` / `create` / `rename` / `delete` no longer fall back to the
-seeded `default` org when a caller has no session and names no `orgSlug` — that silent
-fallback (`orgSlug ?? 'default'`, `DEFAULT_ORG_SLUG`) existed only for the old dashboard's
-session-less calls, and is gone with it. A session-less, org-less call to any of the four now
-gets `resolveOrg`'s UNAUTHORIZED, never the `default` org's projects. An **explicit** `orgSlug`
-still works session-lessly — the same thing `projects.get` and `sources.get` already allow, and
-exactly what the test suite's ~20 files of session-less fixture setup (`createProjectWithSource`
-and a handful of direct `projects.create` calls) now do, in place of the removed implicit
-default. `pnpm db:adopt-default` (making a real account the owner of `default`) is untouched and
-still the way an existing checkout's seeded projects become visible after a first sign-in.
-`sources.*`'s and `datasets.*`'s own, separate `orgSlug ?? 'default'` fallbacks (`sources.get`,
-`sources.createInProject`, `loadDatasetInOrg`) and `auth/scope.ts`'s session-less early return
-(`sourceInOrg`/`runInOrg`) were **not** touched — out of this task's named scope (Global
-Constraints named only the four `projects.*` procedures) and each still has a live, non-dashboard
-reason to allow an explicit or id-addressed session-less call. Revisit them in a later pass if
-that's wanted; they are not the dashboard's shim.
+**The shim is gone (final review C1, fix wave A).** Every customer procedure — `projects.*`,
+`sources.*`, `datasets.*` (except the static `catalogue`), `crawl.*`, `runs.*` — is a
+`protectedProcedure`: no session is UNAUTHORIZED, and the org is always the session's.
+`resolveOrg(ctx)` reads the session only and takes no `orgSlug`; no input names an org any more
+(`orgSlug` left `projects.list/get/output/create/rename/delete` and `sources.get`), and every
+`'default'` fallback and `DEFAULT_ORG_SLUG` in `@robot/api` is gone. `auth/scope.ts`'s
+`sourceInOrg`/`runInOrg`/`captureInOrg` are UNAUTHORIZED without a session instead of passing
+the caller through. The five dead, unguarded procedures (`projects.listByOrg`,
+`sources.listByDataset`, `sources.getBySlug`, `sources.create`, `datasets.create`) are deleted.
+`auth.signIn` and `ops.me` stay public. The `crawl-plan`/`crawl-execute` CLIs call the crawl
+functions directly against the database instead of a session-less router caller. Tests sign in as
+a throwaway identity (`signIn`/`signedInCaller` in `test-helpers/identity.ts`) and delete its
+org afterwards; none creates or reads data in the seeded `default` org. `pnpm db:adopt-default`
+(making a real account the owner of `default`) is untouched and still the way an existing
+checkout's seeded projects become visible after a first sign-in.
 
 **Dropped, not built:** the field-origin/candidate editor (Marko, 2026-10-06 — the "open
 decision for cut-over" below is now decided: it doesn't come back); ops actions (re-verify,

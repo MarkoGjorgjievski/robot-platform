@@ -370,9 +370,9 @@ let websiteSlug: string | null = null;
 
 /**
  * A tRPC client carrying this run's session cookie, so the cleanup deletes the
- * throwaway project from the *throwaway* org. Without the cookie `projects.delete`
- * falls back to the `orgSlug ?? 'default'` shim and would be asking about the
- * seeded org instead — which is not where this project lives.
+ * throwaway project from the *throwaway* org. Every customer procedure needs a
+ * session and works in its org only; without the cookie `projects.delete` is
+ * UNAUTHORIZED.
  */
 function apiAs(cookie: string) {
   return createTRPCClient<AppRouter>({
