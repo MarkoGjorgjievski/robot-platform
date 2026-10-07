@@ -4,6 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { memberships, orgs, sessions, users, MEMBERSHIP_ROLES } from '@robot/db';
 import { router, protectedProcedure, requireRole } from '../trpc.js';
 import { slugify, uniqueSlug } from '../slug.js';
+import { listStaffActivity } from '../auth/staff-activity.js';
 
 /** Organisations and who is in them (spec 2026-09-21 §2). Every procedure acts on the session's current org. */
 export const orgsRouter = router({
@@ -82,4 +83,9 @@ export const orgsRouter = router({
         return { ok: true as const };
       }),
   }),
+
+  /** Robot staff activity in this organisation (spec 2026-10-07 §2.4) — every member may read it. */
+  staffActivity: protectedProcedure
+    .input(z.object({ page: z.number().int().min(0).default(0) }))
+    .query(({ ctx, input }) => listStaffActivity(ctx.db, { orgId: ctx.session.org.id }, { offset: input.page * 20, limit: 20 })),
 });

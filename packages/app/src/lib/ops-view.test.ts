@@ -52,6 +52,7 @@ describe('isOpsPath', () => {
   it('is true for /ops itself and every route below it', () => {
     expect(isOpsPath('/ops')).toBe(true);
     expect(isOpsPath('/ops/websites/abc-123')).toBe(true);
+    expect(isOpsPath('/ops/activity')).toBe(true);
     expect(isOpsPath('/ops/anything/nested/deeper')).toBe(true);
   });
 

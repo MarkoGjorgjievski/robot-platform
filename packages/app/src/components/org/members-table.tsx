@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../ui/skeleton';
 import { RemoveMemberDialog } from './remove-member-dialog';
 import { refusalMessage, roleLabel, roleNote, roleOptions, removeNote, type Role } from '../../lib/org-settings-view';
+import { staffBlockedNote } from '../../lib/staff-view';
 import { trpc } from '../../lib/trpc';
 
 type Member = { userId: string; email: string; name: string; avatarColour: string; role: Role };
@@ -14,7 +15,8 @@ type Member = { userId: string; email: string; name: string; avatarColour: strin
  * list, role, remove). There is no "add" — invitations are outside this
  * design (spec §9) — so the table is the whole story of membership for now.
  */
-export function MembersTable({ callerRole, callerUserId }: { callerRole: Role; callerUserId: string }) {
+/** `staff`: working as Robot staff (spec 2026-10-07 §2.3) — roles and removal are blocked, and say so. */
+export function MembersTable({ callerRole, callerUserId, staff }: { callerRole: Role; callerUserId: string; staff: boolean }) {
   const utils = trpc.useUtils();
   const members = trpc.orgs.members.list.useQuery();
   const setRole = trpc.orgs.members.setRole.useMutation();
@@ -59,8 +61,8 @@ export function MembersTable({ callerRole, callerUserId }: { callerRole: Role; c
             ) : null}
             {rows.map((m) => {
               const isSelf = m.userId === callerUserId;
-              const rNote = roleNote({ caller: callerRole, target: m.role });
-              const xNote = removeNote({ caller: callerRole, target: m.role, isSelf });
+              const rNote = staffBlockedNote(staff, roleNote({ caller: callerRole, target: m.role }));
+              const xNote = staffBlockedNote(staff, removeNote({ caller: callerRole, target: m.role, isSelf }));
               return (
                 <tr key={m.userId} className="border-b border-line transition-colors last:border-0 hover:bg-raised">
                   <td className="px-4 py-2.5">

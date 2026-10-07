@@ -25,6 +25,14 @@ export type Session = {
   currentOrg: SessionOrg;
   /** Ops mode (2026-10-06): the session user's email is on `OPS_EMAILS`. */
   isOperator: boolean;
+  /**
+   * Staff access (2026-10-07): set while an operator works inside a customer's
+   * organisation — `currentOrg` is then that customer org (role 'member') and
+   * `orgs` is still the operator's own memberships.
+   */
+  staff: { orgId: string; orgName: string; enteredAt: Date } | null;
+  /** A staff session that has run past 8 hours and not been left yet. */
+  staffExpired: { orgId: string; orgName: string } | null;
 };
 
 /** Unwraps a tRPC-over-HTTP response's superjson payload, or `undefined` when

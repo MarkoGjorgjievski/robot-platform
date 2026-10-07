@@ -34,14 +34,10 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadCaptureOrgId = deps.orgIdForCaptureFile ?? ((filename: string) => orgIdForCaptureFile(db, filename));
   const app = new Hono();
 
-  // CORS — the app shell (:3000)
-  app.use(
-    '*',
-    cors({
-      origin: ['http://localhost:3000'],
-      credentials: true,
-    })
-  );
+  // CORS — the app shell. `APP_ORIGINS` (comma-separated) lets an isolated pair
+  // (e.g. :3100 → :4100) run beside the dev servers; unset or blank means :3000.
+  const origins = (process.env.APP_ORIGINS?.trim() || 'http://localhost:3000').split(',').map((o) => o.trim()).filter(Boolean);
+  app.use('*', cors({ origin: origins, credentials: true }));
 
   // Health check
   app.get('/healthz', (c) => c.json({ status: 'ok' }));

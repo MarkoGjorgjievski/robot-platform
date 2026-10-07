@@ -61,6 +61,9 @@ export const sessions = pgTable('sessions', {
   orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  // Staff access (spec 2026-10-07 §2.1): while set and valid, the session works inside this customer org.
+  staffOrgId: uuid('staff_org_id').references(() => orgs.id, { onDelete: 'set null' }),
+  staffEnteredAt: timestamp('staff_entered_at', { withTimezone: true }),
 }, (table) => [index('sessions_user_id_idx').on(table.userId)]);
 
 export const usersRelations = relations(users, ({ many }) => ({ memberships: many(memberships), sessions: many(sessions) }));
@@ -563,3 +566,21 @@ export const runItemsRelations = relations(runItems, ({ one }) => ({
   extraction: one(extractions, { fields: [runItems.extractionId], references: [extractions.id] }),
   parent: one(runItems, { fields: [runItems.parentId], references: [runItems.id], relationName: 'run_item_parent' }),
 }));
+
+// ─── Staff activity (spec 2026-10-07 §2.4) — append-only ────────────────────
+
+export const staffActions = pgTable('staff_actions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').notNull().references(() => orgs.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  actorEmail: varchar('actor_email', { length: 255 }).notNull(),
+  at: timestamp('at', { withTimezone: true }).defaultNow().notNull(),
+  action: varchar('action', { length: 100 }).notNull(),
+  summary: text('summary').notNull(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'set null' }),
+  runId: uuid('run_id').references(() => runs.id, { onDelete: 'set null' }),
+}, (table) => [
+  index('staff_actions_org_at_idx').on(table.orgId, table.at),
+  index('staff_actions_source_at_idx').on(table.sourceId, table.at),
+]);

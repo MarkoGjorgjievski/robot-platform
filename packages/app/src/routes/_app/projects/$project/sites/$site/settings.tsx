@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useRouteContext } from '@tanstack/react-router';
+import { BlockedTooltip } from '../../../../../../components/shell/staff-banner';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
 import { SettingsRows } from '../../../../../../components/settings/settings-rows';
 import { DeleteWebsiteDialog } from '../../../../../../components/settings/delete-website-dialog';
+import { staffBlockedNote } from '../../../../../../lib/staff-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -26,6 +28,8 @@ function SettingsTab() {
   // already been visited.
   const runs = trpc.runs.listBySource.useQuery({ sourceId: source?.id ?? '' }, { enabled: !!source });
   const [deleting, setDeleting] = useState(false);
+  const { session } = useRouteContext({ from: '/_app' });
+  const blocked = staffBlockedNote(!!session.staff, null);
 
   if (site.isPending) {
     return (
@@ -59,19 +63,26 @@ function SettingsTab() {
           <h3 className="text-base font-medium">Danger zone</h3>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <p className="text-sm text-muted-foreground">Delete this website and everything it collected.</p>
+          <p className="text-sm text-muted-foreground">
+            {/* Staff mode (spec 2026-10-07 §2.3): every disabled control says
+                why, within a line of it. */}
+            {blocked ?? 'Delete this website and everything it collected.'}
+          </p>
           {/* Quiet, not solid: the rail already carries the danger tone, and
               the panel this opens has the real, solid-red confirm — the same
               split the Fields table draws between its ghost trash icon and
               `DeleteFieldDialog`'s own destructive button. */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-fail text-fail hover:border-fail hover:bg-raised"
-            onClick={() => setDeleting(true)}
-          >
-            Delete website
-          </Button>
+          <BlockedTooltip note={blocked}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-fail text-fail hover:border-fail hover:bg-raised"
+              onClick={() => setDeleting(true)}
+              disabled={!!blocked}
+            >
+              Delete website
+            </Button>
+          </BlockedTooltip>
         </div>
       </section>
 

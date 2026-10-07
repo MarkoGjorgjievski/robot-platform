@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowLeftRight, List, Menu } from 'lucide-react';
+import { ArrowLeftRight, History, List, Menu } from 'lucide-react';
 import type { Session } from '../../lib/session';
 import { UserMenu } from './user-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '../ui/sheet';
@@ -36,6 +36,15 @@ export function OpsSidebarBody({ session, onNavigate }: OpsSidebarProps) {
           >
             <List className="size-4 shrink-0" />
             All websites
+          </Link>
+          <Link
+            to="/ops/activity"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 rounded-[6px] px-2 py-1.5 text-base text-muted-foreground hover:text-text"
+            activeProps={{ className: 'bg-raised font-medium text-text!' }}
+          >
+            <History className="size-4 shrink-0" />
+            Staff activity
           </Link>
         </nav>
       </div>
