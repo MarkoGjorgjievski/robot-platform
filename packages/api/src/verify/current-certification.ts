@@ -56,11 +56,18 @@ type FieldCurrency = {
   unchangedKeys: string[];
 };
 
-/** The latest completed, error-free run: the one row both field and variant currency are read from. */
+/**
+ * The latest completed, error-free run: the one row both field and variant
+ * currency are read from. Final review M6: ties on `completedAt` (two rows
+ * completed in the same transaction-start-time instant) break on `desc(id)`,
+ * the same tie-break `loadFieldCurrencyBatch`'s query already uses — without
+ * it the overview and the website page could read different rows for the
+ * same source.
+ */
 function latestCleanRun(db: Database, sourceId: string) {
   return db.query.sourceVerifications.findFirst({
     where: and(eq(sourceVerifications.sourceId, sourceId), isNotNull(sourceVerifications.completedAt), isNull(sourceVerifications.errorMessage)),
-    orderBy: [desc(sourceVerifications.completedAt)],
+    orderBy: [desc(sourceVerifications.completedAt), desc(sourceVerifications.id)],
   });
 }
 

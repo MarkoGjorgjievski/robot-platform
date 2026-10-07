@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { loadCurrentCertification, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, sourceDefinitionHash } from './current-certification.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -200,6 +200,47 @@ describe('loadCurrentCertification', () => {
       });
 
       expect(await loadCurrentCertification(db, sourceId)).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  // Final review M6: several rows completed in the same instant (Postgres
+  // now() is transaction-start-time, so inserts in one transaction can
+  // share it) must resolve to the same "latest" row loadFieldCurrencyBatch
+  // would pick for its own tie-break (desc(id)) — otherwise the overview
+  // and the website page could disagree about which run is current.
+  // Without `latestCleanRun`'s own `desc(id)`, Postgres returns ties in
+  // physical/insertion order, which only coincides with desc(id) by chance
+  // for random UUIDs — five rows (one in five chance the first inserted is
+  // also the id-max) makes that coincidence unlikely enough for this test
+  // to reliably catch a regression, while being unconditionally correct
+  // once the explicit tie-break is in place.
+  it('breaks a completedAt tie on desc(id), agreeing with loadFieldCurrencyBatch', async () => {
+    const { sourceId, source, urls, cleanup } = await makeSchemaSource('tie');
+    try {
+      const hash = sourceDefinitionHash(source)!;
+      const completedAt = new Date('2026-10-06T12:00:00.000Z');
+      const ids: string[] = [];
+      for (let i = 0; i < 5; i++) {
+        const [row] = await db.insert(sourceVerifications)
+          .values({ sourceId, definitionHash: hash, completedAt, allPassed: false, results: { price: fieldVerification(certifiedPrice) } })
+          .returning({ id: sourceVerifications.id });
+        ids.push(row!.id);
+      }
+      const winnerId = [...ids].sort().at(-1)!;
+      // Make the id-max row (and only it) the one holding a current result,
+      // so a wrong pick is visible in `currentKeys`, not just in `latest.id`.
+      await db.update(sourceVerifications)
+        .set({ allPassed: true, results: { price: currentPriceVerification(source, urls, certifiedPrice) } })
+        .where(eq(sourceVerifications.id, winnerId));
+
+      const single = await loadFieldCurrency(db, sourceId);
+      expect(single.latest!.id).toBe(winnerId);
+      expect(single.currentKeys).toEqual(['price']);
+
+      const batch = await loadFieldCurrencyBatch(db, [{ id: sourceId, schemaDefinition: source.schemaDefinition, verificationSet: source.verificationSet }]);
+      expect(batch.get(sourceId)!.latest!.id).toBe(winnerId);
     } finally {
       await cleanup();
     }

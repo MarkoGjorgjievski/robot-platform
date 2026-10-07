@@ -88,9 +88,11 @@ function fieldRowInfo(field: OpsField, driftedFieldNames: readonly string[]) {
   // `driftedFieldNames` carries names, not keys (Global Constraints), so
   // membership by name is the one way a field row knows it is the drifted one.
   const drifted = driftedFieldNames.includes(field.name);
-  // A result exists but is no longer current — the field, its proof pages or
-  // its expected values changed since it ran (reviewer fix round 1).
-  const changed = field.state === 'changed';
+  // A result exists but is no longer current: either the field, its proof
+  // pages or its expected values changed since it ran ('binding' — "Changed
+  // since verified"), or the binding is untouched and the result simply
+  // failed ('failed' — "Didn't pass verification", final review M6).
+  const changed = field.state === 'changed' ? 'binding' : field.state === 'failed' ? 'failed' : false;
   const flag = fieldFlag({ drifted, changed, oneSource: !!warn, firstPathPct });
   return { firstPathPct, warn, drifted, changed, flag };
 }

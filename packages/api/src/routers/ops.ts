@@ -164,10 +164,12 @@ export const opsRouter = router({
    * perfectly current. Each field now reads its own latest result directly
    * from `loadFieldCurrency`'s one run, independent of every other field:
    * `state: 'current'` (passed, hash matches — in `currentKeys`), `'changed'`
-   * (a result exists but is not current — typically because the field, its
-   * proof pages or its expected values changed since that result ran) with
-   * its stale paths still shown and flagged, or `'none'` (no result at all —
-   * "Not verified yet").
+   * (a result exists and its hash no longer matches — the field, its proof
+   * pages or its expected values changed since that result ran), `'failed'`
+   * (a result exists, its hash still matches, but it didn't pass — final
+   * review M6, labelled "Didn't pass verification" rather than "Changed
+   * since verified") with its stale paths still shown and flagged, or
+   * `'none'` (no result at all — "Not verified yet").
    */
   website: opsProcedure.input(z.object({ sourceId: z.string().uuid() })).query(async ({ ctx, input }) => {
     const db = ctx.db;
@@ -233,10 +235,20 @@ export const opsRouter = router({
       verified: { current: fieldCurrency.currentKeys.length, total: fields.length },
       fields: fields.map((f) => {
         const result = results[f.key];
-        const state: 'current' | 'changed' | 'none' = fieldCurrency.currentKeys.includes(f.key)
+        // Final review M6: 'changed' used to cover two different situations —
+        // the field, a proof page or an expected value changed since the
+        // verification ran (the stored result's fieldHash no longer matches),
+        // and the binding is untouched but the result simply failed on this
+        // run. `unchangedKeys` (same fieldHash, pass or fail) is what tells
+        // them apart: a result present but NOT in it is a true hash mismatch
+        // ('changed'); a result present and IN it, but not in `currentKeys`
+        // (which requires every cell to pass), failed without the binding
+        // moving ('failed'). The app labels them "Changed since verified"
+        // and "Didn't pass verification" respectively.
+        const state: 'current' | 'changed' | 'failed' | 'none' = fieldCurrency.currentKeys.includes(f.key)
           ? 'current'
           : result
-            ? 'changed'
+            ? (fieldCurrency.unchangedKeys.includes(f.key) ? 'failed' : 'changed')
             : 'none';
         const certified = result?.certified ?? [];
         const stats = fieldPaths[f.concept]?.paths ?? [];

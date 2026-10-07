@@ -162,12 +162,16 @@ export type OpsFieldPath = { source: OpsPathSource; path: string; provenOn?: str
 /**
  * `current` — the field's latest verification result passed and still
  * matches the field as it stands now (`loadFieldCurrency`'s `currentKeys`).
- * `changed` — a result exists but is not current, typically because the
- * field, its proof pages or its expected values changed since that result
- * ran; its (possibly stale) paths are still shown, flagged. `none` — no
- * result at all: "Not verified yet" (reviewer fix round 1).
+ * `changed` — a result exists and its hash no longer matches: the field,
+ * its proof pages or its expected values changed since that result ran.
+ * `failed` — a result exists, its hash still matches, but it didn't pass
+ * (final review M6: distinct from `changed` so the flag can say "Didn't
+ * pass verification" rather than "Changed since verified" — nothing about
+ * the binding moved, the run just failed). Both show their (possibly
+ * stale) paths, flagged. `none` — no result at all: "Not verified yet"
+ * (reviewer fix round 1).
  */
-export type OpsFieldState = 'current' | 'changed' | 'none';
+export type OpsFieldState = 'current' | 'changed' | 'failed' | 'none';
 export type OpsField = { key: string; name: string; type: string; state: OpsFieldState; paths: OpsFieldPath[] };
 
 /** Kind, in the customer's own words (Global Constraints) — never the internal `CertifiedSource` vocabulary. */
@@ -246,10 +250,17 @@ export function backupsSummary(paths: ReadonlyArray<Pick<OpsFieldPath, 'source'>
  * the first that applies — drift outranks a field that changed since it was
  * verified, which outranks a shared source, which outranks a weak first
  * path — never more than one shown at once. `null` when none applies.
+ *
+ * `changed` is `'binding'` for a hash mismatch (the field, a proof page or
+ * an expected value moved since the result ran — "Changed since
+ * verified"), `'failed'` for the same hash but a result that didn't pass
+ * (final review M6: "Didn't pass verification", not "Changed since
+ * verified" — the binding never moved), or `false` for neither.
  */
-export function fieldFlag(args: { drifted: boolean; changed: boolean; oneSource: boolean; firstPathPct: number | null }): string | null {
+export function fieldFlag(args: { drifted: boolean; changed: 'binding' | 'failed' | false; oneSource: boolean; firstPathPct: number | null }): string | null {
   if (args.drifted) return 'Stopped extracting';
-  if (args.changed) return 'Changed since verified';
+  if (args.changed === 'binding') return 'Changed since verified';
+  if (args.changed === 'failed') return "Didn't pass verification";
   if (args.oneSource) return 'Backups share one source';
   if (args.firstPathPct !== null && args.firstPathPct < 90) return `First path finds it on ${args.firstPathPct} %`;
   return null;

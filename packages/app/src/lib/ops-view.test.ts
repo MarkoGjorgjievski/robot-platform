@@ -311,12 +311,20 @@ describe('backupsSummary', () => {
 
 describe('fieldFlag', () => {
   it('ranks drift above changed-since-verified above a shared source above a weak first path, and is null otherwise', () => {
-    expect(fieldFlag({ drifted: true, changed: true, oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
-    expect(fieldFlag({ drifted: false, changed: true, oneSource: true, firstPathPct: 40 })).toBe('Changed since verified');
+    expect(fieldFlag({ drifted: true, changed: 'binding', oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
+    expect(fieldFlag({ drifted: false, changed: 'binding', oneSource: true, firstPathPct: 40 })).toBe('Changed since verified');
     expect(fieldFlag({ drifted: false, changed: false, oneSource: true, firstPathPct: 40 })).toBe('Backups share one source');
     expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: 40 })).toBe('First path finds it on 40 %');
     expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: 90 })).toBeNull();
     expect(fieldFlag({ drifted: false, changed: false, oneSource: false, firstPathPct: null })).toBeNull();
+  });
+
+  // Final review M6: 'changed' used to be a single boolean covering both a
+  // true hash mismatch and "same hash, but the result failed" — the two now
+  // get different words, and drift still outranks both.
+  it("labels a same-hash failure \"Didn't pass verification\", distinct from a hash mismatch, and still below drift", () => {
+    expect(fieldFlag({ drifted: false, changed: 'failed', oneSource: true, firstPathPct: 40 })).toBe("Didn't pass verification");
+    expect(fieldFlag({ drifted: true, changed: 'failed', oneSource: true, firstPathPct: 40 })).toBe('Stopped extracting');
   });
 });
 
