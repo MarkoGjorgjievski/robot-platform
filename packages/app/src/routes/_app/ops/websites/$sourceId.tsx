@@ -216,22 +216,26 @@ function OpsWebsitePage() {
           <section className="rise">
             <h2 className="text-lg font-medium">Proof pages</h2>
             <p className="mt-0.5 mb-2 text-sm text-muted-foreground">The products these paths were verified on.</p>
-            <div className="rounded-[6px] border border-line bg-panel p-4 [box-shadow:var(--shadow)]">
-              <ul className="space-y-1.5">
-                {data.proofUrls.map((url, i) => (
-                  <li key={url}>
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-sm text-link underline-offset-4 hover:underline"
-                    >
-                      Product {i + 1}: {url.replace(/^https?:\/\//, '')}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {data.proofUrls.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No proof pages yet.</p>
+            ) : (
+              <div className="rounded-[6px] border border-line bg-panel p-4 [box-shadow:var(--shadow)]">
+                <ul className="space-y-1.5">
+                  {data.proofUrls.map((url, i) => (
+                    <li key={url}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-sm text-link underline-offset-4 hover:underline"
+                      >
+                        Product {i + 1}: {url.replace(/^https?:\/\//, '')}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
         </>
       )}
@@ -389,7 +393,7 @@ function FieldRow({
           <span className="font-medium">{field.name}</span> <span className="text-sm text-muted-foreground">{typeLabel}</span>
         </span>
         <span className="hidden text-sm text-muted-foreground sm:inline">
-          {hasPaths ? backupsSummary(field.paths) : field.state === 'none' ? 'Not verified yet' : 'No working path'}
+          {hasPaths ? backupsSummary(field.paths) : field.state === 'none' ? '' : 'No working path'}
         </span>
         <span className="text-sm whitespace-nowrap">
           {field.state === 'none' ? (

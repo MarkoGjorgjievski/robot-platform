@@ -107,6 +107,11 @@ function OpsOverviewPage() {
     if (search.sort === `${column}-asc`) return 'ascending';
     return 'none';
   }
+  function sortGlyphFor(column: 'run' | 'spend'): string {
+    if (search.sort === `${column}-desc`) return '↓';
+    if (search.sort === `${column}-asc`) return '↑';
+    return '';
+  }
 
   const loading = websites.isPending;
   const noWebsitesAtAll = !loading && !websites.isError && rows.length === 0;
@@ -237,11 +242,13 @@ function OpsOverviewPage() {
                     <th className="px-3 text-right text-sm" aria-sort={ariaSortFor('run')}>
                       <button type="button" aria-label="Sort by last run" onClick={() => toggleSort('run')} className="inline-flex items-center gap-1 hover:text-text">
                         Last run
+                        <span aria-hidden="true">{sortGlyphFor('run')}</span>
                       </button>
                     </th>
                     <th className="px-4 text-right text-sm" aria-sort={ariaSortFor('spend')}>
                       <button type="button" aria-label="Sort by spend this month" onClick={() => toggleSort('spend')} className="inline-flex items-center gap-1 hover:text-text">
                         This month
+                        <span aria-hidden="true">{sortGlyphFor('spend')}</span>
                       </button>
                     </th>
                   </tr>
