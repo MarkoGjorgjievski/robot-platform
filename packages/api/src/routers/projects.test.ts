@@ -1,36 +1,27 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, datasets, runs, users } from '@robot/db';
+import { db, projects, datasets, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { signIn, signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('projects');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const created: string[] = [];
 
-/** Signs a throwaway user in through `auth.signIn`, which mints them their own personal org. */
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  return { ...r, session: (await loadSession(db, cookies['robot_session']!))! };
-}
-
-/** Everything this file created for a throwaway identity, in cascade-safe order. Never touches org `default`. */
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+/** Everything this file created for a throwaway identity. Never touches org `default`. */
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 afterEach(async () => {
   for (const id of created.splice(0)) await db.delete(projects).where(eq(projects.id, id)); // datasets cascade
 });
 
 describe('projects.create', () => {
-  it('creates the project under the default org with one dataset named after it', async () => {
-    const p = await caller.projects.create({ name: 'AbeBooks Q3', description: 'books', orgSlug: 'default' });
+  it('creates the project in the session org with one dataset named after it', async () => {
+    const p = await caller.projects.create({ name: 'AbeBooks Q3', description: 'books' });
     created.push(p.id);
     expect(p.slug).toBe('abebooks-q3');
     const ds = await db.query.datasets.findFirst({ where: eq(datasets.id, p.datasetId) });
@@ -39,21 +30,21 @@ describe('projects.create', () => {
     expect(ds?.schema).toEqual([]);
   });
   it('gives a second project with the same name a numbered slug', async () => {
-    const a = await caller.projects.create({ name: 'Twice', orgSlug: 'default' });
-    const b = await caller.projects.create({ name: 'Twice', orgSlug: 'default' });
+    const a = await caller.projects.create({ name: 'Twice' });
+    const b = await caller.projects.create({ name: 'Twice' });
     created.push(a.id, b.id);
     expect(b.slug).toBe('twice-2');
   });
   it('rejects an empty name', async () => {
-    await expect(caller.projects.create({ name: '   ', orgSlug: 'default' })).rejects.toThrow();
+    await expect(caller.projects.create({ name: '   ' })).rejects.toThrow();
   });
 });
 
 describe('projects.rename', () => {
   it('changes the name and keeps the slug', async () => {
-    const p = await caller.projects.create({ name: 'Before', orgSlug: 'default' });
+    const p = await caller.projects.create({ name: 'Before' });
     created.push(p.id);
-    const r = await caller.projects.rename({ projectId: p.id, name: 'After', orgSlug: 'default' });
+    const r = await caller.projects.rename({ projectId: p.id, name: 'After' });
     expect(r.name).toBe('After');
     const row = await db.query.projects.findFirst({ where: eq(projects.id, p.id) });
     expect(row?.slug).toBe('before');
@@ -62,13 +53,13 @@ describe('projects.rename', () => {
 
 describe('projects.list stats', () => {
   it('counts websites, verified websites, fields, and reports the last run', async () => {
-    const p = await caller.projects.create({ name: 'Stats', orgSlug: 'default' });
+    const p = await caller.projects.create({ name: 'Stats' });
     created.push(p.id);
     await caller.sources.createInProject({ projectSlug: p.slug, name: 'A', url: 'https://a.example/' });
     await caller.sources.createInProject({ projectSlug: p.slug, name: 'B', url: 'https://b.example/' });
     await db.update(datasets).set({ schema: [{ key: 'price', name: 'price', type: 'money' }, { key: 'title', name: 'title', type: 'text' }] }).where(eq(datasets.id, p.datasetId));
 
-    const row = (await caller.projects.list({ orgSlug: 'default' })).find((r) => r.id === p.id)!;
+    const row = (await caller.projects.list()).find((r) => r.id === p.id)!;
     expect(row.sourceCount).toBe(2);
     expect(row.verifiedSourceCount).toBe(0);
     expect(row.fieldCount).toBe(2);
@@ -76,8 +67,8 @@ describe('projects.list stats', () => {
   });
 
   it('attributes each project its own latest run even when timestamps collide', async () => {
-    const a = await caller.projects.create({ name: 'RunsA', orgSlug: 'default' });
-    const b = await caller.projects.create({ name: 'RunsB', orgSlug: 'default' });
+    const a = await caller.projects.create({ name: 'RunsA' });
+    const b = await caller.projects.create({ name: 'RunsB' });
     created.push(a.id, b.id);
     const sourceA = await caller.sources.createInProject({ projectSlug: a.slug, name: 'A', url: 'https://a.example/' });
     const sourceB = await caller.sources.createInProject({ projectSlug: b.slug, name: 'B', url: 'https://b.example/' });
@@ -87,7 +78,7 @@ describe('projects.list stats', () => {
       { sourceId: sourceB.sourceId, status: 'completed', resultCount: 3 },
     ]);
 
-    const rows = await caller.projects.list({ orgSlug: 'default' });
+    const rows = await caller.projects.list();
     const rowA = rows.find((r) => r.id === a.id)!;
     const rowB = rows.find((r) => r.id === b.id)!;
     expect(rowA.lastRun?.resultCount).toBe(7);
@@ -96,13 +87,10 @@ describe('projects.list stats', () => {
 });
 
 describe('projects.delete', () => {
-  it('a session-less caller that names the org can delete a project it created the same way', async () => {
-    const p = await caller.projects.create({ name: `SmokeCleanup ${Date.now()}`, orgSlug: 'default' });
-    // The project is real, and it lives in the seeded `default` org: if the
-    // assertion below throws, the `finally` is what stops an orphaned
-    // `SmokeCleanup …` being left in the user's own org.
+  it('deletes a project of the session org', async () => {
+    const p = await caller.projects.create({ name: `SmokeCleanup ${Date.now()}` });
     try {
-      const r = await caller.projects.delete({ projectId: p.id, orgSlug: 'default' });
+      const r = await caller.projects.delete({ projectId: p.id });
       expect(r.deleted).toBe(true);
       expect(await db.query.projects.findFirst({ where: eq(projects.id, p.id) })).toBeUndefined();
     } finally {
@@ -111,22 +99,31 @@ describe('projects.delete', () => {
   });
 });
 
-// Cut-over Task 5: `list`/`create`/`rename`/`delete` dropped the implicit
-// `orgSlug ?? 'default'` fallback. A session-less caller that also omits
-// `orgSlug` now gets UNAUTHORIZED, never the seeded `default` org's data
-// (Review Focus 4) — this is the behaviour the old dashboard's session-less
-// calls used to get silently.
-describe('the removed session-less default-org shim (Review Focus 4)', () => {
-  it('a session-less, orgSlug-less call is UNAUTHORIZED for list/create/rename/delete', async () => {
-    await expect(caller.projects.list()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-    await expect(caller.projects.create({ name: 'No session' })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-    await expect(caller.projects.rename({ projectId: '00000000-0000-0000-0000-000000000000', name: 'X' })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-    await expect(caller.projects.delete({ projectId: '00000000-0000-0000-0000-000000000000' })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+// Cut-over: the old dashboard's `orgSlug` shim and its `'default'` fallback
+// are gone. A session-less caller is UNAUTHORIZED on every procedure, whatever
+// it sends — never the seeded `default` org's data, nor any other org's
+// (Review Focus 4; final review C1).
+describe('no session, no projects (Review Focus 4)', () => {
+  it('a session-less call is UNAUTHORIZED for list/get/output/create/rename/delete, even naming an org that exists', async () => {
+    const bare = createCallerFactory(appRouter)({ db, session: null });
+    const p = await caller.projects.create({ name: `Guarded ${Date.now()}` });
+    created.push(p.id);
+    const unauth = { code: 'UNAUTHORIZED' };
+    // No input takes an `orgSlug` any more; one sent over HTTP is stripped by zod, never honoured.
+    const named = { orgSlug: me.session.org.slug };
+    await expect(bare.projects.list()).rejects.toMatchObject(unauth);
+    await expect(bare.projects.list(named as never)).rejects.toMatchObject(unauth);
+    await expect(bare.projects.get({ projectSlug: p.slug, ...named } as never)).rejects.toMatchObject(unauth);
+    await expect(bare.projects.output({ projectSlug: p.slug })).rejects.toMatchObject(unauth);
+    await expect(bare.projects.create({ name: 'No session', ...named } as never)).rejects.toMatchObject(unauth);
+    await expect(bare.projects.rename({ projectId: p.id, name: 'X' })).rejects.toMatchObject(unauth);
+    await expect(bare.projects.delete({ projectId: p.id })).rejects.toMatchObject(unauth);
+    expect((await db.query.projects.findFirst({ where: eq(projects.id, p.id) }))?.name).toBe(p.name);
   });
 });
 
 describe('projects live in the session organisation', () => {
-  it('a project is invisible outside its org, and an explicit orgSlug still reaches the default org session-lessly', async () => {
+  it('a project is invisible outside its org: list, get, output and delete', async () => {
     const tag = Date.now();
     const a = await signIn(`proj-a-${tag}@example.com`);
     const b = await signIn(`proj-b-${tag}@example.com`);
@@ -137,13 +134,12 @@ describe('projects live in the session organisation', () => {
 
       const bList = await callerB.projects.list();
       expect(bList.some((row) => row.id === p.id)).toBe(false);
+      expect((await callerA.projects.list()).some((row) => row.id === p.id)).toBe(true);
 
+      await expect(callerB.projects.get({ projectSlug: p.slug })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await expect(callerB.projects.output({ projectSlug: p.slug })).rejects.toMatchObject({ code: 'NOT_FOUND' });
       await expect(callerB.projects.delete({ projectId: p.id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
-
-      // A session-less caller that explicitly names `default` still reaches
-      // it (not the removed implicit shim — an honest, explicit ask).
-      const legacy = await caller.projects.list({ orgSlug: 'default' });
-      expect(Array.isArray(legacy)).toBe(true);
+      expect(await db.query.projects.findFirst({ where: eq(projects.id, p.id) })).toBeDefined();
     } finally {
       for (const r of [a, b]) await dropIdentity(r);
     }
@@ -165,14 +161,6 @@ describe('projects live in the session organisation', () => {
 
       // The owner still renames it, so the guard has not simply closed the door.
       expect((await callerA.projects.rename({ projectId: p.id, name: `Renamed ${tag}` })).name).toBe(`Renamed ${tag}`);
-
-      // Cut-over Task 1, ruling R1: the app passes its own org slug explicitly
-      // (`get`/`list`/`create`'s own input shape) rather than omitting it and
-      // trusting the fallback below. A session still wins over whatever is
-      // passed, so this is accepted and renames the same project again.
-      expect(
-        (await callerA.projects.rename({ projectId: p.id, name: `Renamed again ${tag}`, orgSlug: a.session.org.slug })).name,
-      ).toBe(`Renamed again ${tag}`);
     } finally {
       for (const r of [a, b]) await dropIdentity(r);
     }

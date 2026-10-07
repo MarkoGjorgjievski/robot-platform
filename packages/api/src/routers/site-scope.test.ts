@@ -1,14 +1,12 @@
 // Every per-website and per-run procedure takes its org from the session
 // (spec 2026-09-21 §6): a website or run in another org is NOT_FOUND, the same
-// word as one that does not exist. The session-less shim the old dashboard
-// still uses is exercised at the bottom.
+// word as one that does not exist. A caller with no session is UNAUTHORIZED
+// on every one of them (cut-over; final review C1), exercised at the bottom.
 import { describe, it, expect, vi } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { db, projects, users, runs } from '@robot/db';
+import { db, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { signIn } from '../test-helpers/identity.js';
 
 // `captureProofPage` fires a real browser un-awaited; stub the job so this file never launches one.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -21,19 +19,48 @@ const tag = `site-scope-${Date.now()}`;
 const HOST = 'https://a.example.com';
 const PROOF = [`${HOST}/p/1`, `${HOST}/p/2`, `${HOST}/p/3`];
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
+const createCaller = createCallerFactory(appRouter);
+type Caller = ReturnType<typeof createCaller>;
+
+/** Every per-website and per-run procedure, aimed at one website's ids. */
+function scopedCalls(bc: Caller, ids: { projectSlug: string; sourceSlug: string; sourceId: string; runId: string; captureId: string }): Array<[string, () => Promise<unknown>]> {
+  const { sourceId, runId, captureId } = ids;
+  const p = { slug: ids.projectSlug };
+  const w = { sourceSlug: ids.sourceSlug };
+  return [
+      ['sources.get', () => bc.sources.get({ projectSlug: p.slug, sourceSlug: w.sourceSlug })],
+      ['sources.rename', () => bc.sources.rename({ sourceId, name: 'X' })],
+      ['sources.update', () => bc.sources.update({ id: sourceId, isActive: false })],
+      ['sources.setListingPages', () => bc.sources.setListingPages({ sourceId, urls: [`${HOST}/l`] })],
+      ['sources.setProductUrls', () => bc.sources.setProductUrls({ sourceId, urls: [`${HOST}/p`] })],
+      ['sources.updateBinding', () => bc.sources.updateBinding({ sourceId, urls: PROOF, descriptions: {}, expected: {} })],
+      ['sources.inputRows', () => bc.sources.inputRows({ sourceId })],
+      ['sources.verifyEstimate', () => bc.sources.verifyEstimate({ sourceId })],
+      ['sources.verificationStatus', () => bc.sources.verificationStatus({ sourceId })],
+      ['sources.verify', () => bc.sources.verify({ sourceId })],
+      ['sources.confirm', () => bc.sources.confirm({ sourceId })],
+      ['sources.delete', () => bc.sources.delete({ sourceId })],
+      ['sources.captureProofPage', () => bc.sources.captureProofPage({ sourceId, url: `${HOST}/` })],
+      ['sources.proofPageCapture', () => bc.sources.proofPageCapture({ captureId })],
+      ['sources.suggestMarks', () => bc.sources.suggestMarks({ captureId })],
+      ['sources.proofPageCaptures', () => bc.sources.proofPageCaptures({ sourceId, urls: [`${HOST}/p/1`] })],
+      ['sources.transferMarks', () => bc.sources.transferMarks({ sourceId, fromUrl: PROOF[0]!, toUrls: [PROOF[1]!] })],
+      ['runs.getWithDetails', () => bc.runs.getWithDetails({ id: runId })],
+      ['runs.listBySource', () => bc.runs.listBySource({ sourceId })],
+      ['crawl.plan', () => bc.crawl.plan({ sourceId, probe: true })],
+      ['crawl.probeAndSample', () => bc.crawl.probeAndSample({ sourceId })],
+      ['crawl.items', () => bc.crawl.items({ runId })],
+      ['crawl.status', () => bc.crawl.status({ runId })],
+      ['crawl.cancel', () => bc.crawl.cancel({ runId })],
+      ['crawl.execute', () => bc.crawl.execute({ runId, dryRun: true })],
+      ['crawl.coverage', () => bc.crawl.coverage({ runId })],
+      ['crawl.misses', () => bc.crawl.misses({ runId })],
+      ['crawl.backfillPreview', () => bc.crawl.backfillPreview({ runId })],
+      ['crawl.backfill', () => bc.crawl.backfill({ runId })],
+  ];
 }
 
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 describe('website and run procedures are scoped to the session org', () => {
   it('answers NOT_FOUND to every one of them when the caller is in another org', async () => {
@@ -53,38 +80,7 @@ describe('website and run procedures are scoped to the session org', () => {
       const runId = run!.id;
       const { captureId } = await a.caller.sources.captureProofPage({ sourceId, url: `${HOST}/p/1` });
 
-      const bc = b.caller;
-      const calls: Array<[string, () => Promise<unknown>]> = [
-        ['sources.get', () => bc.sources.get({ projectSlug: p.slug, sourceSlug: w.sourceSlug })],
-        ['sources.rename', () => bc.sources.rename({ sourceId, name: 'X' })],
-        ['sources.update', () => bc.sources.update({ id: sourceId, isActive: false })],
-        ['sources.setListingPages', () => bc.sources.setListingPages({ sourceId, urls: [`${HOST}/l`] })],
-        ['sources.setProductUrls', () => bc.sources.setProductUrls({ sourceId, urls: [`${HOST}/p`] })],
-        ['sources.updateBinding', () => bc.sources.updateBinding({ sourceId, urls: PROOF, descriptions: {}, expected: {} })],
-        ['sources.inputRows', () => bc.sources.inputRows({ sourceId })],
-        ['sources.verifyEstimate', () => bc.sources.verifyEstimate({ sourceId })],
-        ['sources.verificationStatus', () => bc.sources.verificationStatus({ sourceId })],
-        ['sources.verify', () => bc.sources.verify({ sourceId })],
-        ['sources.confirm', () => bc.sources.confirm({ sourceId })],
-        ['sources.delete', () => bc.sources.delete({ sourceId })],
-        ['sources.captureProofPage', () => bc.sources.captureProofPage({ sourceId, url: `${HOST}/` })],
-        ['sources.proofPageCapture', () => bc.sources.proofPageCapture({ captureId })],
-        ['sources.suggestMarks', () => bc.sources.suggestMarks({ captureId })],
-        ['sources.proofPageCaptures', () => bc.sources.proofPageCaptures({ sourceId, urls: [`${HOST}/p/1`] })],
-        ['sources.transferMarks', () => bc.sources.transferMarks({ sourceId, fromUrl: PROOF[0]!, toUrls: [PROOF[1]!] })],
-        ['runs.getWithDetails', () => bc.runs.getWithDetails({ id: runId })],
-        ['runs.listBySource', () => bc.runs.listBySource({ sourceId })],
-        ['crawl.plan', () => bc.crawl.plan({ sourceId, probe: true })],
-        ['crawl.probeAndSample', () => bc.crawl.probeAndSample({ sourceId })],
-        ['crawl.items', () => bc.crawl.items({ runId })],
-        ['crawl.status', () => bc.crawl.status({ runId })],
-        ['crawl.cancel', () => bc.crawl.cancel({ runId })],
-        ['crawl.execute', () => bc.crawl.execute({ runId, dryRun: true })],
-        ['crawl.coverage', () => bc.crawl.coverage({ runId })],
-        ['crawl.misses', () => bc.crawl.misses({ runId })],
-        ['crawl.backfillPreview', () => bc.crawl.backfillPreview({ runId })],
-        ['crawl.backfill', () => bc.crawl.backfill({ runId })],
-      ];
+      const calls = scopedCalls(b.caller, { projectSlug: p.slug, sourceSlug: w.sourceSlug, sourceId, runId, captureId });
       for (const [name, call] of calls) await expect(call(), name).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
       // The owning org sees the website itself, with its project and the contract.
@@ -122,24 +118,28 @@ describe('website and run procedures are scoped to the session org', () => {
     }
   });
 
-  // `projects.create`/`list`/`rename`/`delete` dropped their session-less
-  // `'default'` fallback at cut-over (Task 5); `sources.get`/`rename` did
-  // not, so a session-less caller that names the org explicitly still
-  // reaches them. (`sources.createInProject` always resolves the seeded
-  // `default` org and is untouched here — exercising it session-lessly
-  // would mean writing into that org, which these tests never do.)
-  it('sources.get/rename still answer a session-less caller that names the org', async () => {
+  it('answers UNAUTHORIZED to every one of them without a session, and changes nothing', async () => {
     let a: Awaited<ReturnType<typeof signIn>> | undefined;
     try {
-      a = await signIn(`${tag}-shim@example.com`);
-      const p = await a.caller.projects.create({ name: `Shim ${tag}` });
-      const w = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Shim shop', url: 'https://shim.example.com/' });
-      const bare = createCallerFactory(appRouter)({ db, session: null });
-      const got = await bare.sources.get({ projectSlug: p.slug, sourceSlug: w.sourceSlug, orgSlug: a.session.org.slug });
-      expect(got.id).toBe(w.sourceId);
-      expect(got.hostname).toBe('shim.example.com');
-      const renamed = await bare.sources.rename({ sourceId: w.sourceId, name: 'Shim shop 2' });
-      expect(renamed.name).toBe('Shim shop 2');
+      a = await signIn(`${tag}-anon@example.com`);
+      const p = await a.caller.projects.create({ name: `Guarded ${tag}` });
+      const w = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Guarded shop', url: `${HOST}/` });
+      const sourceId = w.sourceId;
+      const [run] = await db.insert(runs).values({ sourceId, status: 'completed', completedAt: new Date(), resultCount: 1 }).returning({ id: runs.id });
+      const { captureId } = await a.caller.sources.captureProofPage({ sourceId, url: `${HOST}/p/1` });
+
+      const bare = createCaller({ db, session: null });
+      const calls: Array<[string, () => Promise<unknown>]> = [
+        ...scopedCalls(bare, { projectSlug: p.slug, sourceSlug: w.sourceSlug, sourceId, runId: run!.id, captureId }),
+        ['sources.createInProject', () => bare.sources.createInProject({ projectSlug: p.slug, name: 'X', url: `${HOST}/` })],
+        // A session-less caller must not be able to point the server's browser anywhere.
+        ['sources.checkListingPage', () => bare.sources.checkListingPage({ listingUrl: 'http://127.0.0.1/' })],
+      ];
+      for (const [name, call] of calls) await expect(call(), name).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+
+      const got = await a.caller.sources.get({ projectSlug: p.slug, sourceSlug: w.sourceSlug });
+      expect(got.name).toBe('Guarded shop');
+      expect((await a.caller.projects.get({ projectSlug: p.slug })).websites).toHaveLength(1);
     } finally {
       if (a) await dropIdentity(a);
     }

@@ -1,26 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { db, projects, users, runs } from '@robot/db';
+import { db, runs } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { signIn } from '../test-helpers/identity.js';
 
 const tag = `get-${Date.now()}`;
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 describe('projects.get', () => {
   it('returns the project, its fields and its websites with verified counts and last run, in the session org', async () => {
@@ -67,18 +53,16 @@ describe('projects.get', () => {
     }
   });
 
-  // `projects.get` keeps its session-less `'default'`-org fallback (cut-over
-  // Task 5 removed the shim only from `list`/`create`/`rename`/`delete`); the
-  // explicit `orgSlug: 'default'` below is that ask, not the removed implicit
-  // shim — and `projects.create` now needs it said explicitly too.
-  it('still answers a session-less caller that names the org explicitly', async () => {
-    const bare = createCallerFactory(appRouter)({ db, session: null });
-    const p = await bare.projects.create({ name: `Shim ${tag}`, orgSlug: 'default' });
+  it('a session-less caller is UNAUTHORIZED, never a project of any org', async () => {
+    let a: Awaited<ReturnType<typeof signIn>> | undefined;
     try {
-      const got = await bare.projects.get({ projectSlug: p.slug, orgSlug: 'default' });
-      expect(got.id).toBe(p.id);
+      a = await signIn(`${tag}-n@example.com`);
+      const p = await a.caller.projects.create({ name: 'Private' });
+      const bare = createCallerFactory(appRouter)({ db, session: null });
+      await expect(bare.projects.get({ projectSlug: p.slug })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(bare.projects.output({ projectSlug: p.slug })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
     } finally {
-      await db.delete(projects).where(eq(projects.id, p.id));
+      if (a) await dropIdentity(a);
     }
   });
 });

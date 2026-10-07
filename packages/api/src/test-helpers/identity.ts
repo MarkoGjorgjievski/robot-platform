@@ -9,7 +9,8 @@ import { expect } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, orgs, users } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
+import { appRouter, type AppRouter } from '../routers/index.js';
+import type { SessionInfo } from '../trpc.js';
 import { loadSession, SESSION_COOKIE } from '../auth/session.js';
 
 export async function deleteOwnOrg(orgId: string): Promise<void> {
@@ -27,7 +28,18 @@ export async function deleteOwnOrg(orgId: string): Promise<void> {
  * never the seeded `default` org. `cleanup` deletes the org (cascading its
  * projects, datasets, websites and runs) and then the user.
  */
-export async function signIn(email: string) {
+/** An appRouter caller. Spelled from names in scope so declaration emit can write it (TS2742). */
+export type AppCaller = ReturnType<ReturnType<typeof createCallerFactory<AppRouter['_def']['record']>>>;
+
+export type SignedIn = {
+  user: { id: string; email: string; name: string };
+  org: { id: string; slug: string; name: string; personal: boolean; role: string };
+  session: SessionInfo;
+  caller: AppCaller;
+  cleanup: () => Promise<void>;
+};
+
+export async function signIn(email: string): Promise<SignedIn> {
   const cookies: Record<string, string | null> = {};
   const anon = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: (n) => { cookies[n] = null; } });
   const r = await anon.auth.signIn({ email, password: 'x' });
@@ -44,6 +56,6 @@ export async function signIn(email: string) {
 }
 
 /** `signIn` as a unique address built from `tag`, for a test file's own identity. */
-export function signedInCaller(tag: string) {
+export function signedInCaller(tag: string): Promise<SignedIn> {
   return signIn(`${tag.toLowerCase().replace(/[^a-z0-9-]/g, '-')}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`);
 }
