@@ -78,8 +78,8 @@ run, then not verified, then by recent activity. Its row links to `/ops/websites
 header (customer, project, website, host, and an "Open in the app" link, disabled with a title
 when the operator isn't a member of that org), one section per contract field named in the
 customer's own words, each field's certified paths in try order (kind, the path itself, which
-proof pages it's proven on, and "{hits} of {uses} ({pct}%)" from real run stats — "Not needed
-yet" rather than "0%" for a path with no uses), a one-source warning when every path for a
+proof pages it's proven on, and "{hits} of {uses} ({pct} %)" from real run stats — "Not needed
+yet" rather than "0 %" for a path with no uses), a one-source warning when every path for a
 field reads the same API response or JSON-LD block, and the latest drift check. No "cache"
 anywhere on these pages — the store is called "approved paths".
 
@@ -2582,10 +2582,9 @@ small extraction-layer fixes worth folding into that same cycle.
 | `docker start robot-platform-db` | Start Postgres first — the one non-obvious prerequisite on this machine. Everything below needs it running. |
 | `pnpm -r test` | Free green gate. |
 | `docker exec -e PGPASSWORD=postgres robot-platform-db psql -U postgres -d robot_platform -c "select domain, page_type from domain_intelligence where domain in ('example.com','listing.example','shop.example') or domain like 'test-%';"` | Cache-hygiene gate — run it **after** `pnpm -r test`, expect zero rows. The `test-%` prefix alone is not enough: the `planRun` unit fakes plan against `example.com` and `listing.example`, and an unstubbed `savePagination` in those fakes wrote real rows under those names for several commits without the prefix check noticing. `shop.example` joined the list 2026-09-07 — the customer-schema-verification fixture triple (`packages/scraper/src/__fixtures__/verify/`) is hosted under it. Add any new fake hostname to this list. |
-| `pnpm typecheck` | **Not all packages.** Five turbo tasks: `tsc --noEmit` in `@robot/db` and `@robot/api`, plus the `build` (`tsc`) of `@robot/browser`, `@robot/agent` and `@robot/scraper`, which typecheck as a side effect of emitting. `@robot/api-server` and `@robot/dashboard` have no `typecheck` script at all and are **not** covered. |
-| `pnpm --filter @robot/dashboard exec tsc --noEmit` | The dashboard type check, which `pnpm typecheck` does not run. Nothing equivalent exists for `@robot/api-server` — it is unchecked until someone adds the script. |
+| `pnpm typecheck` | `tsc --noEmit` (via each package's own `typecheck` script) in every package, run through turbo — `@robot/db`, `@robot/api`, `@robot/api-server`, `@robot/app`, `@robot/browser`, `@robot/agent` and `@robot/scraper` all have one. `@robot/dashboard` is deleted (cut-over, plan 6) and no longer exists to check. |
 | `pnpm --filter @robot/api exec tsx src/crawl-plan.ts <sourceId\|slug>` | Phase 1 CLI — plan a crawl. |
 | `pnpm --filter @robot/api exec tsx src/crawl-execute.ts <runId>` | Phase 2 CLI — execute a planned run, spends money. |
 | `pnpm test:judge` | Calibrates both judges against known answers (live, paid). |
 | `pnpm test:liveness` | Do the fixtures still match the pages they claim? (live, free) |
-| `pnpm test:ui` | Dashboard route smoke tests; needs `pnpm dev:all`. |
+| `pnpm test:ui:app` | `@robot/app` route smoke (signs in as a throwaway address, walks every screen in both themes, screenshots into `docs/testing/screens/`); needs `pnpm dev:all`. The old dashboard's `pnpm test:ui` is gone with the package it tested. |

@@ -259,9 +259,11 @@ names change every run, so they are gitignored — read them on disk, do not com
 | `schema-step2-interim.png` | Step 2, the interim proof sheet, with each hint pre-filled from the catalogue |
 | `project-home-catalogue.png` | The project home's field list with the same catalogue under it |
 
-The last five come from `docs/testing/ui-check-schema-step1.mts` (1440×1000, full page; its
-header says how to run it). It creates its own throwaway project and website, walks step 1,
-and deletes the project again — it never touches a customer's real website.
+The last five came from `docs/testing/ui-check-schema-step1.mts` (1440×1000, full page), which
+created its own throwaway project and website, walked step 1, and deleted the project again —
+it never touched a customer's real website. The script is **deleted**, with the rest of the
+old dashboard it checked (cut-over, plan 6); the screenshots above are kept as a historical
+record of a stepper that no longer exists.
 
 ## States with no current capture
 

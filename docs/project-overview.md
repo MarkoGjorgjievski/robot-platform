@@ -72,11 +72,14 @@ packages/
   browser/     — Playwright page capture, popup dismissal, network interception
   agent/       — LLM orchestration (Claude + Ollama), schema/selector/validation
   scraper/     — Pipeline, XPath executor, structured data extraction, cache
-  dashboard/  — Vite + TanStack Router/Query SPA, wizard flow
+  app/         — TanStack Start + Router/Query (SSR) customer app; :3000
   db/          — PostgreSQL schema (Drizzle ORM)
   api/         — tRPC v11 routers
   api-server/  — Hono HTTP host that mounts the tRPC routers + serves captures
 ```
+
+(`@robot/dashboard`, the old Vite + TanStack Router/Query SPA, was deleted at
+cut-over (2026-10, plan 6) once `@robot/app` reached parity with it.)
 
 ### @robot/browser
 - Playwright-based page capture

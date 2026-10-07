@@ -8,7 +8,6 @@ dist/
 .env.local
 .next/
 packages/api-server/public/captures/*.png
-packages/dashboard/public/captures/
 .superpowers/
 .worktrees
 .claude/

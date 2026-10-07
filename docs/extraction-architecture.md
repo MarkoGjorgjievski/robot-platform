@@ -312,7 +312,11 @@ Anthropic provider includes retry with exponential backoff for transient errors 
                     API analysis, validation), provider abstraction
 @robot/scraper    — Pipeline orchestration, XPath executor, structured data
                     extractor, domain intelligence cache
-@robot/dashboard — Next.js UI, API routes, wizard flow
+@robot/app        — TanStack Start + Router/Query (SSR) customer app; :3000
 @robot/db         — PostgreSQL schema (Drizzle ORM)
 @robot/api        — tRPC routers
 ```
+
+(`@robot/dashboard`, the Vite + TanStack Router/Query SPA that itself
+replaced the original Next.js dashboard in v1.5, was deleted at cut-over
+(2026-10, plan 6) once `@robot/app` reached parity with it.)
