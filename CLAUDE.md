@@ -18,8 +18,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 | `@robot/browser` | Page capture, popup dismissal, network interception | Playwright |
 | `@robot/agent` | LLM orchestration — schema discovery, selectors, validation | Anthropic Claude, Ollama |
 | `@robot/scraper` | Pipeline, XPath executor, structured data extraction | Multi-source extraction chain |
-| `@robot/app` | The customer app being rebuilt (spec `2026-09-21-app-redesign-design.md`) — login, org switcher, projects, and a project's websites, Fields and Output, a website's Verification / Extract / Runs / Settings, and the organisation's Runs, Usage, Settings and Account; :3000 | TanStack Start + Router/Query (SSR), Tailwind v4, shadcn/ui |
-| `@robot/dashboard` | The **old** web UI — extraction wizard, results browser; kept running until `@robot/app` reaches parity, then deleted | Vite + TanStack Router/Query SPA, Tailwind v4, Radix UI |
+| `@robot/app` | The customer app — login, org switcher, projects, and a project's websites, Fields and Output, a website's Verification / Extract / Runs / Settings, and the organisation's Runs, Usage, Settings and Account; plus a read-only ops mode for staff at `/ops`; :3000 | TanStack Start + Router/Query (SSR), Tailwind v4, shadcn/ui + Base UI |
 | `@robot/db` | Database schema + migrations | Drizzle ORM, PostgreSQL |
 | `@robot/api` | Type-safe API | tRPC v11, Zod, superjson |
 | `@robot/api-server` | HTTP host — mounts the tRPC routers over HTTP, serves captures | Hono |
@@ -37,14 +36,12 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 
 ## Commands
 
-- `pnpm dev:all` — start all three servers: api-server (:4000), the old dashboard (:3456) and the new app (:3000); neither UI is any use without the api-server
+- `pnpm dev:all` — start both servers: api-server (:4000) and the app (:3000); the app is no use without the api-server
 - `pnpm dev:all:noai` — same as `dev:all`, but forces `ANTHROPIC_API_KEY` unset in the api-server process (`--env-mode=loose`, since turbo's default strict env mode otherwise swallows an ad-hoc `ANTHROPIC_API_KEY=` shell override). Use this to test the mechanical-only / AI-unavailable path
-- `pnpm --filter @robot/dashboard dev` — dashboard only, on :3456
 - `pnpm db:adopt-default -- --email <email>` — make that user the owner of the seeded `default` org, so an existing checkout's projects are visible after a first sign-in (sign-in never adopts anything itself)
 - `pnpm -r test` — the green gate (Tier 1 fixture replay + unit tests). Needs Postgres running
 - `pnpm test:judge` — calibrate the Tier 2 judge against known answers (live, paid)
 - `pnpm test:liveness` — do the corpus fixtures still match the pages their URLs serve? (live, free)
-- `pnpm test:ui` — old dashboard route smoke tests; needs `pnpm dev:all` running (live, free)
 - `pnpm test:ui:app` — `@robot/app` route smoke: signs in through `/login` as a throwaway address, walks every screen in both themes, screenshots into `docs/testing/screens/app-*.png`; needs `pnpm dev:all` running (live, free)
 - `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
@@ -68,6 +65,7 @@ Variables already set in the shell take precedence over `.env`.
 
 - `ANTHROPIC_API_KEY` — Claude API key (falls back to Ollama if not set)
 - `DATABASE_URL` — PostgreSQL connection string
+- `OPS_EMAILS` — comma-separated emails that land in ops mode (staff), matched case-insensitively and trimmed; empty or unset means nobody is an operator
 
 ## Key Technical Decisions
 
@@ -78,10 +76,10 @@ Variables already set in the shell take precedence over `.env`.
 - Popup auto-dismissal — 3 rounds of click + JS removal before capture
 - Provider abstraction — Anthropic and Ollama supported, auto-detected from env
 - `"type": "module"` in all packages
-- Dashboard is a Vite + TanStack Router/Query SPA (client-side), talking to `@robot/api-server` (Hono) over tRPC-HTTP. NOTE: this replaced the original Next.js dashboard in v1.5 (commit 0937bad, 2026-05-15) — older docs/commits that say "Next.js 15 / Server Components / App Router" are stale.
-- Customer routes live under `/projects/…`; `/p/…` and `/domains/…` are redirects (2026-09-08, spec `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`). Operator views are under `/ops/…`.
+- History: the old `@robot/dashboard` (a Vite + TanStack Router/Query SPA) was deleted 2026-10-07, cut-over plan 6 — `@robot/app` had reached parity with it. Before that it replaced the original Next.js dashboard in v1.5 (commit 0937bad, 2026-05-15) — older docs/commits that say "Next.js 15 / Server Components / App Router" are stale.
+- Customer routes live under `/projects/…` in `@robot/app`; `/p/…` and `/domains/…` are redirects (2026-09-08, spec `docs/superpowers/specs/2026-09-08-mvp-flow-and-workspace-design.md`). Operator views are under `/ops/…` — a read-only ops mode for staff (`OPS_EMAILS`), rebuilt in `@robot/app` at cut-over (plan 6): one row per customer website across every org, and a website's certified paths in customer words with real run hit rates.
 - Field name and type live on the project's dataset (the contract); a website owns only its location hints, proof pages, expected values and certification, which is current per field (2026-09-09, spec section 4).
-- Radix UI + Tailwind v4 + shadcn pattern, light mode
+- `@robot/app`'s actual stack: shadcn/ui + Base UI on Tailwind v4, Geist/Geist Mono, dark and light themes (dark default)
 
 ## Conventions
 
