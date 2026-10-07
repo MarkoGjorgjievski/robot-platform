@@ -337,6 +337,10 @@ describe('siteLastRunText', () => {
     expect(siteLastRunText({ status: 'completed', at: '2026-10-06T10:00:00Z', rows: 1248 }, NOW)).toBe('Completed 2 h ago, 1,248 rows');
   });
 
+  it('reads "1 row", singular, for a one-row run', () => {
+    expect(siteLastRunText({ status: 'completed', at: '2026-10-06T10:00:00Z', rows: 1 }, NOW)).toBe('Completed 2 h ago, 1 row');
+  });
+
   it('reads "Failed {time}" with no row count', () => {
     expect(siteLastRunText({ status: 'failed', at: '2026-10-06T11:25:00Z', rows: null }, NOW)).toBe('Failed 35 min ago');
   });

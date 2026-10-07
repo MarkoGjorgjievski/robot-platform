@@ -279,7 +279,7 @@ export function siteLastRunText(lastRun: { status: string; at: string; rows: num
   if (state === 'running') return 'Running';
   const label = state === 'done' ? 'Completed' : state === 'failed' ? 'Failed' : state === 'partial' ? 'Partial' : 'Done';
   const when = relativeTime(new Date(lastRun.at), now);
-  const rows = (state === 'done' || state === 'partial') && typeof lastRun.rows === 'number' ? `, ${lastRun.rows.toLocaleString('en-US')} rows` : '';
+  const rows = (state === 'done' || state === 'partial') && typeof lastRun.rows === 'number' ? `, ${lastRun.rows.toLocaleString('en-US')} ${lastRun.rows === 1 ? 'row' : 'rows'}` : '';
   return `${label} ${when}${rows}`;
 }
 
