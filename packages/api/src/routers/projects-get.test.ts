@@ -60,8 +60,6 @@ describe('projects.get', () => {
       b = await signIn(`${tag}-b2@example.com`);
       const p = await a.caller.projects.create({ name: 'Private' });
       await expect(b.caller.projects.get({ projectSlug: p.slug })).rejects.toMatchObject({ code: 'NOT_FOUND' });
-      await expect(b.caller.projects.getWithStats({ projectSlug: p.slug })).resolves.toBeNull();
-      await expect(b.caller.sources.listByProject({ projectSlug: p.slug })).rejects.toMatchObject({ code: 'NOT_FOUND' });
       await expect(b.caller.sources.createInProject({ projectSlug: p.slug, name: 'X', url: 'https://x.example.com/' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
     } finally {
       if (a) await dropIdentity(a);
@@ -69,14 +67,16 @@ describe('projects.get', () => {
     }
   });
 
-  it('still answers a session-less caller that names the org, the way the old dashboard does', async () => {
+  // `projects.get` keeps its session-less `'default'`-org fallback (cut-over
+  // Task 5 removed the shim only from `list`/`create`/`rename`/`delete`); the
+  // explicit `orgSlug: 'default'` below is that ask, not the removed implicit
+  // shim — and `projects.create` now needs it said explicitly too.
+  it('still answers a session-less caller that names the org explicitly', async () => {
     const bare = createCallerFactory(appRouter)({ db, session: null });
-    const p = await bare.projects.create({ name: `Shim ${tag}` });
+    const p = await bare.projects.create({ name: `Shim ${tag}`, orgSlug: 'default' });
     try {
       const got = await bare.projects.get({ projectSlug: p.slug, orgSlug: 'default' });
       expect(got.id).toBe(p.id);
-      const stats = await bare.projects.getWithStats({ orgSlug: 'default', projectSlug: p.slug });
-      expect(stats?.project.id).toBe(p.id);
     } finally {
       await db.delete(projects).where(eq(projects.id, p.id));
     }

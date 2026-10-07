@@ -21,11 +21,10 @@ describe('loadProjectExport', () => {
   });
 
   it('merges the latest completed run of every website under a Website column, in contract order', async () => {
-    const p = await caller.projects.create({ name: `Export ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export ${Date.now()}`, orgSlug: 'default' });
     try {
-      await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' });
+      const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' });
       const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-      const title = (await caller.datasets.getContract({ datasetId: p.datasetId })).find((f) => f.name === 'Title')!;
       const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
       const b = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Beta', url: 'https://beta.example.com/' });
 
@@ -55,7 +54,7 @@ describe('loadProjectExport', () => {
   });
 
   it('exports a customer column named "Website" as "Website (field)" so the merged column wins', async () => {
-    const p = await caller.projects.create({ name: `Export collide ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export collide ${Date.now()}`, orgSlug: 'default' });
     try {
       const website = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Website', type: 'text' });
       const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
@@ -73,7 +72,7 @@ describe('loadProjectExport', () => {
   it('renames a raw extra key named "Website" too, listing it once', async () => {
     // No contract yet when the website is created, so its rows are exported raw:
     // "Website" arrives as an extra column rather than a contract one.
-    const p = await caller.projects.create({ name: `Export extra ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export extra ${Date.now()}`, orgSlug: 'default' });
     try {
       const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
       await seedRun(a.sourceId, [{ Website: 'acme.example.com', Title: 'Chair' }], new Date('2026-09-01T00:00:00Z'));
@@ -90,7 +89,7 @@ describe('loadProjectExport', () => {
   });
 
   it('carries a column name → field type map for toXlsx, built from the contract', async () => {
-    const p = await caller.projects.create({ name: `Export types ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export types ${Date.now()}`, orgSlug: 'default' });
     try {
       const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' });
       const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
@@ -105,7 +104,7 @@ describe('loadProjectExport', () => {
   });
 
   it('shapes a variants project (row_per_variant): product fields, axes, variant fields, then product_key/variant_key', async () => {
-    const p = await caller.projects.create({ name: `Export variants ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export variants ${Date.now()}`, orgSlug: 'default' });
     try {
       const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text', concept: 'product_name' });
       const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
@@ -134,7 +133,7 @@ describe('loadProjectExport', () => {
     // level under effectiveLevel — but this project never turned variants on,
     // so reordering by level here must not happen (today's byte-identical
     // column order for a flat project).
-    const p = await caller.projects.create({ name: `Export flat order ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export flat order ${Date.now()}`, orgSlug: 'default' });
     try {
       const price = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money', concept: 'price' });
       const title = await caller.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text', concept: 'product_name' });
@@ -149,7 +148,7 @@ describe('loadProjectExport', () => {
   });
 
   it('lists a website with no completed run with a null run and no rows', async () => {
-    const p = await caller.projects.create({ name: `Export empty ${Date.now()}` });
+    const p = await caller.projects.create({ name: `Export empty ${Date.now()}`, orgSlug: 'default' });
     try {
       const a = await caller.sources.createInProject({ projectSlug: p.slug, name: 'Alpha', url: 'https://alpha.example.com/' });
       const x = (await loadProjectExport(db, p.id))!;

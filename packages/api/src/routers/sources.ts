@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import { sources, datasets, projects, orgs, domains, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
 import {
-  FIND_PRODUCT_PAGES_LIMIT, VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
+  VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
@@ -20,7 +20,7 @@ import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
-import { rankProductLinks, describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
+import { describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
 import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency } from '../verify/current-certification.js';
 import { variantsRequired } from '../verify/variant-check.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
@@ -341,76 +341,6 @@ export const sourcesRouter = router({
         datasetSchema: row.datasetSchema,
         domainName: row.domainName,
       };
-    }),
-
-  // TODO(cut-over, spec 2026-09-21 §2): the `orgSlug ?? 'default'` fallback exists only for the
-  // old dashboard, which still names the org explicitly. Once it is retired, drop the fallback.
-  listByProject: publicProcedure
-    .input(z.object({ projectSlug: z.string(), orgSlug: z.string().optional() }))
-    .query(async ({ ctx, input }) => {
-      const org = await resolveOrg(ctx, input.orgSlug ?? 'default');
-      const projectRow = await ctx.db.query.projects.findFirst({
-        where: and(eq(projects.orgId, org.id), eq(projects.slug, input.projectSlug)),
-        columns: { id: true },
-      });
-      // An unknown project must not read as "no websites" — a wrong URL should say so.
-      if (!projectRow) throw new TRPCError({ code: 'NOT_FOUND', message: `Project ${input.projectSlug} not found` });
-
-      const results = await ctx.db
-        .select({
-          id: sources.id,
-          slug: sources.slug,
-          name: sources.name,
-          datasetId: sources.datasetId,
-          datasetSlug: datasets.slug,
-          datasetName: datasets.name,
-          domainName: domains.name,
-          urlTemplate: sources.urlTemplate,
-          inputStrategy: sources.inputStrategy,
-          listingMode: sources.listingMode,
-          // Set once a human confirmed a listing Source's probe run looked
-          // right (spec §3) — the Set-up workspace and the run-detail confirm
-          // gate both key off it. Null = unconfirmed.
-          confirmedAt: sources.confirmedAt,
-          // The schema-discovery payload (fields, pageType, listing report,
-          // hints, blocked reason...) written by the deleted `sources.analyze`
-          // procedure (removed 2026-09; no live writer) — legacy data on
-          // Sources created before the verification-first flow, still read
-          // by `effectiveSchema`'s legacy branch and the legacy export path.
-          selectorsJson: sources.selectorsJson,
-          // How many rows this Source's InputSet holds — the "URL count" the
-          // Set-up workspace's header shows, and the `crawl.execute` limit for
-          // a detail Source's one-shot Extract. `coalesce` + `left join`: a
-          // Source with no InputSet (none in practice today, but the column is
-          // nullable) reads as 0 rather than a null propagating into NaN.
-          urlCount: sql<number>`coalesce(jsonb_array_length(${inputSets.rows}), 0)::int`,
-          isActive: sources.isActive,
-          // The Extract tab reads both off the row it already has (phase 4,
-          // task 6): `budget` seeds the run sentence's two dropdowns, and
-          // `parameters.inputMode` is the marker that says the customer's own
-          // pages — not the three proof pages — own the input set now.
-          budget: sources.budget,
-          parameters: sources.parameters,
-          // Customer-defined schema (Task 1) + its last drift check — the
-          // Set-up workspace's schema/verification surfaces read these.
-          schemaDefinition: sources.schemaDefinition,
-          verificationSet: sources.verificationSet,
-          driftedFields: sources.driftedFields,
-          createdAt: sources.createdAt,
-          updatedAt: sources.updatedAt,
-        })
-        .from(sources)
-        .innerJoin(datasets, eq(sources.datasetId, datasets.id))
-        .innerJoin(projects, eq(datasets.projectId, projects.id))
-        .leftJoin(domains, eq(sources.domainId, domains.id))
-        .leftJoin(inputSets, eq(sources.inputSetId, inputSets.id))
-        .where(and(
-          eq(projects.orgId, org.id),
-          eq(projects.slug, input.projectSlug),
-        ))
-        .orderBy(sources.name);
-
-      return results;
     }),
 
   /** The website loader for its page (spec 2026-09-21 §5): the row, its project and the contract, in one round trip. */
@@ -844,25 +774,6 @@ export const sourcesRouter = router({
 
         return updated;
       });
-    }),
-
-  /**
-   * Guess which links on a listing page are product/detail pages — no AI, no
-   * schema. Captures the page with `withBrowserSession` and harvests every
-   * `<a href>` client-side (`setContentEvaluate`), then ranks them with the
-   * pure `rankProductLinks` (find-product-pages.ts): same host, not the
-   * listing itself, largest same-path-template group, in document order.
-   * Feeds the "pick your verification URLs" step of the schema wizard.
-   */
-  findProductPages: publicProcedure
-    .input(z.object({ listingUrl: httpUrl }))
-    .mutation(async ({ input }) => {
-      const anchors = await withBrowserSession(async (browser) => {
-        const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
-        return browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
-      });
-
-      return { urls: rankProductLinks(anchors, input.listingUrl, FIND_PRODUCT_PAGES_LIMIT) };
     }),
 
   /**

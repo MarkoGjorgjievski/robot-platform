@@ -15,7 +15,7 @@ import type { CustomerFieldType } from '@robot/scraper';
 // structurally assignable to it.
 type Caller = {
   projects: {
-    create(input: { name: string }): Promise<{ id: string; slug: string; name: string; datasetId: string }>;
+    create(input: { name: string; orgSlug?: string }): Promise<{ id: string; slug: string; name: string; datasetId: string }>;
   };
   datasets: {
     addField(input: { datasetId: string; name: string; type: CustomerFieldType }): Promise<{ key: string }>;
@@ -43,7 +43,12 @@ export async function createProjectWithSource(caller: Caller, opts: {
 }) {
   const host = `test-${opts.tag}.example.com`;
   const urls = opts.urls ?? [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
-  const p = await caller.projects.create({ name: `Test ${opts.tag}` });
+  // `orgSlug: 'default'` is explicit, not the removed implicit shim (cut-over
+  // Task 5): a session-bearing caller (e.g. ops.test.ts's signed-in users)
+  // ignores it entirely — the session always wins in `resolveOrg` — so this
+  // only matters for the many session-less callers across this suite, which
+  // keep landing in the seeded `default` org exactly as before.
+  const p = await caller.projects.create({ name: `Test ${opts.tag}`, orgSlug: 'default' });
   const keys: Record<string, string> = {};
   for (const f of opts.fields) {
     const r = await caller.datasets.addField({ datasetId: p.datasetId, name: f.name, type: f.type });

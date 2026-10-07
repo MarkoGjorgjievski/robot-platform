@@ -15,13 +15,16 @@ try {
 }
 process.env.CAPTURES_DIR ??= join(tmpdir(), 'dogfood-captures');
 
-const { db } = await import('@robot/db');
-const { scraperRouter } = await import('./routers/scraper.js');
+// `scraper.analyze`/`scraper.extract` (the tRPC procedures this script used
+// to call) were deleted at cut-over (Task 5) — dead everywhere else, per the
+// cut-over audit, but still live here. This now drives the same
+// `@robot/scraper` orchestrators those procedures wrapped, directly.
+const { SchemaAgent } = await import('@robot/agent');
+const { runAnalysis, runExtraction, liveCorpus } = await import('@robot/scraper');
 const { judgeFieldExtraction, judgeVariantArray, JudgeUnavailableError, snapshotUsage, diffUsage, formatUsage, resetUsage } = await import('@robot/agent');
 type JudgeVerdict = Awaited<ReturnType<typeof judgeFieldExtraction>>;
-const { liveCorpus } = await import('@robot/scraper');
-
-const caller = scraperRouter.createCaller({ db, session: null });
+const { withBrowserSession } = await import('./browser-session.js');
+const { persistScreenshot } = await import('./persist-screenshot.js');
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) { console.error('ANTHROPIC_API_KEY required'); process.exit(1); }
@@ -72,7 +75,9 @@ for (const site of corpus) {
   lines.push(`## ${site.label} — ${site.url}`, '');
 
   try {
-    const analysis = await caller.analyze({ url: site.url, pageType: site.pageType });
+    const analysis = await withBrowserSession((browser) =>
+      runAnalysis({ url: site.url, pageType: site.pageType }, { browser, agent: new SchemaAgent(), persistScreenshot }),
+    );
     const fields = (analysis.schema.fields as Array<{ name: string; type: string; description?: string; tier?: 'requested' | 'discovered'; example_value?: string }>)
       .map((f) => ({ name: f.name, type: f.type, description: f.description, tier: f.tier, example_value: f.example_value }));
 
@@ -86,7 +91,9 @@ for (const site of corpus) {
       fields.push({ name: 'variants', type: 'variant_array', description: 'Product variants (color/size/capacity/etc.)', tier: 'requested' as 'requested' | 'discovered' | undefined, example_value: undefined });
     }
 
-    const result = await caller.extract({ url: site.url, fields, pageType: site.pageType });
+    const result = await withBrowserSession((browser) =>
+      runExtraction({ url: site.url, fields, pageType: site.pageType }, { browser, agent: new SchemaAgent() }),
+    );
 
     // Split here: everything before this line is what PRODUCTION pays per URL.
     // Everything after is the Tier 2 judge, which ships to nobody. Reporting one

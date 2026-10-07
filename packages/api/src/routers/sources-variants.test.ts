@@ -91,7 +91,7 @@ async function seedProofPage(sourceId: string, url: string, label: string, withV
 }
 
 async function project(name: string) {
-  return caller.projects.create({ name });
+  return caller.projects.create({ name, orgSlug: 'default' });
 }
 
 async function signIn(email: string) {
