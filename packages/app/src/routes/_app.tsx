@@ -4,7 +4,7 @@ import { CommandMenu, useCommandMenuShortcut } from '../components/shell/command
 import { OpsSidebar, OpsSidebarSheet } from '../components/shell/ops-sidebar';
 import { useProjectSlug } from '../components/shell/project-section';
 import { Sidebar, SidebarSheet } from '../components/shell/sidebar';
-import { decodeOpsOverviewState } from '../lib/ops-view';
+import { decodeOpsOverviewState, isOpsPath } from '../lib/ops-view';
 import { crumbs } from '../lib/project-nav-view';
 import { trpc } from '../lib/trpc';
 import { useSiteSlugs } from './_app/projects/$project/sites/$site';
@@ -20,12 +20,14 @@ import { useSiteSlugs } from './_app/projects/$project/sites/$site';
  * screen (ops mode, 2026-10-06): every org route sends it to `/ops` instead.
  * The check is `isOperator` only — a non-operator always has at least one
  * org (sign-in mints a personal one), so this can never loop with `/ops`'s
- * own non-operator redirect back to `/projects`.
+ * own non-operator redirect back to `/projects`. Final review M5: the
+ * pathname check is `isOpsPath`, never bouncing a route already inside ops
+ * mode (`/ops/websites/<id>`, not just the bare `/ops`).
  */
 export const Route = createFileRoute('/_app')({
   beforeLoad: ({ context, location }) => {
     if (!context.session) throw redirect({ to: '/login' });
-    if (context.session.isOperator && context.session.orgs.length === 0 && location.pathname !== '/ops') {
+    if (context.session.isOperator && context.session.orgs.length === 0 && !isOpsPath(location.pathname)) {
       throw redirect({ to: '/ops' });
     }
     return { session: context.session };
@@ -38,7 +40,7 @@ function AppLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const openSearch = useCallback(() => setSearchOpen(true), []);
   useCommandMenuShortcut(openSearch);
-  const inOps = useLocation({ select: (l) => l.pathname }).startsWith('/ops');
+  const inOps = isOpsPath(useLocation({ select: (l) => l.pathname }));
 
   return (
     <div className="flex min-h-screen">
