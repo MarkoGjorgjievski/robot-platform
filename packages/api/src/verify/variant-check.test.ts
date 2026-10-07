@@ -11,16 +11,19 @@ import { eq } from 'drizzle-orm';
 import { db, captures, sources } from '@robot/db';
 import { PlaywrightBrowser } from '@robot/browser';
 import type { FieldVerification, SchemaDefinitionField, VariantAnswer, VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { VARIANT_SHOP, VARIANT_SHOP_URLS, VARIANT_SHOP_SPOT_URL } from '../test-helpers/variant-shop.js';
 import { writeCaptureFile } from './capture-store.js';
 import { runVariantCheck, currentVariantHash, variantsRequired } from './variant-check.js';
 import { entryFieldsFor, variantNoun } from './variant-fields.js';
 import type { VariantSetup } from '../contract.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('variant-check');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const URLS = VARIANT_SHOP_URLS;
 const DAY = 24 * 60 * 60 * 1000;
 

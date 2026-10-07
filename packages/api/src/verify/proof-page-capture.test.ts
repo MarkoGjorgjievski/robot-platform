@@ -5,13 +5,16 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { TILE_HEIGHT, type IBrowser, type PageCapture } from '@robot/browser';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
 import { readCaptureFile } from './capture-store.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('proof-page-capture');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 let dir: string;
 beforeAll(async () => { dir = await mkdtemp(join(tmpdir(), 'captures-')); process.env.CAPTURES_DIR = dir; });
 afterAll(async () => { delete process.env.CAPTURES_DIR; await rm(dir, { recursive: true, force: true }); });

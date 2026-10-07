@@ -5,12 +5,11 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { PlaywrightBrowser } from '@robot/browser';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
 const { runMock } = vi.hoisted(() => ({ runMock: vi.fn().mockResolvedValue(undefined) }));
@@ -19,7 +18,11 @@ vi.mock('../verify/proof-page-capture.js', async (importOriginal) => {
   return { ...real, runProofPageCapture: runMock, startProofPageCapture: (s: string, u: string) => real.startProofPageCapture(s, u, { fire: false }) };
 });
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-marks');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 let dir: string;
 let browser: PlaywrightBrowser;
 beforeAll(async () => {

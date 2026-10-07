@@ -14,12 +14,11 @@ import {
   buildBoxMapScript, fieldHash,
   type Box, type CertifiedPath, type DriftCheckResults, type SchemaDefinitionField, type VerificationSet,
 } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { writeCaptureFile } from './capture-store.js';
 import { startProofPageCapture, type ProofPageCaptureRecord } from './proof-page-capture.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
 // No agent, ever (Global Constraints): both ways a model could be reached are spied on.
 const { agentCtor, proposeSpy } = vi.hoisted(() => ({ agentCtor: vi.fn(), proposeSpy: vi.fn() }));
@@ -36,7 +35,11 @@ vi.mock('../../../scraper/src/verify/ai-fallback.ts', async (importOriginal) => 
 const scraper = await import('@robot/scraper');
 const { startDriftCheck, runDriftCheck, captureProofPagesWith, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('run-drift-check');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const U = [SHOP_EXAMPLE.p1.url, SHOP_EXAMPLE.p2.url, SHOP_EXAMPLE.p3.url];
 const PAGES: Record<string, PageCapture> = { [U[0]!]: SHOP_EXAMPLE.p1, [U[1]!]: SHOP_EXAMPLE.p2, [U[2]!]: SHOP_EXAMPLE.p3 };
 

@@ -11,11 +11,11 @@ import type { CustomerFieldType } from '@robot/scraper';
 // named without a reference to .../unstable-core-do-not-import-*.mjs" —
 // TS2742, since `declaration: true` is on repo-wide). This narrow, hand-written
 // structural type only names the handful of procedures this helper actually
-// calls; every real caller (`createCallerFactory(appRouter)({ db, session: null })`) is
-// structurally assignable to it.
+// calls; every real caller (`signedInCaller(tag)`'s `caller`, from
+// identity.ts) is structurally assignable to it.
 type Caller = {
   projects: {
-    create(input: { name: string; orgSlug?: string }): Promise<{ id: string; slug: string; name: string; datasetId: string }>;
+    create(input: { name: string }): Promise<{ id: string; slug: string; name: string; datasetId: string }>;
   };
   datasets: {
     addField(input: { datasetId: string; name: string; type: CustomerFieldType }): Promise<{ key: string }>;
@@ -43,12 +43,9 @@ export async function createProjectWithSource(caller: Caller, opts: {
 }) {
   const host = `test-${opts.tag}.example.com`;
   const urls = opts.urls ?? [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
-  // `orgSlug: 'default'` is explicit, not the removed implicit shim (cut-over
-  // Task 5): a session-bearing caller (e.g. ops.test.ts's signed-in users)
-  // ignores it entirely — the session always wins in `resolveOrg` — so this
-  // only matters for the many session-less callers across this suite, which
-  // keep landing in the seeded `default` org exactly as before.
-  const p = await caller.projects.create({ name: `Test ${opts.tag}`, orgSlug: 'default' });
+  // The project lands in the caller's session org — a throwaway one from
+  // `signedInCaller`, never the seeded `default` org.
+  const p = await caller.projects.create({ name: `Test ${opts.tag}` });
   const keys: Record<string, string> = {};
   for (const f of opts.fields) {
     const r = await caller.datasets.addField({ datasetId: p.datasetId, name: f.name, type: f.type });

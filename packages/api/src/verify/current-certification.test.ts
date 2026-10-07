@@ -1,14 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { loadCurrentCertification, loadFieldCurrency, sourceDefinitionHash } from './current-certification.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('current-certification');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 async function makeSchemaSource(tag: string) {
   const urls = [

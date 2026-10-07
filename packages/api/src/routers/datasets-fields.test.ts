@@ -1,14 +1,17 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, projects, datasets, sources, inputSets, sourceVerifications } from '@robot/db';
 import { fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
 import { SCHEMA_TYPES } from '../schema-catalogue.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('datasets-fields');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const projectIds: string[] = [];
 afterEach(async () => {
   for (const id of projectIds.splice(0)) {
@@ -18,7 +21,7 @@ afterEach(async () => {
 });
 
 async function project(name = 'Fields') {
-  const p = await caller.projects.create({ name, orgSlug: 'default' });
+  const p = await caller.projects.create({ name });
   projectIds.push(p.id);
   return p;
 }

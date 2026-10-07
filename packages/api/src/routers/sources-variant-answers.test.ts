@@ -12,7 +12,7 @@ import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
 import { VARIANT_SHOP, VARIANT_SHOP_URLS } from '../test-helpers/variant-shop.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
@@ -22,7 +22,11 @@ vi.mock('../verify/proof-page-capture.js', async (importOriginal) => {
   return { ...real, runProofPageCapture: runMock, startProofPageCapture: (s: string, u: string) => real.startProofPageCapture(s, u, { fire: false }) };
 });
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('sources-variant-answers');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 const URLS = VARIANT_SHOP_URLS;
 
 let dir: string;

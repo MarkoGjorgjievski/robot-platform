@@ -3,18 +3,20 @@
 // otherwise the plan's method/list/entryPaths/fromProduct carried through
 // from the certification, plus the contract's fields (with effective level)
 // and the setup's mapped axes that still exist on the dataset.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, datasets } from '@robot/db';
 import type { VariantVerification } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import type { Certification } from '../verify/current-certification.js';
 import { loadVariantRunPlan } from './variant-run-plan.js';
+import { signedInCaller } from '../test-helpers/identity.js';
 
-const createCaller = createCallerFactory(appRouter);
-const caller = createCaller({ db, session: null });
+// A throwaway signed-in identity: every customer procedure needs a session
+// and works in its org only, so nothing here touches the seeded `default` org.
+const me = await signedInCaller('variant-run-plan');
+const caller = me.caller;
+afterAll(async () => { await me.cleanup(); });
 
 function certWithout(): Certification {
   return { verificationId: 'v1', completedAt: new Date(), paths: {}, concepts: {}, hostname: 'example.com' };
