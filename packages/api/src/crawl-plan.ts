@@ -6,13 +6,18 @@
 // extracts no detail page and spends nothing per item. Run it before phase 2
 // to see the fan-out a Source will actually produce.
 //
+// An operator script: it addresses the Source by id or slug and calls the
+// same functions `crawl.plan` does (`requireCertification`, `planSource`)
+// directly against the database. The customer API needs a signed-in session
+// and works in that session's org only, so this script does not go through it.
+//
 // @robot/db loads the repo-root .env on import, so DATABASE_URL and
 // ANTHROPIC_API_KEY resolve without exporting anything in the shell.
 
 import { eq } from 'drizzle-orm';
 import { db, sources, runItems } from '@robot/db';
-import { createCallerFactory } from './trpc.js';
-import { appRouter } from './routers/index.js';
+import { planSource } from './crawl/plan-source.js';
+import { requireCertification } from './crawl/require-certification.js';
 
 const arg = process.argv[2];
 if (!arg) {
@@ -35,9 +40,11 @@ console.log(`\nPlanning ${source.name} (${source.slug})`);
 console.log(`  mode:   ${source.listingMode}`);
 console.log(`  budget: ${JSON.stringify(source.budget)}\n`);
 
-const caller = createCallerFactory(appRouter)({ db, session: null });
+// A full plan spends against the certified paths, so it is gated exactly as
+// `crawl.plan` gates it.
+await requireCertification(db, source.id);
 const startedAt = Date.now();
-const result = await caller.crawl.plan({ sourceId: source.id });
+const result = await planSource(db, source.id, { probe: false });
 const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
 
 console.log(`Run ${result.runId} — planned in ${elapsed}s`);
