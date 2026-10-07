@@ -10,13 +10,13 @@ import { detectPaginationFromHtml } from '@robot/browser';
 const trimTrailingSlash = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, '') : p);
 
 /**
- * Grouping shared by `rankProductLinks` and `describeListingPage`: same
- * hostname as the listing, not the listing page itself (same host + same
- * path — query string and hash ignored, trailing slash trimmed, so
- * `?page=2`/`?sort=new#top`/a trailing-slash variant of the listing all
- * still count as "the listing itself"), grouped by path template (digits and
- * 12+-char alnum/hyphen tokens replaced by `*`), the largest group returned
- * in full, in document order, deduped — uncapped, unlike `rankProductLinks`.
+ * Grouping used by `describeListingPage`: same hostname as the listing, not
+ * the listing page itself (same host + same path — query string and hash
+ * ignored, trailing slash trimmed, so `?page=2`/`?sort=new#top`/a
+ * trailing-slash variant of the listing all still count as "the listing
+ * itself"), grouped by path template (digits and 12+-char alnum/hyphen
+ * tokens replaced by `*`), the largest group returned in full, in document
+ * order, deduped.
  */
 export function largestProductGroup(anchors: Array<{ href: string; text: string }>, listingUrl: string): string[] {
   const base = new URL(listingUrl);
@@ -38,11 +38,6 @@ export function largestProductGroup(anchors: Array<{ href: string; text: string 
   let best: string[] = [];
   for (const g of groups.values()) if (g.length > best.length) best = g;
   return best;
-}
-
-/** `rankProductLinks`: `largestProductGroup`, capped at `limit`. */
-export function rankProductLinks(anchors: Array<{ href: string; text: string }>, listingUrl: string, limit: number): string[] {
-  return largestProductGroup(anchors, listingUrl).slice(0, limit);
 }
 
 export type ListingAnchor = { href: string; text: string; title?: string; image?: string };
