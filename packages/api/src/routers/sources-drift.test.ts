@@ -3,12 +3,9 @@
 // start and the latest check, both org-scoped.
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, driftChecks, projects, runs, sources, users } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
+import { db, driftChecks, projects, runs, sources } from '@robot/db';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
+import { signedInCaller, signIn } from '../test-helpers/identity.js';
 
 // The job itself is covered in run-drift-check.test.ts; here it is never fired (no browser, no network).
 vi.mock('../verify/run-drift-check.js', async (importOriginal) => {
@@ -23,19 +20,7 @@ const me = await signedInCaller('sources-drift');
 const caller = me.caller;
 afterAll(async () => { await me.cleanup(); });
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 describe('sources.checkDrift / sources.driftCheck', () => {
   it('null before any check; a start names the run that flagged the drift; the latest check comes back with that run\'s date', async () => {

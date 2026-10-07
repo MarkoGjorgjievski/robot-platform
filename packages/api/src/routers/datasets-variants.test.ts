@@ -1,12 +1,9 @@
 import { describe, it, expect, afterEach, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, sources, inputSets, sourceVerifications, users } from '@robot/db';
+import { db, projects, sources, inputSets, sourceVerifications } from '@robot/db';
 import { fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { loadFieldCurrency } from '../verify/current-certification.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
+import { signedInCaller, signIn } from '../test-helpers/identity.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -29,19 +26,7 @@ async function project(name: string) {
   return p;
 }
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 describe('variants on the contract', () => {
   it('turns variants on and off without losing axes or levels', async () => {

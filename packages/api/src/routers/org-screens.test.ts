@@ -1,26 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { db, projects, users, runs, captures, sourceVerifications } from '@robot/db';
+import { db, projects, runs, captures, sourceVerifications } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
 import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { signIn } from '../test-helpers/identity.js';
 
 const tag = `orgscr-${Date.now()}`;
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 /** A fresh caller on the same token, after something changed the session row. */
 async function reload(r: Awaited<ReturnType<typeof signIn>>) {

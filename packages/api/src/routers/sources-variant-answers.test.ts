@@ -3,16 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { db, captures, projects, sources, users, type Database } from '@robot/db';
+import { db, captures, projects, sources, type Database } from '@robot/db';
 import { PlaywrightBrowser } from '@robot/browser';
 import type { VerificationSet } from '@robot/scraper';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg, signedInCaller } from '../test-helpers/identity.js';
+import { signedInCaller, signIn } from '../test-helpers/identity.js';
 import { VARIANT_SHOP, VARIANT_SHOP_URLS } from '../test-helpers/variant-shop.js';
 
 // `startProofPageCapture` fires a real browser un-awaited; stub the job so this file never launches one for the mutation.
@@ -56,19 +53,7 @@ async function seedProofPage(sourceId: string, url: string, page: 'p1' | 'p2' | 
   return row!.id;
 }
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 /** Reads the source row directly (R4: sources.get is slug-keyed) and rebuilds the updateBinding input the app sends, the way its toBindingInput does. */
 async function currentBindingInput(_caller: unknown, sourceId: string) {
