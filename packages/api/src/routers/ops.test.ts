@@ -291,7 +291,7 @@ describe('ops.website', () => {
     await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results });
   }
 
-  it("gets its fields' certified paths in try order, named with the contract's own field names, with real run stats, 0/0 for a path the domain store never recorded, and the api container only where stats carry one", async () => {
+  it("gets its fields' certified paths in try order, named with the contract's own field names, with real run stats, 0/0 for a path the domain store never recorded, and no container even where the domain store has a lastUrl (final review I2: that's the product page, not the request)", async () => {
     const tag = Date.now();
     const op = await signIn(`ops-site-op-${tag}@example.com`);
     process.env.OPS_EMAILS = op.user.email;
@@ -347,7 +347,7 @@ describe('ops.website', () => {
       expect(priceField.name).toBe('Price');
       expect(priceField.state).toBe('current');
       expect(priceField.paths).toEqual([
-        { source: 'api', path: 'product.price', uses: 6, hits: 5, container: `https://${host}/api/product` },
+        { source: 'api', path: 'product.price', uses: 6, hits: 5 },
         { source: 'json-ld', path: 'offers.price', provenOn: [urls[0], urls[2]], uses: 0, hits: 0 },
       ]);
 
