@@ -1,11 +1,15 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, createFileRoute, redirect, useLocation, useParams, useSearch } from '@tanstack/react-router';
+import { toast } from 'sonner';
 import { CommandMenu, useCommandMenuShortcut } from '../components/shell/command-menu';
 import { OpsSidebar, OpsSidebarSheet } from '../components/shell/ops-sidebar';
 import { useProjectSlug } from '../components/shell/project-section';
 import { Sidebar, SidebarSheet } from '../components/shell/sidebar';
+import { StaffBanner, useLeaveStaff } from '../components/shell/staff-banner';
 import { decodeOpsOverviewState, isOpsPath } from '../lib/ops-view';
 import { crumbs } from '../lib/project-nav-view';
+import type { Session } from '../lib/session';
+import { expiryToast, mustGoToOps } from '../lib/staff-view';
 import { trpc } from '../lib/trpc';
 import { useSiteSlugs } from './_app/projects/$project/sites/$site';
 
@@ -23,13 +27,18 @@ import { useSiteSlugs } from './_app/projects/$project/sites/$site';
  * own non-operator redirect back to `/projects`. Final review M5: the
  * pathname check is `isOpsPath`, never bouncing a route already inside ops
  * mode (`/ops/websites/<id>`, not just the bare `/ops`).
+ *
+ * Staff access (2026-10-07): a staff session past its 8 hours lands in ops,
+ * where `StaffExpiryNotice` says so once and leaves it server-side; and an
+ * operator with no memberships of their own who is working as staff stays on
+ * the customer's screens (`mustGoToOps`).
  */
 export const Route = createFileRoute('/_app')({
   beforeLoad: ({ context, location }) => {
     if (!context.session) throw redirect({ to: '/login' });
-    if (context.session.isOperator && context.session.orgs.length === 0 && !isOpsPath(location.pathname)) {
-      throw redirect({ to: '/ops' });
-    }
+    const s = context.session;
+    const gate = { isOperator: s.isOperator, orgCount: s.orgs.length, staff: !!s.staff, staffExpired: !!s.staffExpired };
+    if (mustGoToOps(gate, isOpsPath(location.pathname))) throw redirect({ to: '/ops' });
     return { session: context.session };
   },
   component: AppLayout,
@@ -47,6 +56,8 @@ function AppLayout() {
       {inOps ? <OpsSidebar session={session} /> : <Sidebar session={session} onSearch={openSearch} />}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Above the top bar; it scrolls away with the page while the header stays sticky. */}
+        {!inOps && session.staff ? <StaffBanner customer={session.staff.orgName} /> : null}
         <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-3 border-b border-line bg-bg px-5 md:px-8">
           {inOps ? (
             <OpsSidebarSheet session={session} />
@@ -60,23 +71,55 @@ function AppLayout() {
       </div>
 
       <CommandMenu open={searchOpen} onOpenChange={setSearchOpen} />
+      <StaffExpiryNotice expired={session.staffExpired} />
     </div>
   );
 }
 
 /**
- * "Ops / All websites[ / {website}]" (spec "Ops design", `/ops` top bar).
- * The first two crumbs always return to `/ops`, restoring exactly the
- * search state the operator left it in: the website page's own `from`
- * search param carries it here, encoded by `encodeOpsOverviewState` on the
- * overview's row link and decoded back by `decodeOpsOverviewState` ("Ops
- * design": "keeping the overview's URL state").
+ * A staff session that ran past 8 hours (spec 2026-10-07 §2.3): one toast,
+ * then leave it — which clears it server-side and logs "Staff session ended
+ * after 8 hours", so the toast never comes back.
+ */
+function StaffExpiryNotice({ expired }: { expired: Session['staffExpired'] }) {
+  const { leave } = useLeaveStaff();
+  const shown = useRef<string | null>(null);
+  useEffect(() => {
+    if (!expired || shown.current === expired.orgId) return;
+    shown.current = expired.orgId;
+    toast(expiryToast(expired.orgName));
+    leave().catch((err: unknown) => toast.error(err instanceof Error ? err.message : 'Could not leave staff mode.'));
+  }, [expired, leave]);
+  return null;
+}
+
+/**
+ * "Ops / All websites[ / {website}]", or "Ops / Staff activity" on the
+ * staff activity page (spec "Ops design", `/ops` top bar; staff activity,
+ * 2026-10-07 §2.4). The first two crumbs always return to `/ops`, restoring
+ * exactly the search state the operator left it in: the website page's own
+ * `from` search param carries it here, encoded by `encodeOpsOverviewState`
+ * on the overview's row link and decoded back by `decodeOpsOverviewState`
+ * ("Ops design": "keeping the overview's URL state").
  */
 function OpsBreadcrumb() {
+  const pathname = useLocation({ select: (l) => l.pathname });
   const { sourceId } = useParams({ strict: false }) as { sourceId?: string };
   const search = useSearch({ strict: false }) as { from?: string };
   const website = trpc.ops.website.useQuery({ sourceId: sourceId! }, { enabled: !!sourceId });
   const backSearch = decodeOpsOverviewState(search.from);
+
+  if (pathname === '/ops/activity') {
+    return (
+      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+        <Link to="/ops" search={backSearch} className="truncate hover:text-text">
+          Ops
+        </Link>
+        <span aria-hidden className="text-muted-foreground">/</span>
+        <b className="truncate font-medium text-text">Staff activity</b>
+      </nav>
+    );
+  }
 
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">

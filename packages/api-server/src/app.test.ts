@@ -47,6 +47,35 @@ describe('api-server app', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
   });
 
+  // R4 (staff access, 2026-10-07): an isolated pair (:3100 -> :4100) runs beside
+  // the dev servers, so the allowed origins come from APP_ORIGINS.
+  it('allows the origins in APP_ORIGINS', async () => {
+    const saved = process.env.APP_ORIGINS;
+    process.env.APP_ORIGINS = 'http://localhost:3100, http://localhost:3000';
+    try {
+      const isolated = createApp();
+      const res = await isolated.request('/healthz', { headers: { origin: 'http://localhost:3100' } });
+      expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3100');
+      const other = await isolated.request('/healthz', { headers: { origin: 'http://localhost:3200' } });
+      expect(other.headers.get('access-control-allow-origin')).toBeNull();
+    } finally {
+      if (saved === undefined) delete process.env.APP_ORIGINS;
+      else process.env.APP_ORIGINS = saved;
+    }
+  });
+
+  it('an empty APP_ORIGINS falls back to the default :3000', async () => {
+    const saved = process.env.APP_ORIGINS;
+    process.env.APP_ORIGINS = '  ';
+    try {
+      const res = await createApp().request('/healthz', { headers: { origin: 'http://localhost:3000' } });
+      expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
+    } finally {
+      if (saved === undefined) delete process.env.APP_ORIGINS;
+      else process.env.APP_ORIGINS = saved;
+    }
+  });
+
   it('does not allow the old dashboard origin (:3456, deleted at cut-over)', async () => {
     const res = await app.fetch(
       new Request('http://localhost/healthz', {

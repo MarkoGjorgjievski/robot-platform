@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Activity, ArrowLeftRight, FolderKanban, Gauge, Menu, Search, Settings } from 'lucide-react';
 import type { Session } from '../../lib/session';
+import { AvatarSquare } from './avatar';
 import { OrgSwitcher } from './org-switcher';
 import { ProjectSection } from './project-section';
 import { UserMenu } from './user-menu';
@@ -30,7 +31,17 @@ export function SidebarBody({ session, onSearch, onNavigate }: SidebarProps) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="border-b border-line p-2">
-        <OrgSwitcher session={session} />
+        {/* In staff mode the customer org is not one to switch away from: the
+            banner's "Back to ops" is the way out (spec 2026-10-07 §2.2). Same
+            height as the switcher's trigger. */}
+        {session.staff ? (
+          <div className="flex w-full items-center gap-2 px-2 py-1.5 text-base text-text">
+            <AvatarSquare initial={session.currentOrg.name} colour={session.user.avatarColour} />
+            <span className="min-w-0 flex-1 truncate font-medium">{session.currentOrg.name}</span>
+          </div>
+        ) : (
+          <OrgSwitcher session={session} />
+        )}
       </div>
 
       {/* Nav and project section scroll together, so a project with many
@@ -58,8 +69,9 @@ export function SidebarBody({ session, onSearch, onNavigate }: SidebarProps) {
       </div>
 
       <div className="flex flex-col gap-1 border-t border-line p-2">
-        {/* Operators only (ops mode, 2026-10-06); a customer never sees this. */}
-        {session.isOperator ? (
+        {/* Operators only (ops mode, 2026-10-06); a customer never sees this.
+            In staff mode the banner carries "Back to ops" instead. */}
+        {session.isOperator && !session.staff ? (
           <Link
             to="/ops"
             onClick={onNavigate}

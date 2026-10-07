@@ -5,6 +5,7 @@ import { memberships, orgs, sessions, users, USER_THEMES } from '@robot/db';
 import { router, publicProcedure, protectedProcedure } from '../trpc.js';
 import { slugify, uniqueSlug } from '../slug.js';
 import { SESSION_COOKIE, SESSION_MAX_AGE_S, avatarColourFor, mintToken } from '../auth/session.js';
+import { recordStaffStop } from '../auth/staff-actions.js';
 
 function nameFromEmail(email: string): string {
   const local = email.split('@')[0] ?? 'user';
@@ -52,6 +53,9 @@ export const authRouter = router({
     }),
 
   signOut: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.session.staff) {
+      await recordStaffStop(ctx.db, { orgId: ctx.session.staff.orgId, userId: ctx.session.user.id, actorEmail: ctx.session.user.email, action: 'auth.signOut', summary: 'Stopped working as staff (signed out)' });
+    }
     await ctx.db.delete(sessions).where(eq(sessions.token, ctx.session.token));
     ctx.clearCookie?.(SESSION_COOKIE);
     return { ok: true as const };
@@ -64,7 +68,13 @@ export const authRouter = router({
       .innerJoin(orgs, eq(memberships.orgId, orgs.id))
       .where(eq(memberships.userId, ctx.session.user.id))
       .orderBy(orgs.name);
-    return { user: ctx.session.user, orgs: rows, currentOrg: { ...ctx.session.org, role: ctx.session.role } };
+    return {
+      user: ctx.session.user,
+      orgs: rows,
+      currentOrg: { ...ctx.session.org, role: ctx.session.role },
+      staff: ctx.session.staff ? { ...ctx.session.staff, orgName: ctx.session.org.name } : null,
+      staffExpired: ctx.session.staffExpired,
+    };
   }),
 
   switchOrg: protectedProcedure

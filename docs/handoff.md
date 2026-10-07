@@ -8,7 +8,9 @@ type: project
 
 ## Read this first
 
-**Newest: [Cut-over (plan 6, 2026-10-07)](#cut-over-plan-6-2026-10-07).** `@robot/dashboard` is deleted — `@robot/app` is the only customer UI now. Staff get a read-only ops mode (`/ops`): one row per customer website across every org, problems first, and a website page showing its certified paths in customer words with real run hit rates. On branch `feat/cut-over`.
+**Newest: [Staff access (2026-10-07)](#staff-access-2026-10-07).** An operator can work inside a customer's organisation from ops ("Work on this website"), for at most 8 hours, under a banner; deleting things and managing the organisation are blocked, and every change is logged and shown to the customer in their Settings ("Robot staff activity") and to staff in ops ("Staff activity"). On branch `feat/staff-access`, not merged. **To use it yourself:** add your address to `OPS_EMAILS` in `.env` and restart your api-server.
+
+**Before it: [Cut-over (plan 6, 2026-10-07)](#cut-over-plan-6-2026-10-07).** `@robot/dashboard` is deleted — `@robot/app` is the only customer UI now. Staff get a read-only ops mode (`/ops`): one row per customer website across every org, problems first, and a website page showing its certified paths in customer words with real run hit rates. On branch `feat/cut-over`.
 
 **Before it: [Drift repair, Part B (2026-10-05)](#drift-repair-part-b-2026-10-05).** When a run flags a field as drifted, a free check re-captures the website's proof pages and says what happened: `other-layout` (its own certified path still reads every expected value), `moved` (found mechanically at a new element), `changed` (reads a valid new value), or `lost`, with `page-gone` per proof page that no longer loads — never a model call, never a write outside its own `drift_checks` row and the proof-page `captures` it takes. The customer sees it on the website ("n fields stopped extracting"), the Verification tab's banner, and a repair line under the drifted row ("Accept new location" / "Accept new values" / "Mark it again" / "Replace product n"); accepting touches only that field's cells through the normal autosave and still needs a Verify. Proven end to end on a local site whose layout changes (real Chromium, zero AI) and live-smoked against the running app with a seeded check. On branch `feat/drift-repair`, not merged.
 
@@ -51,6 +53,57 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Staff access (2026-10-07)
+
+Spec: `docs/superpowers/specs/2026-10-07-staff-access-design.md`. Plan:
+`docs/superpowers/plans/2026-10-07-staff-access.md` (seven tasks, all done).
+
+**What shipped.** On an ops website page, **Work on this website** asks "Work on {website} as
+staff?" and, on **Start working**, `ops.enterOrg` moves the operator's own session into the
+customer's org (`sessions.staff_org_id` / `staff_entered_at`) — no membership is ever
+created, and the role inside is `member`. The app shows "Working as Robot staff in {customer}"
+above the top bar with **Back to ops** (`ops.leaveOrg`); the org switcher is replaced by the
+customer's name. A staff session counts only while the email is still in `OPS_EMAILS` (checked
+on every request) and for at most 8 hours; after that the next request is served in the
+operator's own org and the app says "Your staff session in {customer} ended after 8 hours."
+Expiry is noticed on the next navigation or the next refused change ("Your staff session
+ended"), and either way the app reloads into ops, toasts and leaves. The deny-list (`packages/api/src/auth/staff-guard.ts`: org rename/delete/create, member role and
+removal, `auth.switchOrg`, project/website delete, field and variant-column delete) answers
+FORBIDDEN "Not available while working as staff", and the app disables those controls with
+the same sentence beside them. Every successful staff-mode mutation, plus enter, leave,
+sign-out and expiry, writes one plain-English row to the append-only `staff_actions` table;
+queries are never logged. The customer reads it in Settings ("Robot staff activity", 20 per
+page); staff read it in ops ("Staff activity", 50 per page, filterable, and the latest 10 on
+each ops website page). `ops.enterOrg` and `ops.leaveOrg` are the only `ops.*` mutations.
+
+**Rulings made while planning (Marko can overturn).**
+- **R1 — Verification autosave is coalesced.** `sources.updateBinding` logs "Edited the
+  Verification answers on {website}" at most once per staff member per website per 10
+  minutes. Verify itself is always logged.
+- **R2 — No "Accepted a new location" entry.** A field-scoped re-verify logs "Re-verified
+  {field} on {website}"; a full verify logs "Verified {website}".
+- **R3 — A failed log write does not fail the mutation.** The change has already happened;
+  the error is `console.error`ed with the path and org.
+- **R4 — CORS origin is configurable.** `APP_ORIGINS` (comma-separated, default
+  `http://localhost:3000`), so an isolated :3100 → :4100 pair runs beside the dev servers.
+- **R5 — Expired-session mutations are refused** (final review; departs from spec §2.1 for
+  mutations only). Past the 8 hours every mutation but `ops.leaveOrg`/`ops.enterOrg`,
+  `auth.signOut`, `auth.setTheme` and `auth.updateName` gets FORBIDDEN "Your staff session
+  ended", so a customer page left open never changes the operator's own org. Queries are still
+  served in the operator's own org, as the spec says.
+
+**Proof.** `pnpm test:ui:staff` runs the whole flow in a real browser against an isolated
+pair — never :4000/:3000 — with a throwaway operator and customer (both deleted afterwards):
+enter, banner, rename on the website's Settings tab, Delete website disabled with its reason,
+Back to ops, then the customer's Settings listing "Started working as staff", "Renamed website
+Smoke shop to Smoke shop EU" and "Stopped working as staff". Screenshots:
+`docs/testing/screens/staff-*.png`. Start the pair as the top of
+`packages/app/src/staff-smoke.test.ts` says.
+
+**To use it yourself:** add your address to `OPS_EMAILS` in `.env` (e.g.
+`OPS_EMAILS=markodjordjievski@gmail.com`) and restart your api-server — it reads `.env` once
+at startup. Then sign in, open a website in ops and choose Work on this website.
 
 ## Cut-over (plan 6, 2026-10-07)
 

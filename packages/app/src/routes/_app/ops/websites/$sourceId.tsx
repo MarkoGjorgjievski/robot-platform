@@ -5,8 +5,10 @@ import { Page } from '../../../../components/page';
 import { Button } from '../../../../components/ui/button';
 import { RunDot } from '../../../../components/run-dot';
 import { Skeleton } from '../../../../components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/ui/tooltip';
+import { WorkOnWebsiteDialog } from '../../../../components/ops/work-on-website-dialog';
+import { StaffActivityList } from '../../../../components/staff/staff-activity-list';
 import { TYPE_LABELS, type FieldType } from '../../../../lib/fields-view';
+import type { StaffEntryView } from '../../../../lib/staff-view';
 import { runDotState } from '../../../../lib/run-dot-view';
 import {
   backupsSummary,
@@ -56,7 +58,6 @@ type OpsWebsiteData = {
   org: { id: string; name: string; slug: string };
   project: { name: string; slug: string };
   website: { name: string; slug: string; host: string };
-  operatorIsMember: boolean;
   verified: { current: number; total: number };
   fields: OpsField[];
   drift: { status: string; results: unknown } | null;
@@ -174,7 +175,7 @@ function OpsWebsitePage() {
                 Visit website
               </a>
             </Button>
-            <OpenInAppLink data={data} />
+            <WorkOnWebsiteButton data={data} />
           </>
         ) : undefined
       }
@@ -237,39 +238,73 @@ function OpsWebsitePage() {
               </div>
             )}
           </section>
+
+          <StaffActivitySection sourceId={data.sourceId} orgId={data.org.id} />
         </>
       )}
     </Page>
   );
 }
 
-/** "Open in the app" (Global Constraints): primary when the operator is also
- * a member, disabled with a focus-reachable tooltip otherwise ("Ops design"
- * Accessibility: "the disabled 'Open in the app' keeps its tooltip reachable
- * by focus"). A plain anchor, not a typed router `Link`: the target project
- * may belong to an org the operator's current session is not scoped to — a
- * full navigation lets `_app.tsx`'s own session/org gate decide what happens
- * next, rather than the router's client-side params alone. */
-function OpenInAppLink({ data }: { data: OpsWebsiteData }) {
-  const href = `/projects/${data.project.slug}/sites/${data.website.slug}`;
-  const member = data.operatorIsMember;
+/**
+ * The website's own "Staff activity" section (spec 2026-10-07 §2.4): the
+ * latest 10 entries for this website only, no customer column (there's only
+ * one here) and no pager — "See all" goes to the full log, filtered to this
+ * customer. Fix round 1: a load failure gets its own line rather than
+ * reading as "No staff activity yet.".
+ */
+function StaffActivitySection({ sourceId, orgId }: { sourceId: string; orgId: string }) {
+  const activity = trpc.ops.staffActivity.useQuery({ sourceId, pageSize: 10 });
+  const entries = (activity.data?.entries ?? []) as StaffEntryView[];
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button asChild className={member ? undefined : 'pointer-events-none opacity-50'}>
-          <a
-            href={href}
-            aria-disabled={member ? undefined : true}
-            onClick={(e) => {
-              if (!member) e.preventDefault();
-            }}
-          >
-            Open in the app
-          </a>
-        </Button>
-      </TooltipTrigger>
-      {member ? null : <TooltipContent>You're not a member of {data.org.name}</TooltipContent>}
-    </Tooltip>
+    <section className="rise mt-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-medium">Staff activity</h2>
+        <Link to="/ops/activity" search={{ org: orgId }} className="text-sm text-link underline-offset-4 hover:underline">
+          See all
+        </Link>
+      </div>
+      <div className="rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
+        {activity.isError ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <p role="alert" className="text-sm text-fail">
+              Couldn't load staff activity.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void activity.refetch()} disabled={activity.isFetching}>
+              {activity.isFetching ? 'Retrying…' : 'Retry'}
+            </Button>
+          </div>
+        ) : activity.isPending ? (
+          <div className="p-4">
+            <Skeleton className="h-3.5 w-40 bg-raised" />
+          </div>
+        ) : (
+          <StaffActivityList entries={entries} showCustomer={false} total={activity.data?.total ?? 0} page={0} pageSize={10} empty="No staff activity yet." />
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** "Work on this website" (staff access, spec 2026-10-07 §2.1): primary and
+ * always enabled for an operator, member of the customer org or not. It asks
+ * first; confirming enters the customer org as staff and lands on the website
+ * (`WorkOnWebsiteDialog`). Membership no longer decides anything here —
+ * staff mode wins over it. */
+function WorkOnWebsiteButton({ data }: { data: OpsWebsiteData }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Work on this website</Button>
+      <WorkOnWebsiteDialog
+        open={open}
+        onOpenChange={setOpen}
+        sourceId={data.sourceId}
+        website={data.website.name}
+        customer={data.org.name}
+      />
+    </>
   );
 }
 

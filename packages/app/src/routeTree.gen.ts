@@ -17,6 +17,7 @@ import { Route as AppRunsRouteImport } from './routes/_app/runs'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppOpsIndexRouteImport } from './routes/_app/ops/index'
+import { Route as AppOpsActivityRouteImport } from './routes/_app/ops/activity'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppProjectsProjectRouteImport } from './routes/_app/projects/$project'
 import { Route as AppOpsWebsitesSourceIdRouteImport } from './routes/_app/ops/websites/$sourceId'
@@ -68,6 +69,11 @@ const AppUsageRoute = AppUsageRouteImport.update({
 const AppOpsIndexRoute = AppOpsIndexRouteImport.update({
   id: '/ops/',
   path: '/ops/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppOpsActivityRoute = AppOpsActivityRouteImport.update({
+  id: '/ops/activity',
+  path: '/ops/activity',
   getParentRoute: () => AppRoute,
 } as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/runs': typeof AppRunsRoute
   '/settings': typeof AppSettingsRoute
   '/usage': typeof AppUsageRoute
+  '/ops/activity': typeof AppOpsActivityRoute
   '/projects/$project': typeof AppProjectsProjectRouteWithChildren
   '/ops/': typeof AppOpsIndexRoute
   '/projects/': typeof AppProjectsIndexRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/runs': typeof AppRunsRoute
   '/settings': typeof AppSettingsRoute
   '/usage': typeof AppUsageRoute
+  '/ops/activity': typeof AppOpsActivityRoute
   '/ops': typeof AppOpsIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/ops/websites/$sourceId': typeof AppOpsWebsitesSourceIdRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/_app/runs': typeof AppRunsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/usage': typeof AppUsageRoute
+  '/_app/ops/activity': typeof AppOpsActivityRoute
   '/_app/projects/$project': typeof AppProjectsProjectRouteWithChildren
   '/_app/ops/': typeof AppOpsIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
@@ -220,6 +229,7 @@ export interface FileRouteTypes {
     | '/runs'
     | '/settings'
     | '/usage'
+    | '/ops/activity'
     | '/projects/$project'
     | '/ops/'
     | '/projects/'
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/runs'
     | '/settings'
     | '/usage'
+    | '/ops/activity'
     | '/ops'
     | '/projects'
     | '/ops/websites/$sourceId'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/_app/runs'
     | '/_app/settings'
     | '/_app/usage'
+    | '/_app/ops/activity'
     | '/_app/projects/$project'
     | '/_app/ops/'
     | '/_app/projects/'
@@ -341,6 +353,13 @@ declare module '@tanstack/react-router' {
       path: '/ops'
       fullPath: '/ops/'
       preLoaderRoute: typeof AppOpsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ops/activity': {
+      id: '/_app/ops/activity'
+      path: '/ops/activity'
+      fullPath: '/ops/activity'
+      preLoaderRoute: typeof AppOpsActivityRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/projects/': {
@@ -489,6 +508,7 @@ interface AppRouteChildren {
   AppRunsRoute: typeof AppRunsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppUsageRoute: typeof AppUsageRoute
+  AppOpsActivityRoute: typeof AppOpsActivityRoute
   AppProjectsProjectRoute: typeof AppProjectsProjectRouteWithChildren
   AppOpsIndexRoute: typeof AppOpsIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
@@ -500,6 +520,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppRunsRoute: AppRunsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppUsageRoute: AppUsageRoute,
+  AppOpsActivityRoute: AppOpsActivityRoute,
   AppProjectsProjectRoute: AppProjectsProjectRouteWithChildren,
   AppOpsIndexRoute: AppOpsIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,

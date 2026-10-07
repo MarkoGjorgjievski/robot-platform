@@ -338,7 +338,6 @@ describe('ops.website', () => {
 
       expect(result.sourceId).toBe(built.sourceId);
       expect(result.org).toMatchObject({ id: op.org.id, name: op.org.name, slug: op.org.slug });
-      expect(result.operatorIsMember).toBe(true);
       expect(result.proofUrls).toEqual(urls);
       expect(result.verified).toEqual({ current: 2, total: 2 });
 
@@ -377,7 +376,7 @@ describe('ops.website', () => {
     }
   });
 
-  it('gives NOT_FOUND for a source that is not a customer-schema website, and reports operatorIsMember false for a website in an org the operator does not belong to', async () => {
+  it('gives NOT_FOUND for a source that is not a customer-schema website, and answers for a website in an org the operator does not belong to', async () => {
     const tag = Date.now();
     const op = await signIn(`ops-site-op2-${tag}@example.com`);
     const other = await signIn(`ops-site-other-${tag}@example.com`);
@@ -387,7 +386,7 @@ describe('ops.website', () => {
 
       const built = await createProjectWithSource(other.caller, { tag: `ops4-othermember-${tag}`, fields: [{ name: 'Price', type: 'money' }] });
       const result = await op.caller.ops.website({ sourceId: built.sourceId });
-      expect(result.operatorIsMember).toBe(false);
+      expect(result.org.id).toBe(other.org.id);
       await built.cleanup();
     } finally {
       await dropIdentity(op);

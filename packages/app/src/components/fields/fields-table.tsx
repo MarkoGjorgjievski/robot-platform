@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRouteContext } from '@tanstack/react-router';
 import { Trash2 } from 'lucide-react';
+import { BlockedTooltip } from '../shell/staff-banner';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Skeleton } from '../ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { DeleteFieldDialog } from './delete-field-dialog';
 import { FIELD_TYPES, LEVEL_LABELS, TYPE_LABELS, levelToSend, nameRefusal, sharedNote, type FieldLevel, type FieldType, type FieldView } from '../../lib/fields-view';
+import { staffBlockedNote } from '../../lib/staff-view';
 import { trpc } from '../../lib/trpc';
 
 /**
@@ -178,6 +181,9 @@ function FieldRow({
   const rename = trpc.datasets.renameField.useMutation();
   const retype = trpc.datasets.retypeField.useMutation();
   const setLevel = trpc.datasets.setFieldLevel.useMutation();
+  // Staff mode (spec 2026-10-07 §2.3): deleting a field is blocked, and says so.
+  const { session } = useRouteContext({ from: '/_app' });
+  const blocked = staffBlockedNote(!!session.staff, null);
 
   const [draft, setDraft] = useState(field.name);
   const input = useRef<HTMLInputElement>(null);
@@ -389,15 +395,18 @@ function FieldRow({
       <td className="py-2 pr-3 text-right">
         {/* Quiet but always there: hiding it until hover would put deleting a
             field out of reach on a touch screen. */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Delete ${field.name}`}
-          onClick={onDelete}
-          className="text-muted-foreground hover:text-fail"
-        >
-          <Trash2 />
-        </Button>
+        <BlockedTooltip note={blocked}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Delete ${field.name}`}
+            onClick={onDelete}
+            disabled={!!blocked}
+            className="text-muted-foreground hover:text-fail"
+          >
+            <Trash2 />
+          </Button>
+        </BlockedTooltip>
       </td>
     </tr>
   );

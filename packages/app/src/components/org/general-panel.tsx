@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { refusalMessage, renameNote, type Role } from '../../lib/org-settings-view';
+import { staffBlockedNote } from '../../lib/staff-view';
 import { trpc } from '../../lib/trpc';
 
 /**
@@ -11,7 +12,8 @@ import { trpc } from '../../lib/trpc';
  * is in the sidebar's switcher and the breadcrumb, and a change here must be
  * a deliberate act with a button, the way the account's name is.
  */
-export function GeneralPanel({ name, role }: { name: string; role: Role }) {
+/** `staff`: working as Robot staff (spec 2026-10-07 §2.3) — renaming is blocked, and says so. */
+export function GeneralPanel({ name, role, staff }: { name: string; role: Role; staff: boolean }) {
   const router = useRouter();
   const rename = trpc.orgs.rename.useMutation();
   const [draft, setDraft] = useState(name);
@@ -23,7 +25,7 @@ export function GeneralPanel({ name, role }: { name: string; role: Role }) {
     if (!dirty) setDraft(name);
   }, [name, dirty]);
 
-  const note = renameNote(role);
+  const note = staffBlockedNote(staff, renameNote(role));
   const trimmed = draft.trim();
   const unchanged = trimmed === name;
   const empty = trimmed === '';

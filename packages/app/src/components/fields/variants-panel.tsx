@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { useRouteContext } from '@tanstack/react-router';
 import { Trash2 } from 'lucide-react';
+import { BlockedTooltip } from '../shell/staff-banner';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { VARIANT_MODES, VARIANT_MODE_LABELS, axisRefusal, type VariantMode } from '../../lib/fields-view';
+import { staffBlockedNote } from '../../lib/staff-view';
 import { trpc } from '../../lib/trpc';
 
 /** The one message every failed change falls back to (cause-neutral, as in the field list). */
@@ -107,6 +110,9 @@ function AxisRow({
 }) {
   const rename = trpc.datasets.renameAxis.useMutation();
   const remove = trpc.datasets.deleteAxis.useMutation();
+  // Staff mode (spec 2026-10-07 §2.3): deleting a variant column is blocked, and says so.
+  const { session } = useRouteContext({ from: '/_app' });
+  const blocked = staffBlockedNote(!!session.staff, null);
   const [draft, setDraft] = useState(axis.name);
   const input = useRef<HTMLInputElement>(null);
   // Escape's blur arrives before the restored draft renders (see the field list's FieldRow).
@@ -166,16 +172,18 @@ function AxisRow({
         }}
         className="-mx-2 h-7 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 text-[16px] font-medium text-text outline-none hover:border-line-hover focus:border-text focus:bg-bg group-hover/row:border-line md:text-base"
       />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Delete variant column ${axis.name}`}
-        onClick={() => void onDelete()}
-        disabled={remove.isPending}
-        className="text-muted-foreground hover:text-fail"
-      >
-        <Trash2 />
-      </Button>
+      <BlockedTooltip note={blocked}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete variant column ${axis.name}`}
+          onClick={() => void onDelete()}
+          disabled={remove.isPending || !!blocked}
+          className="text-muted-foreground hover:text-fail"
+        >
+          <Trash2 />
+        </Button>
+      </BlockedTooltip>
     </li>
   );
 }

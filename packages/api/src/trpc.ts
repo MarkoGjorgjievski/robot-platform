@@ -1,12 +1,18 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import type { Database, MembershipRole, UserTheme } from '@robot/db';
+import { STAFF_BLOCKED_MESSAGE, STAFF_SESSION_ENDED_MESSAGE, isRefusedAfterStaffExpiry, isStaffBlocked } from './auth/staff-guard.js';
+import { beforeStaffMutation, logStaffMutation } from './auth/staff-actions.js';
 
 export type SessionInfo = {
   token: string;
   user: { id: string; email: string; name: string; avatarColour: string; theme: UserTheme };
   org: { id: string; slug: string; name: string; personal: boolean };
   role: MembershipRole;
+  /** Staff access (spec 2026-10-07 §2.1): set while an operator works inside a customer org; `org` is that org. */
+  staff: { orgId: string; enteredAt: Date } | null;
+  /** The staff columns are set but the 8 hours have passed: the app shows the expiry toast and calls `ops.leaveOrg`. */
+  staffExpired: { orgId: string; orgName: string } | null;
 };
 
 /** `setCookie`/`clearCookie` are provided by the HTTP host (api-server); a test caller may omit them. */
@@ -47,11 +53,29 @@ const withOperatorFlag = t.middleware(({ ctx, next }) =>
 
 export const publicProcedure = t.procedure.use(withOperatorFlag);
 
-/** A procedure that needs a signed-in user; `ctx.session` is non-null inside. */
-export const protectedProcedure = publicProcedure.use(({ ctx, next }) => {
-  if (!ctx.session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
-  return next({ ctx: { ...ctx, session: ctx.session } });
-});
+/** A procedure that needs a signed-in user; `ctx.session` is non-null inside.
+ * Staff working inside a customer org (spec 2026-10-07) are refused the deny-listed paths;
+ * an expired staff session is refused every mutation but leaving and its own account. */
+export const protectedProcedure = publicProcedure
+  .use(({ ctx, next }) => {
+    if (!ctx.session) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Sign in first' });
+    return next({ ctx: { ...ctx, session: ctx.session } });
+  })
+  .use(({ ctx, path, type, next }) => {
+    if (ctx.session.staff && isStaffBlocked(path)) throw new TRPCError({ code: 'FORBIDDEN', message: STAFF_BLOCKED_MESSAGE });
+    if (ctx.session.staffExpired && isRefusedAfterStaffExpiry(path, type)) throw new TRPCError({ code: 'FORBIDDEN', message: STAFF_SESSION_ENDED_MESSAGE });
+    return next();
+  })
+  // Staff activity log (spec 2026-10-07 §2.4): every mutation a staff session
+  // makes inside a customer org gets one plain-English row, best-effort.
+  .use(async ({ ctx, path, type, getRawInput, next }) => {
+    if (type !== 'mutation' || !ctx.session.staff) return next();
+    const input = await getRawInput().catch(() => undefined);
+    const before = await beforeStaffMutation(ctx.db, path, input);
+    const result = await next();
+    if (result.ok) await logStaffMutation({ db: ctx.db, session: ctx.session, path, input, result: result.data, before });
+    return result;
+  });
 
 /** A procedure for operators only (ops mode, 2026-10-06): FORBIDDEN unless
  * `ctx.isOperator`. Ops stays read-only and never changes a customer's data. */

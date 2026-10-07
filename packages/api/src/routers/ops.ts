@@ -1,12 +1,14 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
-import { datasets, memberships, orgs, projects, runs, sourceVerifications, sources, type Database } from '@robot/db';
+import { datasets, orgs, projects, runs, sessions, sourceVerifications, sources, staffActions, users, type Database } from '@robot/db';
 import { lookupDomainCache, type FieldPathSet, type FieldVerification, type SchemaDefinitionField } from '@robot/scraper';
-import { router, publicProcedure, opsProcedure } from '../trpc.js';
+import { router, publicProcedure, protectedProcedure, opsProcedure } from '../trpc.js';
 import { isCustomerSchema } from '../crawl/effective-schema.js';
 import { loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-certification.js';
 import { latestDriftCheck } from '../verify/run-drift-check.js';
+import { recordStaffAction, recordStaffStop } from '../auth/staff-actions.js';
+import { listStaffActivity } from '../auth/staff-activity.js';
 import { monthBounds } from './usage.js';
 
 /** The host for the quiet mono line under a website's name. Never throws: a
@@ -79,9 +81,11 @@ async function spendThisMonthBySource(db: Database, sourceIds: string[]): Promis
 
 /**
  * Operators (ops mode, 2026-10-06): staff who answer "which customer websites
- * need us, and why?" from their own shell, read-only. `me` is the one public
- * entry point the app's shell needs before it can decide what to show — it
- * never throws for a signed-out visitor, it just says no.
+ * need us, and why?" from their own shell, read-only except for `enterOrg` and
+ * `leaveOrg` (staff access, spec 2026-10-07 §2.2), which touch only the
+ * caller's own session and the staff activity log — never a customer's data.
+ * `me` is the one public entry point the app's shell needs before it can
+ * decide what to show — it never throws for a signed-out visitor, it just says no.
  */
 export const opsRouter = router({
   me: publicProcedure.query(({ ctx }) => ({ isOperator: ctx.isOperator })),
@@ -200,12 +204,11 @@ export const opsRouter = router({
     }
 
     const fields = row.schemaDefinition as SchemaDefinitionField[];
-    const [fieldCurrency, membership, lastRunBySource, drift] = await Promise.all([
+    const [fieldCurrency, lastRunBySource, drift] = await Promise.all([
       // The one read every field's state, paths and the strip's "Verified"
       // count (plan "Ops design": "as in the table") all come from — partial
       // counts allowed, never an all-or-nothing gate.
       loadFieldCurrency(db, row.sourceId),
-      db.query.memberships.findFirst({ where: and(eq(memberships.userId, ctx.session.user.id), eq(memberships.orgId, row.orgId)) }),
       lastRunsBySource(db, [row.sourceId]),
       latestDriftCheck(row.sourceId),
     ]);
@@ -231,7 +234,6 @@ export const opsRouter = router({
       org: { id: row.orgId, name: row.orgName, slug: row.orgSlug },
       project: { name: row.projectName, slug: row.projectSlug },
       website: { name: row.sourceName, slug: row.sourceSlug, host: safeHost(row.url) },
-      operatorIsMember: !!membership,
       verified: { current: fieldCurrency.currentKeys.length, total: fields.length },
       fields: fields.map((f) => {
         const result = results[f.key];
@@ -283,5 +285,67 @@ export const opsRouter = router({
       lastRun: lastRun ? { status: lastRun.status, at: lastRun.createdAt.toISOString(), rows: lastRun.resultCount } : null,
       proofUrls: (row.verificationSet as { urls?: string[] } | null)?.urls ?? [],
     };
+  }),
+
+  /**
+   * Staff access (spec 2026-10-07 §2.2): the caller's own session enters the website's organisation.
+   * Re-entering the org the session is already in changes nothing — not the log, and not the
+   * 8 hours, which only a fresh entry restarts. Otherwise one transaction closes any open or
+   * expired entry elsewhere, moves the session and logs the start, so the log never shows two
+   * open entries and never a start without its session.
+   */
+  enterOrg: opsProcedure.input(z.object({ sourceId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    const [row] = await ctx.db
+      .select({ orgId: projects.orgId, orgName: orgs.name, projectId: projects.id, projectSlug: projects.slug, siteSlug: sources.slug })
+      .from(sources)
+      .innerJoin(datasets, eq(sources.datasetId, datasets.id))
+      .innerJoin(projects, eq(datasets.projectId, projects.id))
+      .innerJoin(orgs, eq(projects.orgId, orgs.id))
+      .where(eq(sources.id, input.sourceId))
+      .limit(1);
+    if (!row) throw new TRPCError({ code: 'NOT_FOUND', message: 'Website not found' });
+    const out = { path: `/projects/${row.projectSlug}/sites/${row.siteSlug}`, orgName: row.orgName };
+    if (ctx.session.staff?.orgId === row.orgId) return out;
+    const actor = { userId: ctx.session.user.id, actorEmail: ctx.session.user.email, action: 'ops.leaveOrg' };
+    await ctx.db.transaction(async (tx) => {
+      if (ctx.session.staff) {
+        await recordStaffStop(tx, { ...actor, orgId: ctx.session.staff.orgId, summary: 'Stopped working as staff' });
+      } else if (ctx.session.staffExpired) {
+        await recordStaffStop(tx, { ...actor, orgId: ctx.session.staffExpired.orgId, summary: 'Staff session ended after 8 hours' });
+      }
+      await tx.update(sessions).set({ staffOrgId: row.orgId, staffEnteredAt: new Date() }).where(eq(sessions.token, ctx.session.token));
+      await recordStaffAction(tx, { orgId: row.orgId, userId: ctx.session.user.id, actorEmail: ctx.session.user.email, action: 'ops.enterOrg', summary: 'Started working as staff', projectId: row.projectId, sourceId: input.sourceId });
+    });
+    return out;
+  }),
+
+  /** Any signed-in session with staff columns set may leave — also after the 8 hours, which logs the expiry. */
+  leaveOrg: protectedProcedure.mutation(async ({ ctx }) => {
+    const raw = await ctx.db.query.sessions.findFirst({ where: eq(sessions.token, ctx.session.token), columns: { staffOrgId: true } });
+    if (raw?.staffOrgId) {
+      const staffOrgId = raw.staffOrgId;
+      const summary = ctx.session.staff ? 'Stopped working as staff' : ctx.session.staffExpired ? 'Staff session ended after 8 hours' : null;
+      await ctx.db.transaction(async (tx) => {
+        await tx.update(sessions).set({ staffOrgId: null, staffEnteredAt: null }).where(eq(sessions.token, ctx.session.token));
+        if (summary) await recordStaffStop(tx, { orgId: staffOrgId, userId: ctx.session.user.id, actorEmail: ctx.session.user.email, action: 'ops.leaveOrg', summary });
+      });
+    }
+    return { ok: true as const };
+  }),
+
+  /** Reading the staff activity log (spec 2026-10-07 §2.4): every org, filterable by customer, staff member or website. */
+  staffActivity: opsProcedure
+    .input(z.object({
+      orgId: z.string().uuid().optional(), userId: z.string().uuid().optional(), sourceId: z.string().uuid().optional(),
+      page: z.number().int().min(0).default(0), pageSize: z.number().int().min(1).max(50).default(50),
+    }))
+    .query(({ ctx, input }) => listStaffActivity(ctx.db, input, { offset: input.page * input.pageSize, limit: input.pageSize })),
+
+  /** The distinct orgs and staff actors that appear in the log, for the ops filters. */
+  staffActivityFilters: opsProcedure.query(async ({ ctx }) => {
+    const customers = await ctx.db.selectDistinct({ id: orgs.id, name: orgs.name }).from(staffActions).innerJoin(orgs, eq(staffActions.orgId, orgs.id)).orderBy(orgs.name);
+    const staff = await ctx.db.selectDistinct({ userId: staffActions.userId, email: staffActions.actorEmail, name: users.name })
+      .from(staffActions).leftJoin(users, eq(staffActions.userId, users.id)).orderBy(staffActions.actorEmail);
+    return { customers, staff };
   }),
 });
