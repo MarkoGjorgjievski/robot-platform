@@ -1,30 +1,31 @@
 import { describe, it, expect } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, projects, users, runs } from '@robot/db';
-import { createCallerFactory } from '../trpc.js';
-import { appRouter } from '../routers/index.js';
-import { loadSession } from './session.js';
-import { sourceInOrg, runInOrg } from './scope.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { db, runs } from '@robot/db';
+import { sourceInOrg, runInOrg, captureInOrg } from './scope.js';
+import { signIn } from '../test-helpers/identity.js';
 
 const tag = `scope-${Date.now()}`;
 const MISSING = '00000000-0000-0000-0000-000000000000';
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 describe('sourceInOrg / runInOrg', () => {
+  it('are UNAUTHORIZED without a session, even for an id that exists', async () => {
+    let a: Awaited<ReturnType<typeof signIn>> | undefined;
+    try {
+      a = await signIn(`${tag}-n@example.com`);
+      const p = await a.caller.projects.create({ name: 'Scoped' });
+      const w = await a.caller.sources.createInProject({ projectSlug: p.slug, name: 'Site', url: 'https://scope.example.com/' });
+      const [run] = await db.insert(runs).values({ sourceId: w.sourceId, status: 'completed' }).returning({ id: runs.id });
+      const anon = { db, session: null };
+      await expect(sourceInOrg(anon, w.sourceId)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(runInOrg(anon, run!.id)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(captureInOrg(anon, MISSING)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    } finally {
+      if (a) await dropIdentity(a);
+    }
+  });
+
   it('resolve inside the session org, and are NOT_FOUND outside it or for an id that does not exist', async () => {
     let a: Awaited<ReturnType<typeof signIn>> | undefined;
     let b: Awaited<ReturnType<typeof signIn>> | undefined;

@@ -24,9 +24,8 @@ describe('session', () => {
       expect(s).toMatchObject({ token, user: { id: user!.id, email: `s-${tag}@example.com` }, org: { id: org!.id, slug: `s-${tag}` }, role: 'admin' });
       expect(await loadSession(db, dead)).toBeNull();
       expect(await loadSession(db, 'nope')).toBeNull();
-      expect(await resolveOrg({ db, session: s }, 'default')).toMatchObject({ id: org!.id }); // the session wins over orgSlug
-      expect(await resolveOrg({ db, session: null }, `s-${tag}`)).toMatchObject({ id: org!.id });
-      await expect(resolveOrg({ db, session: null }, 'no-such-org')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(resolveOrg({ session: s })).toEqual({ id: org!.id, slug: `s-${tag}` }); // the session's org, and nothing else
+      expect(() => resolveOrg({ session: null })).toThrow(expect.objectContaining({ code: 'UNAUTHORIZED' })); // no session, no org
     } finally {
       await db.delete(users).where(eq(users.id, user!.id));
       await db.delete(orgs).where(eq(orgs.id, org!.id));

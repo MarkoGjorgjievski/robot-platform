@@ -1,26 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { db, projects, users } from '@robot/db';
+import { db } from '@robot/db';
 import { createCallerFactory } from '../trpc.js';
 import { appRouter } from './index.js';
-import { loadSession } from '../auth/session.js';
-import { deleteOwnOrg } from '../test-helpers/identity.js';
+import { signIn } from '../test-helpers/identity.js';
 
 const tag = `dsorg-${Date.now()}`;
 
-async function signIn(email: string) {
-  const cookies: Record<string, string | null> = {};
-  const c = createCallerFactory(appRouter)({ db, session: null, setCookie: (n, v) => { cookies[n] = v; }, clearCookie: () => {} });
-  const r = await c.auth.signIn({ email, password: 'x' });
-  const session = (await loadSession(db, cookies['robot_session']!))!;
-  return { ...r, session, caller: createCallerFactory(appRouter)({ db, session }) };
-}
-
-async function dropIdentity(r: { org: { id: string }; user: { id: string } }) {
-  await db.delete(projects).where(eq(projects.orgId, r.org.id));
-  await deleteOwnOrg(r.org.id);
-  await db.delete(users).where(eq(users.id, r.user.id));
-}
+const dropIdentity = (r: { cleanup: () => Promise<void> }) => r.cleanup();
 
 describe('contract procedures are org-scoped', () => {
   it('another org cannot read or change a project\'s fields, and the owner still can', async () => {
@@ -49,17 +35,20 @@ describe('contract procedures are org-scoped', () => {
     }
   });
 
-  // `datasets.*` field procedures keep their session-less `'default'`-org
-  // fallback (cut-over Task 5 touched only `projects.list/create/rename/delete`);
-  // `orgSlug: 'default'` here is the explicit ask, not the removed implicit shim.
-  it('a session-less caller that names the org still reaches its datasets', async () => {
-    const bare = createCallerFactory(appRouter)({ db, session: null });
-    const p = await bare.projects.create({ name: `Shim ${tag}`, orgSlug: 'default' });
+  it('a session-less caller is UNAUTHORIZED, even with a real dataset id', async () => {
+    let a: Awaited<ReturnType<typeof signIn>> | undefined;
     try {
-      await bare.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
-      expect((await bare.datasets.variants({ datasetId: p.datasetId })).fields.length).toBe(1);
+      a = await signIn(`${tag}-n@example.com`);
+      const p = await a.caller.projects.create({ name: 'Mine' });
+      const f = await a.caller.datasets.addField({ datasetId: p.datasetId, name: 'Price', type: 'money' });
+      const bare = createCallerFactory(appRouter)({ db, session: null });
+      const unauth = { code: 'UNAUTHORIZED' };
+      await expect(bare.datasets.variants({ datasetId: p.datasetId })).rejects.toMatchObject(unauth);
+      await expect(bare.datasets.addField({ datasetId: p.datasetId, name: 'Title', type: 'text' })).rejects.toMatchObject(unauth);
+      await expect(bare.datasets.deleteField({ datasetId: p.datasetId, key: f.key })).rejects.toMatchObject(unauth);
+      expect((await a.caller.datasets.variants({ datasetId: p.datasetId })).fields.map((x) => x.name)).toEqual(['Price']);
     } finally {
-      await db.delete(projects).where(eq(projects.id, p.id));
+      if (a) await dropIdentity(a);
     }
   });
 });
