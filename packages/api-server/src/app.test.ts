@@ -23,7 +23,7 @@ describe('api-server app', () => {
     // tRPC expects POST for mutations and GET for queries; an unknown procedure
     // should return a tRPC-style error (HTTP 404 with JSON body).
     const res = await app.fetch(
-      new Request('http://localhost/trpc/scraper.nonexistent', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+      new Request('http://localhost/trpc/nonexistent.procedure', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
     );
     // tRPC's HTTP adapter returns 404 for unknown procedures
     expect([400, 404]).toContain(res.status);
@@ -32,10 +32,19 @@ describe('api-server app', () => {
   it('sets CORS headers for cross-origin requests', async () => {
     const res = await app.fetch(
       new Request('http://localhost/healthz', {
+        headers: { Origin: 'http://localhost:3000' },
+      })
+    );
+    expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
+  });
+
+  it('does not allow the old dashboard origin (:3456, deleted at cut-over)', async () => {
+    const res = await app.fetch(
+      new Request('http://localhost/healthz', {
         headers: { Origin: 'http://localhost:3456' },
       })
     );
-    expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:3456');
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
   });
 
   it('serves /captures/* as static files', async () => {

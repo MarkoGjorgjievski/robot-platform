@@ -30,11 +30,11 @@ export function createApp(deps: Partial<AppDeps> = {}) {
   const loadProject = deps.loadProjectExport ?? ((projectId: string) => loadProjectExport(db, projectId));
   const app = new Hono();
 
-  // CORS — the dashboard dev server (:3456) and the app shell (:3000)
+  // CORS — the app shell (:3000)
   app.use(
     '*',
     cors({
-      origin: ['http://localhost:3456', 'http://localhost:3000'],
+      origin: ['http://localhost:3000'],
       credentials: true,
     })
   );
