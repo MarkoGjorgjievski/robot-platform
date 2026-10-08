@@ -267,13 +267,18 @@ export function VerificationTable({
       return;
     }
     if (!selection || !onCell) return;
-    if (MOVE_KEYS.has(e.key)) {
+    // Modified keys are the browser's: Ctrl+F (find), Alt+Left/Right (back/forward),
+    // Ctrl+Home/End, etc. Shift alone carries no browser shortcut here, so it still moves.
+    const mod = e.ctrlKey || e.metaKey || e.altKey;
+    if (MOVE_KEYS.has(e.key) && !mod) {
+      const next = moveSelection(selection, e.key as MoveKey, fieldKeys, products);
       e.preventDefault();
+      if (next.product === selection.product && next.key === selection.key) return;
       focusNext.current = true;
-      onSelect(moveSelection(selection, e.key as MoveKey, fieldKeys, products));
+      onSelect(next);
       return;
     }
-    if (e.key === 'Enter' || e.key === 'f' || e.key === 'F') {
+    if ((e.key === 'Enter' || e.key === 'f' || e.key === 'F') && !mod) {
       if (locked) return;
       e.preventDefault();
       onFix(selection);
