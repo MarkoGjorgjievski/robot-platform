@@ -76,10 +76,17 @@ export function FieldDetails({
 }) {
   const typedRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (focusTyped > 0) {
+    if (focusTyped <= 0) return;
+    // Deferred a frame: "Type it" from the cell's right-click menu runs this
+    // while Radix's ContextMenu is still tearing down, and its own focus
+    // cleanup (separate from `onCloseAutoFocus`'s return-to-trigger, which
+    // the cell already skips for this case) can still steal focus back from
+    // a focus() called synchronously here. A rAF runs after that teardown.
+    const id = requestAnimationFrame(() => {
       typedRef.current?.focus();
       typedRef.current?.select();
-    }
+    });
+    return () => cancelAnimationFrame(id);
   }, [focusTyped]);
 
   const saved = typedError === undefined && typed.trim() !== '';
