@@ -307,8 +307,13 @@ const ORG_SCREENS = [
     route: '/settings',
     assert: async () => {
       expect(await page.getByLabel('Name').inputValue(), 'the organisation name field is not prefilled').not.toBe('');
-      expect(await page.locator('tbody tr').count(), 'the members table should hold exactly the throwaway').toBe(1);
-      expect(await page.locator('tbody').innerText()).toContain('you');
+      // Scoped to the Members table by its "Role" column: Settings also has a
+      // "Robot staff activity" table (2026-10-07) whose empty state is its
+      // own `<tr>` ("No staff activity yet."), so an unscoped `tbody tr` sees
+      // both tables' rows.
+      const membersTable = page.getByRole('table').filter({ has: page.getByRole('columnheader', { name: 'Role', exact: true }) });
+      expect(await membersTable.locator('tbody tr').count(), 'the members table should hold exactly the throwaway').toBe(1);
+      expect(await membersTable.locator('tbody').innerText()).toContain('you');
       const del = page.getByRole('button', { name: 'Delete organisation' });
       expect(await del.isDisabled(), 'Delete organisation is live on a personal organisation').toBe(true);
       expect(await page.locator('main').innerText()).toContain('Your personal organisation cannot be deleted');
