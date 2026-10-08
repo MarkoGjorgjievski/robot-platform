@@ -161,15 +161,72 @@ Running total of spend (from the Usage page): **$0.45** for October, all workers
 
 **Reading Nike's wrongs:** of the 9, one is a real extraction error (In stock `true` on a "Coming Soon" shoe); five In stock "wrongs" are the judge reading size-level sell-outs against a product-level value (a definition question for the In stock field, not an extraction error); the SKU, Brand and Rating wrongs are "the page does not display it" — values the page carries in data but not in the viewport. So where the judge could see the value, Nike's certified paths were right on every Title, Price and Brand it checked, and the one real error is a stock status. The Barnes & Noble run (three tiles) is the test of whether the judge catches the positional-path errors row 4 found by hand.
 
-## What the campaign should answer, written up at the end
+## What the campaign answered (written 2026-10-08, after rows 0–15 and the judge runs)
 
-- How many real websites verify fully, partially, or not at all, and why (field by field).
-- The actual AI cost per verified website vs the "up to" estimate, and the per-item cost of
-  uncertified extraction.
-- Which fields the model is needed for (expected: Brand, In stock, Rating, Description) and
-  which the mechanical chain already gets right.
-- Where the product itself got in the way (bugs, confusing states, missing affordances) —
-  each one a finding for the handoff.
-- Whether the throughput work (lean capture, parallel websites — see
-  `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`) is now urgent, with
-  measured per-item times.
+**Scope reached.** 16 websites touched in one day (rows 0–15). Marko's decision at the end of
+the day: stop adding sites, finish the two interrupted judge runs one at a time, write up.
+
+**1. How many real websites verify, and why.** Of the 16: **9 verified 8 of 8** (Ikea, Allbirds,
+Nike, B&N, Made In, Ulta, Lookfantastic, Decathlon, Everlane after fix A) — every one with
+**zero model calls**, because JSON-LD, meta tags or an intercepted API carried the fields, and
+marking an element on the screenshot gives an XPath directly. **Article verified too** but
+could not extract (CAPTCHA). **6 never got a value in** (Otto, Scan, Hobbycraft, Crutchfield,
+Bookshop, Target): all anti-bot walls, not product failures. The pre-screen of 28 further
+candidates found 2 open. Field by field, nothing needed the model; the fields that needed a
+*person* were SKU (not visible on 3 sites; wrong "agreed" suggestion on 2), Title (site name
+suggested on Made In; hidden overlays over the heading on Nike and Made In) and Brand ("same on
+every product" on 4 sites).
+
+**2. Cost.** Verify: estimated "up to $0.40" everywhere, actual **$0.00** everywhere. Extraction:
+**$0.00 in AI per item** on every verified site. The campaign's AI spend went entirely to the
+judge — **$23.48 for six runs** before the interruption, ~$2.30 lost to the memory kill, plus
+the two re-runs. Per-run `cost_usd` figures in the app are unreliable under concurrency (shared
+process counter); only the org total on the Usage page is right.
+
+**3. Which fields need the model.** None, on these sites, at Verify time. The model would be
+reached only where no structured path exists *and* the customer cannot mark the value — a case
+the campaign did not meet. The judge is where the model earns its keep: correctness, which no
+hit rate shows.
+
+**4. Where the product got in the way** (each a finding for the handoff, grouped):
+- *Anti-bot* is the gate: 11 of 16 sites refused or rate-limited headless Chromium at some
+  point; the app reports a wall as "No product links found", "N products found" (menu pages),
+  `ready` (blank capture) or a green "Done" run with 0 rows — never as "the site refused us".
+- *Listing finder* (fixed 2026-10-08): menu links beat products; the walk accepted a 1-row
+  selector. Still open: colourways of one product offered as the first three; sponsored
+  strips, filters and 404 pages accepted as listings; Sample counts differ from Extract (30 vs
+  35, 13 vs 60).
+- *"Agreed" is not "right"*: Title/Description from another colour (Nike), SKU 5/2/5
+  (Decathlon), the site name as Title (Made In), category SEO text as Description (Everlane,
+  Otto), positional offers (B&N). Accept all agreed would have certified each.
+- *Proof pages must cover the site's variations*: Lookfantastic lost Price and In stock on all
+  29 multi-size products; Decathlon's Rating fallback writes a false `0` on no-rating products
+  that no proof page had. This is the second-layout proof-pages design, with live cases.
+- *Verify's gate*: a field absent on every proof page blocks Verify with no "not on this
+  website"; a rejected wrong suggestion is not saved across a reload.
+- *Marking*: hidden overlays catch clicks (Nike reviews panel, Made In search menu); the popover
+  pre-selects the wrong field (Made In, Lookfantastic).
+- *Run reporting*: Sample "0 of 0" vs "3 rows extracted"; "Pagination detected: not reported";
+  pagination missed on Decathlon (run stopped at 40 of 55 silently) and Lookfantastic (1 of 2
+  pages); a product that came back empty with no stored HTML to explain why.
+- *Money*: Price stored without currency while the shown currency follows the visitor's geo
+  (Made In in MYR); per-run cost mis-attribution.
+
+**5. Throughput.** Measured 10.1–23.1 s per item across eight sites (median ~13 s), all of it
+capture time; the lean-capture second increment and parallel websites
+(`docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`) are confirmed as the
+levers, and the machine's memory (three Chromiums + the dev servers tipped 16 GB) caps how
+parallel a single box can go.
+
+**What the judge taught about itself.** It judges "appears on the page", not "is the displayed
+value" (B&N's eBook price passes); it reads star glyphs, so numeric ratings fail unless the
+number is printed (Ulta 60/60 vs B&N/Ikea/Lookfantastic ~50%); it is given the field *name*,
+so Brand fails as "Publisher" and SKU as "ISBN"; three tiles cover most pages but not tabs.
+Two changes would make it a QA tool: pass the field's descriptor and type, and ask for the
+primary displayed value on multi-offer pages.
+
+**Next work this suggests, in order:** (1) report a refused page as refused, fast, everywhere
+it can appear; (2) proof pages that cover variations — the second-layout design, now with
+cases; (3) the "agreed" rule must not agree on values the page does not show for *that*
+product; (4) a run's cost per process, not per counter; (5) the judge changes above, then judge
+every extraction as a matter of course.
