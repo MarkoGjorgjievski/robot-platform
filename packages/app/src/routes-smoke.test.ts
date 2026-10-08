@@ -797,9 +797,105 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(await acceptAll.isDisabled(), 'Accept all agreed is live with nothing agreed').toBe(true);
     expect(await page.locator('main').innerText(), 'the disabled Accept all agreed does not say why').toContain('Nothing agreed to accept');
 
-    // 5. The row that needs you: its cell opens product 1's screenshot, with
-    // the product named over it and the cell outlined as the one on screen.
+    // 4b. Spreadsheet behaviour (spec 2026-10-07). A click on a cell selects
+    // it and nothing else: the bar above the table shows the value, no
+    // screenshot opens, and the address stays clean.
+    const bar = page.getByRole('region', { name: 'Selected cell' });
+    expect((await bar.innerText()).replace(/\s+/g, ' ')).toContain('Select a cell to see its full value.');
+    await page.getByRole('button', { name: `Title on product 1: accepted, ${PRODUCTS[0].title}`, exact: true }).click();
+    await expect.poll(() => bar.locator('[data-testid="selected-value"]').innerText(), { timeout: 5_000 }).toBe(PRODUCTS[0].title);
+    expect((await bar.innerText()).replace(/\s+/g, ' ')).toContain(`Title · ${PRODUCTS[0].title} (product 1)`);
+    expect((await bar.innerText()).replace(/\s+/g, ' ')).toContain('accepted');
+    expect(await page.getByRole('region', { name: 'Screenshot' }).count(), 'a cell click opened the screenshot').toBe(0);
+    expect(new URL(page.url()).searchParams.get('product'), 'a cell click put the product in the address').toBeNull();
+    const selectedLabel = () => page.locator('button[data-cell][data-selected="true"]').getAttribute('aria-label');
+    expect(await selectedLabel()).toMatch(/^Title on product 1: /);
+    // The crop of the screenshot around the element is in the bar, read-only.
+    expect(await bar.getByRole('button', { name: 'Open the screenshot to fix Title' }).count(), 'the bar has no screenshot crop').toBe(1);
+    await shootBothThemes(page, 'selected');
+
+    // Arrow keys move the selection; Home/End jump; nothing opens.
+    await page.locator('button[data-cell][data-selected="true"]').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(selectedLabel, { timeout: 5_000 }).toMatch(/^Title on product 2: /);
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(selectedLabel, { timeout: 5_000 }).toMatch(/^Price on product 2: /);
+    await page.keyboard.press('End');
+    await expect.poll(selectedLabel, { timeout: 5_000 }).toMatch(/^Price on product 3: /);
+    await page.keyboard.press('ArrowRight'); // clamps: there is an add column after product 3, and it is not a cell
+    expect(await selectedLabel()).toMatch(/^Price on product 3: /);
+    await page.keyboard.press('Home');
+    await expect.poll(selectedLabel, { timeout: 5_000 }).toMatch(/^Price on product 1: /);
+    expect(await page.getByRole('region', { name: 'Screenshot' }).count(), 'a key opened the screenshot').toBe(0);
+
+    // Ctrl+C copies the selected cell; the context menu's Copy value does the
+    // same. The cell's display value is not PRODUCTS[0].price's "$" form (it
+    // is whatever the cell renders, e.g. normalised from JSON-LD), so the
+    // expected value is read from the cell's own aria-label instead.
+    const priceLabelBefore = await page.locator('button[aria-label^="Price on product 1: "]').getAttribute('aria-label');
+    const priceValue = (priceLabelBefore ?? '').split(', ').slice(1).join(', ');
+    expect(priceValue, 'could not read the Price cell value from its aria-label').not.toBe('');
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: APP });
+    await page.keyboard.press('Control+C');
+    let clipboardReadRefused = false;
+    try {
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5_000 }).toBe(priceValue);
+    } catch {
+      clipboardReadRefused = true;
+    }
+    if (clipboardReadRefused) {
+      // navigator.clipboard.readText() is refused in headless Chromium even
+      // with the grant above: fall back to the bar's own "Copied" state.
+      await expect.poll(() => bar.getByRole('button', { name: /^Copy Price/ }).innerText(), { timeout: 3_000 }).toBe('Copied');
+    }
+    await page.locator('button[data-cell][data-selected="true"]').click({ button: 'right' });
+    const menu = page.getByRole('menu');
+    await menu.waitFor({ timeout: 5_000 });
+    expect((await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim())).toEqual(['Copy value', 'Open product page', 'Fix on screenshot', 'Type it']);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => menu.count(), { timeout: 5_000 }).toBe(0);
+
+    // Type it expands the row and focuses its Type input for the selected product.
+    await page.locator('button[data-cell][data-selected="true"]').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Type it' }).click();
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label')), { timeout: 5_000 }).toBe('Price on product 1');
+    await page.keyboard.press('Escape'); // leaves the input alone (Escape is ignored in a text field)
+    await page.getByRole('button', { name: /^Price/, expanded: true }).click(); // collapse the row again
+
+    // Escape on a cell with the screenshot closed clears the selection.
+    await page.locator('button[data-cell][data-selected="true"]').focus();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.locator('button[data-cell][data-selected="true"]').count(), { timeout: 5_000 }).toBe(0);
+    expect((await bar.innerText()).replace(/\s+/g, ' ')).toContain('Select a cell to see its full value.');
+
+    // The row details (Type it / hint) follow the SELECTED cell's product,
+    // not the open screenshot's (Task 8 review): select Price on product 3,
+    // then open product 2's screenshot from its column head — the two differ.
+    await page.getByRole('button', { name: /^Price on product 3: /, exact: false }).click();
+    await expect.poll(selectedLabel, { timeout: 5_000 }).toMatch(/^Price on product 3: /);
+    await card(PRODUCTS[1].title).click();
+    await page.getByRole('region', { name: 'Screenshot' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: /^Price/, expanded: false }).click();
+    const detailsTypeInput = page.getByRole('textbox', { name: 'Price on product 3' });
+    await detailsTypeInput.waitFor({ timeout: 5_000 });
+    expect(await detailsTypeInput.count(), "the expanded row's Type input is not for product 3 (the selected cell)").toBe(1);
+    await page.getByRole('button', { name: /^Price/, expanded: true }).click(); // collapse the row again
+
+    // Escape closes the open screenshot but leaves the cell selected; a
+    // second Escape is what clears the selection.
+    await page.locator('button[data-cell][data-selected="true"]').focus();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.getByRole('region', { name: 'Screenshot' }).count(), { timeout: 5_000 }).toBe(0);
+    expect(await page.locator('button[data-cell][data-selected="true"]').count(), 'Escape over a closed screenshot cleared the selection too').toBe(1);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.locator('button[data-cell][data-selected="true"]').count(), { timeout: 5_000 }).toBe(0);
+
+    // 5. The row that needs you: a click selects its cell; Enter is what
+    // opens product 1's screenshot (spec 2026-10-07 §4), with the product
+    // named over it and the cell outlined as the one on screen.
     await page.getByRole('button', { name: 'Rating on product 1: empty', exact: true }).click();
+    expect(await page.getByRole('region', { name: 'Screenshot' }).count(), 'selecting the empty Rating cell opened the screenshot').toBe(0);
+    await page.keyboard.press('Enter');
     const panel = page.getByRole('region', { name: 'Screenshot' });
     await panel.waitFor({ timeout: 10_000 });
     expect(await panel.getByRole('heading').innerText(), 'the screenshot is not named for its product').toBe(`${PRODUCTS[0].title} — screenshot`);
@@ -844,6 +940,10 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await popover.waitFor({ timeout: 10_000 });
     expect(await popover.innerText(), 'the popover does not show the value it read').toContain(PRODUCTS[0].rating);
 
+    // The mark popover owns the keyboard: an arrow does not move the selection behind it.
+    await page.keyboard.press('ArrowRight');
+    expect(await selectedLabel()).toMatch(/^Rating on product 1: /);
+
     // Escape closes the popover first, and only the popover; a second Escape
     // closes the screenshot (final review H1). Then open both again.
     await page.keyboard.press('Escape');
@@ -851,7 +951,10 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(await panel.count(), 'the Escape meant for the popover closed the screenshot').toBe(1);
     await page.keyboard.press('Escape');
     await expect.poll(() => panel.count(), { timeout: 5_000, message: 'a second Escape did not close the screenshot' }).toBe(0);
-    await page.getByRole('button', { name: 'Rating on product 1: empty', exact: true }).click();
+    // The selection survives the closed screenshot, so its Mark button is on
+    // show; that is the other explicit way back in.
+    expect(await selectedLabel()).toMatch(/^Rating on product 1: /);
+    await page.getByRole('button', { name: 'Mark Rating on product 1 on the screenshot', exact: true }).click();
     await panel.waitFor({ timeout: 10_000 });
     await shot.waitFor({ timeout: 20_000 });
     await clickRating();
