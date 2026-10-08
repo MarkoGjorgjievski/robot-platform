@@ -47,6 +47,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 - `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser
+- `pnpm --filter @robot/api exec tsx src/judge-run.ts <runId> [--max-items N] [--max-usd X] [--fields a,b] [--dry-run]` — judge a completed run's stored values against freshly captured pages; writes `docs/testing/results/`, no DB writes. Needs `ANTHROPIC_API_KEY` (paid, default cap $5) unless `--dry-run`
 
 ## First-time setup
 

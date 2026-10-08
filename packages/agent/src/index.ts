@@ -17,6 +17,7 @@ export type {
 } from './types.js';
 export { judgeFieldExtraction, type JudgeVerdict } from './judge.js';
 export { judgeVariantArray } from './judge-variants.js';
+export { explainWrongValue } from './judge-explain.js';
 export { buildDisplayedPrompt, parseDisplayedVerdict, judgeDisplayedCandidate, type DisplayedCandidate } from './judge-displayed.js';
 export { EXTRACTION_MODEL, JUDGE_MODEL, OLLAMA_MODEL } from './models.js';
 export { JudgeUnavailableError, isJudgeUnavailable } from './judge.js';
