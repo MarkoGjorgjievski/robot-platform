@@ -1,8 +1,15 @@
 # The Verification table behaves like a spreadsheet — design
 
-**Status:** designed 2026-10-07 from a brief Marko brought ("Replace the
-screenshot tabs with a review table"), trimmed in discussion to what the brief
-adds over the table that already exists. Approved in chat; plan follows.
+**Status:** built 2026-10-08 on branch `feat/table-spreadsheet` (plan
+`docs/superpowers/plans/2026-10-07-verification-table-spreadsheet.md`), from a
+brief Marko brought on 2026-10-07 ("Replace the screenshot tabs with a review
+table"), trimmed in discussion to what the brief adds over the table that
+already exists. The second half of the original brief — streaming rows and a
+silent pass rate over unverified pages — is deferred, see the next section.
+Two things the build added to this design: the context menu's close must not
+return focus to the cell after "Type it" (Radix `onCloseAutoFocus`, plus the
+Type input focusing on the next frame), and the detail bar's empty state is a
+`<section>` too, so it is one region in both states.
 Builds on the table-first design
 (`2026-09-28-table-first-and-drift-repair-design.md`, Part A), which this
 does not change: one row per field, one column per product, the agreement
