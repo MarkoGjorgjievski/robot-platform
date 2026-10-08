@@ -1,18 +1,22 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../ui/context-menu';
 import { cn } from '../../lib/utils';
 import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
 import { LOCKED_REASON } from './verify-bar';
 import { VariantsRow, type VariantsRowProps } from './variants-row';
 import { cellLabel, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
+import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../../lib/site/table-selection';
 
 /**
- * `onAccept`: accept this cell's suggestion in one click, as a tick would
- * (spec 2026-09-29 A7) — supplied only for a suggestion found in one place.
+ * One cell: its display value, state, the product's URL (for "Open product
+ * page"), and — only for a suggestion found in one place — the one-click
+ * accept a tick would do (spec 2026-09-29 A7). Clicking the cell selects it
+ * (spec 2026-10-07 §1); the table reports that through `onSelect`.
  */
-export type TableCell = { value: string; state: Segment; selected: boolean; onClick: () => void; onAccept?: () => void };
+export type TableCell = { value: string; state: Segment; url: string; onAccept?: () => void };
 
 /**
  * The drift check's repair line(s) for a field (plan 2026-10-05 Task 4),
@@ -33,6 +37,8 @@ export type TableRow = {
   cells: TableCell[];
   status: RowStatus;
   badge: Badge;
+  /** "n/m" shown after a Verify badge (spec 2026-10-07 §2, `headerCount`); null hides it. */
+  count: { passed: number; checked: number } | null;
   expanded: boolean;
   details: Omit<Parameters<typeof FieldDetails>[0], 'field' | 'locked'>;
   /** Agreed, majority or same-everywhere ("Accept anyway"): what the status column's one action does. */
@@ -56,7 +62,7 @@ function productsText(ns: number[]): string {
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
-function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; status: RowStatus; badge: Badge; locked: boolean; onAccept: () => void }) {
+function StatusCell({ field, status, badge, count, locked, onAccept }: { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void }) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -94,7 +100,16 @@ function StatusCell({ field, status, badge, locked, onAccept }: { field: Field; 
     case 'needs-you':
       return <span className="text-sm text-muted-foreground">{status.reason}</span>;
     case 'accepted':
-      return <BadgeView badge={badge} />;
+      return (
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <BadgeView badge={badge} />
+          {count && badge && (badge.kind === 'verified' || badge.kind === 'fails') ? (
+            <span className="text-sm text-muted-foreground" aria-label={`${count.passed} of ${count.checked} products`}>
+              {count.passed}/{count.checked}
+            </span>
+          ) : null}
+        </span>
+      );
   }
 }
 
@@ -180,12 +195,27 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
  * status action is a callback the route resolves against the model
  * (`rowStatus`, `acceptRow`, `acceptAllAgreed` in `lib/site/verification-model.ts`).
  */
+const MOVE_KEYS: ReadonlySet<string> = new Set<MoveKey>(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+
+function inTextField(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
+}
+
 export function VerificationTable({
   heads,
   addHead,
   rows,
   locked,
   variants,
+  selection,
+  keyboard,
+  onSelect,
+  onFix,
+  onCopy,
+  onTypeIt,
+  onEscape,
 }: {
   /** One per product column, rendered by the route (`ProductCard` compact, or a blank slot). */
   heads: ReactNode[];
@@ -199,11 +229,66 @@ export function VerificationTable({
    * `none` and a method of `list` or `links`. Never in `ignore` mode.
    */
   variants?: VariantsRowProps | null;
+  /** The selected cell (spec 2026-10-07 §1), owned by the route. */
+  selection: CellSelection | null;
+  /** False while the mark popover or the variants mark mode owns the keyboard. */
+  keyboard: boolean;
+  onSelect: (sel: CellSelection) => void;
+  /** Fix / Mark: open the screenshot on this cell (spec §4). */
+  onFix: (sel: CellSelection) => void;
+  onCopy: (sel: CellSelection) => void;
+  onTypeIt: (key: string) => void;
+  /** Escape with nothing else to close: the route clears the selection or closes the panel. */
+  onEscape: () => void;
 }) {
   const totalCols = 1 + heads.length + (addHead ? 1 : 0) + 1;
+  const fieldKeys = rows.map((r) => r.field.key);
+  const products = heads.length;
+
+  // Roving tabindex: after a key moved the selection, focus follows it — but
+  // only then. A click already focused its own cell, and a selection made by
+  // the route (Fix from the bar, a reload) must not steal focus from an input.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const focusNext = useRef(false);
+  useEffect(() => {
+    if (!focusNext.current || !selection) return;
+    focusNext.current = false;
+    wrapRef.current?.querySelector<HTMLButtonElement>(`button[data-cell="${selection.product}:${selection.key}"]`)?.focus();
+  }, [selection]);
+
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (!keyboard || e.defaultPrevented || inTextField(e.target)) return;
+    // Only keys aimed at a cell: the status column's buttons keep their own Enter.
+    const onCell = (e.target as HTMLElement | null)?.closest?.('button[data-cell]');
+    if (e.key === 'Escape') {
+      if (!onCell) return;
+      e.preventDefault();
+      onEscape();
+      return;
+    }
+    if (!selection || !onCell) return;
+    if (MOVE_KEYS.has(e.key)) {
+      e.preventDefault();
+      focusNext.current = true;
+      onSelect(moveSelection(selection, e.key as MoveKey, fieldKeys, products));
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'f' || e.key === 'F') {
+      if (locked) return;
+      e.preventDefault();
+      onFix(selection);
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      // A dragged text selection inside the cell keeps native copy (Review Focus 4).
+      if (window.getSelection()?.toString()) return;
+      e.preventDefault();
+      onCopy(selection);
+    }
+  }
 
   return (
-    <div className="overflow-x-auto rounded-[6px] border border-line bg-panel">
+    <div ref={wrapRef} onKeyDown={onKeyDown} className="overflow-x-auto rounded-[6px] border border-line bg-panel">
       <table className="w-full table-fixed border-collapse">
         <colgroup>
           <col style={{ width: 180 }} />
@@ -234,7 +319,7 @@ export function VerificationTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row, fi) => (
             <Fragment key={row.field.key}>
               <tr>
                 <th scope="row" className="sticky left-0 z-10 w-[180px] border-t border-line bg-panel px-2 py-2 text-left align-top font-normal">
@@ -253,44 +338,91 @@ export function VerificationTable({
                   <span className="block pl-[18px] text-sm text-muted-foreground">{TYPE_LABELS[row.field.type]}</span>
                 </th>
 
-                {row.cells.map((cell, i) => (
-                  <td key={i} className="group relative w-[190px] border-t border-line p-0 align-top">
-                    <button
-                      type="button"
-                      disabled={locked}
-                      aria-label={cellLabel(row.field.name, i + 1, cell.state, cell.value)}
-                      onClick={cell.onClick}
-                      className={cn(
-                        'flex h-full w-full items-center border-l-2 px-2 py-2 text-left disabled:cursor-not-allowed',
-                        CELL_BORDER[cell.state],
-                        cell.selected && 'outline outline-1 outline-text',
-                        cell.onAccept && 'pr-8',
-                      )}
-                    >
-                      <span className="min-w-0 truncate font-mono text-base" title={cell.value || undefined}>
-                        {cell.value || '—'}
-                      </span>
-                    </button>
-                    {cell.onAccept ? (
+                {row.cells.map((cell, i) => {
+                  const sel: CellSelection = { product: i, key: row.field.key };
+                  const isSelected = selection?.product === i && selection.key === row.field.key;
+                  // Tab enters the table once: at the selected cell, else the first cell.
+                  const tabbable = isSelected || (!selection && fi === 0 && i === 0);
+                  const label = fixLabel(cell.state);
+                  const value = cell.value.trim();
+                  return (
+                    <td key={i} className="group relative w-[190px] border-t border-line p-0 align-top">
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <button
+                            type="button"
+                            data-cell={`${i}:${row.field.key}`}
+                            data-selected={isSelected ? 'true' : undefined}
+                            tabIndex={tabbable ? 0 : -1}
+                            aria-label={cellLabel(row.field.name, i + 1, cell.state, cell.value)}
+                            onClick={() => onSelect(sel)}
+                            onContextMenu={() => onSelect(sel)}
+                            className={cn(
+                              'flex h-full w-full items-center border-l-2 px-2 py-2 text-left',
+                              CELL_BORDER[cell.state],
+                              isSelected && 'outline outline-1 outline-text',
+                              cell.onAccept ? 'pr-14' : 'pr-9',
+                            )}
+                          >
+                            <span className="min-w-0 truncate font-mono text-base" title={cell.value || undefined}>
+                              {cell.value || '—'}
+                            </span>
+                          </button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem disabled={!value} onSelect={() => onCopy(sel)}>
+                            Copy value
+                          </ContextMenuItem>
+                          <ContextMenuItem disabled={!cell.url.trim()} onSelect={() => window.open(cell.url, '_blank', 'noopener,noreferrer')}>
+                            Open product page
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem disabled={locked} onSelect={() => onFix(sel)}>
+                            {label} on screenshot
+                          </ContextMenuItem>
+                          <ContextMenuItem disabled={locked} onSelect={() => onTypeIt(row.field.key)}>
+                            Type it
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+
+                      {/* Fix / Mark (spec 2026-10-07 §2): on hover and on the selected cell; always on a red cell. */}
                       <Button
-                        variant="outline"
-                        size="icon-xs"
+                        variant="ghost"
+                        size="xs"
                         disabled={locked}
-                        aria-label={`Accept ${row.field.name} on product ${i + 1}`}
-                        title={`Accept ${row.field.name} on product ${i + 1}`}
-                        onClick={cell.onAccept}
-                        className="absolute top-1/2 right-1 -translate-y-1/2 bg-panel opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                        aria-label={`${label} ${row.field.name} on product ${i + 1} on the screenshot`}
+                        title={locked ? LOCKED_REASON : `${label} on the screenshot`}
+                        onClick={() => onFix(sel)}
+                        className={cn(
+                          'absolute top-1/2 -translate-y-1/2 bg-panel text-muted-foreground hover:text-text focus-visible:opacity-100',
+                          cell.onAccept ? 'right-8' : 'right-1',
+                          cell.state === 'failed' || isSelected ? 'opacity-100' : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100',
+                        )}
                       >
-                        <Check aria-hidden className="size-3" />
+                        {label}
                       </Button>
-                    ) : null}
-                  </td>
-                ))}
+                      {cell.onAccept ? (
+                        <Button
+                          variant="outline"
+                          size="icon-xs"
+                          disabled={locked}
+                          aria-label={`Accept ${row.field.name} on product ${i + 1}`}
+                          title={`Accept ${row.field.name} on product ${i + 1}`}
+                          onClick={cell.onAccept}
+                          className="absolute top-1/2 right-1 -translate-y-1/2 bg-panel opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                        >
+                          <Check aria-hidden className="size-3" />
+                        </Button>
+                      ) : null}
+                    </td>
+                  );
+                })}
 
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
                 <td className="w-[220px] border-t border-line px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} locked={locked} onAccept={row.onAccept} />
+                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} />
                 </td>
               </tr>
 
