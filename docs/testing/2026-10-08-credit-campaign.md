@@ -157,7 +157,7 @@ Running total of spend (from the Usage page): **$0.45** for October, all workers
 
 | Decathlon (row 15), three tiles, re-run alone after the memory kill | 40 | 310 + 39 image URLs | Title 37, Price 31, SKU 26, Brand 39, Description 37, In stock 13, Rating 9 | 33: **Rating 28** (includes the five false `0`s — the judge reads 4.8 where `0` was extracted — plus star-glyph reads), Title 2 (a model-year suffix the page no longer shows), In stock 2, Description 1 | Price 8 and SKU 9 not on page; In stock 22 unverifiable | **$2.99** (+ ~$1.10 lost in the killed first attempt) | `results/2026-10-08T14-50-judge-run-decathlon.md` — the false-`0` ratings from the API fallback are caught as wrong, which is the one case so far where the judge found an error a hit rate hid completely |
 
-**Eight judge runs, ~$30.40 (+ ~$2.30 lost to the memory kill), ~2,850 values judged.** Where a value was visible, Title, Price, Brand, Description and In stock were right on every site but Barnes & Noble (multi-format positional paths) and Nike's one "Coming Soon" stock status. The judge's own limits are now known: star-glyph ratings, "appears anywhere on the page" on multi-offer pages, field-name vocabulary (Brand vs Publisher, SKU vs ISBN), and values below three tiles.
+**Eight judge runs, ~$30.40 (+ $3.26 in the two interrupted attempts, whose reports were written on the kill — `2026-10-08T14-02-judge-run-*.md`), ~2,850 values judged.** Where a value was visible, Title, Price, Brand, Description and In stock were right on every site but Barnes & Noble (multi-format positional paths) and Nike's one "Coming Soon" stock status. The judge's own limits are now known: star-glyph ratings, "appears anywhere on the page" on multi-offer pages, field-name vocabulary (Brand vs Publisher, SKU vs ISBN), and values below three tiles.
 
 **Reading Ikea and Made In:** Price is right everywhere the judge could see it (38 of 38 and 33 of 33). Ikea's 15 "wrong" Average ratings are the judge reading star glyphs against a numeric value from the page data, as on B&N; Made In's 3 Title wrongs are worth a look in the report (a site-name or set-name mismatch). Across four judged runs (Nike, B&N, Ikea, Made In; ~$16): **Price and Title are correct on every page where the judge sees them, except B&N's multi-format pages**; the real wrongs are stock status on a "Coming Soon" shoe, B&N's positional ISBNs, and ratings the judge cannot read precisely from stars.
 
@@ -169,9 +169,9 @@ Running total of spend (from the Usage page): **$0.45** for October, all workers
 
 **Scope reached.** 16 websites touched in one day (rows 0–15). Marko's decision at the end of
 the day: stop adding sites, finish the two interrupted judge runs one at a time, write up.
-**Final spend 2026-10-08: ~$30.40 in eight judge runs (+ ~$2.30 lost to the memory kill) and
+**Final spend 2026-10-08: ~$30.40 in eight judge runs (+ $3.26 in the two interrupted attempts, whose reports were written on the kill — `2026-10-08T14-02-judge-run-*.md`) and
 ~$1.30 of mis-attributed Sample/Extract charges on the org's Usage page; Verify and Extract
-themselves cost $0.00 everywhere. About $66 of the $100 remains for the week.** Two more
+themselves cost $0.00 everywhere. About $65 of the $100 remains for the week.** Two more
 findings from the re-runs: a browser crash mid-run fails the rest of the queue with no retry
 or browser restart (Everlane, 11 items), and Find products leaves the old cards on the board
 so the new products are only reachable by dropping cards in the same page session.
@@ -189,7 +189,7 @@ every product" on 4 sites).
 
 **2. Cost.** Verify: estimated "up to $0.40" everywhere, actual **$0.00** everywhere. Extraction:
 **$0.00 in AI per item** on every verified site. The campaign's AI spend went entirely to the
-judge — **$23.48 for six runs** before the interruption, ~$2.30 lost to the memory kill, plus
+judge — **$23.48 for six runs** before the interruption, $3.26 spent in the two interrupted attempts (reports kept), plus
 the two re-runs. Per-run `cost_usd` figures in the app are unreliable under concurrency (shared
 process counter); only the org total on the Usage page is right.
 
