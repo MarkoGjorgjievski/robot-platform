@@ -1,6 +1,6 @@
 # decathlon.co.uk — credit campaign 2026-10-08
 
-**Status: STOPPED (servers down).** The coordinator stopped the round partway through step 3, because the owner had shut down the dev servers. I had found the listing and screened it, and three proof pages were ready. No expected values were accepted. **Verify was not clicked and no Extract was started**, so nothing was spent on this website.
+**Status: STOPPED (servers down), then RESUMED and DONE — see the last section.** The coordinator stopped the round partway through step 3, because the owner had shut down the dev servers. I had found the listing and screened it, and three proof pages were ready. No expected values were accepted. **Verify was not clicked and no Extract was started**, so nothing was spent on this website.
 
 **Website**
 - Name `Decathlon`, slug `decathlon`, source `c38b5cc1-1a09-4611-a90b-0a4635419ea1`.
@@ -79,3 +79,86 @@ After the swap, all 8 rows read "agreed · Accept" (`decathlon-inspect.png`). No
 - `decathlon-plain-headless-cloudflare.png`: plain headless Playwright on the homepage hits a Cloudflare checkbox (403).
 - `decathlon-screen.png`: after Find products. Three category cards, two of them blocked by Cloudflare.
 - `decathlon-inspect.png`: the three real proof pages `ready`, with all 8 rows "agreed", including SKU 5 / 2 / 5.
+
+## Resumed after the server restart (2026-10-08)
+
+**Status: DONE.** The board was intact after the restart: the three proof pages were still `ready`, with all 8 rows "agreed", SKU still 5 / 2 / 5. Nothing had been accepted and there were no runs.
+
+**Total spent on this website: $0.1586.** Verify cost $0. Sample cost $0.0908 and Extract cost $0.0678.
+
+### Proof pages
+
+- I added the planned 4th page, the marketplace Inov-8 Trailfly, by URL. It went `ready` in 9 s, with no Cloudflare page this time.
+- So the board covers both layouts:
+  - three Decathlon `/p/…/m<ID>` pages;
+  - one `/p/mp/…` marketplace page, which has no ID and no rating.
+
+### Expected values
+
+I checked every value against the capture's box text, not only the suggestion.
+
+| Field | What it needed | Values (1 / 2 / 3 / 4) | Verdict |
+|---|---|---|---|
+| Title | agreed (row Accept) | the h1 on each page | verified 4/4 (json-ld) |
+| Price | agreed | 99.99 / 79.99 / 14.99 / 63. The pages show "£99.99 Current price" (was £119.99), "£79.99", "£14.99" (was £19.99), "£63.00" | verified 4/4 (json-ld) |
+| Main image | agreed | the `p3159779…`, `p3079849…`, `p3239545…`, `m16047959…` URLs. Each is an `<img>` in its capture | verified 4/4 (json-ld) |
+| **SKU** | **marked** on 1–3; **absent** on 4 | `ID 9001574` / `ID 9001312` / `ID 8733464` / —. The mark takes the whole visible span, "ID" prefix included | verified 3/3 (xpath `product_productinfo_id`), no AI |
+| Brand | agreed | KIPRUN / ASICS / DECATHLON / INOV-8. Each is the brand line above the h1 | verified 4/4 (json-ld) |
+| Rating | agreed on 1–3; **absent** on 4 | 4.39 / 4.6 / 4.54 / —. The page prints 4.4 / 4.6 / 4.5, and the exact values are in the page's "Rating of 4.39 out of 5" text. I accepted them as the site's own data, as on Made In and Lookfantastic | verified 3/3 (json-ld) |
+| In stock | agreed | In stock ×4 ("Add to basket" on every page) | verified 4/4, `weakEvidence: true` |
+| Description | agreed | the summary paragraph under the h1 on each page | verified 4/4 (json-ld) |
+
+Totals across the 8 fields: 7 agreed rows, SKU marked (3 cells), 0 typed. Two cells are absent, both on product 4: SKU and Rating.
+
+**SKU on product 4 blocked Verify.**
+- After I marked SKU on 1–3, product 4 still carried the suggestion "5" ("page data: 5"). The page has no ID.
+- Verify was disabled with **"SKU has a suggestion to confirm on product 4"**.
+- The field details offer **"Reject the SKU suggestion"**, which cleared the cell and enabled Verify.
+- **The rejection is not saved.** After a reload, "5" is back and Verify is blocked again (`decathlon-resume-after-verify.png` shows it again after Verify).
+- So the reject and the Verify click had to happen in the same page visit.
+
+### Verify (one click)
+
+- **Label:** "Verify 8 fields · up to $0.40".
+- **Clicked once** at 13:40:47 UTC. It took 20.6 s.
+- **Result:** `allPassed: true`, 0 AI calls, **actual $0.0000**. All 8 fields were verified.
+- Screenshots: `decathlon-resume-before-verify.png` (product 4's SKU rejected, Verify enabled) and `decathlon-resume-after-verify.png`.
+
+### Sample (about 2 min after Verify)
+
+- Pages walked 1. **Product links found: 30.** Pagination: "not reported".
+- The probe run cost **$0.0908**. It ended `partial` with "budget reached: 30 items", and its 3 rows were the three Decathlon proof pages.
+- Right after the sample the card read **"Sample rows complete 0 of 0"** while the step header said "3 rows extracted" (`decathlon-resume-sample.png`). After a reload it read "3 of 3".
+
+### Extract (one start, about 2 min after the Sample)
+
+- **Settings:** 55 products, 2 pages, which the page summarised as "first 55 products from each · first 2 pages of each".
+- **Result:** completed, **40 rows**, **$0.0678**, 513.9 s, which is **12.8 s per item**.
+- **The item budget did not bind.** The run walked only listing page 1: "no pagination detected … planned page 1 only", and "api-param pagination not applied". Decathlon's pager is `?from=40&size=40`.
+
+| Field | Filled | Notes |
+|---|---|---|
+| Title | 39/40 | |
+| Price | 39/40 | |
+| Main image | 39/40 | |
+| SKU | 35/40 | 4 marketplace `/p/mp/` pages have no ID (correctly empty) + Ekiden One |
+| Brand | 39/40 | |
+| Rating | 40/40 | **but 5 are `0`**: three Inov-8 marketplace pages and two Adidas Galaxy 8 pages. These pages show no rating; the 0 comes from the certified fallback `stats.averageRating` (api) |
+| In stock | 40/40 | all `true` |
+| Description | 39/40 | |
+
+- **The 1-in-40 miss is the Ekiden One** (`/p/ekiden-one-men-s-shoes-grey/9713/c248c227m8351755`). It came back with only rating 4.53 and in_stock. The live page in a stealth browser is a normal page: 200, JSON-LD with name, brand DECATHLON, price 11.99, and ID 8351755 visible. The run stored no HTML for it, so the cause is unknown.
+- Spot check: SKUs, prices, brands and titles on the other rows look right.
+- Description on product 2 came out with "GELTM" for "GEL™". This is normalisation; it still verified.
+- The run page is in `decathlon-resume-run.png`.
+
+### Findings in the product (this round)
+
+1. **A wrong suggestion on a 4th product blocks Verify, and its rejection is not saved.** The bad SKU "5" on product 4 returns after a reload, so Verify is disabled again until it is rejected again in the same visit.
+2. **The SKU suggestion was "agreed" and wrong** on products 1–3 (5 / 2 / 5), and product 4 was offered "5" as well. The real value had to be marked. This repeats the first round's finding #1.
+3. **A certified Rating path writes `0` for products with no rating.** This is the api `stats.averageRating` fallback, and it gave 5 of 40 rows a value the page does not show. Verify could not catch it, because product 4's Rating was absent and so was never checked.
+4. **No pagination was detected on Decathlon's listing.** The run stopped at 40 of the 55 budgeted, and the run page does not say that the budget went unspent.
+5. **The Sample card said "0 of 0" sample rows right after sampling**, while the header said "3 rows extracted". It was correct after a reload.
+6. **The Sample cost $0.09 after a free Verify**, more than the Extract itself ($0.068).
+
+Screenshots: `decathlon-resume-before-verify.png`, `decathlon-resume-after-verify.png`, `decathlon-resume-sample.png`, `decathlon-resume-run.png`.
