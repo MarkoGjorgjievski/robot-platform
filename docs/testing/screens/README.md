@@ -72,6 +72,7 @@ screenshot provokes, and the picture is a blank page.
 | `app-project-output-dark.png` / `-light.png` | Output on a project with no run — the empty state, downloads off |
 | `app-site-verification-empty-dark.png` / `-light.png` | the Verification tab before anything — the listing bar, "Find products from a listing page…", Verify off with "Add at least three products" (viewport) |
 | `app-site-verification-table-dark.png` / `-light.png` | the table before any click — three column heads ready, Title and Price orange with "agreed · Accept", Rating empty with "missing on product 1", "Accept all agreed (2)", Verify off with its reason (viewport) |
+| `app-site-verification-selected-dark.png` / `-light.png` | a cell selected, after Accept all agreed (spec 2026-10-07) — Title on product 1 outlined, the detail bar above the table with "Title · Widget A (product 1)", "accepted", the full value, Copy / Fix / Type it, and the read-only crop of the screenshot around the element; no screenshot panel open (viewport) |
 | `app-site-verification-dark.png` / `-light.png` | the website walk's first stop, after the reload — every cell accepted (green rail), "Nothing agreed to accept", "saved", Verify enabled and priced, not clicked (full page) |
 | `app-site-extract-dark.png` / `-light.png` | Extract on an unverified website — the locked strip, the three sections out of reach |
 | `app-site-runs-dark.png` / `-light.png` | Runs with nothing extracted — the empty state |
