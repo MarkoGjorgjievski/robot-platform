@@ -90,3 +90,84 @@ Spend for this website: Verify $0.00 + Sample $0.0376 = **$0.04** (Usage page).
 - `allbirds-table-before.png`: the table after Find products, before any accept (Verify reads "up to $0.40").
 - `allbirds-after-verify.png`: 8/8 verified, "Everything is verified".
 - `allbirds-sample.png`: the Extract tab after Sample. 1 page walked, 1 link found, "0 of 0".
+
+## Re-run after fix B (2026-10-08, servers restarted)
+
+Fix B is the change to the listing walk: after page 1 it plans from the page's product links
+when the row selector missed them. The website was **not** re-verified; the certification
+from 10:13Z stands. The listing is unchanged, **https://www.allbirds.com/collections/mens**,
+already saved on the Extract tab.
+
+**Status: DONE.** Sample now finds 30 links where it found 1 before, and Extract returned
+60 of 60.
+
+### Sample (clicked once, "Sample again")
+
+| | Before fix (10:15Z) | After fix (13:32Z) |
+|---|---|---|
+| Pages walked | 1 | 1 |
+| Product links found | **1** | **30** (the probe's item budget: the run log reads `budget reached: 30 items`) |
+| Pagination detected | none detected — single page | not reported |
+| Sample rows | "0 of 0" (header "1 row extracted") | **3 of 3** (header "3 rows extracted") |
+| Wall time | 105 s | 104 s (13:32:49.8 → 13:34:33.7) |
+| Run cost | $0.0376 | $0.0306 (run `8d5ad632-…`, status `partial`) |
+
+- The three sample rows were three colourways of Men's Dasher NZ (Anthracite, Light Burnt Olive, Blizzard). Every field was filled, and each row had its own colourway's image.
+- The message "planned from the page's product links" does **not** appear anywhere the customer can see it. The probe's and the run's `logs` contain only `warning: budget reached: N items`, and neither the Sample panel nor the run page says it. So it cannot be confirmed from the UI that the new branch, rather than some other path, produced the links. The outcome is what changed.
+- Finding 8 (the panel contradicting itself) is gone: the header and the panel now agree at 3.
+- The Sample is still labelled "No AI. Free." while the run records $0.0306 (finding 2 stands). That figure comes from the process-wide counter, and two judge processes and another worker were running at the same time.
+- The Sample run's status is `partial`, presumably because 27 of its 30 planned detail items stay `pending` by design.
+
+### Extract (started once)
+
+- Budget: "Run **custom** (60) products across **custom** (2) pages". The screen read "first 60 products from each · first 2 pages of each". Extract was clicked at 13:45:01.7Z, about 10 min after Sample finished.
+- Run `608342bc-70e2-4156-a166-70391b2ee8db`, status **completed**, **60 of 60 extracted**. The page reads "60 URLs to extract · 1 listing page walked", and the log reads `budget reached: 60 items`, so the item budget bound.
+- The 60 URLs were all distinct and all `/products/mens-…`; none of the women's colourways on the page came through.
+- Time: 13:45:01.8 → 13:55:38.5 = **637 s, which is 10.6 s per item**.
+- Cost shown: **$0.1512** (`runs.cost_usd`). A run on certified JSON-LD/XPath paths should cost $0, so most or all of this is probably other processes' model calls absorbed by the shared counter. It is a finding either way: the run is charged.
+
+Per-field hit rates (from the run's rows; the run page's "Empty cells" panel says the same):
+
+| Field | Filled | Note |
+|---|---|---|
+| Title | 60/60 | |
+| Price | 60/60 | |
+| Main image | 60/60 | `&width=100` thumbnail URL (finding 3) |
+| SKU | 60/60 | only **13 distinct** values over 60 rows: the SKU is the style (`MENS_DASHER_NZ`), the same for every colourway |
+| Brand | 60/60 | |
+| Rating | **55/60** | empty on 5: Cruiser/Varsity Terralux colourways, Dasher NZ Relay ×2 (product pages with no rating in their data, presumably new products) |
+| In stock | 60/60 | |
+| Description | **52/60** | empty on 8: Terralux, Terry, Jersey and Relay products; the run page says "all from /collections/mens" and offers "Repair all gaps…" |
+
+### Spot-check of 5 rows against the live pages
+
+The pages were opened headless at 13:58Z. The "Where are we shipping to?" modal covers the
+middle of each page, but the title, price and colour stay readable.
+
+| Product | Price (row / page) | SKU (row / page JSON-LD) | Main image colour (row / page) |
+|---|---|---|---|
+| mens-dasher-nz-blizzard | 140 / $140 visible | MENS_DASHER_NZ / same | Blizzard / Blizzard selected, same file as the first gallery image |
+| mens-tree-runner-nz-rugged-beige | 100 / JSON-LD 100 | MENS_TREE_RUNNER_NZ / same | Rugged Beige / Rugged Beige, same file |
+| mens-varsity-airy-mushroom-blizzard | 120 / $120 visible | MENS_MENS_VARSITY_AIRY / same | Mushroom / Mushroom, same file |
+| mens-cruiser-terralux | 135 / JSON-LD 135 | MENS_CRUISER_TERRALUX / same | Toasted Coconut / Toasted Coconut, same file |
+| mens-cruiser-terry-ochre | 115 / $115 visible | MENS_CRUISER_TERRY / same | Ochre / Ochre, same file |
+
+All 5 rows agree with the pages: price 5/5 (3 read off the screenshot, 2 against the page's
+JSON-LD), SKU 5/5 and image colour 5/5. On these five URLs the image matches the colourway
+named in the URL. The wrong-colour case from finding 3 (`mens-cruiser-medium-grey`) was not
+among the 60 rows.
+
+### Findings from the re-run
+
+1. **Fix B works live:** 1 → 30 links on Sample, and 60 of 60 on Extract with every row a distinct men's product.
+2. **The "planned from the page's product links" warning is not surfaced.** It is not in `runs.logs`, the Sample panel or the run page, so neither a customer nor an operator can tell that the fallback fired.
+3. **The Extract run is charged $0.15 with zero expected AI.** Like the Sample, it has no AI work to do, so this is the shared-counter attribution problem (finding 2) at a larger scale.
+4. **SKU is the style code, not a variant SKU.** With "one row per variant" there are 60 rows but only 13 distinct SKUs, so the column cannot key a row. This is the site's JSON-LD `sku`, accepted at Verification.
+5. Description is 87% and Rating 92%. The gaps cluster by product line (Terralux, Jersey, Relay), which matches the run page's "lays that field out differently" hint.
+
+Spend for this re-run: Sample $0.0306 + Extract $0.1512 = **$0.18** as recorded (shared-counter caveat).
+
+Screenshots:
+- `allbirds-rerun-sample.png`: the Extract tab after Sample. 30 links, 3 of 3.
+- `allbirds-rerun-extract-before.png`: the budget set to 60 products / 2 pages, before Extract.
+- `allbirds-rerun-run.png`: the run page, Done, 60 of 60, with the Empty cells panel.
