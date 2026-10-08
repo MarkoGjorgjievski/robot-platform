@@ -9,6 +9,9 @@ import { ProductCard } from '../../../../../../components/verification/product-c
 import { PageViewer, type Overlay } from '../../../../../../components/verification/page-viewer';
 import { MarkPopover } from '../../../../../../components/verification/mark-popover';
 import { VerificationTable, type TableRow, type DriftLine } from '../../../../../../components/verification/verification-table';
+import { CellDetailBar, type DetailBarSelection } from '../../../../../../components/verification/cell-detail-bar';
+import { ScreenshotCrop } from '../../../../../../components/verification/screenshot-crop';
+import { clampSelection, headerCount, type CellSelection } from '../../../../../../lib/site/table-selection';
 import { VerifyBar } from '../../../../../../components/verification/verify-bar';
 import { DriftBanner } from '../../../../../../components/verification/drift-banner';
 import { VariantsStep, detectVariantsQuery } from '../../../../../../components/verification/variants-step';
@@ -220,6 +223,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [saveError, setSaveError] = useState<string | null>(null);
   const [popover, setPopover] = useState<Popover | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  /** The selected cell (spec 2026-10-07 §1) — route state, not the address; the address keeps meaning "screenshot open". */
+  const [rawSelection, setRawSelection] = useState<CellSelection | null>(null);
+  /** "Type it" for a field: bumps a counter the row's details use to focus its input. */
+  const [typeFocus, setTypeFocus] = useState<{ key: string; n: number }>({ key: '', n: 0 });
   /**
    * A cell or a column head asked to see this product's screenshot (and this
    * field's element on it). Handed to the viewer only once the address has
@@ -534,6 +541,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const selected = Math.min(Math.max((search.product ?? 1) - 1, 0), Math.max(board.cards.length - 1, 0));
   const selectedUrl = board.cards[selected]?.url ?? '';
   const fieldKey = search.field ? (fields.find((f) => f.key === search.field) ?? fields.find((f) => f.name === search.field))?.key : undefined;
+  // A field deleted on the Fields page or a dropped product takes its selection with it (Review Focus 2).
+  const selection = clampSelection(rawSelection, fields.map((f) => f.key), board.cards.length);
+  /** The product the expanded row's details ("Type it", the hint) are about: the selected cell's, else the open screenshot's (spec §1). */
+  const detailIndex = selection ? selection.product : selected;
+  const detailUrl = board.cards[detailIndex]?.url ?? '';
 
   const select = useCallback(
     (next: { product?: number; field?: string | null }) =>
@@ -986,23 +998,24 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
    */
   function rowHint(f: Field): FieldHint | undefined {
     // A failed cell says why on its row, "Mark it on the screenshot" included (spec C2's no_fitting_path).
-    if (selectedUrl && failedCell(f.key, selectedUrl)) {
-      const hint = cellStatusFor(results, f.key, selectedUrl, false, f.type, f.name)?.hint;
+    if (detailUrl && failedCell(f.key, detailUrl)) {
+      const hint = cellStatusFor(results, f.key, detailUrl, false, f.type, f.name)?.hint;
       if (hint) return { text: hint };
     }
-    const s = selectedUrl ? live[f.key]?.[selectedUrl] : undefined;
+    const s = detailUrl ? live[f.key]?.[detailUrl] : undefined;
     if (!s) return undefined;
-    const url = selectedUrl;
+    const url = detailUrl;
+    const urlBoxes = boxesByUrl[url] ?? NO_BOXES;
     // Only elements big enough to click count: a suggestion on nothing but a
     // 1×1 anchor is offered here, like a value no element shows. Counted as the
     // row's status counts them (A5): one structured value in several elements is one place.
-    const places = placesOf(boxes, s, f, url);
+    const places = placesOf(urlBoxes, s, f, url);
     if (places === 0) {
       return {
         text: s.origin === 'page-data' ? 'page data' : 'from another product',
         value: displayValue(f, s.value),
         onAccept: () => {
-          const given = suggestionAnswer(boxes, f, s, url);
+          const given = suggestionAnswer(urlBoxes, f, s, url);
           setBoard((b) => answer(b, f.key, url, given));
           select({ field: f.key });
           carry(f.key, url, given);
@@ -1093,37 +1106,77 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     });
   }
 
+  /** What a cell shows: the answer, else the live suggestion, displayed for the field's type. */
+  function cellValue(f: Field, url: string): string {
+    return displayValue(f, board.answers[f.key]?.[url]?.value ?? live[f.key]?.[url]?.value ?? '');
+  }
+
+  /** Fix / Mark (spec 2026-10-07 §4): exactly what a cell click did before — open the screenshot on this cell. */
+  function fixCell(sel: CellSelection) {
+    const f = fields.find((x) => x.key === sel.key);
+    if (!f || !board.cards[sel.product]) return;
+    setPopover(null);
+    setRawSelection(sel);
+    select({ product: sel.product + 1, field: f.key });
+    setReveal((r) => ({ n: r.n + 1, product: sel.product + 1, field: f.key }));
+  }
+
+  function copyCell(sel: CellSelection) {
+    const f = fields.find((x) => x.key === sel.key);
+    const url = board.cards[sel.product]?.url;
+    if (!f || !url) return Promise.resolve();
+    const v = cellValue(f, url);
+    if (!v.trim()) return Promise.resolve();
+    return navigator.clipboard.writeText(v).catch(() => undefined);
+  }
+
+  function typeIt(key: string) {
+    setExpanded((e) => ({ ...e, [key]: true }));
+    setTypeFocus((t) => ({ key, n: t.n + 1 }));
+  }
+
+  /** The field's element on a product, for the crop: its answer's mark, else its suggestion's first clickable place. */
+  function elementFor(key: string, url: string): Box['rect'] | null {
+    const urlBoxes = boxesByUrl[url] ?? NO_BOXES;
+    const a = board.answers[key]?.[url];
+    if (a) {
+      const i = boxOfMark(urlBoxes, a.mark);
+      return i === null ? null : (urlBoxes[i]?.rect ?? null);
+    }
+    const s = live[key]?.[url];
+    if (!s) return null;
+    const i = pointable(urlBoxes, s.boxes)[0];
+    return i === undefined ? null : (urlBoxes[i]?.rect ?? null);
+  }
+
   const rows: TableRow[] = fields.map((f, fi) => {
-    const a = selectedUrl ? board.answers[f.key]?.[selectedUrl] : undefined;
+    const a = detailUrl ? board.answers[f.key]?.[detailUrl] : undefined;
     const typed = a && a.mark === null ? a.value : '';
     return {
       field: f,
       drift: driftLinesFor(f),
       status: statuses[fi]!,
-      cells: board.cards.map((c, i) => ({
-        value: displayValue(f, board.answers[f.key]?.[c.url]?.value ?? live[f.key]?.[c.url]?.value ?? ''),
+      cells: board.cards.map((c) => ({
+        value: cellValue(f, c.url),
         state: segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) }),
-        selected: panelOpen && selected === i && fieldKey === f.key,
-        onClick: () => {
-          setPopover(null);
-          select({ product: i + 1, field: f.key });
-          setReveal((r) => ({ n: r.n + 1, product: i + 1, field: f.key }));
-        },
+        url: c.url,
         onAccept: c.url.trim() ? cellAccept(f, c.url) : undefined,
       })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
+      count: headerCount(results, f.key, unchangedKeys, board.cards),
       expanded: !!expanded[f.key],
       details: {
-        productNumber: selected + 1,
+        productNumber: detailIndex + 1,
         description: board.descriptions[f.key] ?? f.description,
         typed,
         typedError: typed.trim() !== '' ? (validateValue(f.type, typed) ?? undefined) : undefined,
         hint: rowHint(f),
         onType: (text: string) => {
-          if (!selectedUrl) return;
-          setBoard((b) => answer(b, f.key, selectedUrl, text.trim() ? { value: text, mark: null } : null));
+          if (!detailUrl) return;
+          setBoard((b) => answer(b, f.key, detailUrl, text.trim() ? { value: text, mark: null } : null));
         },
         onDescription: (text: string) => setBoard((b) => setDescription(b, f.key, text)),
+        focusTyped: typeFocus.key === f.key ? typeFocus.n : 0,
       },
       // A row whose paths disagree accepts only the majority's cells (spec A4).
       onAccept: () => setBoard((b) => acceptRow(b, f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined)),
@@ -1161,6 +1214,44 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         onMarkDone: () => setVariantMark(null),
       }
     : null;
+
+  // --- The detail bar (spec 2026-10-07 §2, §4).
+  const detailField = selection ? fields.find((f) => f.key === selection.key) : undefined;
+  const detailCard = selection ? board.cards[selection.product] : undefined;
+  const detailCapture = detailCard?.url ? captures.byUrl[detailCard.url] : undefined;
+  const detailRawTiles = detailCapture?.tiles;
+  const detailTiles = useMemo(() => (detailRawTiles ?? NO_TILES).map((t) => tileHref(t)).filter((t): t is string => !!t), [detailRawTiles]);
+  const detailBar: DetailBarSelection | null =
+    selection && detailField && detailCard
+      ? (() => {
+          const url = detailCard.url;
+          const state = segment(board, live, detailField.key, url, { failed: url !== '' && failedCell(detailField.key, url) });
+          const status = !url || !detailCapture || detailCapture.status === 'starting' || detailCapture.status === 'capturing' ? 'pending' : detailCapture.status === 'failed' ? 'failed' : 'ready';
+          return {
+            fieldName: detailField.name,
+            productLabel: detailCard.title || (url ? shortUrl(url) : `Product ${selection.product + 1}`),
+            productNumber: selection.product + 1,
+            value: url ? cellValue(detailField, url) : '',
+            state,
+            onCopy: () => copyCell(selection),
+            onFix: () => fixCell(selection),
+            onTypeIt: () => typeIt(detailField.key),
+            preview: panelOpen ? null : (
+              <ScreenshotCrop
+                tiles={detailTiles}
+                capturedHeight={detailCapture?.capturedHeight ?? 0}
+                status={status}
+                error={detailCapture?.status === 'failed' ? detailCapture.error : undefined}
+                box={url ? elementFor(detailField.key, url) : null}
+                tone={state}
+                fieldName={detailField.name}
+                disabled={locked}
+                onOpen={() => fixCell(selection)}
+              />
+            ),
+          };
+        })()
+      : null;
 
   const heads = board.cards.map((card, i) => (
     <ProductCard
@@ -1235,6 +1326,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
       {board.cards.length > 0 ? (
         <div className="space-y-2">
+          <CellDetailBar selection={detailBar} locked={locked} />
           <VerificationTable
             heads={heads}
             addHead={
@@ -1245,6 +1337,16 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             rows={rows}
             locked={locked}
             variants={variantsRow}
+            selection={selection}
+            keyboard={!popover && !variantMark}
+            onSelect={setRawSelection}
+            onFix={fixCell}
+            onCopy={(sel) => void copyCell(sel)}
+            onTypeIt={typeIt}
+            onEscape={() => {
+              if (panelOpen) closePanel();
+              else setRawSelection(null);
+            }}
           />
           <p className="px-1 text-sm text-muted-foreground">
             Field names and types come from the project.{' '}
