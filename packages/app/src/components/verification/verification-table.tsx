@@ -250,6 +250,13 @@ export function VerificationTable({
   // the route (Fix from the bar, a reload) must not steal focus from an input.
   const wrapRef = useRef<HTMLDivElement>(null);
   const focusNext = useRef(false);
+  /**
+   * Radix's ContextMenu returns focus to its trigger (the cell) once it
+   * closes. "Type it" needs the opposite — the Type input it just focused —
+   * so it flags this ref before closing and the cell's `onCloseAutoFocus`
+   * skips the default return exactly once.
+   */
+  const skipReturnFocus = useRef(false);
   useEffect(() => {
     if (!focusNext.current || !selection) return;
     focusNext.current = false;
@@ -374,7 +381,14 @@ export function VerificationTable({
                             </span>
                           </button>
                         </ContextMenuTrigger>
-                        <ContextMenuContent>
+                        <ContextMenuContent
+                          onCloseAutoFocus={(e) => {
+                            if (skipReturnFocus.current) {
+                              skipReturnFocus.current = false;
+                              e.preventDefault();
+                            }
+                          }}
+                        >
                           <ContextMenuItem disabled={!value} onSelect={() => onCopy(sel)}>
                             Copy value
                           </ContextMenuItem>
@@ -385,7 +399,13 @@ export function VerificationTable({
                           <ContextMenuItem disabled={locked} onSelect={() => onFix(sel)}>
                             {label} on screenshot
                           </ContextMenuItem>
-                          <ContextMenuItem disabled={locked} onSelect={() => onTypeIt(row.field.key)}>
+                          <ContextMenuItem
+                            disabled={locked}
+                            onSelect={() => {
+                              skipReturnFocus.current = true;
+                              onTypeIt(row.field.key);
+                            }}
+                          >
                             Type it
                           </ContextMenuItem>
                         </ContextMenuContent>
