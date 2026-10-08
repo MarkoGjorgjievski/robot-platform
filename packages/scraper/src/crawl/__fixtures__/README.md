@@ -1,0 +1,3 @@
+# crawl fixtures
+
+- `allbirds-mens-listing-anchors.json` — every `<a href>` (href + text only) on https://www.allbirds.com/collections/mens, captured 2026-10-08 with `PlaywrightBrowser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true })` — the same capture `planRun` takes — then harvested with `setContentEvaluate` and the `LISTING_ANCHORS_SCRIPT` that was then in `packages/api/src/verify/find-product-pages.ts` (before the navigation `chrome` flag existed, so no anchor carries `chrome`). 417 anchors; `largestProductGroup` finds 150 `/products/*` links. The listing where Sample planned 1 product (campaign 2026-10, `docs/testing/results/campaign-2026-10/allbirds.md`).
