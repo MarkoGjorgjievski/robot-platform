@@ -1017,7 +1017,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         onAccept: () => {
           const given = suggestionAnswer(urlBoxes, f, s, url);
           setBoard((b) => answer(b, f.key, url, given));
-          select({ field: f.key });
+          // Highlight on the open screenshot only when it shows this product; a closed
+          // panel or another product's screenshot must not take a stale ?field.
+          if (panelOpen && selected === detailIndex) select({ field: f.key });
           carry(f.key, url, given);
         },
         onReject: () => rejectSuggestion(f.key, url),
@@ -1127,7 +1129,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (!f || !url) return Promise.resolve();
     const v = cellValue(f, url);
     if (!v.trim()) return Promise.resolve();
-    return navigator.clipboard.writeText(v).catch(() => undefined);
+    // Rejections reach the caller, so the bar says "Copied" only on success.
+    if (!navigator.clipboard) return Promise.reject(new Error('Clipboard unavailable'));
+    return navigator.clipboard.writeText(v);
   }
 
   function typeIt(key: string) {
@@ -1236,7 +1240,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onCopy: () => copyCell(selection),
             onFix: () => fixCell(selection),
             onTypeIt: () => typeIt(detailField.key),
-            preview: panelOpen ? null : (
+            // A card with no URL has no screenshot to take.
+            preview: panelOpen || !url ? null : (
               <ScreenshotCrop
                 tiles={detailTiles}
                 capturedHeight={detailCapture?.capturedHeight ?? 0}
@@ -1341,7 +1346,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             keyboard={!popover && !variantMark}
             onSelect={setRawSelection}
             onFix={fixCell}
-            onCopy={(sel) => void copyCell(sel)}
+            onCopy={(sel) => void copyCell(sel).catch(() => undefined)}
             onTypeIt={typeIt}
             onEscape={() => {
               if (panelOpen) closePanel();

@@ -183,6 +183,14 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
   );
 }
 
+const MOVE_KEYS: ReadonlySet<string> = new Set<MoveKey>(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+
+function inTextField(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
+}
+
 /**
  * The verification table (spec 2026-09-28 A1): a row per field, a column per
  * product — the product cards become the column heads. Replaces the fields
@@ -195,14 +203,6 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
  * status action is a callback the route resolves against the model
  * (`rowStatus`, `acceptRow`, `acceptAllAgreed` in `lib/site/verification-model.ts`).
  */
-const MOVE_KEYS: ReadonlySet<string> = new Set<MoveKey>(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
-
-function inTextField(t: EventTarget | null): boolean {
-  const el = t as HTMLElement | null;
-  if (!el) return false;
-  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
-}
-
 export function VerificationTable({
   heads,
   addHead,
@@ -292,8 +292,9 @@ export function VerificationTable({
       return;
     }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
-      // A dragged text selection inside the cell keeps native copy (Review Focus 4).
-      if (window.getSelection()?.toString()) return;
+      // Always the cell's value: a cell is a button, so no text inside it can be
+      // selected, and a page selection made elsewhere earlier (Chromium keeps it
+      // when a button is clicked) must not win over the focused cell.
       e.preventDefault();
       onCopy(selection);
     }
@@ -419,6 +420,7 @@ export function VerificationTable({
                         aria-label={`${label} ${row.field.name} on product ${i + 1} on the screenshot`}
                         title={locked ? LOCKED_REASON : `${label} on the screenshot`}
                         onClick={() => onFix(sel)}
+                        tabIndex={isSelected ? 0 : -1}
                         className={cn(
                           'absolute top-1/2 -translate-y-1/2 bg-panel text-muted-foreground hover:text-text focus-visible:opacity-100',
                           cell.onAccept ? 'right-8' : 'right-1',
@@ -435,6 +437,7 @@ export function VerificationTable({
                           aria-label={`Accept ${row.field.name} on product ${i + 1}`}
                           title={`Accept ${row.field.name} on product ${i + 1}`}
                           onClick={cell.onAccept}
+                          tabIndex={isSelected ? 0 : -1}
                           className="absolute top-1/2 right-1 -translate-y-1/2 bg-panel opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
                         >
                           <Check aria-hidden className="size-3" />

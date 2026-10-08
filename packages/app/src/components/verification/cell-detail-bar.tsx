@@ -19,7 +19,7 @@ export type DetailBarSelection = {
 const STATE_TEXT: Record<Segment, string> = {
   empty: 'text-muted-foreground',
   suggested: 'text-warn',
-  answered: 'text-text',
+  answered: 'text-pass',
   failed: 'text-fail',
 };
 
@@ -45,7 +45,9 @@ export function CellDetailBar({ selection, locked }: { selection: DetailBarSelec
     setCopied(false);
   }, [selection?.fieldName, selection?.productNumber]);
 
-  const shell = 'min-h-[76px] rounded-[6px] border border-line bg-panel px-3 py-2';
+  // Reserve the crop's height (160px + py-2 at a 13px root + the border) on sm+, so the
+  // table never jumps when the selection clears or the panel opens (spec §2).
+  const shell = 'min-h-[76px] sm:min-h-[calc(160px+1rem+2px)] rounded-[6px] border border-line bg-panel px-3 py-2';
 
   if (!selection) {
     return (
@@ -60,7 +62,12 @@ export function CellDetailBar({ selection, locked }: { selection: DetailBarSelec
   const label = fixLabel(s.state);
 
   async function copy() {
-    await s.onCopy();
+    // "Copied" only once the clipboard took it; a rejection leaves "Copy".
+    try {
+      await s.onCopy();
+    } catch {
+      return;
+    }
     setCopied(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), 1500);
