@@ -94,7 +94,15 @@ etsy.
 |---|---|---|---|---|---|---|---|---|---|
 | 0 | ikea.com (owner's org, already verified 2026-09-21) | ok | 3 (existing) | — | free / $0.00 | 8/8 verified (mechanical) | 40/40 · 100% on all 8 fields | $0.00 | First extraction run ever on this website, via the CLIs; run `01af1eb0…`; plan 27.9 s, execute 403.6 s → **10.1 s/item** (7–10 s capture + politeness); no bot-wall degradation. `results/campaign-2026-10/ikea-free-extract.md` |
 
-Running total of spend (from the Usage page): _$0.00_ (after row 0)
+| 1 | allbirds.com (`/collections/mens`, 148 products) | ok | 3 | 6 / 2 / 0 / 0 (Brand "Accept anyway"; Description marked on 2 pages, Main image on 1) | up to $0.40 / **$0.00** (0 AI calls, 5 s) | 8/8 verified | **not started** — Sample found 1 product link on the 148-product listing ("0 of 0"), so an Extract would have returned ~1 item | Sample $0.0376 | Findings: (a) the Sample/Extract crawler finds 1 link where Find products finds 148 — the known "listing check vs probe walk count differently" gap, now blocking; (b) a run's cost is the delta of a counter shared by the whole api-server, so parallel workers' AI calls land on whichever run finishes ("No AI. Free." Sample charged $0.0376); (c) Main image on a colour-variant page is the default colour's 100 px thumbnail and still verified 3/3; (d) Description "agreed" on structured text two pages don't show. `results/campaign-2026-10/allbirds.md` |
+
+| 2 | everlane.com (`/collections/mens-tshirts`, 68 products) | ok (no wall) | **none** | — | up to $0.40 / not clicked | — | not started | $0 | **Blocked by the product:** Find products reported "94 products found" but every card was a `/collections/…` page — `largestProductGroup` in `packages/api/src/verify/find-product-pages.ts` keeps the biggest URL-pattern group, and ~137 menu/promo collection links outnumber ~52 `/products/…` links. The table then showed "agreed" for In stock and Description on category pages. Find products took 2.5 min with three workers running. `results/campaign-2026-10/everlane.md` |
+
+Running total of spend (from the Usage page): _$0.04_ (after row 2)
+
+**Campaign hold (2026-10-08, after rows 1–2):** two listing defects block the Extract half on Shopify-style stores — the finder preferring menu links (row 2) and the Sample/probe walk finding 1 link where Find products finds 148 (row 1; the handoff's "listing check and probe walk count product links differently" follow-up, now blocking). Both are being fixed in isolated worktrees (`fix/listing-finder-products`, `fix/probe-walk-links`) while the Nike and Barnes & Noble workers finish; new sites start after the fixes land and the api-server is restarted.
+
+**Measurement caveat (from row 1, finding b):** per-run `cost_usd` is unreliable while several workers run at once; the org total on the Usage page is the number to trust, and per-site cost is read from `source_verifications.cost_usd` only when no other worker was verifying at the same minute.
 
 ## What the campaign should answer, written up at the end
 
