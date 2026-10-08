@@ -92,9 +92,9 @@ etsy.
 
 | # | Website | Screen | Proof pages | Fields agreed / marked / typed / absent | Verify $ shown / actual | Verdict | Extract items / hit rate | Extract $ | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| | | | | | | | | | |
+| 0 | ikea.com (owner's org, already verified 2026-09-21) | ok | 3 (existing) | — | free / $0.00 | 8/8 verified (mechanical) | 40/40 · 100% on all 8 fields | $0.00 | First extraction run ever on this website, via the CLIs; run `01af1eb0…`; plan 27.9 s, execute 403.6 s → **10.1 s/item** (7–10 s capture + politeness); no bot-wall degradation. `results/campaign-2026-10/ikea-free-extract.md` |
 
-Running total of spend (from the Usage page): _$0.00_
+Running total of spend (from the Usage page): _$0.00_ (after row 0)
 
 ## What the campaign should answer, written up at the end
 
