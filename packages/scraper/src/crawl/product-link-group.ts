@@ -128,13 +128,14 @@ export type ReconciledRows = {
  * Should the listing walk plan from the page's product-link group instead of
  * (only) the rows its extraction produced?
  *
- * Only to rescue a row selector that under-matched: the extraction must have
- * resolved at least one URL — zero rows stays "nothing found", so a search
- * input whose result page is empty but shows "You may also like" cards never
- * plans the recommendations. The group must then be CORROBORATED as product
- * links — an extracted URL, or a known product page (the website's verified
- * proof pages), has the group's host and path template — and hold URLs the
- * extraction missed. Without corroboration the group is left alone: a walk
+ * To rescue a row selector that under-matched. With at least one extracted
+ * URL, the group must be CORROBORATED as product links — an extracted URL, or
+ * a known product page (the website's verified proof pages), has the group's
+ * host and path template — and hold URLs the extraction missed. With zero
+ * rows, only a `directListing` input is rescued, and only when a proof page
+ * corroborates the group; a search or template input stays "nothing found",
+ * so an empty result page showing "You may also like" cards never plans the
+ * recommendations. Without corroboration the group is left alone: a walk
  * must never queue menu links.
  *
  * Returns `null` when the extraction's rows stand as they are; otherwise the
@@ -150,8 +151,10 @@ export function reconcileWithProductGroup(args: {
   group: string[];
   listingUrl: string;
   knownDetailUrls?: string[];
+  /** The input is a listing URL the customer gave (input strategy `direct`), not a search or template result. */
+  directListing?: boolean;
 }): ReconciledRows | null {
-  const { rows, urlField, group, listingUrl, knownDetailUrls = [] } = args;
+  const { rows, urlField, group, listingUrl, knownDetailUrls = [], directListing = false } = args;
   if (group.length === 0) return null;
   const groupShape = shapeOf(group[0]!);
   if (groupShape === null) return null;
@@ -165,9 +168,14 @@ export function reconcileWithProductGroup(args: {
     const url = resolve(row[urlField]);
     if (url && !byUrl.has(url)) byUrl.set(url, row);
   }
-  if (byUrl.size === 0) return null;
+  // Zero rows is rescued only on a listing URL the customer gave directly, and
+  // only on the proof pages' word: a stale cached selector that matches
+  // nothing (Allbirds, 2026-10-08) must not end the walk, while an empty
+  // search/template result page must stay empty.
+  if (byUrl.size === 0 && !directListing) return null;
 
-  const corroborated = [...byUrl.keys(), ...knownDetailUrls].some((u) => shapeOf(u) === groupShape);
+  const witnesses = byUrl.size === 0 ? knownDetailUrls : [...byUrl.keys(), ...knownDetailUrls];
+  const corroborated = witnesses.some((u) => shapeOf(u) === groupShape);
   if (!corroborated) return null;
   const missed = group.filter((u) => !byUrl.has(u));
   if (missed.length === 0) return null;

@@ -45,13 +45,16 @@ class FakeBrowser implements IBrowser {
   async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {}
 }
 
-const sourceWith = (maxItems: number) => ({
+const sourceWith = (maxItems: number, strategy: 'direct' | 'search') => ({
   listingMode: 'listing_to_detail' as const,
-  inputStrategy: 'direct' as const,
-  urlTemplate: null,
+  inputStrategy: strategy,
+  // A search input lands on the same listing here, so only the strategy differs.
+  urlTemplate: strategy === 'search' ? 'https://www.allbirds.com/collections/{q}' : null,
   budget: { mode: 'first_n', max_items: maxItems, max_pages: 3 },
 });
-const INPUT_SET = { columns: [{ name: 'url', primary: true }], rows: [{ url: LISTING }] };
+const inputSetFor = (strategy: 'direct' | 'search') => (strategy === 'search'
+  ? { columns: [{ name: 'q', primary: true }], rows: [{ q: 'mens' }] }
+  : { columns: [{ name: 'url', primary: true }], rows: [{ url: LISTING }] });
 
 const outcomeWithRows = (rows: Array<Record<string, unknown>>): ExtractionOutcome => ({
   data: rows.length > 0 ? [rows[0]!] : [{}],
@@ -70,13 +73,18 @@ const outcomeWithRows = (rows: Array<Record<string, unknown>>): ExtractionOutcom
   cacheHit: true,
 } as unknown as ExtractionOutcome);
 
-type PlanOpts = { knownDetailUrls?: string[]; maxItems?: number; schema?: Array<{ name: string; type: string; origin?: 'listing' | 'detail' }> };
+type PlanOpts = {
+  knownDetailUrls?: string[];
+  maxItems?: number;
+  strategy?: 'direct' | 'search';
+  schema?: Array<{ name: string; type: string; origin?: 'listing' | 'detail' }>;
+};
 
 const plan = (rows: Array<Record<string, unknown>>, opts: PlanOpts = {}) => planRun(
   {
-    source: sourceWith(opts.maxItems ?? 40),
+    source: sourceWith(opts.maxItems ?? 40, opts.strategy ?? 'direct'),
     schema: opts.schema ?? [{ name: 'title', type: 'string' }],
-    inputSet: INPUT_SET,
+    inputSet: inputSetFor(opts.strategy ?? 'direct'),
     ...(opts.knownDetailUrls ? { knownDetailUrls: opts.knownDetailUrls } : {}),
   },
   {
@@ -108,8 +116,19 @@ describe('planRun: the listing walk agrees with the finder (Allbirds /collection
     expect(details(outcome)).toEqual(GROUP.slice(0, 40));
   });
 
-  it('zero extracted rows stays "nothing found", even with proof pages that match the group', async () => {
+  it('zero rows on a search input stays "nothing found", even with proof pages that match the group', async () => {
+    const outcome = await plan([], { knownDetailUrls: PROOF_PAGES, strategy: 'search' });
+    expect(details(outcome)).toEqual([]);
+  });
+
+  it('zero rows on a direct listing whose proof pages confirm the group plans from the group (a stale selector)', async () => {
     const outcome = await plan([], { knownDetailUrls: PROOF_PAGES });
+    expect(details(outcome)).toEqual(GROUP.slice(0, 40));
+    expect(outcome.warnings.some((w) => w.includes('found 0 product link(s) but the page has 150'))).toBe(true);
+  });
+
+  it('zero rows on a direct listing with no proof pages invents nothing', async () => {
+    const outcome = await plan([]);
     expect(details(outcome)).toEqual([]);
   });
 

@@ -470,21 +470,28 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // group the Verification tab's finder shows the customer. A row selector
       // that matched one stray element (Allbirds, 2026-10-08: 1 row on a
       // 150-product listing) is otherwise accepted as the whole listing. Only
-      // worth the harvest while the rows fall short of the budget, and only
-      // when the rows found something: zero rows stays "nothing found". A page
-      // below budget may also gain product-shaped links outside the grid (a
-      // promo tile, "recently viewed"), in page order — links the finder
-      // counts too.
+      // worth the harvest while the rows fall short of the budget. Zero rows
+      // is rescued only on a listing URL the customer gave (`direct`) whose
+      // proof pages confirm the group — a stale cached selector matching
+      // nothing (Allbirds again, 2026-10-08) — never on a search/template
+      // input, whose empty result page must stay empty. A page below budget
+      // may also gain product-shaped links outside the grid (a promo tile,
+      // "recently viewed"), in page order — links the finder counts too.
       const extractedUrls = new Set(
         listingRows.map((row) => row[DETAIL_URL_FIELD]).filter((u): u is string => typeof u === 'string' && u !== ''),
       );
-      if (capture?.html && extractedUrls.size > 0 && extractedUrls.size < cap - (detailCount() - detailsBefore)) {
+      const directListing = source.inputStrategy === 'direct';
+      if (
+        capture?.html
+        && (extractedUrls.size > 0 || (directListing && (request.knownDetailUrls?.length ?? 0) > 0))
+        && extractedUrls.size < cap - (detailCount() - detailsBefore)
+      ) {
         try {
           const anchors = await deps.browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
           if (Array.isArray(anchors)) {
             const group = largestProductGroup(anchors, start.url);
             const reconciled = reconcileWithProductGroup({
-              rows: listingRows, urlField: DETAIL_URL_FIELD, group, listingUrl: start.url,
+              rows: listingRows, urlField: DETAIL_URL_FIELD, group, listingUrl: start.url, directListing,
               ...(request.knownDetailUrls ? { knownDetailUrls: request.knownDetailUrls } : {}),
             });
             if (reconciled) {
