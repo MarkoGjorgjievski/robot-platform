@@ -139,6 +139,9 @@ export async function planSource(
           columns: (inputSet.columns ?? []) as Array<{ name: string; primary?: boolean; propagate?: boolean }>,
           rows: planRows,
         },
+        // The website's proof pages: known product pages that corroborate the
+        // listing's product-link group (`reconcileWithProductGroup`).
+        knownDetailUrls: (source.verificationSet as { urls?: string[] } | null)?.urls ?? [],
       },
       { browser, agent: new SchemaAgent() },
     ));

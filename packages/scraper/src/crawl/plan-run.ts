@@ -21,6 +21,7 @@ import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumer
 import { detectPagination, type PaginationAgent, type PaginationDetection } from './detect-pagination.js';
 import { fetchInPage } from './api-param-fetch.js';
 import { page1Shape, rowUrls } from './api-row-urls.js';
+import { largestProductGroup, reconcileWithProductGroup, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './product-link-group.js';
 
 export type PlannedItem = {
   kind: 'listing' | 'detail';
@@ -60,6 +61,12 @@ export type PlanRunRequest = {
   };
   schema: OriginField[];
   inputSet: { columns: InputSetColumn[]; rows: Array<Record<string, unknown>> };
+  /**
+   * Product pages already known to belong to this website — its verified proof
+   * pages. They corroborate the listing's product-link group when the
+   * extraction's own rows cannot (see `reconcileWithProductGroup`).
+   */
+  knownDetailUrls?: string[];
 };
 
 export type PlanRunDeps = {
@@ -367,7 +374,7 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // `data` is always a single row — right for a detail page, useless here.
       // `rows` carries every row the row-scoped extraction produced, which is
       // what a listing page's links actually live in.
-      const listingRows = page1.rows ?? page1.data;
+      let listingRows = page1.rows ?? page1.data;
 
       // Page-level listing fields: a value shown once for the whole page (the
       // category in a breadcrumb) is not per-row, so no row resolved it. A second
@@ -458,6 +465,47 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         if (result.stop === 'budget') warnings.push(`budget reached: ${cap} items`);
         return result.stop;
       };
+
+      // Cross-check page 1's rows against the page's own product links — the
+      // group the Verification tab's finder shows the customer. A row selector
+      // that matched one stray element (Allbirds, 2026-10-08: 1 row on a
+      // 150-product listing) is otherwise accepted as the whole listing. Only
+      // worth the harvest while the rows fall short of the budget, and only
+      // when the rows found something: zero rows stays "nothing found". A page
+      // below budget may also gain product-shaped links outside the grid (a
+      // promo tile, "recently viewed"), in page order — links the finder
+      // counts too.
+      const extractedUrls = new Set(
+        listingRows.map((row) => row[DETAIL_URL_FIELD]).filter((u): u is string => typeof u === 'string' && u !== ''),
+      );
+      if (capture?.html && extractedUrls.size > 0 && extractedUrls.size < cap - (detailCount() - detailsBefore)) {
+        try {
+          const anchors = await deps.browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
+          if (Array.isArray(anchors)) {
+            const group = largestProductGroup(anchors, start.url);
+            const reconciled = reconcileWithProductGroup({
+              rows: listingRows, urlField: DETAIL_URL_FIELD, group, listingUrl: start.url,
+              ...(request.knownDetailUrls ? { knownDetailUrls: request.knownDetailUrls } : {}),
+            });
+            if (reconciled) {
+              // A row added from the page's links carries only its URL: any
+              // listing-origin field (a price read off the card) stays empty
+              // for it, and the log says so.
+              const listingGap = partitions.listing.length > 0
+                ? `; listing fields not available for ${reconciled.added} links added from the page`
+                : '';
+              warnings.push(
+                `${start.url}: the listing extraction found ${extractedUrls.size} product link(s) but the page has `
+                + `${group.length} product link(s) of the same kind — planned from the page's product links${listingGap}`,
+              );
+              listingRows = reconciled.rows;
+            }
+          }
+        } catch (err) {
+          // Advisory: the extraction's own rows still stand.
+          console.error('[plan] product-link cross-check failed (non-fatal):', err);
+        }
+      }
 
       const page1Stop = absorb(listingRows, start.url, 1);
       if (page1Stop !== null) {
