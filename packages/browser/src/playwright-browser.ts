@@ -171,7 +171,7 @@ export class PlaywrightBrowser implements IBrowser {
     const useStealth = options.stealth ?? true;
     const launcher = useStealth ? await stealthChromium() : chromium;
 
-    this.browser = await launcher.launch({ headless: options.headless ?? true });
+    this.browser = await launcher.launch({ headless: options.headless ?? true, handleSIGINT: options.handleSIGINT });
 
     // A default context also leaks tells: no locale, no timezone, and a UA that
     // says HeadlessChrome. Only defaults — per-source browser config (v1.5

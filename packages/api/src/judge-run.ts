@@ -147,12 +147,15 @@ const { judgeFieldExtraction, explainWrongValue, snapshotUsage, diffUsage, estim
 const { PlaywrightBrowser, TILE_HEIGHT } = await import('@robot/browser');
 
 // Ctrl+C: finish the current call, then fall through to the report.
+// The browser is launched with handleSIGINT: false — Playwright's default
+// handler would close it and exit(130) on the first Ctrl+C, before any report.
 let interrupted = false;
-process.on('SIGINT', () => {
+const onSigint = () => {
   if (interrupted) process.exit(130);
   interrupted = true;
   console.log('\n[judge-run] interrupted — stopping after the current call and writing the report (Ctrl+C again to quit now).');
-});
+};
+process.on('SIGINT', onSigint);
 
 resetUsage();
 const start = snapshotUsage();
@@ -166,12 +169,13 @@ let nothingStreak = 0;
 
 const browser = new PlaywrightBrowser();
 try {
-  await browser.launch({ headless: true });
+  await browser.launch({ headless: true, handleSIGINT: false });
   for (const [i, r] of queue.entries()) {
     if (interrupted) { abortReason = 'interrupted'; break; }
     const row = firstRow(r.data);
-    // Stop before an item whose estimate could take spend over the cap; the
-    // current item always finishes, so the overshoot stays within one item.
+    // Stop before an item whose estimate could take spend over the cap. The
+    // current item always finishes, so the overshoot is bounded by one item's
+    // calls (up to tiles x values + explains), not by its tile-1 estimate.
     if (shouldStop(spent() + estimateItemUsd(toCall(row).length), maxUsd)) { stoppedByCap = true; break; }
     if (i > 0) await new Promise((res) => setTimeout(res, POLITENESS_MS));
 
@@ -195,7 +199,7 @@ try {
       if (isEmptyValue(value)) { cells.push({ field: f.key, value, verdict: 'empty' }); continue; }
       if (isVariantList(value)) { cells.push({ field: f.key, value, verdict: 'skipped' }); continue; }
       if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true }); continue; }
-      if (interrupted) break;
+      if (interrupted) { cells.push({ field: f.key, value, verdict: 'not-judged' }); continue; }
       // Tile 1 first; a further tile only while the value is not on the page so far.
       let cell: Cell = { field: f.key, value, verdict: 'error' };
       for (const [t, shot] of shots.entries()) {
@@ -222,6 +226,7 @@ try {
     if (nothingStreak >= NOTHING_STREAK_LIMIT) { abortReason = 'pages-show-nothing'; break; }
   }
 } finally {
+  process.off('SIGINT', onSigint);
   await browser.close().catch((err) => console.error('[judge-run] browser.close() failed:', err));
 }
 

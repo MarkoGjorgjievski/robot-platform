@@ -7,9 +7,10 @@ import type { JudgeVerdict } from '@robot/agent';
 export type { JudgeVerdict };
 /**
  * A cell's outcome: a judge verdict, `empty` for a value that was never judged,
- * or `skipped` for a variant list (not judged here).
+ * `skipped` for a variant list (not judged here), or `not-judged` for a value
+ * left unjudged because the run was interrupted.
  */
-export type CellVerdict = JudgeVerdict | 'empty' | 'skipped';
+export type CellVerdict = JudgeVerdict | 'empty' | 'skipped' | 'not-judged';
 
 export type Cell = {
   /** The contract field key (the key in `extractions.data`). */
@@ -74,7 +75,7 @@ export function summarize(fields: FieldDef[], items: ItemResult[]): FieldSummary
       for (const c of item.cells) {
         if (c.field !== f.key) continue;
         if (c.verdict === 'empty') { s.empty++; continue; }
-        if (c.verdict === 'skipped') continue;
+        if (c.verdict === 'skipped' || c.verdict === 'not-judged') continue;
         s.judged++;
         if (c.verdict === 'correct') s.correct++;
         else if (c.verdict === 'wrong') s.wrong++;
@@ -101,7 +102,7 @@ export function shouldStop(spentUsd: number, maxUsd: number): boolean {
 
 /** True when the judge called something on this item and every such cell is not-on-page (on every tile) — a bot wall or blank page looks like this. */
 export function pageShowsNothing(cells: Cell[]): boolean {
-  const judged = cells.filter((c) => !c.local && c.verdict !== 'empty' && c.verdict !== 'skipped');
+  const judged = cells.filter((c) => !c.local && c.verdict !== 'empty' && c.verdict !== 'skipped' && c.verdict !== 'not-judged');
   return judged.length > 0 && judged.every((c) => c.verdict === 'not-on-page');
 }
 
@@ -114,6 +115,7 @@ export function verdictLetter(v: CellVerdict): string {
     case 'error': return 'E';
     case 'empty': return '·';
     case 'skipped': return 'S';
+    case 'not-judged': return '-';
   }
 }
 
@@ -158,10 +160,17 @@ const ABORT_TEXT: Record<AbortReason, string> = {
 };
 
 const pct = (p: number | null) => (p == null ? '—' : `${Math.round(p)}%`);
+/** Plain report text (table cells, titles, the judge's reading — never inside a code span): pipes and backticks backslash-escaped, which is valid outside a code span; whitespace collapsed. */
 const cellText = (s: string) => s.replace(/\|/g, '\\|').replace(/`/g, '\\`').replace(/\s+/g, ' ');
+/** A Markdown code span fenced with one more backtick than the longest run inside, padded with spaces; nothing is escaped inside it (backslashes are literal there). */
+export function codeSpan(s: string): string {
+  const longest = Math.max(0, ...(s.match(/`+/g) ?? []).map((m) => m.length));
+  const fence = '`'.repeat(longest + 1);
+  return longest > 0 ? `${fence} ${s} ${fence}` : `${fence}${s}${fence}`;
+}
 function showValue(v: unknown): string {
-  const s = typeof v === 'string' ? v : JSON.stringify(v);
-  return cellText(s.length > 160 ? `${s.slice(0, 160)}…` : s);
+  const s = (typeof v === 'string' ? v : JSON.stringify(v)).replace(/\s+/g, ' ');
+  return codeSpan(s.length > 160 ? `${s.slice(0, 160)}…` : s);
 }
 
 export function summaryTable(fields: FieldDef[], items: ItemResult[]): string[] {
@@ -210,7 +219,7 @@ export function renderReport(r: ReportInput): string {
     ...summaryTable(r.fields, r.items),
     '',
     '## Per item', '',
-    'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · `·` empty. The digit is the screenshot tile that decided the verdict. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
+    'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · - not judged (run interrupted) · `·` empty. The digit is the screenshot tile that decided the verdict. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
     `| URL | Page title | ${r.fields.map((f) => cellText(f.name)).join(' | ')} |`,
     `|---|---|${r.fields.map(() => ':-:').join('|')}|`,
   );
@@ -231,7 +240,7 @@ export function renderReport(r: ReportInput): string {
     const nameOf = (key: string) => r.fields.find((f) => f.key === key)?.name ?? key;
     for (const { item, c } of wrong) {
       L.push(`- **${nameOf(c.field)}** — ${item.url}${c.tile != null ? ` (tile ${c.tile})` : ''}`,
-        `  - extracted: \`${showValue(c.value)}\``,
+        `  - extracted: ${showValue(c.value)}`,
         `  - judge's reading (uncalibrated): ${c.judgeReading ? cellText(c.judgeReading) : '(none returned)'}`);
     }
   }

@@ -111,6 +111,12 @@ export type BrowserOptions = {
    * itself the problem on some domain.
    */
   stealth?: boolean;
+  /**
+   * Passed to Playwright's launch. Unset keeps Playwright's default (true): it
+   * closes the browser and exits the process on Ctrl+C. A CLI that must write
+   * something on Ctrl+C (judge-run's report) sets false and closes it itself.
+   */
+  handleSIGINT?: boolean;
 };
 
 export type CaptureOptions = {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  summarize, renderReport, shouldStop, verdictLetter, cellMark, isUrlValued, pageShowsNothing, estimateItemUsd,
+  summarize, renderReport, codeSpan, shouldStop, verdictLetter, cellMark, isUrlValued, pageShowsNothing, estimateItemUsd,
   type ItemResult, type ReportInput,
 } from './judge-run-report.js';
 
@@ -110,10 +110,19 @@ describe('pageShowsNothing', () => {
   });
 });
 
+describe('codeSpan', () => {
+  it('fences with one more backtick than the longest run inside, padded, and escapes nothing', () => {
+    expect(codeSpan('abc')).toBe('`abc`');
+    expect(codeSpan('a`b')).toBe('`` a`b ``');
+    expect(codeSpan('x ``` y\\')).toBe('```` x ``` y\\ ````');
+  });
+});
+
 describe('verdictLetter / cellMark', () => {
   it('maps every verdict to one letter', () => {
     expect(['correct', 'wrong', 'not-on-page', 'unverifiable', 'error', 'empty', 'skipped'].map((v) => verdictLetter(v as never)))
       .toEqual(['C', 'W', 'N', 'U', 'E', '·', 'S']);
+    expect(verdictLetter('not-judged')).toBe('-');
   });
 
   it('adds the deciding tile to judged cells, none to local ones', () => {
@@ -189,7 +198,17 @@ describe('renderReport', () => {
 
   it('escapes backticks in a wrong value', () => {
     const md = renderReport({ ...base, items: [{ url: 'u', cells: [{ field: 'title', value: 'a`b', verdict: 'wrong', tile: 1 }] }] });
-    expect(md).toContain('`a\\`b`');
+    expect(md).toContain('extracted: `` a`b ``');
+    expect(md).not.toContain('a\\`b');
+  });
+
+  it('renders a value left unjudged by an interrupt as -, counts it nowhere, and explains it in the legend', () => {
+    const cells = [{ field: 'title', value: 'Red', verdict: 'not-judged' as const }];
+    expect(summarize([{ key: 'title', name: 'Title' }], [{ url: 'u', cells }])[0]).toMatchObject({ judged: 0, empty: 0 });
+    const md = renderReport({ ...base, fields: [{ key: 'title', name: 'Title' }], items: [{ url: 'https://x.example/', title: 'X', cells }], abortReason: 'interrupted' });
+    expect(md).toContain('| https://x.example/ | X | - |');
+    expect(md).toContain('- not judged (run interrupted)');
+    expect(md).toMatch(/ABORTED: interrupted/);
   });
 
   it('lists a failed capture in the item table and the header counts', () => {
