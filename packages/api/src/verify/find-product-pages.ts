@@ -21,13 +21,17 @@ const trimTrailingSlash = (p: string): string => (p.length > 1 ? p.replace(/\/+$
  * itself"), grouped by path template (digits and 12+-char alnum/hyphen
  * tokens replaced by `*`), the largest group returned in full, in document
  * order, deduped. Anchors marked `chrome` (in page navigation, see
- * `LISTING_ANCHORS_SCRIPT`) are left out, unless nothing else is left —
- * a page that marks every link as navigation is grouped as a whole.
+ * `LISTING_ANCHORS_SCRIPT`) are left out, unless what is left forms no group
+ * of at least `MIN_CONTENT_GROUP` — a theme that wraps its grid in `nav` or
+ * `aside` is then grouped as a whole, rather than a lone breadcrumb or
+ * `/pages/about` link being reported as "1 product".
  */
+const MIN_CONTENT_GROUP = 3;
+
 export function largestProductGroup(anchors: Array<{ href: string; text: string; chrome?: boolean }>, listingUrl: string): string[] {
   const content = anchors.filter((a) => !a.chrome);
   const best = largestGroup(content, listingUrl);
-  return best.length > 0 || content.length === anchors.length ? best : largestGroup(anchors, listingUrl);
+  return best.length >= MIN_CONTENT_GROUP || content.length === anchors.length ? best : largestGroup(anchors, listingUrl);
 }
 
 function largestGroup(anchors: Array<{ href: string }>, listingUrl: string): string[] {
@@ -64,7 +68,10 @@ export type ListingAnchor = { href: string; text: string; title?: string; image?
  * `chrome: true` marks a link in page navigation: inside `nav`, `aside`, a
  * navigation/banner/contentinfo/complementary role, or a `header`/`footer`
  * that belongs to the page (not one inside an article, section, main, aside
- * or nav — a product card's own header is content).
+ * or nav — a product card's own header is content). Two layouts slip through:
+ * an app that wraps the whole page in `main`, and a theme that wraps its page
+ * header in a `section` (seen on Shopify); their header links count as
+ * content, which is no worse than before navigation was left out.
  */
 export const LISTING_ANCHORS_SCRIPT = `(() => {
   const imgUrl = (img) => img ? (img.getAttribute('src') || img.getAttribute('data-src') || (img.getAttribute('srcset') || '').split(/[ ,]/)[0] || '') : '';
@@ -78,7 +85,7 @@ export const LISTING_ANCHORS_SCRIPT = `(() => {
     return null;
   };
   const chrome = (a) => {
-    if (a.closest('nav, aside, [role=navigation], [role=banner], [role=contentinfo], [role=complementary]')) return true;
+    if (a.closest('nav, aside, [role~=navigation i], [role~=banner i], [role~=contentinfo i], [role~=complementary i]')) return true;
     const hf = a.closest('header, footer');
     return !!hf && !(hf.parentElement && hf.parentElement.closest('article, section, main, aside, nav'));
   };

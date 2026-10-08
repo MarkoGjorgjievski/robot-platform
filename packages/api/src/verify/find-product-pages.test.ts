@@ -81,13 +81,14 @@ describe('LISTING_ANCHORS_SCRIPT in Chromium', () => {
       <header><a href="/c/top">Top</a></header>
       <nav><a href="/c/nav">Nav</a></nav>
       <div role="navigation"><a href="/c/role">Role</a></div>
+      <ul role="Navigation menubar"><li><a href="/c/menubar">Menubar</a></li></ul>
       <aside><a href="/c/side">Side</a></aside>
       <main><article><header><a href="/p/card">Card</a></header></article><a href="/p/grid">Grid</a></main>
       <footer><a href="/c/foot">Foot</a></footer>
     </body></html>`;
     const anchors = await browser.setContentEvaluate<ListingAnchor[]>(html, LISTING_ANCHORS_SCRIPT);
     const chrome = Object.fromEntries(anchors.map((a) => [a.href, a.chrome === true]));
-    expect(chrome).toEqual({ '/c/top': true, '/c/nav': true, '/c/role': true, '/c/side': true, '/p/card': false, '/p/grid': false, '/c/foot': true });
+    expect(chrome).toEqual({ '/c/top': true, '/c/nav': true, '/c/role': true, '/c/menubar': true, '/c/side': true, '/p/card': false, '/p/grid': false, '/c/foot': true });
   });
 });
 
@@ -104,6 +105,13 @@ describe('largestProductGroup and page navigation', () => {
     const listing = 'https://shop.example/c/shoes';
     const menu = Array.from({ length: 5 }, (_, i) => ({ href: `/p/shoe-${i}`, text: `Shoe ${i}`, chrome: true }));
     expect(largestProductGroup(menu, listing)).toHaveLength(5);
+  });
+
+  it('falls back to every link when what is left outside navigation is a lone link, not a grid', () => {
+    const listing = 'https://shop.example/c/shoes';
+    const grid = Array.from({ length: 20 }, (_, i) => ({ href: `/p/shoe-${i}`, text: `Shoe ${i}`, chrome: true }));
+    const group = largestProductGroup([...grid, { href: '/pages/about', text: 'About' }], listing);
+    expect(group).toEqual(grid.map((x) => new URL(x.href, listing).href));
   });
 
   it('Everlane men’s tees (fixture, 2026-10-08): the /products/* grid, not the /collections/* mega-menu', () => {
