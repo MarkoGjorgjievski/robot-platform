@@ -120,6 +120,16 @@ Running total of spend (from the Usage page): **$0.45** for October, all workers
 
 **Measurement caveat (from row 1, finding b):** per-run `cost_usd` is unreliable while several workers run at once; the org total on the Usage page is the number to trust, and per-site cost is read from `source_verifications.cost_usd` only when no other worker was verifying at the same minute.
 
+## Judge runs (correctness, not hit rate)
+
+`pnpm --filter @robot/api exec tsx src/judge-run.ts <runId> [--tiles N] [--max-usd X]` — built 2026-10-08 for this campaign (merged, `92653f1`…`78a50a9`): re-visits each item's page, screenshots it, and asks the calibrated LLM judge per non-empty value; the report is the record (no DB writes), so these costs do **not** appear on the Usage page.
+
+| Run | Items | Judged values | Correct | Wrong | Uncertain | Cost | Report |
+|---|---|---|---|---|---|---|---|
+| Nike (row 3), first CLI version: **tile 1 only** | 60 | 475 (60 image URLs counted unverifiable) | Title 50, Price 50, Brand 52, Rating 39, In stock 46, SKU 2, Description 5 | 9 in all: In stock 6, SKU 1, Brand 1, Rating 1 | 222, almost all "not on page": SKU 57 and Description 55 sit below the first tile; 10 items came back not-on-page on *every* field (a blank or challenged capture — the later CLI version stops on that) | **$4.07** (484 calls, 1.34 M input tokens) | `results/2026-10-08T10-58-judge-run-nike.md` |
+
+**Reading Nike's wrongs:** of the 9, one is a real extraction error (In stock `true` on a "Coming Soon" shoe); five In stock "wrongs" are the judge reading size-level sell-outs against a product-level value (a definition question for the In stock field, not an extraction error); the SKU, Brand and Rating wrongs are "the page does not display it" — values the page carries in data but not in the viewport. So where the judge could see the value, Nike's certified paths were right on every Title, Price and Brand it checked, and the one real error is a stock status. The Barnes & Noble run (three tiles) is the test of whether the judge catches the positional-path errors row 4 found by hand.
+
 ## What the campaign should answer, written up at the end
 
 - How many real websites verify fully, partially, or not at all, and why (field by field).
