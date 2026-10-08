@@ -359,7 +359,7 @@ export function VerificationTable({
                   const value = cell.value.trim();
                   return (
                     <td key={i} className="group relative w-[190px] border-t border-line p-0 align-top">
-                      <ContextMenu>
+                      <ContextMenu onOpenChange={(open) => { if (open) skipReturnFocus.current = false; }}>
                         <ContextMenuTrigger asChild>
                           <button
                             type="button"
