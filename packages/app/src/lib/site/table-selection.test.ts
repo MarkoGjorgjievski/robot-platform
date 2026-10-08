@@ -54,6 +54,11 @@ describe('headerCount', () => {
     const r = { price: { cells: { 'https://s/1': { status: 'pass' }, 'https://s/2': { status: 'pass' } } } };
     expect(headerCount(r, 'price', ['price'], cards)).toEqual({ passed: 2, checked: 2 });
   });
+  test('a card with a URL but no result for this field is not counted', () => {
+    const three = [{ url: 'https://s/1', title: '1' }, { url: 'https://s/2', title: '2' }, { url: 'https://s/3', title: '3' }];
+    const r = { price: { cells: { 'https://s/1': { status: 'pass' }, 'https://s/3': { status: 'pass' } } } };
+    expect(headerCount(r, 'price', ['price'], three)).toEqual({ passed: 2, checked: 2 });
+  });
 });
 
 describe('words', () => {

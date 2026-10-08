@@ -42,17 +42,18 @@ export function clampSelection(sel: CellSelection | null, fieldKeys: string[], p
 export type ResultsLike = Record<string, { cells: Record<string, { status: string }> }>;
 
 /**
- * "n/m" after a Verify badge (spec §2): m = proof pages checked (cards with a
- * URL), n = those on which the field did not fail. Null before a verdict, and
+ * "n/m" after a Verify badge (spec §2): m = proof pages that have a result for
+ * this field (a card that answers only another field was not checked for this
+ * one), n = those on which the field did not fail. Null before a verdict, and
  * once the field has changed since it (the badge then reads "changed since
  * verified" and a count would contradict it).
  */
 export function headerCount(results: ResultsLike | null | undefined, key: string, unchangedKeys: string[], cards: Card[]): { passed: number; checked: number } | null {
   const fv = results?.[key];
   if (!fv || !unchangedKeys.includes(key)) return null;
-  const urls = cards.map((c) => c.url.trim()).filter(Boolean);
-  const failed = urls.filter((u) => fv.cells[u]?.status === 'fail').length;
-  return { passed: urls.length - failed, checked: urls.length };
+  const checked = cards.map((c) => c.url.trim()).filter((u) => u && fv.cells[u] !== undefined);
+  const failed = checked.filter((u) => fv.cells[u]?.status === 'fail').length;
+  return { passed: checked.length - failed, checked: checked.length };
 }
 
 const STATE_WORD: Record<Segment, string> = {

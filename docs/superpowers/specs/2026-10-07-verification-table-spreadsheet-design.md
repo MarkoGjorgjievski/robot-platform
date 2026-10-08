@@ -109,7 +109,7 @@ an orange cell: tick first, then Fix.
 
 **The header count.** After a Verify has produced a verdict for a field, its
 status column shows, after the badge, "n/m" in muted text: m = the proof
-pages that were checked (cards with a URL), n = those on which the field did
+pages the field was checked on (those with a result for it), n = those on which the field did
 not fail (`failedCell` false). It restates the verdict as a count — "✓ 3/3",
 "fails on product 2 · 2/3". Nothing is shown before a Verify, and nothing
 here counts pages the customer has not verified.

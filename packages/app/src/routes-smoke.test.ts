@@ -819,6 +819,19 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(await bar.getByRole('button', { name: 'Open the screenshot to fix Title' }).count(), 'the bar has no screenshot crop').toBe(1);
     await shootBothThemes(page, 'selected');
 
+    // The table never jumps (spec §2): the bar reserves the crop's height, so
+    // clearing the selection (and with it the crop) leaves the table where it was.
+    const tableTop = () => page.getByRole('table').first().evaluate((el) => el.getBoundingClientRect().top);
+    const topSelected = await tableTop();
+    await page.locator('button[data-cell][data-selected="true"]').focus();
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.locator('button[data-cell][data-selected="true"]').count(), { timeout: 5_000 }).toBe(0);
+    const topCleared = await tableTop();
+    console.log(`5b table top: selected ${topSelected}px, cleared ${topCleared}px`);
+    expect(Math.abs(topSelected - topCleared), `the table moved when the selection cleared (${topSelected} → ${topCleared})`).toBeLessThanOrEqual(1);
+    await page.getByRole('button', { name: `Title on product 1: accepted, ${PRODUCTS[0].title}`, exact: true }).click();
+    await expect.poll(selectedLabel, { timeout: 5_000 }).toMatch(/^Title on product 1: /);
+
     // Arrow keys move the selection; Home/End jump; nothing opens.
     await page.locator('button[data-cell][data-selected="true"]').focus();
     await page.keyboard.press('ArrowRight');
@@ -848,10 +861,17 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await page.keyboard.press('Control+C');
     if (canRead) {
       await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5_000 }).toBe(priceValue);
+      // The menu's Copy value copies the same value. Clear the clipboard first
+      // so a stale Ctrl+C result cannot pass for it.
+      await page.evaluate(() => navigator.clipboard.writeText(''));
+      await page.locator('button[data-cell][data-selected="true"]').click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Copy value' }).click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5_000 }).toBe(priceValue);
     } else {
-      // navigator.clipboard.readText() is refused in this browser even with
-      // the grant above: fall back to the bar's own "Copied" state.
-      await expect.poll(() => bar.getByRole('button', { name: /^Copy Price/ }).innerText(), { timeout: 3_000 }).toBe('Copied');
+      // navigator.clipboard.readText() is refused in this browser even with the
+      // grant above, so there is no way to see what was copied: skip the
+      // clipboard checks rather than pass on something weaker.
+      console.warn('clipboard read refused in this browser; skipping the copy assertions');
     }
     await page.locator('button[data-cell][data-selected="true"]').click({ button: 'right' });
     const menu = page.getByRole('menu');
@@ -944,8 +964,14 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await popover.waitFor({ timeout: 10_000 });
     expect(await popover.innerText(), 'the popover does not show the value it read').toContain(PRODUCTS[0].rating);
 
-    // The mark popover owns the keyboard: an arrow does not move the selection behind it.
+    // The mark popover owns the keyboard: an arrow does not move the selection
+    // behind it. Focus stays in the popover here (focusing the cell instead
+    // would close it — Radix's non-modal Popover dismisses on focus outside),
+    // so the key cannot reach a cell; what this pins is that the popover stays
+    // open and the selection put. The table-side guard is the route's
+    // `keyboard={!popover && !variantMark}`.
     await page.keyboard.press('ArrowRight');
+    expect(await popover.count(), 'an arrow key closed the mark popover').toBe(1);
     expect(await selectedLabel()).toMatch(/^Rating on product 1: /);
 
     // Escape closes the popover first, and only the popover; a second Escape
