@@ -108,7 +108,9 @@ etsy.
 
 | 7 | hobbycraft.co.uk (acrylic paint, then yarn) | **blocked** — Cloudflare "Verify you are human" (403) on the listings | none | — | not clicked | — | not started | $0 | Same symptom as row 6: the challenge is reported as "No product links found… Paste product pages below", and Find products takes 60–70 s to come back empty although the 403 and the "Just a moment…" title are in the very first response. `results/campaign-2026-10/hobbycraft.md` |
 
-**Anti-bot is the dominant blocker on the fresh list (rows 5–7).** Three of the first four fresh-list sites (Otto, Scan, Hobbycraft) refuse headless Chromium outright; the known US brand sites did not. Two product gaps follow: (1) a refused page must be reported as refused, fast — the first response already says 403 / "Just a moment…" — not as "no product links"/"ready"; (2) the "Proxy budget" open decision in the handoff is now the gate to a large share of real customer targets.
+| 8 | crutchfield.com (bookshelf speakers, then headphones) | **blocked** — Cloudflare challenge (403) on every page including the home page | none | — | disabled / not clicked | — | not started | $0 | Same class as rows 6–7: ~65 s to "No product links found", then a suggestion to paste pages that sit behind the same challenge. `results/campaign-2026-10/crutchfield.md` |
+
+**Anti-bot is the dominant blocker on the fresh list (rows 5–8).** Four of the first five fresh-list sites (Otto, Scan, Hobbycraft, Crutchfield) refuse headless Chromium outright; from row 9 on, every candidate is pre-screened with a free headless probe (status, title, product links) before a worker is dispatched; the known US brand sites did not. Two product gaps follow: (1) a refused page must be reported as refused, fast — the first response already says 403 / "Just a moment…" — not as "no product links"/"ready"; (2) the "Proxy budget" open decision in the handoff is now the gate to a large share of real customer targets.
 
 Running total of spend (from the Usage page): **$0.45** for October, all workers (after row 7; the Nike judge run, ~$4, is in progress and is recorded in its own report, not on the Usage page)
 
