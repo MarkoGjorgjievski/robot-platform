@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
-import { describeListingPage, listingProducts, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './find-product-pages.js';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describeListingPage, largestProductGroup, listingProducts, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './find-product-pages.js';
+
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__', 'listing-anchors');
 
 describe('describeListingPage', () => {
   const listingUrl = 'https://shop.example/c/shoes';
@@ -69,5 +74,43 @@ describe('LISTING_ANCHORS_SCRIPT in Chromium', () => {
     expect(byHref['/p/1']).toMatchObject({ text: 'Oak chair', image: '/i/1.jpg' });
     expect(byHref['/p/2']).toMatchObject({ title: 'Pine stool', image: '/i/2.jpg' });
     expect(byHref['/p/3']).toMatchObject({ text: 'Birch table', image: '/i/3.jpg' });
+  });
+
+  it('flags nav, role=navigation, aside and page-level header/footer links, but not a header inside a product card', async () => {
+    const html = `<html><body>
+      <header><a href="/c/top">Top</a></header>
+      <nav><a href="/c/nav">Nav</a></nav>
+      <div role="navigation"><a href="/c/role">Role</a></div>
+      <aside><a href="/c/side">Side</a></aside>
+      <main><article><header><a href="/p/card">Card</a></header></article><a href="/p/grid">Grid</a></main>
+      <footer><a href="/c/foot">Foot</a></footer>
+    </body></html>`;
+    const anchors = await browser.setContentEvaluate<ListingAnchor[]>(html, LISTING_ANCHORS_SCRIPT);
+    const chrome = Object.fromEntries(anchors.map((a) => [a.href, a.chrome === true]));
+    expect(chrome).toEqual({ '/c/top': true, '/c/nav': true, '/c/role': true, '/c/side': true, '/p/card': false, '/p/grid': false, '/c/foot': true });
+  });
+});
+
+describe('largestProductGroup and page navigation', () => {
+  it('leaves out links in page navigation: 40 menu links to sibling categories lose to 20 grid links to products', () => {
+    const listing = 'https://shop.example/c/shoes';
+    const menu = Array.from({ length: 40 }, (_, i) => ({ href: `/c/category-${i}`, text: `Category ${i}`, chrome: true }));
+    const grid = Array.from({ length: 20 }, (_, i) => ({ href: `/p/shoe-${i}`, text: `Shoe ${i}` }));
+    const group = largestProductGroup([...menu, ...grid], listing);
+    expect(group).toEqual(grid.map((a) => new URL(a.href, listing).href));
+  });
+
+  it('falls back to every link when the whole page is navigation', () => {
+    const listing = 'https://shop.example/c/shoes';
+    const menu = Array.from({ length: 5 }, (_, i) => ({ href: `/p/shoe-${i}`, text: `Shoe ${i}`, chrome: true }));
+    expect(largestProductGroup(menu, listing)).toHaveLength(5);
+  });
+
+  it('Everlane men’s tees (fixture, 2026-10-08): the /products/* grid, not the /collections/* mega-menu', () => {
+    const listing = 'https://www.everlane.com/collections/mens-tshirts';
+    const anchors = JSON.parse(readFileSync(join(FIXTURES, 'everlane-mens-tshirts.json'), 'utf8')) as ListingAnchor[];
+    const group = largestProductGroup(anchors, listing);
+    expect(group.length).toBeGreaterThanOrEqual(50);
+    expect(group.every((u) => new URL(u).pathname.startsWith('/products/'))).toBe(true);
   });
 });
