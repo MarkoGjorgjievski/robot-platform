@@ -841,16 +841,16 @@ describe.skipIf(!ENABLED)('app shell', () => {
     const priceValue = (priceLabelBefore ?? '').split(', ').slice(1).join(', ');
     expect(priceValue, 'could not read the Price cell value from its aria-label').not.toBe('');
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: APP });
+    // Probe whether a read is even possible in this browser before trusting
+    // its result: a `.catch()`-swallowing try/catch around the real assertion
+    // would also hide a regression that copies the wrong cell.
+    const canRead = await page.evaluate(() => navigator.clipboard.readText().then(() => true, () => false));
     await page.keyboard.press('Control+C');
-    let clipboardReadRefused = false;
-    try {
+    if (canRead) {
       await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5_000 }).toBe(priceValue);
-    } catch {
-      clipboardReadRefused = true;
-    }
-    if (clipboardReadRefused) {
-      // navigator.clipboard.readText() is refused in headless Chromium even
-      // with the grant above: fall back to the bar's own "Copied" state.
+    } else {
+      // navigator.clipboard.readText() is refused in this browser even with
+      // the grant above: fall back to the bar's own "Copied" state.
       await expect.poll(() => bar.getByRole('button', { name: /^Copy Price/ }).innerText(), { timeout: 3_000 }).toBe('Copied');
     }
     await page.locator('button[data-cell][data-selected="true"]').click({ button: 'right' });
@@ -881,9 +881,8 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await card(PRODUCTS[1].title).click();
     await page.getByRole('region', { name: 'Screenshot' }).waitFor({ timeout: 10_000 });
     await page.getByRole('button', { name: /^Price/, expanded: false }).click();
-    const detailsTypeInput = page.getByRole('textbox', { name: 'Price on product 3' });
-    await detailsTypeInput.waitFor({ timeout: 5_000 });
-    expect(await detailsTypeInput.count(), "the expanded row's Type input is not for product 3 (the selected cell)").toBe(1);
+    await page.getByRole('textbox', { name: 'Price on product 3' }).waitFor({ timeout: 5_000 });
+    expect(await page.getByRole('textbox', { name: 'Price on product 2' }).count(), 'the details followed the open screenshot instead of the selected cell').toBe(0);
     await page.getByRole('button', { name: /^Price/, expanded: true }).click(); // collapse the row again
 
     // Escape closes the open screenshot but leaves the cell selected; a
