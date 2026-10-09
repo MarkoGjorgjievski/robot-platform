@@ -1,3 +1,5 @@
+import { verdictSentence } from './verdict-copy.js';
+
 export type InterceptedRequest = {
   url: string;
   method: string;
@@ -264,9 +266,14 @@ export type CaptureVerdict =
 /** Why no document arrived at all; the only reason `capture()` rejects. */
 export type CaptureErrorKind = 'crashed' | 'unreachable' | 'timeout';
 
+/**
+ * No document arrived. Its message is the verdict's one sentence
+ * (`verdictSentence`), so every consumer that stores `err.message` shows the
+ * customer the same words; Playwright's own text is kept on `detail` for the logs.
+ */
 export class CaptureError extends Error {
-  constructor(public readonly kind: CaptureErrorKind, public readonly url: string, message: string) {
-    super(message);
+  constructor(public readonly kind: CaptureErrorKind, public readonly url: string, public readonly detail: string) {
+    super(verdictSentence({ kind }, url));
     this.name = 'CaptureError';
   }
 }

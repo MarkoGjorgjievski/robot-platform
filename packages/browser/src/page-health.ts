@@ -11,6 +11,22 @@ import type { WallVendor } from './types.js';
  */
 const SUBSTANTIAL_CONTENT_CHARS = 1000;
 
+/**
+ * The text a visitor would read: comments, scripts, styles and tags stripped,
+ * whitespace collapsed. The one definition every reading of a page uses
+ * (detectWall, checkPageHealth, classifyVerdict's blank rule), so inline CSS or a
+ * JSON blob in a script never counts as content in one place and not another.
+ */
+export function visibleText(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export type PageHealthResult = {
   healthy: boolean;
   reason?: string;
@@ -66,19 +82,22 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
   // "captcha" in their markup. They were judged healthy only because the string
   // happens to fall after byte 5000, which is luck, not detection. Requiring the
   // absence of real content turns that accident into a rule.
-  const visibleText = html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const hasSubstantialContent = visibleText.length >= SUBSTANTIAL_CONTENT_CHARS;
+  //
+  // Body phrases are matched against what a visitor reads, not raw markup: a thin
+  // page that merely loads a CAPTCHA widget script for its review form, or a
+  // cdnjs.cloudflare.com library, says nothing about a wall (review I1, 2026-10-09).
+  const text = visibleText(html);
+  const lowerText = text.toLowerCase();
+  const hasSubstantialContent = text.length >= SUBSTANTIAL_CONTENT_CHARS;
+  // Widget names, not walls: "This site is protected by reCAPTCHA" is form copy.
+  const TITLE_ONLY = new Set(['recaptcha', 'hcaptcha']);
+  const bodySays = (w: string): boolean => (w === 'captcha' ? /\bcaptcha\b/.test(lowerText) : lowerText.includes(w));
 
   for (const pattern of botPatterns) {
     if ('includes' in pattern && pattern.includes) {
       // Must match the main keyword AND one of the secondary phrases
-      if (lowerHtml.includes(pattern.match) && !hasSubstantialContent) {
-        const hasSecondary = pattern.includes.some(s => lowerHtml.includes(s));
+      if ((lowerTitle.includes(pattern.match) || bodySays(pattern.match)) && !hasSubstantialContent) {
+        const hasSecondary = pattern.includes.some(s => lowerTitle.includes(s) || bodySays(s));
         if (hasSecondary) {
           return { healthy: false, reason: `Bot detection (${pattern.match}) — site blocked automated access` };
         }
@@ -88,7 +107,7 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
       // challenge page whatever its markup weight. A match in the BODY is not,
       // so it only counts when the page has no real content to show.
       lowerTitle.includes(pattern.match)
-      || (!hasSubstantialContent && lowerHtml.slice(0, 5000).includes(pattern.match))
+      || (!hasSubstantialContent && !TITLE_ONLY.has(pattern.match) && bodySays(pattern.match))
     ) {
       if (pattern.reason) {
         return { healthy: false, reason: pattern.reason };
@@ -101,10 +120,17 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
     // Amazon "dogs of Amazon" error page
     { title: ["sorry", "page not found", "couldn't find"], body: ["try searching", "go to", "home page"] },
     // Generic soft 404s
-    { title: ["not found", "404", "page not found", "doesn't exist", "no longer available"], body: [] },
+    // A bare "404" is not enough ("Levi's 404 Jeans"): see the \b404\b rule below.
+    { title: ["not found", "page not found", "doesn't exist", "no longer available"], body: [] },
     // "Oops" error pages
     { title: ["oops", "something went wrong", "error"], body: ["try again", "go back", "home page"] },
   ];
+
+  // "404" in a title names an error page only as a whole word with "not found"
+  // or "error" beside it, or on a page that has nothing else to show.
+  if (/\b404\b/.test(lowerTitle) && (/not found|error/.test(lowerTitle) || !hasSubstantialContent)) {
+    return { healthy: false, reason: 'Soft 404 — page title indicates error or not found', statusCode: 404 };
+  }
 
   for (const pattern of soft404Patterns) {
     const titleMatch = pattern.title.some(t => lowerTitle.includes(t));
@@ -121,8 +147,7 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
 
   // 4. Empty or minimal page
   // Strip tags and check text content length
-  const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  if (textContent.length < 100) {
+  if (text.length < 100) {
     return { healthy: false, reason: 'Page has almost no content (less than 100 characters of text)' };
   }
 
@@ -144,30 +169,48 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
 }
 
 /**
- * Which wall, if any, this document is — from headers first (they are
- * authoritative), then the body. Returns `challenge` for an interstitial the
- * visitor could pass (CAPTCHA, "Just a moment", press-and-hold) and `refused`
- * for a flat denial (Access Denied, 403 block page). Null for a normal page.
+ * The anti-bot vendor this response names, from headers first (they are
+ * authoritative), then the markup. A name only: every Cloudflare-proxied site
+ * sends `cf-ray` on healthy pages, and `cdnjs.cloudflare.com` is a library CDN,
+ * so a vendor alone never makes a page a wall (review I1, 2026-10-09).
  */
-export function detectWall(html: string, title: string, headers: Record<string, string>): { kind: 'challenge' | 'refused'; vendor: WallVendor } | null {
+export function wallVendor(html: string, title: string, headers: Record<string, string>): WallVendor | null {
   const h = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v).toLowerCase()]));
   const lowerHtml = html.toLowerCase();
   const lowerTitle = title.toLowerCase();
-  const text = lowerHtml.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-  const thin = text.length < SUBSTANTIAL_CONTENT_CHARS;
-  const challengeWords = ['just a moment', 'checking your browser', 'verify you are human', 'confirm you are human', "confirm that you're human", 'are you a robot', 'not a robot', 'press & hold', 'press and hold', 'quick verification', 'human verification', 'captcha'];
-  const deniedWords = ['access denied', 'you have been blocked', 'your request has been blocked', 'this request was blocked', 'restricted access'];
-  const vendor: WallVendor | null =
-    h['x-amzn-waf-action'] || lowerHtml.includes('awswaf') ? 'aws-waf'
+  return h['x-amzn-waf-action'] || lowerHtml.includes('awswaf') ? 'aws-waf'
     : h['cf-ray'] || h['server'] === 'cloudflare' || lowerHtml.includes('cloudflare') || lowerHtml.includes('ray id') ? 'cloudflare'
     : (h['server'] ?? '').includes('akamai') || lowerHtml.includes('akamaighost') || (lowerTitle.includes('access denied') && lowerHtml.includes('reference #')) ? 'akamai'
     : lowerHtml.includes('px-captcha') || lowerHtml.includes('_pxhd') || lowerHtml.includes('_pxvid') || lowerHtml.includes('perimeterx') ? 'perimeterx'
     : lowerHtml.includes('datadome') ? 'datadome'
     : null;
-  const isChallenge = thin && challengeWords.some((w) => lowerTitle.includes(w) || lowerHtml.includes(w));
-  const isDenied = thin && deniedWords.some((w) => lowerTitle.includes(w) || lowerHtml.includes(w));
-  if (isChallenge) return { kind: 'challenge', vendor: vendor ?? 'unknown' };
-  if (isDenied) return { kind: 'refused', vendor: vendor ?? 'unknown' };
-  if (vendor && thin) return { kind: 'refused', vendor };
+}
+
+/** Markup only a vendor's challenge page carries (not its tag on a normal page). */
+const CHALLENGE_MARKERS = ['px-captcha', 'captcha.awswaf.com', 'captcha-delivery.com'];
+const CHALLENGE_WORDS = ['just a moment', 'checking your browser', 'verify you are human', 'confirm you are human', "confirm that you're human", 'are you a robot', 'not a robot', 'press & hold', 'press and hold', 'quick verification', 'human verification'];
+const DENIED_WORDS = ['access denied', 'you have been blocked', 'your request has been blocked', 'this request was blocked', 'restricted access'];
+
+/**
+ * Which wall, if any, this document is. Returns `challenge` for an
+ * interstitial the visitor could pass (CAPTCHA, "Just a moment", press-and-hold)
+ * and `refused` for a flat denial (Access Denied, block page). Null for a normal
+ * page. A wall is something the page SAYS — words in its title or visible text,
+ * or a vendor's challenge-only markup — and only on a thin page; the vendor
+ * just names it.
+ */
+export function detectWall(html: string, title: string, headers: Record<string, string>): { kind: 'challenge' | 'refused'; vendor: WallVendor } | null {
+  const text = visibleText(html).toLowerCase();
+  if (text.length >= SUBSTANTIAL_CONTENT_CHARS) return null;
+  const lowerHtml = html.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+  const says = (w: string): boolean => lowerTitle.includes(w) || text.includes(w);
+  const vendor = wallVendor(html, title, headers) ?? 'unknown';
+  // "captcha" as a word ("Complete the CAPTCHA"), never "protected by reCAPTCHA".
+  const isChallenge = CHALLENGE_WORDS.some(says)
+    || /\bcaptcha\b/.test(lowerTitle) || /\bcaptcha\b/.test(text)
+    || CHALLENGE_MARKERS.some((m) => lowerHtml.includes(m));
+  if (isChallenge) return { kind: 'challenge', vendor };
+  if (DENIED_WORDS.some(says)) return { kind: 'refused', vendor };
   return null;
 }

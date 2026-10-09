@@ -222,11 +222,22 @@ export class PlaywrightBrowser implements IBrowser {
       // 404 or an empty shell is still a page, and resolves with its verdict.
       const t0 = Date.now();
       let response: Response | null = null;
+      // The verdict reads the LAST main-frame document response, not goto's: a
+      // Cloudflare JS challenge answers 403 and reloads to a 200 product page,
+      // and returnIfNavigatedAway may navigate again (review I2, 2026-10-09).
+      let lastDocument: Response | null = null;
+      page.on('response', (r) => {
+        try {
+          if (r.request().isNavigationRequest() && r.frame() === page.mainFrame()) lastDocument = r;
+        } catch { /* a response with no frame (a service worker's) is not the document */ }
+      });
       try {
         response = await this.navigateWithFallback(page, url, options);
       } catch (err) {
         const kind = classifyNavigationError(err);
-        throw new CaptureError(kind, url, `${kind}: ${(err as Error).message}`);
+        const detail = (err as Error).message;
+        console.warn(`[browser] capture of ${url} failed (${kind}): ${detail.split('\n')[0]}`);
+        throw new CaptureError(kind, url, detail);
       }
       const navigateMs = Date.now() - t0;
       try {
@@ -290,6 +301,8 @@ export class PlaywrightBrowser implements IBrowser {
               + ` continuing with ${screenshotTiles.length} tile(s)`);
             break; // lower tiles will not do better on a page this slow
           }
+          // A crash mid-tiles rethrows above and discards the tiles already taken,
+          // on purpose: a dead renderer's page is not handed back half-captured.
         }
         if (screenshotTiles.length === 0) {
           throw new Error(`page.screenshot failed for every tile on ${url} — no usable screenshot`);
@@ -309,11 +322,12 @@ export class PlaywrightBrowser implements IBrowser {
         // The verdict reads the real main response, not the rendered page alone.
         // The box-map annotate script returns an array of boxes; zero boxes on
         // thin text is one of the blank signals.
-        const headers = response ? response.headers() : {};
+        const main: Response | null = lastDocument ?? response;
+        const headers = main ? main.headers() : {};
         const boxCount = Array.isArray(annotation) ? annotation.length
           : Array.isArray((annotation as { boxes?: unknown[] } | undefined)?.boxes) ? (annotation as { boxes: unknown[] }).boxes.length
           : undefined;
-        const verdict = classifyVerdict({ requestedUrl: url, finalUrl: page.url(), status: response ? response.status() : null, headers, html, title, boxCount });
+        const verdict = classifyVerdict({ requestedUrl: url, finalUrl: page.url(), status: main ? main.status() : null, headers, html, title, boxCount });
 
         return {
           url: page.url(),
@@ -338,7 +352,10 @@ export class PlaywrightBrowser implements IBrowser {
         };
       } catch (err) {
         // The renderer died after the document arrived: no page to hand back.
-        if (isCrash(err)) throw new CaptureError('crashed', url, (err as Error).message);
+        if (isCrash(err)) {
+          console.warn(`[browser] renderer crashed on ${url}: ${(err as Error).message.split('\n')[0]}`);
+          throw new CaptureError('crashed', url, (err as Error).message);
+        }
         throw err;
       }
     } finally {

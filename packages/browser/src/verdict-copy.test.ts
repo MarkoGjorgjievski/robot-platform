@@ -12,7 +12,7 @@ describe('verdictSentence', () => {
     expect(verdictSentence({ kind: 'not-found', status: 404 }, U)).toBe("That page doesn't exist on scan.co.uk (404). Check the address.");
     expect(verdictSentence({ kind: 'redirected', status: 200, to: 'login.other.example' }, U)).toBe('That address led to login.other.example. Paste a page on scan.co.uk.');
     expect(verdictSentence({ kind: 'blank', status: 200 }, U)).toBe('scan.co.uk sent an empty page. Try again.');
-    expect(verdictSentence({ kind: 'crashed' }, U)).toBe('The browser crashed on this page. It will be retried.');
+    expect(verdictSentence({ kind: 'crashed' }, U)).toBe('The browser crashed on this page. Try again.');
     expect(verdictSentence({ kind: 'unreachable' }, U)).toBe('scan.co.uk could not be reached (no response).');
     expect(verdictSentence({ kind: 'timeout' }, U)).toBe('scan.co.uk did not answer in time.');
     expect(verdictSentence({ kind: 'ok', status: 200 }, U)).toBe('Reached scan.co.uk (HTTP 200).');
