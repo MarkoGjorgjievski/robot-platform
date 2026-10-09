@@ -24,7 +24,7 @@ const box = { xpaths: ['//*[@id="main"]/h1'], text: 'Widget', rect: { x: 0, y: 0
 const deepBox = { ...box, rect: { x: 0, y: 5000, w: 10, h: 10 } };
 const fakeCapture = (url: string): PageCapture => ({
   url, html: '<html><body><div id="main"><h1>Widget</h1>' + 'text '.repeat(200) + '</div></body></html>', markdown: '', title: 'Widget', timestamp: 0,
-  screenshot: Buffer.from('png1'), screenshotTiles: [Buffer.from('png1'), Buffer.from('png2')], pageHeight: 4000,
+  screenshot: Buffer.from('png1'), screenshotTiles: [Buffer.from('png1'), Buffer.from('png2')], verdict: { kind: 'ok', status: 200 }, pageHeight: 4000,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [], annotation: [box, deepBox],
 });
 const sessionWith = (capture: (url: string) => Promise<PageCapture>) => async <T>(fn: (b: IBrowser) => Promise<T>) =>

@@ -53,6 +53,7 @@ function fakeCapture(url: string, html: string): PageCapture {
     markdown: '',
     screenshot: Buffer.from('x'),
     screenshotTiles: [],
+    verdict: { kind: 'ok', status: 200 },
     title: '',
     timestamp: Date.now(),
     structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },

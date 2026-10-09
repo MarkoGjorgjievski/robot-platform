@@ -7,9 +7,9 @@
 // pages.
 import type { PageCapture } from '@robot/browser';
 
-type RawCapture = Omit<PageCapture, 'markdown' | 'title' | 'timestamp' | 'screenshot' | 'screenshotTiles'>;
+type RawCapture = Omit<PageCapture, 'markdown' | 'title' | 'timestamp' | 'screenshot' | 'screenshotTiles' | 'verdict'>;
 
-const page = (raw: RawCapture): PageCapture => ({ ...raw, markdown: '', title: 'Variant shop', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [] });
+const page = (raw: RawCapture): PageCapture => ({ ...raw, markdown: '', title: 'Variant shop', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [], verdict: { kind: 'ok', status: 200 } });
 
 export const VARIANT_SHOP_URLS = [
   'https://variants.example/p/1',
