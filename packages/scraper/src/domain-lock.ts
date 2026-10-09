@@ -4,7 +4,13 @@
  *
  * If a capture is already in-flight for a domain, subsequent requests
  * wait for it to complete rather than launching a second browser.
+ *
+ * It also paces each host: a 2 s politeness gap between requests, and a
+ * backoff after the host answers with a challenge or a refusal (see
+ * `reportVerdict`).
  */
+
+import type { CaptureErrorKind, CaptureVerdict } from '@robot/browser';
 
 type LockEntry = {
   promise: Promise<void>;
@@ -18,6 +24,66 @@ const activeLocks = new Map<string, LockEntry>();
 // Minimum delay between requests to the same domain (politeness)
 const POLITENESS_DELAY_MS = 2000;
 const lastRequestTime = new Map<string, number>();
+
+/**
+ * Backoff after a challenge or refusal: the first step, then doubling per
+ * further one in a row, capped at BACKOFF_MAX_MS. The first step can be
+ * overridden with the ROBOT_BACKOFF_FIRST_MS environment variable (read once,
+ * at module load) — the route smoke runs the api-server with
+ * ROBOT_BACKOFF_FIRST_MS=1000 so it does not sit through 2-minute waits.
+ */
+export const BACKOFF_FIRST_MS = Number(process.env.ROBOT_BACKOFF_FIRST_MS ?? 120_000);
+export const BACKOFF_MAX_MS = Math.max(480_000, BACKOFF_FIRST_MS);
+
+/** Per host: when the backoff ends, and how many challenges in a row set it. */
+const backoff = new Map<string, { until: number; strikes: number }>();
+
+// The clock the politeness delay and the backoff share. `Date.now` and
+// `setTimeout` are looked up at call time, so vitest's fake timers
+// (domain-lock.test.ts) still apply by default.
+let now: () => number = () => Date.now();
+let sleep: (ms: number) => Promise<void> = (ms) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Tests only: a fake clock and a fake sleep so backoff tests run instantly. */
+export function _setClockForTests(nowFn: () => number, sleepFn: (ms: number) => Promise<void>): void {
+  now = nowFn;
+  sleep = sleepFn;
+}
+
+/** Tests only: forget every host's backoff and last-request time. */
+export function _resetBackoffForTests(): void {
+  backoff.clear();
+  lastRequestTime.clear();
+}
+
+/**
+ * Feed a capture's verdict back to the host's pacing (spec 2026-10-09 §A3).
+ * A challenge or refusal starts or doubles the backoff; an ok clears it; the
+ * other kinds (not-found, a crash, a timeout, ...) say nothing about the
+ * host's tolerance and change nothing.
+ */
+export function reportVerdict(
+  domain: string,
+  kind: CaptureVerdict['kind'] | CaptureErrorKind,
+  nowFn: () => number = now,
+): void {
+  if (kind === 'ok') {
+    backoff.delete(domain);
+    return;
+  }
+  if (kind !== 'challenge' && kind !== 'refused') return;
+  const strikes = (backoff.get(domain)?.strikes ?? 0) + 1;
+  const ms = Math.min(BACKOFF_FIRST_MS * 2 ** (strikes - 1), BACKOFF_MAX_MS);
+  backoff.set(domain, { until: nowFn() + ms, strikes });
+  console.log(`[lock] ${domain} ${kind}: backing off ${Math.round(ms / 1000)}s`);
+}
+
+/** How long the host's backoff still has to run; 0 when there is none. */
+export function backoffRemainingMs(domain: string, nowFn: () => number = now): number {
+  const b = backoff.get(domain);
+  if (!b) return 0;
+  return Math.max(0, b.until - nowFn());
+}
 
 /**
  * Acquire a lock for a domain. If another request is in-flight,
@@ -40,24 +106,36 @@ export async function acquireDomainLock(domain: string): Promise<() => void> {
   // "no lock" and this `set` reopens the race for the other woken waiters.
   let resolve: () => void;
   const promise = new Promise<void>(r => { resolve = r; });
-  const entry: LockEntry = { promise, resolve: resolve!, domain, startedAt: Date.now() };
+  const entry: LockEntry = { promise, resolve: resolve!, domain, startedAt: now() };
   activeLocks.set(domain, entry);
+
+  // Backoff — the host recently challenged or refused us. Wait it out (never
+  // fail), under the lock so whoever is queued behind waits too.
+  const backoffWait = backoffRemainingMs(domain);
+  if (backoffWait > 0) {
+    console.log(`[lock] Backoff: waiting ${Math.round(backoffWait / 1000)}s before hitting ${domain}`);
+    await sleep(backoffWait);
+    // The wait is the penalty; the next verdict decides whether it grows
+    // (the strikes are kept) or clears.
+    const b = backoff.get(domain);
+    if (b) backoff.set(domain, { ...b, until: now() });
+  }
 
   // Politeness delay — don't hammer the same domain. Under the lock, so the
   // spacing also holds back whoever is queued behind this request.
   const lastTime = lastRequestTime.get(domain);
   if (lastTime) {
-    const elapsed = Date.now() - lastTime;
+    const elapsed = now() - lastTime;
     if (elapsed < POLITENESS_DELAY_MS) {
       const wait = POLITENESS_DELAY_MS - elapsed;
       console.log(`[lock] Politeness delay: waiting ${wait}ms before hitting ${domain}`);
-      await new Promise(r => setTimeout(r, wait));
+      await sleep(wait);
     }
   }
 
   // Return release function
   return () => {
-    lastRequestTime.set(domain, Date.now());
+    lastRequestTime.set(domain, now());
     activeLocks.delete(domain);
     entry.resolve();
   };
@@ -74,9 +152,9 @@ export function isDomainLocked(domain: string): boolean {
  * Get all currently locked domains (for monitoring).
  */
 export function getActiveLocks(): Array<{ domain: string; durationMs: number }> {
-  const now = Date.now();
+  const at = now();
   return [...activeLocks.values()].map(l => ({
     domain: l.domain,
-    durationMs: now - l.startedAt,
+    durationMs: at - l.startedAt,
   }));
 }
