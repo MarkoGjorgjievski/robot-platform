@@ -739,7 +739,7 @@ export const sourcesRouter = router({
         pageHeight: meta.status === 'captured' ? meta.pageHeight : 0,
         capturedHeight: meta.status === 'captured' ? meta.capturedHeight : 0,
         contentHeight: meta.status === 'captured' ? meta.contentHeight : 0,
-        ...(meta.status === 'failed' ? { error: meta.error } : {}),
+        ...(meta.status === 'failed' ? { error: meta.error, ...(meta.verdict ? { verdict: meta.verdict } : {}) } : {}),
         ...(meta.status === 'captured' ? { capturedAt: meta.capturedAt } : {}),
       };
     }),
