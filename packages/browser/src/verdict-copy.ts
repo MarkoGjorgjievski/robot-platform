@@ -20,7 +20,7 @@ export function verdictSentence(v: CaptureVerdict | { kind: CaptureErrorKind }, 
     case 'not-found': return `That page doesn't exist on ${host} (404). Check the address.`;
     case 'redirected': return `That address led to ${v.to}. Paste a page on ${host}.`;
     case 'blank': return `${host} sent an empty page. Try again.`;
-    case 'crashed': return 'The browser crashed on this page. It will be retried.';
+    case 'crashed': return 'The browser crashed on this page. Try again.';
     case 'unreachable': return `${host} could not be reached (no response).`;
     case 'timeout': return `${host} did not answer in time.`;
   }

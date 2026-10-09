@@ -55,3 +55,60 @@ describe('classifyNavigationError', () => {
     expect(classifyNavigationError(new Error('something else'))).toBe('unreachable');
   });
 });
+
+// Review I1/I5/I6/M1/M6, 2026-10-09: pages measured to read as false walls.
+const thinText = '<p>Linen apron, natural. Washed linen, adjustable neck strap, two front pockets. Machine washable at 40 degrees. Ships in two days.</p><p>£24.00</p><button>Add to basket</button>';
+describe('classifyVerdict — thin legitimate pages are not walls', () => {
+  it('a thin product page carrying a cdnjs.cloudflare.com script (12 boxes, Cloudflare headers) is ok', () => {
+    const html = `<html><head><title>Linen apron</title><script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script></head><body><h1>Linen apron</h1>${thinText}</body></html>`;
+    expect(classifyVerdict({ ...base, status: 200, headers: { server: 'cloudflare', 'cf-ray': '8a1' }, html, title: 'Linen apron', boxCount: 12 })).toEqual({ kind: 'ok', status: 200 });
+  });
+  it('a thin Cloudflare 404 is not-found, not refused', () => {
+    const html = '<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><hr><center>cloudflare</center></body></html>';
+    expect(classifyVerdict({ ...base, status: 404, headers: { server: 'cloudflare', 'cf-ray': '8a1' }, html, title: '404 Not Found' })).toEqual({ kind: 'not-found', status: 404 });
+  });
+  it('a thin page with a reCAPTCHA review form (8 boxes) is ok', () => {
+    const html = `<html><head><title>Linen apron</title><script src="https://www.google.com/recaptcha/api.js" async defer></script></head><body><h1>Linen apron</h1>${thinText}<form><textarea name="review"></textarea><div class="g-recaptcha" data-sitekey="x"></div><button>Post review</button></form></body></html>`;
+    expect(classifyVerdict({ ...base, status: 200, html, title: 'Linen apron', boxCount: 8 })).toEqual({ kind: 'ok', status: 200 });
+  });
+  it('a 200 whose only vendor sign is a header is not refused, but a 403 names its vendor', () => {
+    const html = `<html><head><title>Linen apron</title></head><body><h1>Linen apron</h1>${thinText}</body></html>`;
+    expect(classifyVerdict({ ...base, status: 200, headers: { 'cf-ray': '8a1' }, html, title: 'Linen apron' }).kind).toBe('ok');
+    expect(classifyVerdict({ ...base, status: 403, headers: { 'cf-ray': '8a1' }, html, title: 'Linen apron' })).toEqual({ kind: 'refused', status: 403, vendor: 'cloudflare' });
+  });
+  it('a PerimeterX press-and-hold marker on a thin 200 is still a challenge', () => {
+    const html = '<html><head><title>shop.example</title></head><body><div id="px-captcha"></div></body></html>';
+    expect(classifyVerdict({ ...base, status: 200, html, title: 'shop.example' })).toEqual({ kind: 'challenge', status: 200, vendor: 'perimeterx' });
+  });
+  it('a challenge whose words are only in a script is not a wall', () => {
+    const html = `<html><head><title>Linen apron</title><script>var msg = "verify you are human";</script></head><body><h1>Linen apron</h1>${thinText}</body></html>`;
+    expect(classifyVerdict({ ...base, status: 200, html, title: 'Linen apron', boxCount: 12 }).kind).toBe('ok');
+  });
+});
+
+describe('classifyVerdict — redirects, other 4xx, titles', () => {
+  it('a redirect within the registrable domain is ok; to another domain it is redirected', () => {
+    expect(classifyVerdict({ ...base, requestedUrl: 'https://www.hm.com/p/1', finalUrl: 'https://www2.hm.com/en_gb/p/1', status: 200, html: PRODUCT, title: 'Widget A' }).kind).toBe('ok');
+    expect(classifyVerdict({ ...base, requestedUrl: 'https://x.com/p/1', finalUrl: 'https://uk.x.com/p/1', status: 200, html: PRODUCT, title: 'Widget A' }).kind).toBe('ok');
+    expect(classifyVerdict({ ...base, requestedUrl: 'https://shop.example.co.uk/p', finalUrl: 'https://example.co.uk/p', status: 200, html: PRODUCT, title: 'Widget A' }).kind).toBe('ok');
+    expect(classifyVerdict({ ...base, requestedUrl: 'https://x.com/p/1', finalUrl: 'https://login.other.com/sso', status: 200, html: PRODUCT, title: 'Widget A' })).toEqual({ kind: 'redirected', status: 200, to: 'login.other.com' });
+  });
+  it('HTTP 400 and other unlisted 4xx are refused, not blank', () => {
+    expect(classifyVerdict({ ...base, status: 400, html: '<html><body></body></html>', title: '' })).toEqual({ kind: 'refused', status: 400 });
+    expect(classifyVerdict({ ...base, status: 418, html: PRODUCT, title: 'Widget A' })).toEqual({ kind: 'refused', status: 418 });
+    expect(classifyVerdict({ ...base, status: 410, html: PRODUCT, title: 'Widget A' })).toEqual({ kind: 'not-found', status: 410 });
+  });
+  it('a full page titled "Access Denied" reads refused, not a human check', () => {
+    const html = `<html><head><title>Access Denied</title></head><body>${'<p>The film Access Denied follows a hacker through a long night. </p>'.repeat(30)}</body></html>`;
+    expect(classifyVerdict({ ...base, status: 200, html, title: 'Access Denied' })).toEqual({ kind: 'refused', status: 200, vendor: 'unknown' });
+  });
+  it('a product titled "Levi\'s 404 Jeans" is ok; a title "404 - Page Not Found" is not-found', () => {
+    expect(classifyVerdict({ ...base, status: 200, html: PRODUCT, title: "Levi's 404 Jeans" })).toEqual({ kind: 'ok', status: 200 });
+    expect(classifyVerdict({ ...base, status: 200, html: PRODUCT, title: '404 - Page Not Found' }).kind).toBe('not-found');
+    expect(classifyVerdict({ ...base, status: 200, html: PRODUCT, title: 'Error 404' }).kind).toBe('not-found');
+  });
+  it('inline CSS does not count as visible text for the blank rule', () => {
+    const html = `<html><head><style>${'.a{color:red}'.repeat(200)}</style></head><body><div id="app">Loading the shop, one moment please while everything is fetched for you right now.</div></body></html>`;
+    expect(classifyVerdict({ ...base, status: 200, html, title: 'Shop', boxCount: 0 }).kind).toBe('blank');
+  });
+});
