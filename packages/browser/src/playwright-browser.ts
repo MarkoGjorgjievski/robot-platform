@@ -1,6 +1,8 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page, type Locator, type Response } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
+import { CaptureError } from './types.js';
+import { classifyVerdict, classifyNavigationError } from './verdict.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
@@ -58,6 +60,9 @@ function stealthChromium(): Promise<typeof chromium> {
 }
 
 const nhm = new NodeHtmlMarkdown();
+
+/** Playwright reports a dead renderer as "Target crashed" / "Page crashed". */
+const isCrash = (err: unknown): boolean => /crashed/i.test(String((err as Error)?.message ?? err));
 
 // Common popup/consent selectors to auto-dismiss before capture
 const POPUP_DISMISS_SELECTORS = [
@@ -213,103 +218,129 @@ export class PlaywrightBrowser implements IBrowser {
         if (m) console.log(`[capture] ${name.padEnd(20)} scrollY=${m.y} height=${m.h} links=${m.links} nodes=${m.nodes}`);
       };
 
+      // No document at all is the only reason capture() rejects: a wall, a
+      // 404 or an empty shell is still a page, and resolves with its verdict.
       const t0 = Date.now();
-      await this.navigateWithFallback(page, url, options);
+      let response: Response | null = null;
+      try {
+        response = await this.navigateWithFallback(page, url, options);
+      } catch (err) {
+        const kind = classifyNavigationError(err);
+        throw new CaptureError(kind, url, `${kind}: ${(err as Error).message}`);
+      }
       const navigateMs = Date.now() - t0;
-      await stage('after navigate');
-      const readyWhen = options.ready?.when ?? 'after-navigation';
-      let ready = options.ready && readyWhen === 'after-navigation' ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
-      if (ready) await stage(`ready: ${ready.state}`);
-      await this.dismissPopups(page);
-      await stage('after dismissPopups');
-      await this.expandHiddenContent(page);
-      await stage('after expandHidden');
-      await this.returnIfNavigatedAway(page, url, options);
-      // 'after-expand': poll the page as it will be serialised, once the popup
-      // and "show more" rounds have revealed whatever they reveal.
-      if (options.ready && readyWhen === 'after-expand') {
-        ready = await this.waitUntilReady(page, url, intercepted, options.ready);
-        await stage(`ready (after expand): ${ready.state}`);
-      }
-
-      let annotation: unknown = undefined;
-      if (options.annotate) {
-        annotation = await page.evaluate(options.annotate).catch((err) => {
-          console.warn(`[browser] annotate script failed on ${url}: ${(err as Error).message.split('\n')[0]}`);
-          return undefined;
-        });
-      }
-
-      const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-      const clips = computeTileClips(pageHeight, options.maxTiles);
-
-      const [html, title, structuredData] = await Promise.all([
-        page.content(),
-        page.title(),
-        this.extractStructuredData(page),
-      ]);
-      // fullPage:true expands the captured image to the full scrollable page,
-      // so clips beyond the 800px viewport (any tile past the first) are in
-      // bounds. Without it Playwright clips against the viewport and throws
-      // "Clipped area is either empty or outside the resulting image" on any
-      // page taller than the viewport (i.e. essentially every real page).
-      //
-      // Taken sequentially, not with Promise.all: every tile is a fullPage render
-      // of the same page, so running them concurrently makes them contend for one
-      // renderer rather than going faster. On a heavy page (Newegg) three parallel
-      // fullPage renders blew the 30s default and the whole capture failed —
-      // which meant analyze returned no screenshot at all and the Tier 2 judge
-      // silently marked all 18 fields 'error'.
-      //
-      // Failures are also per-tile now. Tiles are ordered top-down and only the
-      // first is always used, so losing a lower tile costs some below-the-fold
-      // escalation; losing the capture entirely costs everything.
-      const screenshotTiles: Buffer[] = [];
-      for (const [i, clip] of clips.entries()) {
-        try {
-          const buf = await page.screenshot({ type: 'png', fullPage: true, clip, timeout: SCREENSHOT_TIMEOUT_MS });
-          screenshotTiles.push(Buffer.from(buf));
-        } catch (err) {
-          console.warn(`[browser] tile ${i} screenshot failed (${(err as Error).message.split('\n')[0]});`
-            + ` continuing with ${screenshotTiles.length} tile(s)`);
-          break; // lower tiles will not do better on a page this slow
+      try {
+        await stage('after navigate');
+        const readyWhen = options.ready?.when ?? 'after-navigation';
+        let ready = options.ready && readyWhen === 'after-navigation' ? await this.waitUntilReady(page, url, intercepted, options.ready) : null;
+        if (ready) await stage(`ready: ${ready.state}`);
+        await this.dismissPopups(page);
+        await stage('after dismissPopups');
+        await this.expandHiddenContent(page);
+        await stage('after expandHidden');
+        await this.returnIfNavigatedAway(page, url, options);
+        // 'after-expand': poll the page as it will be serialised, once the popup
+        // and "show more" rounds have revealed whatever they reveal.
+        if (options.ready && readyWhen === 'after-expand') {
+          ready = await this.waitUntilReady(page, url, intercepted, options.ready);
+          await stage(`ready (after expand): ${ready.state}`);
         }
+
+        let annotation: unknown = undefined;
+        if (options.annotate) {
+          annotation = await page.evaluate(options.annotate).catch((err) => {
+            if (isCrash(err)) throw err;
+            console.warn(`[browser] annotate script failed on ${url}: ${(err as Error).message.split('\n')[0]}`);
+            return undefined;
+          });
+        }
+
+        const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+        const clips = computeTileClips(pageHeight, options.maxTiles);
+
+        const [html, title, structuredData] = await Promise.all([
+          page.content(),
+          page.title(),
+          this.extractStructuredData(page),
+        ]);
+        // fullPage:true expands the captured image to the full scrollable page,
+        // so clips beyond the 800px viewport (any tile past the first) are in
+        // bounds. Without it Playwright clips against the viewport and throws
+        // "Clipped area is either empty or outside the resulting image" on any
+        // page taller than the viewport (i.e. essentially every real page).
+        //
+        // Taken sequentially, not with Promise.all: every tile is a fullPage render
+        // of the same page, so running them concurrently makes them contend for one
+        // renderer rather than going faster. On a heavy page (Newegg) three parallel
+        // fullPage renders blew the 30s default and the whole capture failed —
+        // which meant analyze returned no screenshot at all and the Tier 2 judge
+        // silently marked all 18 fields 'error'.
+        //
+        // Failures are also per-tile now. Tiles are ordered top-down and only the
+        // first is always used, so losing a lower tile costs some below-the-fold
+        // escalation; losing the capture entirely costs everything.
+        const screenshotTiles: Buffer[] = [];
+        for (const [i, clip] of clips.entries()) {
+          try {
+            const buf = await page.screenshot({ type: 'png', fullPage: true, clip, timeout: SCREENSHOT_TIMEOUT_MS });
+            screenshotTiles.push(Buffer.from(buf));
+          } catch (err) {
+            if (isCrash(err)) throw err; // a dead renderer is not a slow page
+            console.warn(`[browser] tile ${i} screenshot failed (${(err as Error).message.split('\n')[0]});`
+              + ` continuing with ${screenshotTiles.length} tile(s)`);
+            break; // lower tiles will not do better on a page this slow
+          }
+        }
+        if (screenshotTiles.length === 0) {
+          throw new Error(`page.screenshot failed for every tile on ${url} — no usable screenshot`);
+        }
+
+        const cleanedHtml = await this.extractReadableContent(page, html);
+        const markdown = nhm.translate(cleanedHtml);
+
+        // Rank and filter the intercepted requests
+        const rankedRequests = rankInterceptedRequests(intercepted, url);
+
+        if (rankedRequests.length > 0) {
+          console.log(`[browser] Intercepted ${intercepted.length} requests, ${rankedRequests.length} contain JSON data`);
+          console.log(`[browser] Top API: ${rankedRequests[0].url.slice(0, 120)} (${rankedRequests[0].bodySize} bytes)`);
+        }
+
+        // The verdict reads the real main response, not the rendered page alone.
+        // The box-map annotate script returns an array of boxes; zero boxes on
+        // thin text is one of the blank signals.
+        const headers = response ? response.headers() : {};
+        const boxCount = Array.isArray(annotation) ? annotation.length
+          : Array.isArray((annotation as { boxes?: unknown[] } | undefined)?.boxes) ? (annotation as { boxes: unknown[] }).boxes.length
+          : undefined;
+        const verdict = classifyVerdict({ requestedUrl: url, finalUrl: page.url(), status: response ? response.status() : null, headers, html, title, boxCount });
+
+        return {
+          url: page.url(),
+          verdict,
+          html,
+          markdown,
+          screenshot: screenshotTiles[0],
+          screenshotTiles,
+          title,
+          timestamp: Date.now(),
+          structuredData,
+          interceptedRequests: rankedRequests,
+          pageHeight,
+          ...(annotation !== undefined ? { annotation } : {}),
+          timings: {
+            navigateMs,
+            readyMs: ready?.ms ?? null,
+            readyState: ready?.state ?? null,
+            graceMs: ready?.graceMs ?? null,
+            totalMs: Date.now() - t0,
+          } satisfies CaptureTimings,
+        };
+      } catch (err) {
+        // The renderer died after the document arrived: no page to hand back.
+        if (isCrash(err)) throw new CaptureError('crashed', url, (err as Error).message);
+        throw err;
       }
-      if (screenshotTiles.length === 0) {
-        throw new Error(`page.screenshot failed for every tile on ${url} — no usable screenshot`);
-      }
-
-      const cleanedHtml = await this.extractReadableContent(page, html);
-      const markdown = nhm.translate(cleanedHtml);
-
-      // Rank and filter the intercepted requests
-      const rankedRequests = rankInterceptedRequests(intercepted, url);
-
-      if (rankedRequests.length > 0) {
-        console.log(`[browser] Intercepted ${intercepted.length} requests, ${rankedRequests.length} contain JSON data`);
-        console.log(`[browser] Top API: ${rankedRequests[0].url.slice(0, 120)} (${rankedRequests[0].bodySize} bytes)`);
-      }
-
-      return {
-        url: page.url(),
-        html,
-        markdown,
-        screenshot: screenshotTiles[0],
-        screenshotTiles,
-        title,
-        timestamp: Date.now(),
-        structuredData,
-        interceptedRequests: rankedRequests,
-        pageHeight,
-        ...(annotation !== undefined ? { annotation } : {}),
-        timings: {
-          navigateMs,
-          readyMs: ready?.ms ?? null,
-          readyState: ready?.state ?? null,
-          graceMs: ready?.graceMs ?? null,
-          totalMs: Date.now() - t0,
-        } satisfies CaptureTimings,
-      };
     } finally {
       await page.close();
     }
@@ -463,19 +494,19 @@ export class PlaywrightBrowser implements IBrowser {
    * 1. Try networkidle (best for simple pages)
    * 2. Fall back to domcontentloaded + manual wait (for heavy sites)
    */
-  private async navigateWithFallback(page: Page, url: string, options: CaptureOptions = {}): Promise<void> {
+  private async navigateWithFallback(page: Page, url: string, options: CaptureOptions = {}): Promise<Response | null> {
     const timeout = options.timeout ?? 60000;
     const preferred = options.waitUntil ?? 'networkidle';
 
     try {
-      await page.goto(url, {
+      return await page.goto(url, {
         waitUntil: preferred,
         timeout,
       });
     } catch (err) {
       if (preferred === 'networkidle') {
         console.warn(`networkidle timed out for ${url}, falling back to domcontentloaded`);
-        await page.goto(url, {
+        const response = await page.goto(url, {
           waitUntil: 'domcontentloaded',
           timeout,
         });
@@ -485,6 +516,7 @@ export class PlaywrightBrowser implements IBrowser {
         } catch {
           // load state timeout is fine
         }
+        return response;
       } else {
         throw err;
       }
