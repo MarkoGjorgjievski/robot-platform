@@ -95,6 +95,19 @@ describe('sources.checkListingPage', () => {
     expect(result).toEqual({ verdict: { kind: 'unreachable' }, message: 'test-check-listing-down.example.com could not be reached (no response).', productLinks: 0, pagerSeen: false, sample: [], products: [] });
   });
 
+  it('a host still backing off is answered from the backoff: no browser, the wall sentence and the wait (review I4)', async () => {
+    reportVerdict('test-check-listing-backoff.example.com', { kind: 'refused', status: 403, vendor: 'cloudflare' });
+
+    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-backoff.example.com/c/shoes' });
+
+    expect(withBrowserSessionMock).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      verdict: { kind: 'refused', status: 403, vendor: 'cloudflare' },
+      message: "test-check-listing-backoff.example.com refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet. Waiting 2 min before trying again.",
+      productLinks: 0, pagerSeen: false, sample: [], products: [],
+    });
+  });
+
   it('rejects a non-URL listingUrl', async () => {
     try {
       await caller.sources.checkListingPage({ listingUrl: 'not-a-url' });
@@ -146,6 +159,16 @@ describe('sources.reachability', () => {
     expect(result.verdict).toEqual({ kind: 'challenge', status: 0 });
     expect(result.finalUrl).toBeNull();
     expect(result.message).toBe("test-reach-wall.example.com asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check. Waiting 2 min before trying again."); // BACKOFF_FIRST_MS is 2 min
+    expect(withBrowserSessionMock).not.toHaveBeenCalled();
+  });
+
+  it('after a refusal the waiting line reads the refusal, not a made-up human check (review I4)', async () => {
+    reportVerdict('test-reach-refused.example.com', { kind: 'refused', status: 403, vendor: 'akamai' });
+
+    const result = await caller.sources.reachability({ url: 'https://test-reach-refused.example.com/x' });
+
+    expect(result.verdict).toEqual({ kind: 'refused', status: 403, vendor: 'akamai' });
+    expect(result.message).toBe("test-reach-refused.example.com refused the browser (HTTP 403, Akamai). We can't read this website from here yet. Waiting 2 min before trying again.");
     expect(withBrowserSessionMock).not.toHaveBeenCalled();
   });
 

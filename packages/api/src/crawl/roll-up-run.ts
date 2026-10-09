@@ -1,7 +1,7 @@
 // packages/api/src/crawl/roll-up-run.ts
 // What a run's status is, given what happened to its items.
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm';
 import { runs, runItems, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import type { VariantRunSummary } from '@robot/scraper';
@@ -135,11 +135,27 @@ export async function finaliseRun(
 
   const variantSummary = await computeVariantSummary(db, runId);
 
+  // A run whose every item failed reads its first item's reason, not a bare
+  // "Failed": the Sample panel and the run page headline read only
+  // errorMessage, and an item-level wall ("article.com asked for a human
+  // check…") is the honest reason (review C1, 2026-10-09). Never overwrites
+  // a reason already recorded (planning's, or the wall breaker's).
+  let firstItemError: string | null = null;
+  if (status === 'failed' && !errored?.errorMessage && Number(counts?.failed ?? 0) > 0) {
+    const [first] = await db.select({ error: runItems.error })
+      .from(runItems)
+      .where(and(eq(runItems.runId, runId), eq(runItems.kind, 'detail'), eq(runItems.status, 'failed'), isNotNull(runItems.error)))
+      .orderBy(asc(runItems.completedAt), asc(runItems.createdAt))
+      .limit(1);
+    firstItemError = first?.error ?? null;
+  }
+
   await db.update(runs)
     .set({
       status,
       resultCount,
       completedAt: status === 'extracting' ? null : new Date(),
+      ...(firstItemError ? { errorMessage: firstItemError } : {}),
       // Merged onto what is already there, not overwritten: queueVariantGroup
       // keeps `skippedByProduct` (the per-product map behind the skipped sum,
       // Task 4 fix round 1) on this same column, and it must survive finalise.

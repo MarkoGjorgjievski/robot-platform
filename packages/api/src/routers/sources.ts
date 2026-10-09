@@ -9,7 +9,7 @@ import {
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
-  reportVerdict, backoffRemainingMs,
+  reportVerdict, backoffAnswer,
 } from '@robot/scraper';
 import { CaptureError } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
@@ -656,15 +656,21 @@ export const sourcesRouter = router({
    * CAPTCHA or 404 counts no links and says why in `message` (null when ok);
    * no document at all (a `CaptureError`) reads the same way. The verdict
    * also feeds the host's backoff (`reportVerdict`).
+   *
+   * A host still backing off after a wall is answered from the backoff, with
+   * no browser: the wall's sentence and how long the wait still is (review
+   * I4, 2026-10-09). Loading it again would only extend the wall.
    */
   checkListingPage: protectedProcedure
     .input(z.object({ listingUrl: httpUrl }))
     .mutation(async ({ input }): Promise<ListingPageCheck> => {
       const hostname = new URL(input.listingUrl).hostname;
+      const waiting = backoffAnswer(input.listingUrl);
+      if (waiting) return { ...unreadListingPage(waiting.verdict, input.listingUrl), message: waiting.message };
       try {
         const { anchors, html, verdict } = await withBrowserSession(async (browser) => {
           const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
-          reportVerdict(hostname, capture.verdict.kind);
+          reportVerdict(hostname, capture.verdict);
           if (capture.verdict.kind !== 'ok') return { anchors: [] as ListingAnchor[], html: capture.html, verdict: capture.verdict };
           const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
           return { anchors, html: capture.html, verdict: capture.verdict };
@@ -691,13 +697,15 @@ export const sourcesRouter = router({
     .input(z.object({ url: httpUrl }))
     .query(async ({ input }): Promise<Reachability> => {
       const hostname = new URL(input.url).hostname;
-      const wait = backoffRemainingMs(hostname);
-      if (wait > 0) return reachabilityResult(input.url, { kind: 'challenge', status: 0 }, null, 0, wait);
+      // The wall that started the backoff, in its own words: a host that
+      // refused us reads "refused", not a made-up human check (review I4).
+      const waiting = backoffAnswer(input.url);
+      if (waiting) return reachabilityResult(input.url, waiting.verdict, null, 0, waiting.waitMs);
       const t0 = Date.now();
       try {
         return await withBrowserSession(async (browser) => {
           const capture = await browser.capture(input.url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: 30_000 });
-          reportVerdict(hostname, capture.verdict.kind);
+          reportVerdict(hostname, capture.verdict);
           return reachabilityResult(input.url, capture.verdict, capture.url, Date.now() - t0);
         });
       } catch (err) {

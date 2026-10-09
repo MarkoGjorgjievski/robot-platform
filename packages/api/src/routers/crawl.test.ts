@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources, projects, datasets, inputSets, runs, runItems } from '@robot/db';
 import type { PlanRunOutcome } from '@robot/scraper';
+import { verdictSentence } from '@robot/browser';
 import { PROBE_BUDGET } from '../crawl/probe.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
@@ -201,11 +202,14 @@ describe('crawlRouter.plan persistence', () => {
   it('marks a run `failed` when every input errored and nothing was planned', async () => {
     const fixture = await makePlannableSource();
     try {
+      // What planRun now writes for a walled listing: the verdict's one
+      // sentence, nothing in front of it (review I3, 2026-10-09).
+      const refused = verdictSentence({ kind: 'refused', status: 403, vendor: 'cloudflare' }, 'https://example.com/c/a');
       planRunMock.mockResolvedValue({
         ...OUTCOME_BASE,
         errors: [
-          { inputIndex: 0, message: 'listing capture failed: blocked' },
-          { inputIndex: 1, message: 'listing capture failed: blocked' },
+          { inputIndex: 0, message: refused },
+          { inputIndex: 1, message: refused },
         ],
         inputs: [
           { inputIndex: 0, itemCount: 0, status: 'error' },
@@ -219,10 +223,11 @@ describe('crawlRouter.plan persistence', () => {
 
       const run = await db.query.runs.findFirst({ where: eq(runs.id, result.runId) });
       expect(run?.status).toBe('failed');
-      expect(run?.logs).toContain('input 0: listing capture failed: blocked');
-      expect(run?.logs).toContain('input 1: listing capture failed: blocked');
-      // The first input's own reason, not a count (spec 2026-10-09 §A2).
-      expect(run?.errorMessage).toBe('listing capture failed: blocked');
+      expect(run?.logs).toContain(`input 0: ${refused}`);
+      expect(run?.logs).toContain(`input 1: ${refused}`);
+      // The first input's own reason, exactly the sentence the listing bar
+      // shows, not a count (spec 2026-10-09 §A2).
+      expect(run?.errorMessage).toBe("example.com refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet.");
     } finally {
       await fixture.cleanup();
     }

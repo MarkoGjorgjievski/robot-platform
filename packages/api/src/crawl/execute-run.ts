@@ -10,7 +10,18 @@
 // stop when cancelled, count what actually happened — is then testable without a
 // browser, an API key, or a database.
 
+import { CaptureProblemError } from '@robot/scraper';
 import type { ClaimedItem } from './claim-item.js';
+
+/** Walls in a row that stop a run: past this, the site has walled us, not one page. */
+export const WALL_STREAK_LIMIT = 3;
+
+/** The wall's sentence when this item failed because the site refused or challenged us; else null. */
+export function wallSentence(err: unknown): string | null {
+  if (!(err instanceof CaptureProblemError)) return null;
+  const kind = err.verdict?.kind;
+  return kind === 'refused' || kind === 'challenge' ? err.message : null;
+}
 
 export type ExecuteDeps = {
   claim: (runId: string) => Promise<ClaimedItem | null>;
@@ -25,6 +36,14 @@ export type ExecuteDeps = {
   onDone: (itemId: string, extractionId: string | null, row: Record<string, unknown>, targetFields: string[] | null) => Promise<void>;
   onFailed: (itemId: string, message: string) => Promise<void>;
   isCancelled: () => Promise<boolean>;
+  /**
+   * The circuit breaker (review C2, 2026-10-09): called once when
+   * WALL_STREAK_LIMIT items in a row failed on a wall. Marks every item still
+   * pending failed with "Not tried: <sentence>" and records the sentence as
+   * the run's errorMessage, so a walled run ends in minutes instead of
+   * sleeping 8 minutes of backoff per remaining item.
+   */
+  stopForWall: (message: string) => Promise<void>;
   /**
    * `cancelled` is the loop's own outcome, not re-derived by re-reading
    * `isCancelled()` — the run row can move on between the last check and
@@ -62,6 +81,9 @@ export async function executeRun(
   let cancelled = false;
   let limitReached = false;
   let status = '';
+  // Consecutive items that failed on a wall; any other outcome resets it.
+  let wallStreak = 0;
+  let wallStop: string | null = null;
 
   // `finalise` runs in `finally` so it fires on every exit path — normal
   // completion, cancellation, or a claim that broke the loop early. A run
@@ -107,6 +129,7 @@ export async function executeRun(
 
       try {
         const { row, extractionId, targetFields } = await deps.extractItem(item);
+        wallStreak = 0;
         try {
           await deps.onDone(item.id, extractionId, row, targetFields);
           extracted++;
@@ -130,6 +153,23 @@ export async function executeRun(
           recordingFailures++;
           console.error(`executeRun: onFailed failed to record item ${item.id}`, recordErr);
         }
+        // One wall is one page; three in a row is the site. Isolated walls keep
+        // the "one blocked page never costs the other 299" rule above.
+        const wall = wallSentence(err);
+        wallStreak = wall ? wallStreak + 1 : 0;
+        if (wall && wallStreak >= WALL_STREAK_LIMIT) {
+          wallStop = wall;
+          break;
+        }
+      }
+    }
+    if (wallStop) {
+      try {
+        await deps.stopForWall(wallStop);
+      } catch (err) {
+        // The items stay pending and the run rolls up as still extracting;
+        // logged, and finalise still runs below.
+        console.error(`executeRun: stopping run ${runId} after ${WALL_STREAK_LIMIT} walls failed`, err);
       }
     }
   } finally {

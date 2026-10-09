@@ -1,6 +1,7 @@
 // packages/api/src/crawl/execute-run.test.ts
 import { describe, it, expect } from 'vitest';
-import { executeRun, type ExecuteDeps } from './execute-run.js';
+import { CaptureProblemError } from '@robot/scraper';
+import { executeRun, WALL_STREAK_LIMIT, type ExecuteDeps } from './execute-run.js';
 import { rollUpStatus } from './roll-up-run.js';
 import type { ClaimedItem } from './claim-item.js';
 
@@ -13,12 +14,19 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
   const done: string[] = [];
   const failed: Array<{ id: string; message: string }> = [];
   let finalRowCount = -1;
+  const wallStops: string[] = [];
   const deps: ExecuteDeps = {
     claim: async () => queue.shift() ?? null,
     extractItem: async (i) => ({ row: { title: `row ${i.id}` }, extractionId: `x-${i.id}`, targetFields: null }),
     onDone: async (id) => { done.push(id); },
     onFailed: async (id, message) => { failed.push({ id, message }); },
     isCancelled: async () => false,
+    // What production's failPendingForWall does to the queue: every pending
+    // item becomes a failed "Not tried" one.
+    stopForWall: async (message) => {
+      wallStops.push(message);
+      for (const i of queue.splice(0)) failed.push({ id: i.id, message: `Not tried: ${message}` });
+    },
     // The stub answers with what production answers. `finaliseRun` reads the
     // item counts out of the DB and hands them to `rollUpStatus`; this harness
     // holds the same counts in memory (the queue is what is still pending), so
@@ -38,7 +46,7 @@ function harness(overrides: Partial<ExecuteDeps> = {}, queue: ClaimedItem[] = []
     },
     ...overrides,
   };
-  return { deps, done, failed, rowCount: () => finalRowCount };
+  return { deps, done, failed, wallStops, rowCount: () => finalRowCount };
 }
 
 describe('executeRun', () => {
@@ -241,5 +249,48 @@ describe('executeRun', () => {
     expect(h.done).toEqual(['1', '2']);
     expect(outcome.cancelled).toBe(false);
     expect(outcome.extracted).toBe(2);
+  });
+});
+
+describe('executeRun — the wall circuit breaker (review C2)', () => {
+  const WALL = "shop.example asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.";
+  const wall = () => new CaptureProblemError(WALL, { kind: 'challenge', status: 200, vendor: 'cloudflare' });
+
+  it('three walls in a row stop the run: the rest are failed "Not tried", the sentence is the reason', async () => {
+    expect(WALL_STREAK_LIMIT).toBe(3);
+    let tried = 0;
+    const h = harness({
+      extractItem: async () => { tried++; throw wall(); },
+    }, ['1', '2', '3', '4', '5', '6'].map(item));
+    const outcome = await executeRun('run-1', h.deps);
+    expect(tried).toBe(3);
+    expect(h.wallStops).toEqual([WALL]);
+    expect(h.failed.slice(0, 3).map((f) => f.message)).toEqual([WALL, WALL, WALL]);
+    expect(h.failed.slice(3)).toEqual(['4', '5', '6'].map((id) => ({ id, message: `Not tried: ${WALL}` })));
+    expect(outcome.status).toBe('failed');
+  });
+
+  it('two walls then a good page do not trip it; the streak starts again', async () => {
+    let n = 0;
+    const h = harness({
+      extractItem: async (i) => {
+        n++;
+        if (n === 1 || n === 2 || n === 4 || n === 5) throw wall();
+        return { row: { title: i.id }, extractionId: null, targetFields: null };
+      },
+    }, ['1', '2', '3', '4', '5', '6'].map(item));
+    const outcome = await executeRun('run-1', h.deps);
+    expect(h.wallStops).toEqual([]);
+    expect(h.done).toEqual(['3', '6']);
+    expect(outcome.failed).toBe(4);
+    expect(outcome.status).toBe('partial');
+  });
+
+  it('a page that does not exist is not a wall and never counts toward the breaker', async () => {
+    const gone = () => new CaptureProblemError("That page doesn't exist on shop.example (404). Check the address.", { kind: 'not-found', status: 404 });
+    const h = harness({ extractItem: async () => { throw gone(); } }, ['1', '2', '3', '4'].map(item));
+    const outcome = await executeRun('run-1', h.deps);
+    expect(h.wallStops).toEqual([]);
+    expect(outcome.failed).toBe(4);
   });
 });

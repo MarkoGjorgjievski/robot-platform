@@ -32,7 +32,7 @@ function productPage(product: (typeof PRODUCTS)[number], layout: DriftLayout): s
   return (
     `<html><head><title>${product.title}</title>` +
     `<script type="application/ld+json">${JSON.stringify(ld)}</script></head>` +
-    `<body><h1>${product.title}</h1>${priceHtml}<p>A product page for the drift check's own test site.</p></body></html>`
+    `<body><h1>${product.title}</h1>${priceHtml}<p>A product page for the drift check's own test site, with enough words on it to read as a page a visitor could use.</p></body></html>`
   );
 }
 

@@ -144,7 +144,7 @@ const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) { console.error('ANTHROPIC_API_KEY required (or pass --dry-run)'); process.exit(1); }
 
 const { judgeFieldExtraction, explainWrongValue, snapshotUsage, diffUsage, estimateCostUsd, formatUsage, resetUsage } = await import('@robot/agent');
-const { PlaywrightBrowser, TILE_HEIGHT } = await import('@robot/browser');
+const { PlaywrightBrowser, TILE_HEIGHT, verdictSentence } = await import('@robot/browser');
 
 // Ctrl+C: finish the current call, then fall through to the report.
 // The browser is launched with handleSIGINT: false — Playwright's default
@@ -184,6 +184,14 @@ try {
     let title: string;
     try {
       const capture = await browser.capture(r.url, { waitUntil: 'load', maxTiles: tiles });
+      // A wall, a 404 or an empty page is not the product page: judging it
+      // spends credit (~$0.0086 a call) to read every value as "wrong".
+      if (capture.verdict.kind !== 'ok') {
+        const msg = verdictSentence(capture.verdict, r.url);
+        console.warn(`  not judged: ${msg}`);
+        results.push({ url: r.url, cells: [], captureError: msg });
+        continue;
+      }
       shots = capture.screenshotTiles.length > 0 ? capture.screenshotTiles : [capture.screenshot];
       title = capture.title;
     } catch (err) {

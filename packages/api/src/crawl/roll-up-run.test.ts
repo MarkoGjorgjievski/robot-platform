@@ -174,6 +174,45 @@ describe('finaliseRun', () => {
     await db.insert(extractions).values({ sourceId, captureId: capture!.id, runId, data: rows, rowCount: rows.length });
   }
 
+  // Review C1 (2026-10-09): a run whose every item failed on a wall reads the
+  // wall's sentence, so the Sample and the run page say why, not just "Failed".
+  it('a run whose every item failed takes the first failed item\'s reason as its errorMessage', async () => {
+    const { runId } = await seedRun();
+    const sentence = "article.example asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.";
+    const t = Date.now();
+    await db.insert(runItems).values([1, 2, 3].map((n) => ({
+      runId, kind: 'detail', url: `https://article.example/p/${n}`, inputIndex: 0, status: 'failed',
+      error: n === 1 ? sentence : `other reason ${n}`, completedAt: new Date(t + n * 1000),
+    })));
+
+    const status = await finaliseRun(db, runId);
+    expect(status).toBe('failed');
+    const [row] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(row!.errorMessage).toBe(sentence);
+  });
+
+  it('never overwrites a reason already recorded, and leaves a partial run\'s errorMessage alone', async () => {
+    const { sourceId, runId } = await seedRun();
+    await db.update(runs).set({ errorMessage: 'the breaker said so' }).where(eq(runs.id, runId));
+    await db.insert(runItems).values({ runId, kind: 'detail', url: 'https://article.example/p/1', inputIndex: 0, status: 'failed', error: 'item reason' });
+    await finaliseRun(db, runId);
+    expect((await db.select().from(runs).where(eq(runs.id, runId)))[0]!.errorMessage).toBe('the breaker said so');
+
+    const second = await seedRunAgain(sourceId);
+    await db.insert(runItems).values([
+      { runId: second, kind: 'detail', url: 'https://article.example/p/1', inputIndex: 0, status: 'failed', error: 'item reason' },
+      { runId: second, kind: 'detail', url: 'https://article.example/p/2', inputIndex: 0, status: 'done' },
+    ]);
+    expect(await finaliseRun(db, second)).toBe('partial');
+    expect((await db.select().from(runs).where(eq(runs.id, second)))[0]!.errorMessage).toBeNull();
+  });
+
+  /** A second run on the source seedRun made (same org, cleaned up with it). */
+  async function seedRunAgain(sourceId: string): Promise<string> {
+    const [run] = await db.insert(runs).values({ sourceId, status: 'extracting' }).returning();
+    return run!.id;
+  }
+
   // Task 3 (variants plan 3): `resultCount` is the sum of `rowCount` across
   // the run's extractions, not the count of done items — a list-method
   // product page's one extraction can hold several rows.

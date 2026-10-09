@@ -14,7 +14,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { loadCurrentCertification, type Certification } from '../verify/current-certification.js';
 import { loadVariantRunPlan } from './variant-run-plan.js';
 import { claimNextItem } from './claim-item.js';
-import { markItemDone, markItemFailed } from './record-outcome.js';
+import { failPendingForWall, markItemDone, markItemFailed } from './record-outcome.js';
 import { mergeBackfillResult } from './merge-backfill.js';
 import { finaliseRun } from './roll-up-run.js';
 import { isRunCancelled } from './is-cancelled.js';
@@ -188,6 +188,7 @@ export async function startExecution(
         // Both `cancelling` (the stop request) and `cancelled` (a stop another
         // loop already carried out) end this loop — see is-cancelled.ts.
         isCancelled: () => isRunCancelled(db, runId),
+        stopForWall: (message) => failPendingForWall(db, runId, message),
         // No rowCount passed: finaliseRun derives it from the DB itself, so a
         // stale local counter from this loop can never overwrite a truer total.
         // `cancelled` and `limitReached` ARE threaded through — executeRun's
