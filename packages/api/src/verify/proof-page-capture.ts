@@ -6,7 +6,7 @@
 import { and, eq, inArray, desc } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { TILE_HEIGHT, CaptureError, type CaptureErrorKind, type CaptureVerdict, type PageCapture } from '@robot/browser';
-import { captureProofPage, CaptureProblemError, reportVerdict, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
+import { backoffAnswer, captureProofPage, CaptureProblemError, reportVerdict, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
@@ -88,9 +88,19 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     .catch((e) => console.error(`[proof-page] failed to record the start of ${captureId}:`, e));
   waitingForSlot.delete(captureId);
   const hostname = hostOf(row.url);
+  // A host still backing off after a wall is answered from the backoff, with
+  // no browser: the card fails with the wall's verdict and how long the wait
+  // still is, and Try again is the way back (review I4, 2026-10-09).
+  const waiting = backoffAnswer(row.url);
+  if (waiting) {
+    const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error: waiting.message, verdict: waiting.verdict };
+    await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
+      .catch((e) => console.error(`[proof-page] failed to record the backoff answer for ${captureId}:`, e));
+    return;
+  }
   try {
     const { capture, boxes } = await session((browser) => captureProofPage(browser, row.url));
-    if (hostname) reportVerdict(hostname, capture.verdict.kind);
+    if (hostname) reportVerdict(hostname, capture.verdict);
     const tiles = await persistTiles(capture.screenshotTiles);
     await writeCaptureFile(captureId, capture);
     const pageHeight = capture.pageHeight ?? 0;
@@ -104,7 +114,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   } catch (err) {
     console.error(`[proof-page] capture ${captureId} failed:`, err);
     const verdict = err instanceof CaptureProblemError ? err.verdict : err instanceof CaptureError ? { kind: err.kind } : undefined;
-    if (verdict && hostname) reportVerdict(hostname, verdict.kind);
+    if (verdict && hostname) reportVerdict(hostname, err instanceof CaptureProblemError && err.verdict ? err.verdict : verdict.kind);
     const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error: safeErrorMessage(err).slice(0, 1000), ...(verdict ? { verdict } : {}) };
     await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
       .catch((e) => console.error(`[proof-page] failed to record failure for ${captureId}:`, e));

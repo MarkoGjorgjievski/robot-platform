@@ -364,6 +364,13 @@ export const crawlRouter = router({
         await ctx.db.update(runItems)
           .set({ status: 'pending', error: null })
           .where(and(eq(runItems.runId, input.runId), eq(runItems.status, 'failed')));
+        // A run with items got its errorMessage from its items (finalise's
+        // first failed item, or the wall breaker), never from planning, which
+        // writes one only when nothing was planned. The retried items will say
+        // again what went wrong, if anything still does.
+        if (Number(detailCount?.n ?? 0) > 0) {
+          await ctx.db.update(runs).set({ errorMessage: null }).where(eq(runs.id, input.runId));
+        }
       }
 
       // dryRun exists to test the requeue behaviour above without launching a

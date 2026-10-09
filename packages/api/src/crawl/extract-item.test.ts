@@ -1,7 +1,7 @@
 // packages/api/src/crawl/extract-item.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import type { IBrowser, PageCapture } from '@robot/browser';
-import type { VerifiedField, VerifiedExtractionResult, VariantRunPlan } from '@robot/scraper';
+import { verdictSentence, type CaptureVerdict, type IBrowser, type PageCapture } from '@robot/browser';
+import { CaptureProblemError, _resetBackoffForTests, type VerifiedField, type VerifiedExtractionResult, type VariantRunPlan } from '@robot/scraper';
 import { extractItem } from './extract-item.js';
 import type { ClaimedItem } from './claim-item.js';
 import type { Certification } from '../verify/current-certification.js';
@@ -229,6 +229,23 @@ describe('extractItem — with a certification', () => {
     }
   });
 
+  // Review C1 (2026-10-09): a walled product page is a failed item with its
+  // sentence, never a done row of nulls, and never a miss on any certified path.
+  it('a walled page rejects with its sentence: nothing persisted, no path stats recorded', async () => {
+    const verdict: CaptureVerdict = { kind: 'challenge', status: 200, vendor: 'cloudflare' };
+    const sentence = verdictSentence(verdict, ITEM.url);
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => { throw new CaptureProblemError(sentence, verdict); };
+    const recordStats = vi.fn(async () => {});
+    const insert = vi.fn(() => ({ values: () => ({ returning: async () => [{ id: 'never' }] }) }));
+
+    await expect(extractItem({ insert } as never, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats,
+    })).rejects.toThrow(sentence);
+    expect(insert).not.toHaveBeenCalled();
+    expect(recordStats).not.toHaveBeenCalled();
+  });
+
   it('defaults an untyped field to \'text\' when the key has no schemaDefinition entry', async () => {
     const cert: Certification = { verificationId: 'v2', completedAt: new Date(), paths: { price: [] }, concepts: {}, hostname: 'shop.example.com' };
     let seenFields: VerifiedField[] = [];
@@ -356,15 +373,34 @@ describe('extractItem — with a certification', () => {
       skuKey: 'sku',
     };
 
-    function fakeCapture(ldJson: unknown[]): PageCapture {
+    function fakeCapture(ldJson: unknown[], verdict: CaptureVerdict = { kind: 'ok', status: 200 }): PageCapture {
       return {
         url: ITEM.url,
         html: '<html></html>',
         structuredData: { ldJson, nextData: null, initialState: null, meta: {} },
         interceptedRequests: [],
-        verdict: { kind: 'ok', status: 200 },
+        verdict,
       } as unknown as PageCapture;
     }
+
+    it('a capture whose verdict is not ok never becomes rows, even with the variant list on it (the real verified extraction)', async () => {
+      _resetBackoffForTests();
+      const walled = fakeCapture([{ '@type': 'Product', hasVariant: [{ sku: 'SKU-BLK', color: 'Black' }] }], { kind: 'refused', status: 403, vendor: 'akamai' });
+      const browser = { capture: async () => walled, setContentEvaluate: async () => ({}) } as unknown as IBrowser;
+      const recordStats = vi.fn(async () => {});
+      const cap = captureExtraction();
+      try {
+        // No extractVerified override: the real runVerifiedExtraction takes the capture.
+        await expect(extractItem(cap.fakeDbCapturing, ITEM, {
+          browser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+          certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, recordStats, variantPlan: VARIANT_PLAN,
+        })).rejects.toThrow("example.com refused the browser (HTTP 403, Akamai). We can't read this website from here yet.");
+        expect(cap.data).toBeUndefined();
+        expect(recordStats).not.toHaveBeenCalled();
+      } finally {
+        _resetBackoffForTests();
+      }
+    });
 
     it('turns a product page carrying a 2-colour hasVariant list into one extraction with 2 rows', async () => {
       const capture = fakeCapture([{

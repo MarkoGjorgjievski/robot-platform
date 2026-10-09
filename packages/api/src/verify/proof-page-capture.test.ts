@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { TILE_HEIGHT, CaptureError, type IBrowser, type PageCapture } from '@robot/browser';
+import { backoffAnswer, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
 import { readCaptureFile } from './capture-store.js';
@@ -18,6 +19,8 @@ afterAll(async () => { await me.cleanup(); });
 let dir: string;
 beforeAll(async () => { dir = await mkdtemp(join(tmpdir(), 'captures-')); process.env.CAPTURES_DIR = dir; });
 afterAll(async () => { delete process.env.CAPTURES_DIR; await rm(dir, { recursive: true, force: true }); });
+// A refused fake capture backs its host off; the next test on that host must not inherit it.
+afterEach(() => { _resetBackoffForTests(); });
 
 const box = { xpaths: ['//*[@id="main"]/h1'], text: 'Widget', rect: { x: 0, y: 0, w: 10, h: 10 }, tag: 'h1', kind: 'text' as const };
 /** Below the two tiles (2 × TILE_HEIGHT = 3072 px): nothing there was photographed. */
@@ -92,6 +95,23 @@ describe('proof-page capture job', () => {
       await runProofPageCapture(captureId, sessionWith(async (u) => { throw new CaptureError('timeout', u, 'Timeout 60000ms exceeded'); }));
       const meta = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
       expect(meta).toMatchObject({ status: 'failed', verdict: { kind: 'timeout' } });
+      // The card reads the one sentence, not Playwright's text (review I3).
+      if (meta.status === 'failed') expect(meta.error).toBe(`${new URL(f.urls[0]!).hostname.replace(/^www\./, '')} did not answer in time.`);
+    } finally { await f.cleanup(); }
+  });
+  it('a host still backing off is answered from the backoff: failed with its verdict and the wait, no browser (review I4)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-backoff', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const url = f.urls[0]!;
+      const verdict = { kind: 'refused' as const, status: 403, vendor: 'cloudflare' as const };
+      reportVerdict(new URL(url).hostname, verdict);
+      const { captureId } = await startProofPageCapture(f.sourceId, url, { fire: false });
+      let opened = 0;
+      await runProofPageCapture(captureId, sessionWith(async (u) => { opened++; return fakeCapture(u); }));
+      const meta = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
+      expect(opened).toBe(0);
+      expect(meta).toMatchObject({ status: 'failed', verdict, error: backoffAnswer(url)!.message });
+      if (meta.status === 'failed') expect(meta.error).toMatch(/refused the browser \(HTTP 403, Cloudflare\)\. .* Waiting \d+ min before trying again\.$/);
     } finally { await f.cleanup(); }
   });
 });

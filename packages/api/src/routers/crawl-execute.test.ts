@@ -286,6 +286,7 @@ describe('executeRun — a limit-stopped run rolls up through the real finalise 
       onDone: (itemId, extractionId) => markItemDone(db, itemId, extractionId),
       onFailed: async () => {},
       isCancelled: async () => false,
+      stopForWall: async () => {},
       finalise: (_rowCount, cancelled, limitReached) => finaliseRun(db, runId, cancelled, limitReached),
     }, { limit: 3 });
 
