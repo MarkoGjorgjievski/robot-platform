@@ -29,7 +29,7 @@ export function ListingBar({
   problem?: string | null;
 }) {
   const [url, setUrl] = useState(listingUrl);
-  const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean } | null>(null);
+  const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean; message: string | null } | null>(null);
   const check = trpc.sources.checkListingPage.useMutation();
 
   function findProducts() {
@@ -40,7 +40,7 @@ export function ListingBar({
       { listingUrl: trimmed },
       {
         onSuccess: (data) => {
-          setFound({ productLinks: data.productLinks, pagerSeen: data.pagerSeen });
+          setFound({ productLinks: data.productLinks, pagerSeen: data.pagerSeen, message: data.message });
           if (data.productLinks === 0) {
             onNoListing(trimmed);
           } else {
@@ -85,7 +85,13 @@ export function ListingBar({
       </button>
 
       {found ? (
-        found.productLinks === 0 ? (
+        // The browser's verdict first (spec 2026-10-09 §A2): a block page or a
+        // refusal is never reported as "no product links found".
+        found.message ? (
+          <p role="alert" className="text-sm text-warn">
+            {found.message}
+          </p>
+        ) : found.productLinks === 0 ? (
           <p className="text-sm text-muted-foreground">No product links found on this page. Paste product pages below.</p>
         ) : (
           <p className="text-sm text-muted-foreground">
