@@ -14,8 +14,9 @@
 // per-domain politeness lock the analysis chain takes, which this path used
 // to bypass.
 
-import type { CaptureTimings, IBrowser, PageCapture, ReadyCheck, ReadySnapshot } from '@robot/browser';
+import { verdictSentence, type CaptureTimings, type IBrowser, type PageCapture, type ReadyCheck, type ReadySnapshot } from '@robot/browser';
 import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
+import { CaptureProblemError } from './capture-check.js';
 import { normalize, renderValue } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured } from './search-structured.js';
@@ -76,6 +77,15 @@ export async function runVerifiedExtraction(
   deps: { browser: IBrowser; capture?: PageCapture; acquireLock?: typeof acquireDomainLock },
 ): Promise<VerifiedExtractionResult> {
   const capture = deps.capture ?? await captureUnderLock(req, deps);
+  // A page that is not the product page (a wall, a 404, an empty page, another
+  // site) is a failed item with its one sentence, never a row of misses: no
+  // path is evaluated, so no certified path's hit rate counts a wall against
+  // it (review C1, 2026-10-09). Thrown after captureUnderLock reported the
+  // verdict, so the host's backoff still learns. A capture the caller supplied
+  // (variant-check's proof page) was already judged by its own taker.
+  if (!deps.capture && capture.verdict.kind !== 'ok') {
+    throw new CaptureProblemError(verdictSentence(capture.verdict, req.url), capture.verdict);
+  }
   const xpaths = certifiedXPaths(req.fields);
   const probe: XPathProbeResult = xpaths.length ? await deps.browser.setContentEvaluate<XPathProbeResult>(capture.html, buildXPathProbeScript(xpaths)) : {};
   const ctx = { pageUrl: capture.url };
@@ -108,7 +118,7 @@ async function captureUnderLock(
     });
     // Feed the verdict back to the host's pacing (a challenge or refusal
     // backs the next acquire off; an ok clears it).
-    reportVerdict(host, capture.verdict.kind);
+    reportVerdict(host, capture.verdict);
     return capture;
   } finally {
     release();

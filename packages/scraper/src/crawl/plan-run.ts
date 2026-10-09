@@ -9,10 +9,10 @@
 // apply unchanged, so a domain crawled before costs nothing here.
 
 import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
-import { CaptureError, findLoadMore } from '@robot/browser';
+import { CaptureError, findLoadMore, verdictSentence } from '@robot/browser';
 import { runExtraction, type ExtractionAgent, type ExtractionDeps, type ExtractionOutcome } from '../extraction-orchestrator.js';
 import { buildExtractionScript } from '../executor.js';
-import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
+import { acquireDomainLock, backoffAnswer, reportVerdict } from '../domain-lock.js';
 import { CaptureProblemError } from '../verify/capture-check.js';
 import { lookupDomainCache, savePaginationConfig } from '../domain-cache.js';
 import { resolveBudget, itemCap, PAGES_ALL_CEILING } from './budget.js';
@@ -339,6 +339,16 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
     // below, and browser.crawl's pages 2..N), so the lock has to be held out
     // here, across the whole of this input's fetching, and stubbed out on the
     // inner calls (see NOOP_LOCK).
+    // A host that just walled us is answered from its backoff, not slept on:
+    // a plan runs inside an HTTP request (crawl.plan, probeAndSample), and an
+    // 8-minute nap there loses the request (review I4, 2026-10-09).
+    const waiting = backoffAnswer(start.url);
+    if (waiting) {
+      errors.push({ inputIndex: start.inputIndex, message: waiting.message });
+      report(start.inputIndex, 'error', 0);
+      continue;
+    }
+
     const release = await acquireLock(new URL(start.url).hostname);
     try {
       // Captured ONCE and injected into the extraction. The second,
@@ -353,7 +363,15 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         });
         // Feed the verdict back to the host's pacing (a challenge or refusal
         // backs the next acquire off; an ok clears it).
-        reportVerdict(new URL(start.url).hostname, capture.verdict.kind);
+        reportVerdict(new URL(start.url).hostname, capture.verdict);
+        // Not the listing page (a wall, a 404, an empty page, another site):
+        // the input fails with the verdict's one sentence, the same words the
+        // listing bar and the run page show (review I3, 2026-10-09).
+        if (capture.verdict.kind !== 'ok') {
+          errors.push({ inputIndex: start.inputIndex, message: verdictSentence(capture.verdict, start.url) });
+          report(start.inputIndex, 'error', 0);
+          continue;
+        }
         page1 = await extract(
           { url: start.url, fields: listingFields, pageType: 'listing' },
           { browser: deps.browser, agent: deps.agent, capture, acquireLock: NOOP_LOCK },
@@ -371,8 +389,9 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         }
         errors.push({
           inputIndex: start.inputIndex,
-          message: err instanceof CaptureProblemError && err.verdict
-            ? err.message
+          // A CaptureError's message is already its verdict sentence.
+          message: (err instanceof CaptureProblemError && err.verdict) || err instanceof CaptureError
+            ? (err as Error).message
             : `listing capture failed: ${(err as Error).message}`,
         });
         report(start.inputIndex, 'error', 0);

@@ -10,7 +10,7 @@
  * `reportVerdict`).
  */
 
-import type { CaptureErrorKind, CaptureVerdict } from '@robot/browser';
+import { verdictSentence, type CaptureErrorKind, type CaptureVerdict } from '@robot/browser';
 
 type LockEntry = {
   promise: Promise<void>;
@@ -35,8 +35,8 @@ const lastRequestTime = new Map<string, number>();
 export const BACKOFF_FIRST_MS = Number(process.env.ROBOT_BACKOFF_FIRST_MS ?? 120_000);
 export const BACKOFF_MAX_MS = Math.max(480_000, BACKOFF_FIRST_MS);
 
-/** Per host: when the backoff ends, and how many challenges in a row set it. */
-const backoff = new Map<string, { until: number; strikes: number }>();
+/** Per host: when the backoff ends, how many walls in a row set it, and the last wall's verdict. */
+const backoff = new Map<string, { until: number; strikes: number; verdict: CaptureVerdict }>();
 
 // The clock the politeness delay and the backoff share. `Date.now` and
 // `setTimeout` are looked up at call time, so vitest's fake timers
@@ -64,9 +64,10 @@ export function _resetBackoffForTests(): void {
  */
 export function reportVerdict(
   domain: string,
-  kind: CaptureVerdict['kind'] | CaptureErrorKind,
+  verdictOrKind: CaptureVerdict | CaptureVerdict['kind'] | CaptureErrorKind,
   nowFn: () => number = now,
 ): void {
+  const kind = typeof verdictOrKind === 'string' ? verdictOrKind : verdictOrKind.kind;
   if (kind === 'ok') {
     backoff.delete(domain);
     return;
@@ -74,7 +75,9 @@ export function reportVerdict(
   if (kind !== 'challenge' && kind !== 'refused') return;
   const strikes = (backoff.get(domain)?.strikes ?? 0) + 1;
   const ms = Math.min(BACKOFF_FIRST_MS * 2 ** (strikes - 1), BACKOFF_MAX_MS);
-  backoff.set(domain, { until: nowFn() + ms, strikes });
+  // A bare kind (no response to read a status from) is kept as a status-0 verdict.
+  const verdict: CaptureVerdict = typeof verdictOrKind === 'string' ? { kind, status: 0 } : verdictOrKind;
+  backoff.set(domain, { until: nowFn() + ms, strikes, verdict });
   console.log(`[lock] ${domain} ${kind}: backing off ${Math.round(ms / 1000)}s`);
 }
 
@@ -83,6 +86,31 @@ export function backoffRemainingMs(domain: string, nowFn: () => number = now): n
   const b = backoff.get(domain);
   if (!b) return 0;
   return Math.max(0, b.until - nowFn());
+}
+
+/**
+ * The wall that put the host in backoff, while the backoff still runs; null
+ * when there is none. Interactive paths (the listing finder, a plan, a proof
+ * page, reachability) answer from this instead of sleeping inside a request
+ * or opening a browser on a host that just walled us (review I4, 2026-10-09).
+ */
+export function backoffVerdict(domain: string, nowFn: () => number = now): CaptureVerdict | null {
+  const b = backoff.get(domain);
+  if (!b || b.until - nowFn() <= 0) return null;
+  return b.verdict;
+}
+
+/**
+ * What an interactive path says instead of waiting: the wall's own sentence
+ * and how long the wait still is. Null when the host is not backing off.
+ */
+export function backoffAnswer(url: string, nowFn: () => number = now): { verdict: CaptureVerdict; waitMs: number; message: string } | null {
+  let host: string;
+  try { host = new URL(url).hostname; } catch { return null; }
+  const verdict = backoffVerdict(host, nowFn);
+  if (!verdict) return null;
+  const waitMs = backoffRemainingMs(host, nowFn);
+  return { verdict, waitMs, message: `${verdictSentence(verdict, url)} Waiting ${Math.ceil(waitMs / 60_000)} min before trying again.` };
 }
 
 /**
