@@ -262,6 +262,7 @@ describe('small things', () => {
 
 const JL = { source: 'json-ld', path: 'offers.price' };
 const TL = { source: 'json-ld', path: 'name' };
+const API = { source: 'api', path: 'price' };
 const boxesOf = (texts: string[]): Box[] => texts.map((t, i) => box({ text: t, rect: { x: 0, y: i * 20, w: 100, h: 16 }, xpaths: [`//x${i}`] }));
 const maps = (): Record<string, Box[]> => ({ [U[0]!]: boxesOf(['Widget A', '$129.99']), [U[1]!]: boxesOf(['Widget B', '$219.99']), [U[2]!]: boxesOf(['Widget C', '$149.00']) });
 const sug = (value: string, boxes: number[], via?: { source: string; path: string }) => ({ value, boxes, ...(via ? { via } : {}) });
@@ -286,10 +287,21 @@ describe('rowStatus', () => {
     const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), sug('149.00', [1], JL)]);
     expect(rowStatus(price, b, live, maps())).toEqual<RowStatus>({ kind: 'agreed' });
   });
-  it('page data with no element counts as one place', () => {
+  it('page data no element shows is not agreed: the row asks for a look at that product', () => {
     const b = board();
     const live = liveFor(b, 'price', [sug('129.99', [], JL), sug('219.99', [1], JL), sug('149.00', [], JL)]);
-    expect(rowStatus(price, b, live, maps()).kind).toBe('agreed');
+    expect(rowStatus(price, b, live, maps())).toEqual<RowStatus>({ kind: 'needs-you', reason: 'only in the page data on product 1', product: 1 });
+  });
+  it('a boxless suggestion wins over "comes from different places"', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [], API), sug('149.00', [1], JL)]);
+    expect(rowStatus(price, b, live, maps())).toEqual<RowStatus>({ kind: 'needs-you', reason: 'only in the page data on product 2', product: 2 });
+  });
+  it('a value carried from another product that this page does not show is the same case', () => {
+    const b = board();
+    const carried = { ...sug('219.99', [], JL), origin: 'from-product' as const };
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), carried, sug('149.00', [1], JL)]);
+    expect((rowStatus(price, b, live, maps()) as { reason?: string }).reason).toBe('only in the page data on product 2');
   });
   it('an answered product plus suggestions on the rest is still agreed', () => {
     const b = answer(board(), 'price', U[0]!, { value: '129.99', mark: null });

@@ -414,6 +414,11 @@ export function sameValue(a: string, b: string): boolean { return norm(a) === no
  * signal — it is what certification looks for — and a value that is the same
  * on every product is never agreement (a shop name offered as Brand).
  *
+ * A suggestion with no pointable box is page data no element on the page
+ * shows — it never agrees (spec 2026-10-09 B1; before that date it counted
+ * as one place). The row needs a person to look; they accept it cell by
+ * cell from the expanded row's page-data hint.
+ *
  * One suggestion alone agrees with nothing (final review I1): after two
  * answers, a leftover page-data value "agrees" with itself whatever path it
  * came by. It is agreed only when it was carried from a ticked product (the
@@ -453,6 +458,10 @@ export function rowStatus(
     const s = live[field.key]?.[card.url];
     if (!s) { if (required) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
     const places = placesOf(boxes, s, field, card.url);
+    // Spec 2026-10-09 §B1: a value only the page's data carries is never agreed
+    // on the row — nothing on this product's page shows it, so a person looks
+    // (the expanded row's page-data hint is how they accept it, cell by cell).
+    if (places === 0) return { kind: 'needs-you', reason: `only in the page data on product ${n}`, product: n };
     if (places > 1) return { kind: 'needs-you', reason: `found in ${places} places on product ${n}`, product: n };
     const err = validateValue(field.type, s.value);
     if (err) return { kind: 'needs-you', reason: `${err} on product ${n}`, product: n };
