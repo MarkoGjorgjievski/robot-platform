@@ -35,6 +35,22 @@
 // Extract is photographed locked, Runs empty, and Settings is proven by a
 // rename that goes to the server and comes back.
 //
+// The shop also serves two walls (honest page verdicts, 2026-10-09): `/blocked`,
+// a 403 Cloudflare page, and `/captcha`, a 200 human check. The last test
+// pastes each as the listing and reads the one sentence each gets. Each wall
+// puts the shop's host (127.0.0.1) on backoff in the api-server — 2 minutes
+// after the first, 4 after the second (`BACKOFF_FIRST_MS`, doubling) — and
+// while it lasts, page captures on that host wait and the new-website
+// reachability line answers "asked for a human check" without loading the
+// page. So the wall test runs LAST, after everything else that touches the
+// shop; and a second run against the same api-server must start at least
+// four minutes after the first one ended. Find products itself does not wait
+// on the backoff (it only feeds it), but the second sentence is still polled
+// for 150 s so a finder that did wait would pass. An isolated or CI
+// api-server can shorten the backoff by starting with
+// `ROBOT_BACKOFF_FIRST_MS=1000` (read once, at import, by
+// `packages/scraper/src/domain-lock.ts`); `pnpm dev:all` does not set it.
+//
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
 //   pnpm test:ui:app
@@ -104,15 +120,36 @@ const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQ
  * out. The product pages are `SHOP_EXAMPLE`'s html with its JSON-LD put back
  * where a shop keeps it, in the head — the page data `suggestMarks` reads.
  */
-function shopPage(pathname: string): { type: string; body: string | Buffer } | null {
+/**
+ * A shop's footer, on every page it serves except the walls. Since honest page
+ * verdicts (2026-10-09) a page with under 100 characters of text reads as
+ * "sent an empty page", and the shop-example pages alone are shorter than that
+ * — a real shop's are not. No digits or prices, so no row suggests a value from it.
+ */
+const SHOP_FOOTER =
+  '<footer><p>Widget shop: free delivery, easy returns and a friendly guarantee on every widget we sell. Questions about an order? Write to us any time and we will answer within a day.</p></footer>';
+
+function shopPage(pathname: string): { type: string; body: string | Buffer; status?: number; headers?: Record<string, string> } | null {
   if (pathname === '/' || pathname === '/about') {
-    return { type: 'text/html', body: '<html><head><title>Widget shop</title></head><body><h1>Widget shop</h1></body></html>' };
+    return { type: 'text/html', body: `<html><head><title>Widget shop</title></head><body><h1>Widget shop</h1>${SHOP_FOOTER}</body></html>` };
+  }
+  // The two walls the last test pastes: a Cloudflare refusal and a human check.
+  if (pathname === '/blocked') {
+    return {
+      type: 'text/html',
+      status: 403,
+      headers: { server: 'cloudflare', 'cf-ray': 'smoke' },
+      body: '<html><head><title>Just a moment...</title></head><body>Checking your browser before accessing. Ray ID: smoke</body></html>',
+    };
+  }
+  if (pathname === '/captcha') {
+    return { type: 'text/html', body: '<html><head><title>Verify you are human</title></head><body><p>Verify you are human to continue.</p></body></html>' };
   }
   if (pathname === '/l') {
     const cards = PRODUCTS.map((p, i) => `<li><a href="${p.path}"><img src="/i/${i + 1}.png" alt=""><span>${p.title}</span></a></li>`).join('');
     return {
       type: 'text/html',
-      body: `<html><head><title>All widgets</title></head><body><h1>All widgets</h1><ul class="grid">${cards}</ul><a href="/about">About the shop</a></body></html>`,
+      body: `<html><head><title>All widgets</title></head><body><h1>All widgets</h1><ul class="grid">${cards}</ul><a href="/about">About the shop</a>${SHOP_FOOTER}</body></html>`,
     };
   }
   if (/^\/(i|img)\/[\w.-]+$/.test(pathname)) return { type: 'image/png', body: PIXEL };
@@ -125,7 +162,7 @@ function shopPage(pathname: string): { type: string; body: string | Buffer } | n
   const ld = [...product.page.structuredData.ldJson.map((j, i) => (i === 0 ? { ...(j as object), sku } : j)), ...(group ? [group] : [])]
     .map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`)
     .join('');
-  const html = product.page.html.replace(`data-sku="${sku}"></span>`, `data-sku="${sku}">${sku}</span>`);
+  const html = product.page.html.replace(`data-sku="${sku}"></span>`, `data-sku="${sku}">${sku}</span>`).replace('</body>', `${SHOP_FOOTER}</body>`);
   return { type: 'text/html', body: html.replace('<html>', `<html><head><title>${product.title}</title>${ld}</head>`) };
 }
 
@@ -163,7 +200,7 @@ function serveShop(): Promise<{ server: Server; origin: string }> {
       res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
       return;
     }
-    res.writeHead(200, { 'content-type': found.type }).end(found.body);
+    res.writeHead(found.status ?? 200, { 'content-type': found.type, ...(found.headers ?? {}) }).end(found.body);
   });
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
@@ -746,6 +783,11 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await waitForHydration(page, 'input[aria-label="Listing page"]');
     // No product yet: the listing bar, and the line that says what to do.
     await expect.poll(() => page.locator('main').innerText(), { timeout: 20_000 }).toContain('Find products from a listing page');
+    // A new website — no products, no listing — says whether the browser can
+    // read its address. The line sits under the listing bar, which needs
+    // fields, so it is read here rather than on Add website's landing (no
+    // fields yet there). The shop's host has seen no wall yet: that test is last.
+    await expect.poll(() => page.locator('main').innerText(), { timeout: 30_000 }).toContain(`Reached ${WEBSITE_HOST} (HTTP 200).`);
     await shootBothThemes(page, 'empty');
 
     // 1. The listing: one page load, three column heads named by the
@@ -1468,4 +1510,35 @@ describe.skipIf(!ENABLED)('app shell', () => {
       await ctx.close();
     }
   }, 120_000);
+
+  // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
+  // product links". LAST on purpose: each wall puts the shop's host on
+  // backoff, so anything after this that touched the shop would wait for it
+  // (see the header).
+  it('a wall is reported as a wall, in the same words everywhere', async () => {
+    expect(websiteSlug, 'there is no website to paste a wall into').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const host = new URL(SHOP).hostname;
+    // Find products on a 403 Cloudflare page.
+    await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/blocked`);
+    await page.getByRole('button', { name: 'Find products' }).click();
+    await expect
+      .poll(() => page.locator('main').innerText(), { timeout: 60_000 })
+      .toContain(`${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet.`);
+    expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No product links found');
+    await shoot(page, 'app-site-verification-wall-refused.png', false);
+    // Find products on a 200 human check, with the host now backing off.
+    await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/captcha`);
+    await page.getByRole('button', { name: 'Find products' }).click();
+    await expect
+      .poll(() => page.locator('main').innerText(), { timeout: 150_000 })
+      .toContain(
+        `${host} asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.`,
+      );
+    expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No product links found');
+    await shoot(page, 'app-site-verification-wall-challenge.png', false);
+    expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 240_000);
 });
