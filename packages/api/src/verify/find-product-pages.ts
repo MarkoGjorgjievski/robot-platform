@@ -15,7 +15,7 @@
 // definitions of "the product links" is how Allbirds' finder saw 150 links
 // where the walk saw 1.
 
-import { detectPaginationFromHtml } from '@robot/browser';
+import { detectPaginationFromHtml, verdictSentence, type CaptureErrorKind, type CaptureVerdict } from '@robot/browser';
 import { largestProductGroup, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '@robot/scraper';
 
 export { largestProductGroup, LISTING_ANCHORS_SCRIPT, type ListingAnchor };
@@ -47,15 +47,38 @@ export function listingProducts(anchors: ListingAnchor[], listingUrl: string, ur
  * page (`detectPaginationFromHtml`, `@robot/browser` — no AI), and the
  * sample's products (title + image), so the Verification tab's product
  * cards fill without visiting any product.
+ *
+ * `verdict` is the browser's word on the listing page itself (spec
+ * 2026-10-09 §A1): anything but ok means the anchors are not the shop's
+ * (a block page, a CAPTCHA, a 404), so no links are counted and `message`
+ * carries the verdict's customer sentence instead. `message` is null when ok.
  */
+export type ListingPageCheck = {
+  verdict: CaptureVerdict | { kind: CaptureErrorKind };
+  message: string | null;
+  productLinks: number;
+  pagerSeen: boolean;
+  sample: string[];
+  products: ReturnType<typeof listingProducts>;
+};
+
+/** The check for a listing page the browser never got a document for (a `CaptureError`), or one whose verdict is not ok. */
+export function unreadListingPage(verdict: CaptureVerdict | { kind: CaptureErrorKind }, listingUrl: string): ListingPageCheck {
+  return { verdict, message: verdictSentence(verdict, listingUrl), productLinks: 0, pagerSeen: false, sample: [], products: [] };
+}
+
 export function describeListingPage(
   anchors: ListingAnchor[],
   listingUrl: string,
   html: string,
-): { productLinks: number; pagerSeen: boolean; sample: string[]; products: ReturnType<typeof listingProducts> } {
+  verdict: CaptureVerdict,
+): ListingPageCheck {
+  if (verdict.kind !== 'ok') return unreadListingPage(verdict, listingUrl);
   const group = largestProductGroup(anchors, listingUrl);
   const sample = group.slice(0, 10);
   return {
+    verdict,
+    message: null,
     productLinks: group.length,
     pagerSeen: detectPaginationFromHtml(html, listingUrl) !== null,
     sample,

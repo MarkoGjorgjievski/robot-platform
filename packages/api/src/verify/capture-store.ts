@@ -8,7 +8,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { PageCapture } from '@robot/browser';
+import { okVerdict, type PageCapture } from '@robot/browser';
 import { CAPTURE_REUSE_MAX_AGE_MS } from '@robot/scraper';
 import { persistScreenshot, getCapturesDir } from '../persist-screenshot.js';
 
@@ -31,7 +31,8 @@ export async function writeCaptureFile(captureId: string, c: PageCapture): Promi
 export async function readCaptureFile(captureId: string): Promise<PageCapture | null> {
   try {
     const raw = JSON.parse(await readFile(join(getCapturesDir(), `${captureId}.capture.json`), 'utf-8'));
-    return { ...raw, markdown: '', title: '', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [] } as PageCapture;
+    // Stored captures predate verdicts (and writeCaptureFile keeps none): only a usable page is written, so it reads as ok.
+    return { verdict: okVerdict(), ...raw, markdown: '', title: '', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [] } as PageCapture;
   } catch {
     return null;
   }

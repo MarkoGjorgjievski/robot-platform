@@ -9,7 +9,9 @@ import {
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
+  reportVerdict,
 } from '@robot/scraper';
+import { CaptureError } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
@@ -20,7 +22,8 @@ import { httpUrl } from '../verify/http-url.js';
 import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
-import { describeListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from '../verify/find-product-pages.js';
+import { describeListingPage, unreadListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor, type ListingPageCheck } from '../verify/find-product-pages.js';
+import { reachabilityResult, type Reachability } from '../verify/reachability.js';
 import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency } from '../verify/current-certification.js';
 import { variantsRequired } from '../verify/variant-check.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
@@ -648,17 +651,54 @@ export const sourcesRouter = router({
    * `describeListingPage` (find-product-pages.ts): the largest same-path-
    * template group's full size (not just the capped ranking), a sample of
    * it, and whether a pager was detected on the page.
+   *
+   * Carries the capture's verdict (spec 2026-10-09 §A1): a block page,
+   * CAPTCHA or 404 counts no links and says why in `message` (null when ok);
+   * no document at all (a `CaptureError`) reads the same way. The verdict
+   * also feeds the host's backoff (`reportVerdict`).
    */
   checkListingPage: protectedProcedure
     .input(z.object({ listingUrl: httpUrl }))
-    .mutation(async ({ input }) => {
-      const { anchors, html } = await withBrowserSession(async (browser) => {
-        const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
-        const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
-        return { anchors, html: capture.html };
-      });
+    .mutation(async ({ input }): Promise<ListingPageCheck> => {
+      const hostname = new URL(input.listingUrl).hostname;
+      try {
+        const { anchors, html, verdict } = await withBrowserSession(async (browser) => {
+          const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
+          reportVerdict(hostname, capture.verdict.kind);
+          if (capture.verdict.kind !== 'ok') return { anchors: [] as ListingAnchor[], html: capture.html, verdict: capture.verdict };
+          const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
+          return { anchors, html: capture.html, verdict: capture.verdict };
+        });
+        return describeListingPage(anchors, input.listingUrl, html, verdict);
+      } catch (err) {
+        if (!(err instanceof CaptureError)) throw err;
+        reportVerdict(hostname, err.kind);
+        return unreadListingPage({ kind: err.kind }, input.listingUrl);
+      }
+    }),
 
-      return describeListingPage(anchors, input.listingUrl, html);
+  /**
+   * Add website's free reachability line (spec 2026-10-09 §A2): one page
+   * load, one tile, no AI, nothing saved — whether the browser can read this
+   * address, in the verdict's customer sentence. A `CaptureError` (no
+   * document arrived) is an answer too, not a failure of the query.
+   */
+  reachability: protectedProcedure
+    .input(z.object({ url: httpUrl }))
+    .query(async ({ input }): Promise<Reachability> => {
+      const hostname = new URL(input.url).hostname;
+      const t0 = Date.now();
+      try {
+        return await withBrowserSession(async (browser) => {
+          const capture = await browser.capture(input.url, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, timeout: 30_000 });
+          reportVerdict(hostname, capture.verdict.kind);
+          return reachabilityResult(input.url, capture.verdict, capture.url, Date.now() - t0);
+        });
+      } catch (err) {
+        if (!(err instanceof CaptureError)) throw err;
+        reportVerdict(hostname, err.kind);
+        return reachabilityResult(input.url, { kind: err.kind }, null, Date.now() - t0);
+      }
     }),
 
   /** Start capturing one proof page for marking (spec 2026-09-18 §3.1). Poll `proofPageCapture`. */

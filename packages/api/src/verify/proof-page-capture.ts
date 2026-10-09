@@ -5,8 +5,8 @@
 // never rejects and always leaves the row terminal.
 import { and, eq, inArray, desc } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
-import { TILE_HEIGHT, type PageCapture } from '@robot/browser';
-import { captureProofPage, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
+import { TILE_HEIGHT, CaptureError, type CaptureErrorKind, type CaptureVerdict, type PageCapture } from '@robot/browser';
+import { captureProofPage, CaptureProblemError, reportVerdict, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
@@ -42,7 +42,11 @@ export type ProofPageMeta =
        */
       contentHeight: number;
     }
-  | { kind: 'proof-page'; status: 'failed'; url: string; startedAt: string; error: string };
+  | {
+      kind: 'proof-page'; status: 'failed'; url: string; startedAt: string; error: string;
+      /** The browser's verdict when that is why the page was not captured (spec 2026-10-09 §A1); absent for other failures and rows written before verdicts. */
+      verdict?: CaptureVerdict | { kind: CaptureErrorKind };
+    };
 
 type Session = typeof withBrowserSession;
 
@@ -83,8 +87,10 @@ export async function runProofPageCapture(captureId: string, session: Session = 
   await db.update(captures).set({ metadata: meta }).where(eq(captures.id, captureId))
     .catch((e) => console.error(`[proof-page] failed to record the start of ${captureId}:`, e));
   waitingForSlot.delete(captureId);
+  const hostname = hostOf(row.url);
   try {
     const { capture, boxes } = await session((browser) => captureProofPage(browser, row.url));
+    if (hostname) reportVerdict(hostname, capture.verdict.kind);
     const tiles = await persistTiles(capture.screenshotTiles);
     await writeCaptureFile(captureId, capture);
     const pageHeight = capture.pageHeight ?? 0;
@@ -97,10 +103,16 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
   } catch (err) {
     console.error(`[proof-page] capture ${captureId} failed:`, err);
-    const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error: safeErrorMessage(err).slice(0, 1000) };
+    const verdict = err instanceof CaptureProblemError ? err.verdict : err instanceof CaptureError ? { kind: err.kind } : undefined;
+    if (verdict && hostname) reportVerdict(hostname, verdict.kind);
+    const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error: safeErrorMessage(err).slice(0, 1000), ...(verdict ? { verdict } : {}) };
     await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
       .catch((e) => console.error(`[proof-page] failed to record failure for ${captureId}:`, e));
   }
+}
+
+function hostOf(url: string): string | null {
+  try { return new URL(url).hostname; } catch { return null; }
 }
 
 /**
