@@ -6,7 +6,26 @@ of the next work). Code mapping behind it: every claim below about today's code 
 the files named. Plan follows.
 
 **Status:** implemented on `feat/honest-verdicts`, 2026-10-09; live check in
-`docs/testing/results/2026-10-09-honest-verdicts-live-check.md`.
+`docs/testing/results/2026-10-09-honest-verdicts-live-check.md`; fixed after the final review
+(`.superpowers/sdd/2026-10-09-honest-page-verdicts/fix-wave-report.md`). Deviations from the text
+below, all deliberate:
+- the reachability check fires from a new website's empty Verification tab, not from the Add
+  website dialog;
+- a challenge page served with 401/403 is `refused` (Cloudflare's managed challenge to a headless
+  browser is a denial, not a check a visitor could pass); AWS WAF's 405/202 CAPTCHA stays
+  `challenge`;
+- `crawl/mark-extracting.ts` is unchanged: the "a failed run is not re-executed" guard lives in
+  `routers/crawl.ts` and `crawl/execute-guard.ts`;
+- the proof card's "waiting for {host}…" line and the run-log line per wait (A3) are not built:
+  interactive paths (Find products, a run's planning, a proof-page capture, reachability) answer
+  from the backoff at once — the wall's own sentence plus "Waiting n min before trying again." —
+  instead of waiting; only background run items wait;
+- fix wave: a wall is what the page's title or visible text says (or a vendor's challenge-only
+  markup); a vendor's header or name alone never makes a 2xx page a wall; every 4xx but 404/410
+  is `refused` (otto.de's 400); `redirected` only for a different registrable domain
+  (`www2.hm.com` for `www.hm.com` is the same site); the verdict reads the last main-frame
+  document response, not `page.goto`'s; the crash sentence ends "Try again." (nothing retries
+  automatically); three walls in a row stop a run.
 
 ## Why
 
@@ -102,7 +121,7 @@ pure, tested), so every surface says the same thing:
 | not-found | "That page doesn't exist on {host} (404). Check the address." |
 | redirected | "That address led to {to}. Paste a page on {host}." |
 | blank | "{host} sent an empty page. Try again." |
-| crashed | "The browser crashed on this page. It will be retried." |
+| crashed | "The browser crashed on this page. Try again." |
 | unreachable | "{host} could not be reached (no response)." |
 | timeout | "{host} did not answer in time." |
 
