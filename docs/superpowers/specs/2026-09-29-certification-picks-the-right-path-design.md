@@ -124,6 +124,9 @@ elements all show that same value counts as **one place**; it is accepted
 without a mark (the path is the evidence, C1). Suggestions found by the page
 search keep today's "found in n places" rule.
 
+Zero boxes is not one place: since 2026-10-09 such a suggestion makes the row
+`needs-you` ("only in the page data on product n").
+
 ### A6. Yes/no fields
 
 - **Same on every product** does not apply to yes/no fields (every product in

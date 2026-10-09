@@ -72,7 +72,7 @@ answers one of:
 | Status | When | Last column |
 |---|---|---|
 | `accepted` | every product has an answer (products 4–6 may be blank) | nothing, or the verdict after Verify |
-| `agreed` | every captured product 1–3 has a live suggestion, and every suggestion is **one place** on its page (a single box, or page data with no box), **valid for the type**, and **from the same source path** (`via.source` + `via.path` equal on every product), and the values are **not all identical** | agreed · **Accept** |
+| `agreed` | every captured product 1–3 has a live suggestion, and every suggestion is **one place** on its page (a single box — a value only the page data carries is not agreed; see 2026-10-09 §B), **valid for the type**, and **from the same source path** (`via.source` + `via.path` equal on every product), and the values are **not all identical** | agreed · **Accept** |
 | `same-everywhere` | as `agreed`, but every product shows the same value | "same on every product — check it" |
 | `needs-you` | anything else | the first reason: "missing on product n", "found in n places on product n", "comes from different places", "not a money amount on product n", "screenshot not ready on product n" |
 
