@@ -5,6 +5,9 @@
 of the next work). Code mapping behind it: every claim below about today's code was read in
 the files named. Plan follows.
 
+**Status:** implemented on `feat/honest-verdicts`, 2026-10-09; live check in
+`docs/testing/results/2026-10-09-honest-verdicts-live-check.md`.
+
 ## Why
 
 On 2026-10-08, eleven of sixteen real websites refused or limited the browser at some point,

@@ -13,18 +13,23 @@ type: project
 **The next work, in order (2026-10-07; supersedes the 2026-09-11 list further down):**
 
 1. **Backups that all come from one source.** A field's certified paths can all be sibling keys of one API response (Ikea's price: five paths, one response), so they fail together and aren't real backups. Ops only *shows* it ("All backups read the same response — if it changes, they fail together"). The fix changes certification — at most one or two paths per source, so backups come from different sources — and needs a short design first (spec → plan), like drift repair. Marko's pick for next, 2026-10-07.
-2. **Variant and drift loose ends**, each small:
+2. **Proof-page coverage of a site's variations** (second-layout design, spec next): a listing whose product pages differ in layout (a sale item vs. a regular one, a bundle vs. a single product) leaves cells empty on an otherwise-verified website with no way to certify the second layout; the cheap increment is a grouped miss list with "use as proof page". Live cases on Lookfantastic, Decathlon and (2026-10-09) Article's `/furniture-bundles/…` pages.
+3. **Correctness on the run page.** Compare stored row values against the stored page text (not just "filled vs. empty") — the credit campaign's judge runs are the only check of this today, and they are paid and manual. A free, in-product check belongs on the run page itself.
+4. **Sitemap-first product discovery.** "Find products" and the listing walk both depend on a listing page's own links; a site's sitemap (where one exists and is reachable) would find products without needing a listing page at all, and would not be subject to a listing-level bot wall the way the current walk is.
+5. **Variant and drift loose ends**, each small:
    - the repair sweep reads only a product's first row (`data[0]`), so missing values on variant rows 1..n are never repaired;
    - the export has no column for each variant page's own URL;
    - drift: an old episode can show when the automatic check fails to start (M7);
    - empty `offers` (`[]`/`{}`) counted as variant entries;
    - `gtin8`/`gtin12`/`gtin14` missing from the SKU vocabulary;
    - a self-plus-one link pair counted in the variants summary (N2).
-3. **Clean up test projects in Marko's own org** (e.g. "Site marks-from" at test-marks-from.example.com, left by earlier test runs). List them first; delete only what Marko approves; `pg_dump` before.
-4. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
-5. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
+6. **Clean up test projects in Marko's own org** (e.g. "Site marks-from" at test-marks-from.example.com, left by earlier test runs). List them first; delete only what Marko approves; `pg_dump` before.
+7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
+8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
 
-**Newest: [Verification table, spreadsheet behaviour (2026-10-08)](#verification-table-spreadsheet-behaviour-2026-10-08).** A click on a cell selects it; a detail bar above the table shows the full value with Copy, Fix / Mark, Type it and a read-only crop of the screenshot around the element; arrow keys, Home/End, Ctrl/⌘+C, Enter/F and Escape work; right-click gives Copy value / Open product page / Fix on screenshot / Type it; after a Verify each row shows "n/m" after its badge. Only Fix (the button, the menu item, Enter/F, the crop) or a column head opens the screenshot. Spec `docs/superpowers/specs/2026-10-07-verification-table-spreadsheet-design.md`; the streaming-rows / silent pass-rate half of the original brief is deferred (the spec's second section says why). Merged into `main` 2026-10-08 (fast-forward, `feat/table-spreadsheet`).
+**Newest: [Honest page verdicts (2026-10-09)](#honest-page-verdicts-2026-10-09).** Every page capture now carries one honest verdict (ok / refused / challenge / not-found / redirected / blank), and every consumer — the listing bar, a proof card, a run — shows its one sentence instead of "No product links found", a green "ready", or a "Done" with 0 rows. Merged work on `feat/honest-verdicts`; live-checked against the credit campaign's real websites 2026-10-09.
+
+**Before it: [Verification table, spreadsheet behaviour (2026-10-08)](#verification-table-spreadsheet-behaviour-2026-10-08).** A click on a cell selects it; a detail bar above the table shows the full value with Copy, Fix / Mark, Type it and a read-only crop of the screenshot around the element; arrow keys, Home/End, Ctrl/⌘+C, Enter/F and Escape work; right-click gives Copy value / Open product page / Fix on screenshot / Type it; after a Verify each row shows "n/m" after its badge. Only Fix (the button, the menu item, Enter/F, the crop) or a column head opens the screenshot. Spec `docs/superpowers/specs/2026-10-07-verification-table-spreadsheet-design.md`; the streaming-rows / silent pass-rate half of the original brief is deferred (the spec's second section says why). Merged into `main` 2026-10-08 (fast-forward, `feat/table-spreadsheet`).
 
 **Before it: [Staff access (2026-10-07)](#staff-access-2026-10-07).** An operator can work inside a customer's organisation from ops ("Work on this website"), for at most 8 hours, under a banner; deleting things and managing the organisation are blocked, and every change is logged and shown to the customer in their Settings ("Robot staff activity") and to staff in ops ("Staff activity"). Merged (`1c6aede`). **To use it yourself:** add your address to `OPS_EMAILS` in `.env` and restart your api-server.
 
@@ -72,15 +77,80 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## Honest page verdicts (2026-10-09)
+
+**What changed.** A page capture now carries exactly one verdict — `ok`, `refused`, `challenge`,
+`not-found`, `redirected` or `blank` — decided once, in `packages/browser`, from the response
+status, a wall/challenge scan of the body and headers, and (last, only for a 200 that showed
+nothing) a near-empty-body check; `capture()` itself only rejects when there is truly no
+document (a crash, a timeout, an unreachable host). One `verdictSentence(verdict, url)` renders
+the customer-facing sentence everywhere a capture is shown: the listing bar's result (`role="alert"`,
+e.g. "scan.co.uk refused the browser (HTTP 403, Cloudflare). We can't read this website from here
+yet."), a proof card ("otto.de sent an empty page. Try again."), a verification row's reason
+("screenshot refused on product n" / "human check on product n"), the reachability line under a
+brand-new website's empty Verification tab, and a run's own message when its listing capture is
+what failed. A `challenge` or `refused` verdict also puts that host into backoff (2 minutes,
+doubling to a cap of 8, cleared by the next `ok`); a request to a backed-off host waits rather
+than failing, reported by the finder, proof-page capture, and the run planner/executor. Separately,
+the Verification table's agreement rule no longer treats a structured value with **zero** pointable
+boxes on the page as "one place" — it needs a person ("only in the page data on product n"),
+closing the hole that let Allbirds' JSON-LD description (shown on only one of three product pages)
+and similar cases through "Accept all agreed".
+
+**Files.** `packages/browser/src/types.ts`, `playwright-browser.ts`, `page-health.ts`, `verdict.ts`,
+new `verdict-copy.ts`; `packages/scraper/src/verify/capture-check.ts`, `domain-lock.ts` (backoff),
+`crawl/plan-run.ts`, `analysis-orchestrator.ts`, `extraction-orchestrator.ts`, `pipeline.ts`;
+`packages/api/src/routers/sources.ts` (`checkListingPage`, new `reachability`),
+`verify/find-product-pages.ts`, `verify/proof-page-capture.ts`, `crawl/plan-source.ts`,
+`crawl/mark-extracting.ts`, `crawl/roll-up-run.ts`, `routers/crawl.ts` (`execute` refuses a failed
+run); `packages/app/src/components/verification/listing-bar.tsx`, `product-card.tsx`,
+`components/project/add-website-dialog.tsx`, `lib/site/use-proof-captures.ts`,
+`lib/site/verification-view.ts`, `lib/site/verification-model.ts` (the agreement-rule fix, B1),
+`lib/site/extract-view.ts`, the site route and `routes/…/runs/$run.tsx` (reachability line, run
+message). Specs amended: `2026-09-28-table-first-and-drift-repair-design.md` §A2 (drops "or page
+data with no box"); `2026-09-29-certification-picks-the-right-path-design.md` §A5 (names the
+zero-box case). Design: `docs/superpowers/specs/2026-10-09-honest-page-verdicts-design.md`.
+
+**How it was proven.** Unit tests per package (the verdict classifier and its copy in
+`@robot/browser`; backoff in `domain-lock.test.ts`; the consumers in `@robot/scraper` and
+`@robot/api`; `verification-model.test.ts`'s B1 cases, e.g.
+`{ kind: 'needs-you', reason: 'only in the page data on product 2' }`). The route smoke
+(`pnpm test:ui:app`) carries a dedicated wall test, run last on purpose (a wall puts its host on
+backoff): a 403 Cloudflare page on the Verification tab reads the refused sentence as `role="alert"`
+within its poll window, never "No product links found"; a 200 CAPTCHA page on the same flow reads
+the challenge sentence, also never "No product links found". A free live check against the credit
+campaign's real, already-set-up websites (`credit-campaign@example.com`'s org, project "Credit
+campaign 2026-10"), api-server and app already running this branch:
+`docs/testing/results/2026-10-09-honest-verdicts-live-check.md`,
+screenshots in `docs/testing/results/screens-2026-10-09-verdicts/`. scan.co.uk and hobbycraft.co.uk
+both read their refused sentence (HTTP 403, Cloudflare) within ~0.6 s, no count. otto.de's listing
+itself is not walled (only its product pages are, HTTP 400 blank) — a never-before-captured product
+page added live correctly read "otto.de sent an empty page. Try again." (the `blank` verdict, not
+`refused` — HTTP 400 is not one of the refused statuses). Article's Extract (fully certified, $0.00)
+neither fully succeeded nor failed with the challenge message: it completed "Done", 3 of 3
+extracted, but every field was empty on all 3 rows, and the 3 pages it picked were independently
+confirmed walled (HTTP 405, AWS WAF) minutes later — recorded as a live finding, not fixed here (see
+the live-check doc's "Defects found").
+
+**What NOT to redo.** Don't add a per-consumer health check again — every consumer reads
+`capture.verdict`, decided once in `@robot/browser`. Don't put "or page data with no box" back
+into the agreement rule (table-first-and-drift-repair design §A2) — a value is only "agreed" when
+some element on *that* product's page points to it.
+
+**Known gaps, for the next work list above.** (1) The finder and the proof-page captures only
+*report* a wall to the host's backoff state; they do not *wait* on it — only runs, verified
+extraction and the reachability pre-check honour the wait. (2) A page with under 100 characters of
+visible text is classified `blank`, so a tiny-but-legitimate page would read as blank too.
+
 ## Credit campaign and two listing fixes (2026-10-08)
 
 **The campaign.** $100 of API credit, expiring ~2026-10-16, is being spent on many real websites through Verify and Extract, in the dedicated org "Credit campaign 2026-10" (Marko is an owner of it): plan, rules, site list and the tracking table in `docs/testing/2026-10-08-credit-campaign.md`; one note per site under `docs/testing/results/campaign-2026-10/`. First batch (Ikea, Allbirds, Nike, Barnes & Noble, Everlane, Otto): every reachable site verified with **zero model calls** (JSON-LD/APIs cover the brands), extraction at scale runs end to end at 10–15 s per item, and the biggest finding is B&N's: certified *positional* JSON-LD paths fill every cell with another format's price/ISBN at "100% confidence" — hit rate is not correctness. So the campaign judges extracted rows with the LLM judge (`judge-run`, see Commands) and biases the fresh list toward sites without structured data.
 
 **Two fixes it forced, both merged 2026-10-08.** (1) `packages/scraper/src/crawl/product-link-group.ts` (shared by "Find products" and the listing walk; `find-product-pages.ts` re-exports it): links inside page-level navigation (`nav`, `aside`, roles navigation/banner/contentinfo/complementary, page-level `header`/`footer`) are left out before grouping, with a fallback to all links when fewer than 3 remain — Everlane's finder went from 93 menu links to its 52 products. (2) After page 1 the listing walk compares its row selector's rows with the page's product-link group and plans from the group when the selector missed links and the group is confirmed (by an extracted row's URL shape, or on a *direct* listing by a proof page's) — Allbirds' Sample went from 1 link to 40 of 40 without AI; search/template inputs with zero rows still plan nothing.
 
-**Where it ended (2026-10-08 evening).** 16 websites in one day: 9 verified 8/8 with zero model calls, 8 extracted at scale (10–23 s per item, $0 AI), 6 walled by anti-bot (plus 26 of 28 pre-screened candidates), 1 CAPTCHA-rate-limited. Eight judge runs on seven sites (~$30 of the $100; ~$66 left): where the judge could see the value, Title, Price, Brand, Description and In stock were right everywhere except B&N's multi-format pages and one "Coming Soon" stock status; the judge's own limits (star glyphs, "appears anywhere", field-name vocabulary) are recorded. The campaign doc's last section ("What the campaign answered") holds the grouped findings and the suggested order of the next work: report refused pages as refused; proof pages that cover variations (the second-layout design, now with live cases on Lookfantastic and Decathlon); the "agreed" rule must not agree on values the page does not show for that product; per-process run cost; the judge changes. A memory-pressure kill on the dev machine (three Chromiums + dev servers) ended two judge runs mid-way; they were re-run one at a time.
+**Where it ended (2026-10-08 evening).** 16 websites in one day: 9 verified 8/8 with zero model calls, 8 extracted at scale (10–23 s per item, $0 AI), 6 walled by anti-bot (plus 26 of 28 pre-screened candidates), 1 CAPTCHA-rate-limited. Eight judge runs on seven sites (~$30 of the $100; ~$66 left): where the judge could see the value, Title, Price, Brand, Description and In stock were right everywhere except B&N's multi-format pages and one "Coming Soon" stock status; the judge's own limits (star glyphs, "appears anywhere", field-name vocabulary) are recorded. The campaign doc's last section ("What the campaign answered") holds the grouped findings and the suggested order of the next work: report refused pages as refused (**done**, 2026-10-09 — see "Honest page verdicts" above); proof pages that cover variations (the second-layout design, now with live cases on Lookfantastic and Decathlon); the "agreed" rule must not agree on values the page does not show for that product (**done**, same plan); per-process run cost; the judge changes. A memory-pressure kill on the dev machine (three Chromiums + dev servers) ended two judge runs mid-way; they were re-run one at a time.
 
-**Follow-ups, not done:** the 1-row selector the AI wrote is still cached as verified and pages 2+ reuse it; with an AI key the Sample still pays for a new selector before the free check runs (run the check before the AI fallback; mark a rescued page's selector degraded). A run's `cost_usd` is the delta of a process-wide usage counter, so parallel paid work is mis-attributed (Nike's run and a concurrent B&N Sample both recorded $0.1611) — the Usage page's org total is right, per-run figures are not. A blank, refused capture (otto.de answers 400 to headless Chromium) still reads `ready`. Positional JSON-LD paths (B&N) are the next design question, together with the "backups from one source" item at the top of this file.
+**Follow-ups, not done:** the 1-row selector the AI wrote is still cached as verified and pages 2+ reuse it; with an AI key the Sample still pays for a new selector before the free check runs (run the check before the AI fallback; mark a rescued page's selector degraded). A run's `cost_usd` is the delta of a process-wide usage counter, so parallel paid work is mis-attributed (Nike's run and a concurrent B&N Sample both recorded $0.1611) — the Usage page's org total is right, per-run figures are not. A blank, refused capture (otto.de answers 400 to headless Chromium) used to still read `ready`; fixed by "Honest page verdicts" (2026-10-09) for any capture taken from that point on — the three product-page captures otto.de already had from this campaign predate the fix and still read `ready` until they are retaken. Positional JSON-LD paths (B&N) are the next design question, together with the "backups from one source" item at the top of this file.
 
 ## Verification table, spreadsheet behaviour (2026-10-08)
 
