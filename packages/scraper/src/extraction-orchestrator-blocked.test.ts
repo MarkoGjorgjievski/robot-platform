@@ -10,7 +10,7 @@ import { runExtraction } from './extraction-orchestrator.js';
 const BLOCKED: PageCapture = {
   url: 'https://shop.example.com/p/1',
   html: '<html><body>Unusual traffic detected. Verify you are human. Ray ID a312c62f. cloudflare</body></html>',
-  markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [],
+  markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [], verdict: { kind: 'challenge', status: 200, vendor: 'cloudflare' },
   title: 'Just a moment', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
   interceptedRequests: [],

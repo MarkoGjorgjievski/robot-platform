@@ -22,7 +22,7 @@
 // `link-enumeration-fixture.test.ts` already does for the crawler's own link
 // enumeration.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, okVerdict } from '@robot/browser';
 import type { CaptureOptions, CrawlOptions, CrawlPage, IBrowser, PageCapture, ScrollOptions } from '@robot/browser';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -66,7 +66,7 @@ function makeCapture(fixture: CorpusFixture): PageCapture {
   return {
     url: fixture.url, html: fixture.html, markdown: '',
     screenshot: Buffer.alloc(0), screenshotTiles: [], title: '', timestamp: 0,
-    structuredData: fixture.structuredData, interceptedRequests: fixture.interceptedRequests,
+    structuredData: fixture.structuredData, interceptedRequests: fixture.interceptedRequests, verdict: okVerdict(),
   };
 }
 

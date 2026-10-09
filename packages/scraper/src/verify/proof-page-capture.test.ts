@@ -6,10 +6,9 @@ import { loadVerifyFixture } from '../__fixtures__/verify/load.js';
 
 const box = { xpaths: ['//*[@id="main"]/h1'], text: 'Widget A', rect: { x: 0, y: 0, w: 10, h: 10 }, tag: 'h1', kind: 'text' as const };
 // The p1 fixture's html is a terse ~66-char snippet built for path/value
-// searches, not for checkPageHealth's own "almost no content" floor (<100
-// chars of visible text) — captureProblem calls checkPageHealth for real
-// (unlike run-verification.test.ts, which injects fixtures via `captures`
-// and never exercises that check), so the happy-path cases here pad it.
+// searches. Since 2026-10-09 captureProblem reads the capture's verdict (the
+// browser's classifier) rather than re-checking the html, so the padding is
+// no longer load-bearing; it keeps the happy-path pages realistic.
 const withEnoughText = (html: string) => html.replace('</body>', `<p>${'a lovely product '.repeat(10)}</p></body>`);
 
 function fakeBrowser(capture: PageCapture): IBrowser & { options: CaptureOptions[] } {

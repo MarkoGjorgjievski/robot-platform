@@ -1,4 +1,4 @@
-import { PlaywrightBrowser, checkPageHealth, type PageCapture, type BrowserOptions, type CaptureOptions } from '@robot/browser';
+import { PlaywrightBrowser, verdictSentence, type PageCapture, type BrowserOptions, type CaptureOptions } from '@robot/browser';
 import { SchemaAgent, type AgentProvider, type DiscoveredSchema, type ExtractionPlan, type ValidationResult } from '@robot/agent';
 import { buildExtractionScript, type ExecutorResult } from './executor.js';
 import { calculateFieldCoverage, getMissingFields } from './field-coverage.js';
@@ -49,9 +49,8 @@ export class ScraperPipeline {
       const capture = await this.browser.capture(url, this.options.captureOptions);
 
       // Check page health before spending AI credits
-      const health = checkPageHealth(capture.html, capture.title, url);
-      if (!health.healthy) {
-        throw new Error(`Page blocked or unhealthy: ${health.reason}`);
+      if (capture.verdict.kind !== 'ok') {
+        throw new Error(`Page blocked or unhealthy: ${verdictSentence(capture.verdict, url)}`);
       }
 
       const schema = await this.agent.discoverSchema(capture);

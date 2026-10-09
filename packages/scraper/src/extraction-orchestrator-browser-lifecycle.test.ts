@@ -24,6 +24,7 @@ function makeCapture(url: string): PageCapture {
     markdown: '',
     screenshot: Buffer.alloc(0),
     screenshotTiles: [],
+    verdict: { kind: 'ok', status: 200 },
     title: 'Widget',
     timestamp: 0,
     structuredData: {

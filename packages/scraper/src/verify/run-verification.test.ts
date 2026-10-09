@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, verdictSentence } from '@robot/browser';
 import type { IBrowser } from '@robot/browser';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
 import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
@@ -13,6 +13,7 @@ const emptyCapture = (url: string) => ({
   markdown: '',
   screenshot: Buffer.alloc(0),
   screenshotTiles: [],
+  verdict: { kind: 'ok' as const, status: 200 },
   timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
   interceptedRequests: [],
@@ -129,20 +130,19 @@ describe('runVerification (shop-example, offline)', () => {
   // I4: a block page served AT the requested path passes `samePath`, so it
   // used to be handed to the certifier as if it were the product page —
   // every field failing `not_found`, blaming the customer's expected values
-  // for a page we never actually got. `checkPageHealth` (the same gate the
-  // extraction chain uses) makes it an honest `not_captured` instead.
+  // for a page we never actually got. The capture's verdict (decided in the
+  // browser, 2026-10-09) makes it an honest `not_captured` instead.
   it('a blocked page at the right URL is not_captured with the block reason, not not_found', async () => {
     const caps = loadShopExample();
     delete caps[U[2]!];
-    // Smallest thing checkPageHealth calls blocked: a page TITLED "Captcha"
-    // is a challenge page whatever its markup weight (page-health.ts, bot
-    // patterns — a title match is precise on its own).
+    // A CAPTCHA page the browser classified as a challenge.
     const blocked = {
       url: U[2]!,
       html: '<html><head><title>Captcha</title></head><body><p>Verify you are human.</p></body></html>',
       markdown: '',
       screenshot: Buffer.alloc(0),
       screenshotTiles: [],
+      verdict: { kind: 'challenge' as const, status: 200, vendor: 'unknown' as const },
       title: 'Captcha',
       timestamp: 0,
       structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
@@ -156,7 +156,7 @@ describe('runVerification (shop-example, offline)', () => {
       onProgress: (stage) => stages.push(stage),
     });
 
-    expect(run.captureErrors[U[2]!]).toBe('CAPTCHA detected — site requires human verification');
+    expect(run.captureErrors[U[2]!]).toBe(verdictSentence(blocked.verdict, U[2]!));
     expect(run.captures[U[2]!]).toBeNull();
     expect(run.outcome.fields.product_name!.cells[U[2]!]).toEqual({ status: 'not_captured' });
     expect(run.outcome.fields.product_name!.incomplete).toBe(true);
@@ -454,7 +454,7 @@ describe('runVerification — the AI fallback is skipped when nothing can fit a 
     const inStock = fields[2]!; // in_stock, boolean, concept 'availability'
     const only: VerificationSet = { urls: U, expected: { in_stock: Object.fromEntries(U.map((u) => [u, 'yes'])) } };
     // Direct `captures` (not `captureOne`) so an empty page is used as-is, never routed through
-    // captureProblem's page-health gate — that would turn these into not_captured, not fail.
+    // captureProblem's gate — that would turn a non-ok verdict into not_captured, not fail.
     const caps = Object.fromEntries(U.map((u) => [u, emptyCapture(u)])) as unknown as Record<string, import('@robot/browser').PageCapture>;
     const offlineBrowser = { setContentEvaluate: async () => [] } as unknown as IBrowser;
     let calls = 0;

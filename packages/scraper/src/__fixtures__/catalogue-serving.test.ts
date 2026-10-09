@@ -21,7 +21,7 @@
 // included) so the override path is actually live.
 
 import { describe, it, expect } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, okVerdict } from '@robot/browser';
 import type {
   CaptureOptions, CrawlOptions, CrawlPage, IBrowser, PageCapture, ScrollOptions,
 } from '@robot/browser';
@@ -146,6 +146,8 @@ async function runPriceExtraction(fixture: Fixture, candidate?: { concept: strin
     timestamp: 0,
     structuredData: fixture.structuredData,
     interceptedRequests: fixture.interceptedRequests,
+    // A corpus fixture stores no verdict: it was saved because the page was usable.
+    verdict: okVerdict(),
   };
 
   const browser = new FixtureBrowser(fixture.html, new PlaywrightBrowser());

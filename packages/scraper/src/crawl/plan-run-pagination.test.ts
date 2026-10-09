@@ -71,6 +71,7 @@ describe('planRun — pagination cache lookup failure isolation', () => {
           html: listingHtml,
           screenshot: '',
           screenshotTiles: [],
+          verdict: { kind: 'ok', status: 200 },
           interceptedRequests: [],
         }) as unknown as PageCapture,
         async *crawl(_url: string, _options: CrawlOptions) {

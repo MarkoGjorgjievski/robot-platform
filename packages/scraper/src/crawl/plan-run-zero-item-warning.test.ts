@@ -18,6 +18,7 @@ const FAKE_CAPTURE = {
   markdown: '',
   screenshot: Buffer.alloc(0),
   screenshotTiles: [],
+  verdict: { kind: 'ok', status: 200 },
   title: 'Shelves',
   timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },

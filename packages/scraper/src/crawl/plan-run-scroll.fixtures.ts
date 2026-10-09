@@ -47,6 +47,7 @@ export function scrollDeps(over: {
     html: over.html ?? plainHtml,
     screenshot: '',
     screenshotTiles: [],
+    verdict: { kind: 'ok', status: 200 },
     interceptedRequests: [],
   } as unknown as PageCapture;
 

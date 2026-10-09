@@ -12,7 +12,7 @@ import type { DomainCache, FieldPathSet } from './domain-cache.js';
 const CAPTURE: PageCapture = {
   url: 'https://shop.example.com/p/1',
   html: '<html><body><main><h1>Widget</h1><p>Realistic on-page content so checkPageHealth sees a real page rather than an empty interstitial. This paragraph only exists to carry the fixture past the almost-no-content gate.</p></main></body></html>',
-  markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [],
+  markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [], verdict: { kind: 'ok', status: 200 },
   title: 'Widget', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
   interceptedRequests: [],
@@ -188,6 +188,7 @@ describe('runAnalysis — blocked page', () => {
     ...CAPTURE,
     title: 'Just a moment',
     html: '<html><body>Our system have detected unusual traffic. Verify you are human. Ray ID a312c62f. cloudflare</body></html>',
+    verdict: { kind: 'challenge', status: 200, vendor: 'cloudflare' },
   };
 
   it('a cached domain reports the block, keeps stale examples flagged, and does not let the block page vote', async () => {
@@ -236,6 +237,7 @@ describe('runAnalysis — detail hints (mvp-simplification task 6)', () => {
     const blocked: PageCapture = {
       ...CAPTURE, title: 'Just a moment',
       html: '<html><body>Our system have detected unusual traffic. Verify you are human. Ray ID a312c62f. cloudflare</body></html>',
+      verdict: { kind: 'challenge', status: 200, vendor: 'cloudflare' },
       structuredData: { ...CAPTURE.structuredData, ldJson: LISTING_LD_JSON },
     };
     const out = await runAnalysis(

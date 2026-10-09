@@ -93,7 +93,7 @@ function fakeBrowser(capture: PageCapture, log: string[]): IBrowser & { captureO
 }
 
 const CAPTURE: PageCapture = {
-  url: 'https://shop.example/p/1', html: '<html></html>', markdown: '', screenshot: Buffer.alloc(0), screenshotTiles: [],
+  url: 'https://shop.example/p/1', html: '<html></html>', markdown: '', screenshot: Buffer.alloc(0), screenshotTiles: [], verdict: { kind: 'ok', status: 200 },
   title: '', timestamp: 0, structuredData: { ...EMPTY_STRUCTURED, ldJson: [{ name: 'Widget A' }] }, interceptedRequests: [],
   timings: { navigateMs: 1200, readyMs: 300, readyState: 'ready', totalMs: 1900 },
 };

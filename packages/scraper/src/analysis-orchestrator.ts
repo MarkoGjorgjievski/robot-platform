@@ -16,7 +16,7 @@
 // Screenshot persistence is injected: where captures live is an api-server concern
 // (CAPTURES_DIR), not something the scraper should decide.
 
-import { checkPageHealth, detectPaginationFromHtml, type IBrowser, type PageCapture } from '@robot/browser';
+import { verdictSentence, detectPaginationFromHtml, type IBrowser, type PageCapture } from '@robot/browser';
 import type { DiscoveredSchema, SchemaField } from '@robot/agent';
 import {
   lookupDomainCache, saveDomainCache, resolveApiPathsFromCache, resolveFromCache,
@@ -80,7 +80,7 @@ export type AnalysisOutcome = {
   liveExamples: boolean;
   /**
    * Set when the capture came back but was a bot-check / error interstitial
-   * (checkPageHealth). A block page is a reason, never evidence: it must not
+   * (the capture's verdict). A block page is a reason, never evidence: it must not
    * vote on the page type and its "values" must not be shown as this page's.
    */
   blockedReason?: string;
@@ -143,9 +143,9 @@ export async function runAnalysis(
 
   // A model asked to describe a bot-check interstitial will confidently
   // describe a bot-check interstitial. Refuse with the reason instead.
-  const health = checkPageHealth(capture.html, capture.title, url);
-  if (!health.healthy) {
-    throw new Error(`Cannot analyze ${url}: ${health.reason}`);
+  if (capture.verdict.kind !== 'ok') {
+    const reason = verdictSentence(capture.verdict, url);
+    throw new Error(`Cannot analyze ${url}: ${reason}`);
   }
 
   const persisted = persistScreenshot ? await persistScreenshot(capture.screenshot) : null;
@@ -248,9 +248,8 @@ async function analyzeFromCache(args: {
     // looking live (2026-08-26, Newegg /p/pl). The screenshot IS still
     // persisted — seeing the block page is how the operator understands
     // what happened.
-    const health = checkPageHealth(capture.html, capture.title, url);
-    if (!health.healthy) {
-      blockedReason = health.reason;
+    if (capture.verdict.kind !== 'ok') {
+      blockedReason = verdictSentence(capture.verdict, url);
       if (persistScreenshot) persisted = await persistScreenshot(capture.screenshot);
     } else {
       liveValues = await resolveLiveValues(cache, capture, browser, url);
@@ -357,8 +356,8 @@ async function runListingAnalysis(args: {
     url, { waitUntil: 'networkidle', interceptNetworkRequests: true },
   );
 
-  const health = checkPageHealth(capture.html, capture.title, url);
-  if (!health.healthy) {
+  if (capture.verdict.kind !== 'ok') {
+    const reason = verdictSentence(capture.verdict, url);
     const persisted = persistScreenshot ? await persistScreenshot(capture.screenshot) : null;
     return {
       captureId: persisted?.id ?? null,
@@ -367,12 +366,12 @@ async function runListingAnalysis(args: {
       title: capture.title,
       schema: {
         page_type: 'listing',
-        description: `Cannot analyze: ${health.reason}`,
+        description: `Cannot analyze: ${reason}`,
         fields: usedCache ? cachedFieldsFromCache(cache!.fieldPaths) : [],
       },
       cached: usedCache,
       liveExamples: false,
-      blockedReason: health.reason,
+      blockedReason: reason,
       // No listing report — a block page has no rows worth counting. No
       // hints either: a block page is no evidence of anything about the
       // page's real shape.

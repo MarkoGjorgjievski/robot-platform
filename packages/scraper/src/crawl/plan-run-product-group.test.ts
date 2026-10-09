@@ -28,7 +28,7 @@ const PROOF_PAGES = [
 
 const CAPTURE = {
   url: LISTING, html: '<html><body>allbirds listing</body></html>', markdown: '', screenshot: Buffer.alloc(0),
-  screenshotTiles: [], title: 'Mens', timestamp: 0,
+  screenshotTiles: [], verdict: { kind: 'ok', status: 200 }, title: 'Mens', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
 } as unknown as PageCapture;
 
