@@ -130,7 +130,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const expectedOnPage = Object.fromEntries(req.fields.map((f) => [f.key, req.verificationSet.expected[f.key]?.[url] ?? '']));
       const c = await captureOne(deps.browser, url, buildVerificationReadyCheck(req.fields, expectedOnPage, url));
       const problem = captureProblem(c, url);
-      if (problem) { captures[url] = null; captureErrors[url] = problem; continue; }
+      if (problem) { captures[url] = null; captureErrors[url] = problem.reason; continue; }
       captures[url] = c;
     } catch (err) { captures[url] = null; captureErrors[url] = err instanceof Error ? err.message : String(err); }
   }

@@ -18,6 +18,7 @@ const CAPTURE = {
   markdown: '',
   screenshot: Buffer.alloc(0),
   screenshotTiles: [],
+  verdict: { kind: 'ok', status: 200 },
   title: 'GPUs',
   timestamp: 0,
   structuredData: fixture.structuredData,

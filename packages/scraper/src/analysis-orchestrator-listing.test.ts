@@ -24,7 +24,7 @@ const LISTING_CAPTURE: PageCapture = {
     + '<body><main><h1>Widgets</h1><p>Realistic on-page content so checkPageHealth sees a real '
     + 'page rather than an empty interstitial. This paragraph only exists to carry the fixture '
     + 'past the almost-no-content gate.</p></main></body></html>',
-  markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [],
+  markdown: '', screenshot: Buffer.from('png'), screenshotTiles: [], verdict: { kind: 'ok', status: 200 },
   title: 'Widgets', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
   interceptedRequests: [],
@@ -225,6 +225,7 @@ describe('runAnalysis — listing, blocked page', () => {
     ...LISTING_CAPTURE,
     title: 'Just a moment',
     html: '<html><body>Our system have detected unusual traffic. Verify you are human. Ray ID a312c62f. cloudflare</body></html>',
+    verdict: { kind: 'challenge', status: 200, vendor: 'cloudflare' },
   };
 
   it('reports the block, runs no extraction, and produces no listing report', async () => {

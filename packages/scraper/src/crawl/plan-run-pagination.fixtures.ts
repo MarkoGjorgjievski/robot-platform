@@ -58,6 +58,7 @@ export function fakeDeps(over: {
     html: listingHtml,
     screenshot: '',
     screenshotTiles: [],
+    verdict: { kind: 'ok', status: 200 },
     interceptedRequests: [],
   } as unknown as PageCapture;
 

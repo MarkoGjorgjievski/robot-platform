@@ -19,7 +19,7 @@
 //                  script against the captured HTML via setContent, so cached
 //                  XPaths execute in real Chromium with no network
 
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, okVerdict } from '@robot/browser';
 import type { CaptureOptions, CrawlOptions, CrawlPage, IBrowser, PageCapture, ScrollOptions } from '@robot/browser';
 import { runExtraction } from '../extraction-orchestrator.js';
 import type { DomainCache } from '../domain-cache.js';
@@ -104,6 +104,8 @@ export async function runFixtureReplay(fixture: Fixture): Promise<ReplayResult> 
     timestamp: 0,
     structuredData: fixture.structuredData,
     interceptedRequests: fixture.interceptedRequests,
+    // A corpus fixture stores no verdict: it was saved because the page was usable.
+    verdict: okVerdict(),
   };
 
   // totalRuns must be > 0 or the chain skips its cached-path steps entirely,

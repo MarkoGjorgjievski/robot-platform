@@ -18,7 +18,7 @@
 // Deliberately transport-agnostic: it throws plain Errors and knows nothing about
 // tRPC. Mapping failures onto TRPCError stays in the router.
 
-import { checkPageHealth, type PageCapture, type IBrowser } from '@robot/browser';
+import { verdictSentence, type PageCapture, type IBrowser } from '@robot/browser';
 import type { SchemaField, ExtractionPlan } from '@robot/agent';
 import { buildExtractionScript } from './executor.js';
 import { extractFromStructuredData } from './structured-extractor.js';
@@ -198,9 +198,10 @@ export async function runExtraction(
     // all dashes). checkPageHealth existed since v1.0 but was wired only into
     // the legacy pipeline — a blocked page now fails the run WITH its reason,
     // which is what run status and the sandbox error banner display.
-    const health = checkPageHealth(capture.html, capture.title, capture.url ?? url);
-    if (!health.healthy) {
-      throw new Error(`Page blocked or unusable: ${health.reason}`);
+    // Since 2026-10-09 the capture's verdict decides what "blocked" means.
+    if (capture.verdict.kind !== 'ok') {
+      const reason = verdictSentence(capture.verdict, url);
+      throw new Error(`Page blocked or unusable: ${reason}`);
     }
 
     const schemaFields: SchemaField[] = fields.map((f) => ({

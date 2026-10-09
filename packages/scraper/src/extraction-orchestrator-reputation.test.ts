@@ -35,6 +35,7 @@ const capture = (interceptedRequests: InterceptedRequest[] = []): PageCapture =>
   markdown: '',
   screenshot: Buffer.alloc(0),
   screenshotTiles: [],
+  verdict: { kind: 'ok', status: 200 },
   title: 'Kallax',
   timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },

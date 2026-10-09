@@ -190,6 +190,7 @@ export function apiParamDeps(over: {
     html: '<html><body>listing</body></html>',
     screenshot: '',
     screenshotTiles: [],
+    verdict: { kind: 'ok', status: 200 },
     interceptedRequests: over.intercepted ?? [apiRequest],
   } as unknown as PageCapture;
 
