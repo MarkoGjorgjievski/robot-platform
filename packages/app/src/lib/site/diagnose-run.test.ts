@@ -52,6 +52,14 @@ describe('diagnoseRun — blocked', () => {
     expect(result[0]!.severity).toBe('blocked');
   });
 
+  it('diagnoses a refused listing from its verdict sentence alone (no wrapper since 2026-10-09)', () => {
+    const result = diagnoseRun(base({
+      errors: [{ message: "scan.co.uk refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet." }],
+    }));
+    expect(result).toHaveLength(1);
+    expect(result[0]!.severity).toBe('blocked');
+  });
+
   // Ruling R4 regression: unwrapping the "Page blocked or unusable" prefix to
   // check for a 404 must not misclassify a genuine (non-404) block as
   // something else — a wrapped CAPTCHA reason stays `blocked`.

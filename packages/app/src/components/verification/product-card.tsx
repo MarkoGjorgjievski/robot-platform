@@ -65,7 +65,7 @@ export function ProductCard({
       <div className="mt-auto flex items-center justify-between gap-2 px-2 py-1.5">
         {status === 'failed' ? (
           <>
-            <span className="min-w-0 truncate text-sm text-warn" title={capture?.error}>
+            <span className="min-w-0 line-clamp-2 text-sm text-warn" title={capture?.error}>
               {capture?.error ?? 'The screenshot could not be taken'}
             </span>
             <Button variant="outline" size="xs" disabled={disabled} onClick={onRetry} className="shrink-0">
