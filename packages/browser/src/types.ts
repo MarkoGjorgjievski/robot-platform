@@ -57,6 +57,12 @@ export type PageCapture = {
   pageHeight?: number;
   /** The `annotate` script's value, when one was given (box map for a proof page). */
   annotation?: unknown;
+  /**
+   * What the browser got (spec 2026-10-09 §A1). Required on live captures;
+   * fixtures and replays built outside the browser carry `{ kind: 'ok', status: 0 }`
+   * (see `okVerdict()` in verdict.ts).
+   */
+  verdict: CaptureVerdict;
 };
 
 /** What a ready check sees on each poll: the probe's result from the live page,
@@ -238,3 +244,29 @@ export type ScrollOptions = {
   /** When present, advance by clicking this instead of scrolling. */
   loadMoreSelector?: string;
 };
+
+/** The anti-bot vendor a wall page or its headers name; `unknown` when a wall is seen without a signature. */
+export type WallVendor = 'cloudflare' | 'akamai' | 'perimeterx' | 'datadome' | 'aws-waf' | 'unknown';
+
+/**
+ * One honest verdict per capture (spec 2026-10-09 §A1), decided inside
+ * `capture()` from the main response, the final url and the page-health
+ * classifier. `ok` is the only kind a consumer may treat as the page asked for.
+ */
+export type CaptureVerdict =
+  | { kind: 'ok'; status: number }
+  | { kind: 'refused'; status: number; vendor?: WallVendor }
+  | { kind: 'challenge'; status: number; vendor?: WallVendor }
+  | { kind: 'not-found'; status: number }
+  | { kind: 'redirected'; status: number; to: string }
+  | { kind: 'blank'; status: number };
+
+/** Why no document arrived at all; the only reason `capture()` rejects. */
+export type CaptureErrorKind = 'crashed' | 'unreachable' | 'timeout';
+
+export class CaptureError extends Error {
+  constructor(public readonly kind: CaptureErrorKind, public readonly url: string, message: string) {
+    super(message);
+    this.name = 'CaptureError';
+  }
+}

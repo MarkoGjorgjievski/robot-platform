@@ -1,3 +1,5 @@
+import type { WallVendor } from './types.js';
+
 /**
  * Detect blocked, error, or empty pages before processing.
  * Returns null if page is healthy, or an error description if blocked.
@@ -49,6 +51,9 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
     { match: 'perimeterx', reason: 'PerimeterX bot detection — site blocked automated access' },
     { match: 'datadome', reason: 'DataDome bot detection — site blocked automated access' },
     { match: 'access denied', reason: 'Access denied — site is blocking automated access' },
+    { match: 'akamai', includes: ['access denied', 'reference #', 'akamaighost'] },
+    { match: 'confirm you are human', reason: 'AWS WAF human verification — site requires human verification' },
+    { match: 'human verification', reason: 'Human verification page — site requires human verification' },
     { match: 'blocked', includes: ['your request has been blocked', 'this request was blocked', 'automated access'] },
   ];
 
@@ -134,4 +139,33 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
   }
 
   return { healthy: true };
+}
+
+/**
+ * Which wall, if any, this document is — from headers first (they are
+ * authoritative), then the body. Returns `challenge` for an interstitial the
+ * visitor could pass (CAPTCHA, "Just a moment", press-and-hold) and `refused`
+ * for a flat denial (Access Denied, 403 block page). Null for a normal page.
+ */
+export function detectWall(html: string, title: string, headers: Record<string, string>): { kind: 'challenge' | 'refused'; vendor: WallVendor } | null {
+  const h = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), String(v).toLowerCase()]));
+  const lowerHtml = html.toLowerCase();
+  const lowerTitle = title.toLowerCase();
+  const text = lowerHtml.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const thin = text.length < SUBSTANTIAL_CONTENT_CHARS;
+  const challengeWords = ['just a moment', 'checking your browser', 'verify you are human', 'confirm you are human', "confirm that you're human", 'are you a robot', 'not a robot', 'press & hold', 'press and hold', 'quick verification', 'human verification', 'captcha'];
+  const deniedWords = ['access denied', 'you have been blocked', 'your request has been blocked', 'this request was blocked', 'restricted access'];
+  const vendor: WallVendor | null =
+    h['x-amzn-waf-action'] || lowerHtml.includes('awswaf') ? 'aws-waf'
+    : h['cf-ray'] || h['server'] === 'cloudflare' || lowerHtml.includes('cloudflare') || lowerHtml.includes('ray id') ? 'cloudflare'
+    : (h['server'] ?? '').includes('akamai') || lowerHtml.includes('akamaighost') || (lowerTitle.includes('access denied') && lowerHtml.includes('reference #')) ? 'akamai'
+    : lowerHtml.includes('perimeterx') || lowerHtml.includes('_px') || lowerHtml.includes('px-captcha') ? 'perimeterx'
+    : lowerHtml.includes('datadome') ? 'datadome'
+    : null;
+  const isChallenge = thin && challengeWords.some((w) => lowerTitle.includes(w) || lowerHtml.includes(w));
+  const isDenied = thin && deniedWords.some((w) => lowerTitle.includes(w) || lowerHtml.includes(w));
+  if (isChallenge) return { kind: 'challenge', vendor: vendor ?? 'unknown' };
+  if (isDenied) return { kind: 'refused', vendor: vendor ?? 'unknown' };
+  if (vendor && thin) return { kind: 'refused', vendor };
+  return null;
 }
