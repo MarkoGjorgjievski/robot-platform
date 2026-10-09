@@ -327,4 +327,21 @@ describe('planRun — a listing that is not the listing page reads its one sente
     expect(outcome.errors).toEqual([{ inputIndex: 0, message: expected }]);
     expect(expected).toMatch(/^example\.com refused the browser \(HTTP 403, Cloudflare\)\. .* Waiting \d+ min before trying again\.$/);
   });
+
+  it('a wall that lands while the plan queues for the lock is answered after the claim: lock released, no capture', async () => {
+    const browser = new FakeBrowser();
+    let released = 0;
+    const outcome = await planRun(
+      { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
+      {
+        browser, agent: null, extract: neverExtract,
+        // The run's item on this host hits a wall while we wait for the lock.
+        acquireLock: async () => { reportVerdict('example.com', { kind: 'challenge', status: 200 }); return () => { released++; }; },
+      },
+    );
+    expect(browser.captures).toBe(0);
+    expect(released).toBe(1);
+    expect(outcome.errors).toHaveLength(1);
+    expect(outcome.errors[0].message).toMatch(/^example\.com asked for a human check \(CAPTCHA\)\. .* Waiting \d+ min before trying again\.$/);
+  });
 });

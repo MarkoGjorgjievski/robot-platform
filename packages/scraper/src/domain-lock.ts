@@ -29,8 +29,9 @@ const lastRequestTime = new Map<string, number>();
  * Backoff after a challenge or refusal: the first step, then doubling per
  * further one in a row, capped at BACKOFF_MAX_MS. The first step can be
  * overridden with the ROBOT_BACKOFF_FIRST_MS environment variable (read once,
- * at module load) — the route smoke runs the api-server with
- * ROBOT_BACKOFF_FIRST_MS=1000 so it does not sit through 2-minute waits.
+ * at module load) for an isolated api-server. The route smoke does NOT set it:
+ * its wall step asserts the "Waiting 2 min" answer, which a shortened backoff
+ * would turn into a real capture of the human check.
  */
 export const BACKOFF_FIRST_MS = Number(process.env.ROBOT_BACKOFF_FIRST_MS ?? 120_000);
 export const BACKOFF_MAX_MS = Math.max(480_000, BACKOFF_FIRST_MS);
@@ -118,8 +119,13 @@ export function backoffAnswer(url: string, nowFn: () => number = now): { verdict
  * this will wait until it completes.
  *
  * Returns a release function that MUST be called when done.
+ *
+ * `onBackoff: 'skip'` is for callers inside an HTTP request (a plan): when the
+ * host is backing off, the lock is handed back at once, without the sleep and
+ * with the backoff untouched, so the caller can release it and answer from the
+ * backoff instead of napping for up to 8 minutes. The default waits it out.
  */
-export async function acquireDomainLock(domain: string): Promise<() => void> {
+export async function acquireDomainLock(domain: string, options: { onBackoff?: 'wait' | 'skip' } = {}): Promise<() => void> {
   // Wait for any existing lock on this domain. One release wakes EVERY waiter
   // queued on that promise, so each must re-check on wake — a single `if`
   // let all of them proceed into their critical sections at once.
@@ -137,10 +143,17 @@ export async function acquireDomainLock(domain: string): Promise<() => void> {
   const entry: LockEntry = { promise, resolve: resolve!, domain, startedAt: now() };
   activeLocks.set(domain, entry);
 
+  const release = () => {
+    lastRequestTime.set(domain, now());
+    activeLocks.delete(domain);
+    entry.resolve();
+  };
+
   // Backoff — the host recently challenged or refused us. Wait it out (never
   // fail), under the lock so whoever is queued behind waits too.
   const backoffWait = backoffRemainingMs(domain);
   if (backoffWait > 0) {
+    if (options.onBackoff === 'skip') return release;
     console.log(`[lock] Backoff: waiting ${Math.round(backoffWait / 1000)}s before hitting ${domain}`);
     await sleep(backoffWait);
     // The wait is the penalty; the next verdict decides whether it grows
@@ -161,12 +174,7 @@ export async function acquireDomainLock(domain: string): Promise<() => void> {
     }
   }
 
-  // Return release function
-  return () => {
-    lastRequestTime.set(domain, now());
-    activeLocks.delete(domain);
-    entry.resolve();
-  };
+  return release;
 }
 
 /**

@@ -47,10 +47,11 @@
 // classifier's reading of a 200 human check is pinned by @robot/browser's
 // capture-verdict test). The wall test runs LAST, after everything else that
 // touches the shop; and a second run against the same api-server must start
-// at least two minutes after the first one ended. An isolated or CI
-// api-server can shorten the backoff by starting with
-// `ROBOT_BACKOFF_FIRST_MS=1000` (read once, at import, by
-// `packages/scraper/src/domain-lock.ts`); `pnpm dev:all` does not set it.
+// at least two minutes after the first one ended. Do NOT shorten the backoff
+// (`ROBOT_BACKOFF_FIRST_MS`, read once at import by
+// `packages/scraper/src/domain-lock.ts`) for this smoke: the step asserts
+// "Waiting 2 min", and a 1-second backoff has expired by the second click, so
+// `/captcha` would really be captured and the step would read the human check.
 //
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
