@@ -362,6 +362,7 @@ describe('extractItem — with a certification', () => {
         html: '<html></html>',
         structuredData: { ldJson, nextData: null, initialState: null, meta: {} },
         interceptedRequests: [],
+        verdict: { kind: 'ok', status: 200 },
       } as unknown as PageCapture;
     }
 

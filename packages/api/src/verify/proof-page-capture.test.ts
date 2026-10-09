@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
-import { TILE_HEIGHT, type IBrowser, type PageCapture } from '@robot/browser';
+import { TILE_HEIGHT, CaptureError, type IBrowser, type PageCapture } from '@robot/browser';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
 import { readCaptureFile } from './capture-store.js';
@@ -71,6 +71,27 @@ describe('proof-page capture job', () => {
       await runProofPageCapture(captureId, sessionWith(async () => fakeCapture('https://elsewhere.example/cat')));
       const meta = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
       expect(meta).toMatchObject({ status: 'failed', error: 'redirected to https://elsewhere.example/cat' });
+      expect(meta).not.toHaveProperty('verdict'); // a path-level problem, not the browser's verdict
+    } finally { await f.cleanup(); }
+  });
+  it('a refused page is a failure that keeps the browser verdict', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-refused', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      const verdict = { kind: 'refused' as const, status: 403, vendor: 'cloudflare' as const };
+      await runProofPageCapture(captureId, sessionWith(async (u) => ({ ...fakeCapture(u), verdict })));
+      const meta = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
+      expect(meta).toMatchObject({ status: 'failed', verdict });
+      if (meta.status === 'failed') expect(meta.error).toContain('refused the browser (HTTP 403, Cloudflare)');
+    } finally { await f.cleanup(); }
+  });
+  it('no document at all keeps the CaptureError kind as its verdict', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'ppc-timeout', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      await runProofPageCapture(captureId, sessionWith(async (u) => { throw new CaptureError('timeout', u, 'Timeout 60000ms exceeded'); }));
+      const meta = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
+      expect(meta).toMatchObject({ status: 'failed', verdict: { kind: 'timeout' } });
     } finally { await f.cleanup(); }
   });
 });

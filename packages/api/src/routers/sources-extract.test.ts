@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources } from '@robot/db';
 import { itemCap, resolveBudget } from '@robot/scraper';
+import { CaptureError } from '@robot/browser';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -35,7 +36,7 @@ describe('sources.checkListingPage', () => {
   it('captures the listing page (no AI) and reports product link count, sample, and pagerSeen', async () => {
     const html = '<html><head><link rel="next" href="?page=2"></head><body></body></html>';
     const anchors = Array.from({ length: 12 }, (_, i) => ({ href: `/p/air-${i}-123456789012`, text: `Air ${i}` }));
-    const captureMock = vi.fn().mockResolvedValue({ html });
+    const captureMock = vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 } });
     const setContentEvaluateMock = vi.fn().mockResolvedValue(anchors);
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
       fn({ capture: captureMock, setContentEvaluate: setContentEvaluateMock }),
@@ -46,6 +47,8 @@ describe('sources.checkListingPage', () => {
     expect(result.productLinks).toBe(12);
     expect(result.pagerSeen).toBe(true);
     expect(result.sample).toHaveLength(10);
+    expect(result.verdict).toEqual({ kind: 'ok', status: 200 });
+    expect(result.message).toBeNull();
     expect(withBrowserSessionMock).toHaveBeenCalledTimes(1);
     expect(captureMock).toHaveBeenCalledWith('https://test-check-listing.example.com/c/shoes', expect.objectContaining({ interceptNetworkRequests: false }));
     expect(setContentEvaluateMock).toHaveBeenCalledWith(html, expect.any(String));
@@ -58,13 +61,37 @@ describe('sources.checkListingPage', () => {
       { href: '/p/air-2-123456789013', text: 'Air 2' },
     ];
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockResolvedValue({ html }), setContentEvaluate: vi.fn().mockResolvedValue(anchors) }),
+      fn({ capture: vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 } }), setContentEvaluate: vi.fn().mockResolvedValue(anchors) }),
     );
 
     const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-nopager.example.com/c/shoes' });
 
     expect(result.productLinks).toBe(2);
     expect(result.pagerSeen).toBe(false);
+  });
+
+  it('a challenge page counts no links, skips the anchor harvest, and says why', async () => {
+    const setContentEvaluateMock = vi.fn();
+    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
+      fn({ capture: vi.fn().mockResolvedValue({ html: '<html>captcha</html>', verdict: { kind: 'challenge', status: 403, vendor: 'datadome' } }), setContentEvaluate: setContentEvaluateMock }),
+    );
+
+    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-wall.example.com/c/shoes' });
+
+    expect(result.productLinks).toBe(0);
+    expect(result.verdict.kind).toBe('challenge');
+    expect(result.message).toMatch(/asked for a human check/);
+    expect(setContentEvaluateMock).not.toHaveBeenCalled();
+  });
+
+  it('no document at all (a CaptureError) is an answer, not a thrown error', async () => {
+    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
+      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('unreachable', 'https://test-check-listing-down.example.com/c/shoes', 'net::ERR_NAME_NOT_RESOLVED')), setContentEvaluate: vi.fn() }),
+    );
+
+    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-down.example.com/c/shoes' });
+
+    expect(result).toEqual({ verdict: { kind: 'unreachable' }, message: 'test-check-listing-down.example.com could not be reached (no response).', productLinks: 0, pagerSeen: false, sample: [], products: [] });
   });
 
   it('rejects a non-URL listingUrl', async () => {
@@ -85,6 +112,34 @@ describe('sources.checkListingPage', () => {
       expect((err as TRPCError).code).toBe('BAD_REQUEST');
     }
     expect(withBrowserSessionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('sources.reachability', () => {
+  it('one page load, one tile: the verdict, its sentence, the final url', async () => {
+    const captureMock = vi.fn().mockResolvedValue({ url: 'https://www.test-reach.example.com/shop', html: '<html></html>', verdict: { kind: 'ok', status: 200 } });
+    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) => fn({ capture: captureMock }));
+
+    const result = await caller.sources.reachability({ url: 'https://www.test-reach.example.com/shop' });
+
+    expect(result).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: 'https://www.test-reach.example.com/shop' });
+    expect(typeof result.ms).toBe('number');
+    expect(captureMock).toHaveBeenCalledWith('https://www.test-reach.example.com/shop', expect.objectContaining({ maxTiles: 1, interceptNetworkRequests: false }));
+  });
+
+  it('a CaptureError reads its sentence with no final url', async () => {
+    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
+      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('timeout', 'https://test-reach-slow.example.com/x', 'Timeout 30000ms exceeded')) }),
+    );
+
+    const result = await caller.sources.reachability({ url: 'https://test-reach-slow.example.com/x' });
+
+    expect(result).toMatchObject({ verdict: { kind: 'timeout' }, message: 'test-reach-slow.example.com did not answer in time.', finalUrl: null });
+  });
+
+  it('any other error still fails the query', async () => {
+    withBrowserSessionMock.mockImplementation(async () => { throw new Error('no browser'); });
+    await expect(caller.sources.reachability({ url: 'https://test-reach-broken.example.com/x' })).rejects.toThrow('no browser');
   });
 });
 

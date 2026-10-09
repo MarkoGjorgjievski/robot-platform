@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, okVerdict } from '@robot/browser';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +22,7 @@ describe('describeListingPage', () => {
 
   it('reports the full largest-group size, a 10-item sample, and pagerSeen true when a pager is present', () => {
     const html = '<html><head><link rel="next" href="?page=2"></head><body></body></html>';
-    const result = describeListingPage(anchors, listingUrl, html);
+    const result = describeListingPage(anchors, listingUrl, html, okVerdict(200));
     expect(result.productLinks).toBe(12);
     expect(result.pagerSeen).toBe(true);
     expect(result.sample).toHaveLength(10);
@@ -31,9 +31,16 @@ describe('describeListingPage', () => {
 
   it('reports pagerSeen false when the html has no pagination markup', () => {
     const html = '<html><body><p>no pager here</p></body></html>';
-    const result = describeListingPage(anchors, listingUrl, html);
+    const result = describeListingPage(anchors, listingUrl, html, okVerdict(200));
     expect(result.productLinks).toBe(12);
     expect(result.pagerSeen).toBe(false);
+  });
+
+  it('describeListingPage carries a non-ok verdict and reports no links', () => {
+    const r = describeListingPage([{ href: '/p/1', text: 'A' }], 'https://shop.example/l', '<html></html>', { kind: 'refused', status: 403, vendor: 'cloudflare' });
+    expect(r.productLinks).toBe(0);
+    expect(r.verdict.kind).toBe('refused');
+    expect(r.message).toBe("shop.example refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet.");
   });
 });
 
