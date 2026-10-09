@@ -41,7 +41,11 @@ const BLOCKED_PAGE_ERROR = /page blocked or unusable:\s*(.*)/i;
 // reason fragments the task brief calls out by name: `'CAPTCHA detected —
 // site requires human verification'` and the `'verify you are human'` phrase
 // inside the `robot` pattern's `includes` list.
-const BLOCKED_HEALTH_REASON = /captcha|verify you are human/i;
+//
+// Since 2026-10-09 a walled listing fails planning with the verdict's own
+// sentence (packages/browser/src/verdict-copy.ts) and no wrapper: "{host}
+// refused the browser (HTTP …)" or "{host} asked for a human check (CAPTCHA)".
+const BLOCKED_HEALTH_REASON = /captcha|verify you are human|refused the browser/i;
 
 // Source: packages/browser/src/page-health.ts checkPageHealth — the 404
 // reason fragments: `'HTTP 404 Not Found — page does not exist'` (errorPatterns)

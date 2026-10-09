@@ -37,16 +37,17 @@
 //
 // The shop also serves two walls (honest page verdicts, 2026-10-09): `/blocked`,
 // a 403 Cloudflare page, and `/captcha`, a 200 human check. The last test
-// pastes each as the listing and reads the one sentence each gets. Each wall
-// puts the shop's host (127.0.0.1) on backoff in the api-server — 2 minutes
-// after the first, 4 after the second (`BACKOFF_FIRST_MS`, doubling) — and
-// while it lasts, page captures on that host wait and the new-website
-// reachability line answers "asked for a human check" without loading the
-// page. So the wall test runs LAST, after everything else that touches the
-// shop; and a second run against the same api-server must start at least
-// four minutes after the first one ended. Find products itself does not wait
-// on the backoff (it only feeds it), but the second sentence is still polled
-// for 150 s so a finder that did wait would pass. An isolated or CI
+// pastes `/blocked` as the listing and reads its one sentence. That wall puts
+// the shop's host (127.0.0.1) on backoff in the api-server for 2 minutes
+// (`BACKOFF_FIRST_MS`), and while it lasts every interactive path — Find
+// products, a proof-page capture, the new-website reachability line — answers
+// from the backoff without loading the page: the wall's own sentence and
+// "Waiting n min before trying again." (fix wave I4). So the test then pastes
+// `/captcha` and reads exactly that answer, not the human check (the
+// classifier's reading of a 200 human check is pinned by @robot/browser's
+// capture-verdict test). The wall test runs LAST, after everything else that
+// touches the shop; and a second run against the same api-server must start
+// at least two minutes after the first one ended. An isolated or CI
 // api-server can shorten the backoff by starting with
 // `ROBOT_BACKOFF_FIRST_MS=1000` (read once, at import, by
 // `packages/scraper/src/domain-lock.ts`); `pnpm dev:all` does not set it.
@@ -1529,16 +1530,17 @@ describe.skipIf(!ENABLED)('app shell', () => {
       .toContain(`${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet.`);
     expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No product links found');
     await shoot(page, 'app-site-verification-wall-refused.png', false);
-    // Find products on a 200 human check, with the host now backing off.
+    // Find products again, on another page of the same host, now backing off:
+    // answered from the backoff in the first wall's words, without a browser.
     await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/captcha`);
     await page.getByRole('button', { name: 'Find products' }).click();
     await expect
-      .poll(() => page.locator('main').innerText(), { timeout: 150_000 })
+      .poll(() => page.locator('main').innerText(), { timeout: 30_000 })
       .toContain(
-        `${host} asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.`,
+        `${host} refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet. Waiting 2 min before trying again.`,
       );
     expect(await page.locator('main').innerText(), 'a wall was reported as a page with no links').not.toContain('No product links found');
-    await shoot(page, 'app-site-verification-wall-challenge.png', false);
+    await shoot(page, 'app-site-verification-wall-backoff.png', false);
     expect(problems, `the Verification tab logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 240_000);
 });

@@ -3,7 +3,7 @@ import {
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
-  failsText, displayValue, pickAnswer, cellAcceptable, carryFrom,
+  failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -266,9 +266,14 @@ const API = { source: 'api', path: 'price' };
 const boxesOf = (texts: string[]): Box[] => texts.map((t, i) => box({ text: t, rect: { x: 0, y: i * 20, w: 100, h: 16 }, xpaths: [`//x${i}`] }));
 const maps = (): Record<string, Box[]> => ({ [U[0]!]: boxesOf(['Widget A', '$129.99']), [U[1]!]: boxesOf(['Widget B', '$219.99']), [U[2]!]: boxesOf(['Widget C', '$149.00']) });
 const sug = (value: string, boxes: number[], via?: { source: string; path: string }) => ({ value, boxes, ...(via ? { via } : {}) });
-function liveFor(b: Board, key: string, per: Array<ReturnType<typeof sug> | null>) {
+/** Each suggestion merged with its own origin (page-data unless it says otherwise), as the tab merges a carry. */
+function liveFor(b: Board, key: string, per: Array<(ReturnType<typeof sug> & { origin?: Suggestion['origin'] }) | null>) {
   let s = {};
-  per.forEach((p, i) => { if (p) s = mergeSuggestions(s, { [key]: p }, U[i]!, `cap-${i}`, 'page-data', b); });
+  per.forEach((p, i) => {
+    if (!p) return;
+    const { origin = 'page-data', ...val } = p;
+    s = mergeSuggestions(s, { [key]: val }, U[i]!, `cap-${i}`, origin, b);
+  });
   return liveSuggestions(s, b, { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' });
 }
 const price = FIELDS.find((f) => f.key === 'price')!;
@@ -297,11 +302,12 @@ describe('rowStatus', () => {
     const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [], API), sug('149.00', [1], JL)]);
     expect(rowStatus(price, b, live, maps())).toEqual<RowStatus>({ kind: 'needs-you', reason: 'only in the page data on product 2', product: 2 });
   });
-  it('a value carried from another product that this page does not show is the same case', () => {
+  it('a from-product carry that this page does not show is not agreed either', () => {
     const b = board();
     const carried = { ...sug('219.99', [], JL), origin: 'from-product' as const };
     const live = liveFor(b, 'price', [sug('129.99', [1], JL), carried, sug('149.00', [1], JL)]);
-    expect((rowStatus(price, b, live, maps()) as { reason?: string }).reason).toBe('only in the page data on product 2');
+    expect(live.price![U[1]!]!.origin).toBe('from-product');
+    expect(rowStatus(price, b, live, maps())).toEqual<RowStatus>({ kind: 'needs-you', reason: 'only in the page data on product 2', product: 2 });
   });
   it('an answered product plus suggestions on the rest is still agreed', () => {
     const b = answer(board(), 'price', U[0]!, { value: '129.99', mark: null });
