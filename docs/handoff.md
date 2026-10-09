@@ -107,11 +107,11 @@ and similar cases through "Accept all agreed".
 
 **Files.** `packages/browser/src/types.ts`, `playwright-browser.ts`, `page-health.ts`, `verdict.ts`,
 new `verdict-copy.ts` and `root-domain.ts`; `packages/scraper/src/verify/capture-check.ts`, `domain-lock.ts` (backoff),
-`crawl/plan-run.ts`, `analysis-orchestrator.ts`, `extraction-orchestrator.ts`, `pipeline.ts`;
+`crawl/plan-run.ts`, `verify/verified-extraction.ts` (a walled product page throws), `analysis-orchestrator.ts`, `extraction-orchestrator.ts`, `pipeline.ts`;
 `packages/api/src/routers/sources.ts` (`checkListingPage`, new `reachability`),
 `verify/find-product-pages.ts`, `verify/proof-page-capture.ts`, `crawl/plan-source.ts`,
 `crawl/roll-up-run.ts`, `crawl/execute-guard.ts` and `routers/crawl.ts` (`execute` refuses a failed
-run), `crawl/execute-run.ts` (the wall breaker), `crawl/record-outcome.ts`, `judge-run.ts`;
+run), `crawl/execute-run.ts` (the wall breaker), `crawl/start-execution.ts`, `crawl/record-outcome.ts`, `judge-run.ts`;
 `packages/app/src/components/verification/listing-bar.tsx`, `product-card.tsx`,
 `lib/site/use-proof-captures.ts`, `lib/site/verification-model.ts` (the agreement-rule fix, B1),
 `lib/site/extract-view.ts`, the site route and `routes/…/runs/$run.tsx` (reachability line, run
