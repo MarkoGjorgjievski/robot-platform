@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources } from '@robot/db';
-import { itemCap, resolveBudget } from '@robot/scraper';
+import { itemCap, resolveBudget, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { CaptureError } from '@robot/browser';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -19,6 +19,7 @@ vi.mock('../browser-session.js', () => ({ withBrowserSession: withBrowserSession
 
 afterEach(() => {
   withBrowserSessionMock.mockReset();
+  _resetBackoffForTests();
 });
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -80,7 +81,7 @@ describe('sources.checkListingPage', () => {
 
     expect(result.productLinks).toBe(0);
     expect(result.verdict.kind).toBe('challenge');
-    expect(result.message).toMatch(/asked for a human check/);
+    expect(result.message).toBe("test-check-listing-wall.example.com asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.");
     expect(setContentEvaluateMock).not.toHaveBeenCalled();
   });
 
@@ -124,7 +125,7 @@ describe('sources.reachability', () => {
 
     expect(result).toMatchObject({ verdict: { kind: 'ok', status: 200 }, message: 'Reached test-reach.example.com (HTTP 200).', finalUrl: 'https://www.test-reach.example.com/shop' });
     expect(typeof result.ms).toBe('number');
-    expect(captureMock).toHaveBeenCalledWith('https://www.test-reach.example.com/shop', expect.objectContaining({ maxTiles: 1, interceptNetworkRequests: false }));
+    expect(captureMock).toHaveBeenCalledWith('https://www.test-reach.example.com/shop', expect.objectContaining({ waitUntil: 'load', timeout: 30_000, maxTiles: 1, interceptNetworkRequests: false }));
   });
 
   it('a CaptureError reads its sentence with no final url', async () => {
@@ -135,6 +136,17 @@ describe('sources.reachability', () => {
     const result = await caller.sources.reachability({ url: 'https://test-reach-slow.example.com/x' });
 
     expect(result).toMatchObject({ verdict: { kind: 'timeout' }, message: 'test-reach-slow.example.com did not answer in time.', finalUrl: null });
+  });
+
+  it('a host still backing off is answered without opening a browser', async () => {
+    reportVerdict('test-reach-wall.example.com', 'challenge');
+
+    const result = await caller.sources.reachability({ url: 'https://test-reach-wall.example.com/x' });
+
+    expect(result.verdict).toEqual({ kind: 'challenge', status: 0 });
+    expect(result.finalUrl).toBeNull();
+    expect(result.message).toBe("test-reach-wall.example.com asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check. Waiting 2 min before trying again."); // BACKOFF_FIRST_MS is 2 min
+    expect(withBrowserSessionMock).not.toHaveBeenCalled();
   });
 
   it('any other error still fails the query', async () => {

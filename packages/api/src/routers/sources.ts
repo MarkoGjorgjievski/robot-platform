@@ -9,7 +9,7 @@ import {
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
-  reportVerdict,
+  reportVerdict, backoffRemainingMs,
 } from '@robot/scraper';
 import { CaptureError } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
@@ -682,11 +682,17 @@ export const sourcesRouter = router({
    * load, one tile, no AI, nothing saved — whether the browser can read this
    * address, in the verdict's customer sentence. A `CaptureError` (no
    * document arrived) is an answer too, not a failure of the query.
+   *
+   * A host still backing off after a challenge or refusal (domain-lock.ts) is
+   * answered from the backoff alone, without opening a browser: a query can
+   * be refetched freely, and every load of a walled host extends the wall.
    */
   reachability: protectedProcedure
     .input(z.object({ url: httpUrl }))
     .query(async ({ input }): Promise<Reachability> => {
       const hostname = new URL(input.url).hostname;
+      const wait = backoffRemainingMs(hostname);
+      if (wait > 0) return reachabilityResult(input.url, { kind: 'challenge', status: 0 }, null, 0, wait);
       const t0 = Date.now();
       try {
         return await withBrowserSession(async (browser) => {
