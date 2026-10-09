@@ -198,8 +198,11 @@ export async function planSource(
       .set({
         status: allInputsFailed ? 'failed' : 'planned',
         logs,
+        // The first input's own reason (a blocked listing's message is the
+        // capture verdict's customer sentence), not a count — the count and
+        // every other error stay in `logs`.
         errorMessage: allInputsFailed
-          ? `planning failed for all ${outcome.inputs.length} input(s)`
+          ? (outcome.errors[0]?.message ?? `planning failed for all ${outcome.inputs.length} input(s)`)
           : null,
         completedAt: new Date(),
       })

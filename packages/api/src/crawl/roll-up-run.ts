@@ -32,6 +32,7 @@ export function rollUpStatus(
   counts: { pending: number; running: number; done: number; failed: number },
   cancelled = false,
   limitReached = false,
+  hasError = false,
 ): RunRollup {
   // `running` is unfinished work exactly as `pending` is — an item claimed by
   // `claimNextItem` and never resolved (an api-server restart mid-item is the
@@ -45,6 +46,11 @@ export function rollUpStatus(
     if (limitReached) return 'partial';
     return 'extracting';
   }
+  // A run that recorded an error (planning failed: a CAPTCHA on the listing,
+  // say) with nothing done or failed is a failure, not an empty success —
+  // without this an errored run with zero items rolled up as a green
+  // `completed` with 0 rows (spec 2026-10-09 §A2).
+  if (hasError && counts.done === 0 && counts.failed === 0) return 'failed';
   if (counts.failed === 0) return 'completed';
   // `partial` exists because at scale "480 of 500 succeeded" is the normal
   // outcome, and a binary completed/failed cannot express it.
@@ -108,13 +114,18 @@ export async function finaliseRun(
     .from(runItems)
     .where(and(eq(runItems.runId, runId), eq(runItems.kind, 'detail')));
 
+  const errored = await db.query.runs.findFirst({
+    where: eq(runs.id, runId),
+    columns: { errorMessage: true },
+  });
+
   const done = Number(counts?.done ?? 0);
   const status = rollUpStatus({
     pending: Number(counts?.pending ?? 0),
     running: Number(counts?.running ?? 0),
     done,
     failed: Number(counts?.failed ?? 0),
-  }, cancelled, limitReached);
+  }, cancelled, limitReached, !!errored?.errorMessage);
 
   const [rowTotal] = await db
     .select({ total: sql<number>`coalesce(sum(jsonb_array_length(${extractions.data})), 0)::int` })
