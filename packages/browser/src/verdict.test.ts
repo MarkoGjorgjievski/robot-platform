@@ -37,6 +37,9 @@ describe('classifyVerdict', () => {
   it('a 200 with almost no visible text and no boxes is blank', () => {
     expect(classifyVerdict({ ...base, status: 200, html: '<html><head><script>app()</script></head><body><div id="app"></div></body></html>', title: '', boxCount: 0 })).toEqual({ kind: 'blank', status: 200 });
   });
+  it('a thin SPA shell with _px in its markup is blank, not a PerimeterX wall', () => {
+    expect(classifyVerdict({ ...base, status: 200, html: '<html><head><script>var a_px=1</script></head><body><div id="app"></div></body></html>', title: '', boxCount: 0 })).toEqual({ kind: 'blank', status: 200 });
+  });
   it('no status (a replay) with a healthy page is ok with status 0', () => {
     expect(classifyVerdict({ ...base, status: null, html: PRODUCT, title: 'Widget A' })).toEqual({ kind: 'ok', status: 0 });
   });

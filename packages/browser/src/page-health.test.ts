@@ -76,4 +76,13 @@ describe('checkPageHealth — pre-existing behaviour must not regress', () => {
     const html = `<html><body><main>${'Real product copy. '.repeat(100)}</main></body></html>`;
     expect(checkPageHealth(html, 'A Product', 'https://x.com').healthy).toBe(true);
   });
+  it("accepts a real product page whose title mentions human verification", () => {
+    const html = `<html><head><title>Human Verification Kit</title></head><body><main>${"Real product copy. ".repeat(100)}</main></body></html>`;
+    expect(checkPageHealth(html, "Human Verification Kit", "https://x.com").healthy).toBe(true);
+  });
+
+  it("still flags an AWS WAF human check", () => {
+    const html = "<html><head><title>Human Verification</title></head><body><p>Let's confirm you are human. Complete the security check.</p></body></html>";
+    expect(checkPageHealth(html, "Human Verification", "https://x.com").healthy).toBe(false);
+  });
 });

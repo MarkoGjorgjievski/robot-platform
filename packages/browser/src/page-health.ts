@@ -52,8 +52,10 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
     { match: 'datadome', reason: 'DataDome bot detection — site blocked automated access' },
     { match: 'access denied', reason: 'Access denied — site is blocking automated access' },
     { match: 'akamai', includes: ['access denied', 'reference #', 'akamaighost'] },
-    { match: 'confirm you are human', reason: 'AWS WAF human verification — site requires human verification' },
-    { match: 'human verification', reason: 'Human verification page — site requires human verification' },
+    // AWS WAF / generic human checks: body phrases, so they need thin content
+    // (the `includes` form) — a real page titled "Human Verification Kit" is not a wall.
+    { match: 'human verification', includes: ['confirm you are human', 'complete the security check', 'verify you are human'] },
+    { match: 'confirm you are human', includes: ['human verification', 'security check', 'awswaf'] },
     { match: 'blocked', includes: ['your request has been blocked', 'this request was blocked', 'automated access'] },
   ];
 
@@ -159,7 +161,7 @@ export function detectWall(html: string, title: string, headers: Record<string, 
     h['x-amzn-waf-action'] || lowerHtml.includes('awswaf') ? 'aws-waf'
     : h['cf-ray'] || h['server'] === 'cloudflare' || lowerHtml.includes('cloudflare') || lowerHtml.includes('ray id') ? 'cloudflare'
     : (h['server'] ?? '').includes('akamai') || lowerHtml.includes('akamaighost') || (lowerTitle.includes('access denied') && lowerHtml.includes('reference #')) ? 'akamai'
-    : lowerHtml.includes('perimeterx') || lowerHtml.includes('_px') || lowerHtml.includes('px-captcha') ? 'perimeterx'
+    : lowerHtml.includes('px-captcha') || lowerHtml.includes('_pxhd') || lowerHtml.includes('_pxvid') || lowerHtml.includes('perimeterx') ? 'perimeterx'
     : lowerHtml.includes('datadome') ? 'datadome'
     : null;
   const isChallenge = thin && challengeWords.some((w) => lowerTitle.includes(w) || lowerHtml.includes(w));
