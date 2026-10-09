@@ -221,7 +221,8 @@ describe('crawlRouter.plan persistence', () => {
       expect(run?.status).toBe('failed');
       expect(run?.logs).toContain('input 0: listing capture failed: blocked');
       expect(run?.logs).toContain('input 1: listing capture failed: blocked');
-      expect(run?.errorMessage).toBe('planning failed for all 2 input(s)');
+      // The first input's own reason, not a count (spec 2026-10-09 §A2).
+      expect(run?.errorMessage).toBe('listing capture failed: blocked');
     } finally {
       await fixture.cleanup();
     }

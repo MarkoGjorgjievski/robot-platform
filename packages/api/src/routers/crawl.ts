@@ -4,12 +4,13 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, runs, runItems, sources } from '@robot/db';
 import { router, protectedProcedure } from '../trpc';
 import { runInOrg, sourceInOrg } from '../auth/scope.js';
 import { requeueStaleRunningItems } from '../crawl/requeue-stale.js';
 import { markRunExtracting } from '../crawl/mark-extracting.js';
+import { canExecute } from '../crawl/execute-guard.js';
 import { planSource, safeErrorMessage, formatPlanLog } from '../crawl/plan-source.js';
 import { effectiveSchema } from '../crawl/effective-schema.js';
 import { requireCertification } from '../crawl/require-certification.js';
@@ -328,6 +329,16 @@ export const crawlRouter = router({
       });
       if (!run) throw new TRPCError({ code: 'NOT_FOUND', message: `Run ${input.runId} not found` });
       if (!run.source) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Run has no Source' });
+
+      // A run that failed while planning and has no detail items is refused
+      // with its own reason, before anything flips it to `extracting` — else
+      // finalise rolls the empty run up to a green "Done" with 0 rows.
+      const [detailCount] = await ctx.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(runItems)
+        .where(and(eq(runItems.runId, input.runId), eq(runItems.kind, 'detail')));
+      const guard = canExecute({ status: run.status, errorMessage: run.errorMessage }, Number(detailCount?.n ?? 0));
+      if (!guard.ok) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: guard.message });
 
       // First thing done once the Source is known — before the requeue, the
       // retryFailed rewrite, or dryRun's early return — so a customer schema
