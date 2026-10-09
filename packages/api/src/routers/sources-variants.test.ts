@@ -44,6 +44,7 @@ function variantFixture(url: string, label: string, withVariants: boolean): Page
     timestamp: 0,
     screenshot: Buffer.alloc(0),
     screenshotTiles: [],
+    verdict: { kind: 'ok', status: 200 },
     structuredData: {
       ldJson: withVariants
         ? [{

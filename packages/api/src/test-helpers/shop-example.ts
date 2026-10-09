@@ -7,9 +7,9 @@
 // the duplication.
 import type { PageCapture } from '@robot/browser';
 
-type RawCapture = Omit<PageCapture, 'markdown' | 'title' | 'timestamp' | 'screenshot' | 'screenshotTiles'>;
+type RawCapture = Omit<PageCapture, 'markdown' | 'title' | 'timestamp' | 'screenshot' | 'screenshotTiles' | 'verdict'>;
 
-const page = (raw: RawCapture): PageCapture => ({ ...raw, markdown: '', title: 'Widget', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [] });
+const page = (raw: RawCapture): PageCapture => ({ ...raw, markdown: '', title: 'Widget', timestamp: 0, screenshot: Buffer.alloc(0), screenshotTiles: [], verdict: { kind: 'ok', status: 200 } });
 
 export const SHOP_EXAMPLE: Record<'p1' | 'p2' | 'p3', PageCapture> = {
   p1: page({

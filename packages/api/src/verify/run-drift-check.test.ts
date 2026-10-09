@@ -231,7 +231,7 @@ describe('startDriftCheck (Review Focus 1)', () => {
 describe('the default capture function', () => {
   const fakeCapture = (url: string): PageCapture => ({
     url, html: '<html><body><div id="main"><h1>Widget</h1>' + 'text '.repeat(200) + '</div></body></html>', markdown: '', title: 'Widget', timestamp: 0,
-    screenshot: Buffer.from('png'), screenshotTiles: [Buffer.from('png')], pageHeight: 800,
+    screenshot: Buffer.from('png'), screenshotTiles: [Buffer.from('png')], verdict: { kind: 'ok', status: 200 }, pageHeight: 800,
     structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
     annotation: [{ xpaths: ['//*[@id="main"]/h1'], text: 'Widget', rect: { x: 0, y: 0, w: 10, h: 10 }, tag: 'h1', kind: 'text' }],
   });
