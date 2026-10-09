@@ -1,5 +1,8 @@
 export { PlaywrightBrowser } from './playwright-browser.js';
-export { checkPageHealth, type PageHealthResult } from './page-health.js';
+export { checkPageHealth, detectWall, type PageHealthResult } from './page-health.js';
+export { classifyVerdict, classifyNavigationError, okVerdict } from './verdict.js';
+export { verdictSentence } from './verdict-copy.js';
+export { CaptureError, type CaptureVerdict, type CaptureErrorKind, type WallVendor } from './types.js';
 export { detectPaginationFromHtml } from './pagination-detector.js';
 export { isThirdPartyNoise } from './intercept-noise.js';
 export { findLoadMore } from './load-more.js';
