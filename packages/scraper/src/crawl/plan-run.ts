@@ -9,10 +9,11 @@
 // apply unchanged, so a domain crawled before costs nothing here.
 
 import type { IBrowser, PageCapture, PaginationConfig } from '@robot/browser';
-import { findLoadMore } from '@robot/browser';
+import { CaptureError, findLoadMore } from '@robot/browser';
 import { runExtraction, type ExtractionAgent, type ExtractionDeps, type ExtractionOutcome } from '../extraction-orchestrator.js';
 import { buildExtractionScript } from '../executor.js';
-import { acquireDomainLock } from '../domain-lock.js';
+import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
+import { CaptureProblemError } from '../verify/capture-check.js';
 import { lookupDomainCache, savePaginationConfig } from '../domain-cache.js';
 import { resolveBudget, itemCap, PAGES_ALL_CEILING } from './budget.js';
 import { partitionSchemaByOrigin, type OriginField } from './partition-schema.js';
@@ -350,12 +351,30 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
           waitUntil: 'networkidle',
           interceptNetworkRequests: true,
         });
+        // Feed the verdict back to the host's pacing (a challenge or refusal
+        // backs the next acquire off; an ok clears it).
+        reportVerdict(new URL(start.url).hostname, capture.verdict.kind);
         page1 = await extract(
           { url: start.url, fields: listingFields, pageType: 'listing' },
           { browser: deps.browser, agent: deps.agent, capture, acquireLock: NOOP_LOCK },
         );
       } catch (err) {
-        errors.push({ inputIndex: start.inputIndex, message: `listing capture failed: ${(err as Error).message}` });
+        // Only when the capture itself failed: a capture that came back was
+        // already reported above, and reporting again would double a strike.
+        // A failure that is neither a CaptureError nor a verdict (e.g. every
+        // tile of a capture failing) says nothing about the host — skipped.
+        if (!capture) {
+          const kind = err instanceof CaptureError ? err.kind
+            : err instanceof CaptureProblemError && err.verdict ? err.verdict.kind
+            : undefined;
+          if (kind) reportVerdict(new URL(start.url).hostname, kind);
+        }
+        errors.push({
+          inputIndex: start.inputIndex,
+          message: err instanceof CaptureProblemError && err.verdict
+            ? err.message
+            : `listing capture failed: ${(err as Error).message}`,
+        });
         report(start.inputIndex, 'error', 0);
         continue;
       }

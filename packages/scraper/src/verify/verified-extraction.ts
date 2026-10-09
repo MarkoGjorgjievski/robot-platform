@@ -15,7 +15,7 @@
 // to bypass.
 
 import type { CaptureTimings, IBrowser, PageCapture, ReadyCheck, ReadySnapshot } from '@robot/browser';
-import { acquireDomainLock } from '../domain-lock.js';
+import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
 import { normalize, renderValue } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured } from './search-structured.js';
@@ -98,13 +98,18 @@ async function captureUnderLock(
   req: { url: string; fields: VerifiedField[] },
   deps: { browser: IBrowser; acquireLock?: typeof acquireDomainLock },
 ): Promise<PageCapture> {
-  const release = await (deps.acquireLock ?? acquireDomainLock)(new URL(req.url).hostname);
+  const host = new URL(req.url).hostname;
+  const release = await (deps.acquireLock ?? acquireDomainLock)(host);
   try {
-    return await deps.browser.capture(req.url, {
+    const capture = await deps.browser.capture(req.url, {
       waitUntil: 'load',
       interceptNetworkRequests: true,
       ready: buildReadyCheck(req.fields, req.url),
     });
+    // Feed the verdict back to the host's pacing (a challenge or refusal
+    // backs the next acquire off; an ok clears it).
+    reportVerdict(host, capture.verdict.kind);
+    return capture;
   } finally {
     release();
   }
