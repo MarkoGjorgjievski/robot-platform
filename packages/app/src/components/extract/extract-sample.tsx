@@ -109,7 +109,7 @@ export function ExtractSample({
   const counts = itemsQuery.data?.counts ?? EMPTY_COUNTS;
   const warnings = parseRunWarnings(detailQuery.data?.run.logs);
   const evidence = probeEvidence({ counts: { listing: counts.listing, detail: counts.detail }, warnings });
-  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length });
+  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length }, counts.done);
 
   return (
     <div className="space-y-3">
@@ -119,7 +119,7 @@ export function ExtractSample({
         </p>
       ) : null}
 
-      {/* Four facts, four columns. The label is secondary; the number is the
+      {/* Up to four facts, four columns. The label is secondary; the number is the
           thing being read, so it is a value in mono. */}
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 md:grid-cols-4">
         {facts.map((fact) => (

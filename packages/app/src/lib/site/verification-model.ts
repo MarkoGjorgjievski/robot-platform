@@ -425,6 +425,8 @@ export function sameValue(a: string, b: string): boolean { return norm(a) === no
  * path is the customer's own, spec A2); otherwise the row asks for a look.
  * An answer that is not valid for the type is never accepted (M4).
  * `failedUrls`: products whose screenshot failed rather than is still coming (M6).
+ * `failedKinds`: a failed product's capture verdict kind by url — a refusal or
+ * a human check reads as itself on the row (spec 2026-10-09 §A2).
  */
 export function rowStatus(
   field: Field,
@@ -432,6 +434,7 @@ export function rowStatus(
   live: Suggestions,
   boxesByUrl: Record<string, Box[] | undefined>,
   failedUrls?: ReadonlySet<string>,
+  failedKinds?: ReadonlyMap<string, string>,
 ): RowStatus {
   const values: string[] = [];
   const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number; value: string }> = [];
@@ -450,7 +453,8 @@ export function rowStatus(
     const boxes = boxesByUrl[card.url];
     if (!boxes) {
       if (required) {
-        const why = failedUrls?.has(card.url) ? 'screenshot failed' : 'screenshot not ready';
+        const kind = failedKinds?.get(card.url);
+        const why = kind === 'refused' ? 'screenshot refused' : kind === 'challenge' ? 'human check' : failedUrls?.has(card.url) ? 'screenshot failed' : 'screenshot not ready';
         return { kind: 'needs-you', reason: `${why} on product ${n}`, product: n };
       }
       continue;

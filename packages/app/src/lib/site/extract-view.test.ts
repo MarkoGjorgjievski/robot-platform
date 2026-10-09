@@ -202,8 +202,8 @@ describe('lockedStripText', () => {
 });
 
 describe('sampleFacts', () => {
-  it('returns the four facts in order, the last one about the sample rows only', () => {
-    expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 })).toEqual([
+  it('returns the facts in order, the last one about the sample rows only', () => {
+    expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3)).toEqual([
       { label: 'Pages walked', value: '3' },
       { label: 'Product links found', value: '42' },
       { label: 'Pagination detected', value: 'offset' },
@@ -214,17 +214,27 @@ describe('sampleFacts', () => {
     ]);
   });
   it('reports an incomplete row honestly', () => {
-    expect(sampleFacts({ pagesWalked: 2, itemsFound: 28, warningsCount: 0, paginationNote: 'url-pattern' }, { complete: 2, total: 3 })[3]).toEqual(
+    expect(sampleFacts({ pagesWalked: 2, itemsFound: 28, warningsCount: 0, paginationNote: 'url-pattern' }, { complete: 2, total: 3 }, 3)[3]).toEqual(
       { label: 'Sample rows complete', value: '2 of 3' },
     );
   });
-  it('carries through zero counts', () => {
-    expect(sampleFacts({ pagesWalked: 0, itemsFound: 0, warningsCount: 0, paginationNote: 'not reported' }, { complete: 0, total: 0 })).toEqual([
+  it('carries through zero counts, without a pagination fact nobody looked for or a "0 of 0"', () => {
+    expect(sampleFacts({ pagesWalked: 0, itemsFound: 0, warningsCount: 0, paginationNote: 'not reported' }, { complete: 0, total: 0 }, 0)).toEqual([
       { label: 'Pages walked', value: '0' },
       { label: 'Product links found', value: '0' },
-      { label: 'Pagination detected', value: 'not reported' },
-      { label: 'Sample rows complete', value: '0 of 0' },
+      { label: 'Rows extracted', value: '0' },
     ]);
+  });
+  it('reports extracted rows, and omits pagination when the walk did not look (spec 2026-10-09 §A2)', () => {
+    const facts = sampleFacts({ pagesWalked: 1, itemsFound: 30, paginationNote: 'not reported' } as never, { complete: 0, total: 0 }, 3);
+    expect(facts.find((f) => f.label === 'Rows extracted')?.value).toBe('3');
+    expect(facts.find((f) => f.label === 'Pagination detected')).toBeUndefined();
+    expect(facts.find((f) => f.label === 'Sample rows complete')).toBeUndefined();
+  });
+  it('keeps the complete count when rows have totals', () => {
+    const facts = sampleFacts({ pagesWalked: 2, itemsFound: 30, paginationNote: 'next link' } as never, { complete: 2, total: 3 }, 3);
+    expect(facts.find((f) => f.label === 'Sample rows complete')?.value).toBe('2 of 3');
+    expect(facts.find((f) => f.label === 'Pagination detected')?.value).toBe('next link');
   });
 });
 

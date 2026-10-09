@@ -12,6 +12,8 @@ export type ProofCapture = {
   captureId: string;
   status: 'starting' | 'capturing' | 'captured' | 'failed';
   error?: string;
+  /** A failed capture's verdict (spec 2026-10-09 §A1/§A2): `refused` / `challenge` name the row's words. Absent for other failures. */
+  verdict?: { kind: string };
   tiles: string[];
   boxes: Box[];
   pageHeight: number;
@@ -153,6 +155,7 @@ export function useProofCaptures(
       captureId: id,
       status: data.status,
       ...(data.error ? { error: data.error } : {}),
+      ...(data.verdict ? { verdict: { kind: data.verdict.kind } } : {}),
       tiles: data.tiles,
       boxes: data.boxes,
       pageHeight: data.pageHeight,

@@ -244,7 +244,10 @@ export function lockedStripText(args: { fieldCount: number; currentKeys: string[
 }
 
 /**
- * The confirm gate's four evidence facts, in fixed order.
+ * The confirm gate's evidence facts, in fixed order. Pagination appears only
+ * when the walk reported a strategy ("not reported" is no fact), and a
+ * sample with no rows says how many rows were extracted rather than "0 of 0"
+ * (spec 2026-10-09 §A2). `extracted` is the count the Sampling line shows.
  *
  * `rows` is about the SAMPLE, not the walk: `total` is how many rows the
  * sample actually produced and `complete` how many of those have every
@@ -256,13 +259,16 @@ export function lockedStripText(args: { fieldCount: number; currentKeys: string[
 export function sampleFacts(
   evidence: ProbeEvidence,
   rows: { complete: number; total: number },
+  extracted: number,
 ): Array<{ label: string; value: string }> {
-  return [
+  const facts: Array<{ label: string; value: string }> = [
     { label: 'Pages walked', value: String(evidence.pagesWalked) },
     { label: 'Product links found', value: String(evidence.itemsFound) },
-    { label: 'Pagination detected', value: evidence.paginationNote },
-    { label: 'Sample rows complete', value: `${rows.complete} of ${rows.total}` },
   ];
+  if (evidence.paginationNote && evidence.paginationNote !== 'not reported') facts.push({ label: 'Pagination detected', value: evidence.paginationNote });
+  if (rows.total > 0) facts.push({ label: 'Sample rows complete', value: `${rows.complete} of ${rows.total}` });
+  else facts.push({ label: 'Rows extracted', value: String(extracted) });
+  return facts;
 }
 
 /** The note shown under a field whose sample cells came back empty on some pages: "price was empty on 2 of 3 sampled pages. ..." */

@@ -266,6 +266,12 @@ function RunScreen() {
         </p>
       ) : null}
 
+      {/* A finished run that kept nothing says so (spec 2026-10-09 §A2) — a
+          0-row run is never silent. */}
+      {run.status === 'completed' && run.resultCount === 0 && !run.errorMessage ? (
+        <p className="rise mb-3 text-sm text-muted-foreground">This run produced no rows.</p>
+      ) : null}
+
       {capture?.url ? (
         <p className="rise mb-3 flex min-w-0 items-center gap-1.5 text-base text-muted-foreground">
           <a

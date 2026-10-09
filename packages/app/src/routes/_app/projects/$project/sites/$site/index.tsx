@@ -412,6 +412,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues],
   );
   const captures = useProofCaptures(sourceId, urls);
+  // A new website — no products, no listing — says up front whether the
+  // browser can read its address (spec 2026-10-09 §A2). One real page load,
+  // so it is asked once and never refetched behind the customer's back.
+  const newWebsite = board.cards.length === 0 && !board.listingUrl.trim();
+  const reachability = trpc.sources.reachability.useQuery(
+    { url: source.url ?? '' },
+    { enabled: newWebsite && !!source.url, staleTime: Infinity, retry: false, refetchOnWindowFocus: false, refetchOnMount: false },
+  );
   const captureIdsKey = JSON.stringify(captures.captureIds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const captureIds = useMemo(() => captures.captureIds, [captureIdsKey]);
@@ -1033,7 +1041,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   // A screenshot that failed says so on its row, not "not ready" (final review M6).
   const failedUrls = new Set(urls.filter((u) => captures.byUrl[u]?.status === 'failed'));
-  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls));
+  // ...and a refusal or a human check says which (spec 2026-10-09 §A2).
+  const failedKinds = new Map(urls.flatMap((u) => { const k = captures.byUrl[u]?.verdict?.kind; return k ? [[u, k] as const] : []; }));
+  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls, failedKinds));
   // A majority row is accepted by Accept all for its majority part (A4), so it counts.
   const agreedCount = statuses.filter((s) => s.kind === 'agreed' || s.kind === 'majority').length;
 
@@ -1298,6 +1308,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           extractOwnsInput={typeof (source.parameters as { inputMode?: unknown }).inputMode === 'string'}
           problem={listingNote}
         />
+        {newWebsite && reachability.data ? (
+          reachability.data.verdict.kind === 'ok' ? (
+            <p className="text-sm text-muted-foreground">{reachability.data.message}</p>
+          ) : (
+            <p role="alert" className="text-sm text-warn">{reachability.data.message}</p>
+          )
+        ) : null}
         {unsaved ? <p className="text-sm text-muted-foreground">{problem ? `Not saved: ${problem}` : 'Not saved until every product has a page, all on this website'}</p> : null}
         {locked && active ? <p className="text-sm text-muted-foreground">Products and answers are locked while this verification runs</p> : null}
       </div>
