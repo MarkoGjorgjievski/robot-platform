@@ -22,12 +22,13 @@ type: project
    - drift: an old episode can show when the automatic check fails to start (M7);
    - empty `offers` (`[]`/`{}`) counted as variant entries;
    - `gtin8`/`gtin12`/`gtin14` missing from the SKU vocabulary;
-   - a self-plus-one link pair counted in the variants summary (N2).
+   - a self-plus-one link pair counted in the variants summary (N2);
+   - `packages/scraper/src/verify/transfer-marks.test.ts`'s JSON-LD image-array case is flaky (it fails now and then in a full scraper run and passes alone): its boxes carry an external `<img>` on `x.example`. Fix idea: route `x.example` to a local pixel in `boxesOf`.
 6. **Clean up test projects in Marko's own org** (e.g. "Site marks-from" at test-marks-from.example.com, left by earlier test runs). List them first; delete only what Marko approves; `pg_dump` before.
 7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
 
-**Newest: [Honest page verdicts (2026-10-09)](#honest-page-verdicts-2026-10-09).** Every page capture now carries one honest verdict (ok / refused / challenge / not-found / redirected / blank), and every consumer — the listing bar, a proof card, a run — shows its one sentence instead of "No product links found", a green "ready", or a "Done" with 0 rows. Merged work on `feat/honest-verdicts`; live-checked against the credit campaign's real websites 2026-10-09.
+**Newest: [Honest page verdicts (2026-10-09)](#honest-page-verdicts-2026-10-09).** Every page capture now carries one honest verdict (ok / refused / challenge / not-found / redirected / blank), and every consumer — the listing bar, a proof card, a run — shows its one sentence instead of "No product links found", a green "ready", or a "Done" with 0 rows. On branch `feat/honest-verdicts`, merge pending; live-checked against the credit campaign's real websites 2026-10-09, then fixed after the branch's final review (fix wave, same day).
 
 **Before it: [Verification table, spreadsheet behaviour (2026-10-08)](#verification-table-spreadsheet-behaviour-2026-10-08).** A click on a cell selects it; a detail bar above the table shows the full value with Copy, Fix / Mark, Type it and a read-only crop of the screenshot around the element; arrow keys, Home/End, Ctrl/⌘+C, Enter/F and Escape work; right-click gives Copy value / Open product page / Fix on screenshot / Type it; after a Verify each row shows "n/m" after its badge. Only Fix (the button, the menu item, Enter/F, the crop) or a column head opens the screenshot. Spec `docs/superpowers/specs/2026-10-07-verification-table-spreadsheet-design.md`; the streaming-rows / silent pass-rate half of the original brief is deferred (the spec's second section says why). Merged into `main` 2026-10-08 (fast-forward, `feat/table-spreadsheet`).
 
@@ -88,24 +89,31 @@ the customer-facing sentence everywhere a capture is shown: the listing bar's re
 e.g. "scan.co.uk refused the browser (HTTP 403, Cloudflare). We can't read this website from here
 yet."), a proof card ("otto.de sent an empty page. Try again."), a verification row's reason
 ("screenshot refused on product n" / "human check on product n"), the reachability line under a
-brand-new website's empty Verification tab, and a run's own message when its listing capture is
-what failed. A `challenge` or `refused` verdict also puts that host into backoff (2 minutes,
-doubling to a cap of 8, cleared by the next `ok`); a request to a backed-off host waits rather
-than failing, reported by the finder, proof-page capture, and the run planner/executor. Separately,
+brand-new website's empty Verification tab, a run's own message when its listing capture is what
+failed (exactly the sentence, nothing in front of it; a capture with no document at all reads its
+own sentence too, e.g. "{host} did not answer in time."), and a run item's error in the Pages table.
+A walled product page in a certified run is a failed item with its sentence, never a done row of
+empty cells, and it never counts as a miss on a certified path; a run whose every item failed
+takes the first item's sentence as its message, and three walls in a row stop the run (every
+pending item is failed "Not tried: {sentence}"). A `challenge` or `refused` verdict also puts
+that host into backoff (2 minutes, doubling to a cap of 8, cleared by the next `ok`). Background
+work (a run's items) waits the backoff out; interactive paths — Find products, a run's planning, a
+proof-page capture, the reachability line — answer from it at once, without a browser: the wall's
+own sentence plus "Waiting n min before trying again." Separately,
 the Verification table's agreement rule no longer treats a structured value with **zero** pointable
 boxes on the page as "one place" — it needs a person ("only in the page data on product n"),
 closing the hole that let Allbirds' JSON-LD description (shown on only one of three product pages)
 and similar cases through "Accept all agreed".
 
 **Files.** `packages/browser/src/types.ts`, `playwright-browser.ts`, `page-health.ts`, `verdict.ts`,
-new `verdict-copy.ts`; `packages/scraper/src/verify/capture-check.ts`, `domain-lock.ts` (backoff),
+new `verdict-copy.ts` and `root-domain.ts`; `packages/scraper/src/verify/capture-check.ts`, `domain-lock.ts` (backoff),
 `crawl/plan-run.ts`, `analysis-orchestrator.ts`, `extraction-orchestrator.ts`, `pipeline.ts`;
 `packages/api/src/routers/sources.ts` (`checkListingPage`, new `reachability`),
 `verify/find-product-pages.ts`, `verify/proof-page-capture.ts`, `crawl/plan-source.ts`,
-`crawl/mark-extracting.ts`, `crawl/roll-up-run.ts`, `routers/crawl.ts` (`execute` refuses a failed
-run); `packages/app/src/components/verification/listing-bar.tsx`, `product-card.tsx`,
-`components/project/add-website-dialog.tsx`, `lib/site/use-proof-captures.ts`,
-`lib/site/verification-view.ts`, `lib/site/verification-model.ts` (the agreement-rule fix, B1),
+`crawl/roll-up-run.ts`, `crawl/execute-guard.ts` and `routers/crawl.ts` (`execute` refuses a failed
+run), `crawl/execute-run.ts` (the wall breaker), `crawl/record-outcome.ts`, `judge-run.ts`;
+`packages/app/src/components/verification/listing-bar.tsx`, `product-card.tsx`,
+`lib/site/use-proof-captures.ts`, `lib/site/verification-model.ts` (the agreement-rule fix, B1),
 `lib/site/extract-view.ts`, the site route and `routes/…/runs/$run.tsx` (reachability line, run
 message). Specs amended: `2026-09-28-table-first-and-drift-repair-design.md` §A2 (drops "or page
 data with no box"); `2026-09-29-certification-picks-the-right-path-design.md` §A5 (names the
@@ -117,30 +125,46 @@ zero-box case). Design: `docs/superpowers/specs/2026-10-09-honest-page-verdicts-
 `{ kind: 'needs-you', reason: 'only in the page data on product 2' }`). The route smoke
 (`pnpm test:ui:app`) carries a dedicated wall test, run last on purpose (a wall puts its host on
 backoff): a 403 Cloudflare page on the Verification tab reads the refused sentence as `role="alert"`
-within its poll window, never "No product links found"; a 200 CAPTCHA page on the same flow reads
-the challenge sentence, also never "No product links found". A free live check against the credit
+within its poll window, never "No product links found"; Find products on another page of the same
+host then answers from the backoff in that wall's words plus "Waiting 2 min before trying again."
+(a 200 CAPTCHA page reading `challenge` is pinned by `@robot/browser`'s real-browser
+`capture-verdict.test.ts`). A free live check against the credit
 campaign's real, already-set-up websites (`credit-campaign@example.com`'s org, project "Credit
 campaign 2026-10"), api-server and app already running this branch:
 `docs/testing/results/2026-10-09-honest-verdicts-live-check.md`,
 screenshots in `docs/testing/results/screens-2026-10-09-verdicts/`. scan.co.uk and hobbycraft.co.uk
 both read their refused sentence (HTTP 403, Cloudflare) within ~0.6 s, no count. otto.de's listing
 itself is not walled (only its product pages are, HTTP 400 blank) — a never-before-captured product
-page added live correctly read "otto.de sent an empty page. Try again." (the `blank` verdict, not
-`refused` — HTTP 400 is not one of the refused statuses). Article's Extract (fully certified, $0.00)
-neither fully succeeded nor failed with the challenge message: it completed "Done", 3 of 3
-extracted, but every field was empty on all 3 rows, and the 3 pages it picked were independently
-confirmed walled (HTTP 405, AWS WAF) minutes later — recorded as a live finding, not fixed here (see
-the live-check doc's "Defects found").
+page added live read "otto.de sent an empty page. Try again." (the `blank` verdict); after the fix
+wave HTTP 400, like every 4xx but 404/410, reads `refused`. Article's Extract (fully certified,
+$0.00) completed "Done", 3 of 3 extracted, with every field empty on all 3 rows, and the 3 pages it
+picked were independently confirmed walled (HTTP 405, AWS WAF) minutes later — the live finding the
+fix wave closed (C1 below); see the live-check doc's "Defects found".
 
 **What NOT to redo.** Don't add a per-consumer health check again — every consumer reads
 `capture.verdict`, decided once in `@robot/browser`. Don't put "or page data with no box" back
 into the agreement rule (table-first-and-drift-repair design §A2) — a value is only "agreed" when
 some element on *that* product's page points to it.
 
-**Known gaps, for the next work list above.** (1) The finder and the proof-page captures only
-*report* a wall to the host's backoff state; they do not *wait* on it — only runs, verified
-extraction and the reachability pre-check honour the wait. (2) A page with under 100 characters of
-visible text is classified `blank`, so a tiny-but-legitimate page would read as blank too.
+**Fixed by the fix wave after the final review (2026-10-09).** C1: a walled product page in a
+certified run became a done row of empty cells (Article) — now a failed item with its sentence,
+and a failed run reads its first item's sentence. C2: a walled run slept up to 8 minutes per
+remaining item — now three walls in a row stop it. I1: thin legitimate pages read as walls (a
+Cloudflare header or a cdnjs script, a reCAPTCHA review form, a thin Cloudflare 404) — a wall is now
+what the page's title or visible text says (or a vendor's challenge-only markup), a vendor alone
+only names it, and 404/410 come first. I2: the verdict read `page.goto`'s first response, so a
+Cloudflare JS challenge that reloaded to the real page read `refused` — now the last main-frame
+document response. Also: sentences are the same on the run page, proof card and Pages table (I3);
+interactive paths answer from the backoff instead of sleeping in a request (I4); `redirected`
+only for another registrable domain (I5); every 4xx but 404/410 is `refused` (I6). Report:
+`.superpowers/sdd/2026-10-09-honest-page-verdicts/fix-wave-report.md`.
+
+**Known gaps, for the next work list above.** (1) A page with under 100 characters of visible text
+(scripts and styles not counted) is classified `blank`, so a tiny-but-legitimate page would read
+as blank too. (2) Not built from spec §A3: the proof card's "waiting for {host}…" line and a
+run-log line per backoff wait (interactive paths answer from the backoff instead; a run's wait is
+only in the api-server's console). (3) A Stop pressed during a run's backoff sleep lands only when
+the sleep ends (up to 8 minutes; the wall breaker makes long sleeps rare).
 
 ## Credit campaign and two listing fixes (2026-10-08)
 
