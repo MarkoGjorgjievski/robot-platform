@@ -349,7 +349,17 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       continue;
     }
 
-    const release = await acquireLock(new URL(start.url).hostname);
+    // 'skip': if the host walls us while this plan queues for the lock (a run's
+    // item on the same host hit a wall mid-capture), the lock comes back at
+    // once instead of sleeping, and the re-check below answers like above.
+    const release = await acquireLock(new URL(start.url).hostname, { onBackoff: 'skip' });
+    const waitingNow = backoffAnswer(start.url);
+    if (waitingNow) {
+      release();
+      errors.push({ inputIndex: start.inputIndex, message: waitingNow.message });
+      report(start.inputIndex, 'error', 0);
+      continue;
+    }
     try {
       // Captured ONCE and injected into the extraction. The second,
       // document-mode pass below reuses this same capture — which is only free

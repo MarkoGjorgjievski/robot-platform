@@ -37,6 +37,16 @@ describe('backoff after a challenge or refusal', () => {
     release();
     expect(backoffRemainingMs('shop.example')).toBe(0);
   });
+  it("onBackoff 'skip' hands the lock back at once, no sleep, backoff untouched", async () => {
+    reportVerdict('shop.example', 'challenge');
+    const release = await acquireDomainLock('shop.example', { onBackoff: 'skip' });
+    expect(waits).toEqual([]);
+    expect(backoffRemainingMs('shop.example')).toBe(BACKOFF_FIRST_MS);
+    release();
+    // Released: the next acquire is not blocked by a leftover claim.
+    reportVerdict('shop.example', 'ok');
+    (await acquireDomainLock('shop.example'))();
+  });
   it('a challenge after a waited acquire still doubles (strikes survive the wait)', async () => {
     reportVerdict('shop.example', 'challenge');
     (await acquireDomainLock('shop.example'))();
