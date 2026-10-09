@@ -11,8 +11,10 @@
 // asked for.
 
 import { describe, it, expect } from 'vitest';
-import type { IBrowser, PageCapture, ReadySnapshot } from '@robot/browser';
+import { verdictSentence, type IBrowser, type PageCapture, type ReadySnapshot } from '@robot/browser';
 import { buildReadyCheck, runVerifiedExtraction, type VerifiedField } from './verified-extraction.js';
+import { CaptureProblemError } from './capture-check.js';
+import { backoffVerdict, reportVerdict, _resetBackoffForTests } from '../domain-lock.js';
 
 const PRICE: VerifiedField = {
   key: 'price', type: 'money', concept: 'price',
@@ -138,5 +140,42 @@ describe('runVerifiedExtraction — capture options and the politeness lock', ()
     const browser = fakeBrowser(CAPTURE, []);
     const result = await runVerifiedExtraction({ url: CAPTURE.url, fields: [NAME] }, { browser, acquireLock: async () => () => {} });
     expect(result.timings).toEqual(CAPTURE.timings);
+  });
+});
+
+describe('runVerifiedExtraction — a page that is not the product page (review C1)', () => {
+  const noLock = async () => () => {};
+  it('a challenge throws its sentence as a CaptureProblemError, reports it, and evaluates no path', async () => {
+    _resetBackoffForTests();
+    const walled: PageCapture = { ...CAPTURE, url: 'https://walled.example/p/1', verdict: { kind: 'challenge', status: 200, vendor: 'cloudflare' } };
+    const browser = fakeBrowser(walled, []);
+    let probed = 0;
+    browser.setContentEvaluate = async <T,>() => { probed++; return {} as T; };
+    const run = runVerifiedExtraction({ url: walled.url, fields: [NAME, IMAGE] }, { browser, acquireLock: noLock });
+    await expect(run).rejects.toBeInstanceOf(CaptureProblemError);
+    await expect(run).rejects.toMatchObject({ message: verdictSentence(walled.verdict, walled.url), verdict: walled.verdict });
+    expect(probed).toBe(0);
+    expect(backoffVerdict('walled.example')).toEqual(walled.verdict);
+    _resetBackoffForTests();
+  });
+
+  it('a not-found page throws its sentence too (a delisted product is a failed item, not a row)', async () => {
+    const gone: PageCapture = { ...CAPTURE, url: 'https://gone.example/p/1', verdict: { kind: 'not-found', status: 404 } };
+    await expect(runVerifiedExtraction({ url: gone.url, fields: [NAME] }, { browser: fakeBrowser(gone, []), acquireLock: noLock }))
+      .rejects.toThrow("That page doesn't exist on gone.example (404). Check the address.");
+  });
+
+  it('captureUnderLock reports an ok verdict, which clears the host’s backoff (review M9)', async () => {
+    _resetBackoffForTests();
+    reportVerdict('shop.example', { kind: 'refused', status: 403 });
+    expect(backoffVerdict('shop.example')).not.toBeNull();
+    await runVerifiedExtraction({ url: CAPTURE.url, fields: [NAME] }, { browser: fakeBrowser(CAPTURE, []), acquireLock: noLock });
+    expect(backoffVerdict('shop.example')).toBeNull();
+  });
+
+  it('an injected non-ok capture is the caller’s to judge: it is evaluated, not thrown', async () => {
+    const injected: PageCapture = { ...CAPTURE, verdict: { kind: 'blank', status: 200 } };
+    const result = await runVerifiedExtraction({ url: CAPTURE.url, fields: [NAME] }, { browser: fakeBrowser(CAPTURE, []), capture: injected });
+    expect(result.data.product_name).toBe('Widget A');
   });
 });

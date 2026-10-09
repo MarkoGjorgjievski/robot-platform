@@ -49,7 +49,9 @@ beforeAll(async () => {
   browser = new PlaywrightBrowser();
   await browser.launch({ headless: true });
   site = await serveFixturePages([
-    { path: '/list', html: '<html><body>listing</body></html>', setCookie: `${SESSION}; Path=/` },
+    // A listing page a visitor could read: an empty one is a 'blank' verdict, which
+    // planRun now refuses before extraction (review I3, 2026-10-09).
+    { path: '/list', html: '<html><head><title>Shelves</title></head><body><h1>Shelves</h1><p>Every shelf we sell, from wall-mounted ledges to tall bookcases, sorted by what people buy most.</p></body></html>', setCookie: `${SESSION}; Path=/` },
     gated('/api?kn=py&offset=0', PAGE1),
     gated('/api?kn=py&offset=4', PAGE2),
     // No decoy at offset=1. It used to sit here described as "the wrong-step

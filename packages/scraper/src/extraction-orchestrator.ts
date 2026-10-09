@@ -34,7 +34,7 @@ import {
 } from './domain-cache.js';
 import type { CandidateCatalogue, Candidate } from './candidate-catalogue.js';
 import type { CatalogueEvidence } from './catalogue-discovery.js';
-import { acquireDomainLock } from './domain-lock.js';
+import { acquireDomainLock, reportVerdict } from './domain-lock.js';
 import { detectSchemaChanges, formatSchemaChanges, type SchemaChange } from './schema-evolution.js';
 import { validateExtractedData } from './data-quality.js';
 import { calculateFieldCoverage, getMissingFields } from './field-coverage.js';
@@ -191,6 +191,9 @@ export async function runExtraction(
       capture = deps.capture;
     } else {
       capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
+      // The run executor reports what it saw (spec §A3); a capture the caller
+      // supplied was reported by whoever took it.
+      reportVerdict(new URL(url).hostname, capture.verdict);
     }
 
     // Extracting a bot-check interstitial produces a confident wall of

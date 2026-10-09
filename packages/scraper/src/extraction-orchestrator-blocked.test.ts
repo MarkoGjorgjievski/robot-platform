@@ -1,8 +1,8 @@
 // A blocked capture must fail the extraction WITH ITS REASON — not produce a
 // garbage row. 2026-08-26: Newegg's Cloudflare interstitial was "extracted" at
-// 28% confidence into a wall of dashes, because checkPageHealth (built in v1.0
-// for exactly this) was wired only into the legacy pipeline.ts, never into the
-// orchestrators.
+// 28% confidence into a wall of dashes, because the page-health check (built in
+// v1.0 for exactly this) was wired only into the legacy pipeline.ts, never into
+// the orchestrators. Since 2026-10-09 the orchestrators read capture.verdict.
 import { describe, it, expect } from 'vitest';
 import type { IBrowser, PageCapture } from '@robot/browser';
 import { runExtraction } from './extraction-orchestrator.js';

@@ -2,7 +2,7 @@
 // makes the next acquire on that host wait 2 min, doubling per further
 // challenge up to 8; an ok clears it. The clock is injected so this runs instantly.
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { acquireDomainLock, backoffRemainingMs, reportVerdict, BACKOFF_FIRST_MS, BACKOFF_MAX_MS, _setClockForTests, _resetBackoffForTests } from './domain-lock.js';
+import { acquireDomainLock, backoffAnswer, backoffRemainingMs, backoffVerdict, reportVerdict, BACKOFF_FIRST_MS, BACKOFF_MAX_MS, _setClockForTests, _resetBackoffForTests } from './domain-lock.js';
 
 let t = 0; const waits: number[] = [];
 _setClockForTests(() => t, async (ms) => { waits.push(ms); t += ms; });
@@ -47,5 +47,28 @@ describe('backoff after a challenge or refusal', () => {
     reportVerdict('shop.example', 'challenge');
     t += 90_000;
     expect(backoffRemainingMs('shop.example')).toBe(BACKOFF_FIRST_MS - 90_000);
+  });
+});
+
+describe('backoffVerdict — what the wall was, for paths that answer instead of waiting', () => {
+  it('after a refusal it is that refusal, status and vendor included', () => {
+    reportVerdict('shop.example', { kind: 'refused', status: 403, vendor: 'cloudflare' });
+    expect(backoffVerdict('shop.example')).toEqual({ kind: 'refused', status: 403, vendor: 'cloudflare' });
+  });
+  it('the latest wall wins; an ok or the wait running out leaves none', () => {
+    reportVerdict('shop.example', { kind: 'refused', status: 403 });
+    reportVerdict('shop.example', { kind: 'challenge', status: 200, vendor: 'aws-waf' });
+    expect(backoffVerdict('shop.example')?.kind).toBe('challenge');
+    t += BACKOFF_MAX_MS;
+    expect(backoffVerdict('shop.example')).toBeNull();
+    reportVerdict('shop.example', { kind: 'refused', status: 403 });
+    reportVerdict('shop.example', { kind: 'ok', status: 200 });
+    expect(backoffVerdict('shop.example')).toBeNull();
+  });
+  it('backoffAnswer reads the wall sentence and the wait', () => {
+    reportVerdict('shop.example', { kind: 'refused', status: 403, vendor: 'cloudflare' });
+    expect(backoffAnswer('https://shop.example/c/shoes')?.message)
+      .toBe(`shop.example refused the browser (HTTP 403, Cloudflare). We can't read this website from here yet. Waiting ${Math.ceil(BACKOFF_FIRST_MS / 60_000)} min before trying again.`);
+    expect(backoffAnswer('https://other.example/x')).toBeNull();
   });
 });

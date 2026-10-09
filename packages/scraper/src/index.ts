@@ -4,7 +4,7 @@ export { buildExtractionScript, type ExecutorResult } from './executor.js';
 export { extractFromStructuredData } from './structured-extractor.js';
 export { lookupDomainCache, saveDomainCache, resolveFromCache, resolveApiPathsFromCache, buildCachedXPathScript, getByDotPath, type DomainCache, type FieldPathSet, type FieldPath, type PathSource } from './domain-cache.js';
 export { extractBrand, extractRootDomain, areDomainsRelated, isSubdomain, getSubdomainPrefix } from './domain-utils.js';
-export { acquireDomainLock, isDomainLocked, getActiveLocks, reportVerdict, backoffRemainingMs, _resetBackoffForTests } from './domain-lock.js';
+export { acquireDomainLock, isDomainLocked, getActiveLocks, reportVerdict, backoffRemainingMs, backoffVerdict, backoffAnswer, _resetBackoffForTests } from './domain-lock.js';
 export { sanitizeCatalogue, MAX_CANDIDATES_PER_CONCEPT, type Candidate, type CandidateCatalogue, type ConceptName } from './candidate-catalogue.js';
 export { detectSchemaChanges, formatSchemaChanges, type SchemaChange } from './schema-evolution.js';
 export { validateExtractedData, type QualityIssue, type QualityResult } from './data-quality.js';

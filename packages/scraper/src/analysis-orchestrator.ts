@@ -23,6 +23,7 @@ import {
   buildCachedXPathScript, type DomainCache, type FieldPathSet,
 } from './domain-cache.js';
 import { normalizeUserFields } from './field-normalizer.js';
+import { reportVerdict } from './domain-lock.js';
 import { cachedFieldsFromCache, type CachedFieldSummary } from './cached-fields-from-cache.js';
 import { runExtraction, type ExtractionAgent, type ExtractionFieldInput } from './extraction-orchestrator.js';
 import { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
@@ -140,6 +141,7 @@ export async function runAnalysis(
   const capture: PageCapture = await browser.capture(
     url, { waitUntil: 'networkidle', interceptNetworkRequests: true },
   );
+  reportVerdict(new URL(url).hostname, capture.verdict);
 
   // A model asked to describe a bot-check interstitial will confidently
   // describe a bot-check interstitial. Refuse with the reason instead.
@@ -242,6 +244,7 @@ async function analyzeFromCache(args: {
 
   try {
     const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: true });
+    reportVerdict(new URL(url).hostname, capture.verdict);
 
     // A bot-check interstitial captures "successfully" and then poisons
     // everything downstream: nothing resolves, and stale examples ship
@@ -355,6 +358,7 @@ async function runListingAnalysis(args: {
   const capture: PageCapture = await browser.capture(
     url, { waitUntil: 'networkidle', interceptNetworkRequests: true },
   );
+  reportVerdict(new URL(url).hostname, capture.verdict);
 
   if (capture.verdict.kind !== 'ok') {
     const reason = verdictSentence(capture.verdict, url);

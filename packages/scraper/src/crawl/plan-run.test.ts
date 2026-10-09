@@ -1,7 +1,8 @@
 // packages/scraper/src/crawl/plan-run.test.ts
-import { describe, it, expect } from 'vitest';
-import type { IBrowser, CrawlOptions, CrawlPage, PageCapture, ScrollOptions } from '@robot/browser';
+import { describe, it, expect, afterEach } from 'vitest';
+import { CaptureError, verdictSentence, type IBrowser, type CrawlOptions, type CrawlPage, type PageCapture, type ScrollOptions } from '@robot/browser';
 import { planRun } from './plan-run.js';
+import { reportVerdict, backoffAnswer, _resetBackoffForTests } from '../domain-lock.js';
 
 /** The real per-domain lock adds a 2s politeness delay between same-domain
  *  requests; tests inject this instead so they exercise the acquire/release
@@ -283,5 +284,47 @@ describe('planRun', () => {
       { browser: new FakeBrowser(), agent: null, acquireLock: noopLock, lookupCache: async () => null, savePagination: async () => {}, extract: fakeExtract([{ detail_url: 'https://example.com/p/same' }]) },
     );
     expect(outcome.items.filter((i) => i.kind === 'detail')).toHaveLength(1);
+  });
+});
+
+describe('planRun — a listing that is not the listing page reads its one sentence (review I3, I4)', () => {
+  afterEach(() => _resetBackoffForTests());
+  const neverExtract = async () => { throw new Error('extract must not run on a walled page'); };
+
+  it('a challenged listing fails the input with the verdict sentence, before extraction', async () => {
+    const verdict = { kind: 'challenge', status: 200, vendor: 'cloudflare' } as const;
+    const browser = new FakeBrowser();
+    browser.capture = async () => ({ ...FAKE_CAPTURE, verdict }) as PageCapture;
+    const outcome = await planRun(
+      { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
+      { browser, agent: null, acquireLock: noopLock, extract: neverExtract },
+    );
+    expect(outcome.errors).toEqual([{ inputIndex: 0, message: verdictSentence(verdict, 'https://example.com/c/shelves') }]);
+    expect(outcome.inputs[0]?.status).toBe('error');
+  });
+
+  it('a capture with no document fails the input with the CaptureError sentence, no prefix', async () => {
+    const browser = new FakeBrowser();
+    browser.capture = async () => { throw new CaptureError('timeout', 'https://example.com/c/shelves', 'page.goto: Timeout 60000ms exceeded.'); };
+    const outcome = await planRun(
+      { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
+      { browser, agent: null, acquireLock: noopLock, extract: neverExtract },
+    );
+    expect(outcome.errors).toEqual([{ inputIndex: 0, message: 'example.com did not answer in time.' }]);
+  });
+
+  it('a host in backoff is answered from it: no lock, no capture, the wall sentence and the wait', async () => {
+    reportVerdict('example.com', { kind: 'refused', status: 403, vendor: 'cloudflare' });
+    const expected = backoffAnswer('https://example.com/c/shelves')!.message;
+    const browser = new FakeBrowser();
+    let locked = 0;
+    const outcome = await planRun(
+      { source: LISTING_SOURCE, schema: SCHEMA, inputSet: INPUT_SET },
+      { browser, agent: null, acquireLock: async () => { locked++; return () => {}; }, extract: neverExtract },
+    );
+    expect(browser.captures).toBe(0);
+    expect(locked).toBe(0);
+    expect(outcome.errors).toEqual([{ inputIndex: 0, message: expected }]);
+    expect(expected).toMatch(/^example\.com refused the browser \(HTTP 403, Cloudflare\)\. .* Waiting \d+ min before trying again\.$/);
   });
 });
