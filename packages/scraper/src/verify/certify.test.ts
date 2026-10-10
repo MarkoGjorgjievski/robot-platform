@@ -317,6 +317,28 @@ describe('certify — a cover is not made of one-page paths', () => {
     const r = await certify({ field: textField, expected: exp4, captures: caps4, candidates: [SHARED, LAYOUT_2] }, { evalXPaths: evalTwoLayouts });
     expect(r.certified.map((p) => p.path)).toEqual([SHARED.path, LAYOUT_2.path]);
   });
+  // An absent page (spec 2026-10-10 §B2) is "correct" for every path empty there, so it must not
+  // count as a path's second page: three one-page paths plus one absent page still do not certify.
+  it('an absent fourth page does not give each one-page path a second page', async () => {
+    const p4 = 'https://s.example/4';
+    const r = await certify({ field: textField, expected: exp, absent: [p4], captures: { ...caps, [p4]: blank(p4) }, candidates: specific }, { evalXPaths });
+    expect(r.certified).toEqual([]);
+    expect(r.thinEvidence).toBeUndefined();
+  });
+  it('a real second layout with an absent page: provenOn lists the pages with a value only', async () => {
+    const p4 = 'https://s.example/4';
+    const p5 = 'https://s.example/5';
+    const caps5 = { ...caps, [p4]: blank(p4), [p5]: blank(p5) };
+    const exp5 = { ...exp, [p4]: value(p4) };
+    const LAYOUT_2 = { source: 'xpath' as const, path: '//*[@id="clearance"]/h2[@class="sub"]', transform: 'identity' as const };
+    // SHARED on pages 1-3, LAYOUT_2 on page 4, neither on page 5 (absent).
+    const evalTwoLayouts = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x,
+      html.includes(p5) ? null : (x === LAYOUT_2.path) === html.includes(p4) ? onPage(html) : null]));
+    const r = await certify({ field: textField, expected: exp5, absent: [p5], captures: caps5, candidates: [SHARED, LAYOUT_2] }, { evalXPaths: evalTwoLayouts });
+    expect(r.certified.map((p) => [p.path, p.provenOn])).toEqual([[SHARED.path, pages], [LAYOUT_2.path, [p4]]]);
+    expect(r.thinEvidence).toBe(true);
+    expect(r.cells[p5]).toMatchObject({ status: 'pass', found: '' });
+  });
 });
 
 // A mark (customer-clicked element) enters certify as an ordinary xpath candidate — gatherCandidates'
@@ -539,6 +561,17 @@ describe('certify — "not on this product" (spec 2026-10-10 §B2)', () => {
     const r = await certify({ field: rating, expected: exp, absent: ['https://d.example/4'], captures: caps, candidates: [api] }, xpathDeps);
     expect(r.certified).toEqual([]);
     expect(r.cells['https://d.example/4']).toMatchObject({ status: 'fail', reason: 'found_unexpected', found: '0' });
+  });
+
+  it('a path wrong elsewhere does not turn the absent cell red (Decathlon: a drifted rating on page 1)', async () => {
+    // Page 1's expected value no longer matches: both paths are wrong there, so neither is
+    // right on every other page with a value. The api's 0 on page 4 says nothing against the
+    // customer's mark; the real problem is page 1, and it alone fails.
+    const drifted = { ...exp, 'https://d.example/1': '4.38' };
+    const r = await certify({ field: rating, expected: drifted, absent: ['https://d.example/4'], captures: caps, candidates: [api, jsonLd] }, xpathDeps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells['https://d.example/4']).toMatchObject({ status: 'pass', found: '' });
+    expect(r.cells['https://d.example/1']).toMatchObject({ status: 'fail', reason: 'different_value', found: '4.39' });
   });
 
   it('an absent page still passes empty when nothing resolved there, even though a WRONG expected value elsewhere keeps the field from certifying', async () => {

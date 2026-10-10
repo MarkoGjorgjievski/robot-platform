@@ -39,6 +39,20 @@ describe('shapeOf', () => {
     expect(s.offers).toBe('none');
     expect(s.rating).toBe(true);
   });
+  it('a rating key of 0 in an API is no rating (Decathlon: stats.averageRating 0 on unrated products)', () => {
+    expect(shapeOf(cap('https://s.example/x', [], { stats: { averageRating: 0 }, rating: 0, related: [{ rating: '0' }] })).rating).toBe(false);
+  });
+  it('a product API with rating: 4.2 (or a numeric string) is a rating', () => {
+    expect(shapeOf(cap('https://s.example/x', [], { product: { rating: 4.2 } })).rating).toBe(true);
+    expect(shapeOf(cap('https://s.example/x', [], { product: { rating: '4.2' } })).rating).toBe(true);
+  });
+  it('a JSON-LD aggregateRating counts only with a ratingValue', () => {
+    expect(shapeOf(cap('https://s.example/x', [{ '@type': 'Product', aggregateRating: { reviewCount: 0 } }])).rating).toBe(false);
+    expect(shapeOf(cap('https://s.example/x', [{ '@type': 'Product', aggregateRating: { ratingValue: '4.5' } }])).rating).toBe(true);
+  });
+  it('an @type array is read whole', () => {
+    expect(shapeOf(cap('https://s.example/x', [{ '@type': ['Product', 'Thing'] }])).jsonLdTypes).toEqual(['Product', 'Thing']);
+  });
   it('no page data at all', () => {
     expect(shapeOf(cap('https://s.example/', []))).toEqual({ jsonLdTypes: [], offers: 'none', rating: false, address: '/' });
   });
