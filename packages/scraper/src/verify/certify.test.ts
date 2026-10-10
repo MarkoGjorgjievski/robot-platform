@@ -540,4 +540,30 @@ describe('certify — "not on this product" (spec 2026-10-10 §B2)', () => {
     expect(r.certified).toEqual([]);
     expect(r.cells['https://d.example/4']).toMatchObject({ status: 'fail', reason: 'found_unexpected', found: '0' });
   });
+
+  it('an absent page still passes empty when nothing resolved there, even though a WRONG expected value elsewhere keeps the field from certifying', async () => {
+    // Page w4 has no api call at all (unlike page 4 above): nothing produces a value
+    // there, so §B2's `found_unexpected` must not fire — it reads as any other
+    // passing page would. Page w3's typed expected value is wrong for the api
+    // reading there, which makes api unsafe everywhere and fails page w3 outright;
+    // json-ld has nothing on w3 (a different layout) so it cannot cover that page
+    // either, and nothing certifies — but json-ld stays safe throughout, so it is
+    // still the path reported on the absent page.
+    const noApiPage = (url: string, jsonRating: number | null): CaptureLike => ({
+      url, html: '<html></html>',
+      structuredData: { ldJson: [jsonRating === null ? { name: 'x' } : { aggregateRating: { ratingValue: jsonRating } }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [],
+    });
+    const wPages = {
+      'https://d.example/w1': page('https://d.example/w1', 4.39, 4.39),
+      'https://d.example/w2': page('https://d.example/w2', 4.6, 4.6),
+      'https://d.example/w3': page('https://d.example/w3', null, 4.54),
+      'https://d.example/w4': noApiPage('https://d.example/w4', null),
+    };
+    const wrongExp = { 'https://d.example/w1': '4.39', 'https://d.example/w2': '4.6', 'https://d.example/w3': '1.23' };
+    const r = await certify({ field: rating, expected: wrongExp, absent: ['https://d.example/w4'], captures: wPages, candidates: [api, jsonLd] }, xpathDeps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells['https://d.example/w4']).toEqual({ status: 'pass', found: '', path: jsonLd });
+    expect(r.cells['https://d.example/w3']).toMatchObject({ status: 'fail' });
+  });
 });

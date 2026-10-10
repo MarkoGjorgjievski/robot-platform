@@ -139,7 +139,9 @@ async function tryMoved(
     const capture = captures[url]!;
     const cell = verification.cells[url];
     if (!cell || cell.status !== 'pass') return null; // defensive; already checked above
-    pages[url] = { status: 'ok', value: cell.found, mark: markFor(cell.path, capture) };
+    // `path` is only absent on an absent-page pass with zero candidates (spec 2026-10-10 §B2),
+    // which `tryMoved` never produces: it passes no `absent`, so a pass cell always names one.
+    pages[url] = { status: 'ok', value: cell.found, mark: cell.path ? markFor(cell.path, capture) : undefined };
   }
   return { key: field.key, result: 'moved', path: verification.certified[0], pages };
 }
