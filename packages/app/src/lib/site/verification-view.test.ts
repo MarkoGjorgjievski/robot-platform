@@ -34,6 +34,12 @@ describe('hintFor', () => {
     );
   });
 
+  test('found_unexpected names the product the customer said has no value (spec 2026-10-10 §B3)', () => {
+    expect(hintFor('found_unexpected', '0', undefined, undefined, 4)).toBe(
+      "found 0 on product 4, but you said it isn't there",
+    );
+  });
+
   test('a fail cell passes the field name to the no_fitting_path hint', () => {
     const results: VerificationResults = {
       stock: { key: 'stock', cells: { 'https://x/1': { status: 'fail', reason: 'no_fitting_path' } }, certified: [], weakEvidence: false, aiCalled: false, incomplete: false },

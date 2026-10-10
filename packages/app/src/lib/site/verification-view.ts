@@ -9,7 +9,7 @@
 /** The status of one (field, url) verification cell, for cellStatusFor's callers. */
 export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string; layout?: number };
 
-export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path';
+export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path' | 'found_unexpected';
 
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 
@@ -42,8 +42,10 @@ export type VerificationRow =
   | undefined;
 
 /** Spec 5.6 red-cell hints, verbatim, with `found`/`type` substituted where the copy calls for it. */
-/** `field`: the field's name, for the no_fitting_path hint (spec 2026-09-29 C2). */
-export function hintFor(reason: FailReason, found?: string, type?: string, field?: string): string {
+/** `field`: the field's name, for the no_fitting_path hint (spec 2026-09-29 C2). `product`: the
+ * 1-based product number, for the found_unexpected hint (spec 2026-10-10 §B3/§5) — a page the
+ * customer said doesn't have this field, but a value was found on it. */
+export function hintFor(reason: FailReason, found?: string, type?: string, field?: string, product?: number): string {
   switch (reason) {
     case 'not_found':
       return 'Not found on this page. Check the value, or say where it is.';
@@ -55,6 +57,8 @@ export function hintFor(reason: FailReason, found?: string, type?: string, field
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
     case 'no_fitting_path':
       return `We can't tell which value on this page is ${field || 'this field'} — mark it on the screenshot.`;
+    case 'found_unexpected':
+      return `found ${found ?? 'a value'} on product ${product ?? ''}, but you said it isn't there`.trim();
   }
 }
 
@@ -85,6 +89,7 @@ export function cellStatusFor(
   stale: boolean,
   fieldType?: string,
   fieldName?: string,
+  product?: number,
 ): CellStatus | null {
   if (stale) return { status: 'stale' };
 
@@ -106,7 +111,7 @@ export function cellStatusFor(
     status: 'fail',
     found: cell.found,
     reason: cell.reason,
-    hint: hintFor(cell.reason, cell.found, fieldType, fieldName),
+    hint: hintFor(cell.reason, cell.found, fieldType, fieldName, product),
     weak,
   };
 }
