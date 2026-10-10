@@ -67,6 +67,7 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
     listing_url: set.listing_url ?? null,
     ...(set.marks && Object.keys(set.marks).length ? { marks: Object.fromEntries(Object.keys(set.marks).sort().map((k) => [k, markDigest(set.marks![k], set.urls)])) } : {}),
     ...(paths ? { paths } : {}),
+    ...(set.absent && Object.keys(set.absent).length ? { absent: Object.fromEntries(Object.keys(set.absent).sort().map((k) => [k, Object.keys(set.absent![k]!).sort()])) } : {}),
   }));
 }
 
@@ -79,7 +80,8 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
  */
 export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): string {
   const expected = set.expected[field.key] ?? {};
-  const pages = checkedPages(set.urls, expected);
+  const absent = Object.keys(set.absent?.[field.key] ?? {}).filter((u) => set.urls.includes(u)).sort();
+  const pages = checkedPages(set.urls, expected, Object.fromEntries(absent.map((u) => [u, true as const])));
   const marks = markDigest(set.marks?.[field.key], pages);
   const paths = pathDigest(set.paths?.[field.key], pages);
   return sha256(JSON.stringify({
@@ -91,6 +93,7 @@ export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): s
     expected: Object.fromEntries(Object.entries(expected).filter(([u]) => pages.includes(u)).sort()),
     ...(marks ? { marks } : {}),
     ...(paths ? { paths } : {}),
+    ...(absent.length ? { absent } : {}),
   }));
 }
 
@@ -149,6 +152,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       continue;
     }
     const expected = req.verificationSet.expected[field.key] ?? {};
+    const absent = Object.keys(req.verificationSet.absent?.[field.key] ?? {});
     const caps: Record<string, CaptureLike | null> = captures;
     // What the customer said about this field (spec 2026-09-29 C1/C2) goes to every certification
     // below, the domain-cache shortcut included: that is where a cached `priority` would slip in.
@@ -158,7 +162,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     let result: FieldVerification | null = null;
     const cached = deps.cachedPaths ? await deps.cachedPaths(field.concept) : [];
     if (cached.length > 0) {
-      const r = await certify({ field, expected, captures: caps, candidates: cached, confirmed, markXPaths }, { evalXPaths });
+      const r = await certify({ field, expected, captures: caps, candidates: cached, confirmed, markXPaths, absent }, { evalXPaths });
       // The shortcut is for a certification worth keeping. One that rests on a
       // volatile XPath (only possible as certify's last resort) is searched
       // again, so the stable paths the generator now finds can replace it.
@@ -168,7 +172,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     if (!result) {
       const gathered = await gatherCandidates(field, expected, caps, { runDomSearch, marks: req.verificationSet.marks?.[field.key] });
       candidates = [...cached, ...gathered.candidates];
-      result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths }, { evalXPaths });
+      result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths, absent }, { evalXPaths });
     }
     if (result.certified.length === 0 && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
       deps.onProgress?.(`asking AI for ${field.key}`);
@@ -182,7 +186,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const checkedCaps: Record<string, CaptureLike | null> = Object.fromEntries(pages.map((u) => [u, caps[u] ?? null]));
       const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, deps.agent);
       aiCalls++;
-      result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths }, { evalXPaths });
+      result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths, absent }, { evalXPaths });
       result.aiCalled = true;
     }
     fields[field.key] = { ...result, fieldHash: fh };

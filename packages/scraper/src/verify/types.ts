@@ -44,6 +44,8 @@ export type VerificationSet = {
   cards?: Array<{ url: string; title: string; image?: string }>;
   /** proof url → what the customer confirmed about that product's variants (spec 2026-10-01 §3). Absent on sets written before variants existed. */
   variants?: Record<string, VariantAnswer>;
+  /** fieldKey → url → true: the customer said this field is not on that product (spec 2026-10-10 §B1). A checked page where the right answer is "nothing". Absent on sets written before it existed. */
+  absent?: Record<string, Record<string, true>>;
 };
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';
@@ -51,7 +53,7 @@ export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 /** `provenOn` is set only when a field needed more than one layout (spec 2026-09-17 §3): the proof pages this path was correct on. Absent on a one-layout result, so those stay byte-for-byte what they were. Ignored by extraction and by path identity. */
 export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform; provenOn?: string[] };
 
-export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path';
+export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path' | 'found_unexpected';
 export type CellResult =
   | { status: 'pass'; found: string; path: CertifiedPath }
   | { status: 'fail'; reason: FailReason; found?: string; nearMisses?: string[] }
