@@ -69,7 +69,7 @@ import { stripState, verifyButton } from '../../../../../../lib/site/verify-butt
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
-import { coverageLine, coverageStage, type CoverageView } from '../../../../../../lib/site/coverage-view';
+import { coverageLine, coverageStage, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -385,7 +385,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     { sourceId },
     { refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false) },
   );
-  const coverage: CoverageView | null = coverageQuery.data
+  const coverage: ProofCoverageView | null = coverageQuery.data
     ? { status: coverageQuery.data.status, stage: coverageQuery.data.stage, fields: coverageQuery.data.fields }
     : null;
 
