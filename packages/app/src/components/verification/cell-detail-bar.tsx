@@ -13,6 +13,7 @@ export type DetailBarSelection = {
   onCopy: () => void | Promise<void>;
   onFix: () => void;
   onTypeIt: () => void;
+  onAbsent: (() => void) | null;
   preview: ReactNode | null;
 };
 
@@ -91,6 +92,11 @@ export function CellDetailBar({ selection, locked }: { selection: DetailBarSelec
             <Button variant="ghost" size="xs" disabled={locked} aria-label={`Type ${s.fieldName} on product ${s.productNumber}`} onClick={s.onTypeIt}>
               Type it
             </Button>
+            {s.onAbsent ? (
+              <Button variant="ghost" size="xs" disabled={locked} aria-label={`${s.fieldName} is not on product ${s.productNumber}`} onClick={s.onAbsent}>
+                Not on this product
+              </Button>
+            ) : null}
           </div>
         </div>
         <div className="max-h-[8.5rem] overflow-auto font-mono text-base break-words whitespace-pre-wrap" data-testid="selected-value">

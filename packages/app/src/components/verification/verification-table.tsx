@@ -16,7 +16,7 @@ import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../..
  * accept a tick would do (spec 2026-09-29 A7). Clicking the cell selects it
  * (spec 2026-10-07 §1); the table reports that through `onSelect`.
  */
-export type TableCell = { value: string; state: Segment; url: string; onAccept?: () => void };
+export type TableCell = { value: string; state: Segment; url: string; onAccept?: () => void; absent?: boolean };
 
 /**
  * The drift check's repair line(s) for a field (plan 2026-10-05 Task 4),
@@ -215,6 +215,7 @@ export function VerificationTable({
   onFix,
   onCopy,
   onTypeIt,
+  onAbsent,
   onEscape,
 }: {
   /** One per product column, rendered by the route (`ProductCard` compact, or a blank slot). */
@@ -238,6 +239,7 @@ export function VerificationTable({
   onFix: (sel: CellSelection) => void;
   onCopy: (sel: CellSelection) => void;
   onTypeIt: (key: string) => void;
+  onAbsent?: (sel: CellSelection) => void;
   /** Escape with nothing else to close: the route clears the selection or closes the panel. */
   onEscape: () => void;
 }) {
@@ -377,7 +379,7 @@ export function VerificationTable({
                               cell.onAccept ? 'pr-14' : 'pr-9',
                             )}
                           >
-                            <span className="min-w-0 truncate font-mono text-base" title={cell.value || undefined}>
+                            <span className={cn('min-w-0 truncate font-mono text-base', cell.absent && 'text-muted-foreground')} title={cell.value || undefined}>
                               {cell.value || '—'}
                             </span>
                           </button>
@@ -408,6 +410,9 @@ export function VerificationTable({
                             }}
                           >
                             Type it
+                          </ContextMenuItem>
+                          <ContextMenuItem disabled={locked || !cell.url.trim() || cell.absent} onSelect={() => onAbsent?.(sel)}>
+                            Not on this product
                           </ContextMenuItem>
                         </ContextMenuContent>
                       </ContextMenu>

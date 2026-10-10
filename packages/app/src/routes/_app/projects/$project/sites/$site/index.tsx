@@ -27,10 +27,13 @@ import {
   badge,
   boardFrom,
   canSave,
+  cellText,
   displayValue,
   dropCard,
   fieldsFor,
+  isAbsent,
   liveSuggestions,
+  markAbsent,
   mergeSuggestions,
   pickAnswer,
   placesOf,
@@ -1007,7 +1010,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   function rowHint(f: Field): FieldHint | undefined {
     // A failed cell says why on its row, "Mark it on the screenshot" included (spec C2's no_fitting_path).
     if (detailUrl && failedCell(f.key, detailUrl)) {
-      const hint = cellStatusFor(results, f.key, detailUrl, false, f.type, f.name)?.hint;
+      const hint = cellStatusFor(results, f.key, detailUrl, false, f.type, f.name, detailIndex + 1)?.hint;
       if (hint) return { text: hint };
     }
     const s = detailUrl ? live[f.key]?.[detailUrl] : undefined;
@@ -1118,9 +1121,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     });
   }
 
-  /** What a cell shows: the answer, else the live suggestion, displayed for the field's type. */
+  /** What a cell shows: "not on this product" if marked absent, else the answer, else the live suggestion, displayed for the field's type. */
   function cellValue(f: Field, url: string): string {
-    return displayValue(f, board.answers[f.key]?.[url]?.value ?? live[f.key]?.[url]?.value ?? '');
+    return cellText(board, f, url, () => displayValue(f, board.answers[f.key]?.[url]?.value ?? live[f.key]?.[url]?.value ?? ''));
   }
 
   /** Fix / Mark (spec 2026-10-07 §4): exactly what a cell click did before — open the screenshot on this cell. */
@@ -1149,6 +1152,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     setTypeFocus((t) => ({ key, n: t.n + 1 }));
   }
 
+  /** "Not on this product" (spec 2026-10-10 §B3): the cell detail bar and the cell context menu. */
+  function markAbsentCell(sel: CellSelection) {
+    const f = fields.find((x) => x.key === sel.key);
+    const url = board.cards[sel.product]?.url;
+    if (!f || !url) return;
+    setBoard((b) => markAbsent(b, f.key, url));
+  }
+
   /** The field's element on a product, for the crop: its answer's mark, else its suggestion's first clickable place. */
   function elementFor(key: string, url: string): Box['rect'] | null {
     const urlBoxes = boxesByUrl[url] ?? NO_BOXES;
@@ -1175,6 +1186,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         state: segment(board, live, f.key, c.url, { failed: c.url !== '' && failedCell(f.key, c.url) }),
         url: c.url,
         onAccept: c.url.trim() ? cellAccept(f, c.url) : undefined,
+        absent: isAbsent(board, f.key, c.url),
       })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       count: headerCount(results, f.key, unchangedKeys, board.cards),
@@ -1250,6 +1262,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onCopy: () => copyCell(selection),
             onFix: () => fixCell(selection),
             onTypeIt: () => typeIt(detailField.key),
+            onAbsent: url && !isAbsent(board, detailField.key, url) ? () => markAbsentCell(selection) : null,
             // A card with no URL has no screenshot to take.
             preview: panelOpen || !url ? null : (
               <ScreenshotCrop
@@ -1365,6 +1378,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onFix={fixCell}
             onCopy={(sel) => void copyCell(sel).catch(() => undefined)}
             onTypeIt={typeIt}
+            onAbsent={markAbsentCell}
             onEscape={() => {
               if (panelOpen) closePanel();
               else setRawSelection(null);
