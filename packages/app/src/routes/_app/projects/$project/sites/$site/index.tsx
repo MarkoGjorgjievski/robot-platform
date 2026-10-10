@@ -1149,7 +1149,9 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   function coverageFor(f: Field): TableRow['coverage'] {
     const c = coverage?.status === 'done' ? coverage.fields.find((x) => x.key === f.key) : undefined;
     if (!c) return undefined;
-    const line = coverageLine(c, atLimit);
+    // The sampler compares addresses loosely, so its representative may already be a card: nothing to add then.
+    const onBoard = !!c.representative && board.cards.some((card) => card.url === c.representative);
+    const line = coverageLine(c, atLimit, onBoard);
     return {
       text: line.text,
       onUseAsProofPage: line.useAsProofPage
@@ -1182,6 +1184,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     const f = fields.find((x) => x.key === sel.key);
     const url = board.cards[sel.product]?.url;
     if (!f || !url) return Promise.resolve();
+    // An absent cell holds no value: copying it copies nothing, as an empty spreadsheet cell would.
+    if (isAbsent(board, f.key, url)) return Promise.resolve();
     const v = cellValue(f, url);
     if (!v.trim()) return Promise.resolve();
     // Rejections reach the caller, so the bar says "Copied" only on success.
@@ -1306,6 +1310,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onFix: () => fixCell(selection),
             onTypeIt: () => typeIt(detailField.key),
             onAbsent: url && !isAbsent(board, detailField.key, url) ? () => markAbsentCell(selection) : null,
+            absent: url !== '' && isAbsent(board, detailField.key, url),
             // A card with no URL has no screenshot to take.
             preview: panelOpen || !url ? null : (
               <ScreenshotCrop

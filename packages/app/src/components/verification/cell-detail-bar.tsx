@@ -14,6 +14,8 @@ export type DetailBarSelection = {
   onFix: () => void;
   onTypeIt: () => void;
   onAbsent: (() => void) | null;
+  /** The cell is marked "not on this product": it holds no value, so there is nothing to copy (an empty spreadsheet cell). */
+  absent?: boolean;
   preview: ReactNode | null;
 };
 
@@ -83,7 +85,7 @@ export function CellDetailBar({ selection, locked }: { selection: DetailBarSelec
           </span>
           <span className={`text-sm ${STATE_TEXT[s.state]}`}>{stateWord(s.state)}</span>
           <div className="ml-auto flex items-center gap-1.5">
-            <Button variant="outline" size="xs" disabled={empty} aria-label={`Copy ${s.fieldName} on product ${s.productNumber}`} onClick={() => void copy()}>
+            <Button variant="outline" size="xs" disabled={empty || s.absent === true} aria-label={`Copy ${s.fieldName} on product ${s.productNumber}`} onClick={() => void copy()}>
               {copied ? 'Copied' : 'Copy'}
             </Button>
             <Button variant="outline" size="xs" disabled={locked} aria-label={`${label} ${s.fieldName} on the screenshot`} onClick={s.onFix}>

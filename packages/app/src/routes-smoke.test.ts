@@ -53,6 +53,17 @@
 // "Waiting 2 min", and a 1-second backoff has expired by the second click, so
 // `/captcha` would really be captured and the step would read the human check.
 //
+// The listing also links a fourth product, `/p/9`, listed last so the finder's
+// first three cards stay `/p/1..3`: a second shape, a `ProductGroup` whose
+// offers sit in its variants (proof-page coverage, 2026-10-10). The coverage
+// test seeds a passing verification (no Verify is pressed) and runs the REAL
+// coverage job in THIS process, not the api-server's — free, a local Chromium
+// against the local shop, reading the api-server's capture files only to
+// compare shapes. It samples `/p/9`, finds Price empty there, reads the line
+// under Price's row and the stage line, clicks "Use as proof page" to make
+// `/p/9` product 4, marks Price "Not on this product" there, and waits for the
+// autosave to carry the page and the absent answer to the server.
+//
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
 //   pnpm test:ui:app
