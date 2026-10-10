@@ -46,6 +46,8 @@ export type TableRow = {
   onToggle: () => void;
   /** Shown under the row whatever `expanded` is — a field can be both drifted and expanded. */
   drift?: DriftLine[];
+  /** The coverage check's line for this field (spec 2026-10-10 §A5), shown under the row like `drift`. */
+  coverage?: { text: string; onUseAsProofPage: (() => void) | null };
 };
 
 /** The 2 px rail a value cell carries in its state colour (spec §4: never a background wash). */
@@ -463,6 +465,21 @@ export function VerificationTable({
                 <tr>
                   <td colSpan={totalCols} className="border-t border-line bg-panel px-3 py-2">
                     <DriftLines field={row.field} lines={row.drift} locked={locked} />
+                  </td>
+                </tr>
+              ) : null}
+
+              {row.coverage ? (
+                <tr>
+                  <td colSpan={totalCols} className="border-t border-line bg-panel px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground" data-coverage={row.field.key}>
+                      <span>{row.coverage.text}</span>
+                      {row.coverage.onUseAsProofPage ? (
+                        <Button variant="outline" size="xs" disabled={locked} aria-label={`Use a sampled product as proof page for ${row.field.name}`} onClick={row.coverage.onUseAsProofPage}>
+                          Use as proof page
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ) : null}

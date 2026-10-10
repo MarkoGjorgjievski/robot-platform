@@ -69,6 +69,7 @@ import { stripState, verifyButton } from '../../../../../../lib/site/verify-butt
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
+import { coverageLine, coverageStage, type CoverageView } from '../../../../../../lib/site/coverage-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -378,6 +379,16 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     : null;
   const fieldNames = useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.name])), [fields]);
 
+  // --- Coverage (spec 2026-10-10 §A5): the background check a passing Verify
+  // kicks off, polled only while it is still running — same rule as `driftCheckQuery`.
+  const coverageQuery = trpc.sources.coverage.useQuery(
+    { sourceId },
+    { refetchInterval: (query) => (query.state.data?.status === 'running' ? 3000 : false) },
+  );
+  const coverage: CoverageView | null = coverageQuery.data
+    ? { status: coverageQuery.data.status, stage: coverageQuery.data.stage, fields: coverageQuery.data.fields }
+    : null;
+
   // Drift repair (plan 2026-10-05 Task 4): the stored (server) expected
   // values — the fallback for a changed row's "was {old}" when the check did
   // not record the value it compared against. Never the live board: after
@@ -396,6 +407,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     if (sawActive.current) {
       sawActive.current = false;
       void invalidateRef.current();
+      // A passing Verify kicks off a coverage check (spec 2026-10-10 §A5);
+      // pick up its first row on the next poll rather than waiting out whatever
+      // `refetchInterval` was last computed from (likely `false`, pre-check).
+      void coverageQuery.refetch();
     }
   }, [active]);
 
@@ -871,6 +886,13 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // --- Arrival from a run: `?addPage=<url>&field=<key>`, consumed once, when
   // the board is seeded and no verification holds the grid.
   const arrived = useRef(false);
+  // Re-arms the effect below for a second "Use as proof page" from this same
+  // route (spec 2026-10-10 §A5): `arrived.current` only ever latches true, so
+  // once the effect's own `replace` navigation clears `addPage` from the URL,
+  // drop the latch and let the next `addPage` arrive normally.
+  useEffect(() => {
+    if (search.addPage === undefined) arrived.current = false;
+  }, [search.addPage]);
   useEffect(() => {
     if (arrived.current || !search.addPage) return;
     if (statusQuery.isPending || active) return;
@@ -1121,6 +1143,26 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     });
   }
 
+  // Coverage (spec 2026-10-10 §A5): six proof pages leaves nothing more to add,
+  // so the line stands without an action once the board is at `PRODUCTS_MAX`.
+  const atLimit = board.cards.length >= PRODUCTS_MAX;
+  function coverageFor(f: Field): TableRow['coverage'] {
+    const c = coverage?.status === 'done' ? coverage.fields.find((x) => x.key === f.key) : undefined;
+    if (!c) return undefined;
+    const line = coverageLine(c, atLimit);
+    return {
+      text: line.text,
+      onUseAsProofPage: line.useAsProofPage
+        ? () =>
+            void navigate({
+              to: '/projects/$project/sites/$site',
+              params: { project: projectSlug, site: siteSlug },
+              search: (s) => ({ ...s, addPage: line.useAsProofPage!, field: f.key }),
+            })
+        : null,
+    };
+  }
+
   /** What a cell shows: "not on this product" if marked absent, else the answer, else the live suggestion, displayed for the field's type. */
   function cellValue(f: Field, url: string): string {
     return cellText(board, f, url, () => displayValue(f, board.answers[f.key]?.[url]?.value ?? live[f.key]?.[url]?.value ?? ''));
@@ -1180,6 +1222,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     return {
       field: f,
       drift: driftLinesFor(f),
+      coverage: coverageFor(f),
       status: statuses[fi]!,
       cells: board.cards.map((c) => ({
         value: cellValue(f, c.url),
@@ -1354,7 +1397,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           site: siteSlug,
           variants: !!variantsStatus,
         }}
-        stage={stage}
+        stage={coverageStage(stage, coverage)}
       />
 
       <DriftBanner driftedFields={source.driftedFields} fieldNames={fieldNames} check={driftCheck} />
