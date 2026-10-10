@@ -3,10 +3,10 @@
 // with the listing, the per-page extraction and the proof pages' shapes all
 // injected — no browser is launched in this file and no page is loaded.
 // Never a model call, never a write outside coverage_checks.
-import { describe, it, expect, afterAll, vi } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, vi } from 'vitest';
 import { eq, count, inArray } from 'drizzle-orm';
 import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifications } from '@robot/db';
-import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
+import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 import type { CoverageResults } from './coverage-summary.js';
@@ -19,7 +19,10 @@ vi.mock('@robot/agent', async (importOriginal) => {
   return { ...actual, SchemaAgent: SpySchemaAgent };
 });
 
-const { startCoverageCheck, runCoverageCheck, latestCoverageCheck, COVERAGE_CHECK_STALL_MS, COVERAGE_WALL_BREAKER } = await import('./run-coverage-check.js');
+const {
+  startCoverageCheck, runCoverageCheck, latestCoverageCheck, answerFromBackoff,
+  COVERAGE_CHECK_STALL_MS, COVERAGE_WALL_BREAKER, COVERAGE_ERROR_BREAKER, PAGE_UNREADABLE,
+} = await import('./run-coverage-check.js');
 
 // A throwaway signed-in identity: nothing here touches the seeded `default` org.
 const me = await signedInCaller('run-coverage-check');
@@ -84,6 +87,24 @@ const extractWith = (keyOf: { price: string; title: string }, emptyOn: (url: str
     shape: emptyOn(url) ? multi : single,
   }));
 const emptyOn = (u: string) => /\/p\/(1|2|3)\d$/.test(u);
+
+describe('answerFromBackoff', () => {
+  afterEach(() => _resetBackoffForTests());
+  it('null for a host with no backoff; after a refusal, the backoff sentence as a wall — no browser needed', () => {
+    const url = 'https://test-cov-backoff.example.com/p/1';
+    expect(answerFromBackoff(url)).toBeNull();
+    reportVerdict('test-cov-backoff.example.com', { kind: 'refused', status: 403 });
+    const a = answerFromBackoff(url)!;
+    expect(a.wall).toBe(true);
+    expect(a.unread).toMatch(/^test-cov-backoff\.example\.com refused/);
+    expect(a.unread).toMatch(/Waiting \d+ min before trying again\.$/);
+    // Another host is not affected.
+    expect(answerFromBackoff('https://test-cov-other.example.com/p/1')).toBeNull();
+    // An ok clears it.
+    reportVerdict('test-cov-backoff.example.com', { kind: 'ok', status: 200 });
+    expect(answerFromBackoff(url)).toBeNull();
+  });
+});
 
 describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
   it('property 1: samples twenty, reads them with the certified paths, records empties with shapes; writes only its own row', async () => {
@@ -207,13 +228,58 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
     } finally { await f.cleanup(); }
   });
 
-  it('a throw inside a page read leaves the row failed with its error (never rejects)', async () => {
+  it('a throw around the loop (the listing, the proof shapes) leaves the row failed with its error (never rejects)', async () => {
     const f = await certifiedWebsite('cov-throw');
     try {
-      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
-      await expect(runCoverageCheck(checkId, { listing: listing(5), extract: async () => { throw new Error('browser died'); }, proofShapes })).resolves.toBeUndefined();
-      expect(await checkRow(checkId)).toMatchObject({ status: 'failed', error: 'browser died' });
+      const a = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await expect(runCoverageCheck(a.checkId, { listing: async () => { throw new Error('browser died'); }, extract: extractWith(f.keyOf, () => false), proofShapes })).resolves.toBeUndefined();
+      expect(await checkRow(a.checkId)).toMatchObject({ status: 'failed', error: 'browser died' });
+
+      const b = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await expect(runCoverageCheck(b.checkId, { listing: listing(5), extract: extractWith(f.keyOf, () => false), proofShapes: async () => { throw new Error('no captures'); } })).resolves.toBeUndefined();
+      expect(await checkRow(b.checkId)).toMatchObject({ status: 'failed', error: 'no captures' });
     } finally { await f.cleanup(); }
+  });
+
+  it('one page whose read throws is that page unread (not a wall); the others are read and the check is done', async () => {
+    const f = await certifiedWebsite('cov-page-throw');
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const read = extractWith(f.keyOf, () => false);
+      const extract = vi.fn(async (url: string, fields: VerifiedField[]) => {
+        if (url.endsWith('/p/2')) throw new Error('page crashed');
+        return read(url, fields);
+      });
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await runCoverageCheck(checkId, { listing: listing(5), extract, proofShapes });
+      const row = await checkRow(checkId);
+      expect(row.status).toBe('done');
+      const sampled = (row.results as CoverageResults).sampled;
+      expect(sampled).toHaveLength(5);
+      expect(sampled[1]).toEqual({ url: LISTED(5)[1], unread: PAGE_UNREADABLE });
+      expect(sampled.filter((p) => 'shape' in p)).toHaveLength(4);
+    } finally { errSpy.mockRestore(); await f.cleanup(); }
+  });
+
+  it('three page reads in a row throwing stop the loop, done with what it has; a read in between resets the count', async () => {
+    const f = await certifiedWebsite('cov-page-throws');
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const read = extractWith(f.keyOf, () => false);
+      // Pages 1, 2 throw, 3 is read, then 4, 5, 6 throw: the stop comes at page 6, not page 4.
+      const extract = vi.fn(async (url: string, fields: VerifiedField[]) => {
+        if (url.endsWith('/p/3')) return read(url, fields);
+        throw new Error("Executable doesn't exist");
+      });
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      await runCoverageCheck(checkId, { listing: listing(20), extract, proofShapes });
+      const row = await checkRow(checkId);
+      expect(row.status).toBe('done');
+      const sampled = (row.results as CoverageResults).sampled;
+      expect(extract).toHaveBeenCalledTimes(3 + COVERAGE_ERROR_BREAKER);
+      expect(sampled.map((p) => p.url)).toEqual(LISTED(6));
+      expect(sampled.filter((p) => 'unread' in p).every((p) => 'unread' in p && p.unread === PAGE_UNREADABLE)).toBe(true);
+    } finally { errSpy.mockRestore(); await f.cleanup(); }
   });
 
   it('one running check per website; a stalled one is closed failed/stalled and a new one may start', async () => {
@@ -245,7 +311,7 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       expect(await latestCoverageCheck(f.sourceId)).toBeNull();
       const { checkId, status } = await startCoverageCheck(f.sourceId, null, { fire: false });
       expect(status).toBe('started');
-      expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: checkId, status: 'running', fields: [], stage: 'Checking 0 more products from the listing…' });
+      expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: checkId, status: 'running', fields: [], stage: null });
 
       await runCoverageCheck(checkId, { listing: listing(60), extract: extractWith(f.keyOf, emptyOn), proofShapes });
       const latest = (await latestCoverageCheck(f.sourceId))!;
