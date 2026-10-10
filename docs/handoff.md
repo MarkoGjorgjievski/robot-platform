@@ -13,7 +13,7 @@ type: project
 **The next work, in order (2026-10-07; supersedes the 2026-09-11 list further down):**
 
 1. **Backups that all come from one source.** A field's certified paths can all be sibling keys of one API response (Ikea's price: five paths, one response), so they fail together and aren't real backups. Ops only *shows* it ("All backups read the same response — if it changes, they fail together"). The fix changes certification — at most one or two paths per source, so backups come from different sources — and needs a short design first (spec → plan), like drift repair. Marko's pick for next, 2026-10-07.
-2. **Proof-page coverage of a site's variations** (second-layout design, spec next): a listing whose product pages differ in layout (a sale item vs. a regular one, a bundle vs. a single product) leaves cells empty on an otherwise-verified website with no way to certify the second layout; the cheap increment is a grouped miss list with "use as proof page". Live cases on Lookfantastic, Decathlon and (2026-10-09) Article's `/furniture-bundles/…` pages.
+2. **Proof-page coverage of a site's variations — done, 2026-10-10.** See "Proof-page coverage and 'not on this product' (2026-10-10)" below: after a passing Verify, a free background check samples twenty listing products with the certified paths and tells the customer per field where they came back empty, with "Use as proof page"; live-checked again on Lookfantastic and Decathlon.
 3. **Correctness on the run page.** Compare stored row values against the stored page text (not just "filled vs. empty") — the credit campaign's judge runs are the only check of this today, and they are paid and manual. A free, in-product check belongs on the run page itself.
 4. **Sitemap-first product discovery.** "Find products" and the listing walk both depend on a listing page's own links; a site's sitemap (where one exists and is reachable) would find products without needing a listing page at all, and would not be subject to a listing-level bot wall the way the current walk is.
 5. **Variant and drift loose ends**, each small:
@@ -28,7 +28,9 @@ type: project
 7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
 
-**Newest: [Honest page verdicts (2026-10-09)](#honest-page-verdicts-2026-10-09).** Every page capture now carries one honest verdict (ok / refused / challenge / not-found / redirected / blank), and every consumer — the listing bar, a proof card, a run — shows its one sentence instead of "No product links found", a green "ready", or a "Done" with 0 rows. Merged into `main` 2026-10-09 (fast-forward, `feat/honest-verdicts`); live-checked against the credit campaign's real websites 2026-10-09, then fixed after the branch's final review (fix wave, same day).
+**Newest: [Proof-page coverage and "not on this product" (2026-10-10)](#proof-page-coverage-and-not-on-this-product-2026-10-10).** After a passing Verify, a free background check samples twenty products from the website's listing with its certified paths, and the Verification tab now tells the customer, per field, where they came back empty — "Empty on 14 of 20 sampled products · all 14 list their sizes as variants in the page data" — with a one-click "Use as proof page" to add that product as a fourth (through sixth) card. Separately, a cell can be marked **"Not on this product"**: that page becomes a checked page whose correct answer is nothing, so a path that writes any value there (like Decathlon's old `stats.averageRating` fallback, which wrote `0` for products with no rating) can never certify. On branch `feat/proof-page-coverage`, not yet merged.
+
+**Before it: [Honest page verdicts (2026-10-09)](#honest-page-verdicts-2026-10-09).** Every page capture now carries one honest verdict (ok / refused / challenge / not-found / redirected / blank), and every consumer — the listing bar, a proof card, a run — shows its one sentence instead of "No product links found", a green "ready", or a "Done" with 0 rows. Merged into `main` 2026-10-09 (fast-forward, `feat/honest-verdicts`); live-checked against the credit campaign's real websites 2026-10-09, then fixed after the branch's final review (fix wave, same day).
 
 **Before it: [Verification table, spreadsheet behaviour (2026-10-08)](#verification-table-spreadsheet-behaviour-2026-10-08).** A click on a cell selects it; a detail bar above the table shows the full value with Copy, Fix / Mark, Type it and a read-only crop of the screenshot around the element; arrow keys, Home/End, Ctrl/⌘+C, Enter/F and Escape work; right-click gives Copy value / Open product page / Fix on screenshot / Type it; after a Verify each row shows "n/m" after its badge. Only Fix (the button, the menu item, Enter/F, the crop) or a column head opens the screenshot. Spec `docs/superpowers/specs/2026-10-07-verification-table-spreadsheet-design.md`; the streaming-rows / silent pass-rate half of the original brief is deferred (the spec's second section says why). Merged into `main` 2026-10-08 (fast-forward, `feat/table-spreadsheet`).
 
@@ -77,6 +79,85 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Proof-page coverage and "not on this product" (2026-10-10)
+
+**What changed.** The credit campaign (2026-10-08) found two websites that verified 8/8 with zero
+model calls yet were wrong at scale: Lookfantastic's proof pages were all single-size products, so
+the certified Price/In stock paths came back empty on 58% of the listing (multi-size pages publish
+no top-level `offers`); Decathlon's certified Rating carried an api fallback
+(`stats.averageRating`) that wrote `0` for the 5-of-40 rows with no rating, because the one proof
+page with no rating had simply never been checked there. Two different gaps, one shape: a proof
+page says nothing about shapes it never showed. Now, after every passing Verify, a free
+fire-and-forget background check samples twenty products from the website's listing, runs the
+certified paths on each (no model, no cache write), and the Verification tab shows the result per
+field under its row — "Empty on 14 of 20 sampled products · all 14 list their sizes as variants in
+the page data" — with "Use as proof page" to add that product as the website's next card (same
+add-card flow the run page already offers). Separately, a cell can now be marked **"Not on this
+product"**: that page joins the field's checked pages, and any certified path that produces a
+value there — like Decathlon's `stats.averageRating` fallback — is unsafe and can never certify,
+whatever it gets right elsewhere. The check only informs; it never blocks Extract, never runs
+except right after a passing Verify, and never touches a proof page or the domain cache itself.
+
+**Files.** `packages/db/src/schema.ts` (`coverageChecks`), `packages/db/drizzle/0017_coverage_checks.sql`;
+`packages/scraper/src/verify/types.ts` (`VerificationSet.absent`, `FailReason` + `found_unexpected`),
+`verify/certify.ts` (`checkedPages` with absent; the absent evaluation), `verify/shape.ts` (new —
+the page's shape signature); `packages/api/src/verify/coverage-sampler.ts` (new), `verify/run-coverage-check.ts`
+(new, modelled on `run-drift-check.ts`), `verify/coverage-summary.ts` (new), `verify/binding-input.ts`
+(absent rules), `verify/run-source-verification.ts` (starts the check on a pass), `routers/sources.ts`
+(the `coverage` query; `absent` on the binding input), `test-helpers/seed-coverage-check.ts` (new, for
+the smoke); `packages/app/src/lib/site/verification-model.ts` (absent cell state, row words),
+`lib/site/proof-coverage-view.ts` (new — the stage-line and row-line copy; distinct from the
+run page's own, unrelated `coverage-view.ts`), `components/verification/verification-table.tsx`
+(the row line), `verify-bar.tsx` (the stage line), `cell-detail-bar.tsx` and the cell context menu
+(the "Not on this product" action), the site route (`coverage` query, the add-card flow reused),
+and `routes-smoke.test.ts` (the fixture shop's second-shape product, the new coverage test).
+
+**How it was proven.** Unit tests per package: the sampler's spread-and-exclude rule, the check's
+own breaker/backoff/stall behaviour against a fake capture function, the summary's copy and
+explanation-vocabulary thresholds, `certify.ts`'s absent-page evaluation (a candidate that resolves
+to anything on an absent page is never certified), `bindingProblems`'s absent rules, and the app's
+row-line/stage-line copy and cell-state transitions as pure functions — all free. The route smoke
+(`pnpm test:ui:app`) gained a fourth, second-shape product (`/p/9`, a `ProductGroup` with
+`hasVariant` and no top-level `offers`) in its fixture shop's listing, and a dedicated test that
+seeds a coverage-check row and runs the real job directly against it (never clicking Verify, so the
+smoke spends nothing and depends on no live network): the Price row shows "Empty on 1 of n sampled
+products · …", "Use as proof page" adds a 4th card, and a cell marked "Not on this product" on it
+reads so, saves, and a re-Verify passes. Finally, a live check against the credit campaign's real,
+already-set-up websites (`credit-campaign@example.com`'s org, project "Credit campaign 2026-10"),
+api-server and app already running this branch:
+`docs/testing/results/2026-10-10-proof-page-coverage-live-check.md`, screenshots in
+`docs/testing/results/screens-2026-10-10-coverage/`. On Lookfantastic a fresh Verify's coverage
+check came back within 3.8 minutes showing Price, In stock, SKU and Rating all empty on a
+multi-size slice of the sample with the "variants in the page data" explanation; "Use as proof
+page" → type the price → Verify certified Price 4/4 on one new path that reads both shapes. On
+Decathlon, marking Rating "Not on this product" on the marketplace proof page and verifying was
+watched catching the api fallback live — it resolved to `0` on that page and was rejected
+(`found_unexpected`) — and a read-only SQL check confirmed `stats.averageRating` is no longer
+anywhere in Rating's certified paths.
+
+**What NOT to redo.** The coverage check only reads with the certified paths and writes its own
+`coverage_checks` row — never a proof page, never a `captures` row, never the domain cache, never
+path hit/miss stats, and it never gates Extract (Go to Extract stays available regardless of what
+it finds). An absent cell is a *checked* page whose correct answer is nothing, never a blank —
+don't let "absent" collapse back into "not checked" (B1's cover rule still requires an expected
+value on at least two pages). Don't put the Verify click back into the route smoke's coverage test
+— it seeds the verified baseline and runs the job directly on purpose, so the smoke stays free and
+offline.
+
+**Known gaps / next:** the explanation vocabulary is four shape features plus the address pattern
+— a real gap the sampler doesn't recognise reads as a bare count with no explanation; the check
+only ever runs right after a passing Verify, so an already-certified, unchanged website (both
+campaign sites, going into this live check) has no coverage data until its next real Verify; the
+row's "Use as proof page" still offers a page already sitting on the board as a card (a fix-wave
+item, not done here); a card added from the coverage line keeps the sampled URL as its title
+instead of a real product name; the Status column is cut off at four products at 1440 px width (a
+pre-existing layout limit, not new here). A `ProductGroup` page added this way was expected going
+in to get no Title suggestion from page data; the live check found the opposite on Lookfantastic's
+4th card — Title did get a suggestion (confirmed via its inline accept, same as any other page) —
+but it was the *only* field with a working inline accept there; the other five suggested fields
+(Main image, SKU, Brand, Rating, In stock, Description) had none and had to be confirmed by typing
+each one's suggested value back from the detail bar (see the live-check doc's "Defects found" 3).
 
 ## Honest page verdicts (2026-10-09)
 
@@ -172,7 +253,7 @@ the sleep ends (up to 8 minutes; the wall breaker makes long sleeps rare).
 
 **Two fixes it forced, both merged 2026-10-08.** (1) `packages/scraper/src/crawl/product-link-group.ts` (shared by "Find products" and the listing walk; `find-product-pages.ts` re-exports it): links inside page-level navigation (`nav`, `aside`, roles navigation/banner/contentinfo/complementary, page-level `header`/`footer`) are left out before grouping, with a fallback to all links when fewer than 3 remain — Everlane's finder went from 93 menu links to its 52 products. (2) After page 1 the listing walk compares its row selector's rows with the page's product-link group and plans from the group when the selector missed links and the group is confirmed (by an extracted row's URL shape, or on a *direct* listing by a proof page's) — Allbirds' Sample went from 1 link to 40 of 40 without AI; search/template inputs with zero rows still plan nothing.
 
-**Where it ended (2026-10-08 evening).** 16 websites in one day: 9 verified 8/8 with zero model calls, 8 extracted at scale (10–23 s per item, $0 AI), 6 walled by anti-bot (plus 26 of 28 pre-screened candidates), 1 CAPTCHA-rate-limited. Eight judge runs on seven sites (~$30 of the $100; ~$66 left): where the judge could see the value, Title, Price, Brand, Description and In stock were right everywhere except B&N's multi-format pages and one "Coming Soon" stock status; the judge's own limits (star glyphs, "appears anywhere", field-name vocabulary) are recorded. The campaign doc's last section ("What the campaign answered") holds the grouped findings and the suggested order of the next work: report refused pages as refused (**done**, 2026-10-09 — see "Honest page verdicts" above); proof pages that cover variations (the second-layout design, now with live cases on Lookfantastic and Decathlon); the "agreed" rule must not agree on values the page does not show for that product (**done**, same plan); per-process run cost; the judge changes. A memory-pressure kill on the dev machine (three Chromiums + dev servers) ended two judge runs mid-way; they were re-run one at a time.
+**Where it ended (2026-10-08 evening).** 16 websites in one day: 9 verified 8/8 with zero model calls, 8 extracted at scale (10–23 s per item, $0 AI), 6 walled by anti-bot (plus 26 of 28 pre-screened candidates), 1 CAPTCHA-rate-limited. Eight judge runs on seven sites (~$30 of the $100; ~$66 left): where the judge could see the value, Title, Price, Brand, Description and In stock were right everywhere except B&N's multi-format pages and one "Coming Soon" stock status; the judge's own limits (star glyphs, "appears anywhere", field-name vocabulary) are recorded. The campaign doc's last section ("What the campaign answered") holds the grouped findings and the suggested order of the next work: report refused pages as refused (**done**, 2026-10-09 — see "Honest page verdicts" above); proof pages that cover variations (**done**, 2026-10-10 — see "Proof-page coverage and 'not on this product'" below; live-checked again against the same Lookfantastic and Decathlon cases); the "agreed" rule must not agree on values the page does not show for that product (**done**, same plan); per-process run cost; the judge changes. A memory-pressure kill on the dev machine (three Chromiums + dev servers) ended two judge runs mid-way; they were re-run one at a time.
 
 **Follow-ups, not done:** the 1-row selector the AI wrote is still cached as verified and pages 2+ reuse it; with an AI key the Sample still pays for a new selector before the free check runs (run the check before the AI fallback; mark a rescued page's selector degraded). A run's `cost_usd` is the delta of a process-wide usage counter, so parallel paid work is mis-attributed (Nike's run and a concurrent B&N Sample both recorded $0.1611) — the Usage page's org total is right, per-run figures are not. A blank, refused capture (otto.de answers 400 to headless Chromium) used to still read `ready`; fixed by "Honest page verdicts" (2026-10-09) for any capture taken from that point on — the three product-page captures otto.de already had from this campaign predate the fix and still read `ready` until they are retaken. Positional JSON-LD paths (B&N) are the next design question, together with the "backups from one source" item at the top of this file.
 

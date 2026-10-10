@@ -1,7 +1,29 @@
 # Proof-page coverage of a site's variations, and "not on this product" — design
 
-**Status:** approved by Marko 2026-10-10 (Approach 1 plus the absent check; decisions D1–D4 as
-recommended). Builds on `2026-09-17-second-layout-proof-pages-design.md` (three to six proof
+**Status:** implemented on `feat/proof-page-coverage`, 2026-10-10; live check in
+`docs/testing/results/2026-10-10-proof-page-coverage-live-check.md`.
+
+**Deviations:**
+- Singular copy forms for one empty or one sampled product ("it lists its sizes as variants…",
+  "1 field was empty on some of the 1 sampled product"), beside the plural forms this spec gives.
+- `planned` on the `coverage_checks.results` row, so the running stage line can count the sample
+  before the first page is read, instead of showing nothing until the first result lands.
+- A stalled check (`running` for more than ten minutes) shows no stage line at all, rather than
+  a stage line describing a dead run.
+- The table's `started_at` is `coverage_checks.created_at` — no separate column.
+- The brief's explanation sentences ("all n list their sizes as variants in the page data", "n of
+  n have no offer in the page data", "none of the n shows a rating in the page data", "none of the
+  n describes itself as a product in the page data") replace this spec's §A5 table's "none of the
+  n has an offer…" forms — the brief's wording is what shipped.
+- The spec's separate row word "not on product n" (§5's copy table) was not built as a distinct
+  label — an absent cell's own text ("not on this product") already says it; no extra row-level
+  word was added.
+- The route smoke seeds the verified baseline and runs the coverage-check job directly
+  (`test-helpers/seed-coverage-check.ts`) instead of clicking Verify, so the smoke never spends
+  and never depends on a live capture; the live check in this document is what actually clicked
+  Verify against real sites.
+
+Builds on `2026-09-17-second-layout-proof-pages-design.md` (three to six proof
 pages, the cover rule, "Use as proof page" on the run page) and follows
 `2026-10-09-honest-page-verdicts-design.md` (one verdict per capture, per-host backoff).
 
