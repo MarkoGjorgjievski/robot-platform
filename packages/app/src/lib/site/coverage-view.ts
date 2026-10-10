@@ -109,32 +109,3 @@ export function emptyFilterNote(cov: FieldCoverage | undefined): string | null {
   const verb = n === 1 ? 'is' : 'are';
   return `All ${n} remaining ${noun} ${verb} confirmed absent — these pages don't have this field.`;
 }
-
-// --- Proof-page coverage (spec 2026-10-10 §A5, §5): the stage line and the
-// line under a field's row for the background check a passing Verify kicks
-// off. Pure, so the exact copy is tested without a server. The app never
-// imports @robot/api; the query's shape is re-declared here, narrowed.
-//
-// Shares this file's name with the run-view coverage above by coincidence —
-// two unrelated "coverage" concepts (a run's field fill-gaps vs. a
-// website's proof-page sampling check) that happen to land on the same
-// `lib/site/coverage-view` path; nothing below this line refers to anything above it.
-export type CoverageView = {
-  status: 'running' | 'done' | 'failed';
-  stage: string | null;
-  fields: Array<{ key: string; empty: string[]; sampled: number; explanation: string | null; representative: string | null }>;
-};
-
-export const AT_LIMIT = 'This website has its six proof pages';
-
-export function coverageLine(f: CoverageView['fields'][number], atLimit: boolean): { text: string; useAsProofPage: string | null } {
-  const parts = [`Empty on ${f.empty.length} of ${f.sampled} sampled ${f.sampled === 1 ? 'product' : 'products'}`];
-  if (f.explanation) parts.push(f.explanation);
-  if (atLimit) parts.push(AT_LIMIT);
-  return { text: parts.join(' · '), useAsProofPage: atLimit ? null : f.representative };
-}
-
-/** The verify bar's one stage line: a running Verify's own stage first, else the coverage check's. */
-export function coverageStage(verifyStage: string | null, coverage: CoverageView | null): string | null {
-  return verifyStage ?? coverage?.stage ?? null;
-}
