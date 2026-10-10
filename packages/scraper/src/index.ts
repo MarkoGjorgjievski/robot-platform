@@ -37,3 +37,4 @@ export { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
 export { largestProductGroup, productPathTemplate, reconcileWithProductGroup, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './crawl/product-link-group.js';
 export { buildCataloguePrompt, parseCatalogueResponse, discoverCandidateCatalogue, type CatalogueEvidence } from './catalogue-discovery.js';
 export * from './verify/index.js';
+export { shapeOf, addressPattern, type Shape } from './verify/shape.js';
