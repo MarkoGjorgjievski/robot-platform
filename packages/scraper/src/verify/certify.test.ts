@@ -494,3 +494,50 @@ describe('qualifiesForWeak', () => {
     expect(qualifiesForWeak(field, { source: 'xpath', path: '//availability', transform: 'identity' }, {})).toBe(false);
   });
 });
+
+describe('certify — "not on this product" (spec 2026-10-10 §B2)', () => {
+  const rating = { key: 'rating', name: 'Rating', type: 'number' as const, description: 'stars', concept: 'rating' };
+  // Decathlon: the JSON-LD carries the rating only when the product has one; an api
+  // field `stats.averageRating` is 0 for products with none. The fake intercepted
+  // request uses the real fields `resolveStructured`'s `apiBodies` reads (isJson +
+  // parsedJson), the same shape other tests in this file use for an `api` candidate.
+  function page(url: string, jsonRating: number | null, apiRating: number): CaptureLike {
+    return {
+      url, html: '<html></html>',
+      structuredData: { ldJson: [jsonRating === null ? { name: 'x' } : { aggregateRating: { ratingValue: jsonRating } }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [{ url: `${url}/api`, method: 'GET', isJson: true, parsedJson: { stats: { averageRating: apiRating } } }] as unknown as CaptureLike['interceptedRequests'],
+    };
+  }
+  const caps = {
+    'https://d.example/1': page('https://d.example/1', 4.39, 4.39),
+    'https://d.example/2': page('https://d.example/2', 4.6, 4.6),
+    'https://d.example/3': page('https://d.example/3', 4.54, 4.54),
+    'https://d.example/4': page('https://d.example/4', null, 0),
+  };
+  const exp = { 'https://d.example/1': '4.39', 'https://d.example/2': '4.6', 'https://d.example/3': '4.54' };
+  const jsonLd = { source: 'json-ld' as const, path: 'aggregateRating.ratingValue', transform: 'identity' as const };
+  const api = { source: 'api' as const, path: 'stats.averageRating', transform: 'identity' as const };
+
+  it('checkedPages counts an absent page as checked', () => {
+    expect(checkedPages(Object.keys(caps), exp, { 'https://d.example/4': true })).toEqual(Object.keys(caps));
+    expect(checkedPages(Object.keys(caps), exp)).toEqual(Object.keys(caps).slice(0, 3));
+  });
+
+  it('a path that yields a value on an absent page is never certified; the one that yields nothing certifies and passes that cell', async () => {
+    const r = await certify({ field: rating, expected: exp, absent: ['https://d.example/4'], captures: caps, candidates: [api, jsonLd] }, xpathDeps);
+    expect(r.certified.map((p) => p.path)).toEqual(['aggregateRating.ratingValue']);
+    expect(r.cells['https://d.example/4']).toEqual({ status: 'pass', found: '', path: jsonLd });
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+
+  it('without the absent page the api fallback certifies too (what Decathlon saw)', async () => {
+    const r = await certify({ field: rating, expected: exp, captures: caps, candidates: [api, jsonLd] }, xpathDeps);
+    expect(r.certified.map((p) => p.path).sort()).toEqual(['aggregateRating.ratingValue', 'stats.averageRating']);
+  });
+
+  it('reports found_unexpected on the absent page when every candidate produces a value there', async () => {
+    const r = await certify({ field: rating, expected: exp, absent: ['https://d.example/4'], captures: caps, candidates: [api] }, xpathDeps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells['https://d.example/4']).toMatchObject({ status: 'fail', reason: 'found_unexpected', found: '0' });
+  });
+});

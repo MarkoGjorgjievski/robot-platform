@@ -129,6 +129,8 @@ async function tryMoved(
   const decidingCaptures = Object.fromEntries(decidingUrls.map((u) => [u, captures[u]!]));
   const decidingExpected = Object.fromEntries(decidingUrls.map((u) => [u, expected[u]!]));
   const { candidates } = await gatherCandidates(field, decidingExpected, decidingCaptures, { runDomSearch: deps.runDomSearch });
+  // No `absent` here: `decidingExpected` is built from pages with a value, and the drift
+  // check only ever decides on those (spec 2026-10-10 §B2 does not reach drift repair).
   const verification = await certify({ field, expected: decidingExpected, captures: decidingCaptures, candidates, confirmed, markXPaths }, deps);
   if (verification.certified.length === 0) return null;
   if (!decidingUrls.every((u) => verification.cells[u]?.status === 'pass')) return null;

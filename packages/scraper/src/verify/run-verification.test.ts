@@ -399,6 +399,27 @@ describe('fieldHash / definitionHash — confirmed paths', () => {
   });
 });
 
+// Spec 2026-10-10 §B1: "not on this product" is part of the field's definition too.
+describe('fieldHash / definitionHash — absent (spec 2026-10-10 §B2)', () => {
+  const P = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3', 'https://s.example/4'];
+  const rating: SchemaDefinitionField = { key: 'rating', name: 'Rating', type: 'number', description: 'stars', concept: 'rating' };
+  const base: VerificationSet = {
+    urls: P,
+    expected: { rating: { [P[0]!]: '4.39', [P[1]!]: '4.6', [P[2]!]: '4.54' } },
+  };
+
+  it('a set without absent hashes byte-for-byte as one with an empty absent record', () => {
+    expect(fieldHash(rating, { ...base, absent: {} })).toBe(fieldHash(rating, base));
+    expect(definitionHash([rating], { ...base, absent: {} })).toBe(definitionHash([rating], base));
+  });
+
+  it('adding an absent page changes the field hash and the definition hash', () => {
+    const withAbsent: VerificationSet = { ...base, absent: { rating: { [P[3]!]: true } } };
+    expect(fieldHash(rating, withAbsent)).not.toBe(fieldHash(rating, base));
+    expect(definitionHash([rating], withAbsent)).not.toBe(definitionHash([rating], base));
+  });
+});
+
 describe('runVerification — confirmed paths and marks reach certification', () => {
   const inStock: SchemaDefinitionField = { key: 'in_stock', name: 'In stock', type: 'boolean', description: 'x', concept: 'availability' };
   // Three in-stock products: an unrelated API field is 1 everywhere, JSON-LD says InStock.

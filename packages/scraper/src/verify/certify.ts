@@ -20,6 +20,8 @@ export type CertifyInput = {
   confirmed?: ConfirmedPath[];
   /** The XPaths of the elements the customer marked for this field: the only DOM paths a weak field may certify. */
   markXPaths?: string[];
+  /** The proof pages the customer said this field is NOT on (spec 2026-10-10 §B2): checked pages where the right answer is nothing. */
+  absent?: string[];
 };
 
 const SOURCE_RANK: Record<CertifiedPath['source'], number> = { api: 0, 'json-ld': 1, meta: 2, xpath: 3 };
@@ -94,9 +96,9 @@ export async function gatherCandidates(
 
 type Eval = { raw: unknown; correct: boolean; empty: boolean };
 
-/** A field's pages: the proof pages it has an expected value on, in url order. A blank cell (allowed on pages four to six only; binding-input enforces that) means "not checked here". */
-export function checkedPages(urls: string[], expected: Record<string, string>): string[] {
-  return urls.filter((u) => (expected[u] ?? '').trim() !== '');
+/** A field's pages: the proof pages it has an expected value on, plus those the customer said it is absent on (spec 2026-10-10 §B2), in url order. A blank cell (allowed on pages four to six only; binding-input enforces that) means "not checked here". */
+export function checkedPages(urls: string[], expected: Record<string, string>, absent: Record<string, true> = {}): string[] {
+  return urls.filter((u) => (expected[u] ?? '').trim() !== '' || absent[u] === true);
 }
 
 /**
@@ -157,9 +159,12 @@ export async function certify(input: CertifyInput, deps: CertifyDeps): Promise<F
 
 async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promise<FieldVerification> {
   const { field, captures } = input;
+  const absentSet = new Set(input.absent ?? []);
+  const absentMap: Record<string, true> = Object.fromEntries([...absentSet].map((u) => [u, true as const]));
   // Only the pages this field is checked on take part: evaluation, cells, completeness.
-  const urls = checkedPages(Object.keys(captures), input.expected);
-  const expected = Object.fromEntries(urls.map((u) => [u, input.expected[u]!]));
+  // An absent page is checked too (spec 2026-10-10 §B2), but has no expected value.
+  const urls = checkedPages(Object.keys(captures), input.expected, absentMap);
+  const expected = Object.fromEntries(urls.filter((u) => !absentSet.has(u)).map((u) => [u, input.expected[u]!]));
   const filtered = dedupe(input.candidates).filter((c) => c.source !== 'xpath' || !Object.values(expected).some((e) => xpathContainsValue(c.path, e)));
   // A confirmed path is always a candidate (spec 2026-09-29 C1), though still only a candidate:
   // it must be correct or empty on every checked page like any other. Dedupe on the FULL path
@@ -202,7 +207,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(capture, c.source, c.path);
       const raw = applyTransform(rawBase, c.transform);
       const empty = raw === null || raw === undefined || raw === '';
-      const correct = !empty && valuesEqual(field.type, raw, expected[url] ?? '', ctx);
+      // An absent page: a candidate is correct iff it resolves to nothing; a value there
+      // makes `e.correct || e.empty` false, so it is unsafe and never certifies (spec 2026-10-10 §B2).
+      const correct = absentSet.has(url) ? empty : !empty && valuesEqual(field.type, raw, expected[url] ?? '', ctx);
       if (!evals.has(pathId(c))) evals.set(pathId(c), {});
       evals.get(pathId(c))![url] = { raw, correct, empty };
     }
@@ -232,6 +239,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // fail loud with `different_value`, not read as a quiet pass from some
   // other safe-but-unproven path).
   const rankedSafe = rankCertified(safe);
+  // On an absent page `raw` is empty by definition of `correct` above, so the found text
+  // for a passing absent cell is '' rather than the string "null"/"undefined".
+  const foundText = (raw: unknown) => (raw === null || raw === undefined || raw === '' ? '' : displayValue(raw) ?? String(raw));
 
   const cells: Record<string, CellResult> = {};
   for (const url of urls) {
@@ -242,13 +252,19 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       // Every checked page is covered; safety makes the first non-empty path the right one.
       const winner = certified.find((p) => isCorrect(p, url))!;
       const raw = evals.get(pathId(winner))![url]!.raw;
-      cells[url] = { status: 'pass', found: displayValue(raw) ?? String(raw), path: winner };
+      cells[url] = { status: 'pass', found: foundText(raw), path: winner };
       continue;
     }
     if (!complete && rankedCorrectOnAllCaptured.length > 0) {
       const top = rankedCorrectOnAllCaptured[0]!;
       const raw = evals.get(pathId(top))![url]!.raw;
-      cells[url] = { status: 'pass', found: displayValue(raw) ?? String(raw), path: top };
+      cells[url] = { status: 'pass', found: foundText(raw), path: top };
+      continue;
+    }
+    if (absentSet.has(url)) {
+      // Every candidate produced a value on a page the customer said has none.
+      const produced = candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).find((r) => !(r === null || r === undefined || r === ''));
+      cells[url] = { status: 'fail', reason: 'found_unexpected', ...(displayValue(produced) !== null ? { found: displayValue(produced)! } : {}) };
       continue;
     }
     const others = capturedUrls.filter((u) => u !== url);
@@ -269,7 +285,7 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
     const safeHere = rankedSafe.find((c) => isCorrect(c, url));
     if (complete && urls.length > VERIFY_URL_MIN && safeHere) {
       const raw = evals.get(pathId(safeHere))![url]!.raw;
-      cells[url] = { status: 'pass', found: displayValue(raw) ?? String(raw), path: safeHere };
+      cells[url] = { status: 'pass', found: foundText(raw), path: safeHere };
       continue;
     }
     const correctHere = candidates.some((c) => evals.get(pathId(c))?.[url]?.correct);
