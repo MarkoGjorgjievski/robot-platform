@@ -662,6 +662,7 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
       for (const f of fields) {
         const a = board.answers[f.key]?.[url];
         if (!a) return { ok: false, reason: `${f.name} still needs product ${n}`, gap: f.key };
+        if (a.absent) continue;
         const err = validateValue(f.type, a.value);
         if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}`, gap: f.key };
       }
@@ -674,10 +675,18 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
           if (s[f.key]?.[url]) return { ok: false, reason: `${f.name} has a suggestion to confirm on product ${n}`, gap: f.key };
           continue;
         }
+        if (a.absent) continue;
         const err = validateValue(f.type, a.value);
         if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}`, gap: f.key };
       }
     }
+  }
+  // Spec D3: a field absent anywhere must still carry a value on at least two
+  // products — the server's own rule, surfaced before the save is refused.
+  for (const f of fields) {
+    const answered = board.cards.map((c) => board.answers[f.key]?.[c.url]).filter((a): a is Answer => !!a);
+    if (!answered.some((a) => a.absent)) continue;
+    if (answered.filter((a) => !a.absent).length < 2) return { ok: false, reason: `${f.name} needs a value on at least two products`, field: f.key };
   }
   return { ok: true };
 }
