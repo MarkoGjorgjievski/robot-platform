@@ -77,6 +77,9 @@ import type { AppRouter } from '@robot/api/routers';
 import { SHOP_EXAMPLE } from '../../api/src/test-helpers/shop-example';
 import { seedCompletedVariantsRun } from '../../api/src/test-helpers/seed-variants-run';
 import { seedDriftCheck } from '../../api/src/test-helpers/seed-drift-check';
+import { seedPassingVerification } from '../../api/src/test-helpers/seed-coverage-check';
+import { startCoverageCheck, runCoverageCheck } from '../../api/src/verify/run-coverage-check';
+import type { CertifiedPath } from '@robot/scraper';
 
 const ENABLED = process.env.RUN_UI_SMOKE === '1';
 const APP = process.env.APP_URL ?? 'http://localhost:3000';
@@ -113,6 +116,13 @@ const PRODUCTS = [
   { path: '/p/3', page: SHOP_EXAMPLE.p3, title: 'Widget C', price: '$149.00', rating: '4.9' },
 ] as const;
 
+/** A fourth product in the listing, of a second shape (spec 2026-10-10 §7): a `ProductGroup` whose
+ *  offers sit in its variants and no top-level `offers`, so a Price certified on `offers.price`
+ *  comes back empty on it — what the coverage check is there to find. Its rating, stock line and
+ *  SKU are on the page, so every other certified path the coverage test seeds resolves on it.
+ *  Listed LAST on `/l`, so the finder's first three cards stay `/p/1..3`. */
+const SECOND_SHAPE = { path: '/p/9', title: 'Widget D', price: '$99.00', rating: '4.1' };
+
 /** A 1×1 transparent PNG: every image the shop serves. */
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
@@ -148,13 +158,23 @@ function shopPage(pathname: string): { type: string; body: string | Buffer; stat
     return { type: 'text/html', body: '<html><head><title>Verify you are human</title></head><body><p>Verify you are human to continue.</p></body></html>' };
   }
   if (pathname === '/l') {
-    const cards = PRODUCTS.map((p, i) => `<li><a href="${p.path}"><img src="/i/${i + 1}.png" alt=""><span>${p.title}</span></a></li>`).join('');
+    const cards =
+      PRODUCTS.map((p, i) => `<li><a href="${p.path}"><img src="/i/${i + 1}.png" alt=""><span>${p.title}</span></a></li>`).join('') +
+      `<li><a href="${SECOND_SHAPE.path}"><img src="/i/9.png" alt=""><span>${SECOND_SHAPE.title}</span></a></li>`;
     return {
       type: 'text/html',
       body: `<html><head><title>All widgets</title></head><body><h1>All widgets</h1><ul class="grid">${cards}</ul><a href="/about">About the shop</a>${SHOP_FOOTER}</body></html>`,
     };
   }
   if (/^\/(i|img)\/[\w.-]+$/.test(pathname)) return { type: 'image/png', body: PIXEL };
+  if (pathname === SECOND_SHAPE.path) {
+    const ld = { '@context': 'https://schema.org', '@type': 'ProductGroup', name: SECOND_SHAPE.title, variesBy: ['https://schema.org/size'],
+      hasVariant: ['S', 'M'].map((size) => ({ '@type': 'Product', size, sku: `p9-${size}`, offers: { '@type': 'Offer', price: '99.00', priceCurrency: 'USD' } })) };
+    return {
+      type: 'text/html',
+      body: `<html><head><title>${SECOND_SHAPE.title}</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="main"><h1>${SECOND_SHAPE.title}</h1><p class="sizes">Sizes S and M</p><p class="stock">In stock</p><span class="rating">${SECOND_SHAPE.rating}</span><span class="sku">P9</span></div>${SHOP_FOOTER}</body></html>`,
+    };
+  }
   const product = PRODUCTS.find((p) => p.path === pathname);
   if (!product) return null;
   // The product's own SKU, in its page data and on the page (the shop-example
@@ -796,7 +816,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     // listing's own link text — and not the "About the shop" link.
     await page.getByRole('textbox', { name: 'Listing page' }).fill(`${SHOP}/l`);
     await page.getByRole('button', { name: 'Find products' }).click();
-    await expect.poll(() => page.locator('main').innerText(), { timeout: 60_000 }).toContain('3 products found');
+    await expect.poll(() => page.locator('main').innerText(), { timeout: 60_000 }).toContain('4 products found');
     const card = (title: string) => page.getByRole('button', { name: new RegExp(`^${title}`) });
     for (const p of PRODUCTS) {
       expect(await card(p.title).count(), `no column head reads "${p.title}"`).toBe(1);
@@ -920,7 +940,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await page.locator('button[data-cell][data-selected="true"]').click({ button: 'right' });
     const menu = page.getByRole('menu');
     await menu.waitFor({ timeout: 5_000 });
-    expect((await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim())).toEqual(['Copy value', 'Open product page', 'Fix on screenshot', 'Type it']);
+    expect((await menu.getByRole('menuitem').allInnerTexts()).map((t) => t.trim())).toEqual(['Copy value', 'Open product page', 'Fix on screenshot', 'Type it', 'Not on this product']);
     await page.keyboard.press('Escape');
     await expect.poll(() => menu.count(), { timeout: 5_000 }).toBe(0);
 
@@ -1512,6 +1532,99 @@ describe.skipIf(!ENABLED)('app shell', () => {
       await ctx.close();
     }
   }, 120_000);
+
+  // Proof-page coverage (spec 2026-10-10 §7). A passing Verify kicks the
+  // coverage check off in the api-server; a real Verify is off-limits here (an
+  // Anthropic key is present), so the passing verification is seeded directly
+  // (`seedPassingVerification`) and the REAL check is run in this process —
+  // free: page loads and code only, a local Chromium against the local shop.
+  // The listing has four products and three are proof pages, so it samples
+  // one: `/p/9`, whose offers sit in its variants. Verify is never pressed.
+  it('the coverage check finds the second shape, "Use as proof page" adds it, and "Not on this product" answers it', async () => {
+    expect(projectSlug, 'there is no project to check coverage on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to check coverage on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const keyOf = (name: string) => site.fields.find((f) => f.name === name)?.key;
+    const set = site.verificationSet as { urls: string[]; marks?: Record<string, Record<string, { xpaths: string[] }>> } | null;
+    // Rating's path is the mark the Verification walk made on product 1's screenshot.
+    const ratingMark = Object.values(set?.marks?.[keyOf('Rating')!] ?? {})[0]?.xpaths[0];
+    const ratingXPath = ratingMark ?? "//span[@class='rating']";
+    console.log(`coverage: Rating certified on ${ratingXPath}${ratingMark ? ' (its mark)' : ' (no mark stored)'}`);
+    // A certification exists only when every contract field is current, so
+    // every field is certified — on a path that resolves on /p/9, except Price.
+    const paths: Record<string, CertifiedPath[]> = {
+      Title: [{ source: 'json-ld', path: 'name', transform: 'identity' }],
+      Price: [{ source: 'json-ld', path: 'offers.price', transform: 'identity' }],
+      Rating: [{ source: 'xpath', path: ratingXPath, transform: 'identity' }],
+      SKU: [{ source: 'xpath', path: "//span[@class='sku']", transform: 'identity' }],
+      'In stock': [{ source: 'xpath', path: "//p[@class='stock']", transform: 'identity' }],
+    };
+    const certifiedByKey = Object.fromEntries(site.fields.map((f) => {
+      expect(paths[f.name], `no path to certify ${f.name} on`).toBeTruthy();
+      return [f.key, paths[f.name]!];
+    }));
+    await seedPassingVerification(site.id, certifiedByKey);
+
+    // The check itself: one sampled page, read in this process before the tab loads.
+    // It compares that page's shape with the proof pages', read from the
+    // capture files the api-server wrote (only read, never written, here) —
+    // in the api-server's folder, which is not this process's default.
+    process.env.CAPTURES_DIR ??= path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../api-server/public/captures');
+    const started = Date.now();
+    const { checkId } = await startCoverageCheck(site.id, null, { fire: false });
+    await runCoverageCheck(checkId);
+    console.log(`coverage: check ${checkId} took ${Date.now() - started} ms`);
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const priceKey = keyOf('Price')!;
+    const priceLine = page.locator(`[data-coverage="${priceKey}"]`);
+    await expect
+      .poll(async () => ((await priceLine.count()) ? await priceLine.locator('span').first().innerText() : ''), { timeout: 20_000 })
+      .toBe('Empty on 1 of 1 sampled product · it lists its sizes as variants in the page data');
+    for (const name of ['Title', 'Rating', 'SKU', 'In stock']) {
+      expect(await page.locator(`[data-coverage="${keyOf(name)}"]`).count(), `${name} has a coverage line, but its path resolves on /p/9`).toBe(0);
+    }
+    const stage = '1 field was empty on some of the 1 sampled product — see the row.';
+    expect(await page.getByText(stage, { exact: true }).count(), 'the verify bar has no coverage stage line').toBe(1);
+    await priceLine.scrollIntoViewIfNeeded();
+    await shootViewportBothThemes(page, 'app-site-verification-coverage');
+
+    // "Use as proof page": the sampled product becomes product 4.
+    await page.getByRole('button', { name: `Use a sampled product as proof page for Price`, exact: true }).click();
+    await expect.poll(() => page.getByRole('button', { name: /^Drop product \d+$/ }).count(), { timeout: 30_000 }).toBe(4);
+    const url9 = `${SHOP}${SECOND_SHAPE.path}`;
+
+    // Price is genuinely not on product 4's top level: say so.
+    const price4 = page.locator('button[aria-label^="Price on product 4: "]');
+    await price4.waitFor({ timeout: 30_000 });
+    await price4.click();
+    await expect.poll(() => page.locator('button[data-cell][data-selected="true"]').getAttribute('aria-label'), { timeout: 5_000 }).toMatch(/^Price on product 4: /);
+    await page.getByRole('button', { name: 'Price is not on product 4', exact: true }).click();
+    await expect.poll(() => cellState('Price', 4), { timeout: 10_000 }).toBe('accepted');
+    expect((await price4.innerText()).trim(), 'the absent cell does not say so').toBe('not on this product');
+    expect(await rowStatusText('Price'), 'Price still asks for product 4').not.toContain('missing on product 4');
+    console.log(`coverage: "${await price4.getAttribute('aria-label')}"; Price's status reads "${await rowStatusText('Price')}"`);
+
+    // It autosaves: the server has the page and the absent answer, and the save line settles.
+    await expect
+      .poll(async () => {
+        const s = (await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).verificationSet as {
+          urls?: string[];
+          absent?: Record<string, Record<string, true>>;
+        } | null;
+        return !!s?.urls?.includes(url9) && s?.absent?.[priceKey]?.[url9] === true;
+      }, { timeout: 20_000, interval: 500, message: 'product 4 and its absent Price were not saved' })
+      .toBe(true);
+    await expect.poll(() => page.getByText('saved', { exact: true }).count(), { timeout: 10_000 }).toBe(1);
+    // Product 4's screenshot lands too (a capture through the api-server, free), so the picture is settled.
+    await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(4);
+    await shootViewportBothThemes(page, 'app-site-verification-coverage-absent');
+
+    expect(problems, `the coverage walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 180_000);
 
   // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
   // product links". LAST on purpose: each wall puts the shop's host on
