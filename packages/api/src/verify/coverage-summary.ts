@@ -68,7 +68,11 @@ export function summariseCoverage(results: CoverageResults, fieldKeys: string[])
 
 export function stageLine(status: 'running' | 'done' | 'failed', results: CoverageResults | null, fieldsWithEmpties: number, error: string | null): string | null {
   if (status === 'failed') return error;
-  if (status === 'running') return `Checking ${results?.planned ?? results?.sampled.length ?? 0} more products from the listing…`;
+  if (status === 'running') {
+    // Before the listing is read there is nothing to count yet: nothing is shown.
+    const n = results?.planned ?? results?.sampled.length ?? 0;
+    return n === 0 ? null : `Checking ${n} more products from the listing…`;
+  }
   const n = results?.sampled.length ?? 0;
   if (n === 0) return null;
   const read = results!.sampled.filter(isRead).length;

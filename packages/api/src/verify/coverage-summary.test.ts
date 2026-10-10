@@ -52,6 +52,10 @@ describe('summariseCoverage (spec 2026-10-10 §A5)', () => {
 describe('stageLine (spec §5)', () => {
   const twenty = results(Array.from({ length: 20 }, (_, i) => page(10 + i, [])));
   it('running', () => expect(stageLine('running', twenty, 0, null)).toBe('Checking 20 more products from the listing…'));
+  it('running before the listing is read (no planned, nothing sampled) says nothing', () => {
+    expect(stageLine('running', null, 0, null)).toBeNull();
+    expect(stageLine('running', results([]), 0, null)).toBeNull();
+  });
   it('running with planned, before any page is sampled', () => {
     const planned: CoverageResults = { listingUrl: 'x', sampled: [], proofShapes: {}, planned: 20 };
     expect(stageLine('running', planned, 0, null)).toBe('Checking 20 more products from the listing…');

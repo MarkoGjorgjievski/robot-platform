@@ -24,6 +24,10 @@ import { summariseCoverage, stageLine, type CoverageResults, type SampledPage, t
 export const COVERAGE_CHECK_STALL_MS = 10 * 60 * 1000;
 /** Three refused/challenged pages in a row end the check with what it has (the run breaker's rule, fix wave C2 2026-10-09). */
 export const COVERAGE_WALL_BREAKER = 3;
+/** Three pages in a row failing for an unexpected reason (a missing Chromium, say) end the check with what it has, rather than twenty launches. */
+export const COVERAGE_ERROR_BREAKER = 3;
+/** What a page reads as when its read threw for a reason nothing above knows. */
+export const PAGE_UNREADABLE = 'The page could not be read.';
 
 export type CoverageDeps = {
   listing?: (url: string) => Promise<{ productUrls: string[]; verdictMessage: string | null }>;
@@ -56,8 +60,22 @@ async function defaultListing(url: string): Promise<{ productUrls: string[]; ver
   }
 }
 
+/**
+ * A host still backing off after a wall answers for the page at once, as a
+ * wall, with the backoff's sentence: no slot, no browser. Otherwise the
+ * domain lock would sleep the backoff out (2, then 4 minutes) while holding a
+ * capture slot and an idle browser, and the three-wall stop would take
+ * minutes — past the stall rule.
+ */
+export function answerFromBackoff(url: string): { unread: string; wall: true } | null {
+  const waiting = backoffAnswer(url);
+  return waiting ? { unread: waiting.message, wall: true } : null;
+}
+
 /** One sampled page: certified paths only, in a proof-page capture slot, under the domain lock `runVerifiedExtraction` takes itself. */
 async function defaultExtract(url: string, fields: VerifiedField[]): ReturnType<NonNullable<CoverageDeps['extract']>> {
+  const waiting = answerFromBackoff(url);
+  if (waiting) return waiting;
   return captureSlots(() => withBrowserSession(async (browser) => {
     try {
       const r = await runVerifiedExtraction({ url, fields }, { browser });
@@ -136,8 +154,20 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
       .map((f) => ({ key: f.key, type: f.type, concept: f.concept, paths: cert.paths[f.key]! }));
     const sampled: SampledPage[] = [];
     let walls = 0;
+    let errors = 0;
     for (const url of urls) {
-      const r = await extract(url, fields);
+      let r: Awaited<ReturnType<typeof extract>>;
+      try {
+        r = await extract(url, fields);
+      } catch (err) {
+        // One page's unexpected failure is that page unread, never the check failed.
+        console.error(`[coverage] check ${checkId}: reading ${url} failed:`, err);
+        sampled.push({ url, unread: PAGE_UNREADABLE });
+        walls = 0;
+        if (++errors >= COVERAGE_ERROR_BREAKER) break;
+        continue;
+      }
+      errors = 0;
       if ('unread' in r) {
         sampled.push({ url, unread: r.unread });
         walls = r.wall ? walls + 1 : 0;
