@@ -19,6 +19,11 @@ describe('summariseCoverage (spec 2026-10-10 §A5)', () => {
       representative: 'https://s.example/p/10',
     });
   });
+  it('no proof shapes (none captured fresh): no explanation, since nothing shows the proof pages lack the feature', () => {
+    const sampled = [...Array.from({ length: 11 }, (_, i) => page(10 + i, ['price'], multi)), ...Array.from({ length: 9 }, (_, i) => page(30 + i, []))];
+    const [price] = summariseCoverage({ ...results(sampled), proofShapes: {} }, ['price']);
+    expect(price).toMatchObject({ key: 'price', empty: sampled.slice(0, 11).map((p) => p.url), explanation: null, representative: 'https://s.example/p/10' });
+  });
   it('no explanation when the empties share nothing the proof pages lack; representative is still the first empty', () => {
     const [price] = summariseCoverage(results([page(10, ['price']), page(11, ['price']), page(12, [])]), ['price']);
     expect(price.explanation).toBeNull();
