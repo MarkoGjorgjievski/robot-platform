@@ -449,6 +449,22 @@ describe('"not on this product" (spec 2026-10-10 §B3)', () => {
     const live = liveFor(b, 'price', [sug('$129.99', [1], JL), sug('$219.99', [1], JL), null]);
     expect(rowStatus(price, b, live, maps()).kind).toBe('agreed');
   });
+  it('boardFrom reads absent back for a field with no expected entry at all', () => {
+    const b = boardFrom({ schemaDefinition: FIELDS, verificationSet: { urls: U, expected: { title: { [U[0]!]: 'W', [U[1]!]: 'W', [U[2]!]: 'W' } }, absent: { price: { [U[2]!]: true } } } });
+    expect(isAbsent(b, 'price', U[2]!)).toBe(true);
+  });
+});
+
+describe('the Verify gate and absent cells (spec 2026-10-10 §D3)', () => {
+  it('an absent cell on products 1 to 3 is answered, not missing — Verify passes when the field keeps a value on two products', () => {
+    const b = markAbsent(full(), 'price', U[0]!);
+    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: true });
+  });
+  it('refuses a field absent on all but one product: it needs a value on at least two', () => {
+    let b = markAbsent(full(), 'price', U[0]!);
+    b = markAbsent(b, 'price', U[1]!);
+    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: false, reason: 'Price needs a value on at least two products', field: 'price' });
+  });
 });
 
 describe('the Verify gate names the field a product gap is about (final review M7)', () => {
