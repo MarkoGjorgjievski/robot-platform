@@ -4,6 +4,7 @@ import {
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
+  markAbsent, isAbsent,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -420,6 +421,33 @@ describe('rowStatus: answered cells and failed screenshots (final review M4, M6)
       .toEqual({ kind: 'needs-you', reason: 'human check on product 1', product: 1 });
     expect(rowStatus(price, b, live, noShot, failed))
       .toEqual({ kind: 'needs-you', reason: 'screenshot failed on product 1', product: 1 });
+  });
+});
+
+describe('"not on this product" (spec 2026-10-10 §B3)', () => {
+  it('markAbsent writes an answer with no value, clearing a mark and a path; typing a value clears absent', () => {
+    let b = answer(board(), 'price', U[2]!, { value: '3.00', mark: MARK, via: { source: 'json-ld', path: 'offers.price' } });
+    b = markAbsent(b, 'price', U[2]!);
+    expect(b.answers.price![U[2]!]).toEqual({ value: '', mark: null, absent: true });
+    expect(isAbsent(b, 'price', U[2]!)).toBe(true);
+    b = answer(b, 'price', U[2]!, { value: '3.00', mark: null });
+    expect(isAbsent(b, 'price', U[2]!)).toBe(false);
+  });
+  it('toBindingInput sends absent beside an empty expected cell', () => {
+    const b = markAbsent(full(), 'price', U[2]!);
+    const input = toBindingInput(b, FIELDS);
+    expect(input.expected.price![U[2]!]).toBe('');
+    expect(input.absent).toEqual({ price: { [U[2]!]: true } });
+  });
+  it('boardFrom reads absent back', () => {
+    const b = boardFrom({ schemaDefinition: FIELDS, verificationSet: { urls: U, expected: { price: { [U[0]!]: '1', [U[1]!]: '2', [U[2]!]: '' } }, absent: { price: { [U[2]!]: true } } } });
+    expect(isAbsent(b, 'price', U[2]!)).toBe(true);
+  });
+  it('an absent cell is answered for the row: two agreeing suggestions and one absent read agreed, not missing', () => {
+    let b = board();
+    b = markAbsent(b, 'price', U[2]!);
+    const live = liveFor(b, 'price', [sug('$129.99', [1], JL), sug('$219.99', [1], JL), null]);
+    expect(rowStatus(price, b, live, maps()).kind).toBe('agreed');
   });
 });
 

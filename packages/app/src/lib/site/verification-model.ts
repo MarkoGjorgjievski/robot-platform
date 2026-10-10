@@ -21,7 +21,7 @@ export type Card = { url: string; title: string; image?: string };
  * `via`: the structured path (API, JSON-LD, meta) of the suggestion it was
  * accepted from (spec 2026-09-29 C1) — certification tries it first.
  */
-export type Answer = { value: string; mark: Mark | null; via?: Via };
+export type Answer = { value: string; mark: Mark | null; via?: Via; absent?: true };
 export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>> };
 export type Box = { xpaths: string[]; text: string; rect: Mark['rect']; tag: string; kind: 'text' | 'image' | 'link'; src?: string; href?: string };
 export type Via = { source: string; path: string };
@@ -51,6 +51,7 @@ type StoredVerificationSet = {
   marks?: Record<string, Record<string, Mark>>;
   cards?: Card[];
   paths?: Record<string, Record<string, Via>>;
+  absent?: Record<string, Record<string, true>>;
 };
 
 export function emptyBoard(): Board {
@@ -75,13 +76,16 @@ export function boardFrom(source: { schemaDefinition: unknown; verificationSet: 
   });
 
   const answers: Board['answers'] = {};
-  for (const [key, byUrl] of Object.entries(set.expected ?? {})) {
+  const keys = new Set([...Object.keys(set.expected ?? {}), ...Object.keys(set.absent ?? {})]);
+  for (const key of keys) {
+    const byUrl = set.expected?.[key] ?? {};
     const kept: Record<string, Answer> = {};
     for (const [url, value] of Object.entries(byUrl)) {
       if (value.trim() === '') continue;
       const via = set.paths?.[key]?.[url];
       kept[url] = { value, mark: set.marks?.[key]?.[url] ?? null, ...(via ? { via } : {}) };
     }
+    for (const [url] of Object.entries(set.absent?.[key] ?? {})) kept[url] = { value: '', mark: null, absent: true };
     if (Object.keys(kept).length > 0) answers[key] = kept;
   }
 
@@ -93,29 +97,33 @@ export function toBindingInput(
   fields: Field[],
 ): {
   urls: string[]; listingUrl?: string; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>;
-  marks?: Record<string, Record<string, Mark>>; paths?: Record<string, Record<string, StructuredVia>>; cards: Card[]; draft: true;
+  marks?: Record<string, Record<string, Mark>>; paths?: Record<string, Record<string, StructuredVia>>; absent?: Record<string, Record<string, true>>; cards: Card[]; draft: true;
 } {
   const urls = board.cards.map((c) => c.url.trim());
   const descriptions: Record<string, string> = {};
   const expected: Record<string, Record<string, string>> = {};
   const marks: Record<string, Record<string, Mark>> = {};
   const paths: Record<string, Record<string, StructuredVia>> = {};
+  const absent: Record<string, Record<string, true>> = {};
 
   for (const f of fields) {
     descriptions[f.key] = board.descriptions[f.key] ?? f.description;
     const byUrl: Record<string, string> = {};
     const markByUrl: Record<string, Mark> = {};
     const pathByUrl: Record<string, StructuredVia> = {};
+    const absentByUrl: Record<string, true> = {};
     board.cards.forEach((card, i) => {
       const a = board.answers[f.key]?.[card.url];
       byUrl[urls[i]!] = a?.value ?? '';
       if (a?.mark) markByUrl[urls[i]!] = a.mark;
       const via = structuredVia(a?.via);
       if (via) pathByUrl[urls[i]!] = { source: via.source, path: via.path };
+      if (a?.absent) absentByUrl[urls[i]!] = true;
     });
     expected[f.key] = byUrl;
     if (Object.keys(markByUrl).length > 0) marks[f.key] = markByUrl;
     if (Object.keys(pathByUrl).length > 0) paths[f.key] = pathByUrl;
+    if (Object.keys(absentByUrl).length > 0) absent[f.key] = absentByUrl;
   }
 
   return {
@@ -125,6 +133,7 @@ export function toBindingInput(
     expected,
     ...(Object.keys(marks).length > 0 ? { marks } : {}),
     ...(Object.keys(paths).length > 0 ? { paths } : {}),
+    ...(Object.keys(absent).length > 0 ? { absent } : {}),
     cards: board.cards,
     draft: true,
   };
@@ -213,6 +222,23 @@ export function answer(board: Board, key: string, url: string, a: Answer | null)
   const answers = { ...board.answers };
   if (Object.keys(byUrl).length === 0) delete answers[key]; else answers[key] = byUrl;
   return { ...board, answers };
+}
+
+/** What an absent cell shows in place of a value (spec 2026-10-10 §B3). */
+export const ABSENT_TEXT = 'not on this product';
+
+/** Marks a cell "not on this product" (spec §B3): an answered cell with no value, no mark, no path. */
+export function markAbsent(board: Board, key: string, url: string): Board {
+  return answer(board, key, url, { value: '', mark: null, absent: true });
+}
+
+export function isAbsent(board: Board, key: string, url: string): boolean {
+  return board.answers[key]?.[url]?.absent === true;
+}
+
+/** `ABSENT_TEXT` for an absent cell, the caller's own value text otherwise. */
+export function cellText(board: Board, field: Field, url: string, fallback: () => string): string {
+  return isAbsent(board, field.key, url) ? ABSENT_TEXT : fallback();
 }
 
 export function setDescription(board: Board, key: string, text: string): Board {
@@ -445,6 +471,7 @@ export function rowStatus(
     const n = i + 1;
     const a = board.answers[field.key]?.[card.url];
     if (a) {
+      if (a.absent) continue;
       const bad = validateValue(field.type, a.value);
       if (bad) return { kind: 'needs-you', reason: `${bad} on product ${n}`, product: n };
       values.push(a.value);
