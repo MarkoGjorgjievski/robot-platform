@@ -11,10 +11,34 @@
 - A stalled check (`running` for more than ten minutes) shows no stage line at all, rather than
   a stage line describing a dead run.
 - The table's `started_at` is `coverage_checks.created_at` — no separate column.
-- The brief's explanation sentences ("all n list their sizes as variants in the page data", "n of
-  n have no offer in the page data", "none of the n shows a rating in the page data", "none of the
-  n describes itself as a product in the page data") replace this spec's §A5 table's "none of the
-  n has an offer…" forms — the brief's wording is what shipped.
+- The explanation sentences that shipped (`coverage-summary.ts`) are "all n / k of n" followed by
+  "list their sizes as variants in the page data", "have no offer in the page data", "show no
+  rating in the page data" or "do not describe themselves as a product in the page data" (singular:
+  "it lists its sizes as variants…", "it has no offer…", "it shows no rating…", "it does not
+  describe itself as a product…"), replacing this spec's §A5 table's "none of the n has an offer…"
+  forms.
+- The cover's "one path must be proven on at least two pages" rule, a path's `provenOn` and
+  `thinEvidence` count only the pages with an expected value. An absent page still takes part in
+  safety (a value there makes a path unsafe) and still reads `pass`, but proves nothing about a
+  path: every safe path is empty there (final review C1).
+- An absent cell reads `found_unexpected` only when a candidate correct on every other checked page
+  with a value produces a value there (the `twoOfThree` idea); a value from a path already wrong
+  elsewhere leaves the absent cell `pass`, empty (final review I2).
+- A new passing Verify while a check is running: a `running` row for a different `verificationId`
+  (or none, when the new call carries one) is closed `failed` / `'superseded'` (no stage line, like
+  `stalled`) and a new check starts; the same `verificationId` (or a call with none) gets
+  `in-progress`. The superseded runner's final write is guarded to `running` rows and lands nowhere.
+- A check that read none of its sampled pages says "Checked n more products from the listing: none
+  could be read." rather than "every field was found".
+- The sample is `pool[floor(i * n / 20)]` for i = 0..19, not every k-th with k = floor(n / 20), so
+  21–39 links are spread over the whole list instead of taking the first twenty.
+- The shape's `rating` feature counts only a rating above zero (`rating`, `averageRating`,
+  `average_rating`, `ratingValue` as a number or numeric string), and a JSON-LD `aggregateRating`
+  only with a `ratingValue`: an API's `averageRating: 0` is no rating.
+- The coverage line says "· already a proof page" and offers no action when its representative is
+  already one of the cards.
+- `verify-bar.tsx` is unchanged: the route composes the stage line (`coverageStage`) and hands it
+  to the verify bar's existing `stage` prop.
 - The spec's separate row word "not on product n" (§5's copy table) was not built as a distinct
   label — an absent cell's own text ("not on this product") already says it; no extra row-level
   word was added.
