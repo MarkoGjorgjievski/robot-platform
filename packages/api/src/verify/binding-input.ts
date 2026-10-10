@@ -25,6 +25,8 @@ export const bindingInput = z.object({
   /** Autosave from the Verification tab: the per-cell completeness rules wait for Verify (spec 2026-09-25 §3). */
   draft: z.boolean().optional(),
   cards: z.array(card).max(VERIFY_URL_MAX).optional(),
+  /** fieldKey → url → "not on this product", a checked page whose answer is nothing (spec 2026-10-10 §B1). */
+  absent: z.record(z.string(), z.record(z.string(), z.literal(true))).optional(),
 });
 export type BindingInput = z.infer<typeof bindingInput>;
 
@@ -41,8 +43,11 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
   for (const f of contract) {
     if (!draft && !(input.descriptions[f.key] ?? '').trim()) problems.push(`${f.name}: say where it is on this website`);
     const cells = input.expected[f.key] ?? {};
+    const absent = input.absent?.[f.key] ?? {};
     input.urls.forEach((url, i) => {
       const value = cells[url] ?? '';
+      if (absent[url] && value.trim() !== '') { problems.push(`${f.name} @ ${url}: a value and "not on this product" cannot both be set`); return; }
+      if (absent[url]) return;                                         // a checked page where the answer is nothing
       // Pages four to six: a blank cell means "not checked here" (spec 2026-09-17 §4).
       // A draft save (Verification tab autosave) can leave any cell blank — Verify checks completeness itself.
       if ((draft || i >= VERIFY_URL_MIN) && value.trim() === '') return;
@@ -50,12 +55,20 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
       if (err) problems.push(`${f.name} @ ${url}: ${err}`);
     });
     for (const url of input.urls) {
-      if (input.marks?.[f.key]?.[url] && (cells[url] ?? '').trim() === '') problems.push(`${f.name} @ ${url}: a marked element needs its value`);
+      // A mark on a checked-absent page isn't a problem — "not on this product" drops the mark (spec 2026-10-10 §B1), it doesn't need one.
+      if (input.marks?.[f.key]?.[url] && !absent[url] && (cells[url] ?? '').trim() === '') problems.push(`${f.name} @ ${url}: a marked element needs its value`);
+    }
+    if (!draft) {
+      // A field marked "not on this product" anywhere must still have a value on at least two
+      // products (spec 2026-10-10 §B1) — otherwise there is nothing to cross-validate against.
+      const withValue = input.urls.filter((url) => (cells[url] ?? '').trim() !== '').length;
+      const absentCount = input.urls.filter((url) => absent[url]).length;
+      if (absentCount > 0 && withValue < 2) problems.push(`${f.name}: needs a value on at least two products`);
     }
   }
   if (!draft) {
     input.urls.slice(VERIFY_URL_MIN).forEach((url) => {
-      if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '')) problems.push(`${url}: type at least one expected value on this page, or remove it`);
+      if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '' && !input.absent?.[f.key]?.[url])) problems.push(`${url}: type at least one expected value on this page, or remove it`);
     });
   }
   return problems;
@@ -76,6 +89,7 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
     const current = (u: string) => {
       const mark = input.marks?.[f.key]?.[u];
       if (!mark) return false;
+      if (input.absent?.[f.key]?.[u]) return false; // "not on this product" drops the mark (spec 2026-10-10 §B1), even an image/link mark with no text to compare
       return mark.text.trim() === '' || valuesEqual(f.type, mark.text, expected[f.key]![u] ?? '', { pageUrl: u });
     };
     const perUrl = Object.fromEntries(input.urls.filter(current).map((u) => [u, input.marks![f.key]![u]!]));
@@ -89,6 +103,11 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
     if (Object.keys(perUrl).length) paths[f.key] = perUrl;
   }
   const cards = input.cards?.filter((c) => input.urls.includes(c.url));
+  const absent: NonNullable<VerificationSet['absent']> = {};
+  for (const f of contract) {
+    const perUrl = Object.fromEntries(input.urls.filter((u) => input.absent?.[f.key]?.[u]).map((u) => [u, true as const]));
+    if (Object.keys(perUrl).length) absent[f.key] = perUrl;
+  }
   // `BindingInput` carries no `variants` field — the fields' autosave never answers for a
   // website's variants — so this never emits one; `sources.updateBinding` (plan 2 task 3) carries
   // the prior `verificationSet.variants` forward itself, under a row lock, right before its write.
@@ -101,6 +120,7 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
       ...(Object.keys(marks).length ? { marks } : {}),
       ...(Object.keys(paths).length ? { paths } : {}),
       ...(cards?.length ? { cards } : {}),
+      ...(Object.keys(absent).length ? { absent } : {}),
     },
   };
 }
