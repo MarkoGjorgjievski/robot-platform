@@ -77,6 +77,8 @@ export function stageLine(status: 'running' | 'done' | 'failed', results: Covera
   if (n === 0) return null;
   const read = results!.sampled.filter(isRead).length;
   const products = n === 1 ? 'product' : 'products';
+  // Nothing read (a wall from the first page, say): there is nothing to say about any field.
+  if (read === 0) return `Checked ${n} more ${products} from the listing: none could be read.`;
   if (fieldsWithEmpties === 0) {
     const unread = n - read;
     return `Checked ${n} more ${products} from the listing: every field was found on all of them.${unread > 0 ? ` (${unread} could not be read)` : ''}`;

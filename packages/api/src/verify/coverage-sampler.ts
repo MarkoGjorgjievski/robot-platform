@@ -11,8 +11,7 @@ export function sampleListing(productUrls: string[], proofUrls: string[], max = 
   const seen = new Set<string>();
   const pool = productUrls.filter((u) => { const k = key(u); if (proof.has(k) || seen.has(k)) return false; seen.add(k); return true; });
   if (pool.length <= max) return pool;
-  const k = Math.floor(pool.length / max);
-  const out: string[] = [];
-  for (let i = 0; i < pool.length && out.length < max; i += k) out.push(pool[i]!);
-  return out;
+  // The first link first, then evenly over the whole list: 25 links give every 1.25th, not the first
+  // twenty (a constant step of floor(n / 20) would take the top 20 of 21–39 links, the top 40 of 59).
+  return Array.from({ length: max }, (_, i) => pool[Math.floor((i * pool.length) / max)]!);
 }

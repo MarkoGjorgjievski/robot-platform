@@ -46,13 +46,14 @@ async function defaultListing(url: string): Promise<{ productUrls: string[]; ver
   if (waiting) return { productUrls: [], verdictMessage: waiting.message };
   const hostname = new URL(url).hostname;
   try {
-    return await withBrowserSession(async (browser) => {
+    // Inside the proof-page capture slots, like every page the check reads: never a fourth Chromium (spec A3).
+    return await captureSlots(() => withBrowserSession(async (browser) => {
       const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: false });
       reportVerdict(hostname, capture.verdict);
       if (capture.verdict.kind !== 'ok') return { productUrls: [], verdictMessage: verdictSentence(capture.verdict, url) };
       const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
       return { productUrls: largestProductGroup(anchors, url), verdictMessage: null };
-    });
+    }));
   } catch (err) {
     if (!(err instanceof CaptureError)) throw err;
     reportVerdict(hostname, err.kind);
@@ -97,7 +98,14 @@ async function defaultProofShapes(sourceId: string, urls: string[]): Promise<Rec
   return Object.fromEntries(Object.entries(records).map(([url, record]) => [url, shapeOf(record.capture)]));
 }
 
-/** Start a coverage check for a website, or return the one already running (a stalled one is closed `failed` / `'stalled'` first). */
+/**
+ * Start a coverage check for a website, or return the one already running for
+ * the same Verify. A stalled one is closed `failed` / `'stalled'` first. One
+ * running for an older Verify (a different `verificationId`, or none) is closed
+ * `failed` / `'superseded'` and a new one starts: it read the previous
+ * certification, and the tab shows the newest (spec 2026-10-10 §A1). Its own
+ * final write is guarded to `running` rows, so it then lands nowhere.
+ */
 export async function startCoverageCheck(
   sourceId: string,
   verificationId: string | null,
@@ -106,12 +114,14 @@ export async function startCoverageCheck(
   const running = await db.query.coverageChecks.findFirst({
     where: and(eq(coverageChecks.sourceId, sourceId), eq(coverageChecks.status, 'running')),
     orderBy: [desc(coverageChecks.createdAt)],
-    columns: { id: true, createdAt: true },
+    columns: { id: true, createdAt: true, verificationId: true },
   });
   if (running) {
-    if (Date.now() - running.createdAt.getTime() < COVERAGE_CHECK_STALL_MS) return { checkId: running.id, status: 'in-progress' };
+    const stalled = Date.now() - running.createdAt.getTime() >= COVERAGE_CHECK_STALL_MS;
+    const superseded = verificationId !== null && running.verificationId !== verificationId;
+    if (!stalled && !superseded) return { checkId: running.id, status: 'in-progress' };
     await db.update(coverageChecks)
-      .set({ status: 'failed', error: 'stalled', completedAt: new Date() })
+      .set({ status: 'failed', error: stalled ? 'stalled' : 'superseded', completedAt: new Date() })
       .where(and(eq(coverageChecks.id, running.id), eq(coverageChecks.status, 'running')));
   }
   const [row] = await db.insert(coverageChecks).values({ sourceId, verificationId, status: 'running' }).returning({ id: coverageChecks.id });
@@ -223,6 +233,6 @@ export async function latestCoverageCheck(sourceId: string): Promise<LatestCover
   const fields: FieldCoverage[] = status === 'done' && results ? summariseCoverage(results, keys) : [];
   return {
     id: row.id, status, results, error: row.error, createdAt: row.createdAt, fields,
-    stage: stageLine(status, results, fields.length, row.error === 'stalled' ? null : row.error),
+    stage: stageLine(status, results, fields.length, row.error === 'stalled' || row.error === 'superseded' ? null : row.error),
   };
 }
