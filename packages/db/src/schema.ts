@@ -448,6 +448,33 @@ export const driftChecksRelations = relations(driftChecks, ({ one }) => ({
   run: one(runs, { fields: [driftChecks.runId], references: [runs.id] }),
 }));
 
+// ─── Coverage Checks (2026-10-10) ───────────────────────────────────────────
+// The coverage check (spec 2026-10-10 §A): after a passing Verify, twenty
+// products sampled from the listing and read with the certified paths only,
+// so the Verification tab can say where a field comes back empty before the
+// first run. Writes only this row: no captures, no verification set, no path
+// stats, no domain cache (spec A4).
+
+export const coverageChecks = pgTable('coverage_checks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  verificationId: uuid('verification_id').references(() => sourceVerifications.id, { onDelete: 'set null' }),
+  // 'running' | 'done' | 'failed'
+  status: varchar('status', { length: 12 }).notNull().default('running'),
+  // CoverageResults (@robot/api verify/run-coverage-check.ts)
+  results: jsonb('results'),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (table) => [
+  index('coverage_checks_source_id_idx').on(table.sourceId),
+]);
+
+export const coverageChecksRelations = relations(coverageChecks, ({ one }) => ({
+  source: one(sources, { fields: [coverageChecks.sourceId], references: [sources.id] }),
+  verification: one(sourceVerifications, { fields: [coverageChecks.verificationId], references: [sourceVerifications.id] }),
+}));
+
 // ─── Extractions (AI Scraper) ───────────────────────────────────────────────
 
 export const extractions = pgTable('extractions', {

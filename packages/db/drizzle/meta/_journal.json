@@ -120,6 +120,13 @@
       "when": 1791364602791,
       "tag": "0016_staff_access",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791644166793,
+      "tag": "0017_coverage_checks",
+      "breakpoints": true
     }
   ]
 }
