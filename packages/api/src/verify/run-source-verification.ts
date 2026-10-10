@@ -26,6 +26,7 @@ import { persistScreenshot } from '../persist-screenshot.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadStoredCapture, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
 import { loadProofPageCaptures } from './proof-page-capture.js';
+import { startCoverageCheck } from './run-coverage-check.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -71,7 +72,12 @@ export async function writeStage(dbOrTx: Database, verificationId: string, stage
     .where(and(eq(sourceVerifications.id, verificationId), isNull(sourceVerifications.completedAt)));
 }
 
-export async function runSourceVerification(sourceId: string, verificationId: string, opts: { onlyKeys?: string[] } = {}): Promise<void> {
+export async function runSourceVerification(
+  sourceId: string,
+  verificationId: string,
+  opts: { onlyKeys?: string[]; startCoverage?: typeof startCoverageCheck } = {},
+): Promise<void> {
+  const startCoverage = opts.startCoverage ?? startCoverageCheck;
   try {
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
@@ -173,6 +179,8 @@ export async function runSourceVerification(sourceId: string, verificationId: st
       for (const f of fields) (byConcept[f.concept] ??= []).push(...run.outcome.fields[f.key]!.certified);
       await saveVerifiedPaths(hostname, 'detail', byConcept, set.urls[0]!);
       await db.update(sources).set({ driftedFields: null, updatedAt: new Date() }).where(eq(sources.id, sourceId));
+      // The coverage check (spec 2026-10-10 §A1): free, in the background, never awaited.
+      void startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
     }
   } catch (err) {
     console.error(`[verify] verification ${verificationId} failed:`, err);

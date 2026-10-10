@@ -31,6 +31,7 @@ import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, 
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import { startDriftCheck, latestDriftCheck, latestDriftedRun } from '../verify/run-drift-check.js';
+import { latestCoverageCheck } from '../verify/run-coverage-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
 import { createAxis, lockDatasetSchema, lockSources } from './datasets.js';
 
@@ -1143,6 +1144,14 @@ export const sourcesRouter = router({
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       return latestDriftCheck(input.sourceId);
+    }),
+
+  /** The website's latest coverage check (spec 2026-10-10 §A5): per field the sampled pages it was empty on, the explanation, the page to offer, and the stage line. Null when it never had one. */
+  coverage: protectedProcedure
+    .input(z.object({ sourceId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      return latestCoverageCheck(input.sourceId);
     }),
 
   // ─── Variants (spec 2026-10-01 §3): how a website exposes variants ──────

@@ -22,6 +22,10 @@ const { runVerificationMock, saveVerifiedPathsMock, withBrowserSessionMock } = v
   saveVerifiedPathsMock: vi.fn().mockResolvedValue(undefined),
   withBrowserSessionMock: vi.fn(async (fn: (browser: unknown) => Promise<unknown>) => fn({})),
 }));
+// The coverage check a passing Verify starts (spec 2026-10-10 §A1) is never
+// fired here: it is covered in run-coverage-check.test.ts, and a real one
+// would load these fake hosts in a browser.
+const startCoverage = vi.fn(async () => ({ checkId: 'none', status: 'started' as const }));
 
 vi.mock('@robot/scraper', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@robot/scraper')>();
@@ -38,6 +42,7 @@ afterEach(() => {
   runVerificationMock.mockReset();
   saveVerifiedPathsMock.mockClear();
   withBrowserSessionMock.mockClear();
+  startCoverage.mockClear();
 });
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -106,7 +111,7 @@ describe('runSourceVerification', () => {
         captureErrors: {},
       });
 
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
 
       const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(row!.completedAt).not.toBeNull();
@@ -127,6 +132,7 @@ describe('runSourceVerification', () => {
       expect(capturedRow!.html).toBe('<html>1</html>');
 
       expect(saveVerifiedPathsMock).toHaveBeenCalledWith('test-runverify-success.example.com', 'detail', { price: certifiedPrice }, urls[0]);
+      expect(startCoverage).toHaveBeenCalledWith(sourceId, verificationId);
 
       const sourceRow = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
       expect(sourceRow!.driftedFields).toBeNull();
@@ -141,12 +147,13 @@ describe('runSourceVerification', () => {
       const verificationId = await startVerificationRow(sourceId);
       runVerificationMock.mockRejectedValue(new Error('boom'));
 
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
 
       const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(row!.completedAt).not.toBeNull();
       expect(row!.errorMessage).toBe('boom');
       expect(row!.allPassed).toBe(false);
+      expect(startCoverage).not.toHaveBeenCalled();
 
       // Failure must not clear driftedFields — that only happens on allPassed.
       const sourceRow = await db.query.sources.findFirst({ where: eq(sources.id, sourceId) });
@@ -167,7 +174,7 @@ describe('runSourceVerification', () => {
         .replace(/\\u001b/g, '');
       runVerificationMock.mockRejectedValue(new Error(ansiMessage));
 
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
 
       const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(row!.completedAt).not.toBeNull();
@@ -203,7 +210,7 @@ describe('runSourceVerification', () => {
       // on-disk capture files (.capture.json sidecars) to reuse from.
       const firstId = await startVerificationRow(sourceId, { startedAt: new Date(base - 20_000) });
       runVerificationMock.mockResolvedValueOnce(cannedRun);
-      await runSourceVerification(sourceId, firstId);
+      await runSourceVerification(sourceId, firstId, { startCoverage });
       const firstRow = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, firstId) });
       const firstRefs = firstRow!.captures as Record<string, { captureId: string }>;
 
@@ -223,7 +230,7 @@ describe('runSourceVerification', () => {
       // captures, not the failed row's (which has none).
       const secondId = await startVerificationRow(sourceId, { startedAt: new Date(base) });
       runVerificationMock.mockResolvedValueOnce(cannedRun);
-      await runSourceVerification(sourceId, secondId, { onlyKeys: ['price'] });
+      await runSourceVerification(sourceId, secondId, { onlyKeys: ['price'], startCoverage });
 
       expect(runVerificationMock).toHaveBeenCalledTimes(2);
       const deps = runVerificationMock.mock.calls[1]![1] as { captures?: Record<string, unknown>; previous?: unknown; onlyKeys?: string[] };
@@ -262,7 +269,7 @@ describe('runSourceVerification', () => {
         captureErrors: {},
       }));
 
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
 
       const deps = runVerificationMock.mock.calls[0]![1] as { captures?: Record<string, PageCapture> };
       expect(deps.captures?.[urls[0]!]?.html).toBe('<html>seeded</html>');
@@ -340,7 +347,7 @@ describe('runSourceVerification — variants', () => {
     try {
       const verificationId = await startVerificationRow(sourceId);
       runVerificationMock.mockResolvedValue(passingRun(urls, ['p1', 'p2', 'p3']));
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
       const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(row!.completedAt).not.toBeNull();
       expect(row!.variantResults).toBeNull();
@@ -354,7 +361,7 @@ describe('runSourceVerification — variants', () => {
     try {
       const verificationId = await startVerificationRow(sourceId);
       runVerificationMock.mockResolvedValue(passingRun(urls, ['p1', 'p2', 'p3']));
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
       const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(row!.allPassed).toBe(true);
       expect(row!.variantResults).toMatchObject({ method: 'list', passed: true, pages: { [urls[0]!]: { status: 'pass', count: 2 }, [urls[2]!]: { status: 'none' } } });
@@ -370,7 +377,7 @@ describe('runSourceVerification — variants', () => {
     try {
       const verificationId = await startVerificationRow(sourceId);
       runVerificationMock.mockResolvedValue(passingRun(urls, ['p1', 'p2', 'p3']));
-      await runSourceVerification(sourceId, verificationId);
+      await runSourceVerification(sourceId, verificationId, { startCoverage });
       const row = await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) });
       expect(row!.errorMessage).toBeNull();
       expect(row!.allPassed).toBe(true);

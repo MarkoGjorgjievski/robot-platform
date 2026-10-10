@@ -27,7 +27,8 @@ function explain(empties: Read[], proof: Shape[]): string | null {
   if (n === 0) return null;
   const candidates: Array<{ count: number; text: string }> = [];
   for (const f of FEATURES) {
-    if (proof.length > 0 && proof.some(f.has)) continue;           // a proof page has it too: not the difference
+    // No proof shapes to compare against: no feature can be shown to be the difference.
+    if (proof.length === 0 || proof.some(f.has)) continue;          // a proof page has it too: not the difference
     const count = empties.filter((p) => f.has(p.shape)).length;
     if (count / n < SHARE) continue;
     candidates.push({ count, text: n === 1 ? `it ${f.singular}` : count === n ? `all ${n} ${f.plural}` : `${count} of ${n} ${f.plural}` });
