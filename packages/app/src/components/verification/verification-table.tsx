@@ -394,7 +394,7 @@ export function VerificationTable({
                             }
                           }}
                         >
-                          <ContextMenuItem disabled={!value} onSelect={() => onCopy(sel)}>
+                          <ContextMenuItem disabled={!value || cell.absent} onSelect={() => onCopy(sel)}>
                             Copy value
                           </ContextMenuItem>
                           <ContextMenuItem disabled={!cell.url.trim()} onSelect={() => window.open(cell.url, '_blank', 'noopener,noreferrer')}>

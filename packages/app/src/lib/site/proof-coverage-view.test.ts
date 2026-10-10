@@ -13,6 +13,10 @@ describe('coverageLine (spec 2026-10-10 §5)', () => {
   it('at six proof pages the line says so and offers nothing', () => {
     expect(coverageLine(f, true)).toEqual({ text: 'Empty on 2 of 20 sampled products · all 2 list their sizes as variants in the page data · This website has its six proof pages', useAsProofPage: null });
   });
+  it('a representative already on the board offers nothing and says so', () => {
+    expect(coverageLine(f, false, true)).toEqual({ text: 'Empty on 2 of 20 sampled products · all 2 list their sizes as variants in the page data · already a proof page', useAsProofPage: null });
+    expect(coverageLine({ ...f, explanation: null }, true, true)).toEqual({ text: 'Empty on 2 of 20 sampled products · already a proof page', useAsProofPage: null });
+  });
   it('one sampled product reads in the singular', () => {
     expect(coverageLine({ ...f, empty: ['https://s.example/p/10'], sampled: 1, explanation: null }, false).text).toBe('Empty on 1 of 1 sampled product');
   });

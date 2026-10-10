@@ -13,12 +13,19 @@ export type ProofCoverageView = {
 };
 
 export const AT_LIMIT = 'This website has its six proof pages';
+export const ON_BOARD = 'already a proof page';
 
-export function coverageLine(f: ProofCoverageView['fields'][number], atLimit: boolean): { text: string; useAsProofPage: string | null } {
+/**
+ * The line under a field's row. `onBoard`: the representative is already one of
+ * the board's cards (the sampler compares addresses loosely), so there is
+ * nothing to add — the line says so instead of offering "Use as proof page".
+ */
+export function coverageLine(f: ProofCoverageView['fields'][number], atLimit: boolean, onBoard = false): { text: string; useAsProofPage: string | null } {
   const parts = [`Empty on ${f.empty.length} of ${f.sampled} sampled ${f.sampled === 1 ? 'product' : 'products'}`];
   if (f.explanation) parts.push(f.explanation);
-  if (atLimit) parts.push(AT_LIMIT);
-  return { text: parts.join(' · '), useAsProofPage: atLimit ? null : f.representative };
+  if (onBoard) parts.push(ON_BOARD);
+  else if (atLimit) parts.push(AT_LIMIT);
+  return { text: parts.join(' · '), useAsProofPage: atLimit || onBoard ? null : f.representative };
 }
 
 /** The verify bar's one stage line: a running Verify's own stage first, else the coverage check's. */
