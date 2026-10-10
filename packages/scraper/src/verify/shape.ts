@@ -33,22 +33,31 @@ function typesOf(n: Node): string[] {
 
 const has = (n: Node, key: string) => n[key] !== undefined && n[key] !== null && !(Array.isArray(n[key]) && (n[key] as unknown[]).length === 0);
 
-/** Does any object in this JSON (depth ≤ 6) carry one of these keys with a non-empty value? */
-function anyKey(value: unknown, keys: string[], depth = 0): boolean {
+/** A number above zero, or a string that reads as one. */
+function positive(v: unknown): boolean {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0;
+}
+
+// A rating is present only when one of these keys carries a number above zero.
+// A product API often carries `rating: 0` or `averageRating: 0` for a product with
+// no rating yet (Decathlon's `stats.averageRating`), and recommendation carousels
+// and review widgets carry such keys on nearly every page: a key alone says nothing.
+const RATING_KEYS = ['ratingValue', 'averageRating', 'average_rating', 'rating'];
+
+/** Does any object in this JSON (depth ≤ 6) carry a rating above zero, bare or under `aggregateRating`? */
+function anyRating(value: unknown, depth = 0): boolean {
   if (depth > 6 || !isNode(value) && !Array.isArray(value)) return false;
-  if (Array.isArray(value)) return value.some((v) => anyKey(v, keys, depth + 1));
+  if (Array.isArray(value)) return value.some((v) => anyRating(v, depth + 1));
   for (const [k, v] of Object.entries(value)) {
-    if (keys.includes(k) && v !== null && v !== undefined && v !== '') return true;
-    if (anyKey(v, keys, depth + 1)) return true;
+    if (RATING_KEYS.includes(k) && positive(v)) return true;
+    if (anyRating(v, depth + 1)) return true; // `aggregateRating: { ratingValue }` is reached here
   }
   return false;
 }
 
-// Includes a bare 'rating': a product API often carries `rating: 0` or
-// `rating: null` for a no-rating product — anyKey treats `0` as present (it
-// only excludes null/undefined/''), which is what we want: the API DOES
-// carry a rating field, even when its value says there is no rating yet.
-const RATING_KEYS = ['aggregateRating', 'ratingValue', 'averageRating', 'average_rating', 'rating'];
+/** A JSON-LD `aggregateRating` counts only when it has a `ratingValue`. */
+const ldRating = (n: Node) => isNode(n.aggregateRating) && has(n.aggregateRating, 'ratingValue') && n.aggregateRating.ratingValue !== '';
 
 export function addressPattern(url: string): string {
   let u: URL;
@@ -64,11 +73,11 @@ export function shapeOf(capture: Pick<PageCapture, 'url' | 'structuredData' | 'i
   const topLevelOffers = ns.some((n) => has(n, 'offers'));
   const inVariants = ns.some((n) => Array.isArray(n.hasVariant) && (n.hasVariant as unknown[]).some((v) => isNode(v) && has(v, 'offers')));
   const offers = topLevelOffers ? 'top-level' : inVariants ? 'in-variants' : 'none';
-  let rating = ns.some((n) => has(n, 'aggregateRating'));
+  let rating = ns.some(ldRating);
   if (!rating) {
     for (const r of capture.interceptedRequests) {
       if (!r.isJson || r.parsedJson == null) continue;
-      if (anyKey(r.parsedJson, RATING_KEYS)) { rating = true; break; }
+      if (anyRating(r.parsedJson)) { rating = true; break; }
     }
   }
   return { jsonLdTypes, offers, rating, address: addressPattern(capture.url) };

@@ -108,10 +108,19 @@ export function checkedPages(urls: string[], expected: Record<string, string>, a
  * affect correctness (a safe path is correct or empty on every checked page,
  * so whichever resolves first is right); it is by pages proven, then rank,
  * so the common layout is tried first at scale.
+ *
+ * Only the pages with an expected value take part. On a page the customer said
+ * the field is absent on (spec 2026-10-10 §B2), every safe path is "correct"
+ * because it is empty there, so that page proves nothing about a path: counting
+ * it would hand every one-page path a second page and let a pile of them certify.
+ * The absent pages still take part in safety (a value there makes a path unsafe,
+ * so it never reaches this cover), and any path chosen here is empty on them.
  */
-function greedyCover(safe: CandidatePath[], pages: string[], isCorrect: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[]): CandidatePath[] {
+function greedyCover(safe: CandidatePath[], pages: string[], absent: Set<string>, isCorrect: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[]): CandidatePath[] {
+  const valued = pages.filter((u) => !absent.has(u));
+  if (valued.length === 0) return [];
   const ranked = rank(safe);
-  const uncovered = new Set(pages);
+  const uncovered = new Set(valued);
   const chosen: CandidatePath[] = [];
   while (uncovered.size > 0 && chosen.length < MAX_CERTIFIED_PATHS) {
     let best: CandidatePath | null = null;
@@ -126,11 +135,12 @@ function greedyCover(safe: CandidatePath[], pages: string[], isCorrect: (c: Cand
     for (const u of [...uncovered]) if (isCorrect(best, u)) uncovered.delete(u);
   }
   if (uncovered.size > 0) return [];
-  const proven = (c: CandidatePath) => pages.filter((u) => isCorrect(c, u)).length;
+  const proven = (c: CandidatePath) => valued.filter((u) => isCorrect(c, u)).length;
   // A cover is a common layout plus exceptions, never a pile of one-page paths. Ikea, 2026-09-17:
   // three XPaths anchored on data-product-name="KIVIK" / "GLOSTAD" / "HEMLINGBY" were each correct on
   // their own proof page and empty on the others, so each was safe and together they covered every
-  // page; at scale none matches any other product. One path must carry at least two pages.
+  // page; at scale none matches any other product. One path must carry at least two pages, both
+  // with a value (an absent page never counts here).
   if (Math.max(...chosen.map(proven)) < 2) return [];
   return [...chosen].sort((a, b) => proven(b) - proven(a) || ranked.indexOf(a) - ranked.indexOf(b));
 }
@@ -224,10 +234,11 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
   const oneLayout = complete ? rank(correctOnAllCaptured).slice(0, MAX_CERTIFIED_PATHS) : [];
   // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
-  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, isCorrect, rank) : [];
+  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, rank) : [];
+  // provenOn (and so thinEvidence) counts the pages with a value only: an absent page proves nothing about a path.
   const certified: CertifiedPath[] = oneLayout.length > 0
     ? oneLayout
-    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => isCorrect(c, u)) }));
+    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => !absentSet.has(u) && isCorrect(c, u)) }));
   const thinEvidence = cover.length > 0 && certified.some((p) => p.provenOn?.length === 1);
   const rankedCorrectOnAllCaptured = rankCertified(correctOnAllCaptured);
   // Without a certification, a page a safe path is correct on still reads as
@@ -262,13 +273,22 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       continue;
     }
     if (absentSet.has(url)) {
-      const produced = candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).find((r) => !(r === null || r === undefined || r === ''));
+      // Red only when a path that is right everywhere else produces a value here, the same idea
+      // as twoOfThree below. A value from a path already wrong on another page (a DOM-search hit
+      // from one page, an api field that is wrong elsewhere too) says nothing against the
+      // customer's mark, so it must not invite them to doubt it (Decathlon, 2026-10-10).
+      const valuedOthers = capturedUrls.filter((u) => u !== url && !absentSet.has(u));
+      const blamed = valuedOthers.length === 0 ? undefined : candidates.find((c) => {
+        const here = evals.get(pathId(c))?.[url]?.raw;
+        return !(here === null || here === undefined || here === '') && valuedOthers.every((u) => isCorrect(c, u));
+      });
+      const produced = blamed ? evals.get(pathId(blamed))![url]!.raw : undefined;
       if (produced !== undefined) {
-        // Some candidate produced a value on a page the customer said has none.
+        // A path right on every other page produced a value on a page the customer said has none.
         cells[url] = { status: 'fail', reason: 'found_unexpected', ...(displayValue(produced) !== null ? { found: displayValue(produced)! } : {}) };
       } else {
-        // Nothing produced a value here: this page proves the field really isn't on this
-        // product, whatever kept the OTHER pages from certifying (spec 2026-10-10 §B2).
+        // No path that is right elsewhere produced a value here: this page reads as the customer
+        // said, whatever kept the OTHER pages from certifying (spec 2026-10-10 §B2).
         const p = rankedSafe.find((c) => isCorrect(c, url)) ?? rankedCorrectOnAllCaptured[0];
         cells[url] = { status: 'pass', found: '', ...(p ? { path: p } : {}) };
       }
