@@ -38,7 +38,10 @@ explanation; "Use as proof page" → type → Verify worked end to end and **Pri
 through a single path that reads the size-specific API field, which also covers the single-size
 shape (`response.Results[0].Attributes.PRICE.Values[0].Value` replaced the old
 `offers[0].price` certification). Whether In stock, SKU and Rating would likewise close with
-the same card is untested — only Price's row was used, per the brief.
+the same card is untested — only Price's row was used, per the brief. **Lookfantastic was left
+not passing:** its last Verify (`c258cdb6…`) is `allPassed: false` because Rating drifted on
+product 2 (Medik8), so Extract has no current certification until that value is retyped and the
+website re-verified.
 
 ## Decathlon.co.uk
 
@@ -49,7 +52,7 @@ the same card is untested — only Price's row was used, per the brief.
 | 3 | Click "Rating is not on product 4" | Cell reads "not on this product"; saves | Exactly that; "saved" | ~2 | `decathlon-02-rating-marked-absent.png` |
 | 4 | Click Re-verify (≤ $0.50) | Rating re-verifies | Clicked 17:42:23Z, label was "Re-verify 1 field · up to $0.05". `source_verifications` id `ba23a3bc…`: **actual $0.0000**, but `allPassed: false` — Rating `incomplete`: proof pages 1 and 3 (Kiprun, Jogflow) came back `not_captured` because their cards were walled at that moment (Cloudflare "refused the…" / a redirect), same intermittent behaviour the 2026-10-08 campaign notes recorded for this site. **The known pre-existing defect also recurred**: the previously-rejected SKU "5" suggestion on product 4 was back, blocking further Verify with "SKU has a suggestion to confirm on product 4" | ~16 | `decathlon-05-verify-done.png` |
 | 5 | Reject the SKU suggestion again, Re-verify (≤ $0.50) | Still blocked by the same wall | Clicked 17:44:58Z, `fde2d38c…`: **$0.0000**, Rating still `incomplete` — the same two pages still `not_captured` | ~15 | `decathlon-08-sku-rejected.png`, `decathlon-09-reverifying.png` |
-| 6 | Click "Try again" on the 3 walled cards, reject SKU once more, Re-verify (≤ $0.50) | Pages recapture; Rating evaluates on all 4 | All 3 reached `ready`. Clicked 17:46:47Z, `9c8a60aa…`: actual **$0.1043** (1 AI call — above the "up to $0.05" shown, still ≤ $0.50). Rating: product 2 (ASICS) **passed** on a new xpath path, `4.6`; product 1 (Kiprun) `ambiguous`; product 3 (Jogflow) `different_value` (`4.38` found vs `4.39` expected — the same small live-drift pattern as Lookfantastic's Rating); **product 4 (the absent marketplace page): `stats.averageRating` resolved to `"0"` there → `status: "fail"`, `reason: "found_unexpected"`** — exactly spec §4 B2's worked example: the fallback is caught producing a value on a page marked absent and is therefore unsafe, so it never certifies | 53 | `decathlon-10…png`–`decathlon-13…png` |
+| 6 | Click "Try again" on the 3 walled cards, reject SKU once more, Re-verify (≤ $0.50) | Pages recapture; Rating evaluates on all 4 | All 3 reached `ready`. Clicked 17:46:47Z, `9c8a60aa…`: actual **$0.1043** (1 AI call — above the "up to $0.05" shown, still ≤ $0.50). Rating: product 2 (ASICS) **passed** on a new xpath path, `4.6`; product 1 (Kiprun) `different_value` (`4.38` found vs `4.39` expected: the page's own JSON-LD rating drifted since 2026-10-08 — the same small live-drift pattern as Lookfantastic's Rating); product 3 (Jogflow, expected `4.54`) `ambiguous` as a knock-on — a path reads `4.54` there, but once Kiprun made the JSON-LD path unsafe no *safe* path does; **product 4 (the absent marketplace page): `stats.averageRating` resolved to `"0"` there → `status: "fail"`, `reason: "found_unexpected"`** — spec §4 B2's worked example: the fallback produces a value on a page marked absent and is therefore unsafe, so it never certifies. (Corrected 2026-10-10, final review: that red cell was misleading here, since `stats.averageRating` is also wrong on Kiprun; the fix wave now turns an absent cell red only for a path right on every other page, so this cell would read pass and Kiprun alone would fail.) | 53 | `decathlon-10…png`–`decathlon-13…png` |
 | 7 | Read-only SQL: certified Rating paths, last two verifications | `stats.averageRating` gone | `SELECT completed_at, jsonb_pretty(results->'rating'->'certified') FROM source_verifications WHERE source_id = 'c38b5cc1-1a09-4611-a90b-0a4635419ea1' ORDER BY completed_at DESC LIMIT 2;` → **both rows: `certified: []`**. The pre-change certification (`@graph[0].aggregateRating.ratingValue` + `stats.averageRating`, confirmed by the same query against the 2026-10-08 row before any of this) is gone; most importantly `stats.averageRating` is not among what's certified now, so it cannot silently write a false `0` | — | `decathlon-14-rating-absent-detail.png` |
 
 **Net result for Decathlon:** the one thing the brief asked to confirm is confirmed — the
@@ -58,9 +61,13 @@ paths, and the mechanism was watched working live: on the marked-absent page it 
 resolves to `0`, and is rejected with `found_unexpected`. A fully clean "verified 4/4" was not
 reached in this session: Decathlon's own Cloudflare intermittency (pre-existing, 2026-10-08
 campaign notes) blocked two proof-page recaptures on the first two attempts, and once all four
-pages were finally read, products 1 and 3 showed small live rating-value drift of their own
-(`4.38` vs `4.39`, "ambiguous" on the other) — the same kind of organic drift seen independently
-on Lookfantastic's Medik8 product, not a defect in this feature. Total spent across three Verify
+pages were finally read, product 1 (Kiprun) drifted (its JSON-LD now reads `4.38` against the
+`4.39` expected) and product 3 (Jogflow) read `ambiguous` as a consequence — the same kind of
+organic drift seen independently on Lookfantastic's Medik8 product, not a defect in this feature.
+**Decathlon was left not passing:** its last Verify (`9c8a60aa…`) is `allPassed: false` and
+Rating has no certified path at all (`certified: []`), so Extract has no current certification
+until Kiprun's Rating is retyped as `4.38` and the website re-verified (the JSON-LD path should
+then certify alone, as spec B2 predicts). Total spent across three Verify
 clicks on this site: **$0.1043** (each click's shown estimate was ≤ $0.50, per the money rule;
 only the third actually spent anything).
 
@@ -84,9 +91,9 @@ only the third actually spent anything).
 
 - Whether In stock, SKU or Rating on Lookfantastic would also close to 4/4 after adding the same
   4th card (only Price's "Use as proof page" was used, per the brief).
-- A clean "verified 4/4" Rating result on Decathlon after the live rating-value drift on products
-  1 and 3 settles — a further free Verify would likely resolve it once a consistent page reading
-  is captured, not attempted here to avoid an open-ended retry loop.
+- A clean "verified 4/4" Rating result on Decathlon after product 1's live rating-value drift
+  (product 3's `ambiguous` follows from it) — retyping product 1 as `4.38` and a further free
+  Verify should resolve it; not attempted here to avoid an open-ended retry loop.
 - Ops (`/ops`) was not used to read the certified paths — `OPS_EMAILS` is unset in this `.env`, so
   the ruling's documented fallback (a read-only SQL `SELECT`) was used instead, as the task brief
   anticipates.

@@ -13,7 +13,7 @@ type: project
 **The next work, in order (2026-10-07; supersedes the 2026-09-11 list further down):**
 
 1. **Backups that all come from one source.** A field's certified paths can all be sibling keys of one API response (Ikea's price: five paths, one response), so they fail together and aren't real backups. Ops only *shows* it ("All backups read the same response — if it changes, they fail together"). The fix changes certification — at most one or two paths per source, so backups come from different sources — and needs a short design first (spec → plan), like drift repair. Marko's pick for next, 2026-10-07.
-2. **Proof-page coverage of a site's variations — done, 2026-10-10.** See "Proof-page coverage and 'not on this product' (2026-10-10)" below: after a passing Verify, a free background check samples twenty listing products with the certified paths and tells the customer per field where they came back empty, with "Use as proof page"; live-checked again on Lookfantastic and Decathlon.
+2. **Proof-page coverage of a site's variations — done, 2026-10-10.** See "Proof-page coverage and 'not on this product' (2026-10-10)" below: after a passing Verify, a free background check samples twenty listing products with the certified paths and tells the customer per field where they came back empty, with "Use as proof page"; live-checked again on Lookfantastic and Decathlon (both left needing a re-Verify after live rating drift — see that section). Article's `/furniture-bundles/…` pages, the third live case in the old item, were not checked.
 3. **Correctness on the run page.** Compare stored row values against the stored page text (not just "filled vs. empty") — the credit campaign's judge runs are the only check of this today, and they are paid and manual. A free, in-product check belongs on the run page itself.
 4. **Sitemap-first product discovery.** "Find products" and the listing walk both depend on a listing page's own links; a site's sitemap (where one exists and is reachable) would find products without needing a listing page at all, and would not be subject to a listing-level bot wall the way the current walk is.
 5. **Variant and drift loose ends**, each small:
@@ -101,16 +101,18 @@ except right after a passing Verify, and never touches a proof page or the domai
 
 **Files.** `packages/db/src/schema.ts` (`coverageChecks`), `packages/db/drizzle/0017_coverage_checks.sql`;
 `packages/scraper/src/verify/types.ts` (`VerificationSet.absent`, `FailReason` + `found_unexpected`),
-`verify/certify.ts` (`checkedPages` with absent; the absent evaluation), `verify/shape.ts` (new —
-the page's shape signature); `packages/api/src/verify/coverage-sampler.ts` (new), `verify/run-coverage-check.ts`
+`verify/certify.ts` (`checkedPages` with absent; the absent evaluation; the cover's two-page rule,
+`provenOn` and `thinEvidence` count pages with a value only), `verify/shape.ts` (new — the page's
+shape signature; a rating counts only with a value above zero); `packages/api/src/verify/coverage-sampler.ts` (new), `verify/run-coverage-check.ts`
 (new, modelled on `run-drift-check.ts`), `verify/coverage-summary.ts` (new), `verify/binding-input.ts`
 (absent rules), `verify/run-source-verification.ts` (starts the check on a pass), `routers/sources.ts`
 (the `coverage` query; `absent` on the binding input), `test-helpers/seed-coverage-check.ts` (new, for
-the smoke); `packages/app/src/lib/site/verification-model.ts` (absent cell state, row words),
+the smoke); `packages/app/src/lib/site/verification-model.ts` (absent cell state),
 `lib/site/proof-coverage-view.ts` (new — the stage-line and row-line copy; distinct from the
 run page's own, unrelated `coverage-view.ts`), `components/verification/verification-table.tsx`
-(the row line), `verify-bar.tsx` (the stage line), `cell-detail-bar.tsx` and the cell context menu
-(the "Not on this product" action), the site route (`coverage` query, the add-card flow reused),
+(the row line), `cell-detail-bar.tsx` and the cell context menu (the "Not on this product"
+action), the site route (`coverage` query, the stage line composed via `coverageStage` and handed
+to the unchanged verify bar, the add-card flow reused),
 and `routes-smoke.test.ts` (the fixture shop's second-shape product, the new coverage test).
 
 **How it was proven.** Unit tests per package: the sampler's spread-and-exclude rule, the check's
@@ -120,10 +122,13 @@ to anything on an absent page is never certified), `bindingProblems`'s absent ru
 row-line/stage-line copy and cell-state transitions as pure functions — all free. The route smoke
 (`pnpm test:ui:app`) gained a fourth, second-shape product (`/p/9`, a `ProductGroup` with
 `hasVariant` and no top-level `offers`) in its fixture shop's listing, and a dedicated test that
-seeds a coverage-check row and runs the real job directly against it (never clicking Verify, so the
-smoke spends nothing and depends on no live network): the Price row shows "Empty on 1 of n sampled
-products · …", "Use as proof page" adds a 4th card, and a cell marked "Not on this product" on it
-reads so, saves, and a re-Verify passes. Finally, a live check against the credit campaign's real,
+seeds a passing verification and runs the real coverage job in the smoke's own process (never
+clicking Verify, so the smoke spends nothing and depends on no live network): the Price row shows
+"Empty on 1 of 1 sampled product · …", "Use as proof page" adds a 4th card, and a cell marked "Not
+on this product" on it reads so and saves. The smoke never verifies after that. The final review's
+fix wave added: three one-page XPaths plus an absent page do not certify (the KIVIK/GLOSTAD/
+HEMLINGBY case); a path wrong elsewhere does not turn an absent cell red; a new Verify supersedes a
+running check; a check that read nothing says "none could be read". Finally, a live check against the credit campaign's real,
 already-set-up websites (`credit-campaign@example.com`'s org, project "Credit campaign 2026-10"),
 api-server and app already running this branch:
 `docs/testing/results/2026-10-10-proof-page-coverage-live-check.md`, screenshots in
@@ -134,7 +139,13 @@ page" → type the price → Verify certified Price 4/4 on one new path that rea
 Decathlon, marking Rating "Not on this product" on the marketplace proof page and verifying was
 watched catching the api fallback live — it resolved to `0` on that page and was rejected
 (`found_unexpected`) — and a read-only SQL check confirmed `stats.averageRating` is no longer
-anywhere in Rating's certified paths.
+anywhere in Rating's certified paths. **Both websites were left with their last Verify not
+passing.** Decathlon's Rating has no certified path at all (`certified: []`): product 1 (Kiprun)
+drifted live from 4.39 to 4.38, which made the JSON-LD path unsafe, and product 3 (Jogflow) then
+read `ambiguous` as a knock-on; the red `found_unexpected` on the absent page was misleading there
+(the api fallback was wrong on Kiprun too), which the fix wave corrected. Lookfantastic's Rating
+failed on product 2 (Medik8), whose rating drifted too. Each needs the drifted value retyped and a
+re-Verify before Extract has a current certification.
 
 **What NOT to redo.** The coverage check only reads with the certified paths and writes its own
 `coverage_checks` row — never a proof page, never a `captures` row, never the domain cache, never
@@ -148,16 +159,23 @@ offline.
 **Known gaps / next:** the explanation vocabulary is four shape features plus the address pattern
 — a real gap the sampler doesn't recognise reads as a bare count with no explanation; the check
 only ever runs right after a passing Verify, so an already-certified, unchanged website (both
-campaign sites, going into this live check) has no coverage data until its next real Verify; the
-row's "Use as proof page" still offers a page already sitting on the board as a card (a fix-wave
-item, not done here); a card added from the coverage line keeps the sampled URL as its title
-instead of a real product name; the Status column is cut off at four products at 1440 px width (a
-pre-existing layout limit, not new here). A `ProductGroup` page added this way was expected going
-in to get no Title suggestion from page data; the live check found the opposite on Lookfantastic's
-4th card — Title did get a suggestion (confirmed via its inline accept, same as any other page) —
-but it was the *only* field with a working inline accept there; the other five suggested fields
-(Main image, SKU, Brand, Rating, In stock, Description) had none and had to be confirmed by typing
-each one's suggested value back from the detail bar (see the live-check doc's "Defects found" 3).
+campaign sites, going into this live check) has no coverage data until its next real Verify; a
+card added from the coverage line keeps the sampled URL as its title instead of a real product
+name; the Status column is cut off at four products at 1440 px width (a pre-existing layout limit,
+but this feature makes four or more cards common — put it at the top of the next UI pass). On
+Lookfantastic's 4th card only Title had a working inline accept; the other suggested fields had
+none and were confirmed by typing each suggested value back from the detail bar (the live-check
+doc's "Defects found" 3, pre-existing). Ruled and left by the final review: (1) the tab can miss
+the new check right after a Verify — the verification's `completedAt` is written before the
+coverage row is inserted, and the route's one refetch can land in that gap and stop polling until
+a reload; (2) the ten-minute stall rule assumes a fast site — twenty slow pages plus slot and lock
+waits can pass it, and the finished results are then discarded; (3) removing a field leaves its
+`absent` marks, so re-adding a field with the same name brings them back; (4) the AI fallback is
+not told about absent pages, so it can propose paths `certify` then rejects there (correct, but
+spent for nothing); (5) the sampler compares addresses with their query string, so a proof page
+stored with `?variation=…` and a bare listing link to the same product (or the reverse) are not
+recognised as one page and the proof page can be sampled — the coverage line now says "already a proof page" when its representative is one of the cards. A superseded
+check keeps reading pages to the end before its guarded final write lands nowhere.
 
 ## Honest page verdicts (2026-10-09)
 
