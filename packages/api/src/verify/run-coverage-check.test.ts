@@ -171,27 +171,27 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       }
       const latest = (await latestCoverageCheck(f.sourceId))!;
       expect(latest.fields).toEqual([]);
-      expect(latest.stage).toBe('Checked 3 more products from the listing: every field was found on all of them. (3 could not be read)');
+      expect(latest.stage).toBe('Checked 3 more products from the listing: none could be read.');
     } finally { await f.cleanup(); }
   });
 
   it('only walls in a row stop it: a read page or a non-wall failure in between resets the count', async () => {
     const f = await certifiedWebsite('cov-unread');
     try {
-      // Pages 1..20 in order (30 listed, so no spreading). Up to page 12: wall, wall, then a non-wall failure — were the non-wall
+      // Pages 1..20 in order (20 listed, so all of them, unspread). Up to page 12: wall, wall, then a non-wall failure — were the non-wall
       // failure not a reset, page 4 would be the third wall. From page 13: wall, wall, then a read page.
       const n = (url: string) => Number(url.split('/').pop());
       const extract = vi.fn(async (url: string) => (n(url) % 3 !== 0
         ? { unread: 'Refused.', wall: true }
         : n(url) <= 12 ? { unread: 'The page did not load.', wall: false } : { data: { [f.keyOf.price]: '1.00', [f.keyOf.title]: 'x' }, shape: single }));
       const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
-      await runCoverageCheck(checkId, { listing: listing(30), extract, proofShapes });
+      await runCoverageCheck(checkId, { listing: listing(20), extract, proofShapes });
       const row = await checkRow(checkId);
       expect(row.status).toBe('done');
       const results = row.results as CoverageResults;
       expect(results.sampled).toHaveLength(20);
       expect(results.sampled.filter((p) => 'unread' in p)).toHaveLength(18);
-      expect(results.sampled.filter((p) => 'shape' in p).map((p) => p.url)).toEqual([LISTED(30)[14], LISTED(30)[17]]);
+      expect(results.sampled.filter((p) => 'shape' in p).map((p) => p.url)).toEqual([LISTED(20)[14], LISTED(20)[17]]);
     } finally { await f.cleanup(); }
   });
 
@@ -302,6 +302,40 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       await db.update(coverageChecks).set({ createdAt: new Date(Date.now() - COVERAGE_CHECK_STALL_MS - 1) }).where(eq(coverageChecks.id, second.checkId));
       expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: second.checkId, status: 'failed', error: 'stalled', stage: null, fields: [] });
       expect(await checkRow(second.checkId)).toMatchObject({ status: 'failed', error: 'stalled' });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a new Verify supersedes a running check: the old row is closed failed/superseded, its own finish lands nowhere, and the tab shows the new one', async () => {
+    const f = await certifiedWebsite('cov-supersede');
+    try {
+      const newVerification = async () => (await db.insert(sourceVerifications)
+        .values({ sourceId: f.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true, results: {} })
+        .returning({ id: sourceVerifications.id }))[0]!.id;
+      const v1 = await newVerification();
+      const v2 = await newVerification();
+
+      // No verification on the running row: a call that carries one supersedes it.
+      const orphan = await startCoverageCheck(f.sourceId, null, { fire: false });
+      const first = await startCoverageCheck(f.sourceId, v1, { fire: false });
+      expect(first.status).toBe('started');
+      expect(await checkRow(orphan.checkId)).toMatchObject({ status: 'failed', error: 'superseded' });
+
+      // The same Verify (or a call with none) finds it in progress.
+      expect(await startCoverageCheck(f.sourceId, v1, { fire: false })).toEqual({ checkId: first.checkId, status: 'in-progress' });
+      expect(await startCoverageCheck(f.sourceId, null, { fire: false })).toEqual({ checkId: first.checkId, status: 'in-progress' });
+
+      // A newer Verify closes it and starts its own.
+      const second = await startCoverageCheck(f.sourceId, v2, { fire: false });
+      expect(second.status).toBe('started');
+      expect(second.checkId).not.toBe(first.checkId);
+      const old = await checkRow(first.checkId);
+      expect(old).toMatchObject({ status: 'failed', error: 'superseded' });
+      expect(old.completedAt).not.toBeNull();
+
+      // The old runner finishing afterwards writes nothing over its closed row.
+      await runCoverageCheck(first.checkId, { listing: listing(30), extract: extractWith(f.keyOf, emptyOn), proofShapes });
+      expect(await checkRow(first.checkId)).toMatchObject({ status: 'failed', error: 'superseded', results: null });
+      expect(await latestCoverageCheck(f.sourceId)).toMatchObject({ id: second.checkId, status: 'running', stage: null });
     } finally { await f.cleanup(); }
   });
 

@@ -65,6 +65,11 @@ describe('stageLine (spec §5)', () => {
     const r = results([...twenty.sampled.slice(0, 17), ...[1, 2, 3].map((i) => ({ url: `https://s.example/u/${i}`, unread: 'wall' }))]);
     expect(stageLine('done', r, 0, null)).toBe('Checked 20 more products from the listing: every field was found on all of them. (3 could not be read)');
   });
+  it('nothing read says so, never that every field was found', () => {
+    const walls = results([1, 2, 3].map((i) => ({ url: `https://s.example/u/${i}`, unread: 'wall' })));
+    expect(stageLine('done', walls, 0, null)).toBe('Checked 3 more products from the listing: none could be read.');
+    expect(stageLine('done', results([{ url: 'https://s.example/u/1', unread: 'wall' }]), 0, null)).toBe('Checked 1 more product from the listing: none could be read.');
+  });
   it('empties', () => expect(stageLine('done', twenty, 2, null)).toBe('2 fields were empty on some of the 20 sampled products — see the rows.'));
   it('one field, one product', () => expect(stageLine('done', results([page(10, ['price'])]), 1, null)).toBe('1 field was empty on some of the 1 sampled product — see the row.'));
   it('failed reads the error', () => expect(stageLine('failed', null, 0, 'shop.example refused the browser (HTTP 403).')).toBe('shop.example refused the browser (HTTP 403).'));
