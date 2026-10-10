@@ -55,7 +55,8 @@ export type CertifiedPath = { source: CertifiedSource; path: string; transform: 
 
 export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path' | 'found_unexpected';
 export type CellResult =
-  | { status: 'pass'; found: string; path: CertifiedPath }
+  /** `path` is absent only on an absent-page pass (spec 2026-10-10 §B2) with zero candidates to name: nothing resolved, so there is nothing to blame the empty result on. */
+  | { status: 'pass'; found: string; path?: CertifiedPath }
   | { status: 'fail'; reason: FailReason; found?: string; nearMisses?: string[] }
   | { status: 'not_captured' };
 

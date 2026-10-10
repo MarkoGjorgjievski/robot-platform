@@ -262,9 +262,16 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       continue;
     }
     if (absentSet.has(url)) {
-      // Every candidate produced a value on a page the customer said has none.
       const produced = candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).find((r) => !(r === null || r === undefined || r === ''));
-      cells[url] = { status: 'fail', reason: 'found_unexpected', ...(displayValue(produced) !== null ? { found: displayValue(produced)! } : {}) };
+      if (produced !== undefined) {
+        // Some candidate produced a value on a page the customer said has none.
+        cells[url] = { status: 'fail', reason: 'found_unexpected', ...(displayValue(produced) !== null ? { found: displayValue(produced)! } : {}) };
+      } else {
+        // Nothing produced a value here: this page proves the field really isn't on this
+        // product, whatever kept the OTHER pages from certifying (spec 2026-10-10 §B2).
+        const p = rankedSafe.find((c) => isCorrect(c, url)) ?? rankedCorrectOnAllCaptured[0];
+        cells[url] = { status: 'pass', found: '', ...(p ? { path: p } : {}) };
+      }
       continue;
     }
     const others = capturedUrls.filter((u) => u !== url);
