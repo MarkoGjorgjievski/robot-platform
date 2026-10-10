@@ -104,3 +104,35 @@ describe('marks', () => {
     expect(bindingProblems(blank, contract)).toContain(`Price @ https://test.example.com/p/4: a marked element needs its value`);
   });
 });
+
+describe('absent — "not on this product" (spec 2026-10-10 §B1, D3)', () => {
+  const absentMark = { xpaths: ['//h1'], text: '', rect: { x: 0, y: 0, w: 1, h: 1 } };
+  const base = {
+    ...ok,
+    absent: { price: { [U[2]!]: true as const } },
+    expected: { ...ok.expected, price: { [U[0]!]: '1.00', [U[1]!]: '2.00', [U[2]!]: '' } },
+  };
+  it('a field absent on one page with values on two others saves', () => expect(bindingProblems(base, contract)).toEqual([]));
+  it('absent on all but one page is refused with the field\'s name', () => {
+    const one = { ...base, absent: { price: { [U[1]!]: true as const, [U[2]!]: true as const } }, expected: { ...base.expected, price: { [U[0]!]: '1.00', [U[1]!]: '', [U[2]!]: '' } } };
+    expect(bindingProblems(one, contract)).toEqual(['Price: needs a value on at least two products']);
+  });
+  it('a cell cannot be both a value and absent', () => {
+    const both = { ...base, expected: { ...base.expected, price: { ...base.expected.price, [U[2]!]: '3.00' } } };
+    expect(bindingProblems(both, contract)).toEqual([`Price @ ${U[2]}: a value and "not on this product" cannot both be set`]);
+  });
+  it('a draft may be absent anywhere and still saves; prepareBinding keeps absent only for saved urls and drops a mark or path on an absent cell', () => {
+    const draft = {
+      ...base,
+      draft: true,
+      marks: { price: { [U[2]!]: absentMark } },
+      paths: { price: { [U[2]!]: { source: 'json-ld' as const, path: 'offers.price' } } },
+      absent: { price: { [U[2]!]: true as const, 'https://gone.example/x': true as const } },
+    };
+    const { verificationSet } = prepareBinding({ ...draft, draft: false }, contract);
+    expect(verificationSet.absent).toEqual({ price: { [U[2]!]: true } });
+    expect(verificationSet.marks?.price?.[U[2]!]).toBeUndefined();
+    expect(verificationSet.paths?.price?.[U[2]!]).toBeUndefined();
+  });
+  it('an absent cell on page three is not "missing" for a non-draft save', () => expect(bindingProblems(base, contract)).toEqual([]));
+});
