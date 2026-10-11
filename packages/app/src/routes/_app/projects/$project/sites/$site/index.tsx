@@ -47,6 +47,7 @@ import {
   setDescription,
   shortUrl,
   suggestionAnswer,
+  titleFromCapture,
   toBindingInput,
   validateValue,
   verifyGate,
@@ -430,6 +431,28 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     [driftedKeys.join(','), urls, driftCheckQuery.data?.results, driftValues],
   );
   const captures = useProofCaptures(sourceId, urls);
+  // A card added by URL (run page, coverage line, paste) keeps its address as
+  // its title until its page is captured — then it takes the page's own
+  // title, unless a person or "Find products" already gave it one. Keyed on
+  // each captured url's captureId + title (mirrors `boxesKey` below) so this
+  // runs once per capture landing, not once per render.
+  const titleCaptureKey = urls
+    .map((u) => `${u}\n${captures.byUrl[u]?.status === 'captured' ? `${captures.byUrl[u]!.captureId}\n${captures.byUrl[u]!.title ?? ''}` : ''}`)
+    .join('\n');
+  useEffect(() => {
+    setBoard((b) => {
+      let changed = false;
+      const cards = b.cards.map((c) => {
+        const cap = captures.byUrl[c.url];
+        const t = cap?.status === 'captured' ? cap.title : undefined;
+        const next = titleFromCapture(c, t);
+        if (next) changed = true;
+        return next ?? c;
+      });
+      return changed ? setCards(b, cards) : b;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titleCaptureKey]);
   // A new website — no products, no listing — says up front whether the
   // browser can read its address (spec 2026-10-09 §A2). One real page load,
   // so it is asked once and never refetched behind the customer's back.

@@ -50,6 +50,7 @@ describe('proof-page capture job', () => {
       expect(meta.pageHeight).toBe(4000);
       expect(meta.capturedHeight).toBe(Math.min(4000, 2 * TILE_HEIGHT));
       expect(meta.contentHeight).toBe(10);
+      expect(meta.title).toBe('Widget'); // the page's own <title>, for a card still titled by its address
       expect(row!.screenshotPath).toBe(meta.tiles[0]);
       expect((await readCaptureFile(captureId))?.html).toContain('Widget');
       const loaded = await loadProofPageCaptures(f.sourceId, f.urls);

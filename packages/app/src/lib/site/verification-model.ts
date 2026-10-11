@@ -742,3 +742,12 @@ export function shortUrl(url: string): string {
   if (p.length <= 28) return p;
   return `${p.slice(0, 13)}…${p.slice(-14)}`;
 }
+
+/** A card whose title is still its address takes the captured page's title; a title a person or the listing gave stays. */
+export function titleFromCapture(card: Card, title: string | undefined): Card | null {
+  const t = (title ?? '').trim();
+  if (!t) return null;
+  const own = card.title.trim();
+  if (own !== '' && own !== card.url && own !== shortUrl(card.url)) return null;
+  return { ...card, title: t.slice(0, 120) };
+}
