@@ -188,6 +188,8 @@ export function wallVendor(html: string, title: string, headers: Record<string, 
 
 /** Markup only a vendor's challenge page carries (not its tag on a normal page). */
 const CHALLENGE_MARKERS = ['px-captcha', 'captcha.awswaf.com', 'captcha-delivery.com'];
+/** A CAPTCHA widget's iframe: on a thin page it IS the page (the challenge), on a long page it is a form's helper. */
+const CAPTCHA_IFRAME = /<iframe[^>]+src=["'][^"']*(recaptcha|hcaptcha|captcha-delivery|awswaf)[^"']*["']/;
 const CHALLENGE_WORDS = ['just a moment', 'checking your browser', 'verify you are human', 'confirm you are human', "confirm that you're human", 'are you a robot', 'not a robot', 'press & hold', 'press and hold', 'quick verification', 'human verification'];
 const DENIED_WORDS = ['access denied', 'you have been blocked', 'your request has been blocked', 'this request was blocked', 'restricted access'];
 
@@ -209,7 +211,8 @@ export function detectWall(html: string, title: string, headers: Record<string, 
   // "captcha" as a word ("Complete the CAPTCHA"), never "protected by reCAPTCHA".
   const isChallenge = CHALLENGE_WORDS.some(says)
     || /\bcaptcha\b/.test(lowerTitle) || /\bcaptcha\b/.test(text)
-    || CHALLENGE_MARKERS.some((m) => lowerHtml.includes(m));
+    || CHALLENGE_MARKERS.some((m) => lowerHtml.includes(m))
+    || CAPTCHA_IFRAME.test(lowerHtml);
   if (isChallenge) return { kind: 'challenge', vendor };
   if (DENIED_WORDS.some(says)) return { kind: 'refused', vendor };
   return null;
