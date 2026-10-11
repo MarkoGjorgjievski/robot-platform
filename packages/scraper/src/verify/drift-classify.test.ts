@@ -182,6 +182,45 @@ describe('classifyDrift', () => {
     expect(r.pages[U[1]!]).toEqual({ status: 'ok', value: '219.99' });
   }, 30_000);
 
+  it('not checked: page 3 walled off → decided on pages 1–2, page 3 stamped not-checked with its reason', async () => {
+    const all = baseCaptures();
+    const reason = 'shop.example refused the browser (HTTP 403).';
+    const captures: Record<string, DriftCapture | null> = { [U[0]!]: all[U[0]!]!, [U[1]!]: all[U[1]!]! };
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures, notChecked: { [U[2]!]: reason } }, deps());
+    expect(r.result).toBe('other-layout');
+    expect(r.pages[U[2]!]).toEqual({ status: 'not-checked', reason });
+    expect(r.pages[U[0]!]).toEqual({ status: 'ok', value: '129.99' });
+    expect(r.pages[U[1]!]).toEqual({ status: 'ok', value: '219.99' });
+  }, 30_000);
+
+  it('not checked wins over a capture entry for the same url: it never decides', async () => {
+    const all = baseCaptures();
+    const captures: Record<string, DriftCapture | null> = { ...all, [U[2]!]: null };
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures, notChecked: { [U[2]!]: 'walled' } }, deps());
+    expect(r.pages[U[2]!]).toEqual({ status: 'not-checked', reason: 'walled' });
+  }, 30_000);
+
+  it('all three pages not checked → result not-checked (nothing learned), never lost', async () => {
+    const notChecked = Object.fromEntries(U.map((u) => [u, 'shop.example refused the browser (HTTP 403).']));
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures: {}, notChecked }, deps());
+    expect(r.result).toBe('not-checked');
+    for (const u of U) expect(r.pages[u]).toEqual({ status: 'not-checked', reason: 'shop.example refused the browser (HTTP 403).' });
+  });
+
+  it('one page not checked and the rest gone → not-checked, with both kinds of page entry', async () => {
+    const r = await classifyDrift({
+      field: priceField, expected: priceExpected, certified: priceCertified,
+      captures: { [U[0]!]: null, [U[1]!]: null }, notChecked: { [U[2]!]: 'walled' },
+    }, deps());
+    expect(r.result).toBe('not-checked');
+    expect(r.pages).toEqual({ [U[0]!]: { status: 'page-gone' }, [U[1]!]: { status: 'page-gone' }, [U[2]!]: { status: 'not-checked', reason: 'walled' } });
+  });
+
+  it('every page gone and none walled off is still lost', async () => {
+    const r = await classifyDrift({ field: priceField, expected: priceExpected, certified: priceCertified, captures: Object.fromEntries(U.map((u) => [u, null])) }, deps());
+    expect(r.result).toBe('lost');
+  });
+
   it('I1: moved price with page 3 gone → moved on pages 1–2, page-gone on 3', async () => {
     const captures: Record<string, DriftCapture | null> = baseCaptures();
     for (const u of [U[0]!, U[1]!]) {

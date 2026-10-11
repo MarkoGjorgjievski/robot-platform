@@ -102,6 +102,30 @@ describe('driftBanner', () => {
     expect(banner).toEqual({ kind: 'result', text: 'Price stopped extracting in the run of 26 Sep' });
   });
 
+  it('says "could not be checked now" when every drifted field was not checked', () => {
+    const check: DriftCheckView = {
+      status: 'done',
+      results: { fields: { price: { result: 'not-checked', emptyShare: 0.4 }, rating: { result: 'not-checked', emptyShare: 0.2 } } },
+      runAt: new Date('2026-09-26T10:00:00Z'),
+    };
+    expect(driftBanner({ driftedFields: ['price', 'rating'], fieldNames: FIELD_NAMES, check })).toEqual({
+      kind: 'result',
+      text: 'Price and Rating could not be checked now — the website did not let us read its pages',
+    });
+  });
+
+  it('keeps "stopped extracting" when only some drifted fields were not checked', () => {
+    const check: DriftCheckView = {
+      status: 'done',
+      results: { fields: { price: { result: 'not-checked' }, rating: { result: 'lost' } } },
+      runAt: new Date('2026-09-26T10:00:00Z'),
+    };
+    expect(driftBanner({ driftedFields: ['price', 'rating'], fieldNames: FIELD_NAMES, check })).toEqual({
+      kind: 'result',
+      text: 'Price and Rating stopped extracting in the run of 26 Sep',
+    });
+  });
+
   it('accepts runAt as an ISO string, not only a Date', () => {
     const check: DriftCheckView = { status: 'done', results: null, runAt: '2026-09-26T10:00:00Z' };
     expect(driftBanner({ driftedFields: ['price'], fieldNames: FIELD_NAMES, check })).toEqual({
@@ -274,8 +298,8 @@ describe('driftRows', () => {
       {
         kind: 'page-gone',
         texts: [
-          { url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2' },
-          { url: URLS[2]!, text: 'Product 3 no longer loads — Replace product 3' },
+          { url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2', replaceable: true },
+          { url: URLS[2]!, text: 'Product 3 no longer loads — Replace product 3', replaceable: true },
         ],
       },
     ]);
@@ -289,7 +313,46 @@ describe('driftRows', () => {
     const rows = driftRows({ fieldKeys: ['sku'], urls: URLS, results, values: {} });
     expect(rows.sku).toEqual([
       { kind: 'lost', text: 'Not found on the page — Mark it again' },
-      { kind: 'page-gone', texts: [{ url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2' }] },
+      { kind: 'page-gone', texts: [{ url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2', replaceable: true }] },
+    ]);
+  });
+
+  it('a page the site would not let us read reads "could not be checked" with its reason, and is not replaceable', () => {
+    const reason = 'shop.example refused the browser (HTTP 403).';
+    const results: DriftCheckResultsLike = {
+      runId: null,
+      fields: {
+        price: {
+          result: 'other-layout',
+          pages: {
+            [URLS[0]!]: { status: 'ok', value: '19.99' },
+            [URLS[1]!]: { status: 'page-gone' },
+            [URLS[2]!]: { status: 'not-checked', reason },
+          },
+        },
+      },
+    };
+    const rows = driftRows({ fieldKeys: ['price'], urls: URLS, results, values: {} });
+    expect(rows.price![1]).toEqual({
+      kind: 'page-gone',
+      texts: [
+        { url: URLS[1]!, text: 'Product 2 no longer loads — Replace product 2', replaceable: true },
+        { url: URLS[2]!, text: 'Product 3 could not be checked — shop.example refused the browser (HTTP 403).', replaceable: false },
+      ],
+    });
+  });
+
+  it('a not-checked field gets no row of its own, only its pages\' lines', () => {
+    const results: DriftCheckResultsLike = {
+      runId: null,
+      fields: { sku: { result: 'not-checked', pages: Object.fromEntries(URLS.map((u) => [u, { status: 'not-checked' as const, reason: 'walled' }])) } },
+    };
+    const rows = driftRows({ fieldKeys: ['sku'], urls: URLS, results, values: {} });
+    expect(rows.sku).toEqual([
+      {
+        kind: 'page-gone',
+        texts: URLS.map((url, i) => ({ url, text: `Product ${i + 1} could not be checked — walled`, replaceable: false })),
+      },
     ]);
   });
 

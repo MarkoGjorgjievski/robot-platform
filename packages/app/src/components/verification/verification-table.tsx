@@ -30,7 +30,8 @@ export type DriftLine =
   | { kind: 'changed'; text: string; onAccept: () => void }
   | { kind: 'other-layout'; text: string; onSeeMissed: (() => void) | null }
   | { kind: 'lost'; text: string; onMarkAgain: () => void }
-  | { kind: 'page-gone'; items: Array<{ product: number; text: string; onReplace: () => void }> };
+  /** `onReplace` is null for a page that could not be read now: it still exists, so there is nothing to replace. */
+  | { kind: 'page-gone'; items: Array<{ product: number; text: string; onReplace: (() => void) | null }> };
 
 export type TableRow = {
   field: Field;
@@ -172,9 +173,11 @@ function DriftLines({ field, lines, locked }: { field: Field; lines: DriftLine[]
                 {line.items.map((it) => (
                   <div key={it.product} className="flex flex-wrap items-center gap-2">
                     <span className="text-sm text-warn">{it.text}</span>
-                    <Button variant="outline" size="xs" disabled={locked} aria-label={`Replace product ${it.product} (${field.name})`} onClick={it.onReplace}>
-                      Replace product {it.product}
-                    </Button>
+                    {it.onReplace ? (
+                      <Button variant="outline" size="xs" disabled={locked} aria-label={`Replace product ${it.product} (${field.name})`} onClick={it.onReplace}>
+                        Replace product {it.product}
+                      </Button>
+                    ) : null}
                   </div>
                 ))}
               </div>

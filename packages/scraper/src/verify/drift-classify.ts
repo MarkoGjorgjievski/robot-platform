@@ -3,7 +3,8 @@
 // other-layout (certified paths still read every expected value), moved
 // (a mechanically found path certifies against the stored expected values),
 // changed (an old certified path, or a concept-fitting structured path,
-// reads a valid different value), or lost. Free and pure-ish: page loads and
+// reads a valid different value), or lost — or not-checked, when no page could
+// be read now and at least one was walled off. Free and pure-ish: page loads and
 // code only, no model call, ever (plan 2026-10-05-drift-repair Global
 // Constraints). Read certify.ts first — this follows its conventions.
 import { certify, gatherCandidates, type CaptureLike, type CertifyDeps } from './certify.js';
@@ -24,11 +25,19 @@ export type DriftPage =
    * not follow the board once the customer accepts the new value.
    */
   | { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean; was?: string }
-  | { status: 'page-gone' };
+  | { status: 'page-gone' }
+  /**
+   * The page exists but could not be read now: the site refused or challenged
+   * the browser, answered blank, timed out, or the host is backing off after a
+   * wall. `reason` is the verdict sentence. Such a page neither decides nor is
+   * gone (known-gaps fixes 2026-10-11, Task 2).
+   */
+  | { status: 'not-checked'; reason: string };
 
 export type DriftFieldResult = {
   key: string;
-  result: 'other-layout' | 'moved' | 'changed' | 'lost';
+  /** `not-checked`: no page could be read now and at least one was not checked — nothing was learned. */
+  result: 'other-layout' | 'moved' | 'changed' | 'lost' | 'not-checked';
   path?: CertifiedPath;
   pages: Record<string, DriftPage>;
   /** filled by the API from the run, not by classifyDrift */
@@ -47,6 +56,8 @@ export type ClassifyDriftInput = {
   captures: Record<string, DriftCapture | null>;
   confirmed?: ConfirmedPath[];
   markXPaths?: string[];
+  /** Pages that could not be read now, by url → the verdict sentence. Neither deciding nor gone; stamped `not-checked`. */
+  notChecked?: Record<string, string>;
 };
 
 /** The box (from the page's box map) whose xpaths include this one, as a Mark — the same shape the customer's own click produces. Undefined when no box carries it (no boxes supplied, or the path is not among them). */
@@ -216,23 +227,31 @@ async function tryChanged(
 
 export async function classifyDrift(input: ClassifyDriftInput, deps: DriftDeps): Promise<DriftFieldResult> {
   const { field, expected, certified, captures, confirmed, markXPaths } = input;
-  const allUrls = Object.keys(captures);
+  const notChecked = input.notChecked ?? {};
+  const allUrls = Object.keys(captures).filter((u) => !(u in notChecked));
   const goneUrls = allUrls.filter((u) => captures[u] === null);
-  const decidingUrls = allUrls.filter((u) => captures[u] !== null && (expected[u] ?? '').trim() !== '');
+  const decidingUrls = allUrls.filter((u) => captures[u] != null && (expected[u] ?? '').trim() !== '');
+  // Pages that could not be read now, and pages gone: merged into whatever the deciding pages say.
+  const unread: Record<string, DriftPage> = {
+    ...Object.fromEntries(Object.entries(notChecked).map(([u, reason]) => [u, { status: 'not-checked' as const, reason }])),
+    ...goneEntries(goneUrls),
+  };
 
   if (decidingUrls.length === 0) {
-    return { key: field.key, result: 'lost', pages: goneEntries(goneUrls) };
+    // Nothing was read: with a page we could not check, nothing was learned either — not "lost".
+    const result = Object.keys(notChecked).length > 0 ? 'not-checked' : 'lost';
+    return { key: field.key, result, pages: unread };
   }
 
   const otherLayout = await tryOtherLayout(field, expected, certified, captures, decidingUrls, deps);
-  if (otherLayout) return { ...otherLayout, pages: { ...otherLayout.pages, ...goneEntries(goneUrls) } };
+  if (otherLayout) return { ...otherLayout, pages: { ...otherLayout.pages, ...unread } };
 
   const moved = await tryMoved(field, expected, captures, decidingUrls, confirmed, markXPaths, deps);
-  if (moved) return { ...moved, pages: { ...moved.pages, ...goneEntries(goneUrls) } };
+  if (moved) return { ...moved, pages: { ...moved.pages, ...unread } };
 
   const changed = await tryChanged(field, expected, certified, captures, decidingUrls, deps);
-  if (changed) return { ...changed, pages: { ...changed.pages, ...goneEntries(goneUrls) } };
+  if (changed) return { ...changed, pages: { ...changed.pages, ...unread } };
 
   const lostPages: Record<string, DriftPage> = Object.fromEntries(decidingUrls.map((u) => [u, { status: 'ok', value: null } as const]));
-  return { key: field.key, result: 'lost', pages: { ...lostPages, ...goneEntries(goneUrls) } };
+  return { key: field.key, result: 'lost', pages: { ...lostPages, ...unread } };
 }
