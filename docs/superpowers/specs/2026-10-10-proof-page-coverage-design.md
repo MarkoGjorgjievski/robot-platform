@@ -1,6 +1,6 @@
 # Proof-page coverage of a site's variations, and "not on this product" — design
 
-**Status:** implemented on `feat/proof-page-coverage`, 2026-10-10; live check in
+**Status:** implemented on `feat/proof-page-coverage` (merged into `main` 2026-10-11), 2026-10-10; live check in
 `docs/testing/results/2026-10-10-proof-page-coverage-live-check.md`.
 
 **Deviations:**
