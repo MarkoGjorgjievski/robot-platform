@@ -9,9 +9,9 @@ import {
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
-  reportVerdict, backoffAnswer,
+  reportVerdict, backoffAnswer, CaptureProblemError,
 } from '@robot/scraper';
-import { CaptureError } from '@robot/browser';
+import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
 import { slugify, uniqueSlug } from '../slug.js';
 import { resolveOrg } from '../auth/session.js';
@@ -670,7 +670,11 @@ export const sourcesRouter = router({
       if (waiting) return { ...unreadListingPage(waiting.verdict, input.listingUrl), message: waiting.message };
       try {
         const { anchors, html, verdict } = await withBrowserSession(async (browser) => {
-          const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false });
+          // 20 s, not the browser's default 60 s: Brooklinen never goes idle
+          // and the finder sat at a blank "Find products" for 90 s waiting
+          // out two 60 s networkidle timeouts (campaign 2, 2026-10-11). The
+          // `load` fallback inside navigateWithFallback still applies.
+          const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false, timeout: 20_000 });
           reportVerdict(hostname, capture.verdict);
           if (capture.verdict.kind !== 'ok') return { anchors: [] as ListingAnchor[], html: capture.html, verdict: capture.verdict };
           const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
@@ -678,9 +682,18 @@ export const sourcesRouter = router({
         });
         return describeListingPage(anchors, input.listingUrl, html, verdict);
       } catch (err) {
-        if (!(err instanceof CaptureError)) throw err;
-        reportVerdict(hostname, err.kind);
-        return unreadListingPage({ kind: err.kind }, input.listingUrl);
+        if (err instanceof CaptureError) {
+          reportVerdict(hostname, err.kind);
+          return unreadListingPage({ kind: err.kind }, input.listingUrl);
+        }
+        // A `CaptureProblemError`'s message is already the customer sentence
+        // (verify/capture-check.ts); let it propagate as before. Anything
+        // else is a throw from before any verdict existed — a Playwright
+        // exception, hundreds of words, that must never reach the listing
+        // bar verbatim (campaign 2, 2026-10-11).
+        if (err instanceof CaptureProblemError) throw err;
+        console.error('[finder] checkListingPage crashed for', input.listingUrl, err);
+        return { ...unreadListingPage({ kind: 'crashed' }, input.listingUrl), message: BROWSER_UNAVAILABLE };
       }
     }),
 
@@ -710,9 +723,16 @@ export const sourcesRouter = router({
           return reachabilityResult(input.url, capture.verdict, capture.url, Date.now() - t0);
         });
       } catch (err) {
-        if (!(err instanceof CaptureError)) throw err;
-        reportVerdict(hostname, err.kind);
-        return reachabilityResult(input.url, { kind: err.kind }, null, Date.now() - t0);
+        if (err instanceof CaptureError) {
+          reportVerdict(hostname, err.kind);
+          return reachabilityResult(input.url, { kind: err.kind }, null, Date.now() - t0);
+        }
+        // Same shape as checkListingPage above: a CaptureProblemError already
+        // carries a customer sentence, so it propagates; anything else is a
+        // browser-layer throw before any verdict existed.
+        if (err instanceof CaptureProblemError) throw err;
+        console.error('[finder] reachability crashed for', input.url, err);
+        return { ...reachabilityResult(input.url, { kind: 'crashed' }, null, Date.now() - t0), message: BROWSER_UNAVAILABLE };
       }
     }),
 

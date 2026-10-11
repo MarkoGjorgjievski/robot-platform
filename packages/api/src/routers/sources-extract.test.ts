@@ -4,7 +4,7 @@ import { ZodError } from 'zod';
 import { eq } from 'drizzle-orm';
 import { db, sources } from '@robot/db';
 import { itemCap, resolveBudget, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
-import { CaptureError } from '@robot/browser';
+import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import { appRouter } from './index.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -108,6 +108,14 @@ describe('sources.checkListingPage', () => {
     });
   });
 
+  it('a browser that cannot launch at all is one sentence, not the raw Playwright exception (campaign 2, 2026-10-11)', async () => {
+    withBrowserSessionMock.mockImplementation(async () => { throw new Error('browserType.launch: failed to launch. Call log: … hundreds of words …'); });
+
+    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-crash.example.com/c/shoes' });
+
+    expect(result).toEqual({ verdict: { kind: 'crashed' }, message: BROWSER_UNAVAILABLE, productLinks: 0, pagerSeen: false, sample: [], products: [] });
+  });
+
   it('rejects a non-URL listingUrl', async () => {
     try {
       await caller.sources.checkListingPage({ listingUrl: 'not-a-url' });
@@ -172,9 +180,12 @@ describe('sources.reachability', () => {
     expect(withBrowserSessionMock).not.toHaveBeenCalled();
   });
 
-  it('any other error still fails the query', async () => {
-    withBrowserSessionMock.mockImplementation(async () => { throw new Error('no browser'); });
-    await expect(caller.sources.reachability({ url: 'https://test-reach-broken.example.com/x' })).rejects.toThrow('no browser');
+  it('a browser that cannot launch at all is one sentence, not the raw Playwright exception (campaign 2, 2026-10-11)', async () => {
+    withBrowserSessionMock.mockImplementation(async () => { throw new Error('browserType.launch: failed to launch. Call log: … hundreds of words …'); });
+
+    const result = await caller.sources.reachability({ url: 'https://test-reach-broken.example.com/x' });
+
+    expect(result).toMatchObject({ verdict: { kind: 'crashed' }, message: BROWSER_UNAVAILABLE, finalUrl: null });
   });
 });
 
