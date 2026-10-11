@@ -41,6 +41,8 @@ export type ProofPageMeta =
        * of the strip actually captured.
        */
       contentHeight: number;
+      /** The document's `<title>` at capture time, trimmed to 120 chars; absent when the page reported none. */
+      title?: string;
     }
   | {
       kind: 'proof-page'; status: 'failed'; url: string; startedAt: string; error: string;
@@ -109,7 +111,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     // Below the last tile there is no pixel to outline, so a box down there is an index the viewer could never draw.
     const visible = boxes.filter((b) => b.rect.y < capturedHeight);
     const contentHeight = visible.reduce((h, b) => Math.max(h, b.rect.y + b.rect.h), 0);
-    const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes: visible, pageHeight, capturedHeight, contentHeight };
+    const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes: visible, pageHeight, capturedHeight, contentHeight, ...(capture.title?.trim() ? { title: capture.title.trim().slice(0, 120) } : {}) };
     await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
   } catch (err) {
     console.error(`[proof-page] capture ${captureId} failed:`, err);
@@ -192,7 +194,7 @@ export async function loadProofPageCaptureById(captureId: string): Promise<Proof
   return { ref: { captureId: r.id, capturedAt: m.capturedAt, ...(m.tiles[0] ? { screenshotUrl: m.tiles[0] } : {}) }, capture, meta: m };
 }
 
-export type ProofPageCaptureState = { captureId: string; status: 'capturing' | 'captured' | 'failed'; error?: string; verdict?: CaptureVerdict | { kind: CaptureErrorKind } };
+export type ProofPageCaptureState = { captureId: string; status: 'capturing' | 'captured' | 'failed'; error?: string; verdict?: CaptureVerdict | { kind: CaptureErrorKind }; title?: string };
 
 /** The newest proof-page capture per URL in whatever state — what a reloaded screen resumes from. Stalled rows are closed on the way; a captured one past the reuse window reads as missing, so the screen re-captures. */
 export async function latestProofPageCaptures(sourceId: string, urls: string[]): Promise<Record<string, ProofPageCaptureState | null>> {
@@ -209,7 +211,7 @@ export async function latestProofPageCaptures(sourceId: string, urls: string[]):
     seen.add(r.url);
     const meta = await resolveStalledProofPage(r.id, m);
     if (meta.status === 'captured' && Date.now() - Date.parse(meta.capturedAt) > CAPTURE_REUSE_MAX_AGE_MS) continue;
-    out[r.url] = { captureId: r.id, status: meta.status, ...(meta.status === 'failed' ? { error: meta.error, ...(meta.verdict ? { verdict: meta.verdict } : {}) } : {}) };
+    out[r.url] = { captureId: r.id, status: meta.status, ...(meta.status === 'failed' ? { error: meta.error, ...(meta.verdict ? { verdict: meta.verdict } : {}) } : {}), ...(meta.status === 'captured' && meta.title ? { title: meta.title } : {}) };
   }
   return out;
 }

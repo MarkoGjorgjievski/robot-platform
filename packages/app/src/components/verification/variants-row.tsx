@@ -289,7 +289,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
   const blankCols = (
     <>
       {hasAddHead ? <td className={td} /> : null}
-      <td className="w-[220px] border-t border-line" />
+      <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel" />
     </>
   );
 
@@ -350,7 +350,7 @@ export function VariantsRow({ props, locked, hasAddHead }: { props: VariantsRowP
         })}
 
         {hasAddHead ? <td className={td} /> : null}
-        <td className="w-[220px] border-t border-line px-2 py-2 align-top">
+        <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
           {statusText}
           {filled.map((u) =>
             saveErrors[u] ? (

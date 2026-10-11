@@ -18,6 +18,8 @@ export type ProofCapture = {
   boxes: Box[];
   pageHeight: number;
   capturedHeight: number;
+  /** The captured page's `<title>`, when it reported one and this capture landed. */
+  title?: string;
 };
 
 const EMPTY_CAPTURE: Pick<ProofCapture, 'tiles' | 'boxes' | 'pageHeight' | 'capturedHeight'> = {
@@ -156,6 +158,7 @@ export function useProofCaptures(
       status: data.status,
       ...(data.error ? { error: data.error } : {}),
       ...(data.verdict ? { verdict: { kind: data.verdict.kind } } : {}),
+      ...(data.title ? { title: data.title } : {}),
       tiles: data.tiles,
       boxes: data.boxes,
       pageHeight: data.pageHeight,

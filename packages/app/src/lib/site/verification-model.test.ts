@@ -4,7 +4,7 @@ import {
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
-  markAbsent, isAbsent,
+  markAbsent, isAbsent, titleFromCapture,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -258,6 +258,23 @@ describe('small things', () => {
     expect(validateValue('boolean', 'https://schema.org/InStock')).toBeNull();
     expect(validateValue('boolean', 'http://schema.org/OutOfStock')).toBeNull();
     expect(validateValue('boolean', 'https://schema.org/Discontinued')).toBe('Not yes/no (or in stock/out of stock)');
+  });
+});
+
+describe('titleFromCapture', () => {
+  const url = 'https://s.example/p/1';
+  it('replaces a title that is still the card’s address', () => {
+    expect(titleFromCapture({ url, title: url }, 'Widget Deluxe')).toEqual({ url, title: 'Widget Deluxe' });
+  });
+  it('replaces a title that is still the shortened address', () => {
+    expect(titleFromCapture({ url, title: shortUrl(url) }, 'Widget Deluxe')).toEqual({ url, title: 'Widget Deluxe' });
+  });
+  it('leaves a title a person or the listing gave alone', () => {
+    expect(titleFromCapture({ url, title: 'Widget D' }, 'Something else')).toBeNull();
+  });
+  it('does nothing with a blank captured title', () => {
+    expect(titleFromCapture({ url, title: url }, '')).toBeNull();
+    expect(titleFromCapture({ url, title: url }, undefined)).toBeNull();
   });
 });
 
