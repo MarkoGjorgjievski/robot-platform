@@ -28,7 +28,9 @@ type: project
 7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
 
-**Newest: [Proof-page coverage and "not on this product" (2026-10-10)](#proof-page-coverage-and-not-on-this-product-2026-10-10).** After a passing Verify, a free background check samples twenty products from the website's listing with its certified paths, and the Verification tab now tells the customer, per field, where they came back empty — "Empty on 14 of 20 sampled products · all 14 list their sizes as variants in the page data" — with a one-click "Use as proof page" to add that product as a fourth (through sixth) card. Separately, a cell can be marked **"Not on this product"**: that page becomes a checked page whose correct answer is nothing, so a path that writes any value there (like Decathlon's old `stats.averageRating` fallback, which wrote `0` for products with no rating) can never certify. On branch `feat/proof-page-coverage`, merged into `main` 2026-10-11 (fast-forward).
+**Newest: [Known-gap fixes (2026-10-11)](#known-gap-fixes-2026-10-11).** Five small fixes from the two October plans: a CAPTCHA-only thin page is a human check; a drift check says "could not be checked" instead of "page gone" for a page the site would not let us read; a superseded coverage check stops reading; the Status column stays in view; a card added by its address takes the page title. On branch `fix/known-gaps`, merge pending the route smoke.
+
+**Before it: [Proof-page coverage and "not on this product" (2026-10-10)](#proof-page-coverage-and-not-on-this-product-2026-10-10).** After a passing Verify, a free background check samples twenty products from the website's listing with its certified paths, and the Verification tab now tells the customer, per field, where they came back empty — "Empty on 14 of 20 sampled products · all 14 list their sizes as variants in the page data" — with a one-click "Use as proof page" to add that product as a fourth (through sixth) card. Separately, a cell can be marked **"Not on this product"**: that page becomes a checked page whose correct answer is nothing, so a path that writes any value there (like Decathlon's old `stats.averageRating` fallback, which wrote `0` for products with no rating) can never certify. On branch `feat/proof-page-coverage`, merged into `main` 2026-10-11 (fast-forward).
 
 **Before it: [Honest page verdicts (2026-10-09)](#honest-page-verdicts-2026-10-09).** Every page capture now carries one honest verdict (ok / refused / challenge / not-found / redirected / blank), and every consumer — the listing bar, a proof card, a run — shows its one sentence instead of "No product links found", a green "ready", or a "Done" with 0 rows. Merged into `main` 2026-10-09 (fast-forward, `feat/honest-verdicts`); live-checked against the credit campaign's real websites 2026-10-09, then fixed after the branch's final review (fix wave, same day).
 
@@ -79,6 +81,43 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Known-gap fixes (2026-10-11)
+
+Plan `docs/superpowers/plans/2026-10-11-known-gaps-fixes.md` (no spec: five gaps the two October
+sections below recorded). Branch `fix/known-gaps`, eight commits, each task reviewed, a
+whole-branch review with one fix wave, re-review clean.
+
+**What changed, one line each:**
+
+- `@robot/browser` `detectWall`: a page that would otherwise read blank (under 100 characters of
+  visible text) whose only wall sign is a CAPTCHA iframe reads `challenge`; a `size=invisible`
+  reCAPTCHA badge never counts; a page with content is never a wall because of an iframe.
+- The drift check: a proof page the site would not let us read (refused, challenge, blank,
+  timeout, unreachable, crashed, a backoff answer, or a capture row left `capturing`) is
+  **not checked** — the row reads "Product n could not be checked — <sentence>" with no Replace
+  button, the field is decided on the pages that were read, and a field with no readable page
+  ends `not-checked` (the banner: "… could not be checked now — the website did not let us read
+  its pages"; the ops notice says the same). `not-found`, `redirected` and a same-host
+  "redirected to …" failure stay page gone. `outcomeOfFailedCapture` in
+  `packages/api/src/verify/run-drift-check.ts` is the mapping.
+- The coverage check's page loop re-reads its row each page and stops when the row is no longer
+  `running` (superseded or stalled); a transient read error is logged and the loop goes on.
+- The Verification table's Status column, and the variants row's, is sticky on the right, like
+  the field-name column on the left.
+- A proof-page capture carries the page's `<title>` (`ProofPageMeta.title`), and a card whose
+  title is still its address (`shortUrl`) takes it (`titleFromCapture` in
+  `lib/site/verification-model.ts`); a title the listing or a person gave is never overwritten;
+  the effect never autosaves while a Verify locks the board.
+
+**How it was proven:** per-package tests (browser 137, scraper 979, api 885, app 789), typecheck
+clean; the route smoke is run before the merge (see the line under "Where it ended" below).
+
+**Follow-ups left open:** a failure with no verdict shows its raw stored error as the reason
+("— stalled"); arrow-key focus can land under a sticky column (`scroll-padding-inline`);
+`captureProblem` could carry a `redirected` verdict for a same-host path change instead of its
+wording; the Verification tab's own capture rows and the drift line read the same stored error
+text, so they stay consistent by construction only.
 
 ## Proof-page coverage and "not on this product" (2026-10-10)
 
@@ -160,9 +199,9 @@ offline.
 — a real gap the sampler doesn't recognise reads as a bare count with no explanation; the check
 only ever runs right after a passing Verify, so an already-certified, unchanged website (both
 campaign sites, going into this live check) has no coverage data until its next real Verify; a
-card added from the coverage line keeps the sampled URL as its title instead of a real product
-name; the Status column is cut off at four products at 1440 px width (a pre-existing layout limit,
-but this feature makes four or more cards common — put it at the top of the next UI pass). On
+card added from the coverage line keeps the sampled URL as its title (fixed 2026-10-11, Known-gap
+fixes); the Status column is cut off at four products at 1440 px width (fixed 2026-10-11, sticky
+Status column). On
 Lookfantastic's 4th card only Title had a working inline accept; the other suggested fields had
 none and were confirmed by typing each suggested value back from the detail bar (the live-check
 doc's "Defects found" 3, pre-existing). Ruled and left by the final review: (1) the tab can miss
@@ -260,7 +299,7 @@ only for another registrable domain (I5); every 4xx but 404/410 is `refused` (I6
 
 **Known gaps, for the next work list above.** (1) A page with under 100 characters of visible text
 (scripts and styles not counted) is classified `blank`, so a tiny-but-legitimate page would read
-as blank too. (2) Not built from spec §A3: the proof card's "waiting for {host}…" line and a
+as blank too (2026-10-11: a thin page whose only sign is a CAPTCHA iframe now reads `challenge`). (2) Not built from spec §A3: the proof card's "waiting for {host}…" line and a
 run-log line per backoff wait (interactive paths answer from the backoff instead; a run's wait is
 only in the api-server's console). (3) A Stop pressed during a run's backoff sleep lands only when
 the sleep ends (up to 8 minutes; the wall breaker makes long sleeps rare).
