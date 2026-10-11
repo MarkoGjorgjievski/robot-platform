@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -31,6 +31,18 @@ export function ListingBar({
   const [url, setUrl] = useState(listingUrl);
   const [found, setFound] = useState<{ productLinks: number; pagerSeen: boolean; message: string | null } | null>(null);
   const check = trpc.sources.checkListingPage.useMutation();
+
+  // A visible seconds counter while Find products is in flight (campaign 2,
+  // 2026-10-11): a slow site used to leave the bar blank for up to 90 s with
+  // nothing on screen. Counts from 0 on every new request; stops on settle.
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!check.isPending) return;
+    setSeconds(0);
+    const start = Date.now();
+    const id = setInterval(() => setSeconds(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [check.isPending]);
 
   function findProducts() {
     const trimmed = url.trim();
@@ -83,6 +95,8 @@ export function ListingBar({
       <button type="button" disabled={disabled} onClick={() => onNoListing(url.trim())} className="text-base text-link underline-offset-4 hover:underline">
         No listing? Paste product pages instead
       </button>
+
+      {check.isPending ? <p className="text-sm text-muted-foreground">Reading the listing… {seconds} s</p> : null}
 
       {found ? (
         // The browser's verdict first (spec 2026-10-09 §A2): a block page or a
