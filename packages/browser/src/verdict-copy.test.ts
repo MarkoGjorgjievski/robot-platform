@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { verdictSentence } from './verdict-copy.js';
+import { verdictSentence, BROWSER_UNAVAILABLE } from './verdict-copy.js';
 
 const U = 'https://www.scan.co.uk/shop/ssd';
 describe('verdictSentence', () => {
@@ -19,5 +19,11 @@ describe('verdictSentence', () => {
   });
   it('strips a leading www. from the host', () => {
     expect(verdictSentence({ kind: 'blank', status: 200 }, 'https://www.otto.de/p/1')).toBe('otto.de sent an empty page. Try again.');
+  });
+});
+
+describe('BROWSER_UNAVAILABLE', () => {
+  it('is the one sentence for a throw that never became a verdict', () => {
+    expect(BROWSER_UNAVAILABLE).toBe("We couldn't open a browser to read this page. Try again in a minute.");
   });
 });
