@@ -436,10 +436,15 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // title, unless a person or "Find products" already gave it one. Keyed on
   // each captured url's captureId + title (mirrors `boxesKey` below) so this
   // runs once per capture landing, not once per render.
-  const titleCaptureKey = urls
+  // `locked` (a Verify running) is folded into the key so the effect runs
+  // again once the lock lifts, but the effect itself is skipped while locked
+  // — an autosave while Verify is in flight gets PRECONDITION_FAILED from the
+  // server, which the customer would see as a save error they did not cause.
+  const titleCaptureKey = `${locked}\n${urls
     .map((u) => `${u}\n${captures.byUrl[u]?.status === 'captured' ? `${captures.byUrl[u]!.captureId}\n${captures.byUrl[u]!.title ?? ''}` : ''}`)
-    .join('\n');
+    .join('\n')}`;
   useEffect(() => {
+    if (locked) return;
     setBoard((b) => {
       let changed = false;
       const cards = b.cards.map((c) => {
