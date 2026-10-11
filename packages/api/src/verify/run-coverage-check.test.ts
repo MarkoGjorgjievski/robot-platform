@@ -282,6 +282,56 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
     } finally { errSpy.mockRestore(); await f.cleanup(); }
   });
 
+  it('a superseded coverage check stops reading: the loop sees the row closed mid-run and stops calling extract', async () => {
+    const f = await certifiedWebsite('cov-supersede-mid');
+    try {
+      const read = extractWith(f.keyOf, () => false);
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      const extract = vi.fn(async (url: string, fields: VerifiedField[]) => {
+        if (extract.mock.calls.length === 2) {
+          await db.update(coverageChecks).set({ status: 'failed', error: 'superseded', completedAt: new Date() }).where(eq(coverageChecks.id, checkId));
+        }
+        return read(url, fields);
+      });
+      await runCoverageCheck(checkId, { listing: listing(20), extract, proofShapes });
+
+      expect(extract).toHaveBeenCalledTimes(2);
+      const row = await checkRow(checkId);
+      expect(row).toMatchObject({ status: 'failed', error: 'superseded' });
+      // The planned-size write from before the loop started stands; the loop's own findings never overwrote it.
+      expect(row.results).toMatchObject({ sampled: [] });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a transient DB error re-reading the row status is logged and the loop keeps going', async () => {
+    const f = await certifiedWebsite('cov-status-transient');
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const original = db.query.coverageChecks.findFirst.bind(db.query.coverageChecks);
+    let calls = 0;
+    try {
+      const extract = extractWith(f.keyOf, () => false);
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      // The first findFirst is runCoverageCheck's own row load; the second is the loop's status
+      // re-read for page 1 — that is the one made to throw, once.
+      (db.query.coverageChecks as unknown as { findFirst: typeof original }).findFirst = ((...args: Parameters<typeof original>) => {
+        calls++;
+        if (calls === 2) return Promise.reject(new Error('connection reset'));
+        return original(...args);
+      }) as typeof original;
+
+      await runCoverageCheck(checkId, { listing: listing(5), extract, proofShapes });
+
+      const row = await checkRow(checkId);
+      expect(row.status).toBe('done');
+      expect(extract).toHaveBeenCalledTimes(5);
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes('status re-read failed'))).toBe(true);
+    } finally {
+      (db.query.coverageChecks as unknown as { findFirst: typeof original }).findFirst = original;
+      errSpy.mockRestore();
+      await f.cleanup();
+    }
+  });
+
   it('one running check per website; a stalled one is closed failed/stalled and a new one may start', async () => {
     const f = await certifiedWebsite('cov-stall');
     try {

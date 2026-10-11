@@ -166,6 +166,16 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
     let walls = 0;
     let errors = 0;
     for (const url of urls) {
+      try {
+        const still = await db.query.coverageChecks.findFirst({ where: eq(coverageChecks.id, checkId), columns: { status: true } });
+        if (still?.status !== 'running') {
+          console.log(`[coverage] check ${checkId} no longer running (${still?.status ?? 'gone'}); stopping`);
+          return;
+        }
+      } catch (err) {
+        // A transient read failure never stops the check; it keeps going on what it already knows.
+        console.error(`[coverage] check ${checkId}: status re-read failed, continuing:`, err);
+      }
       let r: Awaited<ReturnType<typeof extract>>;
       try {
         r = await extract(url, fields);
