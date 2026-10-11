@@ -20,6 +20,15 @@ describe('classifyVerdict', () => {
   it('an AWS WAF human check is a challenge, vendor aws-waf', () => {
     expect(classifyVerdict({ ...base, status: 405, headers: { 'x-amzn-waf-action': 'challenge' }, html: AWS_WAF, title: 'Human Verification' })).toEqual({ kind: 'challenge', status: 405, vendor: 'aws-waf' });
   });
+  it('a thin page whose only wall sign is a CAPTCHA iframe is a challenge', () => {
+    const html = '<html><head><title>Please wait</title></head><body><div id="c"><iframe src="https://www.google.com/recaptcha/api2/anchor?k=abc" title="reCAPTCHA"></iframe></div></body></html>';
+    expect(classifyVerdict({ requestedUrl: 'https://s.example/p/1', finalUrl: 'https://s.example/p/1', status: 200, headers: {}, html, title: 'Please wait' })).toMatchObject({ kind: 'challenge' });
+  });
+  it('a long contact page that embeds a reCAPTCHA widget stays ok', () => {
+    const body = `<p>${'Write to us about your order and we will answer within a day. '.repeat(40)}</p><iframe src="https://www.google.com/recaptcha/api2/anchor?k=abc"></iframe>`;
+    const html = `<html><head><title>Contact</title></head><body>${body}</body></html>`;
+    expect(classifyVerdict({ requestedUrl: 'https://s.example/contact', finalUrl: 'https://s.example/contact', status: 200, headers: {}, html, title: 'Contact', boxCount: 12 })).toMatchObject({ kind: 'ok' });
+  });
   it('an Akamai Access Denied is refused, vendor akamai', () => {
     expect(classifyVerdict({ ...base, status: 403, headers: { server: 'AkamaiGHost' }, html: AKAMAI, title: 'Access Denied' })).toEqual({ kind: 'refused', status: 403, vendor: 'akamai' });
   });
