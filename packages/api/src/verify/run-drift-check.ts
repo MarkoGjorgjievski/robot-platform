@@ -81,6 +81,11 @@ export function captureProofPagesWith(session: Session = withBrowserSession): Ca
       const row = await db.query.captures.findFirst({ where: eq(captureRows.id, captureId), columns: { metadata: true } });
       const meta = row?.metadata as ProofPageMeta | null | undefined;
       if (meta?.status === 'failed') return [url, outcomeOfFailedCapture(meta)] as const;
+      // The slot resolved but the row is still `capturing`: its own failure
+      // write failed too. Without this, `loadProofPageCaptureById` reads no
+      // captured row and returns null — a false "page gone" (final review
+      // Minor 4), the one route to it left after `outcomeOfFailedCapture`.
+      if (meta?.status === 'capturing') return [url, { notChecked: 'The page could not be read.' }] as const;
       return [url, await loadProofPageCaptureById(captureId)] as const;
     }));
     return Object.fromEntries(taken);

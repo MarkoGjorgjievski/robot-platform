@@ -199,7 +199,9 @@ describe('runDriftCheck', () => {
       const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, { notChecked: 'walled' }]));
       const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false });
       await runDriftCheck(checkId, { capture });
-      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      const row = (await checkRow(checkId))!;
+      expect(row.status).toBe('done');
+      const results = row.results as DriftCheckResults;
       expect(Object.values(results.fields).map((x) => x.result)).toEqual(['not-checked', 'not-checked', 'not-checked']);
       expect(results.fields[f.keyOf.name]!.pages[U[1]!]).toEqual({ status: 'not-checked', reason: 'walled' });
     } finally { await f.cleanup(); }
@@ -311,6 +313,39 @@ describe('the default capture function', () => {
       expect(got[f.urls[1]!]).toEqual({ notChecked: timeout.message });
       expect(got[f.urls[2]!]).toEqual({ notChecked: 'disk full' });
     } finally { await f.cleanup(); }
+  });
+
+  it('final review Minor 4: a capture whose failure write itself fails leaves the row capturing, which reads as not-checked, not page-gone', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'drift-write-failed', fields: [{ name: 'Title', type: 'text' }] });
+    const originalUpdate = db.update.bind(db);
+    try {
+      const url = f.urls[0]!;
+      const session = async <T,>(fn: (b: IBrowser) => Promise<T>) => fn({
+        launch: async () => {}, close: async () => {},
+        capture: async () => { throw new Error('page crashed'); },
+      } as unknown as IBrowser);
+      // The capture fails normally; make the write that would record that
+      // failure itself fail (a dropped connection on the way out), so the row
+      // is left with the `capturing` metadata its earlier, successful write
+      // set. `.catch`-swallowed by `runProofPageCapture` itself, same as prod.
+      (db as unknown as { update: typeof originalUpdate }).update = ((table: unknown) => {
+        const builder = originalUpdate(table as never);
+        if (table !== captures) return builder;
+        const originalSet = builder.set.bind(builder);
+        (builder as unknown as { set: (values: Record<string, unknown>) => unknown }).set = (values: Record<string, unknown>) => {
+          const meta = values.metadata as { status?: string } | undefined;
+          if (meta?.status === 'failed') return { where: () => Promise.reject(new Error('connection reset')) };
+          return originalSet(values);
+        };
+        return builder;
+      }) as typeof db.update;
+
+      const got = await captureProofPagesWith(session)(f.sourceId, [url]);
+      expect(got[url]).toEqual({ notChecked: 'The page could not be read.' });
+    } finally {
+      (db as unknown as { update: typeof originalUpdate }).update = originalUpdate;
+      await f.cleanup();
+    }
   });
 
   it('M3: reads back its own capture by id — a later tab capture of the same url does not turn ours into null', async () => {

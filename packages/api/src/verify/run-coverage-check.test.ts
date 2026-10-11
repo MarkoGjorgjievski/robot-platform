@@ -307,15 +307,19 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
     const f = await certifiedWebsite('cov-status-transient');
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const original = db.query.coverageChecks.findFirst.bind(db.query.coverageChecks);
-    let calls = 0;
+    let thrown = false;
     try {
       const extract = extractWith(f.keyOf, () => false);
       const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
-      // The first findFirst is runCoverageCheck's own row load; the second is the loop's status
-      // re-read for page 1 — that is the one made to throw, once.
+      // Target the loop's own status re-read by its shape (`columns: { status: true }`,
+      // set at run-coverage-check.ts:170) rather than by call position, so this does
+      // not silently start targeting a different query if one is added before the loop.
       (db.query.coverageChecks as unknown as { findFirst: typeof original }).findFirst = ((...args: Parameters<typeof original>) => {
-        calls++;
-        if (calls === 2) return Promise.reject(new Error('connection reset'));
+        const opts = args[0] as { columns?: { status?: boolean } } | undefined;
+        if (!thrown && opts?.columns?.status === true) {
+          thrown = true;
+          return Promise.reject(new Error('connection reset'));
+        }
         return original(...args);
       }) as typeof original;
 
