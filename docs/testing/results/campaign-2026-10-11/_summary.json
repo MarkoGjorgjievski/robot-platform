@@ -1,0 +1,112 @@
+[
+  {
+    "num": 1,
+    "host": "gymshark.com",
+    "platform": "Shopify Plus, UK",
+    "listingUsed": "https://www.gymshark.com/collections/all-products/womens",
+    "reachability": "Reached gymshark.com (HTTP 200).",
+    "verdict": "55 products found",
+    "elapsedMs": 97941,
+    "note": "Guessed listing was not a listing; retried with discovered URL: https://www.gymshark.com/collections/all-products/womens."
+  },
+  {
+    "num": 2,
+    "host": "bombas.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://bombas.com/collections/mens-socks",
+    "reachability": "Reached bombas.com (HTTP 200).",
+    "verdict": "111 products found",
+    "elapsedMs": 23507,
+    "note": ""
+  },
+  {
+    "num": 3,
+    "host": "brooklinen.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://brooklinen.com/collections/sheets",
+    "reachability": null,
+    "verdict": "TIMED OUT after 90s waiting for a verdict. Last text seen: Find products\nNo listing? Paste product pages instead",
+    "elapsedMs": 107587,
+    "note": ""
+  },
+  {
+    "num": 4,
+    "host": "glossier.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://glossier.com/collections/skincare",
+    "reachability": null,
+    "verdict": "17 products found",
+    "elapsedMs": 86385,
+    "note": ""
+  },
+  {
+    "num": 5,
+    "host": "colourpop.com",
+    "platform": "Shopify, US",
+    "listingUsed": "https://colourpop.com/collections/shopall",
+    "reachability": null,
+    "verdict": "18 products found · a pager too",
+    "elapsedMs": 166933,
+    "note": "Guessed listing was not a listing; retried with discovered URL: https://colourpop.com/collections/shopall."
+  },
+  {
+    "num": 6,
+    "host": "skims.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://skims.com/collections/bras",
+    "reachability": "Reached skims.com (HTTP 200).",
+    "verdict": "18 products found · a pager too",
+    "elapsedMs": 29116,
+    "note": ""
+  },
+  {
+    "num": 7,
+    "host": "mejuri.com",
+    "platform": "Shopify Plus, CA",
+    "listingUsed": "https://mejuri.com/collections/rings",
+    "reachability": null,
+    "verdict": "46 products found",
+    "elapsedMs": 83260,
+    "note": ""
+  },
+  {
+    "num": 8,
+    "host": "ridge.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://ridge.com/collections/wallets",
+    "reachability": null,
+    "verdict": "29 products found · a pager too",
+    "elapsedMs": 90302,
+    "note": ""
+  },
+  {
+    "num": 9,
+    "host": "ruggable.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://ruggable.com/collections/shop-all",
+    "reachability": "Reached ruggable.com (HTTP 200).",
+    "verdict": "66 products found · a pager too",
+    "elapsedMs": 150161,
+    "note": "Guessed listing was not a listing; retried with discovered URL: https://ruggable.com/collections/shop-all."
+  },
+  {
+    "num": 10,
+    "host": "kith.com",
+    "platform": "Shopify Plus, US",
+    "listingUsed": "https://kith.com/collections/kith-women-sweatshirts",
+    "reachability": "Reached kith.com (HTTP 200).",
+    "verdict": "14 products found",
+    "elapsedMs": 156328,
+    "note": "Guessed listing was not a listing; retried with discovered URL: https://kith.com/collections/kith-women-sweatshirts."
+  },
+  {
+    "num": 11,
+    "host": "skullcandy.com",
+    "platform": "BigCommerce, US",
+    "listingUsed": "https://www.skullcandy.com/collections/shop-all",
+    "reachability": null,
+    "verdict": "40 products found · a pager too",
+    "elapsedMs": 178348,
+    "note": "Guessed listing was not a listing; retried with discovered URL: https://www.skullcandy.com/collections/shop-all."
+  }
+]
