@@ -4,6 +4,16 @@ import type { CaptureErrorKind, CaptureVerdict, WallVendor } from './types.js';
 
 const VENDOR: Record<WallVendor, string> = { cloudflare: 'Cloudflare', akamai: 'Akamai', perimeterx: 'PerimeterX', datadome: 'DataDome', 'aws-waf': 'AWS WAF', unknown: '' };
 
+/**
+ * The one sentence for a throw the browser layer never turned into a
+ * `CaptureVerdict` or `CaptureError` — a Playwright exception before any
+ * page existed (campaign 2, 2026-10-11: an orphaned api-server's Chromium
+ * exiting with `STATUS_DLL_INIT_FAILED` four times in a row). The raw
+ * exception text (hundreds of words, "browserType.launch: … Call log: …")
+ * never reaches the customer; it is logged instead.
+ */
+export const BROWSER_UNAVAILABLE = "We couldn't open a browser to read this page. Try again in a minute.";
+
 function hostOf(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }

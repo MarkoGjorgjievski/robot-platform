@@ -22,6 +22,15 @@ beforeAll(async () => {
     }
     if (u.pathname === '/gone') return res.writeHead(404, { 'content-type': 'text/html' }).end('<html><body>nope</body></html>');
     if (u.pathname === '/blank') return res.writeHead(200, { 'content-type': 'text/html' }).end('<html><head><script>1</script></head><body><div id="app"></div></body></html>');
+    // Keeps a fetch outstanding every 200ms forever — well under the 500ms
+    // gap `networkidle` needs — so it never settles (Brooklinen/Ikea-shaped:
+    // a connection that never goes quiet; campaign 2, 2026-10-11).
+    if (u.pathname === '/never-idle') {
+      return res.writeHead(200, { 'content-type': 'text/html' }).end(
+        `${PRODUCT}<script>setInterval(() => fetch('/poll').catch(() => {}), 200);</script>`,
+      );
+    }
+    if (u.pathname === '/poll') return res.writeHead(204).end();
     res.writeHead(500).end('boom');
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -50,6 +59,17 @@ describe('capture() verdicts', () => {
     const c = await browser.capture(`${base}/cf`, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1 });
     expect(c.html).toContain('Real product copy');
     expect(c.verdict).toEqual({ kind: 'ok', status: 200 });
+  }, 30_000);
+  it('a page that never goes idle still resolves via the load fallback, bounded by the given timeout (finder fix, campaign 2 2026-10-11)', async () => {
+    const t0 = Date.now();
+    const c = await browser.capture(`${base}/never-idle`, { waitUntil: 'networkidle', interceptNetworkRequests: false, maxTiles: 1, timeout: 3000 });
+    // navigateWithFallback's networkidle attempt is bounded by `timeout`
+    // (3 s here, 20 s for the finder in production), then falls back to
+    // domcontentloaded + a fixed 3 s settle + up to a 10 s `load` wait —
+    // never the old unbounded 60 s networkidle wait twice over.
+    expect(Date.now() - t0).toBeLessThan(3000 + 3000 + 10_000 + 5000);
+    expect(c.verdict).toEqual({ kind: 'ok', status: 200 });
+    expect(c.html).toContain('Real product copy');
   }, 30_000);
   it('a dead host rejects with a CaptureError of kind unreachable, its sentence as the message', async () => {
     // A port that was just free: nothing listens on it (port 9 is ERR_UNSAFE_PORT in Chromium).
