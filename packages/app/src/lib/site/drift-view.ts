@@ -14,7 +14,7 @@ import { answer, type Board, type Mark } from './verification-model';
  *  before then (the caller merges it in; see `sources.driftCheck`). */
 export type DriftCheckView = {
   status: 'running' | 'done' | 'failed';
-  results: { fields: Record<string, { emptyShare?: number }> } | null;
+  results: { fields: Record<string, { emptyShare?: number; result?: DriftFieldResultLike['result'] }> } | null;
   runAt: string | Date | null;
 };
 
@@ -63,6 +63,12 @@ export function driftBanner(args: {
 
   const fieldsText = joinList(driftedFields.map((k) => fieldNames[k] ?? k));
 
+  // Every drifted field's pages were walled off (refused, challenged, blank, backing off): the check
+  // learned nothing, so the banner says that rather than repeating "stopped extracting".
+  if (check?.status === 'done' && driftedFields.every((k) => check.results?.fields[k]?.result === 'not-checked')) {
+    return { kind: 'result', text: `${fieldsText} could not be checked now — the website did not let us read its pages` };
+  }
+
   const shares = driftedFields.map((k) => check?.results?.fields[k]?.emptyShare);
   const hasAllShares = shares.every((s) => typeof s === 'number');
 
@@ -79,11 +85,16 @@ export function driftBanner(args: {
 // --- Task 4: repair actions on the drifted rows -----------------------------
 
 /** `@robot/scraper`'s `DriftPage`, re-declared (see the file's own doc comment). */
-export type DriftPageLike = { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean; was?: string } | { status: 'page-gone' };
+export type DriftPageLike =
+  | { status: 'ok'; value: string | null; mark?: Mark; changed?: boolean; was?: string }
+  | { status: 'page-gone' }
+  /** The page exists but the site would not let the check read it now; `reason` is the verdict sentence. */
+  | { status: 'not-checked'; reason: string };
 
 /** `@robot/scraper`'s `DriftFieldResult`, narrowed to what `driftRows` reads. */
 export type DriftFieldResultLike = {
-  result: 'other-layout' | 'moved' | 'changed' | 'lost';
+  /** `not-checked`: no page could be read now — the field gets no row of its own, only its pages' lines (and the banner). */
+  result: 'other-layout' | 'moved' | 'changed' | 'lost' | 'not-checked';
   pages: Record<string, DriftPageLike>;
 };
 
@@ -95,7 +106,8 @@ export type DriftRow =
   | { kind: 'changed'; text: string; values: Record<string, { value: string; mark?: Mark }> }
   | { kind: 'other-layout'; text: string; runId: string | null }
   | { kind: 'lost'; text: string }
-  | { kind: 'page-gone'; texts: Array<{ url: string; text: string }> };
+  /** One item per proof page that is gone (`replaceable`: the table offers "Replace product n") or could not be read now (not replaceable — the page exists). */
+  | { kind: 'page-gone'; texts: Array<{ url: string; text: string; replaceable: boolean }> };
 
 /**
  * Whether a `moved` row has anything for "Accept new location" to write: a
@@ -118,19 +130,27 @@ export function storedExpected(verificationSet: unknown): Record<string, Record<
   return expected && typeof expected === 'object' ? expected : {};
 }
 
-/** The gone pages among `urls` (in product order), as the row text the Global Constraints give for each. */
-function pageGoneRow(pages: Record<string, DriftPageLike>, urls: string[]): DriftRow | null {
-  const texts = urls
-    .map((url, i) => ({ url, n: i + 1, gone: pages[url]?.status === 'page-gone' }))
-    .filter((p) => p.gone)
-    .map(({ url, n }) => ({ url, text: `Product ${n} no longer loads — Replace product ${n}` }));
+/**
+ * The gone and not-checked pages among `urls` (in product order), as the row
+ * text the Global Constraints give for each: a gone page can be replaced; a
+ * page the site would not let us read still exists, so it only says why.
+ */
+function pageRows(pages: Record<string, DriftPageLike>, urls: string[]): DriftRow | null {
+  const texts: Array<{ url: string; text: string; replaceable: boolean }> = [];
+  urls.forEach((url, i) => {
+    const p = pages[url];
+    const n = i + 1;
+    if (p?.status === 'page-gone') texts.push({ url, text: `Product ${n} no longer loads — Replace product ${n}`, replaceable: true });
+    else if (p?.status === 'not-checked') texts.push({ url, text: `Product ${n} could not be checked — ${p.reason}`, replaceable: false });
+  });
   return texts.length > 0 ? { kind: 'page-gone', texts } : null;
 }
 
 /**
  * One row per drifted field, in `fieldKeys` order (Global Constraints' texts,
  * verbatim), plus a `page-gone` row beside it for any proof page that no
- * longer loads — one entry per gone product, whatever the field's own result.
+ * longer loads or could not be read now — one entry per such product, whatever
+ * the field's own result. A `not-checked` field has no row of its own.
  *
  * A `changed` row lists, and accepts, only the pages whose value differs
  * from the stored expected one (the check's own `changed` flag; final review
@@ -201,7 +221,7 @@ export function driftRows(args: {
         break;
     }
 
-    const gone = pageGoneRow(r.pages, urls);
+    const gone = pageRows(r.pages, urls);
     if (gone) rows.push(gone);
 
     if (rows.length > 0) out[key] = rows;

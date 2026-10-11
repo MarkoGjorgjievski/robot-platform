@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq, count } from 'drizzle-orm';
 import { db, captures, driftChecks, sources, sourceVerifications } from '@robot/db';
-import { PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
+import { CaptureError, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
 import {
   buildBoxMapScript, fieldHash,
   type Box, type CertifiedPath, type DriftCheckResults, type SchemaDefinitionField, type VerificationSet,
@@ -33,7 +33,7 @@ vi.mock('../../../scraper/src/verify/ai-fallback.ts', async (importOriginal) => 
 });
 
 const scraper = await import('@robot/scraper');
-const { startDriftCheck, runDriftCheck, captureProofPagesWith, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
+const { startDriftCheck, runDriftCheck, captureProofPagesWith, outcomeOfFailedCapture, DRIFT_CHECK_STALL_MS } = await import('./run-drift-check.js');
 
 // A throwaway signed-in identity: every customer procedure needs a session
 // and works in its org only, so nothing here touches the seeded `default` org.
@@ -177,6 +177,34 @@ describe('runDriftCheck', () => {
     } finally { await f.cleanup(); }
   }, 120_000);
 
+  it('a page the site would not let us read is not-checked with its reason, never page-gone, and the others still decide', async () => {
+    const f = await certifiedWebsite('drift-walled');
+    try {
+      const reason = 'shop.example refused the browser (HTTP 403, Cloudflare). We can\'t read this website from here yet.';
+      const recs = { [U[0]!]: await record(clone(PAGES[U[0]!]!)), [U[1]!]: await record(clone(PAGES[U[1]!]!)) };
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, recs[u] ?? { notChecked: reason }]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false });
+      await runDriftCheck(checkId, { capture });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      const price = results.fields[f.keyOf.price]!;
+      expect(price.result).toBe('other-layout');
+      expect(price.pages[U[2]!]).toEqual({ status: 'not-checked', reason });
+      expect(price.pages[U[0]!]).toMatchObject({ status: 'ok', value: '129.99' });
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
+  it('every page walled off → each certified field reads not-checked, not lost', async () => {
+    const f = await certifiedWebsite('drift-all-walled');
+    try {
+      const capture = async (_s: string, urls: string[]) => Object.fromEntries(urls.map((u) => [u, { notChecked: 'walled' }]));
+      const { checkId } = await startDriftCheck(f.sourceId, null, { capture, fire: false });
+      await runDriftCheck(checkId, { capture });
+      const results = (await checkRow(checkId))!.results as DriftCheckResults;
+      expect(Object.values(results.fields).map((x) => x.result)).toEqual(['not-checked', 'not-checked', 'not-checked']);
+      expect(results.fields[f.keyOf.name]!.pages[U[1]!]).toEqual({ status: 'not-checked', reason: 'walled' });
+    } finally { await f.cleanup(); }
+  }, 120_000);
+
   it('a field with no current certified path is lost without capturing anything', async () => {
     const f = await certifiedWebsite('drift-uncert');
     try {
@@ -236,7 +264,13 @@ describe('the default capture function', () => {
     annotation: [{ xpaths: ['//*[@id="main"]/h1'], text: 'Widget', rect: { x: 0, y: 0, w: 10, h: 10 }, tag: 'h1', kind: 'text' }],
   });
 
-  it('re-captures every page; a capture that fails now is null even when an older one succeeded', async () => {
+  /** The captured record, or a failure naming what came back instead. */
+  const captured = (x: ProofPageCaptureRecord | { notChecked: string } | null | undefined): ProofPageCaptureRecord => {
+    if (!x || 'notChecked' in x) throw new Error(`expected a captured record, got ${JSON.stringify(x)}`);
+    return x;
+  };
+
+  it('re-captures every page; a page gone now (404) is null even when an older capture succeeded', async () => {
     const f = await createProjectWithSource(caller, { tag: 'drift-capture', fields: [{ name: 'Title', type: 'text' }] });
     try {
       // An older, fresh-enough capture of page 3 that worked.
@@ -246,17 +280,36 @@ describe('the default capture function', () => {
 
       const session = async <T,>(fn: (b: IBrowser) => Promise<T>) => fn({
         launch: async () => {}, close: async () => {},
-        capture: async (u: string) => { if (u === f.urls[2]) throw new Error('net::ERR_NAME_NOT_RESOLVED'); return fakeCapture(u); },
+        capture: async (u: string) => (u === f.urls[2] ? { ...fakeCapture(u), verdict: { kind: 'not-found', status: 404 } } : fakeCapture(u)),
       } as unknown as IBrowser);
       const got = await captureProofPagesWith(session)(f.sourceId, f.urls);
 
       expect(got[f.urls[2]!]).toBeNull();
       for (const u of f.urls.slice(0, 2)) {
-        expect(got[u]!.meta.status).toBe('captured');
-        expect(got[u]!.meta.boxes.length).toBeGreaterThan(0);
+        expect(captured(got[u]).meta.status).toBe('captured');
+        expect(captured(got[u]).meta.boxes.length).toBeGreaterThan(0);
       }
       const fresh = await db.select({ n: count() }).from(captures).where(and(eq(captures.sourceId, f.sourceId)));
       expect(fresh[0]!.n).toBe(4); // three new rows plus the old one
+    } finally { await f.cleanup(); }
+  });
+
+  it('a page that could not be read now (a timeout, an unexpected throw) is not checked, with its stored error as the reason', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'drift-capture-unread', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const timeout = new CaptureError('timeout', f.urls[1]!, 'page.goto: Timeout 30000ms exceeded');
+      const session = async <T,>(fn: (b: IBrowser) => Promise<T>) => fn({
+        launch: async () => {}, close: async () => {},
+        capture: async (u: string) => {
+          if (u === f.urls[1]) throw timeout;
+          if (u === f.urls[2]) throw new Error('disk full');
+          return fakeCapture(u);
+        },
+      } as unknown as IBrowser);
+      const got = await captureProofPagesWith(session)(f.sourceId, f.urls);
+      expect(captured(got[f.urls[0]!]).meta.status).toBe('captured');
+      expect(got[f.urls[1]!]).toEqual({ notChecked: timeout.message });
+      expect(got[f.urls[2]!]).toEqual({ notChecked: 'disk full' });
     } finally { await f.cleanup(); }
   });
 
@@ -279,8 +332,8 @@ describe('the default capture function', () => {
       } as unknown as IBrowser);
       const got = await captureProofPagesWith(session)(f.sourceId, [url]);
       expect(got[url]).not.toBeNull();
-      expect(got[url]!.meta.status).toBe('captured');
-      expect(got[url]!.ref.captureId).not.toBe(tabCaptureId);
+      expect(captured(got[url]).meta.status).toBe('captured');
+      expect(captured(got[url]).ref.captureId).not.toBe(tabCaptureId);
     } finally { await f.cleanup(); }
   });
 
@@ -301,7 +354,7 @@ describe('the default capture function', () => {
       release();
       const got = await pending;
       expect(driftCalls).toEqual([f.urls[1]]);
-      expect(got[f.urls[1]!]!.meta.status).toBe('captured');
+      expect(captured(got[f.urls[1]!]).meta.status).toBe('captured');
       for (const h of holders) {
         for (let i = 0; i < 100; i++) {
           const m = (await db.query.captures.findFirst({ where: eq(captures.id, h.captureId) }))!.metadata as { status: string };
@@ -310,5 +363,27 @@ describe('the default capture function', () => {
         }
       }
     } finally { release(); await f.cleanup(); }
+  });
+});
+
+describe('outcomeOfFailedCapture', () => {
+  const error = 'shop.example refused the browser (HTTP 403, Cloudflare). We can\'t read this website from here yet.';
+
+  it('a page that is gone (404, redirected off-site, or landed on another path) is null', () => {
+    expect(outcomeOfFailedCapture({ error: 'gone', verdict: { kind: 'not-found' } })).toBeNull();
+    expect(outcomeOfFailedCapture({ error: 'gone', verdict: { kind: 'redirected' } })).toBeNull();
+    expect(outcomeOfFailedCapture({ error: 'redirected to https://shop.example/c/widgets' })).toBeNull();
+  });
+
+  it('refused, challenge, blank, timeout, unreachable and crashed are not checked, with the stored error as the reason', () => {
+    for (const kind of ['refused', 'challenge', 'blank', 'timeout', 'unreachable', 'crashed']) {
+      expect(outcomeOfFailedCapture({ error, verdict: { kind } })).toEqual({ notChecked: error });
+    }
+  });
+
+  it('a backoff answer keeps its wait in the reason; a failure with no verdict is not checked', () => {
+    const waiting = `${error} Waiting 4 min before trying again.`;
+    expect(outcomeOfFailedCapture({ error: waiting, verdict: { kind: 'refused' } })).toEqual({ notChecked: waiting });
+    expect(outcomeOfFailedCapture({ error: 'stalled' })).toEqual({ notChecked: 'stalled' });
   });
 });

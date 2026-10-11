@@ -1136,7 +1136,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             kind: 'page-gone',
             items: row.texts.map((t) => {
               const i = board.cards.findIndex((c) => c.url === t.url);
-              return { product: i + 1, text: t.text, onReplace: () => { if (i >= 0) onDrop(i); } };
+              // A page that could not be read now still exists: no Replace.
+              return { product: i + 1, text: t.text, onReplace: t.replaceable ? () => { if (i >= 0) onDrop(i); } : null };
             }),
           };
       }

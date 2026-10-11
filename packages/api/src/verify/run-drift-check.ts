@@ -1,8 +1,8 @@
 // packages/api/src/verify/run-drift-check.ts
 // The free drift check (plan 2026-10-05-drift-repair, Task 2): re-captures a
 // website's proof pages and records, per drifted field, what happened to it —
-// `classifyDrift`'s other-layout / moved / changed / lost, with page-gone per
-// page. Page loads and code only: no agent is constructed and no model is
+// `classifyDrift`'s other-layout / moved / changed / lost / not-checked, with
+// page-gone or not-checked per page it could not use. Page loads and code only: no agent is constructed and no model is
 // called, ever.
 //
 // It changes nothing by itself. The only rows it writes are its own
@@ -16,7 +16,7 @@
 // awaits `runDriftCheck`, so it never rejects and always leaves the row
 // terminal.
 import { and, desc, eq } from 'drizzle-orm';
-import { db, driftChecks, runs, sources } from '@robot/db';
+import { db, captures as captureRows, driftChecks, runs, sources } from '@robot/db';
 import {
   buildDomSearchScript, buildXPathProbeScript, classifyDrift,
   type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
@@ -26,12 +26,35 @@ import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { runEmptyShares } from '../crawl/drift.js';
 import { loadCurrentCertification } from './current-certification.js';
-import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageCaptureRecord } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCaptureInSlot, loadProofPageCaptureById, type ProofPageCaptureRecord, type ProofPageMeta } from './proof-page-capture.js';
 
 type Session = typeof withBrowserSession;
 
-/** Fresh captures of a website's proof pages, by url; `null` where the page could not be captured now (it redirects, 404s, or fails to load). */
-export type CaptureProofPagesFn = (sourceId: string, urls: string[]) => Promise<Record<string, ProofPageCaptureRecord | null>>;
+/**
+ * Fresh captures of a website's proof pages, by url: the record when the page
+ * was captured; `{ notChecked }` (the verdict sentence) when the page exists
+ * but could not be read now — the site refused or challenged the browser,
+ * answered blank, timed out, crashed, or the host is backing off; `null` when
+ * the page is gone (it 404s, redirects off-site, or left no record).
+ */
+export type CaptureProofPagesFn = (sourceId: string, urls: string[]) => Promise<Record<string, ProofPageCaptureRecord | { notChecked: string } | null>>;
+
+/**
+ * What a failed proof-page capture means to the drift check (known-gaps fixes
+ * 2026-10-11, Task 2): `not-found` and `redirected` say the page is gone
+ * (`null`), and so does a same-host landing on another path — `captureProblem`'s
+ * verdict-less "redirected to …" (a removed product sent to its category page).
+ * Every other verdict (refused, challenge, blank, timeout, unreachable,
+ * crashed), and any other failure with no verdict, says only that we could not
+ * read it now, with the stored error (since 2026-10-09 the verdict sentence; a
+ * backoff answer adds the wait) as the reason.
+ */
+export function outcomeOfFailedCapture(meta: { error: string; verdict?: { kind: string } }): null | { notChecked: string } {
+  const kind = meta.verdict?.kind;
+  if (kind === 'not-found' || kind === 'redirected') return null;
+  if (!kind && meta.error.startsWith('redirected to ')) return null;
+  return { notChecked: meta.error };
+}
 
 /**
  * A check is three captures at a time plus offline classification — well
@@ -55,6 +78,9 @@ export function captureProofPagesWith(session: Session = withBrowserSession): Ca
     const taken = await Promise.all(urls.map(async (url) => {
       const { captureId } = await startProofPageCapture(sourceId, url, { fire: false });
       await runProofPageCaptureInSlot(captureId, session);
+      const row = await db.query.captures.findFirst({ where: eq(captureRows.id, captureId), columns: { metadata: true } });
+      const meta = row?.metadata as ProofPageMeta | null | undefined;
+      if (meta?.status === 'failed') return [url, outcomeOfFailedCapture(meta)] as const;
       return [url, await loadProofPageCaptureById(captureId)] as const;
     }));
     return Object.fromEntries(taken);
@@ -130,10 +156,15 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
 
     if (toClassify.length > 0) {
       const records = await capture(check.sourceId, set.urls);
-      const captures: Record<string, DriftCapture | null> = Object.fromEntries(set.urls.map((u) => {
+      // Three kinds of page: captured (decides), gone (null), and not checked —
+      // the site would not let us read it now, so it neither decides nor is gone.
+      const captures: Record<string, DriftCapture | null> = {};
+      const notChecked: Record<string, string> = {};
+      for (const u of set.urls) {
         const r = records[u];
-        return [u, r ? { ...r.capture, boxes: r.meta.boxes } : null];
-      }));
+        if (r && 'notChecked' in r) notChecked[u] = r.notChecked;
+        else captures[u] = r ? { ...r.capture, boxes: r.meta.boxes } : null;
+      }
       await session(async (browser) => {
         const classifyDeps = {
           evalXPaths: (html: string, xpaths: string[]) => browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xpaths)),
@@ -145,6 +176,7 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
             expected: set.expected[field.key] ?? {},
             certified: cert!.paths[field.key]!,
             captures,
+            notChecked,
             confirmed: confirmedPathsOf(set, field.key),
             markXPaths: Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => m.xpaths),
           }, classifyDeps);

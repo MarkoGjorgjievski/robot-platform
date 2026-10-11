@@ -431,6 +431,20 @@ describe('driftNoticeLines', () => {
       { name: 'Price', text: 'Product 2 no longer loads' },
     ]);
   });
+
+  it('a field whose pages could not be read reads "Could not be checked now", with one line per such page', () => {
+    expect(
+      driftNoticeLines({
+        driftedKeys: ['price'],
+        fieldNames,
+        results: { fields: { price: { key: 'price', result: 'not-checked', pages: { [proofUrls[0]!]: { status: 'not-checked', reason: 'x.example refused the browser (HTTP 403).' } } } } },
+        proofUrls,
+      }),
+    ).toEqual([
+      { name: 'Price', text: 'Could not be checked now — the website did not let us read its pages' },
+      { name: 'Price', text: 'Product 1 could not be checked — x.example refused the browser (HTTP 403).' },
+    ]);
+  });
 });
 
 describe('encodeOpsOverviewState / decodeOpsOverviewState', () => {

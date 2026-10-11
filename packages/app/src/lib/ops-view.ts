@@ -286,16 +286,20 @@ export function siteLastRunText(lastRun: { status: string; at: string; rows: num
 // `@robot/api`'s `DriftFieldResult`/`DriftPage` (verify/run-drift-check.ts),
 // re-declared narrow — the app never imports `@robot/scraper`'s verify
 // types, same reason `lib/site/drift-view.ts` re-declares its own.
-export type OpsDriftPage = { status: 'ok'; value: string | null; changed?: boolean; was?: string } | { status: 'page-gone' };
-export type OpsDriftFieldResult = { key: string; result: 'other-layout' | 'moved' | 'changed' | 'lost'; pages: Record<string, OpsDriftPage> };
+export type OpsDriftPage =
+  | { status: 'ok'; value: string | null; changed?: boolean; was?: string }
+  | { status: 'page-gone' }
+  | { status: 'not-checked'; reason: string };
+export type OpsDriftFieldResult = { key: string; result: 'other-layout' | 'moved' | 'changed' | 'lost' | 'not-checked'; pages: Record<string, OpsDriftPage> };
 /** `ops.website`'s `drift.results` once the check is done. */
 export type OpsDriftResults = { fields: Record<string, OpsDriftFieldResult> } | null;
 
-/** The three result kinds whose "What changed" text never depends on a page's value (Global Constraints). */
-const DRIFT_RESULT_TEXT: Record<'moved' | 'other-layout' | 'lost', string> = {
+/** The result kinds whose "What changed" text never depends on a page's value (Global Constraints). */
+const DRIFT_RESULT_TEXT: Record<'moved' | 'other-layout' | 'lost' | 'not-checked', string> = {
   moved: 'Moved on the page — a new location is proposed',
   'other-layout': 'Still works on the proof pages; some other products differ',
   lost: 'Not found on the page',
+  'not-checked': 'Could not be checked now — the website did not let us read its pages',
 };
 
 /**
@@ -339,7 +343,9 @@ export function driftNoticeLines(args: {
     const name = fieldNames[key] ?? key;
     out.push({ name, text: r.result === 'changed' ? changedText(r.pages, proofUrls) : DRIFT_RESULT_TEXT[r.result] });
     proofUrls.forEach((url, i) => {
-      if (r.pages[url]?.status === 'page-gone') out.push({ name, text: `Product ${i + 1} no longer loads` });
+      const p = r.pages[url];
+      if (p?.status === 'page-gone') out.push({ name, text: `Product ${i + 1} no longer loads` });
+      else if (p?.status === 'not-checked') out.push({ name, text: `Product ${i + 1} could not be checked — ${p.reason}` });
     });
   }
   return out;
