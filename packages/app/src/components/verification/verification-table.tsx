@@ -330,7 +330,7 @@ export function VerificationTable({
                 {addHead}
               </th>
             ) : null}
-            <th scope="col" className="px-2 py-2 text-left align-bottom text-sm font-normal text-muted-foreground">
+            <th scope="col" className="sticky right-0 z-10 border-l border-line bg-panel px-2 py-2 text-left align-bottom text-sm font-normal text-muted-foreground">
               Status
             </th>
           </tr>
@@ -456,7 +456,7 @@ export function VerificationTable({
 
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
-                <td className="w-[220px] border-t border-line px-2 py-2 align-top">
+                <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
                   <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} />
                 </td>
               </tr>
