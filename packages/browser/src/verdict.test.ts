@@ -24,6 +24,16 @@ describe('classifyVerdict', () => {
     const html = '<html><head><title>Please wait</title></head><body><div id="c"><iframe src="https://www.google.com/recaptcha/api2/anchor?k=abc" title="reCAPTCHA"></iframe></div></body></html>';
     expect(classifyVerdict({ requestedUrl: 'https://s.example/p/1', finalUrl: 'https://s.example/p/1', status: 200, headers: {}, html, title: 'Please wait' })).toMatchObject({ kind: 'challenge' });
   });
+  it('a ~500-char page with the invisible reCAPTCHA badge iframe stays ok (the badge loads on every page of sites that use it)', () => {
+    const body = `<p>${'Thanks for shopping with us today. '.repeat(14)}</p><iframe title="reCAPTCHA" src="https://www.google.com/recaptcha/api2/anchor?ar=1&k=abc&co=xyz&size=invisible&cb=1"></iframe>`;
+    const html = `<html><head><title>Linen apron</title></head><body>${body}</body></html>`;
+    expect(classifyVerdict({ requestedUrl: 'https://s.example/p/2', finalUrl: 'https://s.example/p/2', status: 200, headers: {}, html, title: 'Linen apron', boxCount: 12 })).toEqual({ kind: 'ok', status: 200 });
+  });
+  it('a ~500-char page with a visible reCAPTCHA iframe stays ok (it has content; it is not a wall)', () => {
+    const body = `<p>${'Thanks for shopping with us today. '.repeat(14)}</p><iframe title="reCAPTCHA" src="https://www.google.com/recaptcha/api2/anchor?ar=1&k=abc&co=xyz"></iframe>`;
+    const html = `<html><head><title>Linen apron</title></head><body>${body}</body></html>`;
+    expect(classifyVerdict({ requestedUrl: 'https://s.example/p/3', finalUrl: 'https://s.example/p/3', status: 200, headers: {}, html, title: 'Linen apron', boxCount: 12 })).toEqual({ kind: 'ok', status: 200 });
+  });
   it('a long contact page that embeds a reCAPTCHA widget stays ok', () => {
     const body = `<p>${'Write to us about your order and we will answer within a day. '.repeat(40)}</p><iframe src="https://www.google.com/recaptcha/api2/anchor?k=abc"></iframe>`;
     const html = `<html><head><title>Contact</title></head><body>${body}</body></html>`;
