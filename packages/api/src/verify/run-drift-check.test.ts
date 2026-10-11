@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq, count } from 'drizzle-orm';
 import { db, captures, driftChecks, sources, sourceVerifications } from '@robot/db';
-import { CaptureError, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
+import { CaptureError, BROWSER_UNAVAILABLE, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
 import {
   buildBoxMapScript, fieldHash,
   type Box, type CertifiedPath, type DriftCheckResults, type SchemaDefinitionField, type VerificationSet,
@@ -304,6 +304,8 @@ describe('the default capture function', () => {
         launch: async () => {}, close: async () => {},
         capture: async (u: string) => {
           if (u === f.urls[1]) throw timeout;
+          // An unexpected throw never classified by the browser layer — the
+          // raw text must not reach the customer (campaign 2, 2026-10-11).
           if (u === f.urls[2]) throw new Error('disk full');
           return fakeCapture(u);
         },
@@ -311,7 +313,7 @@ describe('the default capture function', () => {
       const got = await captureProofPagesWith(session)(f.sourceId, f.urls);
       expect(captured(got[f.urls[0]!]).meta.status).toBe('captured');
       expect(got[f.urls[1]!]).toEqual({ notChecked: timeout.message });
-      expect(got[f.urls[2]!]).toEqual({ notChecked: 'disk full' });
+      expect(got[f.urls[2]!]).toEqual({ notChecked: BROWSER_UNAVAILABLE });
     } finally { await f.cleanup(); }
   });
 

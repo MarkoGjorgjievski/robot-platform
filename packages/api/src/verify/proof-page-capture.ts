@@ -5,7 +5,7 @@
 // never rejects and always leaves the row terminal.
 import { and, eq, inArray, desc } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
-import { TILE_HEIGHT, CaptureError, type CaptureErrorKind, type CaptureVerdict, type PageCapture } from '@robot/browser';
+import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type CaptureErrorKind, type CaptureVerdict, type PageCapture } from '@robot/browser';
 import { backoffAnswer, captureProofPage, CaptureProblemError, reportVerdict, CAPTURE_REUSE_MAX_AGE_MS, type Box } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
@@ -114,10 +114,17 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes: visible, pageHeight, capturedHeight, contentHeight, ...(capture.title?.trim() ? { title: capture.title.trim().slice(0, 120) } : {}) };
     await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
   } catch (err) {
+    // The raw text is logged here only. A `CaptureProblemError` or
+    // `CaptureError` already carries a customer sentence as its message
+    // (verify/capture-check.ts, @robot/browser's CaptureError); anything
+    // else is a throw from before any verdict existed — a Playwright
+    // exception, hundreds of words, that must never land in `error` for the
+    // proof card to show verbatim (campaign 2, 2026-10-11).
     console.error(`[proof-page] capture ${captureId} failed:`, err);
     const verdict = err instanceof CaptureProblemError ? err.verdict : err instanceof CaptureError ? { kind: err.kind } : undefined;
     if (verdict && hostname) reportVerdict(hostname, err instanceof CaptureProblemError && err.verdict ? err.verdict : verdict.kind);
-    const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error: safeErrorMessage(err).slice(0, 1000), ...(verdict ? { verdict } : {}) };
+    const error = err instanceof CaptureProblemError || err instanceof CaptureError ? safeErrorMessage(err).slice(0, 1000) : BROWSER_UNAVAILABLE;
+    const failed: ProofPageMeta = { kind: 'proof-page', status: 'failed', url: row.url, startedAt: meta.startedAt, error, ...(verdict ? { verdict } : {}) };
     await db.update(captures).set({ metadata: failed }).where(eq(captures.id, captureId))
       .catch((e) => console.error(`[proof-page] failed to record failure for ${captureId}:`, e));
   }

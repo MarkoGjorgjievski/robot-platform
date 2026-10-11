@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
-import { TILE_HEIGHT, CaptureError, type IBrowser, type PageCapture } from '@robot/browser';
+import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type IBrowser, type PageCapture } from '@robot/browser';
 import { backoffAnswer, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { startProofPageCapture, runProofPageCapture, loadProofPageCaptures, PROOF_PAGE_STALL_MS, type ProofPageMeta } from './proof-page-capture.js';
@@ -58,13 +58,16 @@ describe('proof-page capture job', () => {
       expect(loaded[f.urls[0]!]!.ref.captureId).toBe(captureId);
     } finally { await f.cleanup(); }
   });
-  it('records a failure with its reason and never throws', async () => {
+  it('records a failure and never throws, but never shows the raw exception text (campaign 2, 2026-10-11)', async () => {
     const f = await createProjectWithSource(caller, { tag: 'ppc-fail', fields: [{ name: 'Title', type: 'text' }] });
     try {
       const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
-      await runProofPageCapture(captureId, sessionWith(async () => { throw new Error('net::ERR_FAILED'); }));
+      // A throw that never became a CaptureError/CaptureProblemError — the
+      // shape of an orphaned api-server's Chromium failing to launch at all.
+      await runProofPageCapture(captureId, sessionWith(async () => { throw new Error('browserType.launch: failed. Call log: …'); }));
       const meta = (await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta;
-      expect(meta).toMatchObject({ status: 'failed', error: 'net::ERR_FAILED' });
+      expect(meta).toMatchObject({ status: 'failed', error: BROWSER_UNAVAILABLE });
+      expect(meta).not.toHaveProperty('verdict');
       expect(await loadProofPageCaptures(f.sourceId, f.urls)).toEqual({});
     } finally { await f.cleanup(); }
   });
