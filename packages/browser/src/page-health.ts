@@ -12,6 +12,14 @@ import type { WallVendor } from './types.js';
 const SUBSTANTIAL_CONTENT_CHARS = 1000;
 
 /**
+ * The floor `checkPageHealth` uses for "almost no content" (its #4 check).
+ * Shared with `detectWall`'s CAPTCHA-iframe rule below: that rule may only
+ * upgrade a page that would otherwise read blank, never one with real text
+ * under it.
+ */
+const BLANK_PAGE_CHARS = 100;
+
+/**
  * The text a visitor would read: comments, scripts, styles and tags stripped,
  * whitespace collapsed. The one definition every reading of a page uses
  * (detectWall, checkPageHealth, classifyVerdict's blank rule), so inline CSS or a
@@ -147,7 +155,7 @@ export function checkPageHealth(html: string, title: string, url: string): PageH
 
   // 4. Empty or minimal page
   // Strip tags and check text content length
-  if (text.length < 100) {
+  if (text.length < BLANK_PAGE_CHARS) {
     return { healthy: false, reason: 'Page has almost no content (less than 100 characters of text)' };
   }
 
@@ -188,8 +196,16 @@ export function wallVendor(html: string, title: string, headers: Record<string, 
 
 /** Markup only a vendor's challenge page carries (not its tag on a normal page). */
 const CHALLENGE_MARKERS = ['px-captcha', 'captcha.awswaf.com', 'captcha-delivery.com'];
-/** A CAPTCHA widget's iframe: on a thin page it IS the page (the challenge), on a long page it is a form's helper. */
-const CAPTCHA_IFRAME = /<iframe[^>]+src=["'][^"']*(recaptcha|hcaptcha|captcha-delivery|awswaf)[^"']*["']/;
+/**
+ * A CAPTCHA widget's iframe: on a page that would otherwise read blank (under
+ * `BLANK_PAGE_CHARS`, the same floor `checkPageHealth` uses) it IS the page
+ * (the challenge); on a page with real text under it, it is a form's helper
+ * or the site's anti-bot library loading sitewide, not a wall. The src is
+ * captured so the invisible reCAPTCHA v3 badge (`size=invisible`) can be told
+ * apart from a visible challenge iframe — Google's corner badge loads on
+ * every page of sites that use it and says nothing about a wall.
+ */
+const CAPTCHA_IFRAME = /<iframe[^>]+src=["']([^"']*(?:recaptcha|hcaptcha|captcha-delivery|awswaf)[^"']*)["']/;
 const CHALLENGE_WORDS = ['just a moment', 'checking your browser', 'verify you are human', 'confirm you are human', "confirm that you're human", 'are you a robot', 'not a robot', 'press & hold', 'press and hold', 'quick verification', 'human verification'];
 const DENIED_WORDS = ['access denied', 'you have been blocked', 'your request has been blocked', 'this request was blocked', 'restricted access'];
 
@@ -208,11 +224,18 @@ export function detectWall(html: string, title: string, headers: Record<string, 
   const lowerTitle = title.toLowerCase();
   const says = (w: string): boolean => lowerTitle.includes(w) || text.includes(w);
   const vendor = wallVendor(html, title, headers) ?? 'unknown';
+  // The iframe rule only ever upgrades a page that would otherwise read
+  // blank, and never fires on the invisible reCAPTCHA v3 badge (loaded
+  // sitewide by sites that use it, regardless of whether the page is a wall).
+  const captchaIframe = lowerHtml.match(CAPTCHA_IFRAME);
+  const captchaIframeIsWall = captchaIframe != null
+    && text.length < BLANK_PAGE_CHARS
+    && !captchaIframe[1]!.includes('size=invisible');
   // "captcha" as a word ("Complete the CAPTCHA"), never "protected by reCAPTCHA".
   const isChallenge = CHALLENGE_WORDS.some(says)
     || /\bcaptcha\b/.test(lowerTitle) || /\bcaptcha\b/.test(text)
     || CHALLENGE_MARKERS.some((m) => lowerHtml.includes(m))
-    || CAPTCHA_IFRAME.test(lowerHtml);
+    || captchaIframeIsWall;
   if (isChallenge) return { kind: 'challenge', vendor };
   if (DENIED_WORDS.some(says)) return { kind: 'refused', vendor };
   return null;
