@@ -104,4 +104,30 @@ describe('computeCoverage', () => {
     expect(out.unshownItems[49]).toEqual({ url: 'u49', fields: ['price'] });
     expect(out.fields[0]).toMatchObject({ notShown: 60, checked: 60 });
   });
+
+  // Spec 2026-10-12 §5: the run page's unshown panel names the certified
+  // path a not-shown value came from — carried on the item as
+  // `validation_result.paths`, passed through verbatim. An item with no
+  // `paths` at all (an older run, or a non-certified extraction) gets no
+  // `paths` key on its unshownItems entry, not an empty object.
+  it('carries an item`s paths onto its unshownItems entry, when it has any', () => {
+    const out = computeCoverage(
+      [{ name: 'description' }],
+      [
+        {
+          id: 'a', url: 'u1', row: { description: 'x' }, absentFields: [],
+          shown: { description: false },
+          paths: { description: { source: 'json-ld', path: 'description' } },
+        },
+        {
+          id: 'b', url: 'u2', row: { description: 'y' }, absentFields: [],
+          shown: { description: false },
+        },
+      ],
+    );
+    expect(out.unshownItems).toEqual([
+      { url: 'u1', fields: ['description'], paths: { description: { source: 'json-ld', path: 'description' } } },
+      { url: 'u2', fields: ['description'] },
+    ]);
+  });
 });

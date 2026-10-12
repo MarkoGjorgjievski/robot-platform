@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  fillBadge, rowsMissingField, selectionToItemIds, reExtractLabel, cellState,
+  fillBadge, notShownBadge, rowsMissingField, selectionToItemIds, reExtractLabel, cellState,
   emptyFilterNote,
   type FieldCoverage, type ItemGap, type Row,
 } from './coverage-view';
@@ -23,6 +23,38 @@ describe('fillBadge', () => {
 
   it('shows no badge when this field has no coverage data at all', () => {
     expect(fillBadge(undefined)).toBeNull();
+  });
+});
+
+// Spec 2026-10-12 §5/§7, Review Focus 4.
+describe('notShownBadge', () => {
+  it('names the count once the shown-on-page check has caught anything', () => {
+    const cov: FieldCoverage = { name: 'description', filled: 36, missing: 4, confirmedAbsent: 0, total: 40, notShown: 8, checked: 36 };
+    expect(notShownBadge(cov)).toBe('8 not shown');
+  });
+
+  it('reads "not checked" for a filled field whose type the check never runs on', () => {
+    const cov: FieldCoverage = { name: 'thumbnail', filled: 40, missing: 0, confirmedAbsent: 0, total: 40, notShown: 0, checked: 0 };
+    expect(notShownBadge(cov)).toBe('not checked');
+  });
+
+  it('reads "not checked" for a run that predates the check — checked/notShown both absent', () => {
+    const cov: FieldCoverage = { name: 'title', filled: 40, missing: 0, confirmedAbsent: 0, total: 40 };
+    expect(notShownBadge(cov)).toBe('not checked');
+  });
+
+  it('shows nothing when every checked value was shown', () => {
+    const cov: FieldCoverage = { name: 'price', filled: 40, missing: 0, confirmedAbsent: 0, total: 40, notShown: 0, checked: 40 };
+    expect(notShownBadge(cov)).toBeNull();
+  });
+
+  it('shows nothing for a field with nothing filled to check', () => {
+    const cov: FieldCoverage = { name: 'sku', filled: 0, missing: 40, confirmedAbsent: 0, total: 40, notShown: 0, checked: 0 };
+    expect(notShownBadge(cov)).toBeNull();
+  });
+
+  it('shows nothing when this field has no coverage data at all', () => {
+    expect(notShownBadge(undefined)).toBeNull();
   });
 });
 

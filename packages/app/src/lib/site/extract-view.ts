@@ -255,11 +255,18 @@ export function lockedStripText(args: { fieldCount: number; currentKeys: string[
  * product link the listing walk found ("3 of 28"), which read as a 90%
  * failure when the sample had done exactly what it promised — sample three
  * products, all three complete.
+ *
+ * `notShown` (spec 2026-10-12 §5/§7) adds one more fact, only when the
+ * "shown on the page" check caught anything in the sample: both the count
+ * and the field names in one fact, "Values not shown" / "{n} values not
+ * shown on their page: {fields}" — named facts rather than two separate
+ * ones, since the panel below reads the same two numbers off the same line.
  */
 export function sampleFacts(
   evidence: ProbeEvidence,
   rows: { complete: number; total: number },
   extracted: number,
+  notShown?: { count: number; fields: string[] },
 ): Array<{ label: string; value: string }> {
   const facts: Array<{ label: string; value: string }> = [
     { label: 'Pages walked', value: String(evidence.pagesWalked) },
@@ -268,6 +275,9 @@ export function sampleFacts(
   if (evidence.paginationNote && evidence.paginationNote !== 'not reported') facts.push({ label: 'Pagination detected', value: evidence.paginationNote });
   if (rows.total > 0) facts.push({ label: 'Sample rows complete', value: `${rows.complete} of ${rows.total}` });
   else facts.push({ label: 'Rows extracted', value: String(extracted) });
+  if (notShown && notShown.count > 0) {
+    facts.push({ label: 'Values not shown', value: `${notShown.count} values not shown on their page: ${notShown.fields.join(', ')}` });
+  }
   return facts;
 }
 
