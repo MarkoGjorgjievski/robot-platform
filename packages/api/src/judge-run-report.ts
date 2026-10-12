@@ -22,8 +22,9 @@ export type Cell = {
   /** True when the verdict was set here without a judge call (a URL value is `unverifiable`; a number found in the page text is `correct`). */
   local?: boolean;
   /**
-   * How the verdict was reached: `text` — a number or money value found in the
-   * page's visible text, no call (judge-local.ts); `prefix` — a long text value
+   * How the verdict was reached: `text` — found in the page's visible text, no
+   * call (judge-local.ts: a number/money value with context, or a long text's
+   * first 80 characters); `prefix` — a long text value
    * judged on its first 80 characters; `judge` — the value judged whole. Absent
    * on empty, skipped and URL cells.
    */
@@ -226,12 +227,13 @@ export function renderReport(r: ReportInput): string {
     `- Items: ${r.itemsInRun} items in run, ${r.itemsWithValues} with values, ${captured} captured, ${failed} capture failed, judged ${captured}${r.limitedBy ? ` (limited by ${r.limitedBy})` : ''}`,
     `- Fields: ${r.fields.map((f) => f.name).join(', ')}`,
     `- Judge cost: $${r.costUsd.toFixed(4)} (cap $${r.maxUsd.toFixed(2)})`,
+    `- Note: per-call estimate not re-measured since page text was added ($${JUDGE_USD_PER_FIELD} a call — behind the cap and the saving below)`,
     `- ${fromText} value${fromText === 1 ? '' : 's'} settled from the page text without a call (saved about $${(fromText * JUDGE_USD_PER_FIELD).toFixed(2)})`,
     `- Time: ${minutes}m ${seconds}s`,
     '',
     "Each item's URL was captured fresh (a run stores no screenshot), so a verdict compares the stored value with the page as it is now — a price that changed since the run reads as wrong.",
     '',
-    "A number or money value found in the page's visible text (as stored, with either decimal mark, with thousands separators, with one or two decimals, as a whole token; a single digit only beside the field's name) is counted correct without a judge call. Every other value goes to the judge with the page's visible text (its first 8,000 characters) beside the screenshot; a text value longer than 80 characters is judged on its first 80.",
+    "Some values are counted correct from the page's visible text without a judge call: a money value shown with a currency sign or code beside it or with decimals; a number shown with decimals, near one of the field's words, or before \"/5\", \"out of\", \"stars\" or \"★\" (never a bare whole number; a single digit only right beside the field's name); a text value longer than 80 characters whose first 80 characters appear in the page text. Every other value goes to the judge with page text beside the screenshot — 4,000 characters around the value when it is found, else the first 8,000; a text value longer than 80 characters is judged on its first 80, and the judge is told so.",
     '',
     `The judge sees screenshot tiles from the top of the page (${r.tiles} tiles ≈ ${r.tiles * r.tileHeight} px, ${r.tileHeight} px each); a value is judged on tile 1 and again on the next tile only while the verdict is "not on page". 'Not on page' after all tiles usually means further down or in a tab, not wrong.`,
     '',
@@ -242,7 +244,7 @@ export function renderReport(r: ReportInput): string {
     ...summaryTable(r.fields, r.items),
     '',
     '## Per item', '',
-    'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · - not judged (run interrupted) · `·` empty. The digit is the screenshot tile that decided the verdict. Ct is a number found in the page text, without a judge call or cost; a trailing p means a long text judged on its first 80 characters. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
+    'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · - not judged (run interrupted) · `·` empty. The digit is the screenshot tile that decided the verdict. Ct is a value found in the page text (a number or money value with context, or a long text\'s first 80 characters), without a judge call or cost; a trailing p means a long text judged on its first 80 characters. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
     `| URL | Page title | ${r.fields.map((f) => cellText(f.name)).join(' | ')} |`,
     `|---|---|${r.fields.map(() => ':-:').join('|')}|`,
   );

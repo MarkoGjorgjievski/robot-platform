@@ -256,7 +256,31 @@ describe('renderReport', () => {
     expect(md).toContain('| https://shop.example/p/4 |  | W1p | Ct | C1 |');
     expect(md).toContain('| https://shop.example/p/5 |  | C1 | Ct | · |');
     expect(md).toContain('(tile 1) (judged on its first 80 characters)');
-    expect(md).toMatch(/Ct is a number found in the page text/);
+    expect(md).toMatch(/Ct is a value found in the page text/);
+  });
+
+  it('says the per-call estimate was not re-measured since page text was added, in the cost section', () => {
+    const md = renderReport(base);
+    const cost = md.indexOf('- Judge cost:');
+    const note = md.indexOf('per-call estimate not re-measured since page text was added');
+    expect(cost).toBeGreaterThan(-1);
+    expect(note).toBeGreaterThan(cost);
+    expect(md.slice(cost, note)).not.toContain('\n\n');
+  });
+
+  it('marks a long text settled from the page text Ct, counted in Correct', () => {
+    const md = renderReport({
+      ...base,
+      items: [{ url: 'https://shop.example/p/6', cells: [
+        { field: 'title', value: 'D'.repeat(120), verdict: 'correct', local: true, how: 'text' },
+        { field: 'price', value: null, verdict: 'empty' },
+        { field: 'sku', value: null, verdict: 'empty' },
+      ] }],
+      itemsWithValues: 1,
+    });
+    expect(md).toContain('| Title | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 100% |');
+    expect(md).toContain('| https://shop.example/p/6 |  | Ct | · | · |');
+    expect(md).toContain('- 1 value settled from the page text without a call (saved about $0.01)');
   });
 
   it('lists a failed capture in the item table and the header counts', () => {
