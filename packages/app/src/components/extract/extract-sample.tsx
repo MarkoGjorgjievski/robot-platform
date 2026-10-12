@@ -70,6 +70,11 @@ export function ExtractSample({
   );
   const itemsQuery = trpc.crawl.items.useQuery({ runId: runId ?? '' }, { enabled: !!runId });
   const detailQuery = trpc.runs.getWithDetails.useQuery({ id: runId ?? '' }, { enabled: !!runId });
+  // Spec 2026-10-12 §5/§7: the sample's own "shown on the page" count. Free,
+  // and already the exact report the run page reads for the same run — a
+  // sample run is a run, so there is no second implementation of "how many
+  // of this run's values were not shown" to keep in step.
+  const coverageQuery = trpc.crawl.coverage.useQuery({ runId: runId ?? '' }, { enabled: !!runId });
 
   const absentByUrl = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -109,7 +114,12 @@ export function ExtractSample({
   const counts = itemsQuery.data?.counts ?? EMPTY_COUNTS;
   const warnings = parseRunWarnings(detailQuery.data?.run.logs);
   const evidence = probeEvidence({ counts: { listing: counts.listing, detail: counts.detail }, warnings });
-  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length }, counts.done);
+  const notShownFields = (coverageQuery.data?.fields ?? []).filter((f) => (f.notShown ?? 0) > 0);
+  const notShownCount = notShownFields.reduce((sum, f) => sum + (f.notShown ?? 0), 0);
+  const notShown = notShownCount > 0
+    ? { count: notShownCount, fields: notShownFields.map((f) => columns.find((c) => c.key === f.name)?.name ?? f.name) }
+    : undefined;
+  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length }, counts.done, notShown);
 
   return (
     <div className="space-y-3">

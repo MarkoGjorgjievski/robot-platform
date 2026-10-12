@@ -85,10 +85,71 @@ export function reExtractedLabel(count: number): string {
   return `Re-extracted in ${count} ${count === 1 ? 'run' : 'runs'}`;
 }
 
-/** The line above the results sheet: how much came back, and how sure the engine was. */
-export function resultsSummary(rowCount: number, confidence: number | null | undefined): string {
+/**
+ * The line above the results sheet: how much came back, how sure the engine
+ * was, and — once the "shown on the page" check has caught anything — how
+ * many values it caught (spec 2026-10-12 §5/§7, property 7: a `notShown` of
+ * `0` or `undefined` leaves this exactly as it reads today, same as an
+ * older run with no `validation_result` at all, Review Focus 4).
+ */
+export function resultsSummary(rowCount: number, confidence: number | null | undefined, notShown?: number): string {
   const rows = rowCount === 0 ? 'No rows' : `${rowCount.toLocaleString('en-US')} ${rowCount === 1 ? 'row' : 'rows'}`;
-  return confidence == null ? rows : `${rows} · ${confidence}% confidence`;
+  const base = confidence == null ? rows : `${rows} · ${confidence}% confidence`;
+  if (!notShown) return base;
+  const noun = notShown === 1 ? 'value' : 'values';
+  return `${base} · ${notShown.toLocaleString('en-US')} ${noun} not shown on their page`;
+}
+
+/** `crawl.coverage`'s `unshownItems` entry, as the wire reports it (mirrors `@robot/api`'s `coverage.ts`). */
+export type UnshownItem = {
+  url: string;
+  fields: string[];
+  /** The certified path each field's value came from on THIS item, when the run carried one. */
+  paths?: Record<string, { source: string; path: string }>;
+};
+
+export type UnshownRow = {
+  /** The engine field key — what `?field=` on "Use as proof page" expects. */
+  field: string;
+  /** "{Field}: {n} of {m} values are not on the product's page · from {source} ({path})" (spec §5/§7). */
+  line: string;
+  /** Up to five product urls this field was flagged not-shown on, in item order. */
+  urls: string[];
+};
+
+/**
+ * The unshown panel's rows (spec 2026-10-12 §5/§7): one per field with
+ * `notShown > 0`, named in the customer's own words (`nameOf`), with the
+ * certified path that produced the value — read off the FIRST `unshownItems`
+ * entry that both names this field and carries a `paths` entry for it, since
+ * every certified hit for a field normally comes from the same path. A field
+ * with no matching path (an older item with no `validation_result.paths`)
+ * still gets its line, just without the "from …" clause.
+ *
+ * `cov.checked` is the "m" in "n of m" — the values the check actually ran
+ * on, not the row count: a value the extractor never produced has nothing
+ * for the check to have passed or failed.
+ */
+export function unshownRows(
+  coverage: readonly FieldCoverage[],
+  nameOf: (key: string) => string,
+  items: readonly UnshownItem[],
+): UnshownRow[] {
+  const rows: UnshownRow[] = [];
+  for (const cov of coverage) {
+    if (!cov.notShown) continue;
+    const matching = items.filter((item) => item.fields.includes(cov.name));
+    const withPath = matching.find((item) => item.paths?.[cov.name]);
+    const path = withPath?.paths?.[cov.name];
+    // `xpath` is an internal name for "read off the rendered page" — shown
+    // as `page`, same word `verification-view.ts`'s `pathSourceLabel` uses
+    // for the same source; the structured sources keep their own names.
+    const sourceLabel = path ? (path.source === 'xpath' ? 'page' : path.source) : null;
+    const tail = path ? ` · from ${sourceLabel} (${path.path})` : '';
+    const line = `${nameOf(cov.name)}: ${cov.notShown} of ${cov.checked ?? 0} values are not on the product's page${tail}`;
+    rows.push({ field: cov.name, line, urls: matching.slice(0, 5).map((item) => item.url) });
+  }
+  return rows;
 }
 
 /**

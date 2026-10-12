@@ -55,6 +55,7 @@ export async function loadRunCoverage(db: Database, runId: string): Promise<RunC
     row: Array.isArray(i.extraction?.data) ? (i.extraction!.data[0] as Record<string, unknown> ?? null) : null,
     absentFields: (i.absentFields as string[] | null) ?? [],
     shown: (i.extraction?.validationResult as { shown?: Record<string, boolean | null> } | null)?.shown ?? null,
+    paths: (i.extraction?.validationResult as { paths?: Record<string, { source: string; path: string }> } | null)?.paths ?? null,
   })));
 }
 

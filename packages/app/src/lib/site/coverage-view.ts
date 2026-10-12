@@ -9,7 +9,13 @@
 // its internal crawl types, and `work-list.ts` already sets the precedent of
 // a local type mirroring what a procedure reports on the wire.
 
-export type FieldCoverage = { name: string; filled: number; missing: number; confirmedAbsent: number; total: number };
+export type FieldCoverage = {
+  name: string; filled: number; missing: number; confirmedAbsent: number; total: number;
+  /** Values flagged `false` by the "shown on the page" check — written, but not found on the page they came from (spec 2026-10-12 §5). Absent on a run that predates the check. */
+  notShown?: number;
+  /** Values with an explicit shown/not-shown flag — the denominator for `notShown`. Absent on a run that predates the check. */
+  checked?: number;
+};
 export type ItemGap = { itemId: string; url: string; missingFields: string[] };
 
 /** A results-table row. Every row carries `_url` — `mergeRow` always writes it. */
@@ -29,6 +35,30 @@ export function fillBadge(cov: FieldCoverage | undefined): string | null {
   if (!cov) return null;
   if (cov.missing + cov.confirmedAbsent === 0) return null;
   return `${cov.filled}/${cov.total}`;
+}
+
+/**
+ * The column head's second badge, after the fill count (spec 2026-10-12
+ * §5/§7): "8 not shown" in warning colour once the "shown on the page"
+ * check has caught any value, "not checked" when the field has filled
+ * values but none were ever run through the check (its type is never
+ * checked — `url`/`image`/`boolean`/`date` — or the run predates the
+ * check, Review Focus 4), or `null` when every checked value was shown
+ * (or there is nothing filled to check at all).
+ *
+ * `checked`/`notShown` are optional on `FieldCoverage` so a coverage report
+ * from before this change — or a type the wire never sets them on —
+ * reaches here as `undefined`, which this treats as `0`, same as an
+ * explicit zero: `undefined ?? 0` is not a special case, just the
+ * pre-existing shape of "nobody has run this check yet".
+ */
+export function notShownBadge(cov: FieldCoverage | undefined): string | null {
+  if (!cov) return null;
+  const notShown = cov.notShown ?? 0;
+  const checked = cov.checked ?? 0;
+  if (notShown > 0) return `${notShown} not shown`;
+  if (checked === 0 && cov.filled > 0) return 'not checked';
+  return null;
 }
 
 /**

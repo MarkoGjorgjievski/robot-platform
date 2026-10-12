@@ -11,6 +11,7 @@ import { ResultsTable } from '../../../../../../../components/runs/results-table
 import { RunFacts } from '../../../../../../../components/runs/run-facts';
 import { RunHeader } from '../../../../../../../components/runs/run-header';
 import { RunMisses } from '../../../../../../../components/runs/run-misses';
+import { UnshownPanel } from '../../../../../../../components/runs/unshown-panel';
 import { WorkList } from '../../../../../../../components/runs/work-list';
 import { isRunActive } from '../../../../../../../lib/site/run-progress';
 import {
@@ -144,6 +145,20 @@ function RunScreen() {
     () => new Map((coverage.data?.gapItems ?? []).map((g) => [g.url, g] as const)),
     [coverage.data],
   );
+  // Spec 2026-10-12 §5: one row per product with any not-shown field, keyed
+  // by url for the results sheet's per-cell mark — same shape as `absentByUrl`
+  // above, built from `absentFields` rather than `crawl.coverage`.
+  const unshownByUrl = useMemo(
+    () => new Map((coverage.data?.unshownItems ?? []).map((u) => [u.url, new Set(u.fields)] as const)),
+    [coverage.data],
+  );
+  // The summary line's own count (property 7): the sum across fields, `0` on
+  // a run the check never flagged anything on, or one with no coverage data
+  // at all — both read as "unchanged" to `resultsSummary`.
+  const notShownCount = useMemo(
+    () => (coverage.data?.fields ?? []).reduce((sum, f) => sum + (f.notShown ?? 0), 0),
+    [coverage.data],
+  );
 
   if (unauthorized) return null;
 
@@ -228,7 +243,9 @@ function RunScreen() {
       columns={sheetColumns}
       rows={rows}
       absentByUrl={absentByUrl}
-      summary={resultsSummary(rowCount, extraction?.confidence ?? null)}
+      unshownByUrl={unshownByUrl}
+      coverage={coverage.data?.fields}
+      summary={resultsSummary(rowCount, extraction?.confidence ?? null, notShownCount)}
       note={resultsNote(rows.length, rowCount)}
     />
   );
@@ -304,6 +321,17 @@ function RunScreen() {
           rows={rows}
           coverage={coverage.data.fields}
           gapByUrl={gapByUrl}
+          columns={columns}
+        />
+      ) : null}
+
+      {repairable && coverage.data ? (
+        <UnshownPanel
+          key={`unshown-${runId}`}
+          project={projectSlug}
+          site={siteSlug}
+          coverage={coverage.data.fields}
+          unshownItems={coverage.data.unshownItems}
           columns={columns}
         />
       ) : null}

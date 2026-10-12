@@ -14,9 +14,11 @@ import {
   runStatusLine,
   selectAllLabel,
   shortRunId,
+  unshownRows,
   variantCountLines,
   workListNote,
 } from './run-screen-view';
+import type { FieldCoverage } from './coverage-view';
 
 const NOW = new Date('2026-09-22T12:00:00.000Z');
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
@@ -120,6 +122,69 @@ describe('resultsSummary', () => {
     expect(resultsSummary(1204, null)).toBe('1,204 rows');
     expect(resultsSummary(1, null)).toBe('1 row');
     expect(resultsSummary(0, null)).toBe('No rows');
+  });
+
+  // Spec 2026-10-12 §5/§7, property 7: the suffix appears only once there is
+  // something to report, singular at one, and an older run (no `notShown`
+  // argument at all) reads exactly as it did before this change.
+  it('adds the not-shown suffix once there is anything to report, singular at one', () => {
+    expect(resultsSummary(1204, 92, 12)).toBe('1,204 rows · 92% confidence · 12 values not shown on their page');
+    expect(resultsSummary(1204, 92, 1)).toBe('1,204 rows · 92% confidence · 1 value not shown on their page');
+  });
+
+  it('stays unchanged when notShown is 0 or absent', () => {
+    expect(resultsSummary(1204, 92, 0)).toBe('1,204 rows · 92% confidence');
+    expect(resultsSummary(1204, 92)).toBe('1,204 rows · 92% confidence');
+    expect(resultsSummary(1204, 92, undefined)).toBe('1,204 rows · 92% confidence');
+  });
+});
+
+describe('unshownRows', () => {
+  const coverage: FieldCoverage[] = [
+    { name: 'description', filled: 36, missing: 4, confirmedAbsent: 0, total: 40, notShown: 8, checked: 36 },
+    { name: 'price', filled: 40, missing: 0, confirmedAbsent: 0, total: 40, notShown: 0, checked: 40 },
+  ];
+  const nameOf = (key: string) => (key === 'description' ? 'Description' : key);
+
+  it('names the field, the count, and the certified path the first matching item carries', () => {
+    const rows = unshownRows(coverage, nameOf, [
+      { url: 'https://example.com/p/1', fields: ['description'], paths: { description: { source: 'json-ld', path: 'description' } } },
+      { url: 'https://example.com/p/2', fields: ['description'] },
+    ]);
+    expect(rows).toEqual([
+      {
+        field: 'description',
+        line: "Description: 8 of 36 values are not on the product's page · from json-ld (description)",
+        urls: ['https://example.com/p/1', 'https://example.com/p/2'],
+      },
+    ]);
+  });
+
+  it('omits a field whose notShown is 0, and the "from …" clause when no item carries a path', () => {
+    const rows = unshownRows(coverage, nameOf, [
+      { url: 'https://example.com/p/1', fields: ['description'] },
+    ]);
+    expect(rows).toEqual([
+      { field: 'description', line: "Description: 8 of 36 values are not on the product's page", urls: ['https://example.com/p/1'] },
+    ]);
+  });
+
+  it('caps the product links at five', () => {
+    const items = Array.from({ length: 7 }, (_, i) => ({ url: `https://example.com/p/${i}`, fields: ['description'] }));
+    const rows = unshownRows(coverage, nameOf, items);
+    expect(rows[0]!.urls).toHaveLength(5);
+  });
+
+  it('reads "page" for an xpath path, same as the Verification tab', () => {
+    const rows = unshownRows(coverage, nameOf, [
+      { url: 'https://example.com/p/1', fields: ['description'], paths: { description: { source: 'xpath', path: '//div' } } },
+    ]);
+    expect(rows[0]!.line).toContain('from page (//div)');
+  });
+
+  it('is empty when nothing is flagged, same as an older run with no validation_result', () => {
+    const noFlags: FieldCoverage[] = [{ name: 'description', filled: 36, missing: 4, confirmedAbsent: 0, total: 40 }];
+    expect(unshownRows(noFlags, nameOf, [])).toEqual([]);
   });
 });
 

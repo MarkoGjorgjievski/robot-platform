@@ -236,6 +236,23 @@ describe('sampleFacts', () => {
     expect(facts.find((f) => f.label === 'Sample rows complete')?.value).toBe('2 of 3');
     expect(facts.find((f) => f.label === 'Pagination detected')?.value).toBe('next link');
   });
+
+  // Spec 2026-10-12 §5/§7: the Sample panel's own count, only when there is one.
+  it('adds a not-shown fact when the shown-on-page check caught anything in the sample', () => {
+    const facts = sampleFacts(
+      { pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' },
+      { complete: 3, total: 3 },
+      3,
+      { count: 2, fields: ['Description'] },
+    );
+    expect(facts.at(-1)).toEqual({ label: 'Values not shown', value: '2 values not shown on their page: Description' });
+  });
+
+  it('omits the not-shown fact when nothing was caught, or the argument is left out', () => {
+    const base = sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3);
+    expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3, { count: 0, fields: [] })).toEqual(base);
+    expect(base.find((f) => f.label === 'Values not shown')).toBeUndefined();
+  });
 });
 
 describe('emptyCellNote', () => {
