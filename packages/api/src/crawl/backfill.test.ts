@@ -13,7 +13,7 @@ describe('classifyFields', () => {
   it('classifies fill exactly at the threshold as healthy', () => {
     // 1/2 = 0.5, exactly DEAD_FIELD_FILL_THRESHOLD — binding boundary: healthy.
     const fields: FieldCoverage[] = [
-      { name: 'title', filled: 1, missing: 1, confirmedAbsent: 0, total: 2 },
+      { name: 'title', filled: 1, missing: 1, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
     ];
     const result = classifyFields(fields, ['title']);
     expect(result).toEqual([{ name: 'title', fill: 0.5, classification: 'healthy' }]);
@@ -22,7 +22,7 @@ describe('classifyFields', () => {
   it('classifies fill just below the threshold as dead', () => {
     // 4/10 = 0.4 < 0.5
     const fields: FieldCoverage[] = [
-      { name: 'isbn', filled: 4, missing: 6, confirmedAbsent: 0, total: 10 },
+      { name: 'isbn', filled: 4, missing: 6, confirmedAbsent: 0, total: 10, notShown: 0, checked: 0 },
     ];
     const result = classifyFields(fields, ['isbn']);
     expect(result).toEqual([{ name: 'isbn', fill: 0.4, classification: 'dead' }]);
@@ -30,7 +30,7 @@ describe('classifyFields', () => {
 
   it('classifies a total-0 field as dead (fill 0)', () => {
     const fields: FieldCoverage[] = [
-      { name: 'ghost', filled: 0, missing: 0, confirmedAbsent: 0, total: 0 },
+      { name: 'ghost', filled: 0, missing: 0, confirmedAbsent: 0, total: 0, notShown: 0, checked: 0 },
     ];
     const result = classifyFields(fields, ['ghost']);
     expect(result).toEqual([{ name: 'ghost', fill: 0, classification: 'dead' }]);
@@ -38,8 +38,8 @@ describe('classifyFields', () => {
 
   it('only classifies fields named in targetNames', () => {
     const fields: FieldCoverage[] = [
-      { name: 'title', filled: 2, missing: 0, confirmedAbsent: 0, total: 2 },
-      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 0, total: 2 },
+      { name: 'title', filled: 2, missing: 0, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
+      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
     ];
     const result = classifyFields(fields, ['isbn']);
     expect(result).toEqual([{ name: 'isbn', fill: 0, classification: 'dead' }]);

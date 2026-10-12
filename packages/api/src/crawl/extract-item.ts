@@ -22,12 +22,19 @@ import {
   buildXPathLinksScript, normalizeVariantLink, normalizeVariantLinks, groupKeyOf, variantKeyOf,
   HARD_ITEM_CEILING,
   type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
+  type CertifiedPath, type Shown,
 } from '@robot/scraper';
 import { captures, extractions } from '@robot/db';
 import type { db as Database } from '@robot/db';
 import type { ClaimedItem } from './claim-item.js';
 import { queueVariantGroup } from './queue-variant-pages.js';
 import type { Certification } from '../verify/current-certification.js';
+
+/** `extractions.validationResult` (spec 2026-10-12 §4): per field, whether its
+ * certified value was shown on the page it was extracted from, and the path
+ * that produced it. Written only by the certified branch — a non-certified
+ * extraction has no certified paths to report on. */
+export type ValidationResult = { shown: Record<string, Shown>; paths: Record<string, CertifiedPath> };
 
 export type ExtractItemDeps = {
   browser: IBrowser;
@@ -90,7 +97,12 @@ export async function extractItem(
   // one path that persists several rows (one per variant) in the single
   // extraction a product page produces. Every other caller passes a one-row
   // array, so `data`/`rowCount` are byte-identical to the old persistRow.
-  const persistRows = async (rows: Record<string, unknown>[], confidence: number, metadata: Record<string, unknown> = {}) => {
+  const persistRows = async (
+    rows: Record<string, unknown>[],
+    confidence: number,
+    metadata: Record<string, unknown> = {},
+    validationResult?: ValidationResult,
+  ) => {
     const [capture] = await db.insert(captures).values({
       sourceId: deps.sourceId,
       runId: deps.runId,
@@ -105,6 +117,7 @@ export async function extractItem(
       data: rows,
       rowCount: rows.length,
       confidence,
+      ...(validationResult ? { validationResult } : {}),
     }).returning({ id: extractions.id });
 
     // `item.targetFields` IS the merge target list for a backfill item — the
@@ -164,6 +177,15 @@ export async function extractItem(
     const t = verified.timings;
     if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms), ${hits}/${fields.length} fields`);
 
+    // Spec 2026-10-12 §4: the extraction's validationResult carries whether
+    // each certified value was shown on the page (verified.shown), and the
+    // path that produced it, for every field that actually hit — a miss has
+    // no path to blame and is already null in the row.
+    const validationResult: ValidationResult = {
+      shown: verified.shown,
+      paths: Object.fromEntries(verified.stats.filter((s) => s.hit).map((s) => [s.key, s.path])),
+    };
+
     // List-method variants: the certified list lives on this same page capture
     // (certification Global Constraints, 2026-10-02) — a page that no longer
     // carries it (resolveVariantList → null) just gets its own one-row
@@ -174,7 +196,7 @@ export async function extractItem(
       const plan = deps.variantPlan;
       const entries = verified.capture ? resolveVariantList(verified.capture, plan.list!) : null;
       const built = buildVariantRows({ productRow: row, entries, plan, pageUrl: item.url });
-      return persistRows(built.rows, confidence, t ? { capture: t } : {});
+      return persistRows(built.rows, confidence, t ? { capture: t } : {}, validationResult);
     }
 
     // Links-method variants (Task 4): this page is ONE variant — it keeps its
@@ -193,7 +215,7 @@ export async function extractItem(
       if (links.length === 0) {
         // A product without variants (or a page that no longer carries the
         // collector): its own URL is its key, and it has no `_variant_key`.
-        return persistRows([{ ...row, _product_key: ownUrl }], confidence, t ? { capture: t } : {});
+        return persistRows([{ ...row, _product_key: ownUrl }], confidence, t ? { capture: t } : {}, validationResult);
       }
 
       const group = normalizeVariantLinks([item.url, ...links.map((l) => l.href)]);
@@ -226,10 +248,10 @@ export async function extractItem(
         });
       }
 
-      return persistRows([own], confidence, t ? { capture: t } : {});
+      return persistRows([own], confidence, t ? { capture: t } : {}, validationResult);
     }
 
-    return persistRows([row], confidence, t ? { capture: t } : {});
+    return persistRows([row], confidence, t ? { capture: t } : {}, validationResult);
   }
 
   const extract = deps.extract ?? runExtraction;

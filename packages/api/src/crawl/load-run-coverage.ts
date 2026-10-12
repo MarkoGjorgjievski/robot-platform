@@ -39,7 +39,7 @@ async function loadRunAndItems(db: Database, runId: string) {
   const items = await db.query.runItems.findMany({
     where: and(eq(runItems.runId, runId), eq(runItems.kind, 'detail')),
     columns: { id: true, url: true, absentFields: true, inputValues: true },
-    with: { extraction: { columns: { data: true } } },
+    with: { extraction: { columns: { data: true, validationResult: true } } },
   });
 
   return { run, source, items };
@@ -54,6 +54,7 @@ export async function loadRunCoverage(db: Database, runId: string): Promise<RunC
     url: i.url,
     row: Array.isArray(i.extraction?.data) ? (i.extraction!.data[0] as Record<string, unknown> ?? null) : null,
     absentFields: (i.absentFields as string[] | null) ?? [],
+    shown: (i.extraction?.validationResult as { shown?: Record<string, boolean | null> } | null)?.shown ?? null,
   })));
 }
 

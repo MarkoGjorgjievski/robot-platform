@@ -69,10 +69,14 @@ describe('crawl.coverage', () => {
 
     const result = await caller.crawl.coverage({ runId });
 
+    // Neither row carries a `validation_result` (seeded directly, pre-this-
+    // change shape) — spec §8 property 6: both fields are "not checked",
+    // never "not shown".
     expect(result.fields).toEqual([
-      { name: 'title', filled: 1, missing: 1, confirmedAbsent: 0, total: 2 },
-      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 0, total: 2 },
+      { name: 'title', filled: 1, missing: 1, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
+      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
     ]);
+    expect(result.unshownItems).toEqual([]);
     expect(result.gapItems).toEqual([
       { itemId: item1Id, url: 'https://example.com/p/1', missingFields: ['isbn'] },
       { itemId: item2Id, url: 'https://example.com/p/2', missingFields: ['title', 'isbn'] },

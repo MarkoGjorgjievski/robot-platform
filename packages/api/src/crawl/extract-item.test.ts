@@ -322,6 +322,60 @@ describe('extractItem — with a certification', () => {
     expect(cap.confidence).toBe(0);
   });
 
+  function captureValidationResult() {
+    let validationResult: unknown;
+    const fakeDbCapturing = {
+      insert: () => ({
+        values: (v: Record<string, unknown>) => {
+          if ('validationResult' in v) validationResult = v.validationResult;
+          return { returning: async () => [{ id: 'x' }] };
+        },
+      }),
+    } as never;
+    return { fakeDbCapturing, get validationResult() { return validationResult; } };
+  }
+
+  // Spec 2026-10-12 §4: the extraction's validation_result carries the
+  // runVerifiedExtraction `shown` map verbatim, plus the certified path that
+  // produced each hit field — a miss has no path to blame, so it is left out
+  // of `paths` even though `shown` may still carry a `null`/`false` for it.
+  it('persists the shown flags and the hit paths in validationResult', async () => {
+    const hitPath = CERTIFICATION.paths.price![0]!;
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+      data: { price: 129.99 },
+      stats: [{ key: 'price', concept: 'price_concept', path: hitPath, hit: true, value: 129.99 }],
+      timings: null,
+      capture: null,
+      shown: { price: true },
+    });
+    const cap = captureValidationResult();
+
+    await extractItem(cap.fakeDbCapturing, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {},
+    });
+
+    expect(cap.validationResult).toEqual({ shown: { price: true }, paths: { price: hitPath } });
+  });
+
+  it('a miss has no path in validationResult even when shown flags something false', async () => {
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+      data: { price: null },
+      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: false }],
+      timings: null,
+      capture: null,
+      shown: { price: false },
+    });
+    const cap = captureValidationResult();
+
+    await extractItem(cap.fakeDbCapturing, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats: async () => {},
+    });
+
+    expect(cap.validationResult).toEqual({ shown: { price: false }, paths: {} });
+  });
+
   it('falls back to the legacy runExtraction path when there is no certification', async () => {
     runExtractionMock.mockReset();
     const extractVerified = vi.fn();
