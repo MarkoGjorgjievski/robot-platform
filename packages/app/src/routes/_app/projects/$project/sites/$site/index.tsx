@@ -63,6 +63,7 @@ import {
   type Suggestion,
   type Suggestions,
 } from '../../../../../../lib/site/verification-model';
+import { typedNotShown } from '../../../../../../lib/site/shown';
 import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
 import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
@@ -221,6 +222,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   /** The listing's products not on a card yet: what × and + draw from. Never saved (spec §5). */
   const [queue, setQueue] = useState<Card[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestions>({});
+  /** Each captured product's heading and page text, for the heading rule (B1) and the typed-value warning (B2) — spec 2026-10-12 Part B. */
+  const [pageFacts, setPageFacts] = useState<Record<string, { headingText: string | null; pageText: string }>>({});
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const saveStateRef = useRef(saveState);
   saveStateRef.current = saveState;
@@ -557,6 +560,15 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         return mergeSuggestions(acc, incoming, url, d.captureId, 'page-data', boardRef.current);
       }, prev),
     );
+    setPageFacts((prev) => {
+      let next = prev;
+      for (const d of landed) {
+        const url = Object.keys(captureIds).find((u) => captureIds[u] === d.captureId);
+        if (!url) continue;
+        next = { ...next, [url]: { headingText: d.headingText, pageText: d.pageText } };
+      }
+      return next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suggestKey, captureIds]);
 
@@ -1096,7 +1108,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const failedUrls = new Set(urls.filter((u) => captures.byUrl[u]?.status === 'failed'));
   // ...and a refusal or a human check says which (spec 2026-10-09 §A2).
   const failedKinds = new Map(urls.flatMap((u) => { const k = captures.byUrl[u]?.verdict?.kind; return k ? [[u, k] as const] : []; }));
-  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls, failedKinds));
+  const statuses = fields.map((f) => rowStatus(f, board, live, boxesByUrl, failedUrls, failedKinds, pageFacts));
   // A majority row is accepted by Accept all for its majority part (A4), so it counts.
   const agreedCount = statuses.filter((s) => s.kind === 'agreed' || s.kind === 'majority').length;
 
@@ -1263,6 +1275,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         url: c.url,
         onAccept: c.url.trim() ? cellAccept(f, c.url) : undefined,
         absent: isAbsent(board, f.key, c.url),
+        // Spec 2026-10-12 §B2: a typed value the proof page's stored text does
+        // not show warns but never blocks — an empty pageText (not captured
+        // yet) is inert.
+        notOnPage: typedNotShown(f, board.answers[f.key]?.[c.url], pageFacts[c.url]?.pageText ?? ''),
       })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       count: headerCount(results, f.key, unchangedKeys, board.cards),
