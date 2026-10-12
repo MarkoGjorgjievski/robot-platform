@@ -50,6 +50,35 @@ describe('runVerifiedExtraction (shop-example/p1, real Chromium)', () => {
       image: 'https://shop.example/img/a.jpg',
     });
     expect(result.stats.filter((s) => s.hit)).toHaveLength(4);
+    // The companion shown map (spec 2026-10-12 §3): the money and text values
+    // are both on the rendered page; in_stock and image are unchecked types.
+    expect(result.shown).toEqual({ price: true, product_name: true, in_stock: null, image: null });
+  }, 30_000);
+
+  it('the shown map flags a json-ld value the page text does not carry, alongside byte-identical data and stats for the rest (property 1)', async () => {
+    const fixture = loadVerifyFixture('shop-example', 'p1');
+    const ldJson = fixture.structuredData.ldJson as Array<Record<string, unknown>>;
+    const capture = {
+      ...fixture,
+      structuredData: { ...fixture.structuredData, ldJson: [{ ...ldJson[0], description: 'SEO text nobody shows' }] },
+    };
+    const DESCRIPTION: VerifiedField = {
+      key: 'description', type: 'text', concept: 'description',
+      paths: [{ source: 'json-ld', path: 'description', transform: 'identity' }],
+    };
+    const result = await runVerifiedExtraction(
+      { url: URL, fields: [PRICE, PRODUCT_NAME, IN_STOCK, IMAGE, DESCRIPTION] },
+      { browser, capture },
+    );
+    expect(result.data).toEqual({
+      price: 129.99,
+      product_name: 'Widget A',
+      in_stock: true,
+      image: 'https://shop.example/img/a.jpg',
+      description: 'SEO text nobody shows',
+    });
+    expect(result.stats.filter((s) => s.hit)).toHaveLength(5);
+    expect(result.shown).toEqual({ price: true, product_name: true, in_stock: null, image: null, description: false });
   }, 30_000);
 
   it('returns the supplied capture', async () => {
