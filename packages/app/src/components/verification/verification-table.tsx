@@ -16,7 +16,15 @@ import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../..
  * accept a tick would do (spec 2026-09-29 A7). Clicking the cell selects it
  * (spec 2026-10-07 §1); the table reports that through `onSelect`.
  */
-export type TableCell = { value: string; state: Segment; url: string; onAccept?: () => void; absent?: boolean };
+/**
+ * `notOnPage` (spec 2026-10-12 §B2): a typed value the proof page's stored
+ * text does not show — `typedNotShown` in `lib/site/verification-model.ts`'s
+ * neighbour `shown.ts`. Certification still runs on whatever path produces
+ * the value at scale; this only warns the person typing it at Verify.
+ */
+export type TableCell = { value: string; state: Segment; url: string; onAccept?: () => void; absent?: boolean; notOnPage?: boolean };
+
+const NOT_ON_PAGE_TITLE = 'The page does not show this value; a path that produces it will be certified anyway. Mark it on the screenshot if it is there, or use "Not on this product".';
 
 /**
  * The drift check's repair line(s) for a field (plan 2026-10-05 Task 4),
@@ -384,8 +392,12 @@ export function VerificationTable({
                               cell.onAccept ? 'pr-14' : 'pr-9',
                             )}
                           >
-                            <span className={cn('min-w-0 truncate font-mono text-base', cell.absent && 'text-muted-foreground')} title={cell.value || undefined}>
+                            <span
+                              className={cn('min-w-0 truncate font-mono text-base', cell.absent && 'text-muted-foreground', cell.notOnPage && 'text-warn')}
+                              title={cell.notOnPage ? NOT_ON_PAGE_TITLE : cell.value || undefined}
+                            >
                               {cell.value || '—'}
+                              {cell.notOnPage ? <span className="ml-1 font-sans text-xs text-muted-foreground">not on this page</span> : null}
                             </span>
                           </button>
                         </ContextMenuTrigger>

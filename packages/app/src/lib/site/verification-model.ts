@@ -432,6 +432,9 @@ export type RowStatus =
 
 const norm = (v: string) => v.trim().replace(/\s+/g, ' ').toLowerCase();
 export function sameValue(a: string, b: string): boolean { return norm(a) === norm(b); }
+/** NFKC + whitespace-collapse + lower-case (spec 2026-10-12 §B1): the heading comparison's own normalisation. */
+const normHeading = (v: string) => v.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+const sameHeading = (a: string, b: string): boolean => normHeading(a) === normHeading(b);
 
 /**
  * What a field's row needs (spec 2026-09-28 A2). `live` must already be
@@ -461,6 +464,7 @@ export function rowStatus(
   boxesByUrl: Record<string, Box[] | undefined>,
   failedUrls?: ReadonlySet<string>,
   failedKinds?: ReadonlyMap<string, string>,
+  pageFacts?: Record<string, { headingText: string | null; pageText: string }>,
 ): RowStatus {
   const values: string[] = [];
   const offered: Array<{ via?: Via; origin: Suggestion['origin']; product: number; value: string }> = [];
@@ -488,6 +492,16 @@ export function rowStatus(
     }
     const s = live[field.key]?.[card.url];
     if (!s) { if (required) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
+    // Spec 2026-10-12 §B1: a Title suggestion is never agreed unless it is the
+    // page's main heading (Colourpop stored the shade name, "Drift", because
+    // the JSON-LD name "agreed" on all three proof pages though the heading
+    // read the product). Inert with no heading on record (Review Focus 5).
+    if (field.concept === 'product_name') {
+      const heading = pageFacts?.[card.url]?.headingText;
+      if (heading && heading.trim() && !sameHeading(s.value, heading)) {
+        return { kind: 'needs-you', reason: `not the page's heading on product ${n}`, product: n };
+      }
+    }
     const places = placesOf(boxes, s, field, card.url);
     // Spec 2026-10-09 §B1: a value only the page's data carries is never agreed
     // on the row — nothing on this product's page shows it, so a person looks

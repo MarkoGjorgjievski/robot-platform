@@ -384,6 +384,44 @@ describe('rowStatus', () => {
   });
 });
 
+describe("rowStatus: a Title must be the page's main heading (spec 2026-10-12 §B1)", () => {
+  const titleField: Field = { ...title, concept: 'product_name' };
+  const facts = (byUrl: Record<string, string | null>): Record<string, { headingText: string | null; pageText: string }> =>
+    Object.fromEntries(Object.entries(byUrl).map(([u, headingText]) => [u, { headingText, pageText: '' }]));
+
+  it('a suggestion that is not the heading needs you, before the places check, named by product', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('Drift', [0], TL), sug('Ikea', [0], TL), sug('Ikea', [0], TL)]);
+    const pageFacts = facts({ [U[0]!]: 'Super Shock Shadow', [U[1]!]: 'Ikea', [U[2]!]: 'Ikea' });
+    expect(rowStatus(titleField, b, live, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'needs-you', reason: "not the page's heading on product 1", product: 1 });
+  });
+  it('equal after normalisation (case and whitespace) is not triggered', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('Widget A', [0], TL), sug('Ikea', [0], TL), sug('Ikea', [0], TL)]);
+    const pageFacts = facts({ [U[0]!]: ' WIDGET   A ', [U[1]!]: 'Ikea', [U[2]!]: 'Ikea' });
+    expect(rowStatus(titleField, b, live, maps(), undefined, undefined, pageFacts).kind).not.toBe('needs-you');
+  });
+  it('NFKC-normalises before comparing (a combining accent against a precomposed one)', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('Café', [0], TL), sug('Ikea', [0], TL), sug('Ikea', [0], TL)]);
+    const pageFacts = facts({ [U[0]!]: 'Café', [U[1]!]: 'Ikea', [U[2]!]: 'Ikea' });
+    expect(rowStatus(titleField, b, live, maps(), undefined, undefined, pageFacts).kind).not.toBe('needs-you');
+  });
+  it('no heading on record (pageFacts omitted, or a null headingText) is inert — agreed as today', () => {
+    const b = board();
+    const live = liveFor(b, 'title', [sug('Drift', [0], TL), sug('Ikea', [0], TL), sug('Ikea', [0], TL)]);
+    expect(rowStatus(titleField, b, live, maps()).kind).not.toBe('needs-you');
+    const nullHeadings = facts({ [U[0]!]: null, [U[1]!]: null, [U[2]!]: null });
+    expect(rowStatus(titleField, b, live, maps(), undefined, undefined, nullHeadings).kind).not.toBe('needs-you');
+  });
+  it('a field whose concept is not product_name is never checked against a heading', () => {
+    const b = board();
+    const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), sug('149.00', [1], JL)]);
+    const pageFacts = facts({ [U[0]!]: 'Not the price at all', [U[1]!]: 'Not the price at all', [U[2]!]: 'Not the price at all' });
+    expect(rowStatus(price, b, live, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'agreed' });
+  });
+});
+
 describe('rowStatus: a lone suggestion is not agreement (final review I1)', () => {
   const ids = { [U[0]!]: 'cap-0', [U[1]!]: 'cap-1', [U[2]!]: 'cap-2' };
   const twoAnswered = () => answer(answer(board(), 'price', U[0]!, { value: '129.99', mark: null }), 'price', U[1]!, { value: '219.99', mark: null });

@@ -67,6 +67,18 @@ describe('sources.suggestMarks', () => {
       expect(r.fields[f.keys.Title!]).toMatchObject({ value: 'Widget A' });
     } finally { await f.cleanup(); }
   });
+
+  it('reports the page heading and a lower-cased, capped page text', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-sug-head', fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }] });
+    try {
+      const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1');
+      const r = await caller.sources.suggestMarks({ captureId: id });
+      expect(r.headingText).toBe('Widget A'); // the fixture's <h1>
+      expect(r.pageText).toBe(r.pageText.toLowerCase());
+      expect(r.pageText).toContain('widget a');
+      expect(r.pageText.length).toBeLessThanOrEqual(8000);
+    } finally { await f.cleanup(); }
+  });
 });
 
 describe('sources.transferMarks', () => {

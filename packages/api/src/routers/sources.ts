@@ -4,10 +4,10 @@ import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
-  suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript,
+  suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
-  type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult,
+  type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult, type Box,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
   reportVerdict, backoffAnswer, CaptureProblemError,
 } from '@robot/scraper';
@@ -239,6 +239,21 @@ async function setInputPages(
   }
 
   return { rows, skipped };
+}
+
+/** Caps `suggestMarks`'s `pageText` (spec 2026-10-12 Part B): plenty for the heading/typed-value checks, bounded for the response. */
+const PAGE_TEXT_LIMIT = 8000;
+
+/** The proof page's main heading (spec 2026-10-12 §B1): the first `h1` box, else the largest of `h1`/`h2`/`h3` by area, else none. */
+function headingTextFrom(boxes: Box[]): string | null {
+  const firstH1 = boxes.find((b) => b.tag === 'h1');
+  if (firstH1) return firstH1.text.trim();
+  let best: Box | null = null;
+  for (const b of boxes) {
+    if (b.tag !== 'h1' && b.tag !== 'h2' && b.tag !== 'h3') continue;
+    if (!best || b.rect.w * b.rect.h > best.rect.w * best.rect.h) best = b;
+  }
+  return best ? best.text.trim() : null;
 }
 
 export const sourcesRouter = router({
@@ -799,7 +814,12 @@ export const sourcesRouter = router({
       if (!capture) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This capture is no longer on disk; capture the page again' });
       const source = await ctx.db.query.sources.findFirst({ where: eq(sources.id, row.sourceId), columns: { id: true }, with: { dataset: { columns: { schema: true } } } });
       const fields = bindingFor(contractFields(source?.dataset?.schema)).filter((f) => !input.fieldKeys || input.fieldKeys.includes(f.key));
-      return { captureId: row.id, fields: suggestMarks(capture, meta.boxes, fields) };
+      return {
+        captureId: row.id,
+        fields: suggestMarks(capture, meta.boxes, fields),
+        headingText: headingTextFrom(meta.boxes),
+        pageText: pageTextOf(capture.html).slice(0, PAGE_TEXT_LIMIT),
+      };
     }),
 
   /**
