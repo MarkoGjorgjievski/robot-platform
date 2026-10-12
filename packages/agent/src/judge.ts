@@ -16,9 +16,11 @@ const SYSTEM = `You judge whether an extracted field value is correct on a webpa
 // call without it (the calibration suite, `pnpm test:judge`) sends the
 // calibrated prompt unchanged. Campaign 2 (2026-10-12): descriptions folded
 // behind "read more", ratings drawn as stars and "MYR 910" vs "910" were read
-// as wrong from the screenshot alone. Says "correct", the reply word, so the
-// model does not answer with a word parseVerdict cannot read.
-const PAGE_TEXT_SENTENCE = ` You are also given the page's visible text: a value present in the page text but hidden or abbreviated in the screenshot (text folded behind "read more", a rating shown as stars, a price shown with a currency prefix) is correct.`;
+// as wrong from the screenshot alone. Says "correct"/"wrong", the reply words,
+// so the model does not answer with a word parseVerdict cannot read. The second
+// sentence keeps a number the text shows for something else (a shipping
+// threshold, a size, another variant's price) from reading as correct.
+const PAGE_TEXT_SENTENCE = ` A value that the page text shows as THIS product's value for the field is correct even when the screenshot hides it (folded text, a star widget, a currency prefix). A value that appears in the text only for something else — another product, a shipping threshold, a size, another variant — is wrong.`;
 
 // Appended to SYSTEM only when the value was cut short by the caller (a long
 // description judged on its first 80 characters), for the same reason.
