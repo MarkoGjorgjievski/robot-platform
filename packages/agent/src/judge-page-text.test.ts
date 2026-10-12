@@ -32,8 +32,8 @@ describe('judgeFieldExtraction — page text', () => {
     expect(content.map((b) => b.type)).toEqual(['text', 'image', 'text']);
     expect(content[0]!.text).toBe(`${pageTextHeading('start')}\nDiamond Hoops MYR 910`);
     expect(content[2]!.text).toBe('Field: Price\nExtracted value: 910');
-    expect(system).toMatch(/hidden or abbreviated in the screenshot/);
-    expect(system).toMatch(/is correct\.$/);
+    expect(system).toContain("A value that the page text shows as THIS product's value for the field is correct even when the screenshot hides it (folded text, a star widget, a currency prefix).");
+    expect(system).toMatch(/appears in the text only for something else — another product, a shipping threshold, a size, another variant — is wrong\.$/);
   });
 
   it('says which part of the page the text is', async () => {
