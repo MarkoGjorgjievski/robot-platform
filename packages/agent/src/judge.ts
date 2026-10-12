@@ -12,6 +12,18 @@ export type JudgeVerdict = 'correct' | 'wrong' | 'not-on-page' | 'unverifiable' 
 // `pnpm test:judge` in hand.
 const SYSTEM = `You judge whether an extracted field value is correct on a webpage. You are shown a screenshot of the page, the field name, and the extracted value. Reply with EXACTLY one word: "correct" (the value is right), "wrong" (a value is visible on the page for this field but it's different from what was extracted), "unverifiable" (the value is an absolute URL, a schema.org URI, or an internal ID — the kind of data that lives in page metadata, which a screenshot can neither confirm nor deny), or "not-on-page" (the value the field would have is not visible on the page at all). No explanation.`;
 
+// Appended to SYSTEM only when the caller passes the page's visible text, so a
+// call without it (the calibration suite, `pnpm test:judge`) sends the
+// calibrated prompt unchanged. Campaign 2 (2026-10-12): descriptions folded
+// behind "read more", ratings drawn as stars and "MYR 910" vs "910" were read
+// as wrong from the screenshot alone. Says "correct", the reply word, so the
+// model does not answer with a word parseVerdict cannot read.
+const PAGE_TEXT_SENTENCE = ` You are also given the page's visible text: a value present in the page text but hidden or abbreviated in the screenshot (text folded behind "read more", a rating shown as stars, a price shown with a currency prefix) is correct.`;
+
+/** The page text sent beside the screenshot is capped at this many characters (the first ones). */
+export const PAGE_TEXT_LIMIT = 8_000;
+export const PAGE_TEXT_HEADING = "The page's visible text (may include content folded behind 'read more' or shown as star icons):";
+
 /**
  * Shared request tuning for both judges.
  *
@@ -81,16 +93,20 @@ export async function judgeFieldExtraction(opts: {
   value: unknown;
   apiKey: string;
   model?: string;
+  /** The page's visible text; sent before the screenshot (first PAGE_TEXT_LIMIT characters) when given. */
+  pageText?: string;
 }): Promise<JudgeVerdict> {
   const client = new Anthropic({ apiKey: opts.apiKey });
+  const withText = opts.pageText != null && opts.pageText.trim() !== '';
   try {
     const res = await client.messages.create({
       model: opts.model ?? JUDGE_MODEL,
       ...JUDGE_REQUEST_TUNING,
-      system: SYSTEM,
+      system: withText ? SYSTEM + PAGE_TEXT_SENTENCE : SYSTEM,
       messages: [{
         role: 'user',
         content: [
+          ...(withText ? [{ type: 'text' as const, text: `${PAGE_TEXT_HEADING}\n${opts.pageText!.slice(0, PAGE_TEXT_LIMIT)}` }] : []),
           { type: 'image', source: { type: 'base64', media_type: 'image/png', data: opts.screenshot.toString('base64') } },
           { type: 'text', text: `Field: ${opts.field}\nExtracted value: ${JSON.stringify(opts.value)}` },
         ],
