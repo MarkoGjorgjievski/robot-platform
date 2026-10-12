@@ -14,12 +14,14 @@
 // again on the next tile. URL values (image/url fields, absolute links) are
 // marked unverifiable locally, without a call.
 //
-// Before any call, a number or money value found in the page's visible text in
-// any common rendering ("910" in "MYR 910", 1144 as "(1,144)", 4.5 as "4,5") is
-// counted correct locally, without a call (judge-local.ts). Every judged value
-// goes to the judge with the page's visible text beside the screenshot (its
-// first 8,000 characters — folded descriptions, star ratings); a text value
-// longer than 80 characters is judged on its first 80 plus "…".
+// Before any call, the page's visible text settles some values locally, without
+// a call (judge-local.ts): a number or money value shown with context ("MYR 910",
+// "$12.00", "(1,144) reviews", "4.5 out of 5"; never a bare whole number), and a
+// text value longer than 80 characters whose first 80 appear in the full text.
+// Every other value goes to the judge with page text beside the screenshot: a
+// 4,000-character excerpt around the value when it is found, else the first
+// 8,000 characters; a text value longer than 80 characters is judged on its
+// first 80 plus "…", and the judge is told so.
 //
 // SPENDS MONEY (~$0.0086 per judge call, plus one explain call per wrong
 // value) unless --dry-run. Stops before the item whose estimate would take
@@ -35,7 +37,7 @@ import { fileURLToPath } from 'node:url';
 import { asc, eq } from 'drizzle-orm';
 import { db, runs, runItems, extractions } from '@robot/db';
 import { contractFields } from './contract.js';
-import { numberShownInText } from './judge-local.js';
+import { PREFIX_CHARS, isLongText, numberShownInText, pageTextForJudge, textPrefixInText } from './judge-local.js';
 import {
   JUDGE_USD_PER_FIELD, RETRY_ALLOWANCE, estimateItemUsd, isEmptyValue, isUrlValued, pageShowsNothing, renderReport, shouldStop, summaryTable,
   type AbortReason, type Cell, type FieldDef, type ItemResult, type ReportInput,
@@ -43,8 +45,6 @@ import {
 
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const POLITENESS_MS = 2_000;
-/** A text value longer than this is judged on its first PREFIX_CHARS characters plus "…". */
-const PREFIX_CHARS = 80;
 const NOTHING_STREAK_LIMIT = 3;
 const ERROR_STREAK_LIMIT = 10;
 
@@ -214,28 +214,33 @@ try {
       continue;
     }
 
-    const lowerText = pageText.toLowerCase();
     const cells: Cell[] = [];
     for (const f of fields) {
       const value = row[f.key];
       if (isEmptyValue(value)) { cells.push({ field: f.key, value, verdict: 'empty' }); continue; }
       if (isVariantList(value)) { cells.push({ field: f.key, value, verdict: 'skipped' }); continue; }
       if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true }); continue; }
-      // Free: a number or money value shown in the page's text needs no call.
-      if ((f.type === 'number' || f.type === 'money') && numberShownInText(value, f.type, lowerText, f.name)) {
+      // Free: a number or money value shown with context, or a long text's first
+      // 80 characters, in the page's full visible text needs no call.
+      const type = f.type ?? '';
+      if (numberShownInText(value, type, pageText, f.name) || textPrefixInText(value, type, pageText)) {
         cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text' });
         console.log(`  [correct @text] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
         continue;
       }
       if (interrupted) { cells.push({ field: f.key, value, verdict: 'not-judged' }); continue; }
-      // A long text is judged on its first 80 characters; the page text carries the whole of it.
-      const prefixed = f.type === 'text' && typeof value === 'string' && value.length > PREFIX_CHARS;
+      // A long text is judged on its first 80 characters, and the judge is told so.
+      const prefixed = isLongText(value, f.type);
       const judged = prefixed ? `${value.slice(0, PREFIX_CHARS)}…` : value;
       const how = prefixed ? 'prefix' : 'judge';
+      const excerpt = pageTextForJudge(value, f.type, pageText);
       // Tile 1 first; a further tile only while the value is not on the page so far.
       let cell: Cell = { field: f.key, value, verdict: 'error', how };
       for (const [t, shot] of shots.entries()) {
-        const verdict = await judgeFieldExtraction({ screenshot: shot, field: f.name, value: judged, apiKey, pageText });
+        const verdict = await judgeFieldExtraction({
+          screenshot: shot, field: f.name, value: judged, apiKey,
+          pageText: excerpt.text, pageTextKind: excerpt.kind, valueTruncated: prefixed,
+        });
         cell = { field: f.key, value, verdict, tile: t + 1, how };
         if (verdict !== 'not-on-page' || interrupted) break;
       }
