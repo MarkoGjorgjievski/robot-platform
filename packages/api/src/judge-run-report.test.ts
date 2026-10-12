@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   summarize, renderReport, codeSpan, shouldStop, verdictLetter, cellMark, isUrlValued, pageShowsNothing, estimateItemUsd,
+  confusionCounts, confusionTable,
   type ItemResult, type ReportInput,
 } from './judge-run-report.js';
 
@@ -138,6 +139,52 @@ describe('verdictLetter / cellMark', () => {
   });
 });
 
+describe('confusionCounts / confusionTable', () => {
+  // Six cells, one per row the table can show (the fifth row, "unflagged",
+  // covers both of its causes: no flag stored (undefined) and not checkable (null)).
+  const sixCells: ItemResult[] = [
+    { url: 'https://shop.example/p/1', cells: [{ field: 'title', value: 'a', verdict: 'wrong', tile: 1, shown: false }] },
+    { url: 'https://shop.example/p/2', cells: [{ field: 'title', value: 'b', verdict: 'wrong', tile: 1, shown: true }] },
+    { url: 'https://shop.example/p/3', cells: [{ field: 'title', value: 'c', verdict: 'correct', tile: 1, shown: false }] },
+    { url: 'https://shop.example/p/4', cells: [{ field: 'title', value: 'd', verdict: 'correct', tile: 1, shown: true }] },
+    { url: 'https://shop.example/p/5', cells: [{ field: 'title', value: 'e', verdict: 'wrong', tile: 1 }] },
+    { url: 'https://shop.example/p/6', cells: [{ field: 'title', value: 'f', verdict: 'correct', tile: 1, shown: null }] },
+  ];
+
+  it('sorts wrong/correct cells into the five rows by their shown flag', () => {
+    expect(confusionCounts(sixCells)).toEqual({
+      wrongNotShown: 1, wrongShown: 1, correctNotShown: 1, correctShown: 1, unflagged: 2, wrongTotal: 3,
+    });
+  });
+
+  it('ignores cells that are not a wrong or correct verdict, and items whose capture failed', () => {
+    const noise: ItemResult[] = [
+      { url: 'u1', cells: [{ field: 'a', value: null, verdict: 'empty' }, { field: 'b', value: 'x', verdict: 'not-on-page', tile: 1, shown: true }] },
+      { url: 'u2', captureError: 'timeout', cells: [{ field: 'a', value: 'x', verdict: 'wrong', tile: 1, shown: false }] },
+    ];
+    expect(confusionCounts(noise)).toEqual({
+      wrongNotShown: 0, wrongShown: 0, correctNotShown: 0, correctShown: 0, unflagged: 0, wrongTotal: 0,
+    });
+  });
+
+  it('counts a local text-settled correct the same as a judged one', () => {
+    const local: ItemResult[] = [
+      { url: 'u', cells: [{ field: 'a', value: 1, verdict: 'correct', local: true, how: 'text', shown: true }] },
+    ];
+    expect(confusionCounts(local)).toMatchObject({ correctShown: 1 });
+  });
+
+  it('renders the table and the catch-rate sentence from the same counts', () => {
+    const table = confusionTable(sixCells).join('\n');
+    expect(table).toContain('| Wrong & not shown | 1 |');
+    expect(table).toContain('| Wrong & shown | 1 |');
+    expect(table).toContain('| Correct & not shown | 1 |');
+    expect(table).toContain('| Correct & shown | 1 |');
+    expect(table).toContain('| Unflagged (no flag or not checkable) | 2 |');
+    expect(table).toContain('The free flag caught 1 of the 3 wrong values; it flagged 1 correct values.');
+  });
+});
+
 describe('pageShowsNothing — page text', () => {
   it('is false when a value was found in the page text, even if every judged value was not on page', () => {
     expect(pageShowsNothing([
@@ -189,6 +236,29 @@ describe('renderReport', () => {
     expect(md).toMatch(/does not write to `runs.cost_usd`/);
     expect(md).not.toContain('STOPPED');
     expect(md).not.toContain('ABORTED');
+  });
+
+  it('shows the shown flag beside a wrong value, and the confusion table in the summary', () => {
+    const md = renderReport(base);
+    expect(md).toContain('## Shown flag vs. verdict');
+    expect(md).toContain('| Wrong & not shown |');
+    expect(md).toContain('The free flag caught');
+    // The fixture's one wrong cell (price, 19.99) carries no shown flag.
+    const wrongIdx = md.indexOf('**Price**');
+    const shownIdx = md.indexOf('shown: —', wrongIdx);
+    expect(shownIdx).toBeGreaterThan(wrongIdx);
+  });
+
+  it('prints true/false for a wrong value with a stored shown flag', () => {
+    const md = renderReport({
+      ...base,
+      items: [{ url: 'u', cells: [
+        { field: 'title', value: 'a', verdict: 'wrong', tile: 1, shown: false },
+        { field: 'price', value: 'b', verdict: 'wrong', tile: 1, shown: true },
+      ] }],
+    });
+    expect(md).toContain('shown: false');
+    expect(md).toContain('shown: true');
   });
 
   it('says a cap-stopped run is partial, in the header', () => {
