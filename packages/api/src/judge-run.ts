@@ -15,9 +15,10 @@
 // marked unverifiable locally, without a call.
 //
 // Before any call, the page's visible text settles some values locally, without
-// a call (judge-local.ts): a number or money value shown with context ("MYR 910",
-// "$12.00", "(1,144) reviews", "4.5 out of 5"; never a bare whole number), and a
-// text value longer than 80 characters whose first 80 appear in the full text.
+// a call (judge-local.ts): a number value with one of the field's words beside
+// it or a rating suffix after it ("(1,144) reviews", "4.5 out of 5"), and a
+// text value longer than 80 characters (not a product name or brand) whose
+// first 80 occur exactly once in the full text. Money never settles locally.
 // Every other value goes to the judge with page text beside the screenshot: a
 // 4,000-character excerpt around the value when it is found, else the first
 // 8,000 characters; a text value longer than 80 characters is judged on its
@@ -100,7 +101,7 @@ if (!run.source) usage(`Run ${runId} has no website`);
 let contract = contractFields(run.source.dataset?.schema);
 if (contract.length === 0) contract = contractFields(run.source.schemaDefinition);
 if (contract.length === 0) usage(`Run ${runId}'s project has no field definitions`);
-let fields: FieldDef[] = contract.map((f) => ({ key: f.key, name: f.name, type: f.type }));
+let fields: FieldDef[] = contract.map((f) => ({ key: f.key, name: f.name, type: f.type, concept: f.concept }));
 if (fieldFilter) {
   const unknown = fieldFilter.filter((n) => !fields.some((f) => f.key.toLowerCase() === n || f.name.toLowerCase() === n));
   if (unknown.length > 0) usage(`Unknown field(s): ${unknown.join(', ')}. Fields: ${fields.map((f) => f.key).join(', ')}`);
@@ -220,10 +221,10 @@ try {
       if (isEmptyValue(value)) { cells.push({ field: f.key, value, verdict: 'empty' }); continue; }
       if (isVariantList(value)) { cells.push({ field: f.key, value, verdict: 'skipped' }); continue; }
       if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true }); continue; }
-      // Free: a number or money value shown with context, or a long text's first
-      // 80 characters, in the page's full visible text needs no call.
+      // Free: a number with its field word beside it, or a long text's first 80
+      // characters once in the page's full visible text, needs no call.
       const type = f.type ?? '';
-      if (numberShownInText(value, type, pageText, f.name) || textPrefixInText(value, type, pageText)) {
+      if (numberShownInText(value, type, pageText, f.name) || textPrefixInText(value, type, pageText, f.concept)) {
         cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text' });
         console.log(`  [correct @text] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
         continue;

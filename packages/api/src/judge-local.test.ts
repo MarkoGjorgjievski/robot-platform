@@ -7,147 +7,163 @@ import {
 describe('numberRenderings', () => {
   it('covers both decimal marks, one or two decimals, and thousands separators', () => {
     expect(numberRenderings(4.5)).toEqual(expect.arrayContaining(['4.5', '4,5', '4.50', '4,50']));
-    expect(numberRenderings(1144)).toEqual(expect.arrayContaining(['1144', '1,144', '1.144', '1 144', '1144.00', '1,144.00', '1.144,00']));
+    expect(numberRenderings(1144)).toEqual(expect.arrayContaining(['1144', '1,144', '1.144', '1 144', '1 144', "1'144", '1144.00', '1,144.00', '1.144,00']));
     expect(numberRenderings(1144)).not.toContain('1,144,00');
     expect(numberRenderings(12)).toEqual(expect.arrayContaining(['12', '12.0', '12.00', '12,00']));
   });
 });
 
-describe('numberShownInText — the fix-round rulings', () => {
-  it('12 vs "12 colours · $15.00" does not settle (a bare whole number)', () => {
-    expect(numberShownInText(12, 'money', '12 colours · $15.00', 'Price')).toBe(false);
+describe('whole tokens — thousands separators on both sides (fix round 2, item 1)', () => {
+  // The field word is right there, so only the whole-token guard can refuse these.
+  it('299 is not found in "1 299", with a space or a no-break space', () => {
+    expect(numberShownInText(299, 'number', '1 299 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(299, 'number', '1 299 reviews', 'Reviews')).toBe(false);
+    expect(pageTextForJudge(299, 'money', 'now 1 299 €').kind).toBe('start');
+    expect(pageTextForJudge(299, 'money', 'now 1 299 €').kind).toBe('start');
   });
-  it('12 vs "$12.00" settles', () => {
-    expect(numberShownInText(12, 'money', 'Lippie Stix $12.00 Add to bag', 'Price')).toBe(true);
+  it('299 is not found in "CHF 1\'299.00"', () => {
+    expect(numberShownInText(299, 'number', "1'299.00 reviews", 'Reviews')).toBe(false);
+    expect(pageTextForJudge(299, 'money', "CHF 1'299.00").kind).toBe('start');
+    expect(pageTextForJudge(299, 'money', 'CHF 1’299.00').kind).toBe('start');
   });
-  it('910 vs "MYR 910" settles', () => {
-    expect(numberShownInText(910, 'money', 'Diamond Hoops MYR 910 Add to bag', 'Price')).toBe(true);
+  it('144 is not found in "1 144 reviews"', () => {
+    expect(numberShownInText(144, 'number', '1 144 reviews', 'Reviews')).toBe(false);
   });
-  it('4.5 vs "4.5 out of 5" settles', () => {
-    expect(numberShownInText(4.5, 'number', 'Rated 4.5 out of 5', 'Rating')).toBe(true);
+  it('1299 itself is found in all of them', () => {
+    expect(numberShownInText(1299, 'number', '1 299 reviews', 'Reviews')).toBe(true);
+    expect(numberShownInText(1299, 'number', '1 299 reviews', 'Reviews')).toBe(true);
+    expect(pageTextForJudge(1299, 'money', "CHF 1'299.00").kind).toBe('excerpt');
   });
-  it('5 vs "4.5 out of 5 stars" does not settle', () => {
-    expect(numberShownInText(5, 'number', '4.5 out of 5 stars', 'Rating')).toBe(false);
-  });
-  it('1144 vs "(1,144) reviews" settles for a field named Reviews', () => {
-    expect(numberShownInText(1144, 'number', '(1,144) reviews', 'Reviews')).toBe(true);
-  });
-  it('1144 vs "1144 ml bottle" does not settle', () => {
-    expect(numberShownInText(1144, 'number', '1144 ml bottle', 'Reviews')).toBe(false);
-  });
-  it('0 with the "0" only in a product code does not settle', () => {
-    expect(numberShownInText(0, 'number', 'Product code: CP-0-1188 Shade: Bae 10023-0 free shipping over $50', 'Review count')).toBe(false);
-  });
-});
-
-describe('numberShownInText — money context', () => {
-  it('a currency sign or code within 3 characters, either side', () => {
-    expect(numberShownInText(12, 'money', 'now 12€ only', 'Price')).toBe(true);
-    expect(numberShownInText(12, 'money', 'now 12 eur only', 'Price')).toBe(true);
-    expect(numberShownInText(12, 'money', 'now $ 12 only', 'Price')).toBe(true);
-    expect(numberShownInText(910, 'money', 'myr 910', 'Price')).toBe(true);
-  });
-  it('decimals settle without a currency', () => {
-    expect(numberShownInText(12, 'money', 'price 12,00', 'Price')).toBe(true);
-    expect(numberShownInText(19.99, 'money', '19,99', 'Price')).toBe(true);
-    expect(numberShownInText(2499.5, 'money', 'Now 2,499.50', 'Price')).toBe(true);
-  });
-  it('a currency further than 3 characters away does not', () => {
-    expect(numberShownInText(12, 'money', '$ — over 12 sold', 'Price')).toBe(false);
-    expect(numberShownInText(12, 'money', '12 colours from $15', 'Price')).toBe(false);
-  });
-  it('a currency code inside a longer word does not count', () => {
-    expect(numberShownInText(12, 'money', 'tryhard 12 pack', 'Price')).toBe(false);
+  it('does not match inside a longer number or a version', () => {
+    expect(numberShownInText(910, 'number', '1910 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(910, 'number', '9100 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(4.5, 'number', 'rating 14.5', 'Rating')).toBe(false);
+    expect(numberShownInText(4.5, 'number', 'rating 4.5.1', 'Rating')).toBe(false);
   });
 });
 
-describe('numberShownInText — number context', () => {
-  it('a field word within 40 characters', () => {
+describe('money never settles locally (item 2)', () => {
+  it('not with a currency, not with decimals', () => {
+    expect(numberShownInText(12, 'money', 'Lippie Stix $12.00 Add to bag', 'Price')).toBe(false);
+    expect(numberShownInText(910, 'money', 'Diamond Hoops MYR 910', 'Price')).toBe(false);
+    expect(numberShownInText(12, 'money', 'price 12', 'Price')).toBe(false);
+  });
+  it('but the judge gets an excerpt around it', () => {
+    const page = `${'x'.repeat(10_000)} Diamond Hoops MYR 910 ${'y'.repeat(10_000)}`;
+    const { text, kind } = pageTextForJudge(910, 'money', page);
+    expect(kind).toBe('excerpt');
+    expect(text).toContain('MYR 910');
+  });
+});
+
+describe('numbers settle only with the field word beside them (item 3)', () => {
+  it('the ruling cases', () => {
+    expect(numberShownInText(4.5, 'number', 'size 4.5', 'Rating')).toBe(false);
+    expect(numberShownInText(3.4, 'number', '3.4 oz', 'Rating')).toBe(false);
+    expect(numberShownInText(200, 'number', '200 ml · 1,144 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(2024, 'number', '© 2024 · reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(1144, 'number', 'reviews · sku 1144', 'Reviews')).toBe(false);
+    expect(numberShownInText(1144, 'number', '1,144 reviews', 'Reviews')).toBe(true);
+    expect(numberShownInText(4.5, 'number', '4.5 out of 5', 'Rating')).toBe(true);
+    expect(numberShownInText(100, 'number', '100 out of 100 customers', 'Satisfaction')).toBe(false);
+  });
+  it('the field word before or after, through spaces, colons, brackets', () => {
     expect(numberShownInText(1144, 'number', 'Reviews (1,144) Write a review', 'Review count')).toBe(true);
-    expect(numberShownInText(1144, 'number', '1.144 reviews', 'Review count')).toBe(true);
-    expect(numberShownInText(1144, 'number', '1 144 reviews', 'Review count')).toBe(true);
-    expect(numberShownInText(1144, 'number', 'reviews ............................................ 1144', 'Review count')).toBe(false);
+    expect(numberShownInText(1144, 'number', '(1,144) reviews', 'Reviews')).toBe(true);
+    expect(numberShownInText(4.5, 'number', 'Rating: 4,5', 'Rating')).toBe(true);
+    expect(numberShownInText('1,144', 'number', 'Reviews 1144', 'Review count')).toBe(true);
   });
-  it('a rating suffix', () => {
-    expect(numberShownInText(4, 'number', 'rating 4/5', 'Rating')).toBe(true);
-    expect(numberShownInText(42, 'number', '42 stars', 'Score')).toBe(true);
-    expect(numberShownInText(42, 'number', '42 ★', 'Score')).toBe(true);
-    expect(numberShownInText(42, 'number', '42/100', 'Score')).toBe(true);
+  it('not further than 15 characters', () => {
+    expect(numberShownInText(1144, 'number', 'reviews                 1144', 'Reviews')).toBe(false);
   });
-  it('decimals settle anywhere', () => {
-    expect(numberShownInText(4.5, 'number', 'Bewertung 4,5 von 5', 'Score')).toBe(true);
-    expect(numberShownInText('4,5', 'number', 'rated 4.5', 'Score')).toBe(true);
+  it('rating suffixes, within 5 characters', () => {
+    expect(numberShownInText(4.5, 'number', 'rated 4.5/5', 'Score')).toBe(true);
+    expect(numberShownInText(4.5, 'number', 'rated 4.5 / 5', 'Score')).toBe(true);
+    expect(numberShownInText(4.5, 'number', '4.5 stars', 'Score')).toBe(true);
+    expect(numberShownInText(4.5, 'number', '4.5 star average', 'Score')).toBe(true);
+    expect(numberShownInText(4.5, 'number', '4.5 ★', 'Score')).toBe(true);
+    expect(numberShownInText(4.5, 'number', '4.5/10', 'Score')).toBe(false);
+    expect(numberShownInText(4.5, 'number', '4.5 starter kit', 'Score')).toBe(false);
   });
-  it('a bare whole number does not', () => {
+  it('decimals alone never settle', () => {
+    expect(numberShownInText(4.5, 'number', 'Bewertung 4,5 von 5', 'Score')).toBe(false);
+    expect(numberShownInText(12, 'number', 'only 12.00 left', 'Score')).toBe(false);
+  });
+  it('a bare whole number never settles', () => {
     expect(numberShownInText(42, 'number', 'item 42 in stock', 'Score')).toBe(false);
   });
 });
 
-describe('numberShownInText — whole tokens only', () => {
-  it('does not match inside a longer number', () => {
-    expect(numberShownInText(910, 'money', 'MYR 1910', 'Price')).toBe(false);
-    expect(numberShownInText(910, 'money', 'MYR 9100', 'Price')).toBe(false);
-    expect(numberShownInText(4.5, 'number', 'Rated 14.5', 'Rating')).toBe(false);
-    expect(numberShownInText(4.5, 'number', 'Version 4.5.1', 'Rating')).toBe(false);
-  });
-  it('does not match a different decimal', () => {
-    expect(numberShownInText(12, 'money', '$12.99', 'Price')).toBe(false);
-    expect(numberShownInText(19.99, 'money', '$19.90', 'Price')).toBe(false);
-  });
-});
-
-describe('numberShownInText — single digits need the field name beside them', () => {
+describe('single digits need the field word within 3 characters', () => {
   it('a 0 next to the name words', () => {
     expect(numberShownInText(0, 'number', 'Be the first! 0 reviews yet', 'Review count')).toBe(true);
     expect(numberShownInText(0, 'number', 'Product rating 0 of 5', 'Rating')).toBe(true);
     expect(numberShownInText(0, 'number', 'Reviews: 0', 'Review count')).toBe(true);
   });
-  it('a 0 elsewhere is not enough', () => {
+  it('a 0 in a product code or elsewhere is not enough', () => {
+    expect(numberShownInText(0, 'number', 'Product code: CP-0-1188 Shade: Bae 10023-0 free shipping over $50', 'Review count')).toBe(false);
     expect(numberShownInText(0, 'number', 'Free shipping 0 items in your bag', 'Review count')).toBe(false);
   });
-  it('a 5 beside its name settles', () => {
+  it('a 5 is not settled by "out of 5 stars"; beside its name it is', () => {
+    expect(numberShownInText(5, 'number', '4.5 out of 5 stars', 'Rating')).toBe(false);
     expect(numberShownInText(5, 'number', 'Rating 5 out of 5', 'Rating')).toBe(true);
   });
 });
 
-describe('numberShownInText — what it refuses', () => {
-  it('only number and money fields', () => {
-    expect(numberShownInText(910, 'text', 'MYR 910', 'Price')).toBe(false);
-    expect(numberShownInText(910, 'image', 'MYR 910', 'Price')).toBe(false);
+describe('numberShownInText — what it refuses (item 6)', () => {
+  it('values holding two numbers, and negative numbers', () => {
+    expect(numberShownInText('12-15', 'number', '12-15 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText('12 x 3', 'number', '12 x 3 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(-4, 'number', 'reviews -4', 'Reviews')).toBe(false);
+    expect(numberShownInText('-4', 'number', 'reviews -4', 'Reviews')).toBe(false);
+  });
+  it('a string holding one number with separators is fine', () => {
+    expect(numberShownInText('1 144', 'number', '1,144 reviews', 'Reviews')).toBe(true);
+  });
+  it('only number fields', () => {
+    expect(numberShownInText(910, 'text', '910 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(910, 'money', '910 reviews', 'Reviews')).toBe(false);
   });
   it('non-numeric values and empty text', () => {
-    expect(numberShownInText('sold out', 'money', 'sold out', 'Price')).toBe(false);
-    expect(numberShownInText(null, 'money', '$910', 'Price')).toBe(false);
-    expect(numberShownInText({ amount: 910 }, 'money', '$910', 'Price')).toBe(false);
-    expect(numberShownInText(910, 'money', '', 'Price')).toBe(false);
-    expect(numberShownInText(Number.NaN, 'number', 'NaN', 'Price')).toBe(false);
-  });
-  it('a value not on the page', () => {
-    expect(numberShownInText(910, 'money', 'MYR 850', 'Price')).toBe(false);
+    expect(numberShownInText('sold out', 'number', 'sold out', 'Reviews')).toBe(false);
+    expect(numberShownInText(null, 'number', '910 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText({ n: 910 }, 'number', '910 reviews', 'Reviews')).toBe(false);
+    expect(numberShownInText(910, 'number', '', 'Reviews')).toBe(false);
+    expect(numberShownInText(Number.NaN, 'number', 'NaN reviews', 'Reviews')).toBe(false);
   });
 });
 
 const DESCRIPTION = 'Our  lightweight Vital Seamless leggings are made for training: sweat-wicking, squat-proof and soft, with a high waist.';
 
 describe('textPrefixInText — long text', () => {
-  it('the description is 120 characters, so it is long text', () => {
+  it('the description is longer than 80 characters, so it is long text', () => {
     expect(DESCRIPTION.length).toBeGreaterThan(80);
     expect(isLongText(DESCRIPTION, 'text')).toBe(true);
   });
-  it('settles when its first 80 characters are in the page text, normalised', () => {
+  it('settles when its first 80 characters occur once in the page text, normalised', () => {
     const page = `Home / Women / Leggings READ MORE ${DESCRIPTION.toUpperCase().replace(/ /g, ' ')} rest of the page`;
+    expect(textPrefixInText(DESCRIPTION, 'text', page, 'description')).toBe(true);
     expect(textPrefixInText(DESCRIPTION, 'text', page)).toBe(true);
+  });
+  it('does not settle when the prefix occurs twice (boilerplate)', () => {
+    const page = `${DESCRIPTION} — related: ${DESCRIPTION}`;
+    expect(textPrefixInText(DESCRIPTION, 'text', page, 'description')).toBe(false);
   });
   it('matches through HTML entities and full-width forms', () => {
     const v = 'Tom &amp; Jerry socks: cotton, nylon & elastane — knit in Portugal for long wear, every day of the year.';
     expect(textPrefixInText(v.replace('&amp;', '&'), 'text', `x ${v} y`)).toBe(true);
     expect(normaliseText('ＡＢＣ  def')).toBe('abc def');
   });
-  it('does not settle when the description is absent', () => {
+  it('does not settle when the description is absent, or only a later part is there', () => {
     expect(textPrefixInText(DESCRIPTION, 'text', 'Home / Women / Leggings — Vital Seamless leggings, soft and squat-proof.')).toBe(false);
-  });
-  it('does not settle when only a later part of the value is on the page', () => {
     expect(textPrefixInText(DESCRIPTION, 'text', DESCRIPTION.slice(20))).toBe(false);
+  });
+  it('never settles a product name or a brand, however long', () => {
+    const name = 'Vital Seamless 2.0 High Waisted Leggings — Black Marl / Charcoal, Women’s Training Collection';
+    expect(name.length).toBeGreaterThan(80);
+    expect(textPrefixInText(name, 'text', `x ${name} y`, 'product_name')).toBe(false);
+    expect(textPrefixInText(name, 'text', `x ${name} y`, 'brand')).toBe(false);
+    expect(textPrefixInText(name, 'text', `x ${name} y`, 'description')).toBe(true);
   });
   it('never settles short text, even when it is on the page', () => {
     expect(textPrefixInText('Vital Seamless Leggings', 'text', 'Vital Seamless Leggings')).toBe(false);
@@ -165,7 +181,6 @@ describe('pageTextForJudge', () => {
     const { text, kind } = pageTextForJudge(910, 'money', page);
     expect(kind).toBe('excerpt');
     expect(text.length).toBe(EXCERPT_CHARS);
-    expect(text).toContain('MYR 910');
     const at = text.indexOf('910');
     expect(Math.abs(at - EXCERPT_CHARS / 2)).toBeLessThan(10);
   });
@@ -182,8 +197,7 @@ describe('pageTextForJudge', () => {
     expect(pageTextForJudge('vital seamless leggings', 'text', page).kind).toBe('excerpt');
   });
   it('keeps the window inside the page near its start or end', () => {
-    const page = `MYR 910 ${filler(10_000)}`;
-    const { text } = pageTextForJudge(910, 'money', page);
+    const { text } = pageTextForJudge(910, 'money', `MYR 910 ${filler(10_000)}`);
     expect(text.startsWith('MYR 910')).toBe(true);
     expect(text.length).toBe(EXCERPT_CHARS);
     expect(pageTextForJudge(910, 'money', 'short page, MYR 910').text).toBe('short page, MYR 910');
