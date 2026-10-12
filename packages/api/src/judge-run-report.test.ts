@@ -130,6 +130,21 @@ describe('verdictLetter / cellMark', () => {
     expect(cellMark({ field: 'a', value: 'https://x', verdict: 'unverifiable', local: true })).toBe('U');
     expect(cellMark({ field: 'a', value: null, verdict: 'empty' })).toBe('·');
   });
+
+  it('marks a value settled from the page text Ct and a prefix-judged one with a trailing p', () => {
+    expect(cellMark({ field: 'a', value: 910, verdict: 'correct', local: true, how: 'text' })).toBe('Ct');
+    expect(cellMark({ field: 'a', value: 'long', verdict: 'correct', tile: 2, how: 'prefix' })).toBe('C2p');
+    expect(cellMark({ field: 'a', value: 'x', verdict: 'wrong', tile: 1, how: 'judge' })).toBe('W1');
+  });
+});
+
+describe('pageShowsNothing — page text', () => {
+  it('is false when a value was found in the page text, even if every judged value was not on page', () => {
+    expect(pageShowsNothing([
+      { field: 'price', value: 910, verdict: 'correct', local: true, how: 'text' },
+      { field: 'title', value: 'x', verdict: 'not-on-page', tile: 3, how: 'judge' },
+    ])).toBe(false);
+  });
 });
 
 const base: ReportInput = {
@@ -209,6 +224,39 @@ describe('renderReport', () => {
     expect(md).toContain('| https://x.example/ | X | - |');
     expect(md).toContain('- not judged (run interrupted)');
     expect(md).toMatch(/ABORTED: interrupted/);
+  });
+
+  it('says no value was settled from the page text when none was', () => {
+    expect(renderReport(base)).toContain('- 0 values settled from the page text without a call (saved about $0.00)');
+  });
+
+  it('counts values settled from the page text: the summary line, the Correct column, Ct marks', () => {
+    const local: ItemResult[] = [
+      {
+        url: 'https://shop.example/p/4',
+        cells: [
+          { field: 'title', value: 'Long '.repeat(30), verdict: 'wrong', tile: 1, how: 'prefix' },
+          { field: 'price', value: 910, verdict: 'correct', local: true, how: 'text' },
+          { field: 'sku', value: 'AB-4', verdict: 'correct', tile: 1, how: 'judge' },
+        ],
+      },
+      {
+        url: 'https://shop.example/p/5',
+        cells: [
+          { field: 'title', value: 'Plain', verdict: 'correct', tile: 1, how: 'judge' },
+          { field: 'price', value: 12, verdict: 'correct', local: true, how: 'text' },
+          { field: 'sku', value: null, verdict: 'empty' },
+        ],
+      },
+    ];
+    const md = renderReport({ ...base, items: local, itemsWithValues: 2 });
+    expect(md).toContain('- 2 values settled from the page text without a call (saved about $0.02)');
+    // Price: both local rights land in Judged and Correct, and in Correct %.
+    expect(md).toContain('| Price | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 100% |');
+    expect(md).toContain('| https://shop.example/p/4 |  | W1p | Ct | C1 |');
+    expect(md).toContain('| https://shop.example/p/5 |  | C1 | Ct | · |');
+    expect(md).toContain('(tile 1) (judged on its first 80 characters)');
+    expect(md).toMatch(/Ct is a number found in the page text/);
   });
 
   it('lists a failed capture in the item table and the header counts', () => {

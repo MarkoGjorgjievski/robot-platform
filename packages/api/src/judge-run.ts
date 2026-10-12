@@ -14,6 +14,13 @@
 // again on the next tile. URL values (image/url fields, absolute links) are
 // marked unverifiable locally, without a call.
 //
+// Before any call, a number or money value found in the page's visible text in
+// any common rendering ("910" in "MYR 910", 1144 as "(1,144)", 4.5 as "4,5") is
+// counted correct locally, without a call (judge-local.ts). Every judged value
+// goes to the judge with the page's visible text beside the screenshot (its
+// first 8,000 characters — folded descriptions, star ratings); a text value
+// longer than 80 characters is judged on its first 80 plus "…".
+//
 // SPENDS MONEY (~$0.0086 per judge call, plus one explain call per wrong
 // value) unless --dry-run. Stops before the item whose estimate would take
 // spend past --max-usd (default $5); stops after 3 items in a row where the
@@ -28,6 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { asc, eq } from 'drizzle-orm';
 import { db, runs, runItems, extractions } from '@robot/db';
 import { contractFields } from './contract.js';
+import { numberShownInText } from './judge-local.js';
 import {
   JUDGE_USD_PER_FIELD, RETRY_ALLOWANCE, estimateItemUsd, isEmptyValue, isUrlValued, pageShowsNothing, renderReport, shouldStop, summaryTable,
   type AbortReason, type Cell, type FieldDef, type ItemResult, type ReportInput,
@@ -35,6 +43,8 @@ import {
 
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const POLITENESS_MS = 2_000;
+/** A text value longer than this is judged on its first PREFIX_CHARS characters plus "…". */
+const PREFIX_CHARS = 80;
 const NOTHING_STREAK_LIMIT = 3;
 const ERROR_STREAK_LIMIT = 10;
 
@@ -145,6 +155,7 @@ if (!apiKey) { console.error('ANTHROPIC_API_KEY required (or pass --dry-run)'); 
 
 const { judgeFieldExtraction, explainWrongValue, snapshotUsage, diffUsage, estimateCostUsd, formatUsage, resetUsage } = await import('@robot/agent');
 const { PlaywrightBrowser, TILE_HEIGHT, verdictSentence } = await import('@robot/browser');
+const { visibleTextFromHtml } = await import('@robot/scraper');
 
 // Ctrl+C: finish the current call, then fall through to the report.
 // The browser is launched with handleSIGINT: false — Playwright's default
@@ -182,6 +193,7 @@ try {
     console.log(`[judge-run] ${i + 1}/${queue.length} ${r.url}`);
     let shots: Buffer[];
     let title: string;
+    let pageText: string;
     try {
       const capture = await browser.capture(r.url, { waitUntil: 'load', maxTiles: tiles });
       // A wall, a 404 or an empty page is not the product page: judging it
@@ -194,6 +206,7 @@ try {
       }
       shots = capture.screenshotTiles.length > 0 ? capture.screenshotTiles : [capture.screenshot];
       title = capture.title;
+      pageText = visibleTextFromHtml(capture.html ?? '');
     } catch (err) {
       const msg = (err instanceof Error ? err.message : String(err)).split('\n')[0]!;
       console.warn(`  capture failed: ${msg}`);
@@ -201,25 +214,36 @@ try {
       continue;
     }
 
+    const lowerText = pageText.toLowerCase();
     const cells: Cell[] = [];
     for (const f of fields) {
       const value = row[f.key];
       if (isEmptyValue(value)) { cells.push({ field: f.key, value, verdict: 'empty' }); continue; }
       if (isVariantList(value)) { cells.push({ field: f.key, value, verdict: 'skipped' }); continue; }
       if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true }); continue; }
+      // Free: a number or money value shown in the page's text needs no call.
+      if ((f.type === 'number' || f.type === 'money') && numberShownInText(value, f.type, lowerText, f.name)) {
+        cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text' });
+        console.log(`  [correct @text] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
+        continue;
+      }
       if (interrupted) { cells.push({ field: f.key, value, verdict: 'not-judged' }); continue; }
+      // A long text is judged on its first 80 characters; the page text carries the whole of it.
+      const prefixed = f.type === 'text' && typeof value === 'string' && value.length > PREFIX_CHARS;
+      const judged = prefixed ? `${value.slice(0, PREFIX_CHARS)}…` : value;
+      const how = prefixed ? 'prefix' : 'judge';
       // Tile 1 first; a further tile only while the value is not on the page so far.
-      let cell: Cell = { field: f.key, value, verdict: 'error' };
+      let cell: Cell = { field: f.key, value, verdict: 'error', how };
       for (const [t, shot] of shots.entries()) {
-        const verdict = await judgeFieldExtraction({ screenshot: shot, field: f.name, value, apiKey });
-        cell = { field: f.key, value, verdict, tile: t + 1 };
+        const verdict = await judgeFieldExtraction({ screenshot: shot, field: f.name, value: judged, apiKey, pageText });
+        cell = { field: f.key, value, verdict, tile: t + 1, how };
         if (verdict !== 'not-on-page' || interrupted) break;
       }
       if (cell.verdict === 'wrong') {
         cell.judgeReading = (await explainWrongValue({ screenshot: shots[cell.tile! - 1]!, field: f.name, value, apiKey })) ?? undefined;
       }
       cells.push(cell);
-      console.log(`  [${cell.verdict} @tile ${cell.tile}] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
+      console.log(`  [${cell.verdict} @tile ${cell.tile}${prefixed ? ', first 80 chars' : ''}] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
       // judgeFieldExtraction folds an unavailable API (no credit, bad key) into
       // 'error'; a long unbroken run of them means every remaining call fails too.
       errorStreak = cell.verdict === 'error' ? errorStreak + 1 : 0;
