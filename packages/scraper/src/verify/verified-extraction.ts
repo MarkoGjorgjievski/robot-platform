@@ -21,6 +21,7 @@ import { normalize, renderValue } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured } from './search-structured.js';
 import { buildXPathProbeScript, type XPathProbeResult } from './dom-scripts.js';
+import { pageTextOf, shownOnPage, type Shown } from './shown-on-page.js';
 import type { CertifiedPath, CustomerFieldType } from './types.js';
 
 export type VerifiedField = { key: string; type: CustomerFieldType; concept: string; paths: CertifiedPath[] };
@@ -31,6 +32,10 @@ export type VerifiedExtractionResult = {
   timings: CaptureTimings | null;
   /** The capture this extraction used: the one the caller supplied, or the one it took. */
   capture: PageCapture | null;
+  /** Per field: is the written value on the page's rendered text? null when the
+   * field's type is not checked (url/image/boolean/date), or there was no hit
+   * to check (spec 2026-10-12 §3). Never changes `data` or `stats`. */
+  shown: Record<string, Shown>;
 };
 
 type Structured = Pick<PageCapture, 'structuredData' | 'interceptedRequests'>;
@@ -101,7 +106,13 @@ export async function runVerifiedExtraction(
       break;
     }
   }
-  return { data, stats, timings: deps.capture ? null : capture.timings ?? null, capture };
+  const pageText = pageTextOf(capture.html);
+  const shown: Record<string, Shown> = {};
+  for (const f of req.fields) {
+    const hit = stats.find((s) => s.key === f.key && s.hit);
+    shown[f.key] = hit ? shownOnPage(f, hit.path, hit.value, pageText) : null;
+  }
+  return { data, stats, timings: deps.capture ? null : capture.timings ?? null, capture, shown };
 }
 
 async function captureUnderLock(

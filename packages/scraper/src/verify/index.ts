@@ -9,6 +9,7 @@ export { buildXPathProbeScript, buildDomSearchScript, type XPathProbeResult, typ
 export * from './ai-fallback.js';
 export * from './run-verification.js';
 export * from './verified-extraction.js';
+export { shownOnPage, numberShownInText, pageTextOf, type Shown } from './shown-on-page.js';
 export * from './verification-ready.js';
 export * from './box-map.js';
 export * from './proof-page-ready.js';

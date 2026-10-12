@@ -181,7 +181,7 @@ describe('extractItem — with a certification', () => {
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
-      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null };
+      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: {} };
     };
     const recordStats = vi.fn(async () => {});
 
@@ -206,7 +206,7 @@ describe('extractItem — with a certification', () => {
   it('persists and returns the row even when recordStats rejects', async () => {
     const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
       data: { price: 129.99 },
-      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null,
+      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: {},
     });
     const recordStats = vi.fn(async () => { throw new Error('deadlock detected'); });
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -251,7 +251,7 @@ describe('extractItem — with a certification', () => {
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
-      return { data: { price: null }, stats: [], timings: null, capture: null };
+      return { data: { price: null }, stats: [], timings: null, capture: null, shown: {} };
     };
 
     await extractItem(fakeDb, ITEM, {
@@ -265,7 +265,7 @@ describe('extractItem — with a certification', () => {
   it('records the capture timings on the capture row, so a run can be measured per product', async () => {
     const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
       data: { price: 129.99 }, stats: [],
-      timings: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 }, capture: null,
+      timings: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 }, capture: null, shown: {},
     });
     let metadata: unknown;
     const fakeDbCapturing = {
@@ -299,7 +299,7 @@ describe('extractItem — with a certification', () => {
   }
 
   it('confidence is 100 when the certification produced every field', async () => {
-    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [], timings: null, capture: null });
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {} });
     const cap = captureConfidence();
 
     await extractItem(cap.fakeDbCapturing, ITEM, {
@@ -311,7 +311,7 @@ describe('extractItem — with a certification', () => {
   });
 
   it('confidence is 0 when the certification produced no value for any field', async () => {
-    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [], timings: null, capture: null });
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [], timings: null, capture: null, shown: {} });
     const cap = captureConfidence();
 
     await extractItem(cap.fakeDbCapturing, ITEM, {
@@ -411,7 +411,7 @@ describe('extractItem — with a certification', () => {
         ],
       }]);
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture,
+        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {},
       });
       const cap = captureExtraction();
 
@@ -435,7 +435,7 @@ describe('extractItem — with a certification', () => {
     it('falls back to one row with a _product_key and no _variant_key when the page no longer carries the list', async () => {
       const capture = fakeCapture([{ '@type': 'Product' }]); // no hasVariant at all
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture,
+        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {},
       });
       const cap = captureExtraction();
 
@@ -455,7 +455,7 @@ describe('extractItem — with a certification', () => {
     // same shape as the pre-Task-3 certified-extraction tests above.
     it('persists exactly one row, unchanged, when the run carries no variant plan', async () => {
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture: null,
+        data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {},
       });
       const cap = captureExtraction();
 
@@ -498,7 +498,7 @@ describe('extractItem — with a certification', () => {
       let seenFields: VerifiedField[] = [];
       const extractVerified = async (req: { fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
         seenFields = req.fields;
-        return { data: { price: 21 }, stats: [], timings: null, capture: null };
+        return { data: { price: 21 }, stats: [], timings: null, capture: null, shown: {} };
       };
 
       await extractItem(fakeDb, { ...ITEM, targetFields: ['price'] }, {
@@ -515,7 +515,7 @@ describe('extractItem — with a certification', () => {
       let seenFields: VerifiedField[] = [];
       const extractVerified = async (req: { fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
         seenFields = req.fields;
-        return { data: { price: 21, sku: 'SKU-1' }, stats: [], timings: null, capture: null };
+        return { data: { price: 21, sku: 'SKU-1' }, stats: [], timings: null, capture: null, shown: {} };
       };
 
       await extractItem(fakeDb, { ...ITEM, targetFields: null }, {
@@ -562,7 +562,7 @@ describe('extractItem — with a certification', () => {
       const { browser, calls } = linksBrowser(links);
       const queueVariants = vi.fn(async () => ({ queued: 0, skippedForBudget: 0 }));
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture,
+        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {},
       });
       const cap = captureExtraction();
       const result = await extractItem(cap.fakeDbCapturing, item, {
@@ -631,7 +631,7 @@ describe('extractItem — with a certification', () => {
       await expect(extractItem(cap.fakeDbCapturing, { ...ITEM, url: A }, {
         browser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
         certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION,
-        extractVerified: async () => ({ data: { price: 1 }, stats: [], timings: null, capture }),
+        extractVerified: async () => ({ data: { price: 1 }, stats: [], timings: null, capture, shown: {} }),
         recordStats: async () => {}, variantPlan: LINKS_PLAN, itemCap: 50,
         queueVariants: async () => { throw new Error('deadlock'); },
       })).rejects.toThrow('deadlock');
