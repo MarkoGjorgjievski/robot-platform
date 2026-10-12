@@ -20,9 +20,19 @@ const SYSTEM = `You judge whether an extracted field value is correct on a webpa
 // model does not answer with a word parseVerdict cannot read.
 const PAGE_TEXT_SENTENCE = ` You are also given the page's visible text: a value present in the page text but hidden or abbreviated in the screenshot (text folded behind "read more", a rating shown as stars, a price shown with a currency prefix) is correct.`;
 
+// Appended to SYSTEM only when the value was cut short by the caller (a long
+// description judged on its first 80 characters), for the same reason.
+const TRUNCATED_SENTENCE = ` A value cut short and ending in "…" is correct when the part shown matches the start of the page's value for the field.`;
+
 /** The page text sent beside the screenshot is capped at this many characters (the first ones). */
 export const PAGE_TEXT_LIMIT = 8_000;
-export const PAGE_TEXT_HEADING = "The page's visible text (may include content folded behind 'read more' or shown as star icons):";
+/** Which part of the page's text the caller sends: a window around the value, or the page's first characters. */
+export type PageTextKind = 'excerpt' | 'start';
+export function pageTextHeading(kind: PageTextKind): string {
+  const part = kind === 'excerpt' ? 'an excerpt around the value' : 'the start of the page';
+  return `The page's visible text, ${part} (may include content folded behind 'read more' or shown as star icons):`;
+}
+export const TRUNCATED_NOTE = 'The extracted value is long and is shown cut to its first 80 characters, ending in "…".';
 
 /**
  * Shared request tuning for both judges.
@@ -93,22 +103,28 @@ export async function judgeFieldExtraction(opts: {
   value: unknown;
   apiKey: string;
   model?: string;
-  /** The page's visible text; sent before the screenshot (first PAGE_TEXT_LIMIT characters) when given. */
+  /** The page's visible text; sent before the screenshot (at most PAGE_TEXT_LIMIT characters) when given. */
   pageText?: string;
+  /** What `pageText` is: an excerpt around the value, or the start of the page (default). */
+  pageTextKind?: PageTextKind;
+  /** True when `value` was cut to its first 80 characters plus "…" by the caller. */
+  valueTruncated?: boolean;
 }): Promise<JudgeVerdict> {
   const client = new Anthropic({ apiKey: opts.apiKey });
   const withText = opts.pageText != null && opts.pageText.trim() !== '';
+  const system = SYSTEM + (withText ? PAGE_TEXT_SENTENCE : '') + (opts.valueTruncated ? TRUNCATED_SENTENCE : '');
+  const ask = `Field: ${opts.field}\nExtracted value: ${JSON.stringify(opts.value)}${opts.valueTruncated ? `\n${TRUNCATED_NOTE}` : ''}`;
   try {
     const res = await client.messages.create({
       model: opts.model ?? JUDGE_MODEL,
       ...JUDGE_REQUEST_TUNING,
-      system: withText ? SYSTEM + PAGE_TEXT_SENTENCE : SYSTEM,
+      system,
       messages: [{
         role: 'user',
         content: [
-          ...(withText ? [{ type: 'text' as const, text: `${PAGE_TEXT_HEADING}\n${opts.pageText!.slice(0, PAGE_TEXT_LIMIT)}` }] : []),
+          ...(withText ? [{ type: 'text' as const, text: `${pageTextHeading(opts.pageTextKind ?? 'start')}\n${opts.pageText!.slice(0, PAGE_TEXT_LIMIT)}` }] : []),
           { type: 'image', source: { type: 'base64', media_type: 'image/png', data: opts.screenshot.toString('base64') } },
-          { type: 'text', text: `Field: ${opts.field}\nExtracted value: ${JSON.stringify(opts.value)}` },
+          { type: 'text', text: ask },
         ],
       }],
     });

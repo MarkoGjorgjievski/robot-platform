@@ -1,5 +1,5 @@
-// The judge's request with and without the page's visible text. The Anthropic
-// client is mocked: no model call, free, offline.
+// The judge's request with and without the page's visible text, and with a
+// value cut short. The Anthropic client is mocked: no model call, free, offline.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -8,7 +8,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
   default: class { messages = { create }; },
 }));
 
-const { judgeFieldExtraction, PAGE_TEXT_HEADING, PAGE_TEXT_LIMIT } = await import('./judge.js');
+const { judgeFieldExtraction, pageTextHeading, PAGE_TEXT_LIMIT, TRUNCATED_NOTE } = await import('./judge.js');
 
 type Block = { type: string; text?: string };
 const lastRequest = () => create.mock.calls.at(-1)![0] as { system: string; messages: Array<{ content: Block[] }> };
@@ -30,10 +30,17 @@ describe('judgeFieldExtraction — page text', () => {
     const { system, messages } = lastRequest();
     const content = messages[0]!.content;
     expect(content.map((b) => b.type)).toEqual(['text', 'image', 'text']);
-    expect(content[0]!.text).toBe(`${PAGE_TEXT_HEADING}\nDiamond Hoops MYR 910`);
-    expect(content[2]!.text).toContain('Extracted value: 910');
+    expect(content[0]!.text).toBe(`${pageTextHeading('start')}\nDiamond Hoops MYR 910`);
+    expect(content[2]!.text).toBe('Field: Price\nExtracted value: 910');
     expect(system).toMatch(/hidden or abbreviated in the screenshot/);
     expect(system).toMatch(/is correct\.$/);
+  });
+
+  it('says which part of the page the text is', async () => {
+    expect(pageTextHeading('excerpt')).toContain('an excerpt around the value');
+    expect(pageTextHeading('start')).toContain('the start of the page');
+    await judgeFieldExtraction({ screenshot: png, field: 'Price', value: 910, apiKey: 'k', pageText: '… MYR 910 …', pageTextKind: 'excerpt' });
+    expect(lastRequest().messages[0]!.content[0]!.text).toMatch(/^The page's visible text, an excerpt around the value/);
   });
 
   it('caps the page text at the first 8,000 characters', async () => {
@@ -41,7 +48,7 @@ describe('judgeFieldExtraction — page text', () => {
     await judgeFieldExtraction({ screenshot: png, field: 'Description', value: 'x', apiKey: 'k', pageText: long });
     const text = lastRequest().messages[0]!.content[0]!.text!;
     expect(PAGE_TEXT_LIMIT).toBe(8_000);
-    expect(text).toBe(`${PAGE_TEXT_HEADING}\n${'a'.repeat(PAGE_TEXT_LIMIT)}`);
+    expect(text).toBe(`${pageTextHeading('start')}\n${'a'.repeat(PAGE_TEXT_LIMIT)}`);
     expect(text).not.toContain('TAIL');
   });
 
@@ -49,13 +56,31 @@ describe('judgeFieldExtraction — page text', () => {
     await judgeFieldExtraction({ screenshot: png, field: 'Price', value: 910, apiKey: 'k' });
     const { system, messages } = lastRequest();
     expect(messages[0]!.content.map((b) => b.type)).toEqual(['image', 'text']);
-    expect(JSON.stringify(messages)).not.toContain(PAGE_TEXT_HEADING);
-    expect(system).not.toMatch(/page text/);
+    expect(JSON.stringify(messages)).not.toContain("The page's visible text");
+    expect(system).not.toMatch(/page text|cut short/);
     expect(system).toMatch(/No explanation\.$/);
   });
 
   it('treats blank page text as none', async () => {
     await judgeFieldExtraction({ screenshot: png, field: 'Price', value: 910, apiKey: 'k', pageText: '   ' });
     expect(lastRequest().messages[0]!.content.map((b) => b.type)).toEqual(['image', 'text']);
+  });
+});
+
+describe('judgeFieldExtraction — a value cut short', () => {
+  it('says so in the user message and the prompt', async () => {
+    const cut = `${'Soft seamless leggings '.repeat(4).slice(0, 80)}…`;
+    await judgeFieldExtraction({ screenshot: png, field: 'Description', value: cut, apiKey: 'k', pageText: 'x', valueTruncated: true });
+    const { system, messages } = lastRequest();
+    expect(messages[0]!.content[2]!.text).toBe(`Field: Description\nExtracted value: ${JSON.stringify(cut)}\n${TRUNCATED_NOTE}`);
+    expect(TRUNCATED_NOTE).toMatch(/first 80 characters/);
+    expect(system).toMatch(/cut short and ending in "…" is correct when the part shown matches/);
+  });
+
+  it('says nothing about it otherwise', async () => {
+    await judgeFieldExtraction({ screenshot: png, field: 'Description', value: 'short', apiKey: 'k', pageText: 'x' });
+    const { system, messages } = lastRequest();
+    expect(messages[0]!.content[2]!.text).not.toContain(TRUNCATED_NOTE);
+    expect(system).not.toMatch(/cut short/);
   });
 });
