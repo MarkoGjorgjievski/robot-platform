@@ -227,7 +227,7 @@ describe('renderReport', () => {
   });
 
   it('says no value was settled from the page text when none was', () => {
-    expect(renderReport(base)).toContain('- 0 values settled from the page text without a call (saved about $0.00)');
+    expect(renderReport(base)).toContain('- 0 values settled from the page text without a call (saved at least $0.00)');
   });
 
   it('counts values settled from the page text: the summary line, the Correct column, Ct marks', () => {
@@ -250,7 +250,7 @@ describe('renderReport', () => {
       },
     ];
     const md = renderReport({ ...base, items: local, itemsWithValues: 2 });
-    expect(md).toContain('- 2 values settled from the page text without a call (saved about $0.02)');
+    expect(md).toContain('- 2 values settled from the page text without a call (saved at least $0.02)');
     // Price: both local rights land in Judged and Correct, and in Correct %.
     expect(md).toContain('| Price | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 100% |');
     expect(md).toContain('| https://shop.example/p/4 |  | W1p | Ct | C1 |');
@@ -280,7 +280,7 @@ describe('renderReport', () => {
     });
     expect(md).toContain('| Title | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 100% |');
     expect(md).toContain('| https://shop.example/p/6 |  | Ct | · | · |');
-    expect(md).toContain('- 1 value settled from the page text without a call (saved about $0.01)');
+    expect(md).toContain('- 1 value settled from the page text without a call (saved at least $0.01)');
   });
 
   it('lists a failed capture in the item table and the header counts', () => {

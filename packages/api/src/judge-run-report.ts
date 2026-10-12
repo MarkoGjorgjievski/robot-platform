@@ -19,12 +19,12 @@ export type Cell = {
   verdict: CellVerdict;
   /** Which screenshot tile (1-based) decided a judged verdict; absent for local verdicts. */
   tile?: number;
-  /** True when the verdict was set here without a judge call (a URL value is `unverifiable`; a number found in the page text is `correct`). */
+  /** True when the verdict was set here without a judge call (a URL value is `unverifiable`; a value found in the page text is `correct`). */
   local?: boolean;
   /**
    * How the verdict was reached: `text` — found in the page's visible text, no
-   * call (judge-local.ts: a number/money value with context, or a long text's
-   * first 80 characters); `prefix` — a long text value
+   * call (judge-local.ts: a number with its field word beside it, or a long
+   * text's first 80 characters, once); `prefix` — a long text value
    * judged on its first 80 characters; `judge` — the value judged whole. Absent
    * on empty, skipped and URL cells.
    */
@@ -42,7 +42,8 @@ export type ItemResult = {
   captureError?: string;
 };
 
-export type FieldDef = { key: string; name: string; type?: string };
+/** A contract field; `concept` (product_name, brand, …) keeps names and brands out of the long-text local pass. */
+export type FieldDef = { key: string; name: string; type?: string; concept?: string };
 
 export type FieldSummary = {
   field: string;
@@ -228,12 +229,12 @@ export function renderReport(r: ReportInput): string {
     `- Fields: ${r.fields.map((f) => f.name).join(', ')}`,
     `- Judge cost: $${r.costUsd.toFixed(4)} (cap $${r.maxUsd.toFixed(2)})`,
     `- Note: per-call estimate not re-measured since page text was added ($${JUDGE_USD_PER_FIELD} a call — behind the cap and the saving below)`,
-    `- ${fromText} value${fromText === 1 ? '' : 's'} settled from the page text without a call (saved about $${(fromText * JUDGE_USD_PER_FIELD).toFixed(2)})`,
+    `- ${fromText} value${fromText === 1 ? '' : 's'} settled from the page text without a call (saved at least $${(fromText * JUDGE_USD_PER_FIELD).toFixed(2)})`,
     `- Time: ${minutes}m ${seconds}s`,
     '',
     "Each item's URL was captured fresh (a run stores no screenshot), so a verdict compares the stored value with the page as it is now — a price that changed since the run reads as wrong.",
     '',
-    "Some values are counted correct from the page's visible text without a judge call: a money value shown with a currency sign or code beside it or with decimals; a number shown with decimals, near one of the field's words, or before \"/5\", \"out of\", \"stars\" or \"★\" (never a bare whole number; a single digit only right beside the field's name); a text value longer than 80 characters whose first 80 characters appear in the page text. Every other value goes to the judge with page text beside the screenshot — 4,000 characters around the value when it is found, else the first 8,000; a text value longer than 80 characters is judged on its first 80, and the judge is told so.",
+    "Some values are counted correct from the page's visible text without a judge call: a number with one of the field's words beside it (within 15 characters, nothing but spaces, colons or brackets between) or followed by \"/5\", \"out of 5\", \"stars\" or \"★\" (a single digit only right beside the field's name); a text value longer than 80 characters, not a product name or brand, whose first 80 characters occur exactly once in the page text. Money values always go to the judge. Every other value goes to the judge with page text beside the screenshot — 4,000 characters around the value when it is found, else the first 8,000; a text value longer than 80 characters is judged on its first 80, and the judge is told so.",
     '',
     `The judge sees screenshot tiles from the top of the page (${r.tiles} tiles ≈ ${r.tiles * r.tileHeight} px, ${r.tileHeight} px each); a value is judged on tile 1 and again on the next tile only while the verdict is "not on page". 'Not on page' after all tiles usually means further down or in a tab, not wrong.`,
     '',
@@ -244,7 +245,7 @@ export function renderReport(r: ReportInput): string {
     ...summaryTable(r.fields, r.items),
     '',
     '## Per item', '',
-    'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · - not judged (run interrupted) · `·` empty. The digit is the screenshot tile that decided the verdict. Ct is a value found in the page text (a number or money value with context, or a long text\'s first 80 characters), without a judge call or cost; a trailing p means a long text judged on its first 80 characters. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
+    'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · - not judged (run interrupted) · `·` empty. The digit is the screenshot tile that decided the verdict. Ct is a value found in the page text (a number with its field word beside it, or a long text\'s first 80 characters), without a judge call or cost; a trailing p means a long text judged on its first 80 characters. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
     `| URL | Page title | ${r.fields.map((f) => cellText(f.name)).join(' | ')} |`,
     `|---|---|${r.fields.map(() => ':-:').join('|')}|`,
   );
