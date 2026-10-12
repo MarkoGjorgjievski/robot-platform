@@ -1,6 +1,6 @@
 # Correctness on the run page: "shown on the page" — design
 
-**Status:** approved in chat by Marko 2026-10-12 ("go with the correctness design"); spec for review.
+**Status:** approved in chat by Marko 2026-10-12 ("go with the correctness design"); Part B added the same day after campaign 2 batch A, on Marko's "do the judge changes and amend the spec"; plan next.
 Follows `2026-10-10-proof-page-coverage-design.md` and the credit campaign's judge findings
 (`docs/testing/2026-10-08-credit-campaign.md`, "What the campaign answered").
 
@@ -147,6 +147,56 @@ right and flagged not shown. No change to what is judged or spent. This is how c
   `lib/site/run-screen-view.ts` / `lib/site/coverage-view.ts` (the copy as pure functions)
 - the route smoke (a seeded run helper gains `validationResult`), `docs/handoff.md`
 
+
+## Part B — two rules at Verify (added 2026-10-12, after campaign 2 batch A)
+
+Batch A's judge found two error patterns the flag above does not reach, because the wrong value
+is on the page or was typed by a person: Colourpop stored the shade name ("Drift") as the Title
+on about nine of forty products while the page's heading reads the product ("Super Shock
+Shadow"), because the suggestion came from a JSON-LD name that "agreed" on the three proof pages;
+Gymshark stored the site's tagline ("Gymshark | We Do Gym") as the Brand on all sixty rows,
+because the worker typed it to get past Verify. Both are decided at Verify, so Verify is where
+they are caught:
+
+### B1. A Title must be the page's main heading
+
+For the Title field (concept `product_name`), a suggestion is never "agreed" unless its value is
+the page's main heading: the text of the first `h1` in the proof page's box map, or, with no
+`h1`, the largest heading box. A suggestion that is on the page but not the heading reads
+`needs-you` with the reason "not the page's heading on product n" and the row's page-data hint
+offers both the suggestion and the heading. A customer can still accept the suggestion cell by
+cell. Certification is unchanged: the rule shapes what the row offers, not what certifies.
+
+### B2. A typed value the page does not show warns
+
+When a typed expected value (an `Answer` with no mark and no path) is not shown on the proof
+page by the §3 rule (type-aware; `xpath` has no meaning here, so every typed value is checked;
+`url`, `image`, `boolean`, `date` are not), the cell shows "not on this page" in warning colour
+with the title "The page does not show this value; a path that produces it will be certified
+anyway. Mark it on the screenshot if it is there, or use \"Not on this product\"." Verify is not
+blocked. The check runs on the proof page's stored capture text (the proof-page capture's `html`
+is stored, unlike a run's), in the app's existing `verification-model` as a pure function fed by
+a new `pageText` per captured url from the captures query.
+
+### B3. Testing, files, copy for Part B
+
+- Unit: `rowStatus` with a Title suggestion that is not the heading → `needs-you`, reason "not the
+  page's heading on product 1"; with the heading → `agreed` as before; `typedNotShown(field,
+  value, pageText)` on the Gymshark tagline against a page text without it → true; on a price
+  typed as `22` against "$22.00" → false.
+- Files: `packages/app/src/lib/site/verification-model.ts` (the heading rule; `typedNotShown`),
+  the suggestion builder in `packages/api/src/verify/*` that returns the box map (adds
+  `headingText` per captured page and `pageText`), `verification-table.tsx` (the cell warning),
+  the smoke (a fixture product whose JSON-LD name differs from its `h1`).
+- Copy: row reason `not the page's heading on product n`; cell word `not on this page`; cell
+  title as above.
+
+### B4. What this would have changed on batch A
+
+Of the 46 real errors the judge found on Gymshark, Colourpop and Mejuri: B1 prevents the 18
+shade-name titles; B2 warns on the 24 tagline brands before the run; Part A flags the 24 brands
+and the 2 prices after it. The remaining 2 (an other-offer stock state and a price) stay the
+judge's.
 ## 11. Not in this spec
 
 - Re-extracting, dropping or repairing a not-shown value automatically.
