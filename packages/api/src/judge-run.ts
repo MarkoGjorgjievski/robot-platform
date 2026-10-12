@@ -109,7 +109,7 @@ if (fieldFilter) {
 }
 
 const rows = await db
-  .select({ id: runItems.id, url: runItems.url, kind: runItems.kind, status: runItems.status, data: extractions.data })
+  .select({ id: runItems.id, url: runItems.url, kind: runItems.kind, status: runItems.status, data: extractions.data, validationResult: extractions.validationResult })
   .from(runItems)
   .leftJoin(extractions, eq(extractions.id, runItems.extractionId))
   .where(eq(runItems.runId, runId))
@@ -220,12 +220,16 @@ try {
       const value = row[f.key];
       if (isEmptyValue(value)) { cells.push({ field: f.key, value, verdict: 'empty' }); continue; }
       if (isVariantList(value)) { cells.push({ field: f.key, value, verdict: 'skipped' }); continue; }
-      if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true }); continue; }
+      // The flag the run stored for this field (spec 2026-10-12 §3/§4):
+      // true/false when checkable, null when its type is not, undefined
+      // when the run stored no flag at all (pre-feature or non-certified run).
+      const shown = (r.validationResult as { shown?: Record<string, boolean | null> } | null)?.shown?.[f.key] ?? undefined;
+      if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true, shown }); continue; }
       // Free: a number with its field word beside it, or a long text's first 80
       // characters once in the page's full visible text, needs no call.
       const type = f.type ?? '';
       if (numberShownInText(value, type, pageText, f.name) || textPrefixInText(value, type, pageText, f.concept)) {
-        cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text' });
+        cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text', shown });
         console.log(`  [correct @text] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
         continue;
       }
@@ -236,13 +240,13 @@ try {
       const how = prefixed ? 'prefix' : 'judge';
       const excerpt = pageTextForJudge(value, f.type, pageText);
       // Tile 1 first; a further tile only while the value is not on the page so far.
-      let cell: Cell = { field: f.key, value, verdict: 'error', how };
+      let cell: Cell = { field: f.key, value, verdict: 'error', how, shown };
       for (const [t, shot] of shots.entries()) {
         const verdict = await judgeFieldExtraction({
           screenshot: shot, field: f.name, value: judged, apiKey,
           pageText: excerpt.text, pageTextKind: excerpt.kind, valueTruncated: prefixed,
         });
-        cell = { field: f.key, value, verdict, tile: t + 1, how };
+        cell = { field: f.key, value, verdict, tile: t + 1, how, shown };
         if (verdict !== 'not-on-page' || interrupted) break;
       }
       if (cell.verdict === 'wrong') {

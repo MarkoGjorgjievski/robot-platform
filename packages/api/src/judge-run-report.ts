@@ -31,6 +31,16 @@ export type Cell = {
   how?: 'text' | 'prefix' | 'judge';
   /** For a `wrong` verdict: the judge's uncalibrated reading of what the page shows. */
   judgeReading?: string;
+  /**
+   * The free "shown on the page" flag stored on the run's extraction (spec
+   * 2026-10-12 §3/§4), read off `extractions.validation_result.shown[field]`:
+   * `true`/`false` when the field was checkable, `null` when its type is not
+   * (`url`, `image`, `boolean`, `date`), `undefined` when the run stored no
+   * flag at all (a row from before this feature, or a non-certified run).
+   * Set only on a judged or locally-settled cell — never on `empty`, `skipped`
+   * or `not-judged`.
+   */
+  shown?: boolean | null;
 };
 
 export type ItemResult = {
@@ -205,6 +215,62 @@ export function summaryTable(fields: FieldDef[], items: ItemResult[]): string[] 
   return out;
 }
 
+export type Confusion = {
+  wrongNotShown: number;
+  wrongShown: number;
+  correctNotShown: number;
+  correctShown: number;
+  /** No flag was stored, or the field's type is not checkable (`url`/`image`/`boolean`/`date`); either way the free check says nothing. */
+  unflagged: number;
+  /** Every cell judged `wrong`, flagged or not — the denominator for "caught n of m". */
+  wrongTotal: number;
+};
+
+/**
+ * How the free "shown on the page" flag (spec 2026-10-12 §3/§6) lines up with
+ * the judge's paid verdict, among cells the judge (or the local text pass)
+ * called `correct` or `wrong` — every other verdict (not-on-page,
+ * unverifiable, error, empty, skipped, not-judged) is outside the question
+ * the flag is meant to answer. Items whose capture failed are ignored, same
+ * as `summarize`.
+ */
+export function confusionCounts(items: ItemResult[]): Confusion {
+  const c: Confusion = { wrongNotShown: 0, wrongShown: 0, correctNotShown: 0, correctShown: 0, unflagged: 0, wrongTotal: 0 };
+  for (const item of items) {
+    if (item.captureError) continue;
+    for (const cell of item.cells) {
+      if (cell.verdict !== 'wrong' && cell.verdict !== 'correct') continue;
+      const wrong = cell.verdict === 'wrong';
+      if (wrong) c.wrongTotal++;
+      if (cell.shown == null) { c.unflagged++; continue; }
+      if (cell.shown) { if (wrong) c.wrongShown++; else c.correctShown++; }
+      else { if (wrong) c.wrongNotShown++; else c.correctNotShown++; }
+    }
+  }
+  return c;
+}
+
+/** The confusion table and its one-sentence takeaway, for the report's summary. */
+export function confusionTable(items: ItemResult[]): string[] {
+  const c = confusionCounts(items);
+  return [
+    '| Shown flag vs. verdict | Count |',
+    '|---|---:|',
+    `| Wrong & not shown | ${c.wrongNotShown} |`,
+    `| Wrong & shown | ${c.wrongShown} |`,
+    `| Correct & not shown | ${c.correctNotShown} |`,
+    `| Correct & shown | ${c.correctShown} |`,
+    `| Unflagged (no flag or not checkable) | ${c.unflagged} |`,
+    '',
+    `The free flag caught ${c.wrongNotShown} of the ${c.wrongTotal} wrong values; it flagged ${c.correctNotShown} correct values.`,
+  ];
+}
+
+/** `true`/`false`/`—` for the shown flag — `—` covers both "no flag stored" and "not checkable" (null). */
+function shownText(shown: boolean | null | undefined): string {
+  return shown === true ? 'true' : shown === false ? 'false' : '—';
+}
+
 export function renderReport(r: ReportInput): string {
   const L: string[] = [];
   const minutes = Math.floor(r.durationMs / 60_000);
@@ -244,6 +310,10 @@ export function renderReport(r: ReportInput): string {
     'Correct includes values settled from the page text without a call. Correct % is correct / (correct + wrong); "—" when neither occurred. Not on page, unverifiable and judge errors are counted apart and do not enter it. Empty values are not judged.', '',
     ...summaryTable(r.fields, r.items),
     '',
+    '## Shown flag vs. verdict', '',
+    'How well the free "shown on the page" flag (spec 2026-10-12 §3/§6, stored per field on a certified run\'s extraction) predicts the judge\'s paid verdict, among cells the judge or the local text pass called correct or wrong; a cell with no stored flag, or whose field type is not checkable, counts as unflagged, not as either side.', '',
+    ...confusionTable(r.items),
+    '',
     '## Per item', '',
     'C correct · W wrong · N not on page · U unverifiable · E judge error · S variant list, not judged · - not judged (run interrupted) · `·` empty. The digit is the screenshot tile that decided the verdict. Ct is a value found in the page text (a number with its field word beside it, or a long text\'s first 80 characters), without a judge call or cost; a trailing p means a long text judged on its first 80 characters. A bare U is a URL value (image/url field or an absolute http(s) link), marked unverifiable without a judge call or cost.', '',
     `| URL | Page title | ${r.fields.map((f) => cellText(f.name)).join(' | ')} |`,
@@ -267,6 +337,7 @@ export function renderReport(r: ReportInput): string {
     for (const { item, c } of wrong) {
       L.push(`- **${nameOf(c.field)}** — ${item.url}${c.tile != null ? ` (tile ${c.tile})` : ''}${c.how === 'prefix' ? ' (judged on its first 80 characters)' : ''}`,
         `  - extracted: ${showValue(c.value)}`,
+        `  - shown: ${shownText(c.shown)}`,
         `  - judge's reading (uncalibrated): ${c.judgeReading ? cellText(c.judgeReading) : '(none returned)'}`);
     }
   }
