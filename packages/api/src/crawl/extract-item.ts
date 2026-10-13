@@ -196,6 +196,21 @@ export async function extractItem(
       const plan = deps.variantPlan;
       const entries = verified.capture ? resolveVariantList(verified.capture, plan.list!) : null;
       const built = buildVariantRows({ productRow: row, entries, plan, pageUrl: item.url });
+      // A variant-level field not carried from the product is overwritten on
+      // every row (row 0 included) from the list's entry paths, so the flag
+      // computed on the product row's value describes a value no stored row
+      // holds: it reads "not checked" instead (final review I5). With no list
+      // on the page the rows are the product row, and its flags stand.
+      if (built.withVariants) {
+        const shown = { ...validationResult.shown };
+        const paths = { ...validationResult.paths };
+        for (const f of plan.fields) {
+          if (f.level !== 'variant' || plan.fromProduct.includes(f.key)) continue;
+          shown[f.key] = null;
+          delete paths[f.key];
+        }
+        return persistRows(built.rows, confidence, t ? { capture: t } : {}, { shown, paths });
+      }
       return persistRows(built.rows, confidence, t ? { capture: t } : {}, validationResult);
     }
 

@@ -483,6 +483,32 @@ describe('extractItem — with a certification', () => {
       expect(result.row).toMatchObject({ _variant_key: 'SKU-BLK' });
     });
 
+    // Final review I5: a variant-level field the list overwrites on every row
+    // reads "not checked" — its flag and path were computed on the product
+    // row's value, which no stored row holds. A product-level field keeps both.
+    it('nulls the shown flag and drops the path of a variant-level field the list overwrites', async () => {
+      const capture = fakeCapture([{ '@type': 'Product', hasVariant: [{ sku: 'SKU-BLK', color: 'Black' }, { sku: 'SKU-RED', color: 'Red' }] }]);
+      const pricePath = { source: 'json-ld' as const, path: 'offers.price', transform: 'identity' as const };
+      const skuPath = { source: 'json-ld' as const, path: 'sku', transform: 'identity' as const };
+      const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+        data: { price: 129.99, sku: 'SKU-PARENT' },
+        stats: [
+          { key: 'price', concept: 'price_concept', path: pricePath, hit: true, value: 129.99 },
+          { key: 'sku', concept: 'sku', path: skuPath, hit: true, value: 'SKU-PARENT' },
+        ],
+        timings: null, capture, shown: { price: true, sku: false },
+      });
+      const cap = captureValidationResult();
+
+      await extractItem(cap.fakeDbCapturing, ITEM, {
+        browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+        certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified,
+        recordStats: async () => {}, variantPlan: VARIANT_PLAN,
+      });
+
+      expect(cap.validationResult).toEqual({ shown: { price: true, sku: null }, paths: { price: pricePath } });
+    });
+
     // Review Focus 1: the site changed and the certified list is no longer on
     // the page (resolveVariantList → null). The run never fails over it — the
     // product gets its own one-row extraction, counted "without variants".

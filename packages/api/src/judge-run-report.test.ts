@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   summarize, renderReport, codeSpan, shouldStop, verdictLetter, cellMark, isUrlValued, pageShowsNothing, estimateItemUsd,
-  confusionCounts, confusionTable,
+  confusionCounts, confusionTable, correctNotShownCells,
   type ItemResult, type ReportInput,
 } from './judge-run-report.js';
 
@@ -181,7 +181,20 @@ describe('confusionCounts / confusionTable', () => {
     expect(table).toContain('| Correct & not shown | 1 |');
     expect(table).toContain('| Correct & shown | 1 |');
     expect(table).toContain('| Unflagged (no flag or not checkable) | 2 |');
-    expect(table).toContain('The free flag caught 1 of the 3 wrong values; it flagged 1 correct values.');
+    // The denominator is the flagged wrongs only (the unflagged p/5 is neither caught nor missed); singular "1 correct value" (M3).
+    expect(table).toContain('The free flag caught 1 of the 2 flagged wrong values; it flagged 1 correct value.');
+  });
+
+  it('says "value" for one flagged wrong value and "values" for no or several correct ones', () => {
+    const one: ItemResult[] = [
+      { url: 'u1', cells: [{ field: 'a', value: 'x', verdict: 'wrong', tile: 1, shown: false }] },
+      { url: 'u2', cells: [{ field: 'a', value: 'y', verdict: 'wrong', tile: 1 }] },
+    ];
+    expect(confusionTable(one).join('\n')).toContain('The free flag caught 1 of the 1 flagged wrong value; it flagged 0 correct values.');
+  });
+
+  it('lists the correct values flagged not shown: field, url, value', () => {
+    expect(correctNotShownCells(sixCells)).toEqual([{ url: 'https://shop.example/p/3', field: 'title', value: 'c' }]);
   });
 });
 
@@ -247,6 +260,23 @@ describe('renderReport', () => {
     const wrongIdx = md.indexOf('**Price**');
     const shownIdx = md.indexOf('shown: —', wrongIdx);
     expect(shownIdx).toBeGreaterThan(wrongIdx);
+  });
+
+  it('lists each correct value flagged not shown in its own section, and says None. when there is none', () => {
+    expect(renderReport(base)).toMatch(/## Correct values flagged not shown\n\nNone\./);
+    const md = renderReport({
+      ...base,
+      items: [{ url: 'https://shop.example/p/9', cells: [
+        { field: 'title', value: 'Widget Nine', verdict: 'correct', tile: 1, shown: false },
+        { field: 'price', value: 12, verdict: 'correct', tile: 1, shown: true },
+      ] }],
+    });
+    const at = md.indexOf('## Correct values flagged not shown');
+    expect(at).toBeGreaterThan(-1);
+    const section = md.slice(at, md.indexOf('## Notes'));
+    expect(section).toContain('https://shop.example/p/9');
+    expect(section).toContain('Widget Nine');
+    expect(section).not.toContain('12');
   });
 
   it('prints true/false for a wrong value with a stored shown flag', () => {

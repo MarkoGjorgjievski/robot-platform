@@ -4,7 +4,7 @@ import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
-  suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf,
+  suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf, visibleTextFromHtml,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult, type Box,
@@ -241,13 +241,19 @@ async function setInputPages(
   return { rows, skipped };
 }
 
-/** Caps `suggestMarks`'s `pageText` (spec 2026-10-12 Part B): plenty for the heading/typed-value checks, bounded for the response. */
-const PAGE_TEXT_LIMIT = 8000;
-
-/** The proof page's main heading (spec 2026-10-12 §B1): the first `h1` box, else the largest of `h1`/`h2`/`h3` by area, else none. */
-function headingTextFrom(boxes: Box[]): string | null {
-  const firstH1 = boxes.find((b) => b.tag === 'h1');
-  if (firstH1) return firstH1.text.trim();
+/**
+ * The proof page's main heading (spec 2026-10-12 §B1): the first `<h1>` in
+ * the capture's HTML, its whole visible text; only when the HTML has no `h1`,
+ * the largest of the box map's `h1`/`h2`/`h3` by area; else none. Read from
+ * the HTML because a box carries only its element's own text nodes, so an
+ * `<h1><span>Widget A</span></h1>` has no `h1` box at all and a split
+ * `Super Shock <em>Shadow</em>` box reads "Super Shock" (final review I3).
+ */
+function headingTextFrom(html: string, boxes: Box[]): string | null {
+  // Scripts and styles out first: a template `<script>` can carry an `<h1>` the page never renders.
+  const markup = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ');
+  const h1 = /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1\s*>/i.exec(markup);
+  if (h1) return visibleTextFromHtml(h1[1]!).trim();
   let best: Box | null = null;
   for (const b of boxes) {
     if (b.tag !== 'h1' && b.tag !== 'h2' && b.tag !== 'h3') continue;
@@ -817,8 +823,10 @@ export const sourcesRouter = router({
       return {
         captureId: row.id,
         fields: suggestMarks(capture, meta.boxes, fields),
-        headingText: headingTextFrom(meta.boxes),
-        pageText: pageTextOf(capture.html).slice(0, PAGE_TEXT_LIMIT),
+        headingText: headingTextFrom(capture.html, meta.boxes),
+        // The whole text, uncapped: the run-time flag checks the full page, so
+        // a cap would warn at Verify on a value the run calls shown (final review I2).
+        pageText: pageTextOf(capture.html),
       };
     }),
 

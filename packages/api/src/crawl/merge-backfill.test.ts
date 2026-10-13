@@ -570,3 +570,76 @@ describe('mergeBackfillResult', () => {
     });
   });
 });
+
+// Spec 2026-10-12 §4, final review M2: backfill and repair rows carry the
+// shown-on-the-page flag too. A heal copies the backfill extraction's
+// `validationResult` whole; a cell fill merges the backfill's flag and path
+// for the fields it filled into the parent's, leaving every other field's.
+describe('mergeBackfillResult — the shown-on-the-page flag (M2)', () => {
+  const titlePath = { source: 'json-ld', path: 'name', transform: 'identity' };
+  const isbnPath = { source: 'json-ld', path: 'isbn', transform: 'identity' };
+  const pricePath = { source: 'json-ld', path: 'offers.price', transform: 'identity' };
+
+  async function setResult(extractionId: string, validationResult: unknown) {
+    await db.update(extractions).set({ validationResult }).where(eq(extractions.id, extractionId));
+  }
+  async function parentResult(parentItemId: string) {
+    const item = await db.query.runItems.findFirst({ where: eq(runItems.id, parentItemId), with: { extraction: true } });
+    return item!.extraction!.validationResult;
+  }
+
+  it('a heal copies the backfill extraction\'s validationResult', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const [parentItem] = await db.insert(runItems).values({
+      runId: parentRunId, kind: 'detail', url: 'https://example.com/p/2', inputIndex: 0, status: 'failed', error: 'blocked',
+    }).returning();
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItem!.id, [{ title: 'Healed', isbn: '999' }]);
+    const vr = { shown: { title: true, isbn: false }, paths: { title: titlePath, isbn: isbnPath } };
+    await setResult(extractionId, vr);
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Healed', isbn: '999' }, ['title', 'isbn']);
+
+    expect(await parentResult(parentItem!.id)).toEqual(vr);
+  });
+
+  it('a cell fill merges the backfill\'s flag and path for the filled field; other fields keep the parent\'s', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { title: 'Real', isbn: null });
+    await setResult((await loadParentItem(parentItemId)).extractionId!, { shown: { title: true, isbn: null }, paths: { title: titlePath } });
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId, [{ title: 'Other', isbn: '978-1' }]);
+    // The backfill's own title flag must not leak in: the parent's title cell was not touched.
+    await setResult(extractionId, { shown: { title: false, isbn: false }, paths: { title: isbnPath, isbn: isbnPath } });
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, { title: 'Other', isbn: '978-1' }, ['title', 'isbn']);
+
+    expect(await parentResult(parentItemId)).toEqual({ shown: { title: true, isbn: false }, paths: { title: titlePath, isbn: isbnPath } });
+  });
+
+  it('a cell fill with no flag on either side leaves the parent with none', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const parentItemId = await seedParentItemWithExtraction(sourceId, parentRunId, { isbn: null });
+    const { backfillItemId, extractionId } = await seedBackfillItem(sourceId, backfillRunId, parentItemId);
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, { isbn: '978-1' }, ['isbn']);
+
+    expect(await parentResult(parentItemId)).toBeNull();
+  });
+
+  it('a multi-row cell fill merges the flag for a field filled on any row', async () => {
+    const { sourceId, parentRunId, backfillRunId } = await seedOrgSourceRuns();
+    const parentItemId = await seedParentItemWithRows(sourceId, parentRunId, [
+      { _variant_key: 'A1', title: 'T', price: null },
+      { _variant_key: 'A2', title: 'T', price: null },
+    ]);
+    await setResult((await loadParentItem(parentItemId)).extractionId!, { shown: { title: true }, paths: { title: titlePath } });
+    const { backfillItemId, extractionId, row } = await seedBackfillItemWithRows(sourceId, backfillRunId, parentItemId, [
+      { _variant_key: 'A1', price: 20 },
+      { _variant_key: 'A2', price: 21 },
+    ]);
+    await setResult(extractionId, { shown: { price: true }, paths: { price: pricePath } });
+
+    await mergeBackfillResult(db, backfillItemId, extractionId, row, ['price']);
+
+    expect(await parentResult(parentItemId)).toEqual({ shown: { title: true, price: true }, paths: { title: titlePath, price: pricePath } });
+  });
+});
