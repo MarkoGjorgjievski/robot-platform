@@ -71,7 +71,9 @@ function certifiedXPaths(fields: VerifiedField[]): string[] {
 /** The ready check for a set of certified fields: probe every certified
  * xpath in the live page, and call the page ready once every field that has
  * a certified path resolves through at least one of them. A field with no
- * certified path can never be filled, so it never blocks readiness. */
+ * certified path can never be filled, so it never blocks readiness. A field
+ * with a default never blocks readiness either, unless every certified field
+ * has one: then the check waits for those fields' paths instead. */
 export function buildReadyCheck(fields: VerifiedField[], pageUrl: string): ReadyCheck {
   const withPaths = fields.filter((f) => f.paths.length > 0);
   // Spec 2026-10-13 §5: a field with a default never blocks readiness — its paths may legitimately never resolve on this product — unless no other field would wait at all.

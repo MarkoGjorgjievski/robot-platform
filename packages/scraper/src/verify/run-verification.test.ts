@@ -518,6 +518,19 @@ describe('a website\'s default (spec 2026-10-13 §3/§4)', () => {
     expect(definitionHash([brand], { ...base, defaults: {} })).toBe(definitionHash([brand], base));
   });
 
+  it('with a default a stored blank cell and a missing key hash the same; without one the hash is byte-identical to before', () => {
+    const P4x = 'https://zz.example/4';
+    const urls4 = [...U, P4x];
+    const stored: VerificationSet = { urls: urls4, expected: { brand: { ...blank, [P4x]: '' } }, defaults: { brand: 'Widgetco' } };
+    const missing: VerificationSet = { urls: urls4, expected: { brand: {} }, defaults: { brand: 'Widgetco' } };
+    expect(fieldHash(brand, stored)).toBe(fieldHash(brand, missing));
+    expect(fieldHash(brand, { ...stored, expected: { brand: { [P4x]: '  ' } } })).toBe(fieldHash(brand, missing));
+    expect(fieldHash(brand, { ...stored, expected: { brand: { [P4x]: 'Other' } } })).not.toBe(fieldHash(brand, missing));
+    // Pinned from before the change (no default: blanks were never on the checked pages).
+    expect(fieldHash(brand, { urls: urls4, expected: { brand: { [U[0]!]: 'Widgetco', [U[1]!]: 'Other', [U[2]!]: '', [P4x]: '' } } }))
+      .toBe('3b96dd1d04bcf8eca22a5f78c60531899ccd060792a125c21685d14627400b13');
+  });
+
   it('a field with a default passes by default only on pages that never name it, with no AI call (property 4)', async () => {
     let calls = 0;
     const agent = { proposePaths: async () => { calls++; return []; } };
