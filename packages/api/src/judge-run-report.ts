@@ -41,6 +41,8 @@ export type Cell = {
    * or `not-judged`.
    */
   shown?: boolean | null;
+  /** The run wrote the website's default here (spec 2026-10-13 §7): judged like any value, left out of the shown-flag confusion. */
+  defaulted?: true;
 };
 
 export type ItemResult = {
@@ -242,7 +244,7 @@ export function confusionCounts(items: ItemResult[]): Confusion {
       if (cell.verdict !== 'wrong' && cell.verdict !== 'correct') continue;
       const wrong = cell.verdict === 'wrong';
       if (wrong) c.wrongTotal++;
-      if (cell.shown == null) { c.unflagged++; continue; }
+      if (cell.defaulted || cell.shown == null) { c.unflagged++; continue; }
       if (cell.shown) { if (wrong) c.wrongShown++; else c.correctShown++; }
       else { if (wrong) c.wrongNotShown++; else c.correctNotShown++; }
     }
@@ -281,9 +283,10 @@ export function correctNotShownCells(items: ItemResult[]): Array<{ url: string; 
     .map((c) => ({ url: item.url, field: c.field, value: c.value })));
 }
 
-/** `true`/`false`/`—` for the shown flag — `—` covers both "no flag stored" and "not checkable" (null). */
-function shownText(shown: boolean | null | undefined): string {
-  return shown === true ? 'true' : shown === false ? 'false' : '—';
+/** `default` for a defaulted cell, else `true`/`false`/`—` for the shown flag — `—` covers both "no flag stored" and "not checkable" (null). */
+export function shownText(c: Pick<Cell, 'shown' | 'defaulted'>): string {
+  if (c.defaulted) return 'default';
+  return c.shown === true ? 'true' : c.shown === false ? 'false' : '—';
 }
 
 export function renderReport(r: ReportInput): string {
@@ -352,7 +355,7 @@ export function renderReport(r: ReportInput): string {
     for (const { item, c } of wrong) {
       L.push(`- **${nameOf(c.field)}** — ${item.url}${c.tile != null ? ` (tile ${c.tile})` : ''}${c.how === 'prefix' ? ' (judged on its first 80 characters)' : ''}`,
         `  - extracted: ${showValue(c.value)}`,
-        `  - shown: ${shownText(c.shown)}`,
+        `  - shown: ${shownText(c)}`,
         `  - judge's reading (uncalibrated): ${c.judgeReading ? cellText(c.judgeReading) : '(none returned)'}`);
     }
   }

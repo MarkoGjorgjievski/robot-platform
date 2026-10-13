@@ -73,10 +73,13 @@ describe('crawl.coverage', () => {
     // change shape) — spec §8 property 6: both fields are "not checked",
     // never "not shown".
     expect(result.fields).toEqual([
-      { name: 'title', filled: 1, missing: 1, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
-      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0 },
+      { name: 'title', filled: 1, missing: 1, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0, defaulted: 0 },
+      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 0, total: 2, notShown: 0, checked: 0, defaulted: 0 },
     ]);
     expect(result.unshownItems).toEqual([]);
+    // Spec 2026-10-13 §9 property 9: a run from before this change, with no
+    // `defaulted` on any extraction, shows nothing new.
+    expect(result.defaultedItems).toEqual([]);
     expect(result.gapItems).toEqual([
       { itemId: item1Id, url: 'https://example.com/p/1', missingFields: ['isbn'] },
       { itemId: item2Id, url: 'https://example.com/p/2', missingFields: ['title', 'isbn'] },

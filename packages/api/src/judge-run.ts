@@ -224,12 +224,15 @@ try {
       // true/false when checkable, null when its type is not, undefined
       // when the run stored no flag at all (pre-feature or non-certified run).
       const shown = (r.validationResult as { shown?: Record<string, boolean | null> } | null)?.shown?.[f.key] ?? undefined;
-      if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true, shown }); continue; }
+      // The run wrote the website's default here (spec 2026-10-13 §7): judged like any value, but
+      // flagged so the shown-flag confusion (which the default never went through) leaves it out.
+      const defaulted = (r.validationResult as { defaulted?: string[] } | null)?.defaulted?.includes(f.key) === true;
+      if (isUrlValued(f.type, value)) { cells.push({ field: f.key, value, verdict: 'unverifiable', local: true, shown, ...(defaulted ? { defaulted: true as const } : {}) }); continue; }
       // Free: a number with its field word beside it, or a long text's first 80
       // characters once in the page's full visible text, needs no call.
       const type = f.type ?? '';
       if (numberShownInText(value, type, pageText, f.name) || textPrefixInText(value, type, pageText, f.concept)) {
-        cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text', shown });
+        cells.push({ field: f.key, value, verdict: 'correct', local: true, how: 'text', shown, ...(defaulted ? { defaulted: true as const } : {}) });
         console.log(`  [correct @text] ${f.key}: ${String(JSON.stringify(value)).slice(0, 80)}`);
         continue;
       }
@@ -240,13 +243,13 @@ try {
       const how = prefixed ? 'prefix' : 'judge';
       const excerpt = pageTextForJudge(value, f.type, pageText);
       // Tile 1 first; a further tile only while the value is not on the page so far.
-      let cell: Cell = { field: f.key, value, verdict: 'error', how, shown };
+      let cell: Cell = { field: f.key, value, verdict: 'error', how, shown, ...(defaulted ? { defaulted: true as const } : {}) };
       for (const [t, shot] of shots.entries()) {
         const verdict = await judgeFieldExtraction({
           screenshot: shot, field: f.name, value: judged, apiKey,
           pageText: excerpt.text, pageTextKind: excerpt.kind, valueTruncated: prefixed,
         });
-        cell = { field: f.key, value, verdict, tile: t + 1, how, shown };
+        cell = { field: f.key, value, verdict, tile: t + 1, how, shown, ...(defaulted ? { defaulted: true as const } : {}) };
         if (verdict !== 'not-on-page' || interrupted) break;
       }
       if (cell.verdict === 'wrong') {

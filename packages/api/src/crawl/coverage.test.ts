@@ -13,8 +13,8 @@ describe('computeCoverage', () => {
       ],
     );
     expect(out.fields).toEqual([
-      { name: 'title', filled: 1, missing: 2, confirmedAbsent: 0, total: 3, notShown: 0, checked: 0 },
-      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 1, total: 3, notShown: 0, checked: 0 },
+      { name: 'title', filled: 1, missing: 2, confirmedAbsent: 0, total: 3, notShown: 0, checked: 0, defaulted: 0 },
+      { name: 'isbn', filled: 0, missing: 2, confirmedAbsent: 1, total: 3, notShown: 0, checked: 0, defaulted: 0 },
     ]);
     expect(out.gapItems).toEqual([
       { itemId: 'a', url: 'u1', missingFields: ['isbn'] },
@@ -50,8 +50,8 @@ describe('computeCoverage', () => {
       ],
     );
     expect(out.fields).toEqual([
-      { name: 'price', filled: 2, missing: 0, confirmedAbsent: 0, total: 2, notShown: 0, checked: 1 },
-      { name: 'description', filled: 2, missing: 0, confirmedAbsent: 0, total: 2, notShown: 1, checked: 1 },
+      { name: 'price', filled: 2, missing: 0, confirmedAbsent: 0, total: 2, notShown: 0, checked: 1, defaulted: 0 },
+      { name: 'description', filled: 2, missing: 0, confirmedAbsent: 0, total: 2, notShown: 1, checked: 1, defaulted: 0 },
     ]);
     expect(out.unshownItems).toEqual([{ url: 'u1', fields: ['description'] }]);
   });
@@ -65,7 +65,7 @@ describe('computeCoverage', () => {
       [{ id: 'a', url: 'u1', row: { price: '12' }, absentFields: [] }],
     );
     expect(out.fields).toEqual([
-      { name: 'price', filled: 1, missing: 0, confirmedAbsent: 0, total: 1, notShown: 0, checked: 0 },
+      { name: 'price', filled: 1, missing: 0, confirmedAbsent: 0, total: 1, notShown: 0, checked: 0, defaulted: 0 },
     ]);
     expect(out.unshownItems).toEqual([]);
   });
@@ -85,8 +85,8 @@ describe('computeCoverage', () => {
       ],
     );
     expect(out.fields).toEqual([
-      { name: 'price', filled: 1, missing: 0, confirmedAbsent: 0, total: 1, notShown: 0, checked: 1 },
-      { name: 'thumbnail', filled: 1, missing: 0, confirmedAbsent: 0, total: 1, notShown: 0, checked: 0 },
+      { name: 'price', filled: 1, missing: 0, confirmedAbsent: 0, total: 1, notShown: 0, checked: 1, defaulted: 0 },
+      { name: 'thumbnail', filled: 1, missing: 0, confirmedAbsent: 0, total: 1, notShown: 0, checked: 0, defaulted: 0 },
     ]);
   });
 
@@ -129,5 +129,23 @@ describe('computeCoverage', () => {
       { url: 'u1', fields: ['description'], paths: { description: { source: 'json-ld', path: 'description' } } },
       { url: 'u2', fields: ['description'] },
     ]);
+  });
+
+  // Spec 2026-10-13 §7: a defaulted value is filled, counted apart, and listed per item.
+  it('counts defaulted per field and lists the items, never counting them not shown', () => {
+    const out = computeCoverage(
+      [{ name: 'brand' }, { name: 'price' }],
+      [
+        { id: 'a', url: 'u1', row: { brand: 'Widgetco', price: 1 }, absentFields: [], shown: { brand: null, price: true }, defaulted: ['brand'] },
+        { id: 'b', url: 'u2', row: { brand: 'Acme', price: 2 }, absentFields: [], shown: { brand: true, price: true }, defaulted: [] },
+        { id: 'c', url: 'u3', row: { brand: 'Widgetco', price: 3 }, absentFields: [] },
+      ],
+    );
+    expect(out.fields).toEqual([
+      { name: 'brand', filled: 3, missing: 0, confirmedAbsent: 0, total: 3, notShown: 0, checked: 1, defaulted: 1 },
+      { name: 'price', filled: 3, missing: 0, confirmedAbsent: 0, total: 3, notShown: 0, checked: 2, defaulted: 0 },
+    ]);
+    expect(out.defaultedItems).toEqual([{ url: 'u1', fields: ['brand'] }]);
+    expect(out.unshownItems).toEqual([]);
   });
 });

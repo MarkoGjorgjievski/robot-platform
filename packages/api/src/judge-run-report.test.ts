@@ -389,3 +389,17 @@ describe('renderReport', () => {
     expect(md).toContain('0 captured, 1 capture failed, judged 0');
   });
 });
+
+describe('a defaulted value (spec 2026-10-13 §7)', () => {
+  const defaultedItems: ItemResult[] = [{
+    url: 'https://shop.example/p/9',
+    cells: [
+      { field: 'title', value: 'Widgetco', verdict: 'wrong', tile: 1, shown: null, defaulted: true },
+      { field: 'price', value: 1, verdict: 'correct', tile: 1, shown: true },
+    ],
+  }];
+  it('is left out of the confusion table and reads "default" in the flag column', () => {
+    expect(confusionCounts(defaultedItems)).toMatchObject({ unflagged: 1, correctShown: 1, wrongTotal: 1 });
+    expect(renderReport({ ...base, items: defaultedItems })).toContain('shown: default');
+  });
+});

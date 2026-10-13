@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { datasets, orgs, projects, runs, sessions, sourceVerifications, sources, staffActions, users, type Database } from '@robot/db';
-import { lookupDomainCache, type FieldPathSet, type FieldVerification, type SchemaDefinitionField } from '@robot/scraper';
+import { lookupDomainCache, type FieldPathSet, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { router, publicProcedure, protectedProcedure, opsProcedure } from '../trpc.js';
 import { isCustomerSchema } from '../crawl/effective-schema.js';
 import { loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-certification.js';
@@ -228,6 +228,7 @@ export const opsRouter = router({
 
     const driftedKeys = Array.isArray(row.driftedFields) ? (row.driftedFields as string[]) : [];
     const lastRun = lastRunBySource.get(row.sourceId) ?? null;
+    const set = row.verificationSet as VerificationSet | null;
 
     return {
       sourceId: row.sourceId,
@@ -254,11 +255,14 @@ export const opsRouter = router({
             : 'none';
         const certified = result?.certified ?? [];
         const stats = fieldPaths[f.concept]?.paths ?? [];
+        const def = (set?.defaults?.[f.key] ?? '').trim();
         return {
           key: f.key,
           name: f.name,
           type: f.type,
           state,
+          ...(def ? { defaultValue: def } : {}),
+          ...(result?.defaultOnly ? { defaultOnly: true as const } : {}),
           paths: certified.map((p) => {
             // A verified stat's identity is (origin, path) — `sameVerified` in
             // domain-cache.ts, matched here by source + path alone (Review

@@ -362,6 +362,42 @@ describe('ops.website', () => {
     }
   });
 
+  it("shows a field's default and marks a default-only field (spec 2026-10-13 §7)", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-op-default-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    const urls = [`https://test-ops4-default-${tag}.example.com/p/1`, `https://test-ops4-default-${tag}.example.com/p/2`, `https://test-ops4-default-${tag}.example.com/p/3`];
+    try {
+      const built = await createProjectWithSource(op.caller, {
+        tag: `ops4-default-${tag}`,
+        fields: [{ name: 'Price', type: 'money' }, { name: 'Name', type: 'text' }],
+        urls,
+        expected: {
+          Price: Object.fromEntries(urls.map((u) => [u, '9.99'])),
+          Name: Object.fromEntries(urls.map((u) => [u, 'Widget'])),
+        },
+      });
+      const priceKey = built.keys.Price!;
+
+      // Set the default on the source's own verification set, then certify Price by default only.
+      const src = await db.query.sources.findFirst({ where: eq(sources.id, built.sourceId), columns: { verificationSet: true, schemaDefinition: true } });
+      const set = { ...(src!.verificationSet as VerificationSet), defaults: { [priceKey]: '9.99' } };
+      await db.update(sources).set({ verificationSet: set }).where(eq(sources.id, built.sourceId));
+      const priceField = (src!.schemaDefinition as SchemaDefinitionField[]).find((f) => f.key === priceKey)!;
+      const cells = Object.fromEntries(set.urls.map((u) => [u, { status: 'pass', found: '' }]));
+      await db.insert(sourceVerifications).values({ sourceId: built.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true,
+        results: { [priceKey]: { key: priceKey, cells, certified: [], weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: fieldHash(priceField, set), defaultOnly: true } } });
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+      const price = result.fields.find((f) => f.key === priceKey)!;
+      expect(price).toMatchObject({ state: 'current', paths: [], defaultValue: '9.99', defaultOnly: true });
+      expect(result.fields.find((f) => f.key !== priceKey)).not.toHaveProperty('defaultValue');
+
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+    }
+  });
+
   it("gives FORBIDDEN to a signed-in non-operator, and UNAUTHORIZED to a signed-out caller", async () => {
     const tag = Date.now();
     process.env.OPS_EMAILS = '';
