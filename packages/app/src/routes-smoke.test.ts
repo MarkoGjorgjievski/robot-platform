@@ -1691,9 +1691,12 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(await brand2.locator('span').first().getAttribute('title'), 'the default cell does not carry its title').toBe("This website's default; a path that reads a value here wins");
     await expect.poll(() => page.getByText('Fills every product the paths leave empty.', { exact: false }).count(), { timeout: 10_000 }).toBe(1);
     expect(await page.getByText('not on any proof page', { exact: true }).count(), 'the shop name is in every page\'s footer, so the default must not warn').toBe(0);
+    // `site` (and so `keyOf`) was read before Brand joined the project in this walk; resolve the key fresh.
+    const brandKey = (await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).fields.find((f) => f.name === 'Brand')?.key;
+    expect(brandKey, 'no key for Brand').toBeTruthy();
     await expect
       .poll(async () => ((await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).verificationSet as { defaults?: Record<string, string> } | null)?.defaults, { timeout: 20_000, interval: 500, message: 'the default was not saved' })
-      .toEqual({ [keyOf('Brand')!]: 'Widget shop' });
+      .toEqual({ [brandKey!]: 'Widget shop' });
     await shootViewportBothThemes(page, 'app-site-verification-default');
 
     // Typing a value no proof page's footer shows turns the warning on; set it back.
