@@ -1079,6 +1079,7 @@ export const sourcesRouter = router({
           urls: set.urls, ...(set.listing_url ? { listingUrl: set.listing_url } : {}),
           descriptions: Object.fromEntries(defs.map((d) => [d.key, d.description])),
           expected: set.expected, ...(set.marks ? { marks: set.marks } : {}),
+          ...(set.absent ? { absent: set.absent } : {}), ...(set.defaults ? { defaults: set.defaults } : {}),
         }, contractFields(source.dataset?.schema));
         if (problems.length) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: problems.join('\n') });
 

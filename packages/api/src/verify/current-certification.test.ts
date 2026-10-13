@@ -328,3 +328,35 @@ describe('loadCurrentCertification', () => {
     }
   });
 });
+
+describe('a field passed by default only (spec 2026-10-13 §4/§5)', () => {
+  it('is current with no path, and the certification carries the default', async () => {
+    const s = await makeSchemaSource('default-only');
+    try {
+      const set = { ...(s.source.verificationSet as VerificationSet), defaults: { price: '9.99' } };
+      await db.update(sources).set({ verificationSet: set }).where(eq(sources.id, s.sourceId));
+      const fields = s.source.schemaDefinition as SchemaDefinitionField[];
+      const cells = Object.fromEntries(s.urls.map((u) => [u, { status: 'pass', found: '' }]));
+      await db.insert(sourceVerifications).values({
+        sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true,
+        results: { price: { ...fieldVerification([], { fieldHash: fieldHash(fields[0]!, set), cells }), defaultOnly: true } },
+      });
+      const currency = await loadFieldCurrency(db, s.sourceId);
+      expect(currency.currentKeys).toEqual(['price']);
+      const cert = await loadCurrentCertification(db, s.sourceId);
+      expect(cert?.paths).toEqual({ price: [] });
+      expect(cert?.defaults).toEqual({ price: '9.99' });
+    } finally { await s.cleanup(); }
+  });
+  it('a failed result with no path and no defaultOnly is still not current', async () => {
+    const s = await makeSchemaSource('no-path');
+    try {
+      const fields = s.source.schemaDefinition as SchemaDefinitionField[];
+      const set = s.source.verificationSet as VerificationSet;
+      const cells = Object.fromEntries(s.urls.map((u) => [u, { status: 'pass', found: '' }]));
+      await db.insert(sourceVerifications).values({ sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: false, results: { price: fieldVerification([], { fieldHash: fieldHash(fields[0]!, set), cells }) } });
+      expect((await loadFieldCurrency(db, s.sourceId)).currentKeys).toEqual([]);
+      expect((await loadCurrentCertification(db, s.sourceId))?.defaults ?? {}).toEqual({});
+    } finally { await s.cleanup(); }
+  });
+});

@@ -5,7 +5,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, orgs, projects, datasets, sources, runs, captures, extractions } from '@robot/db';
-import { driftedKeys, flagDrift } from './drift.js';
+import { blankDefaulted, driftedKeys, flagDrift } from './drift.js';
 
 describe('driftedKeys', () => {
   it('returns [] under DRIFT_MIN_ROWS (5) rows, no matter how bad the miss rate', () => {
@@ -124,5 +124,14 @@ describe('flagDrift', () => {
     expect(run!.driftedFields).toEqual([]);
     const [source] = await db.select().from(sources).where(eq(sources.id, sourceId));
     expect(source!.driftedFields).toBeNull();
+  });
+});
+
+describe('blankDefaulted (spec 2026-10-13 §5, property 7)', () => {
+  it('reads a row as empty for a defaulted field, and leaves everything else alone', () => {
+    const rows = [{ brand: 'Widgetco', price: 1 }, { brand: 'Widgetco', price: 2 }];
+    expect(blankDefaulted(rows, ['brand'], new Set(['brand']))).toEqual([{ brand: null, price: 1 }, { brand: null, price: 2 }]);
+    expect(blankDefaulted(rows, ['brand'], new Set())).toBe(rows);
+    expect(blankDefaulted(rows, [], new Set(['brand']))).toBe(rows);
   });
 });

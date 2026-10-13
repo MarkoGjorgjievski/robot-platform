@@ -192,7 +192,7 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
     // Each field's empty share in the run: as handed over at the start, else read from the run itself (a check started on demand).
     const upFront = ((check.results as DriftCheckResults | null)?.fields ?? {}) as Record<string, Partial<DriftFieldResult>>;
     const missing = Object.keys(out).filter((k) => typeof upFront[k]?.emptyShare !== 'number');
-    const fromRun = check.runId && missing.length > 0 ? await runEmptyShares(db, check.runId, missing) : {};
+    const fromRun = check.runId && missing.length > 0 ? await runEmptyShares(db, check.runId, missing, Object.keys(cert?.defaults ?? {})) : {};
     for (const key of Object.keys(out)) {
       const share = upFront[key]?.emptyShare ?? fromRun[key];
       if (typeof share === 'number') out[key] = { ...out[key]!, emptyShare: share };

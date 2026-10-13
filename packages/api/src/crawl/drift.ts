@@ -33,15 +33,26 @@ export function emptyShares(rows: Array<Record<string, unknown>>, keys: string[]
   return Object.fromEntries(keys.map((k) => [k, rows.length === 0 ? 0 : rows.filter((r) => r[k] === null || r[k] === undefined || r[k] === '').length / rows.length]));
 }
 
-/** Every row a run extracted, flattened across its extractions. */
-async function runRows(db: Database, runId: string): Promise<Array<Record<string, unknown>>> {
-  const found = await db.query.extractions.findMany({ where: eq(extractions.runId, runId), columns: { data: true } });
-  return found.flatMap((e) => (Array.isArray(e.data) ? (e.data as Array<Record<string, unknown>>) : []));
+/** Pure: the rows with every key the default filled (`defaulted`, from the extraction's validation_result) read as empty, for the keys in `defaultKeys` only — so a path that stopped hitting on a defaulted field still shows as drift (spec 2026-10-13 §5). The rows as given when nothing applies. */
+export function blankDefaulted(rows: Array<Record<string, unknown>>, defaulted: string[], defaultKeys: ReadonlySet<string>): Array<Record<string, unknown>> {
+  const blank = defaulted.filter((k) => defaultKeys.has(k));
+  if (blank.length === 0) return rows;
+  return rows.map((r) => ({ ...r, ...Object.fromEntries(blank.map((k) => [k, null])) }));
 }
 
-/** Each key's empty share in a finished run, read from its extractions — how a drift check started on demand learns the shares `flagDrift` handed the automatic one. */
-export async function runEmptyShares(db: Database, runId: string, keys: string[]): Promise<Record<string, number>> {
-  return emptyShares(await runRows(db, runId), keys);
+/** Every row a run extracted, flattened across its extractions; a field the default filled reads as empty for the keys in `defaultKeys`. */
+async function runRows(db: Database, runId: string, defaultKeys: ReadonlySet<string> = new Set()): Promise<Array<Record<string, unknown>>> {
+  const found = await db.query.extractions.findMany({ where: eq(extractions.runId, runId), columns: { data: true, validationResult: true } });
+  return found.flatMap((e) => blankDefaulted(
+    Array.isArray(e.data) ? (e.data as Array<Record<string, unknown>>) : [],
+    (e.validationResult as { defaulted?: string[] } | null)?.defaulted ?? [],
+    defaultKeys,
+  ));
+}
+
+/** Each key's empty share in a finished run, read from its extractions — how a drift check started on demand learns the shares `flagDrift` handed the automatic one. `defaultKeys`: the website's fields with a default, whose defaulted cells count as empty. */
+export async function runEmptyShares(db: Database, runId: string, keys: string[], defaultKeys: string[] = []): Promise<Record<string, number>> {
+  return emptyShares(await runRows(db, runId, new Set(defaultKeys)), keys);
 }
 
 /** Reads every row this run actually extracted, computes drift over the
@@ -53,8 +64,8 @@ export async function runEmptyShares(db: Database, runId: string, keys: string[]
  * Returns the drifted keys and each one's empty share in this run (drift
  * repair Task 2): the caller hands the shares to the drift check it starts,
  * which shows them as "% of products empty". */
-export async function flagDrift(db: Database, runId: string, sourceId: string, keys: string[]): Promise<{ keys: string[]; emptyShare: Record<string, number> }> {
-  const rows = await runRows(db, runId);
+export async function flagDrift(db: Database, runId: string, sourceId: string, keys: string[], defaultKeys: string[] = []): Promise<{ keys: string[]; emptyShare: Record<string, number> }> {
+  const rows = await runRows(db, runId, new Set(defaultKeys));
   const drifted = driftedKeys(rows, keys);
   await db.update(runs).set({ driftedFields: drifted }).where(eq(runs.id, runId));
   await db.update(sources).set({ driftedFields: drifted.length ? drifted : null, updatedAt: new Date() }).where(eq(sources.id, sourceId));

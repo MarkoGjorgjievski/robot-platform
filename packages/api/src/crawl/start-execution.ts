@@ -117,7 +117,12 @@ export function buildFinalise(
     // a partial, still-growing sample.
     if (certification && status !== 'extracting') {
       try {
-        const drift = await doFlagDrift(db, runId, sourceId, Object.keys(certification.paths));
+        const drift = await doFlagDrift(
+          db, runId, sourceId,
+          // A default-only field has no path and never drifts (spec 2026-10-13 §5).
+          Object.keys(certification.paths).filter((k) => certification.paths[k]!.length > 0),
+          Object.keys(certification.defaults ?? {}),
+        );
         if (drift.keys.length > 0) {
           void doStartDriftCheck(sourceId, runId, { emptyShare: drift.emptyShare })
             .catch((err) => console.error(`[crawl] drift check failed to start for run ${runId}:`, err));
