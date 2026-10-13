@@ -77,7 +77,7 @@ afterEach(async () => {
   orgId = null;
 });
 
-async function seedRunWithRows(rows: Array<Record<string, unknown>>) {
+async function seedRunWithRows(rows: Array<Record<string, unknown>>, validationResults: Array<unknown> = []) {
   const [org] = await db.insert(orgs).values({ name: SLUG, slug: SLUG }).returning();
   orgId = org!.id;
   const [project] = await db.insert(projects).values({ orgId: org!.id, name: SLUG, slug: SLUG }).returning();
@@ -90,6 +90,7 @@ async function seedRunWithRows(rows: Array<Record<string, unknown>>) {
     }).returning({ id: captures.id });
     await db.insert(extractions).values({
       sourceId: source!.id, captureId: capture!.id, runId: run!.id, data: [row], rowCount: 1,
+      ...(validationResults[i] ? { validationResult: validationResults[i] } : {}),
     });
   }
   return { runId: run!.id, sourceId: source!.id };
@@ -111,6 +112,19 @@ describe('flagDrift', () => {
     expect(run!.driftedFields).toEqual(['price']);
     const [source] = await db.select().from(sources).where(eq(sources.id, sourceId));
     expect(source!.driftedFields).toEqual(['price']);
+  });
+
+  it('reads a field the default filled as empty, from the persisted validationResult.defaulted (spec 2026-10-13 §5, property 7)', async () => {
+    // Seven of ten products: the price path missed and the website default 5.00 filled the cell.
+    const rows = [...Array.from({ length: 3 }, () => ({ price: 9.99 })), ...Array.from({ length: 7 }, () => ({ price: 5 }))];
+    const vrs = [...Array.from({ length: 3 }, () => ({ shown: {}, paths: {} })), ...Array.from({ length: 7 }, () => ({ shown: {}, paths: {}, defaulted: ['price'] }))];
+    const { runId, sourceId } = await seedRunWithRows(rows, vrs);
+
+    // Without the field named as having a default, the defaulted cells read as values.
+    expect(await flagDrift(db, runId, sourceId, ['price'])).toEqual({ keys: [], emptyShare: {} });
+    expect(await flagDrift(db, runId, sourceId, ['price'], ['price'])).toEqual({ keys: ['price'], emptyShare: { price: 0.7 } });
+    const [run] = await db.select().from(runs).where(eq(runs.id, runId));
+    expect(run!.driftedFields).toEqual(['price']);
   });
 
   it('writes an empty array on the run and null on the Source when nothing drifted', async () => {

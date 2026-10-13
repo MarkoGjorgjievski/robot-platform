@@ -509,6 +509,61 @@ describe('extractItem — with a certification', () => {
       expect(cap.validationResult).toEqual({ shown: { price: true, sku: null }, paths: { price: pricePath } });
     });
 
+    // Spec 2026-10-13 §5, properties 5 and 7: an entry missing a variant-level field takes the
+    // website default on that row only; `defaulted` names exactly the keys a stored row got by
+    // default — never a variant-level key the list overwrote with real values on every row.
+    describe('the website default on list-method variant rows', () => {
+      const skuPath = { source: 'json-ld' as const, path: 'sku', transform: 'identity' as const };
+      const run = async (entries: unknown[]) => {
+        const capture = fakeCapture([{ '@type': 'Product', hasVariant: entries }]);
+        // Both product-level paths missed; the product row carries both defaults.
+        const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+          data: { price: 5, sku: 'SKU-NONE' },
+          stats: [
+            { key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: false },
+            { key: 'sku', concept: 'sku', path: skuPath, hit: false },
+          ],
+          timings: null, capture, shown: { price: null, sku: null }, defaulted: ['price', 'sku'],
+        });
+        let data: Record<string, unknown>[] = [];
+        let validationResult: unknown;
+        const fakeDb = {
+          insert: () => ({
+            values: (v: Record<string, unknown>) => {
+              if ('data' in v) { data = v.data as Record<string, unknown>[]; validationResult = v.validationResult; }
+              return { returning: async () => [{ id: 'x' }] };
+            },
+          }),
+        } as never;
+        await extractItem(fakeDb, ITEM, {
+          browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r',
+          schema: [...CERT_SCHEMA, { name: 'sku', type: 'string', origin: 'detail' as const }],
+          schemaDefinition: [...SCHEMA_DEFINITION, { key: 'sku', name: 'SKU', type: 'text' as const, description: 'x', concept: 'sku' }],
+          certification: {
+            ...CERTIFICATION,
+            paths: { ...CERTIFICATION.paths, sku: [skuPath] },
+            concepts: { ...CERTIFICATION.concepts, sku: 'sku' },
+            defaults: { price: '5.00', sku: 'SKU-NONE' },
+          },
+          extractVerified, recordStats: async () => {}, variantPlan: VARIANT_PLAN,
+        });
+        return { data, validationResult };
+      };
+
+      it('fills the row whose entry has no SKU, keeps the row that has one, and names both filled keys', async () => {
+        const { data, validationResult } = await run([{ sku: 'SKU-BLK', color: 'Black' }, { color: 'Red' }]);
+        expect(data.map((r) => r.sku)).toEqual(['SKU-BLK', 'SKU-NONE']);
+        expect(data.map((r) => r.price)).toEqual([5, 5]);
+        expect(validationResult).toEqual({ shown: { price: null, sku: null }, paths: {}, defaulted: ['price', 'sku'] });
+      });
+
+      it('a variant-level key the list overwrote with real values on every row is not defaulted', async () => {
+        const { data, validationResult } = await run([{ sku: 'SKU-BLK', color: 'Black' }, { sku: 'SKU-RED', color: 'Red' }]);
+        expect(data.map((r) => r.sku)).toEqual(['SKU-BLK', 'SKU-RED']);
+        expect(validationResult).toEqual({ shown: { price: null, sku: null }, paths: {}, defaulted: ['price'] });
+      });
+    });
+
     // Review Focus 1: the site changed and the certified list is no longer on
     // the page (resolveVariantList → null). The run never fails over it — the
     // product gets its own one-row extraction, counted "without variants".
