@@ -22,7 +22,8 @@ export type Card = { url: string; title: string; image?: string };
  * accepted from (spec 2026-09-29 C1) — certification tries it first.
  */
 export type Answer = { value: string; mark: Mark | null; via?: Via; absent?: true };
-export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>> };
+/** `defaults`: the website's default per field key (spec 2026-10-13 §3), as typed — `defaultOf` trims. */
+export type Board = { listingUrl: string; cards: Card[]; descriptions: Record<string, string>; answers: Record<string, Record<string, Answer>>; defaults: Record<string, string> };
 export type Box = { xpaths: string[]; text: string; rect: Mark['rect']; tag: string; kind: 'text' | 'image' | 'link'; src?: string; href?: string };
 export type Via = { source: string; path: string };
 export type Suggestion = { captureId: string; value: string; boxes: number[]; origin: 'page-data' | 'from-product'; via?: Via };
@@ -39,7 +40,8 @@ function structuredVia(via: Via | undefined): StructuredVia | undefined {
 }
 const sameVia = (a: Via | undefined, b: Via | undefined) => !!a && !!b && a.source === b.source && a.path === b.path;
 
-type VerificationResultsLike = Record<string, { certified: unknown[]; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured' }> }>;
+/** `defaultOnly`: the field passed on its default alone, no path certified (spec 2026-10-13 §4). */
+type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured' }> }>;
 
 /** What `boardFrom` reads back — mirrors `@robot/scraper`'s `VerificationSet`
  * (not imported: that module graph reaches Playwright/the database/the
@@ -52,10 +54,11 @@ type StoredVerificationSet = {
   cards?: Card[];
   paths?: Record<string, Record<string, Via>>;
   absent?: Record<string, Record<string, true>>;
+  defaults?: Record<string, string>;
 };
 
 export function emptyBoard(): Board {
-  return { listingUrl: '', cards: [], descriptions: {}, answers: {} };
+  return { listingUrl: '', cards: [], descriptions: {}, answers: {}, defaults: {} };
 }
 
 export function boardFrom(source: { schemaDefinition: unknown; verificationSet: unknown }): Board {
@@ -89,7 +92,7 @@ export function boardFrom(source: { schemaDefinition: unknown; verificationSet: 
     if (Object.keys(kept).length > 0) answers[key] = kept;
   }
 
-  return { listingUrl: set.listing_url ?? '', cards, descriptions, answers };
+  return { listingUrl: set.listing_url ?? '', cards, descriptions, answers, defaults: { ...(set.defaults ?? {}) } };
 }
 
 export function toBindingInput(
@@ -97,7 +100,8 @@ export function toBindingInput(
   fields: Field[],
 ): {
   urls: string[]; listingUrl?: string; descriptions: Record<string, string>; expected: Record<string, Record<string, string>>;
-  marks?: Record<string, Record<string, Mark>>; paths?: Record<string, Record<string, StructuredVia>>; absent?: Record<string, Record<string, true>>; cards: Card[]; draft: true;
+  marks?: Record<string, Record<string, Mark>>; paths?: Record<string, Record<string, StructuredVia>>; absent?: Record<string, Record<string, true>>;
+  defaults?: Record<string, string>; cards: Card[]; draft: true;
 } {
   const urls = board.cards.map((c) => c.url.trim());
   const descriptions: Record<string, string> = {};
@@ -105,6 +109,9 @@ export function toBindingInput(
   const marks: Record<string, Record<string, Mark>> = {};
   const paths: Record<string, Record<string, StructuredVia>> = {};
   const absent: Record<string, Record<string, true>> = {};
+  // Sent on every autosave: `updateBinding` replaces the whole set, so a save without them would wipe them.
+  const defaults: Record<string, string> = {};
+  for (const f of fields) { const d = (board.defaults[f.key] ?? '').trim(); if (d) defaults[f.key] = d; }
 
   for (const f of fields) {
     descriptions[f.key] = board.descriptions[f.key] ?? f.description;
@@ -134,6 +141,7 @@ export function toBindingInput(
     ...(Object.keys(marks).length > 0 ? { marks } : {}),
     ...(Object.keys(paths).length > 0 ? { paths } : {}),
     ...(Object.keys(absent).length > 0 ? { absent } : {}),
+    ...(Object.keys(defaults).length > 0 ? { defaults } : {}),
     cards: board.cards,
     draft: true,
   };
@@ -236,9 +244,47 @@ export function isAbsent(board: Board, key: string, url: string): boolean {
   return board.answers[key]?.[url]?.absent === true;
 }
 
-/** `ABSENT_TEXT` for an absent cell, the caller's own value text otherwise. */
+/** `ABSENT_TEXT` for an absent cell, the caller's own value text otherwise, the website's default when that is blank. */
 export function cellText(board: Board, field: Field, url: string, fallback: () => string): string {
-  return isAbsent(board, field.key, url) ? ABSENT_TEXT : fallback();
+  return isAbsent(board, field.key, url) ? ABSENT_TEXT : (fallback() || displayValue(field, defaultOf(board, field.key) ?? ''));
+}
+
+/** Sets the website's default for a field (spec 2026-10-13 §3/§6); a blank removes it. A default and "not on this product" never coexist: the field's absent cells are cleared. */
+export function setDefault(board: Board, key: string, text: string): Board {
+  const defaults = { ...board.defaults };
+  const d = text.trim();
+  if (d) defaults[key] = text; else delete defaults[key];
+  const byUrl = Object.fromEntries(Object.entries(board.answers[key] ?? {}).filter(([, a]) => !a.absent));
+  const answers = { ...board.answers };
+  if (Object.keys(byUrl).length === 0) delete answers[key]; else answers[key] = byUrl;
+  return { ...board, defaults, answers: d ? answers : board.answers };
+}
+
+export function defaultOf(board: Board, key: string): string | undefined {
+  const d = (board.defaults[key] ?? '').trim();
+  return d || undefined;
+}
+
+/** A cell with no answer and no suggestion on a field with a default (spec §6): it shows the default, muted. */
+export function isDefaultCell(board: Board, field: Field, live: Suggestions, url: string): boolean {
+  return defaultOf(board, field.key) !== undefined && !board.answers[field.key]?.[url] && !live[field.key]?.[url];
+}
+
+/** The first value a row carries across the cards — an answer or a suggestion — for "Make it the default"; null when it carries none. */
+export function rowValue(board: Board, live: Suggestions, key: string): string | null {
+  for (const c of board.cards) {
+    const v = board.answers[key]?.[c.url]?.value ?? live[key]?.[c.url]?.value;
+    if (v && v.trim()) return v;
+  }
+  return null;
+}
+
+export const DEFAULT_ONLY_WORD = 'default only · no path reads it on this website';
+export const DEFAULT_CELL_TITLE = "This website's default; a path that reads a value here wins";
+
+/** The row word beside a verified badge for a field that passed by default only (spec 2026-10-13 §6); null otherwise or once the field changed since. */
+export function defaultOnlyWord(results: VerificationResultsLike | null, key: string, unchangedKeys: string[]): string | null {
+  return results?.[key]?.defaultOnly === true && unchangedKeys.includes(key) ? DEFAULT_ONLY_WORD : null;
 }
 
 export function setDescription(board: Board, key: string, text: string): Board {
@@ -491,7 +537,8 @@ export function rowStatus(
       continue;
     }
     const s = live[field.key]?.[card.url];
-    if (!s) { if (required) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
+    // A blank cell on a field with a default is filled by it (spec 2026-10-13 §6), never "missing".
+    if (!s) { if (required && defaultOf(board, field.key) === undefined) return { kind: 'needs-you', reason: `missing on product ${n}`, product: n }; continue; }
     // Spec 2026-10-12 §B1: a Title suggestion is never agreed unless it is the
     // page's main heading (Colourpop stored the shade name, "Drift", because
     // the JSON-LD name "agreed" on all three proof pages though the heading
@@ -652,7 +699,7 @@ export function badge(args: { key: string; results: VerificationResultsLike | nu
   const fv = args.results?.[args.key];
   if (!fv) return null;
   if (!args.unchangedKeys.includes(args.key)) return { kind: 'changed' };
-  if (fv.certified.length > 0) return { kind: 'verified' };
+  if (fv.certified.length > 0 || fv.defaultOnly === true) return { kind: 'verified' };
   const products = args.cards.flatMap((c, i) => (fv.cells[c.url]?.status === 'fail' ? [i + 1] : []));
   return products.length > 0 ? { kind: 'fails', products } : null;
 }
@@ -677,7 +724,11 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
     if (i < PRODUCTS_MIN) {
       for (const f of fields) {
         const a = board.answers[f.key]?.[url];
-        if (!a) return { ok: false, reason: `${f.name} still needs product ${n}`, gap: f.key };
+        if (!a) {
+          // The default fills it (spec 2026-10-13 §6); products four to six still need a real answer somewhere.
+          if (defaultOf(board, f.key) !== undefined) continue;
+          return { ok: false, reason: `${f.name} still needs product ${n}`, gap: f.key };
+        }
         if (a.absent) continue;
         const err = validateValue(f.type, a.value);
         if (err) return { ok: false, reason: `${f.name} on product ${n}: ${err}`, gap: f.key };

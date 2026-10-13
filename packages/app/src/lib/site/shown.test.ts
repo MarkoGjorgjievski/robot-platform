@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { numberShown, textShown, typedNotShown, normText } from './shown';
+import { numberShown, textShown, typedNotShown, normText, defaultNotShown } from './shown';
 import type { Field, Answer } from './verification-model';
 
 const brand: Field = { key: 'brand', name: 'Brand', type: 'text', description: 'brand', concept: 'brand' };
@@ -75,5 +75,18 @@ describe('typedNotShown (spec B2)', () => {
   });
   it('an empty page text (not yet captured) never warns', () => {
     expect(typedNotShown(title, typed('Anything at all'), '')).toBe(false);
+  });
+});
+
+describe('defaultNotShown (spec 2026-10-13 §6)', () => {
+  it('warns only when every captured proof page lacks the value', () => {
+    expect(defaultNotShown(brand, 'Gymshark', ['gymshark we do gym', 'shop gymshark'])).toBe(false);
+    expect(defaultNotShown(brand, 'Gymshark', ['gymshark we do gym', 'nothing here'])).toBe(false);
+    expect(defaultNotShown(brand, 'Gymshark | We Do Gym', ['gymshark shorts', 'gymshark tops'])).toBe(true);
+  });
+  it('is inert with no captured text, a blank value, or an unchecked type', () => {
+    expect(defaultNotShown(brand, 'Gymshark', ['', ''])).toBe(false);
+    expect(defaultNotShown(brand, '  ', ['x'])).toBe(false);
+    expect(defaultNotShown(available, 'yes', ['x'])).toBe(false);
   });
 });

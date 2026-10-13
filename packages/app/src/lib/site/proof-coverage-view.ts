@@ -14,14 +14,19 @@ export type ProofCoverageView = {
 
 export const AT_LIMIT = 'This website has its six proof pages';
 export const ON_BOARD = 'already a proof page';
+/** The line under a default-only field's row (spec 2026-10-13 §8): no path, so nothing is sampled for it. */
+export const EVERY_PRODUCT_DEFAULT = 'Every product gets the default';
 
 /**
  * The line under a field's row. `onBoard`: the representative is already one of
  * the board's cards (the sampler compares addresses loosely), so there is
  * nothing to add — the line says so instead of offering "Use as proof page".
+ * `hasDefault`: the field has a website default, which filled the products
+ * its paths left empty (spec 2026-10-13 §5) — the page is still offered.
  */
-export function coverageLine(f: ProofCoverageView['fields'][number], atLimit: boolean, onBoard = false): { text: string; useAsProofPage: string | null } {
-  const parts = [`Empty on ${f.empty.length} of ${f.sampled} sampled ${f.sampled === 1 ? 'product' : 'products'}`];
+export function coverageLine(f: ProofCoverageView['fields'][number], atLimit: boolean, onBoard = false, opts: { hasDefault?: boolean } = {}): { text: string; useAsProofPage: string | null } {
+  const noun = f.sampled === 1 ? 'product' : 'products';
+  const parts = [opts.hasDefault ? `The default filled ${f.empty.length} of ${f.sampled} sampled ${noun}` : `Empty on ${f.empty.length} of ${f.sampled} sampled ${noun}`];
   if (f.explanation) parts.push(f.explanation);
   if (onBoard) parts.push(ON_BOARD);
   else if (atLimit) parts.push(AT_LIMIT);

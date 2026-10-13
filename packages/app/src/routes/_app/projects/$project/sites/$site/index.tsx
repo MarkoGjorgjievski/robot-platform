@@ -28,10 +28,13 @@ import {
   boardFrom,
   canSave,
   cellText,
+  defaultOf,
+  defaultOnlyWord,
   displayValue,
   dropCard,
   fieldsFor,
   isAbsent,
+  isDefaultCell,
   liveSuggestions,
   markAbsent,
   mergeSuggestions,
@@ -42,8 +45,10 @@ import {
   pointable,
   reverifyScope,
   rowStatus,
+  rowValue,
   segment,
   setCards,
+  setDefault,
   setDescription,
   shortUrl,
   suggestionAnswer,
@@ -63,7 +68,7 @@ import {
   type Suggestion,
   type Suggestions,
 } from '../../../../../../lib/site/verification-model';
-import { typedNotShown } from '../../../../../../lib/site/shown';
+import { defaultNotShown, typedNotShown } from '../../../../../../lib/site/shown';
 import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
 import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
@@ -71,7 +76,7 @@ import { stripState, verifyButton } from '../../../../../../lib/site/verify-butt
 import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
-import { coverageLine, coverageStage, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
+import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -1189,10 +1194,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const atLimit = board.cards.length >= PRODUCTS_MAX;
   function coverageFor(f: Field): TableRow['coverage'] {
     const c = coverage?.status === 'done' ? coverage.fields.find((x) => x.key === f.key) : undefined;
-    if (!c) return undefined;
+    if (!c) {
+      // A default-only field has no path to sample (spec 2026-10-13 §8): every product gets the default.
+      if (results?.[f.key]?.defaultOnly && unchangedKeys.includes(f.key)) return { text: EVERY_PRODUCT_DEFAULT, onUseAsProofPage: null };
+      return undefined;
+    }
     // The sampler compares addresses loosely, so its representative may already be a card: nothing to add then.
     const onBoard = !!c.representative && board.cards.some((card) => card.url === c.representative);
-    const line = coverageLine(c, atLimit, onBoard);
+    const line = coverageLine(c, atLimit, onBoard, { hasDefault: defaultOf(board, f.key) !== undefined });
     return {
       text: line.text,
       onUseAsProofPage: line.useAsProofPage
@@ -1206,7 +1215,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     };
   }
 
-  /** What a cell shows: "not on this product" if marked absent, else the answer, else the live suggestion, displayed for the field's type. */
+  /** What a cell shows: "not on this product" if marked absent, else the answer, else the live suggestion, else the website's default, displayed for the field's type. */
   function cellValue(f: Field, url: string): string {
     return cellText(board, f, url, () => displayValue(f, board.answers[f.key]?.[url]?.value ?? live[f.key]?.[url]?.value ?? ''));
   }
@@ -1264,6 +1273,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const rows: TableRow[] = fields.map((f, fi) => {
     const a = detailUrl ? board.answers[f.key]?.[detailUrl] : undefined;
     const typed = a && a.mark === null ? a.value : '';
+    const def = board.defaults[f.key] ?? '';
     return {
       field: f,
       drift: driftLinesFor(f),
@@ -1279,7 +1289,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         // not show warns but never blocks — an empty pageText (not captured
         // yet) is inert.
         notOnPage: typedNotShown(f, board.answers[f.key]?.[c.url], pageFacts[c.url]?.pageText ?? ''),
+        isDefault: isDefaultCell(board, f, live, c.url),
       })),
+      hasDefault: defaultOf(board, f.key) !== undefined,
+      defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       count: headerCount(results, f.key, unchangedKeys, board.cards),
       expanded: !!expanded[f.key],
@@ -1294,11 +1307,23 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           setBoard((b) => answer(b, f.key, detailUrl, text.trim() ? { value: text, mark: null } : null));
         },
         onDescription: (text: string) => setBoard((b) => setDescription(b, f.key, text)),
+        // Spec 2026-10-13 §6: validated as a typed value is; warns, never blocks, when no captured proof page shows it.
+        defaultValue: def,
+        defaultError: def.trim() !== '' ? (validateValue(f.type, def) ?? undefined) : undefined,
+        defaultWarn: defaultNotShown(f, def, board.cards.map((c) => pageFacts[c.url]?.pageText ?? '')),
+        onDefault: (text: string) => setBoard((b) => setDefault(b, f.key, text)),
         focusTyped: typeFocus.key === f.key ? typeFocus.n : 0,
       },
       // A row whose paths disagree accepts only the majority's cells (spec A4).
       onAccept: () => setBoard((b) => acceptRow(b, f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined)),
       onToggle: () => setExpanded((e) => ({ ...e, [f.key]: !e[f.key] })),
+      // Same-everywhere's second action (spec 2026-10-13 §6): the row's value becomes the default and the row is
+      // accepted as "Accept anyway" would, so the cells keep their path — it certifies, the default is the fallback.
+      onMakeDefault: () => {
+        const v = rowValue(board, live, f.key);
+        if (!v) return;
+        setBoard((b) => acceptRow(setDefault(b, f.key, v), f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined));
+      },
     };
   });
 
@@ -1354,7 +1379,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onCopy: () => copyCell(selection),
             onFix: () => fixCell(selection),
             onTypeIt: () => typeIt(detailField.key),
-            onAbsent: url && !isAbsent(board, detailField.key, url) ? () => markAbsentCell(selection) : null,
+            onAbsent: url && !isAbsent(board, detailField.key, url) && defaultOf(board, detailField.key) === undefined ? () => markAbsentCell(selection) : null,
             absent: url !== '' && isAbsent(board, detailField.key, url),
             // A card with no URL has no screenshot to take.
             preview: panelOpen || !url ? null : (

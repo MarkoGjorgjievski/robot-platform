@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coverageLine, coverageStage } from './proof-coverage-view';
+import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT } from './proof-coverage-view';
 
 const f = { key: 'price', empty: ['https://s.example/p/10', 'https://s.example/p/11'], sampled: 20, explanation: 'all 2 list their sizes as variants in the page data', representative: 'https://s.example/p/10' };
 
@@ -28,4 +28,15 @@ describe('coverageStage', () => {
     expect(coverageStage(null, { status: 'running', stage: 'Checking 20 more products from the listing…', fields: [] })).toBe('Checking 20 more products from the listing…');
     expect(coverageStage(null, null)).toBeNull();
   });
+});
+
+describe('coverageLine with a default (spec 2026-10-13 §5/§8)', () => {
+  it('says the default filled the empties and still offers the page', () => {
+    expect(coverageLine({ ...f, explanation: null }, false, false, { hasDefault: true })).toEqual({ text: 'The default filled 2 of 20 sampled products', useAsProofPage: 'https://s.example/p/10' });
+    expect(coverageLine({ ...f, empty: [f.empty[0]!], sampled: 1, explanation: null }, false, false, { hasDefault: true }).text).toBe('The default filled 1 of 1 sampled product');
+  });
+  it('keeps the explanation and the limit after it', () => {
+    expect(coverageLine(f, true, false, { hasDefault: true }).text).toBe('The default filled 2 of 20 sampled products · all 2 list their sizes as variants in the page data · This website has its six proof pages');
+  });
+  it('names the default-only line', () => expect(EVERY_PRODUCT_DEFAULT).toBe('Every product gets the default'));
 });
