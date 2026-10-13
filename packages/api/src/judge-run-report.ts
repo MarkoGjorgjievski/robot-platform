@@ -222,7 +222,7 @@ export type Confusion = {
   correctShown: number;
   /** No flag was stored, or the field's type is not checkable (`url`/`image`/`boolean`/`date`); either way the free check says nothing. */
   unflagged: number;
-  /** Every cell judged `wrong`, flagged or not — the denominator for "caught n of m". */
+  /** Every cell judged `wrong`, flagged or not. The sentence's "caught n of m" uses only the flagged ones (`wrongNotShown + wrongShown`). */
   wrongTotal: number;
 };
 
@@ -253,6 +253,9 @@ export function confusionCounts(items: ItemResult[]): Confusion {
 /** The confusion table and its one-sentence takeaway, for the report's summary. */
 export function confusionTable(items: ItemResult[]): string[] {
   const c = confusionCounts(items);
+  // Final review M3: the catch rate is out of the wrong values the flag had a
+  // say on — an unflagged wrong value is neither caught nor missed.
+  const flaggedWrong = c.wrongNotShown + c.wrongShown;
   return [
     '| Shown flag vs. verdict | Count |',
     '|---|---:|',
@@ -262,8 +265,20 @@ export function confusionTable(items: ItemResult[]): string[] {
     `| Correct & shown | ${c.correctShown} |`,
     `| Unflagged (no flag or not checkable) | ${c.unflagged} |`,
     '',
-    `The free flag caught ${c.wrongNotShown} of the ${c.wrongTotal} wrong values; it flagged ${c.correctNotShown} correct values.`,
+    `The free flag caught ${c.wrongNotShown} of the ${flaggedWrong} flagged wrong value${flaggedWrong === 1 ? '' : 's'}; it flagged ${c.correctNotShown} correct value${c.correctNotShown === 1 ? '' : 's'}.`,
   ];
+}
+
+/**
+ * The flag's false positives, one per cell: a value the judge (or the local
+ * text pass) called correct that the run flagged not shown — the cells needed
+ * to tune the rule (final review M3). Items whose capture failed are ignored,
+ * as in `confusionCounts`.
+ */
+export function correctNotShownCells(items: ItemResult[]): Array<{ url: string; field: string; value: unknown }> {
+  return items.flatMap((item) => item.captureError ? [] : item.cells
+    .filter((c) => c.verdict === 'correct' && c.shown === false)
+    .map((c) => ({ url: item.url, field: c.field, value: c.value })));
 }
 
 /** `true`/`false`/`—` for the shown flag — `—` covers both "no flag stored" and "not checkable" (null). */
@@ -340,6 +355,15 @@ export function renderReport(r: ReportInput): string {
         `  - shown: ${shownText(c.shown)}`,
         `  - judge's reading (uncalibrated): ${c.judgeReading ? cellText(c.judgeReading) : '(none returned)'}`);
     }
+  }
+
+  L.push('', '## Correct values flagged not shown', '');
+  const falseFlags = correctNotShownCells(r.items);
+  if (falseFlags.length === 0) {
+    L.push('None.');
+  } else {
+    const nameOf = (key: string) => r.fields.find((f) => f.key === key)?.name ?? key;
+    for (const f of falseFlags) L.push(`- **${nameOf(f.field)}** — ${f.url}`, `  - extracted: ${showValue(f.value)}`);
   }
 
   L.push('', '## Notes', '',

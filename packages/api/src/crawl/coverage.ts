@@ -30,10 +30,17 @@ export type FieldCoverage = {
 export type ItemGap = { itemId: string; url: string; missingFields: string[] };
 /** The certified path a field's value came from — just enough for the run page's unshown panel to name it (spec §5/§7's "from {source} ({path})"). */
 export type UnshownPath = { source: string; path: string };
+/**
+ * How many not-shown items `unshownItems` carries: the results sheet's row
+ * limit, so every row the sheet loads can be marked, not just the first 50
+ * (final review I4). Each entry is only a url, field names and their paths.
+ */
+export const UNSHOWN_ITEMS_MAX = 500;
+
 export type RunCoverage = {
   fields: FieldCoverage[];
   gapItems: ItemGap[];
-  /** Items with at least one field flagged `false`, in item order, first 50. */
+  /** Items with at least one field flagged `false`, in item order, first `UNSHOWN_ITEMS_MAX` (500). */
   unshownItems: Array<{ url: string; fields: string[]; paths?: Record<string, UnshownPath> }>;
 };
 
@@ -81,7 +88,7 @@ export function computeCoverage(
     if (missingFields.length > 0) {
       gapItems.push({ itemId: item.id, url: item.url, missingFields });
     }
-    if (unshownFields.length > 0 && unshownItems.length < 50) {
+    if (unshownFields.length > 0 && unshownItems.length < UNSHOWN_ITEMS_MAX) {
       // `paths` is omitted entirely rather than set to `undefined`/`null` when
       // the item carries none — keeps a run with no validation_result (Review
       // Focus 4) byte-identical to today's `unshownItems` shape.

@@ -16,6 +16,7 @@ import type { db as Database } from '@robot/db';
 import type { VariantRunPlan } from '@robot/scraper';
 import { finaliseRun, refreshVariantSummary } from './roll-up-run.js';
 import { isCancelledStatus } from './is-cancelled.js';
+import type { ValidationResult } from './extract-item.js';
 
 function isEmpty(value: unknown): boolean {
   return value == null || value === '';
@@ -70,14 +71,17 @@ export async function mergeBackfillResult(
     // Final review C1: every row of the backfill's own extraction, not only
     // `row` (= its rows[0]) — a healed list-method product keeps all of its
     // variant rows.
-    const healRows = await loadBackfillRows(db, extractionId, row);
+    const { rows: healRows, validationResult: healResult } = await loadBackfill(db, extractionId, row);
 
+    // Spec 2026-10-12 §4 (final review M2): a healed row carries the shown
+    // flags of the extraction it came from, whole, like its data.
     const [extraction] = await db.insert(extractions).values({
       sourceId: parentRun.sourceId,
       captureId,
       runId: parentItem.runId,
       data: healRows,
       rowCount: healRows.length,
+      ...(healResult ? { validationResult: healResult } : {}),
     }).returning({ id: extractions.id });
 
     // Still missing = empty on any heal row (the multi-row rule below).
@@ -115,6 +119,7 @@ export async function mergeBackfillResult(
   }
 
   const parentRows = ((parentItem.extraction.data as Record<string, unknown>[] | null) ?? []) as Record<string, unknown>[];
+  const parentResult = (parentItem.extraction.validationResult as ValidationResult | null) ?? null;
 
   // Today's path, byte-for-byte: a single-row extraction merges the
   // backfill's one `row` straight into row 0 by position (the only position
@@ -140,9 +145,11 @@ export async function mergeBackfillResult(
     for (const field of newlyFilled) absentSet.delete(field);
 
     const clearedPartial = clearResolvedPartials([data0], variantPlan);
+    const { validationResult: backfillResult } = await loadBackfill(db, extractionId, row);
+    const mergedResult = mergeValidationResult(parentResult, backfillResult, newlyFilled);
 
     await db.update(extractions)
-      .set({ data: [data0], rowCount: 1 })
+      .set({ data: [data0], rowCount: 1, ...(mergedResult ? { validationResult: mergedResult } : {}) })
       .where(eq(extractions.id, parentItem.extraction.id));
 
     await db.update(runItems)
@@ -170,7 +177,7 @@ export async function mergeBackfillResult(
   // unmatched row is expected whenever the backfill's own re-extraction
   // dropped the key-composing field; extract-item.ts's focus filter now
   // always keeps `skuKey`/`gtinKey` precisely to make that rare.
-  const backfillRows = await loadBackfillRows(db, extractionId, row);
+  const { rows: backfillRows, validationResult: backfillResult } = await loadBackfill(db, extractionId, row);
 
   const parentIndexByKey = new Map<string, number>();
   parentRows.forEach((r, i) => {
@@ -180,6 +187,7 @@ export async function mergeBackfillResult(
 
   const mergedRows = parentRows.map((r) => ({ ...r }));
   let unmatchedCount = 0;
+  const filledFields = new Set<string>();
 
   for (const backfillRow of backfillRows) {
     const key = backfillRow._variant_key;
@@ -191,7 +199,7 @@ export async function mergeBackfillResult(
     const target = mergedRows[parentIndex]!;
     for (const field of targetFields) {
       if (!isEmpty(target[field])) continue; // filled parent cells are never touched
-      if (!isEmpty(backfillRow[field])) target[field] = backfillRow[field];
+      if (!isEmpty(backfillRow[field])) { target[field] = backfillRow[field]; filledFields.add(field); }
     }
   }
 
@@ -214,9 +222,10 @@ export async function mergeBackfillResult(
   }
 
   const clearedPartial = clearResolvedPartials(finalRows, variantPlan);
+  const mergedResult = mergeValidationResult(parentResult, backfillResult, [...filledFields]);
 
   await db.update(extractions)
-    .set({ data: finalRows, rowCount: finalRows.length })
+    .set({ data: finalRows, rowCount: finalRows.length, ...(mergedResult ? { validationResult: mergedResult } : {}) })
     .where(eq(extractions.id, parentItem.extraction.id));
 
   await db.update(runItems)
@@ -256,7 +265,33 @@ function clearResolvedPartials(rows: Record<string, unknown>[], plan: VariantRun
 }
 
 /**
- * The backfill item's full set of re-extracted rows. `onDone` (execute-run.ts)
+ * Spec 2026-10-12 §4 (final review M2): a cell the backfill filled carries the
+ * backfill's shown flag and path for that field; every other field keeps the
+ * parent's. A filled field the backfill has no flag for drops the parent's
+ * stale one (it described the empty cell), so it reads "not checked". Returns
+ * null when nothing changes, so the parent's `validation_result` is left as is
+ * (a run with none stays with none).
+ */
+function mergeValidationResult(
+  parent: ValidationResult | null,
+  backfill: ValidationResult | null,
+  filledFields: string[],
+): ValidationResult | null {
+  if (filledFields.length === 0 || (!parent && !backfill)) return null;
+  const shown = { ...(parent?.shown ?? {}) };
+  const paths = { ...(parent?.paths ?? {}) };
+  for (const field of filledFields) {
+    const flag = backfill?.shown?.[field];
+    if (flag === undefined) delete shown[field]; else shown[field] = flag;
+    const path = backfill?.paths?.[field];
+    if (path === undefined) delete paths[field]; else paths[field] = path;
+  }
+  return { shown, paths };
+}
+
+/**
+ * The backfill item's full set of re-extracted rows, and its extraction's
+ * `validationResult` (null when it has none). `onDone` (execute-run.ts)
  * only threads `row` (= `rows[0]`, extract-item.ts's persistRows contract) to
  * keep every non-variants caller's signature unchanged — the rest of a
  * multi-row re-extraction lives in the backfill's own extraction record,
@@ -264,18 +299,20 @@ function clearResolvedPartials(rows: Record<string, unknown>[], plan: VariantRun
  * extraction id (defensive; every merge-enabled caller passes one) or its
  * row set can't be read, so a single element is still available to merge.
  */
-async function loadBackfillRows(
+async function loadBackfill(
   db: typeof Database,
   extractionId: string | null,
   row: Record<string, unknown>,
-): Promise<Record<string, unknown>[]> {
+): Promise<{ rows: Record<string, unknown>[]; validationResult: ValidationResult | null }> {
   if (extractionId) {
-    const [backfillExtraction] = await db.select({ data: extractions.data }).from(extractions)
+    const [backfillExtraction] = await db.select({ data: extractions.data, validationResult: extractions.validationResult }).from(extractions)
       .where(eq(extractions.id, extractionId));
+    const validationResult = (backfillExtraction?.validationResult as ValidationResult | null | undefined) ?? null;
     const rows = backfillExtraction?.data;
-    if (Array.isArray(rows) && rows.length > 0) return rows as Record<string, unknown>[];
+    if (Array.isArray(rows) && rows.length > 0) return { rows: rows as Record<string, unknown>[], validationResult };
+    return { rows: [row], validationResult };
   }
-  return [row];
+  return { rows: [row], validationResult: null };
 }
 
 /**

@@ -90,8 +90,8 @@ describe('computeCoverage', () => {
     ]);
   });
 
-  it('unshownItems is capped at 50, in item order', () => {
-    const items = Array.from({ length: 60 }, (_, i) => ({
+  it('unshownItems is capped at 500 (the sheet\'s row limit), in item order', () => {
+    const items = Array.from({ length: 510 }, (_, i) => ({
       id: `item-${i}`,
       url: `u${i}`,
       row: { price: '12' },
@@ -99,10 +99,10 @@ describe('computeCoverage', () => {
       shown: { price: false },
     }));
     const out = computeCoverage([{ name: 'price' }], items);
-    expect(out.unshownItems).toHaveLength(50);
+    expect(out.unshownItems).toHaveLength(500);
     expect(out.unshownItems[0]).toEqual({ url: 'u0', fields: ['price'] });
-    expect(out.unshownItems[49]).toEqual({ url: 'u49', fields: ['price'] });
-    expect(out.fields[0]).toMatchObject({ notShown: 60, checked: 60 });
+    expect(out.unshownItems[499]).toEqual({ url: 'u499', fields: ['price'] });
+    expect(out.fields[0]).toMatchObject({ notShown: 510, checked: 510 });
   });
 
   // Spec 2026-10-12 §5: the run page's unshown panel names the certified

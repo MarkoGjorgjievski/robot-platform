@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
 import { PlaywrightBrowser } from '@robot/browser';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { buildBoxMapScript, boxesFromAnnotation } from '@robot/scraper';
+import { buildBoxMapScript, boxesFromAnnotation, pageTextOf } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { signedInCaller } from '../test-helpers/identity.js';
@@ -32,8 +32,8 @@ beforeAll(async () => {
 afterAll(async () => { await browser.close(); delete process.env.CAPTURES_DIR; await rm(dir, { recursive: true, force: true }); });
 
 /** A captured proof page for `url`: fixture html + structured data, box map built by real Chromium. */
-async function seedProofPage(sourceId: string, url: string, page: 'p1' | 'p2' | 'p3') {
-  const fixture = { ...SHOP_EXAMPLE[page], url };
+async function seedProofPage(sourceId: string, url: string, page: 'p1' | 'p2' | 'p3', html?: string) {
+  const fixture = { ...SHOP_EXAMPLE[page], url, ...(html ? { html } : {}) };
   const boxes = boxesFromAnnotation(await browser.setContentEvaluate<unknown>(fixture.html, buildBoxMapScript()));
   const now = new Date().toISOString();
   const [row] = await db.insert(captures).values({ sourceId, url, html: fixture.html, metadata: { kind: 'proof-page', status: 'captured', url, startedAt: now, capturedAt: now, tiles: ['/captures/x.png'], boxes, pageHeight: 900, capturedHeight: 900, contentHeight: 900 } }).returning({ id: captures.id });
@@ -68,7 +68,7 @@ describe('sources.suggestMarks', () => {
     } finally { await f.cleanup(); }
   });
 
-  it('reports the page heading and a lower-cased, capped page text', async () => {
+  it('reports the page heading and the whole lower-cased page text', async () => {
     const f = await createProjectWithSource(caller, { tag: 'marks-sug-head', fields: [{ name: 'Price', type: 'money' }, { name: 'Title', type: 'text' }] });
     try {
       const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1');
@@ -76,7 +76,30 @@ describe('sources.suggestMarks', () => {
       expect(r.headingText).toBe('Widget A'); // the fixture's <h1>
       expect(r.pageText).toBe(r.pageText.toLowerCase());
       expect(r.pageText).toContain('widget a');
-      expect(r.pageText.length).toBeLessThanOrEqual(8000);
+      expect(r.pageText).toBe(pageTextOf(SHOP_EXAMPLE.p1.html)); // the whole text, uncapped (I2)
+    } finally { await f.cleanup(); }
+  });
+
+  it('reads the heading from the HTML: an h1 whose text sits in a span; the page text is never cut (I3, I2)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-sug-span', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const menu = `<nav class="mega">${'Shop all categories and collections '.repeat(300)}</nav>`;
+      const html = SHOP_EXAMPLE.p1.html.replace('<div id="main"><h1>Widget A</h1>', `${menu}<div id="main"><h1><span>Widget A</span></h1>`);
+      const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1', html);
+      const r = await caller.sources.suggestMarks({ captureId: id });
+      expect(r.headingText).toBe('Widget A');
+      expect(r.pageText.length).toBeGreaterThan(8000);
+      expect(r.pageText).toContain('$129.99'); // shown after 10k characters of menu
+    } finally { await f.cleanup(); }
+  });
+
+  it('falls back to the largest heading box only when the HTML has no h1', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-sug-h2', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const html = SHOP_EXAMPLE.p1.html.replace('<h1>Widget A</h1>', '<h2>Widget A</h2>');
+      const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1', html);
+      const r = await caller.sources.suggestMarks({ captureId: id });
+      expect(r.headingText).toBe('Widget A');
     } finally { await f.cleanup(); }
   });
 });
