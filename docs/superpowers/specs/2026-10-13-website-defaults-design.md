@@ -8,7 +8,9 @@ No") were discussed and dropped from this spec (§11).
 **Status:** implemented on `feat/website-defaults` and merged into `main` 2026-10-13 (fast-forward,
 `8008afa`) after a whole-branch review (0 critical, 3 important, one fix wave, re-review clean).
 Route smoke on `main`: 23 of 24 on the first run (the failure was the test's own stale key lookup,
-fixed in `42df0e2`); the re-run and the §10 live check are still to run (`docs/handoff.md`).
+fixed in `42df0e2`); the re-run from Marko's terminal wrote every screenshot, the default-cell pair
+included (`90ca60b`). The §10 live check: `docs/testing/results/2026-10-13-website-defaults-live-check.md`
+(see `docs/handoff.md` for its outcome).
 
 **Deviations:**
 - `Certification.defaults` stores the trimmed text as typed; normalisation happens at fill time
