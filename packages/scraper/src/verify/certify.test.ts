@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { certify, checkedPages, gatherCandidates, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
 import type { DomHit } from './dom-scripts.js';
 import type { Mark, SchemaDefinitionField } from './types.js';
@@ -598,5 +598,108 @@ describe('certify — "not on this product" (spec 2026-10-10 §B2)', () => {
     expect(r.certified).toEqual([]);
     expect(r.cells['https://d.example/w4']).toEqual({ status: 'pass', found: '', path: jsonLd });
     expect(r.cells['https://d.example/w3']).toMatchObject({ status: 'fail' });
+  });
+});
+
+describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
+  const brand = { key: 'brand', name: 'Brand', type: 'text' as const, description: 'the maker', concept: 'brand' };
+  const G = ['https://g.example/1', 'https://g.example/2', 'https://g.example/3'];
+  const page = (url: string, ld: Record<string, unknown>, site = 'Gymshark | We Do Gym'): CaptureLike => ({
+    url, html: '<html></html>',
+    structuredData: { ldJson: [ld], nextData: null, initialState: null, meta: { 'og:site_name': site } },
+    interceptedRequests: [],
+  });
+  const named = (url: string, name = 'Gymshark') => page(url, { brand: { name } });
+  const plain = { [G[0]!]: named(G[0]!), [G[1]!]: named(G[1]!), [G[2]!]: named(G[2]!) };
+  const blank = { [G[0]!]: '', [G[1]!]: '', [G[2]!]: '' };
+  const brandName = { source: 'json-ld' as const, path: 'brand.name', transform: 'identity' as const };
+  const siteName = { source: 'meta' as const, path: 'og:site_name', transform: 'identity' as const };
+  const nothing = { source: 'json-ld' as const, path: 'vendor.name', transform: 'identity' as const };
+  const deps = { evalXPaths: async () => ({}) };
+
+  it('expectedWithDefault fills every blank, non-absent cell with the default and leaves a typed value alone', () => {
+    expect(expectedWithDefault(G, { [G[1]!]: 'Gymshark x Whitney' }, 'Gymshark')).toEqual({ [G[0]!]: 'Gymshark', [G[1]!]: 'Gymshark x Whitney', [G[2]!]: 'Gymshark' });
+    expect(expectedWithDefault(G, { [G[1]!]: 'x' }, undefined)).toEqual({ [G[1]!]: 'x' });
+    expect(expectedWithDefault(G, {}, '  ')).toEqual({});
+    expect(expectedWithDefault(G, {}, 'Gymshark', { [G[2]!]: true })).toEqual({ [G[0]!]: 'Gymshark', [G[1]!]: 'Gymshark' });
+  });
+
+  it('with nothing typed, a fitting path that reads the default on every page certifies; one that reads another value never does (property 1)', async () => {
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: plain, candidates: [brandName, siteName] }, deps);
+    expect(r.certified).toEqual([brandName]);
+    expect(r.defaultOnly).toBeUndefined();
+    expect(r.cells[G[0]!]).toEqual({ status: 'pass', found: 'Gymshark', path: brandName });
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+
+  it('a typed value equal to the default, whatever its spaces and case, is a default cell', async () => {
+    const r = await certify({ field: brand, expected: { ...blank, [G[1]!]: '  gymshark ' }, defaultValue: 'Gymshark', captures: plain, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([brandName]);
+    expect(r.cells[G[1]!]).toMatchObject({ status: 'pass', found: 'Gymshark' });
+  });
+
+  it('a path that reads nothing anywhere never certifies; with no other path the field passes by default only (properties 2, 3)', async () => {
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: plain, candidates: [nothing] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.defaultOnly).toBe(true);
+    expect(r.cells).toEqual(Object.fromEntries(G.map((u) => [u, { status: 'pass', found: '' }])));
+    expect(r.incomplete).toBe(false);
+  });
+
+  it('a typed value that differs from the default forbids default only: the cell fails as today (property 3)', async () => {
+    const caps = { ...plain, [G[1]!]: page(G[1]!, { name: 'x' }) };
+    const r = await certify({ field: brand, expected: { ...blank, [G[1]!]: 'Gymshark x Whitney' }, defaultValue: 'Gymshark', captures: caps, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.defaultOnly).toBeUndefined();
+    expect(r.cells[G[1]!]).toMatchObject({ status: 'fail', reason: 'not_found' });
+  });
+
+  it('a path that reads the typed collab value on its page and the default elsewhere certifies on every page', async () => {
+    const caps = { ...plain, [G[1]!]: named(G[1]!, 'Gymshark x Whitney') };
+    const r = await certify({ field: brand, expected: { ...blank, [G[1]!]: 'Gymshark x Whitney' }, defaultValue: 'Gymshark', captures: caps, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([brandName]);
+    expect(r.cells[G[1]!]).toMatchObject({ status: 'pass', found: 'Gymshark x Whitney' });
+  });
+
+  it('a path empty on the default cells and reading the typed value elsewhere certifies: empty is correct on a default cell', async () => {
+    const caps = { [G[0]!]: page(G[0]!, { name: 'a' }), [G[1]!]: named(G[1]!, 'Gymshark x Whitney'), [G[2]!]: page(G[2]!, { name: 'c' }) };
+    const r = await certify({ field: brand, expected: { ...blank, [G[1]!]: 'Gymshark x Whitney' }, defaultValue: 'Gymshark', captures: caps, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([brandName]);
+    expect(r.cells[G[0]!]).toEqual({ status: 'pass', found: '', path: brandName });
+    expect(r.cells[G[1]!]).toMatchObject({ status: 'pass', found: 'Gymshark x Whitney' });
+  });
+
+  it('a weak field whose only matching path does not fit the concept passes by default only, never on that path', async () => {
+    const caps = { [G[0]!]: page(G[0]!, { name: 'a' }, 'Gymshark'), [G[1]!]: page(G[1]!, { name: 'b' }, 'Gymshark'), [G[2]!]: page(G[2]!, { name: 'c' }, 'Gymshark') };
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: caps, candidates: [siteName] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.defaultOnly).toBe(true);
+    expect(r.cells[G[0]!]).toEqual({ status: 'pass', found: '' });
+  });
+
+  it('every proof page is checked: a path wrong on a blank page four never certifies', async () => {
+    const G4 = 'https://g.example/4';
+    const caps = { ...plain, [G4]: named(G4, 'Other') };
+    const r = await certify({ field: brand, expected: { ...blank, [G4]: '' }, defaultValue: 'Gymshark', captures: caps, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(Object.keys(r.cells)).toEqual([...G, G4]);
+    const three = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: plain, candidates: [brandName] }, deps);
+    expect(three.certified).toEqual([brandName]);
+  });
+
+  it('a capture that failed keeps the field incomplete: never default only (property 3)', async () => {
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: { ...plain, [G[2]!]: null }, candidates: [nothing] }, deps);
+    expect(r.defaultOnly).toBeUndefined();
+    expect(r.incomplete).toBe(true);
+    expect(r.cells[G[2]!]).toEqual({ status: 'not_captured' });
+  });
+
+  it('without a default the same pages and candidates certify exactly as before (property 9)', async () => {
+    const typed = { [G[0]!]: 'Gymshark', [G[1]!]: 'Gymshark', [G[2]!]: 'Gymshark' };
+    const before = await certify({ field: brand, expected: typed, captures: plain, candidates: [brandName, siteName] }, deps);
+    const withDefault = await certify({ field: brand, expected: typed, defaultValue: 'Gymshark', captures: plain, candidates: [brandName, siteName] }, deps);
+    expect(before.certified).toEqual([brandName]);
+    expect(before.defaultOnly).toBeUndefined();
+    expect(withDefault).toEqual(before);
   });
 });
