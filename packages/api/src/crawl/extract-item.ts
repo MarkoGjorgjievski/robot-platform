@@ -215,14 +215,19 @@ export async function extractItem(
         const defaultFields = fields.filter((f) => f.defaultValue !== undefined);
         const applied = built.rows.map((r) => applyDefaults(r, defaultFields));
         const rowsOut = applied.map((a) => a.row);
-        const defaultedAll = [...new Set([...productDefaulted, ...applied.flatMap((a) => a.defaulted)])];
         const shown = { ...validationResult.shown };
         const paths = { ...validationResult.paths };
+        const overwritten = new Set<string>();
         for (const f of plan.fields) {
           if (f.level !== 'variant' || plan.fromProduct.includes(f.key)) continue;
           shown[f.key] = null;
           delete paths[f.key];
+          overwritten.add(f.key);
         }
+        // The product row's default on an overwritten field is in no stored row, so it is not
+        // "defaulted" (else drift would blank the list's real values): only the product-level
+        // fills that survive, plus whatever applyDefaults filled on a variant row (property 7).
+        const defaultedAll = [...new Set([...productDefaulted.filter((k) => !overwritten.has(k)), ...applied.flatMap((a) => a.defaulted)])];
         return persistRows(rowsOut, confidence, t ? { capture: t } : {}, withDefaulted({ shown, paths }, defaultedAll));
       }
       return persistRows(built.rows, confidence, t ? { capture: t } : {}, validationResult);

@@ -43,7 +43,12 @@ export type Certification = {
   hostname: string;
   /** The website's variant certification (spec 2026-10-01): present only when its variants are required, current and passed. */
   variants?: VariantVerification;
-  /** fieldKey → the website's trimmed default (spec 2026-10-13 §5); always set by `loadCertificationState`, optional only so older fakes compile. */
+  /**
+   * fieldKey → the website's default as the customer typed it, trimmed (spec 2026-10-13 §5). It is
+   * stored as text, not normalised here: normalisation happens at fill time, when
+   * `applyDefaults`/`renderDefault` render it for the field's type. Always set by
+   * `loadCertificationState`; optional only so older fakes compile.
+   */
   defaults?: Record<string, string>;
 };
 
