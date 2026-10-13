@@ -31,7 +31,7 @@ export const PAGE_UNREADABLE = 'The page could not be read.';
 
 export type CoverageDeps = {
   listing?: (url: string) => Promise<{ productUrls: string[]; verdictMessage: string | null }>;
-  extract?: (url: string, fields: VerifiedField[]) => Promise<{ data: Record<string, unknown>; shape: Shape } | { unread: string; wall: boolean }>;
+  extract?: (url: string, fields: VerifiedField[]) => Promise<{ data: Record<string, unknown>; shape: Shape; defaulted?: string[] } | { unread: string; wall: boolean }>;
   proofShapes?: (sourceId: string, urls: string[]) => Promise<Record<string, Shape>>;
 };
 
@@ -80,7 +80,7 @@ async function defaultExtract(url: string, fields: VerifiedField[]): ReturnType<
   return captureSlots(() => withBrowserSession(async (browser) => {
     try {
       const r = await runVerifiedExtraction({ url, fields }, { browser });
-      return { data: r.data, shape: shapeOf(r.capture!) };
+      return { data: r.data, shape: shapeOf(r.capture!), defaulted: r.defaulted };
     } catch (err) {
       if (err instanceof CaptureProblemError) {
         const kind = err.verdict?.kind;
@@ -161,7 +161,10 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
       .where(and(eq(coverageChecks.id, checkId), eq(coverageChecks.status, 'running')));
 
     const fields: VerifiedField[] = fieldsDef.filter((f) => (cert.paths[f.key]?.length ?? 0) > 0)
-      .map((f) => ({ key: f.key, type: f.type, concept: f.concept, paths: cert.paths[f.key]! }));
+      .map((f) => ({
+        key: f.key, type: f.type, concept: f.concept, paths: cert.paths[f.key]!,
+        ...(cert.defaults?.[f.key] !== undefined ? { defaultValue: cert.defaults[f.key]! } : {}),
+      }));
     const sampled: SampledPage[] = [];
     let walls = 0;
     let errors = 0;
@@ -195,7 +198,7 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
         continue;
       }
       walls = 0;
-      sampled.push({ url, empty: fields.filter((f) => isEmpty(r.data[f.key])).map((f) => f.key), shape: r.shape });
+      sampled.push({ url, empty: fields.filter((f) => isEmpty(r.data[f.key]) || (r.defaulted ?? []).includes(f.key)).map((f) => f.key), shape: r.shape });
     }
     await done({ listingUrl, sampled, proofShapes: await proofShapes(check.sourceId, set.urls), planned: urls.length });
   } catch (err) {

@@ -177,7 +177,9 @@ describe('buildFinalise', () => {
   const certification: Certification = {
     verificationId: 'v',
     completedAt: new Date(),
-    paths: { price: [], sku: [] },
+    // sku passed by its default alone (spec 2026-10-13 §4): no path, so it never drifts.
+    paths: { price: [{ source: 'api', path: 'item.price', transform: 'identity' }], sku: [] },
+    defaults: { sku: 'SKU-0' },
     concepts: { price: 'price', sku: 'sku' },
     hostname: 'shop.example.com',
   };
@@ -194,7 +196,7 @@ describe('buildFinalise', () => {
     expect(status).toBe('completed');
   });
 
-  it('flags drift with the certified keys once finaliseRun settles to a terminal status', async () => {
+  it('flags drift with the keys that have a certified path (the defaults ride along) once finaliseRun settles to a terminal status', async () => {
     const finaliseRunStub = vi.fn(async () => 'completed' as const);
     const flagDrift = vi.fn(async () => ({ keys: [] as string[], emptyShare: {} as Record<string, number> }));
     const finalise = buildFinalise({} as never, 'run-1', 'source-1', certification, { finaliseRun: finaliseRunStub, flagDrift });
@@ -202,7 +204,7 @@ describe('buildFinalise', () => {
     const status = await finalise(10, false, false);
 
     expect(flagDrift).toHaveBeenCalledOnce();
-    expect(flagDrift).toHaveBeenCalledWith({}, 'run-1', 'source-1', ['price', 'sku']);
+    expect(flagDrift).toHaveBeenCalledWith({}, 'run-1', 'source-1', ['price'], ['sku']);
     expect(status).toBe('completed');
   });
 

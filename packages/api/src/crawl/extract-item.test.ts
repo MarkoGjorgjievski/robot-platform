@@ -181,7 +181,7 @@ describe('extractItem — with a certification', () => {
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
-      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: {} };
+      return { data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: {}, defaulted: [] };
     };
     const recordStats = vi.fn(async () => {});
 
@@ -206,7 +206,7 @@ describe('extractItem — with a certification', () => {
   it('persists and returns the row even when recordStats rejects', async () => {
     const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
       data: { price: 129.99 },
-      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: {},
+      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: {}, defaulted: [],
     });
     const recordStats = vi.fn(async () => { throw new Error('deadlock detected'); });
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -251,7 +251,7 @@ describe('extractItem — with a certification', () => {
     let seenFields: VerifiedField[] = [];
     const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
       seenFields = req.fields;
-      return { data: { price: null }, stats: [], timings: null, capture: null, shown: {} };
+      return { data: { price: null }, stats: [], timings: null, capture: null, shown: {}, defaulted: [] };
     };
 
     await extractItem(fakeDb, ITEM, {
@@ -265,7 +265,7 @@ describe('extractItem — with a certification', () => {
   it('records the capture timings on the capture row, so a run can be measured per product', async () => {
     const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
       data: { price: 129.99 }, stats: [],
-      timings: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 }, capture: null, shown: {},
+      timings: { navigateMs: 1700, readyMs: 400, readyState: 'ready', totalMs: 6900 }, capture: null, shown: {}, defaulted: [],
     });
     let metadata: unknown;
     const fakeDbCapturing = {
@@ -299,7 +299,7 @@ describe('extractItem — with a certification', () => {
   }
 
   it('confidence is 100 when the certification produced every field', async () => {
-    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {} });
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {}, defaulted: [] });
     const cap = captureConfidence();
 
     await extractItem(cap.fakeDbCapturing, ITEM, {
@@ -311,7 +311,7 @@ describe('extractItem — with a certification', () => {
   });
 
   it('confidence is 0 when the certification produced no value for any field', async () => {
-    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [], timings: null, capture: null, shown: {} });
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({ data: { price: null }, stats: [], timings: null, capture: null, shown: {}, defaulted: [] });
     const cap = captureConfidence();
 
     await extractItem(cap.fakeDbCapturing, ITEM, {
@@ -346,7 +346,7 @@ describe('extractItem — with a certification', () => {
       stats: [{ key: 'price', concept: 'price_concept', path: hitPath, hit: true, value: 129.99 }],
       timings: null,
       capture: null,
-      shown: { price: true },
+      shown: { price: true }, defaulted: [],
     });
     const cap = captureValidationResult();
 
@@ -364,7 +364,7 @@ describe('extractItem — with a certification', () => {
       stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: false }],
       timings: null,
       capture: null,
-      shown: { price: false },
+      shown: { price: false }, defaulted: [],
     });
     const cap = captureValidationResult();
 
@@ -465,7 +465,7 @@ describe('extractItem — with a certification', () => {
         ],
       }]);
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {},
+        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {}, defaulted: [],
       });
       const cap = captureExtraction();
 
@@ -496,7 +496,7 @@ describe('extractItem — with a certification', () => {
           { key: 'price', concept: 'price_concept', path: pricePath, hit: true, value: 129.99 },
           { key: 'sku', concept: 'sku', path: skuPath, hit: true, value: 'SKU-PARENT' },
         ],
-        timings: null, capture, shown: { price: true, sku: false },
+        timings: null, capture, shown: { price: true, sku: false }, defaulted: [],
       });
       const cap = captureValidationResult();
 
@@ -515,7 +515,7 @@ describe('extractItem — with a certification', () => {
     it('falls back to one row with a _product_key and no _variant_key when the page no longer carries the list', async () => {
       const capture = fakeCapture([{ '@type': 'Product' }]); // no hasVariant at all
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {},
+        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {}, defaulted: [],
       });
       const cap = captureExtraction();
 
@@ -535,7 +535,7 @@ describe('extractItem — with a certification', () => {
     // same shape as the pre-Task-3 certified-extraction tests above.
     it('persists exactly one row, unchanged, when the run carries no variant plan', async () => {
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {},
+        data: { price: 129.99 }, stats: [], timings: null, capture: null, shown: {}, defaulted: [],
       });
       const cap = captureExtraction();
 
@@ -578,7 +578,7 @@ describe('extractItem — with a certification', () => {
       let seenFields: VerifiedField[] = [];
       const extractVerified = async (req: { fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
         seenFields = req.fields;
-        return { data: { price: 21 }, stats: [], timings: null, capture: null, shown: {} };
+        return { data: { price: 21 }, stats: [], timings: null, capture: null, shown: {}, defaulted: [] };
       };
 
       await extractItem(fakeDb, { ...ITEM, targetFields: ['price'] }, {
@@ -595,7 +595,7 @@ describe('extractItem — with a certification', () => {
       let seenFields: VerifiedField[] = [];
       const extractVerified = async (req: { fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
         seenFields = req.fields;
-        return { data: { price: 21, sku: 'SKU-1' }, stats: [], timings: null, capture: null, shown: {} };
+        return { data: { price: 21, sku: 'SKU-1' }, stats: [], timings: null, capture: null, shown: {}, defaulted: [] };
       };
 
       await extractItem(fakeDb, { ...ITEM, targetFields: null }, {
@@ -642,7 +642,7 @@ describe('extractItem — with a certification', () => {
       const { browser, calls } = linksBrowser(links);
       const queueVariants = vi.fn(async () => ({ queued: 0, skippedForBudget: 0 }));
       const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
-        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {},
+        data: { price: 129.99 }, stats: [], timings: null, capture, shown: {}, defaulted: [],
       });
       const cap = captureExtraction();
       const result = await extractItem(cap.fakeDbCapturing, item, {
@@ -711,7 +711,7 @@ describe('extractItem — with a certification', () => {
       await expect(extractItem(cap.fakeDbCapturing, { ...ITEM, url: A }, {
         browser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
         certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION,
-        extractVerified: async () => ({ data: { price: 1 }, stats: [], timings: null, capture, shown: {} }),
+        extractVerified: async () => ({ data: { price: 1 }, stats: [], timings: null, capture, shown: {}, defaulted: [] }),
         recordStats: async () => {}, variantPlan: LINKS_PLAN, itemCap: 50,
         queueVariants: async () => { throw new Error('deadlock'); },
       })).rejects.toThrow('deadlock');
@@ -728,5 +728,40 @@ describe('extractItem — with a certification', () => {
       expect(cap.rowCount).toBe(1);
       expect(cap.data[0]).toMatchObject({ color: 'Black', _product_key: B, _variant_key: A });
     });
+  });
+  it('the website\'s default fills a field every path missed: in validationResult.defaulted, never a hit for confidence (properties 5, 6)', async () => {
+    runExtractionMock.mockReset();
+    const cert: Certification = { ...CERTIFICATION, paths: { ...CERTIFICATION.paths, brand: [] }, concepts: { ...CERTIFICATION.concepts, brand: 'brand' }, defaults: { brand: 'Widgetco' } };
+    let seenFields: VerifiedField[] = [];
+    const extractVerified = async (req: { url: string; fields: VerifiedField[] }): Promise<VerifiedExtractionResult> => {
+      seenFields = req.fields;
+      return {
+        data: { price: 129.99, brand: 'Widgetco' },
+        stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }],
+        timings: null, capture: null, shown: { price: true, brand: null }, defaulted: ['brand'],
+      };
+    };
+    const values = vi.fn((_row: unknown) => ({ returning: async () => [{ id: 'ext-1' }] }));
+    const result = await extractItem({ insert: () => ({ values }) } as never, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r',
+      schema: [...CERT_SCHEMA, { name: 'brand', type: 'string', origin: 'detail' as const }],
+      schemaDefinition: [...SCHEMA_DEFINITION, { key: 'brand', name: 'Brand', type: 'text' as const, description: 'x', concept: 'brand' }],
+      certification: cert, extractVerified, recordStats: vi.fn(async () => {}),
+    });
+    expect(seenFields.find((f) => f.key === 'brand')).toEqual({ key: 'brand', type: 'text', concept: 'brand', paths: [], defaultValue: 'Widgetco' });
+    expect(seenFields.find((f) => f.key === 'price')).not.toHaveProperty('defaultValue');
+    expect(result.row).toMatchObject({ price: 129.99, brand: 'Widgetco' });
+    const extraction = (values.mock.calls[1]![0] as unknown) as { confidence: number; validationResult: unknown };
+    expect(extraction.validationResult).toEqual({ shown: { price: true, brand: null }, paths: { price: CERTIFICATION.paths.price![0] }, defaulted: ['brand'] });
+    expect(extraction.confidence).toBe(50);
+  });
+
+  it('a run without defaults writes no defaulted key at all (property 9)', async () => {
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+      data: { price: 129.99 }, stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }], timings: null, capture: null, shown: { price: true }, defaulted: [],
+    });
+    const values = vi.fn((_row: unknown) => ({ returning: async () => [{ id: 'ext-1' }] }));
+    await extractItem({ insert: () => ({ values }) } as never, ITEM, { browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA, schemaDefinition: SCHEMA_DEFINITION, certification: CERTIFICATION, extractVerified, recordStats: vi.fn(async () => {}) });
+    expect((values.mock.calls[1]![0] as { validationResult: unknown }).validationResult).toEqual({ shown: { price: true }, paths: { price: CERTIFICATION.paths.price![0] } });
   });
 });

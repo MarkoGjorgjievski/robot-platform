@@ -27,6 +27,8 @@ export const bindingInput = z.object({
   cards: z.array(card).max(VERIFY_URL_MAX).optional(),
   /** fieldKey → url → "not on this product", a checked page whose answer is nothing (spec 2026-10-10 §B1). */
   absent: z.record(z.string(), z.record(z.string(), z.literal(true))).optional(),
+  /** fieldKey → the website's default for that field (spec 2026-10-13 §3): a run writes it where every certified path misses. */
+  defaults: z.record(z.string(), z.string().max(2000)).optional(),
 });
 export type BindingInput = z.infer<typeof bindingInput>;
 
@@ -44,13 +46,21 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
     if (!draft && !(input.descriptions[f.key] ?? '').trim()) problems.push(`${f.name}: say where it is on this website`);
     const cells = input.expected[f.key] ?? {};
     const absent = input.absent?.[f.key] ?? {};
+    const def = (input.defaults?.[f.key] ?? '').trim();
+    if (def) {
+      const err = validateExpected(f.type, def);
+      if (err) problems.push(`${f.name}: default — ${err}`);
+      // A default would fill the very cell the customer said is empty (spec 2026-10-13 §3).
+      if (Object.keys(absent).length > 0) problems.push(`${f.name}: a default and "not on this product" cannot both be set`);
+    }
     input.urls.forEach((url, i) => {
       const value = cells[url] ?? '';
       if (absent[url] && value.trim() !== '') { problems.push(`${f.name} @ ${url}: a value and "not on this product" cannot both be set`); return; }
       if (absent[url]) return;                                         // a checked page where the answer is nothing
       // Pages four to six: a blank cell means "not checked here" (spec 2026-09-17 §4).
       // A draft save (Verification tab autosave) can leave any cell blank — Verify checks completeness itself.
-      if ((draft || i >= VERIFY_URL_MIN) && value.trim() === '') return;
+      // A field with a default: a blank cell on any page is a default cell (spec 2026-10-13 §3).
+      if ((draft || i >= VERIFY_URL_MIN || def) && value.trim() === '') return;
       const err = validateExpected(f.type, value);
       if (err) problems.push(`${f.name} @ ${url}: ${err}`);
     });
@@ -108,6 +118,11 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
     const perUrl = Object.fromEntries(input.urls.filter((u) => input.absent?.[f.key]?.[u]).map((u) => [u, true as const]));
     if (Object.keys(perUrl).length) absent[f.key] = perUrl;
   }
+  const defaults: NonNullable<VerificationSet['defaults']> = {};
+  for (const f of contract) {
+    const def = (input.defaults?.[f.key] ?? '').trim();
+    if (def) defaults[f.key] = def;
+  }
   // `BindingInput` carries no `variants` field — the fields' autosave never answers for a
   // website's variants — so this never emits one; `sources.updateBinding` (plan 2 task 3) carries
   // the prior `verificationSet.variants` forward itself, under a row lock, right before its write.
@@ -121,6 +136,7 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
       ...(Object.keys(paths).length ? { paths } : {}),
       ...(cards?.length ? { cards } : {}),
       ...(Object.keys(absent).length ? { absent } : {}),
+      ...(Object.keys(defaults).length ? { defaults } : {}),
     },
   };
 }

@@ -18,7 +18,7 @@
 import type { IBrowser } from '@robot/browser';
 import {
   runExtraction, mergeRow, partitionSchemaByOrigin, discoverCandidateCatalogue,
-  runVerifiedExtraction, recordVerifiedPathStats, resolveVariantList, buildVariantRows,
+  runVerifiedExtraction, recordVerifiedPathStats, resolveVariantList, buildVariantRows, applyDefaults,
   buildXPathLinksScript, normalizeVariantLink, normalizeVariantLinks, groupKeyOf, variantKeyOf,
   HARD_ITEM_CEILING,
   type ExtractionAgent, type OriginField, type SchemaDefinitionField, type VariantRunPlan,
@@ -34,7 +34,12 @@ import type { Certification } from '../verify/current-certification.js';
  * certified value was shown on the page it was extracted from, and the path
  * that produced it. Written only by the certified branch — a non-certified
  * extraction has no certified paths to report on. */
-export type ValidationResult = { shown: Record<string, Shown>; paths: Record<string, CertifiedPath> };
+export type ValidationResult = {
+  shown: Record<string, Shown>;
+  paths: Record<string, CertifiedPath>;
+  /** The field keys the website's default filled on at least one row of this item (spec 2026-10-13 §5); omitted when none. */
+  defaulted?: string[];
+};
 
 export type ExtractItemDeps = {
   browser: IBrowser;
@@ -139,6 +144,7 @@ export async function extractItem(
         type: types.get(f.name) ?? 'text',
         concept: deps.certification!.concepts[f.name] ?? f.name,
         paths: deps.certification!.paths[f.name] ?? [],
+        ...(deps.certification!.defaults?.[f.name] !== undefined ? { defaultValue: deps.certification!.defaults[f.name]! } : {}),
       }));
 
     const verified = await extractVerified({ url: item.url, fields }, { browser: deps.browser });
@@ -168,7 +174,9 @@ export async function extractItem(
       pageNumber: item.pageNumber,
     });
 
-    const hits = fields.filter((f) => verified.data[f.key] !== null).length;
+    // Spec 2026-10-13 §5: a defaulted field is not a hit (confidence says what the paths produced).
+    const productDefaulted = verified.defaulted;
+    const hits = fields.filter((f) => verified.data[f.key] !== null && !productDefaulted.includes(f.key)).length;
     const confidence = fields.length ? Math.round((100 * hits) / fields.length) : 0;
 
     // The capture's timings ride on the capture row so a run can be measured
@@ -181,10 +189,11 @@ export async function extractItem(
     // each certified value was shown on the page (verified.shown), and the
     // path that produced it, for every field that actually hit — a miss has
     // no path to blame and is already null in the row.
-    const validationResult: ValidationResult = {
+    const withDefaulted = (vr: ValidationResult, keys: string[]): ValidationResult => (keys.length ? { ...vr, defaulted: keys } : vr);
+    const validationResult = withDefaulted({
       shown: verified.shown,
       paths: Object.fromEntries(verified.stats.filter((s) => s.hit).map((s) => [s.key, s.path])),
-    };
+    }, productDefaulted);
 
     // List-method variants: the certified list lives on this same page capture
     // (certification Global Constraints, 2026-10-02) — a page that no longer
@@ -202,6 +211,11 @@ export async function extractItem(
       // holds: it reads "not checked" instead (final review I5). With no list
       // on the page the rows are the product row, and its flags stand.
       if (built.withVariants) {
+        // A variant-level field an entry left empty takes the default too (spec 2026-10-13 §5).
+        const defaultFields = fields.filter((f) => f.defaultValue !== undefined);
+        const applied = built.rows.map((r) => applyDefaults(r, defaultFields));
+        const rowsOut = applied.map((a) => a.row);
+        const defaultedAll = [...new Set([...productDefaulted, ...applied.flatMap((a) => a.defaulted)])];
         const shown = { ...validationResult.shown };
         const paths = { ...validationResult.paths };
         for (const f of plan.fields) {
@@ -209,7 +223,7 @@ export async function extractItem(
           shown[f.key] = null;
           delete paths[f.key];
         }
-        return persistRows(built.rows, confidence, t ? { capture: t } : {}, { shown, paths });
+        return persistRows(rowsOut, confidence, t ? { capture: t } : {}, withDefaulted({ shown, paths }, defaultedAll));
       }
       return persistRows(built.rows, confidence, t ? { capture: t } : {}, validationResult);
     }

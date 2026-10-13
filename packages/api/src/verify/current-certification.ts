@@ -43,6 +43,8 @@ export type Certification = {
   hostname: string;
   /** The website's variant certification (spec 2026-10-01): present only when its variants are required, current and passed. */
   variants?: VariantVerification;
+  /** fieldKey → the website's trimmed default (spec 2026-10-13 §5); always set by `loadCertificationState`, optional only so older fakes compile. */
+  defaults?: Record<string, string>;
 };
 
 export function sourceDefinitionHash(source: { schemaDefinition: unknown; verificationSet: unknown }): string | null {
@@ -106,7 +108,8 @@ function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknow
 
   const currentKeys = unchangedKeys.filter((key) => {
     const r = results[key]!;
-    return r.certified.length > 0 && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
+    // A field passed by its default alone (spec 2026-10-13 §4) is current with no path.
+    return (r.certified.length > 0 || r.defaultOnly === true) && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
   });
 
   const variantResults = (row.variantResults as VariantVerification | null | undefined) ?? null;
@@ -236,6 +239,7 @@ export async function loadCertificationState(db: Database, sourceId: string): Pr
       paths: Object.fromEntries(fields.map((f) => [f.key, latest.results[f.key]?.certified ?? []])),
       concepts: Object.fromEntries(fields.map((f) => [f.key, f.concept])),
       hostname,
+      defaults: Object.fromEntries(fields.flatMap((f) => { const d = (set.defaults?.[f.key] ?? '').trim(); return d ? [[f.key, d] as const] : []; })),
       ...(variants.required === 'yes' && variants.passed && variants.result ? { variants: variants.result } : {}),
     },
     variants,

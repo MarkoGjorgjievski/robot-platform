@@ -136,3 +136,20 @@ describe('absent — "not on this product" (spec 2026-10-10 §B1, D3)', () => {
   });
   it('an absent cell on page three is not "missing" for a non-draft save', () => expect(bindingProblems(base, contract)).toEqual([]));
 });
+
+describe('bindingProblems — a website\'s default (spec 2026-10-13 §3, property 8)', () => {
+  const blankTitle = { ...ok.expected, title: { [U[0]!]: '', [U[1]!]: '', [U[2]!]: '' } };
+  it('allows blank cells on every page for a field with a default', () => {
+    expect(bindingProblems({ ...ok, expected: blankTitle, defaults: { title: 'Widgetco' } }, contract)).toEqual([]);
+    expect(bindingProblems({ ...ok, expected: blankTitle }, contract)).toEqual(expect.arrayContaining([expect.stringContaining('Title @ https://shop.example/p/1: Expected value is required')]));
+  });
+  it('refuses a default that fails the field\'s type, and one beside an absent mark', () => {
+    expect(bindingProblems({ ...ok, defaults: { price: 'call us' } }, contract)).toContain('Price: default — Not a money amount');
+    expect(bindingProblems({ ...ok, expected: blankTitle, defaults: { title: 'Widgetco' }, absent: { title: { [U[0]!]: true } } }, contract)).toContain('Title: a default and "not on this product" cannot both be set');
+  });
+  it('prepareBinding keeps trimmed, non-empty defaults only', () => {
+    expect(prepareBinding({ ...ok, defaults: { title: '  Widgetco ', price: '  ' } }, contract).verificationSet.defaults).toEqual({ title: 'Widgetco' });
+    expect(prepareBinding(ok, contract).verificationSet).not.toHaveProperty('defaults');
+    expect(bindingInput.safeParse({ ...ok, defaults: { title: 'Widgetco' } }).success).toBe(true);
+  });
+});

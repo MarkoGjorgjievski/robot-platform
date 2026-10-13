@@ -415,4 +415,15 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       expect(latest.stage).toBe('1 field was empty on some of the 20 sampled products — see the row.');
     } finally { await f.cleanup(); }
   });
+  it('a sampled page where the default filled a field counts that field as empty (spec 2026-10-13 §5)', async () => {
+    const w = await certifiedWebsite('cov-default');
+    try {
+      const extract = vi.fn(async () => ({ data: { [w.keyOf.price]: 9.99, [w.keyOf.title]: 'Widgetco' }, shape: single, defaulted: [w.keyOf.title] }));
+      const { checkId } = await startCoverageCheck(w.sourceId, null, { fire: false });
+      await runCoverageCheck(checkId, { listing: listing(3), extract, proofShapes });
+      const row = await checkRow(checkId);
+      const results = row.results as CoverageResults;
+      expect(results.sampled.map((p) => ('empty' in p ? p.empty : p.unread))).toEqual([[w.keyOf.title], [w.keyOf.title], [w.keyOf.title]]);
+    } finally { await w.cleanup(); }
+  });
 });
