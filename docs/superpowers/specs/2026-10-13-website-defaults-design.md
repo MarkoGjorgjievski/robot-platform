@@ -5,6 +5,26 @@ have one, a certified path overrides it, "so it's not either or"); spec written 
 Computed values ("true unless an out-of-stock trigger is seen", "this element's presence means
 No") were discussed and dropped from this spec (§11).
 
+**Status:** implemented on `feat/website-defaults`, 2026-10-13; merge, final review and the route
+smoke: see the plan's status.
+
+**Deviations:**
+- `Certification.defaults` stores the trimmed text as typed; normalisation happens at fill time
+  (`applyDefaults` → `renderDefault`), not at load as §5 words it — one normalising point rather
+  than two, rows come out identical either way (Task 3 ruling).
+- §6's "a default cell whose path read the default shows it as a found value after Verify" was
+  not drawn: the table reads no cell's `found` today (answers, segments and badges only), so a
+  default cell keeps its muted default after Verify; the row's verified badge and its n/m still
+  say it passed (Task 5 ruling, parked).
+- With a default, an unaccepted suggestion on products 1–3 no longer blocks Verify — certification
+  still tries every candidate, and a suggestion equal to the default certifies its path on default
+  cells; one that differs leaves the row needs-you with Accept visible (Task 5 ruling, parked;
+  consistent with §6).
+- An invalid default stops the Verify gate with `{Field} default: {error}`, naming the field —
+  added in Task 5's review; the spec did not say how an invalid default surfaces at the gate.
+- `FieldCoverage.defaulted` is a required count (0 when none), like `notShown`, rather than the
+  optional shape §7 implies.
+
 Builds on `2026-10-10-proof-page-coverage-design.md` (Part B, "Not on this product": a checked
 page whose answer is nothing) and `2026-10-12-shown-on-the-page-design.md` (the not-shown flag,
 the typed-value warning at Verify). Follows `2026-09-29` certification (confirmed paths, marks,

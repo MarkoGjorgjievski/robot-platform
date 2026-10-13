@@ -28,8 +28,11 @@ type: project
 7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
 9. **The campaign-2 product defects** (from the credit campaign's batch A notes, `docs/testing/results/campaign-2026-10-11/`): the variant chosen in the URL is ignored; screenshots that never show the product on wide pages; Verify fails silently after "Not on this product" on products 1–3; marked values that do not verify; the Extract button shows no estimate; Sample is labelled free but charged.
+10. **A website's default values — implementation done, 2026-10-13; merge, final review and the route smoke still to come.** See "A website's default values (2026-10-13)" below: a binding default per field fills every cell its certified paths leave empty, free, counted and marked everywhere a value shows.
 
-**Newest: [Shown on the page (2026-10-12)](#shown-on-the-page-2026-10-12).** A run now flags every certified value the product's page does not show — free, at extraction time — and the run page and the Sample panel count and name them; separately, at Verify, a Title that is not the page's main heading never reads "agreed", and a typed expected value the page does not show warns without blocking. Merged into `main` 2026-10-13 after a whole-branch review (one fix wave, re-review clean) and the route smoke (23 of 23); live-checked the same day on the credit campaign's Gymshark and Colourpop websites.
+**Newest: [A website's default values (2026-10-13)](#a-websites-default-values-2026-10-13).** A website's binding now carries a default per field — a typed value a run writes into every cell its certified paths leave empty, so the customer can say "on this website, unless the page says otherwise, the Brand is Gymshark" instead of typing the tagline as a workaround. A path still wins where it reads a value; a field whose proof pages are all default cells and whose candidates all fail certifies by default only, free, no AI call. Defaulted values are counted and marked on the run page, read as empty by drift and the coverage check, shown in ops, and judged like any other value. On branch `feat/website-defaults`; merge, final review and the route smoke: see the plan's status.
+
+**Before it: [Shown on the page (2026-10-12)](#shown-on-the-page-2026-10-12).** A run now flags every certified value the product's page does not show — free, at extraction time — and the run page and the Sample panel count and name them; separately, at Verify, a Title that is not the page's main heading never reads "agreed", and a typed expected value the page does not show warns without blocking. Merged into `main` 2026-10-13 after a whole-branch review (one fix wave, re-review clean) and the route smoke (23 of 23); live-checked the same day on the credit campaign's Gymshark and Colourpop websites.
 
 **Before it: [Known-gap fixes (2026-10-11)](#known-gap-fixes-2026-10-11).** Five small fixes from the two October plans: a CAPTCHA-only thin page is a human check; a drift check says "could not be checked" instead of "page gone" for a page the site would not let us read; a superseded coverage check stops reading; the Status column stays in view; a card added by its address takes the page title. Merged into `main` 2026-10-11 (fast-forward) after the route smoke passed 22 of 22.
 
@@ -84,6 +87,83 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## A website's default values (2026-10-13)
+
+Spec `docs/superpowers/specs/2026-10-13-website-defaults-design.md`, plan
+`docs/superpowers/plans/2026-10-13-website-defaults.md`. Branch `feat/website-defaults` from
+`main`, seven tasks (subagent-driven). Tasks 1–6 each reviewed (one fix round each on Tasks 2, 3
+and 5); the whole-branch review, the merge and the route smoke are still to come — see the plan's
+status, not this page, for whether they have happened yet.
+
+**What a customer gets**, in the spec's own words (§2): a website's binding gains a **default**
+per field — a typed value, in the field's type, that a run writes into every cell its certified
+paths leave empty. A default and the paths are not alternatives: where a path reads a value, the
+path wins (a collab product whose page data says "Gymshark x Whitney Simmons" keeps it); where
+every path misses, the default stands. This closes the workaround the credit campaign's worker
+used on Gymshark — typing the site's tagline, "Gymshark | We Do Gym", as the Brand on three proof
+pages so a Verify that kept failing on the literal "Gymshark" would pass (campaign 2, batch A).
+Now the customer can just say it: **on this website, unless the page says otherwise, the Brand is
+Gymshark.**
+
+**The two rules at Verify** (§2/§4/§6): a cell left blank on a field with a default is a *default
+cell* — the path may read the default there or read nothing, and both are correct, so the row
+never asks "missing on product n" for it, and "Not on this product" is hidden on the field's
+cells. A field whose proof pages are all default cells and whose candidates all fail certifies
+**by default only**, free, with no path and no AI call — the row word reads "default only · no
+path reads it on this website". A typed value that differs from the default anywhere still fails
+that cell and keeps the field off default only, as today.
+
+**The run page, the coverage check, drift, ops and the judge** (§7) all show a defaulted value as
+such — a default is the customer's own guess about the website, and the product has to show them
+where it was used. The run page's column head gets a third badge ("default on 60") beside "n not
+shown", a defaulted cell carries a muted left rail titled "this website's default", and the
+summary line gains "… · 60 values from the website's defaults" (the Sample panel states the same
+fact; the unshown panel never flags a defaulted value — it was never read from the page in the
+first place). The coverage check reads a defaulted field as empty on a sampled page, same as a
+path miss, and does not sample a default-only field (it has no path). Drift reads the
+default-filled share rather than the row's raw emptiness, so a path that stops hitting on a
+defaulted field is not hidden by the default. Ops shows "Default: Gymshark" on a field's row, and
+"no path — every product gets the default" in place of the path list on a default-only field,
+current like any passed field. The judge judges a defaulted value like any other value — that is
+how a wrong default would be found — and its report's `shown` column reads "default" for it, left
+out of the confusion table.
+
+**Files:** `packages/scraper/src/verify/defaults.ts` (new: `applyDefaults`, `renderDefault`),
+`verify/certify.ts`, `verify/run-verification.ts`, `verify/verified-extraction.ts`,
+`crawl/extract-item.ts`; on the api side `verify/binding-input.ts`,
+`verify/current-certification.ts`, `crawl/extract-item.ts`, `crawl/drift.ts`,
+`crawl/run-coverage-check.ts`, `crawl/coverage.ts`, `crawl/load-run-coverage.ts`,
+`routers/sources.ts`, `routers/ops.ts`, `judge-run.ts`, `judge-run-report.ts`; on the app side
+`components/verification/field-details.tsx`, `components/verification/verification-table.tsx`,
+`lib/site/verification-model.ts`, `components/runs/results-table.tsx`, `lib/site/coverage-view.ts`,
+`lib/site/run-screen-view.ts`; the route smoke `routes-smoke.test.ts` (its
+`test-helpers/seed-unshown-run.ts` needed no change — `ValidationResult.defaulted` already
+covered it, added with the field itself in Task 3).
+
+**How it was proven, so far:** a per-task review on every task, with one fix round each on Tasks
+2, 3 and 5; the whole-branch review and the route smoke are still to come. Per-package tests
+throughout: scraper 1,026 passed, 5 skipped (one pre-existing flaky test, unrelated —
+`transfer-marks.test.ts`'s JSON-LD image-array case, already a known gap), api 965 passed, app
+842 passed, 25 skipped (the route smoke and the staff smoke, `RUN_UI_SMOKE` unset) — `tsc` clean
+in all three. Task 7 (this entry) added two assertions to the route smoke, not yet run: the
+Verification tab's default input, its cell text, title and warning, and the saved binding, in the
+existing coverage walk; and a new test seeding a run whose `validationResult.defaulted` names
+Brand, reading the column head's "default on 2", the cell rail, the summary line, and the absence
+of the unshown panel. It needs `pnpm dev:all`, which serves `main`, not this branch — it runs
+after the merge, same as the branch's live check.
+
+**Deviations from the spec** (recorded on the spec's status line, repeated here): `Certification.defaults` normalises at fill time (`applyDefaults`/`renderDefault`), not at load; a default cell whose path read the default is not drawn differently from one whose path read nothing (the table draws no cell's `found` today); an unaccepted suggestion on products 1–3 no longer blocks Verify once the field has a default; an invalid default names its field at the Verify gate (`{Field} default: {error}`, added in review); `FieldCoverage.defaulted` is a required count, not optional.
+
+**Known gaps / next:** the live check — Gymshark: set the Brand default, clear the typed tagline,
+re-Verify (mechanical; the JSON-LD brand path should certify with the default as fallback),
+extract ten products, read the run page; then the same on a website with no brand in its data, to
+see default only — is not in this plan. It needs the credit campaign's org and Marko's running
+servers, so it runs after the merge, as previous plans' live checks did. Out of scope by design
+(§11): computed values ("true unless an out-of-stock trigger is seen", "this element's presence
+means No"); a project-level default every website inherits; a per-product override; a default on
+a variant axis column; a default and "not on this product" on the same field; showing a default in
+the export as anything but the value.
 
 ## Shown on the page (2026-10-12)
 
