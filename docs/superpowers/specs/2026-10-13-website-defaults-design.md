@@ -5,8 +5,10 @@ have one, a certified path overrides it, "so it's not either or"); spec written 
 Computed values ("true unless an out-of-stock trigger is seen", "this element's presence means
 No") were discussed and dropped from this spec (§11).
 
-**Status:** implemented on `feat/website-defaults`, 2026-10-13; merge, final review and the route
-smoke: see the plan's status.
+**Status:** implemented on `feat/website-defaults` and merged into `main` 2026-10-13 (fast-forward,
+`8008afa`) after a whole-branch review (0 critical, 3 important, one fix wave, re-review clean).
+Route smoke on `main`: 23 of 24 on the first run (the failure was the test's own stale key lookup,
+fixed in `42df0e2`); the re-run and the §10 live check are still to run (`docs/handoff.md`).
 
 **Deviations:**
 - `Certification.defaults` stores the trimmed text as typed; normalisation happens at fill time
