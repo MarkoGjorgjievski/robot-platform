@@ -258,6 +258,12 @@ describe('sampleFacts', () => {
     expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3, { count: 0, fields: [] })).toEqual(base);
     expect(base.find((f) => f.label === 'Values not shown')).toBeUndefined();
   });
+
+  it('adds one fact for the values the website\'s defaults filled (spec 2026-10-13 §7)', () => {
+    const facts = sampleFacts({ pagesWalked: 1, itemsFound: 3, warningsCount: 0, paginationNote: 'not reported' }, { complete: 3, total: 3 }, 3, undefined, { count: 3, fields: ['Brand'] });
+    expect(facts.at(-1)).toEqual({ label: 'From defaults', value: "3 values from the website's defaults: Brand" });
+    expect(sampleFacts({ pagesWalked: 1, itemsFound: 3, warningsCount: 0, paginationNote: 'not reported' }, { complete: 3, total: 3 }, 3, undefined, { count: 0, fields: [] }).some((f) => f.label === 'From defaults')).toBe(false);
+  });
 });
 
 describe('emptyCellNote', () => {

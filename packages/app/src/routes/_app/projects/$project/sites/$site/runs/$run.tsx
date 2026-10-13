@@ -159,6 +159,20 @@ function RunScreen() {
     () => (coverage.data?.fields ?? []).reduce((sum, f) => sum + (f.notShown ?? 0), 0),
     [coverage.data],
   );
+  // Spec 2026-10-13 §7: one row per product with any defaulted field, keyed
+  // by url for the results sheet's per-cell rail — same shape as `unshownByUrl`
+  // above, built from `defaultedItems` rather than `unshownItems`.
+  const defaultedByUrl = useMemo(
+    () => new Map((coverage.data?.defaultedItems ?? []).map((d) => [d.url, new Set(d.fields)] as const)),
+    [coverage.data],
+  );
+  // The summary line's own count: the sum across fields, `0` on a run the
+  // default never filled anything on, or one with no coverage data at all —
+  // both read as "unchanged" to `resultsSummary`.
+  const defaultedCount = useMemo(
+    () => (coverage.data?.fields ?? []).reduce((sum, f) => sum + (f.defaulted ?? 0), 0),
+    [coverage.data],
+  );
 
   if (unauthorized) return null;
 
@@ -244,8 +258,9 @@ function RunScreen() {
       rows={rows}
       absentByUrl={absentByUrl}
       unshownByUrl={unshownByUrl}
+      defaultedByUrl={defaultedByUrl}
       coverage={coverage.data?.fields}
-      summary={resultsSummary(rowCount, extraction?.confidence ?? null, notShownCount)}
+      summary={resultsSummary(rowCount, extraction?.confidence ?? null, notShownCount, defaultedCount)}
       note={resultsNote(rows.length, rowCount)}
     />
   );

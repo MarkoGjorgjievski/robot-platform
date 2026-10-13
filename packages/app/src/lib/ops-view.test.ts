@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DEFAULT_ONLY_PATHS,
   ONE_SOURCE_WARNING,
   OPS_REASONS,
   backupsSummary,
   decodeOpsOverviewState,
+  defaultLine,
   defaultOpsView,
   driftNoticeLines,
   encodeOpsOverviewState,
@@ -461,5 +463,13 @@ describe('encodeOpsOverviewState / decodeOpsOverviewState', () => {
 
   it('drops an invalid or tampered value rather than carrying it through', () => {
     expect(decodeOpsOverviewState('view=nonsense&reason=nonsense&sort=nonsense')).toEqual({});
+  });
+});
+
+describe('a website\'s default in ops (spec 2026-10-13 §7)', () => {
+  it('names the default and the default-only path list', () => {
+    expect(defaultLine({ defaultValue: 'Gymshark' })).toBe('Default: Gymshark');
+    expect(defaultLine({})).toBeNull();
+    expect(DEFAULT_ONLY_PATHS).toBe('no path — every product gets the default');
   });
 });

@@ -172,7 +172,21 @@ export type OpsFieldPath = { source: OpsPathSource; path: string; provenOn?: str
  * (reviewer fix round 1).
  */
 export type OpsFieldState = 'current' | 'changed' | 'failed' | 'none';
-export type OpsField = { key: string; name: string; type: string; state: OpsFieldState; paths: OpsFieldPath[] };
+export type OpsField = {
+  key: string; name: string; type: string; state: OpsFieldState; paths: OpsFieldPath[];
+  /** The website's default for this field (spec 2026-10-13 §7), when one is set. */
+  defaultValue?: string;
+  /** This field is certified default-only — every product gets the default, no path (spec 2026-10-13 §7). */
+  defaultOnly?: boolean;
+};
+
+/** The field row's default line (spec 2026-10-13 §7): "Default: {value}", or `null` with no default set. */
+export function defaultLine(field: Pick<OpsField, 'defaultValue'>): string | null {
+  return field.defaultValue ? `Default: ${field.defaultValue}` : null;
+}
+
+/** The default-only field row's summary and no-paths text (spec 2026-10-13 §7). */
+export const DEFAULT_ONLY_PATHS = 'no path — every product gets the default';
 
 /** Kind, in the customer's own words (Global Constraints) — never the internal `CertifiedSource` vocabulary. */
 const PATH_KIND: Record<OpsPathSource, string> = { api: 'API', 'json-ld': 'Page data', meta: 'Meta', xpath: 'Page element' };

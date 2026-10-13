@@ -261,12 +261,17 @@ export function lockedStripText(args: { fieldCount: number; currentKeys: string[
  * and the field names in one fact, "Values not shown" / "{n} values not
  * shown on their page: {fields}" — named facts rather than two separate
  * ones, since the panel below reads the same two numbers off the same line.
+ *
+ * `defaulted` (spec 2026-10-13 §7) adds a further fact, only when the
+ * website's default filled anything in the sample: "From defaults" / "{n}
+ * values from the website's defaults: {fields}".
  */
 export function sampleFacts(
   evidence: ProbeEvidence,
   rows: { complete: number; total: number },
   extracted: number,
   notShown?: { count: number; fields: string[] },
+  defaulted?: { count: number; fields: string[] },
 ): Array<{ label: string; value: string }> {
   const facts: Array<{ label: string; value: string }> = [
     { label: 'Pages walked', value: String(evidence.pagesWalked) },
@@ -278,6 +283,10 @@ export function sampleFacts(
   if (notShown && notShown.count > 0) {
     const noun = notShown.count === 1 ? 'value' : 'values'; // final review M4
     facts.push({ label: 'Values not shown', value: `${notShown.count} ${noun} not shown on their page: ${notShown.fields.join(', ')}` });
+  }
+  if (defaulted && defaulted.count > 0) {
+    const noun = defaulted.count === 1 ? 'value' : 'values';
+    facts.push({ label: 'From defaults', value: `${defaulted.count} ${noun} from the website's defaults: ${defaulted.fields.join(', ')}` });
   }
   return facts;
 }
