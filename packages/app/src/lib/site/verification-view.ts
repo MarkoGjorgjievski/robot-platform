@@ -22,6 +22,8 @@ export type FieldVerification = {
   key: string;
   cells: Record<string, CellResult>; // url → result
   certified: unknown[]; // ranked paths; empty when the field never passed
+  /** Passed on the website's default alone: no path certified (spec 2026-10-13 §4). */
+  defaultOnly?: true;
   weakEvidence: boolean;
   thinEvidence?: boolean;
   aiCalled: boolean;

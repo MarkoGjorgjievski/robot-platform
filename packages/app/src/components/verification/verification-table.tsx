@@ -7,7 +7,7 @@ import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
 import { LOCKED_REASON } from './verify-bar';
 import { VariantsRow, type VariantsRowProps } from './variants-row';
-import { cellLabel, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
+import { cellLabel, DEFAULT_CELL_TITLE, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
 import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../../lib/site/table-selection';
 
 /**
@@ -22,7 +22,11 @@ import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../..
  * neighbour `shown.ts`. Certification still runs on whatever path produces
  * the value at scale; this only warns the person typing it at Verify.
  */
-export type TableCell = { value: string; state: Segment; url: string; onAccept?: () => void; absent?: boolean; notOnPage?: boolean };
+export type TableCell = {
+  value: string; state: Segment; url: string; onAccept?: () => void; absent?: boolean; notOnPage?: boolean;
+  /** A blank cell on a field with a default (spec 2026-10-13 §6): shows the default, muted, under `DEFAULT_CELL_TITLE`. */
+  isDefault?: boolean;
+};
 
 const NOT_ON_PAGE_TITLE = 'The page does not show this value; a path that produces it will be certified anyway. Mark it on the screenshot if it is there, or use "Not on this product".';
 
@@ -57,6 +61,12 @@ export type TableRow = {
   drift?: DriftLine[];
   /** The coverage check's line for this field (spec 2026-10-10 §A5), shown under the row like `drift`. */
   coverage?: { text: string; onUseAsProofPage: (() => void) | null };
+  /** The field has a website default (spec 2026-10-13 §6): "Not on this product" is not offered on its cells. */
+  hasDefault: boolean;
+  /** Same-everywhere's second action: make the row's value the website's default and accept the row. */
+  onMakeDefault: () => void;
+  /** `DEFAULT_ONLY_WORD` beside the verified badge of a field that passed by default only; null otherwise. */
+  defaultOnlyWord: string | null;
 };
 
 /** The 2 px rail a value cell carries in its state colour (spec §4: never a background wash). */
@@ -73,7 +83,7 @@ function productsText(ns: number[]): string {
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
-function StatusCell({ field, status, badge, count, locked, onAccept }: { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void }) {
+function StatusCell({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null }) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -105,6 +115,9 @@ function StatusCell({ field, status, badge, count, locked, onAccept }: { field: 
           <Button variant="outline" size="xs" disabled={locked} aria-label={`Accept ${field.name} anyway`} title={locked ? LOCKED_REASON : undefined} onClick={onAccept}>
             Accept anyway
           </Button>
+          <Button variant="outline" size="xs" disabled={locked} aria-label={`Make ${field.name} the default for this website`} title={locked ? LOCKED_REASON : undefined} onClick={onMakeDefault}>
+            Make it the default
+          </Button>
           {locked ? <span className="text-sm text-muted-foreground">{LOCKED_REASON}</span> : null}
         </div>
       );
@@ -114,6 +127,7 @@ function StatusCell({ field, status, badge, count, locked, onAccept }: { field: 
       return (
         <span className="inline-flex flex-wrap items-center gap-2">
           <BadgeView badge={badge} />
+          {defaultOnlyWord ? <span className="text-sm text-muted-foreground">{defaultOnlyWord}</span> : null}
           {count && badge && (badge.kind === 'verified' || badge.kind === 'fails') ? (
             <span className="text-sm text-muted-foreground" aria-label={`${count.passed} of ${count.checked} products`}>
               {count.passed}/{count.checked}
@@ -393,8 +407,8 @@ export function VerificationTable({
                             )}
                           >
                             <span
-                              className={cn('min-w-0 truncate font-mono text-base', cell.absent && 'text-muted-foreground', cell.notOnPage && 'text-warn')}
-                              title={cell.notOnPage ? NOT_ON_PAGE_TITLE : cell.value || undefined}
+                              className={cn('min-w-0 truncate font-mono text-base', (cell.absent || cell.isDefault) && 'text-muted-foreground', cell.notOnPage && 'text-warn')}
+                              title={cell.notOnPage ? NOT_ON_PAGE_TITLE : cell.isDefault ? DEFAULT_CELL_TITLE : cell.value || undefined}
                             >
                               {cell.value || '—'}
                               {cell.notOnPage ? <span className="ml-1 font-sans text-xs text-muted-foreground">not on this page</span> : null}
@@ -428,7 +442,7 @@ export function VerificationTable({
                           >
                             Type it
                           </ContextMenuItem>
-                          <ContextMenuItem disabled={locked || !cell.url.trim() || cell.absent} onSelect={() => onAbsent?.(sel)}>
+                          <ContextMenuItem disabled={locked || !cell.url.trim() || cell.absent || row.hasDefault} onSelect={() => onAbsent?.(sel)}>
                             Not on this product
                           </ContextMenuItem>
                         </ContextMenuContent>
@@ -472,7 +486,7 @@ export function VerificationTable({
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
                 <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} />
+                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} />
                 </td>
               </tr>
 

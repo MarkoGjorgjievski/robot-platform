@@ -6,6 +6,9 @@ import { Textarea } from '../ui/textarea';
 import { RunDot } from '../run-dot';
 import { failsText, type Badge, type Field } from '../../lib/site/verification-model';
 
+/** The title on "not on any proof page" beside a website default no proof page shows (spec 2026-10-13 §6, §8). */
+export const DEFAULT_WARN_TITLE = 'No proof page shows this value; it will still fill every product the paths leave empty.';
+
 /**
  * A line about the selected product that a cell click cannot say on its own:
  * a page-data value no element shows (with a tick and ×), or a suggestion
@@ -46,7 +49,9 @@ export function BadgeView({ badge }: { badge: Badge }) {
  * product's cell cannot show on its own, Type it (a value for that product
  * that cannot be clicked), and the descriptor (where the field lives on this
  * website, in the customer's own words). Moved from field-row.tsx, where this
- * was the row's hint line plus its `expanded` block.
+ * was the row's hint line plus its `expanded` block. Under Type it, the
+ * website's default for the field (spec 2026-10-13 §6): it fills every product
+ * the paths leave empty, and warns — never blocks — when no proof page shows it.
  */
 export function FieldDetails({
   field,
@@ -58,6 +63,10 @@ export function FieldDetails({
   locked,
   onType,
   onDescription,
+  defaultValue,
+  defaultError,
+  defaultWarn,
+  onDefault,
   focusTyped = 0,
 }: {
   field: Field;
@@ -71,6 +80,13 @@ export function FieldDetails({
   locked: boolean;
   onType: (value: string) => void;
   onDescription: (text: string) => void;
+  /** The website's default for `field`, as typed. */
+  defaultValue: string;
+  /** Why the default is not a value of the field's type, or undefined. */
+  defaultError?: string;
+  /** No captured proof page shows the default. */
+  defaultWarn: boolean;
+  onDefault: (value: string) => void;
   /** Bumped by the caller when "Type it" is chosen for this field (spec 2026-10-07 §2); each new value focuses the input. */
   focusTyped?: number;
 }) {
@@ -129,6 +145,19 @@ export function FieldDetails({
           <p className="mt-1 text-sm text-fail">{typedError}</p>
         ) : saved ? (
           <p className="mt-1 text-sm text-muted-foreground">typed</p>
+        ) : null}
+      </div>
+
+      <div>
+        <span className="mb-1 block text-sm text-muted-foreground">Default for this website</span>
+        <Input aria-label={`Default ${field.name} for this website`} value={defaultValue} disabled={locked} onChange={(e) => onDefault(e.target.value)} />
+        {defaultError ? (
+          <p className="mt-1 text-sm text-fail">{defaultError}</p>
+        ) : defaultValue.trim() ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Fills every product the paths leave empty.
+            {defaultWarn ? <span className="ml-2 text-warn" title={DEFAULT_WARN_TITLE}>not on any proof page</span> : null}
+          </p>
         ) : null}
       </div>
 

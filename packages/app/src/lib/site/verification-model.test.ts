@@ -5,6 +5,7 @@ import {
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
+  setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -741,5 +742,65 @@ describe('what a carry sends (final review I4)', () => {
     expect(carryFrom({ value: '129.99', mark: MARK, via: JL })).toEqual({ value: '129.99', mark: MARK, via: JL });
     expect(carryFrom({ value: '129.99', mark: null })).toEqual({ value: '129.99' });
     expect(carryFrom({ value: '129.99', mark: null, via: { source: 'xpath', path: '//x' } })).toEqual({ value: '129.99' });
+  });
+});
+
+describe('a website\'s default (spec 2026-10-13 §6)', () => {
+  const BRAND: Field = { key: 'brand', name: 'Brand', type: 'text', description: 'maker', concept: 'brand' };
+  const ALL = [...FIELDS, BRAND];
+  const BL = { source: 'json-ld', path: 'brand.name' };
+
+  it('saves and reads back defaults, trimmed, dropping blanks', () => {
+    const b = setDefault(board(), 'brand', ' Widgetco ');
+    expect(defaultOf(b, 'brand')).toBe('Widgetco');
+    expect(toBindingInput(b, ALL).defaults).toEqual({ brand: 'Widgetco' });
+    expect(toBindingInput(setDefault(b, 'brand', '  '), ALL)).not.toHaveProperty('defaults');
+    const back = boardFrom({ schemaDefinition: ALL, verificationSet: { urls: U, expected: {}, defaults: { brand: 'Widgetco' } } });
+    expect(back.defaults).toEqual({ brand: 'Widgetco' });
+    expect(boardFrom({ schemaDefinition: ALL, verificationSet: { urls: U, expected: {} } }).defaults).toEqual({});
+  });
+
+  it('setting a default clears the field\'s absent cells, and nothing else', () => {
+    let b = markAbsent(board(), 'brand', U[0]!);
+    b = answer(b, 'brand', U[1]!, { value: 'Acme', mark: null });
+    b = answer(b, 'title', U[2]!, { value: '', mark: null, absent: true });
+    b = setDefault(b, 'brand', 'Widgetco');
+    expect(b.answers.brand).toEqual({ [U[1]!]: { value: 'Acme', mark: null } });
+    expect(isAbsent(b, 'title', U[2]!)).toBe(true);
+  });
+
+  it('a blank cell with a default is not missing, reads the default, and is a default cell', () => {
+    const b = setDefault(board(), 'brand', 'Widgetco');
+    expect(rowStatus(BRAND, b, {}, maps())).toEqual({ kind: 'accepted' });
+    expect(rowStatus(BRAND, board(), {}, maps())).toEqual({ kind: 'needs-you', reason: 'missing on product 1', product: 1 });
+    expect(cellText(b, BRAND, U[0]!, () => '')).toBe('Widgetco');
+    expect(cellText(b, BRAND, U[0]!, () => 'Acme')).toBe('Acme');
+    expect(isDefaultCell(b, BRAND, {}, U[0]!)).toBe(true);
+    expect(isDefaultCell(answer(b, 'brand', U[0]!, { value: 'Acme', mark: null }), BRAND, {}, U[0]!)).toBe(false);
+    expect(isDefaultCell(b, BRAND, liveFor(b, 'brand', [sug('Acme', [0], BL), null, null]), U[0]!)).toBe(false);
+    expect(isDefaultCell(board(), BRAND, {}, U[0]!)).toBe(false);
+  });
+
+  it('the gate does not ask for a product on a field with a default (Review Focus 5)', () => {
+    expect(verifyGate(full(), ALL, {}).ok).toBe(false);
+    expect(verifyGate(setDefault(full(), 'brand', 'Widgetco'), ALL, {})).toEqual({ ok: true });
+  });
+
+  it('a suggestion that differs from the default follows the normal flow, and rowValue reads the shared value', () => {
+    const b = setDefault(board(), 'brand', 'Widgetco');
+    const live = liveFor(b, 'brand', [sug('Acme', [0], BL), sug('Acme', [0], BL), sug('Acme', [0], BL)]);
+    const boxes = { [U[0]!]: boxesOf(['Acme']), [U[1]!]: boxesOf(['Acme']), [U[2]!]: boxesOf(['Acme']) };
+    expect(rowStatus(BRAND, b, live, boxes)).toEqual({ kind: 'same-everywhere' });
+    expect(rowValue(b, live, 'brand')).toBe('Acme');
+    expect(rowValue(answer(b, 'brand', U[1]!, { value: 'Typed', mark: null }), {}, 'brand')).toBe('Typed');
+    expect(rowValue(b, {}, 'brand')).toBeNull();
+  });
+
+  it('a default-only result reads verified, with its row word only while unchanged', () => {
+    const results = { brand: { certified: [], defaultOnly: true as const, cells: { [U[0]!]: { status: 'pass' as const } } } };
+    expect(badge({ key: 'brand', results, unchangedKeys: ['brand'], running: false, cards: board().cards })).toEqual({ kind: 'verified' });
+    expect(defaultOnlyWord(results, 'brand', ['brand'])).toBe(DEFAULT_ONLY_WORD);
+    expect(defaultOnlyWord(results, 'brand', [])).toBeNull();
+    expect(defaultOnlyWord({ brand: { certified: [BL], cells: {} } }, 'brand', ['brand'])).toBeNull();
   });
 });

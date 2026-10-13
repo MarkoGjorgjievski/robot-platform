@@ -97,3 +97,16 @@ export function typedNotShown(field: Field, answer: Answer | undefined, pageText
   }
   return !textShown(answer.value, pageText);
 }
+
+/**
+ * A default no captured proof page shows (spec 2026-10-13 §6): the §B2 check
+ * against every page with text, true only when all of them lack it. Inert
+ * with no captured text, a blank value, or a type the check never reads.
+ */
+export function defaultNotShown(field: Field, value: string, pageTexts: string[]): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  const texts = pageTexts.filter(Boolean);
+  if (texts.length === 0) return false;
+  return texts.every((t) => typedNotShown(field, { value: v, mark: null }, t));
+}
