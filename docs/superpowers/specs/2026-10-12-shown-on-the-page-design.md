@@ -1,6 +1,23 @@
 # Correctness on the run page: "shown on the page" — design
 
 **Status:** approved in chat by Marko 2026-10-12 ("go with the correctness design"); Part B added the same day after campaign 2 batch A, on Marko's "do the judge changes and amend the spec"; plan next.
+
+**Status:** implemented on `feat/shown-on-the-page`, merged into `main` 2026-10-13; live check in `docs/testing/results/2026-10-12-shown-on-the-page-live-check.md`.
+
+Deviations:
+
+- An `xpath` value of an unchecked type (`url`/`image`/`boolean`/`date`) stays `null`, not `true` — D2 wins over the xpath rule; those types are never counted either way.
+- The "not shown" badge lives in the results table's column head, not on the fill bar — the repair bar renders `null` without gaps and a badge there would leave holes.
+- The panel's `from {source} ({path})` reads the source label as the path's own stored source, with `xpath` shown as `page` rather than the internal word.
+- The judge keeps its own, stricter number/text matcher rather than adopting the free check's looser one.
+- No heading is offered as a second hint option on a field — `FieldHint` carries one value, so B1's heading suggestion and the page-data hint share the one slot rather than both showing.
+- `text_list` stays unchecked on both sides (the free check and Verify's B2), by ruling.
+- Verify's page text is uncapped (no 8,000-character ceiling), unlike the original draft.
+- The heading used by B1 is read from the HTML's first `h1` (`visibleTextFromHtml`'s box map), falling back to the largest heading box only when there is no `h1` at all.
+- `unshownItems` on `crawl.coverage` is capped at 500.
+- A variant-level field on a list-run (row-per-variant) is never checked by B1/B2: `shown` is `null` and no path is offered.
+- Singular copy forms apply below 2 ("1 value", "is not on the product's page") rather than always pluralising.
+- The route smoke's seeded fixture adds Description and Brand fields via `datasets.addField` to exercise the panel and the B2 warning, beyond the three fields the smoke otherwise uses.
 Follows `2026-10-10-proof-page-coverage-design.md` and the credit campaign's judge findings
 (`docs/testing/2026-10-08-credit-campaign.md`, "What the campaign answered").
 
