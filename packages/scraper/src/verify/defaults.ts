@@ -6,18 +6,15 @@ import type { CustomerFieldType } from './types.js';
 
 export type DefaultedField = { key: string; type: CustomerFieldType; defaultValue?: string };
 
-const collapse = (s: string) => s.normalize('NFKC').replace(/\s+/g, ' ').trim();
-
 /** The default as a run writes it — `evaluatePath`'s own rendering: text NFKC-collapsed and
- * trimmed, every other type parsed and rendered. A list keeps the operator's own casing and
- * order (unlike a path's cross-validation form, which normalizes a list for equality, not
- * display). Null when the text does not parse for the type. */
+ * trimmed, every other type (including a list) parsed by `normalize` and rendered by
+ * `renderValue` — the same production chain a path's hit goes through, so a default-filled cell
+ * and a path-filled cell of the same field render identically. Null when the text does not parse
+ * for the type. */
 export function renderDefault(type: CustomerFieldType, value: string): unknown {
   const norm = normalize(type, value);
   if (norm === null) return null;
-  if (type === 'text') return collapse(value);
-  if (type === 'text_list') return value.split(/[\n,;]/).map(collapse).filter((s) => s !== '');
-  return renderValue(type, norm);
+  return type === 'text' ? value.normalize('NFKC').replace(/\s+/g, ' ').trim() : renderValue(type, norm);
 }
 
 const isEmpty = (v: unknown) => v === null || v === undefined || v === '';

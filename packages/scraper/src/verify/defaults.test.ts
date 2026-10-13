@@ -8,7 +8,9 @@ describe('renderDefault', () => {
     expect(renderDefault('number', '4,5')).toBe(4.5);
     expect(renderDefault('boolean', 'yes')).toBe(true);
     expect(renderDefault('boolean', 'out of stock')).toBe(false);
-    expect(renderDefault('text_list', 'Red, Blue')).toEqual(['Red', 'Blue']);
+    // text_list goes through the same normalize/renderValue chain evaluatePath uses for a path's
+    // hit: lowercased, deduped, sorted (normalize.ts's list()) — not the operator's own casing.
+    expect(renderDefault('text_list', 'Red, Blue')).toEqual(['blue', 'red']);
     expect(renderDefault('money', 'call us')).toBeNull();
   });
 });
