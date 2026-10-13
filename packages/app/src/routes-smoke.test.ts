@@ -62,7 +62,13 @@
 // compare shapes. It samples `/p/9`, finds Price empty there, reads the line
 // under Price's row and the stage line, clicks "Use as proof page" to make
 // `/p/9` product 4, marks Price "Not on this product" there, and waits for the
-// autosave to carry the page and the absent answer to the server.
+// autosave to carry the page and the absent answer to the server. Then it
+// adds `/p/10` by URL as product 5 — not on the listing; its page data names
+// it "Widget E (Drift)" under an `<h1>` of "Widget E" — and reads the Title
+// row's heading rule; adds Brand to the contract and types a tagline on
+// product 1, which its cell flags "not on this page" (spec 2026-10-12 Part B).
+// The test after it adds Description and opens a seeded run whose
+// extractions flag it not shown (`seedUnshownRun`, spec 2026-10-12 §5/§7).
 //
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
@@ -87,6 +93,7 @@ import type { AppRouter } from '@robot/api/routers';
 // public surface.
 import { SHOP_EXAMPLE } from '../../api/src/test-helpers/shop-example';
 import { seedCompletedVariantsRun } from '../../api/src/test-helpers/seed-variants-run';
+import { seedUnshownRun } from '../../api/src/test-helpers/seed-unshown-run';
 import { seedDriftCheck } from '../../api/src/test-helpers/seed-drift-check';
 import { seedPassingVerification } from '../../api/src/test-helpers/seed-coverage-check';
 import { startCoverageCheck, runCoverageCheck } from '../../api/src/verify/run-coverage-check';
@@ -133,6 +140,11 @@ const PRODUCTS = [
  *  SKU are on the page, so every other certified path the coverage test seeds resolves on it.
  *  Listed LAST on `/l`, so the finder's first three cards stay `/p/1..3`. */
 const SECOND_SHAPE = { path: '/p/9', title: 'Widget D', price: '$99.00', rating: '4.1' };
+
+/** A fifth product whose page data names it differently from its heading (spec 2026-10-12 §B1, the
+ *  Colourpop "Drift" case): JSON-LD `name` "Widget E (Drift)", `<h1>` "Widget E". NOT linked from
+ *  `/l` — the coverage test adds it by URL as product 5 and reads the Title row's heading rule. */
+const DRIFT_PRODUCT = { path: '/p/10', name: 'Widget E (Drift)', title: 'Widget E', rating: '3.9', sku: 'E5' };
 
 /** A 1×1 transparent PNG: every image the shop serves. */
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
@@ -184,6 +196,13 @@ function shopPage(pathname: string): { type: string; body: string | Buffer; stat
     return {
       type: 'text/html',
       body: `<html><head><title>${SECOND_SHAPE.title}</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="main"><h1>${SECOND_SHAPE.title}</h1><p class="sizes">Sizes S and M</p><p class="stock">In stock</p><span class="rating">${SECOND_SHAPE.rating}</span><span class="sku">P9</span></div>${SHOP_FOOTER}</body></html>`,
+    };
+  }
+  if (pathname === DRIFT_PRODUCT.path) {
+    const ld = { '@context': 'https://schema.org', '@type': 'Product', name: DRIFT_PRODUCT.name, sku: DRIFT_PRODUCT.sku };
+    return {
+      type: 'text/html',
+      body: `<html><head><title>${DRIFT_PRODUCT.title}</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="main"><h1>${DRIFT_PRODUCT.title}</h1><p class="stock">In stock</p><span class="rating">${DRIFT_PRODUCT.rating}</span><span class="sku">${DRIFT_PRODUCT.sku}</span></div>${SHOP_FOOTER}</body></html>`,
     };
   }
   const product = PRODUCTS.find((p) => p.path === pathname);
@@ -1634,8 +1653,94 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(4);
     await shootViewportBothThemes(page, 'app-site-verification-coverage-absent');
 
+    // Spec 2026-10-12 §B1: a Title that is not the page's heading never reads
+    // agreed. `/p/10` (not on the listing) is added by URL as product 5: its
+    // page data names it "Widget E (Drift)", its heading reads "Widget E".
+    await page.getByRole('button', { name: '+ Add product', exact: true }).click();
+    await page.getByRole('textbox', { name: 'New product URL' }).fill(`${SHOP}${DRIFT_PRODUCT.path}`);
+    await page.getByRole('textbox', { name: 'New product URL' }).press('Enter');
+    await expect.poll(() => page.getByRole('button', { name: /^Drop product \d+$/ }).count(), { timeout: 30_000 }).toBe(5);
+    await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(5);
+    await expect.poll(() => rowStatusText('Title'), { timeout: 30_000 }).toContain("not the page's heading on product 5");
+    console.log(`heading: Title's status reads "${await rowStatusText('Title')}"`);
+    await expect.poll(() => page.getByText('saved', { exact: true }).count(), { timeout: 20_000 }).toBe(1);
+
+    // Spec 2026-10-12 §B2: a typed value the page does not show warns in its
+    // cell. Brand joins the contract here (after every assertion above, so
+    // none of them saw it), and its value is typed on product 1 through the
+    // detail bar's Type it — a tagline, not anything product 1's page shows.
+    const project = await api.projects.get.query({ projectSlug: projectSlug! });
+    await api.datasets.addField.mutate({ datasetId: project.datasetId!, name: 'Brand', type: 'text', concept: 'brand' });
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const brand1 = page.locator('button[aria-label^="Brand on product 1: "]');
+    await brand1.waitFor({ timeout: 30_000 });
+    await brand1.click();
+    await page.getByRole('button', { name: 'Type Brand on product 1', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Brand on product 1', exact: true }).fill('Widget shop | We Do Widgets');
+    await expect.poll(() => brand1.innerText(), { timeout: 20_000 }).toContain('not on this page');
+    console.log(`typed: "${await brand1.getAttribute('aria-label')}" reads "${(await brand1.innerText()).replace(/\s+/g, ' ').trim()}"`);
+
     expect(problems, `the coverage walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
-  }, 180_000);
+  }, 300_000);
+
+  // Shown on the page (spec 2026-10-12 §5/§7): the run page counts, names and
+  // marks the values the product's page does not show. Like the variants run
+  // above, this run was never run — `seedUnshownRun` inserts three detail
+  // items whose extractions carry `validation_result`, two flagging
+  // Description not shown (from json-ld `description`) and one with no flag
+  // at all (an old row: "not checked", never "not shown"). Description joins
+  // the contract first, so the sheet has a column for it.
+  it('the run page counts, names and marks the values not shown on their page', async () => {
+    expect(projectSlug, 'there is no project to open a run on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to open a run on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const project = await api.projects.get.query({ projectSlug: projectSlug! });
+    await api.datasets.addField.mutate({ datasetId: project.datasetId!, name: 'Description', type: 'text', concept: 'description' });
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const keyOf = (name: string) => site.fields.find((f) => f.name === name)?.key;
+    const [titleKey, priceKey, descriptionKey] = ['Title', 'Price', 'Description'].map(keyOf);
+    for (const [name, key] of [['Title', titleKey], ['Price', priceKey], ['Description', descriptionKey]] as const) {
+      expect(key, `no key for ${name}`).toBeTruthy();
+    }
+    const flagged = {
+      shown: { [titleKey!]: true, [priceKey!]: true, [descriptionKey!]: false },
+      paths: { [descriptionKey!]: { source: 'json-ld' as const, path: 'description', transform: 'identity' as const } },
+    };
+    const item = (n: number, validationResult?: typeof flagged) => ({
+      url: `${SHOP}/p/${n}`,
+      row: { [titleKey!]: `Widget ${n}`, [priceKey!]: 100 + n, [descriptionKey!]: `The SEO description of widget ${n}` },
+      ...(validationResult ? { validationResult } : {}),
+    });
+    const runId = await seedUnshownRun(site.id, { items: [item(1, flagged), item(2, flagged), item(3)] });
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}/runs/${runId}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+    const main = page.locator('main');
+    await expect.poll(() => main.innerText(), { timeout: 20_000 }).toContain('Values not shown on their page');
+
+    // The column heads: Description's badge counts the two; Price, checked and shown, has none.
+    const head = (name: string) => page.locator('thead th').filter({ hasText: new RegExp(`^${name}`) });
+    expect(await head('Description').count(), 'no Description column in the sheet').toBe(1);
+    expect(await head('Description').innerText(), "Description's column head does not count the values not shown").toContain('2 not shown');
+    expect(await head('Price').innerText(), "Price's column head says not shown").not.toContain('not shown');
+
+    // The panel: its title and the Description row, in the customer's words, naming the path.
+    expect(await page.getByRole('heading', { name: 'Values not shown on their page', exact: true }).count(), 'no unshown panel').toBe(1);
+    const lines = await page.locator('section li p').allInnerTexts();
+    expect(
+      lines.some((l) => l.trim().startsWith("Description: 2 of 2 values are not on the product's page · from json-ld (description)")),
+      `no Description row in the panel; it reads:\n  ${lines.join('\n  ')}`,
+    ).toBe(true);
+
+    // The summary line, and the two marked cells.
+    expect(await main.innerText(), 'the summary does not count the values not shown').toContain('2 values not shown on their page');
+    expect(await page.locator('td[title="not shown on the page"]').count(), 'not exactly two cells are marked not shown').toBe(2);
+
+    await shoot(page, 'app-site-run-unshown.png');
+    expect(problems, `the unshown run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 60_000);
 
   // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
   // product links". LAST on purpose: each wall puts the shop's host on
