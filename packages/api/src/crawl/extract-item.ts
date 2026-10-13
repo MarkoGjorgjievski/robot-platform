@@ -174,16 +174,18 @@ export async function extractItem(
       pageNumber: item.pageNumber,
     });
 
-    // Spec 2026-10-13 §5: a defaulted field is not a hit (confidence says what the paths produced).
+    // Spec 2026-10-13 §5: a defaulted field is not a hit (confidence says what the paths produced),
+    // and a default-only field (no paths) is not scored at all: there is nothing for a path to produce.
     const productDefaulted = verified.defaulted;
-    const hits = fields.filter((f) => verified.data[f.key] !== null && !productDefaulted.includes(f.key)).length;
-    const confidence = fields.length ? Math.round((100 * hits) / fields.length) : 0;
+    const scored = fields.filter((f) => f.paths.length > 0);
+    const hits = scored.filter((f) => verified.data[f.key] !== null && !productDefaulted.includes(f.key)).length;
+    const confidence = scored.length ? Math.round((100 * hits) / scored.length) : 0;
 
     // The capture's timings ride on the capture row so a run can be measured
     // per product from the database, not from a console log: this is how the
     // 70 s → 7 s Ikea change is checked, and what the next speed work reads.
     const t = verified.timings;
-    if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms), ${hits}/${fields.length} fields`);
+    if (t) console.log(`[crawl] ${item.url} captured in ${t.totalMs}ms (navigate ${t.navigateMs}ms, ready ${t.readyState ?? 'n/a'} ${t.readyMs ?? 0}ms), ${hits}/${scored.length} fields`);
 
     // Spec 2026-10-12 §4: the extraction's validationResult carries whether
     // each certified value was shown on the page (verified.shown), and the

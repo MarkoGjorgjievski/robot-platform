@@ -808,7 +808,27 @@ describe('extractItem — with a certification', () => {
     expect(result.row).toMatchObject({ price: 129.99, brand: 'Widgetco' });
     const extraction = (values.mock.calls[1]![0] as unknown) as { confidence: number; validationResult: unknown };
     expect(extraction.validationResult).toEqual({ shown: { price: true, brand: null }, paths: { price: CERTIFICATION.paths.price![0] }, defaulted: ['brand'] });
-    expect(extraction.confidence).toBe(50);
+    // Review fix 2: a default-only field (no paths) is not scored, so price alone hitting is 100.
+    expect(extraction.confidence).toBe(100);
+  });
+
+  it('confidence scores the fields with paths only; a field with paths that defaulted on this product is a miss', async () => {
+    runExtractionMock.mockReset();
+    const brandPath = { source: 'json-ld' as const, path: 'brand.name', transform: 'identity' as const };
+    const cert: Certification = { ...CERTIFICATION, paths: { ...CERTIFICATION.paths, brand: [brandPath] }, concepts: { ...CERTIFICATION.concepts, brand: 'brand' }, defaults: { brand: 'Widgetco' } };
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => ({
+      data: { price: 129.99, brand: 'Widgetco' },
+      stats: [{ key: 'price', concept: 'price_concept', path: CERTIFICATION.paths.price![0]!, hit: true, value: 129.99 }, { key: 'brand', concept: 'brand', path: brandPath, hit: false, value: null }],
+      timings: null, capture: null, shown: { price: true, brand: null }, defaulted: ['brand'],
+    });
+    const values = vi.fn((_row: unknown) => ({ returning: async () => [{ id: 'ext-1' }] }));
+    await extractItem({ insert: () => ({ values }) } as never, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r',
+      schema: [...CERT_SCHEMA, { name: 'brand', type: 'string', origin: 'detail' as const }],
+      schemaDefinition: [...SCHEMA_DEFINITION, { key: 'brand', name: 'Brand', type: 'text' as const, description: 'x', concept: 'brand' }],
+      certification: cert, extractVerified, recordStats: vi.fn(async () => {}),
+    });
+    expect((values.mock.calls[1]![0] as { confidence: number }).confidence).toBe(50);
   });
 
   it('a run without defaults writes no defaulted key at all (property 9)', async () => {
