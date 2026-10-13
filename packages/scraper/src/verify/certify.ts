@@ -22,6 +22,8 @@ export type CertifyInput = {
   markXPaths?: string[];
   /** The proof pages the customer said this field is NOT on (spec 2026-10-10 §B2): checked pages where the right answer is nothing. */
   absent?: string[];
+  /** The website's default for this field (spec 2026-10-13 §3/§4): every captured page is checked; a blank or default-equal cell is a default cell, where a candidate reading the default or nothing is correct; a candidate must read a value on at least one page to certify; with every page a default cell and nothing certified, the field passes by default only. */
+  defaultValue?: string;
 };
 
 const SOURCE_RANK: Record<CertifiedPath['source'], number> = { api: 0, 'json-ld': 1, meta: 2, xpath: 3 };
@@ -101,6 +103,13 @@ export function checkedPages(urls: string[], expected: Record<string, string>, a
   return urls.filter((u) => (expected[u] ?? '').trim() !== '' || absent[u] === true);
 }
 
+/** A field's expected values with its default filled into every blank, non-absent cell (spec 2026-10-13 §3): what candidate search and certification compare against. Without a default (or a blank one), the map as given. */
+export function expectedWithDefault(urls: string[], expected: Record<string, string>, defaultValue: string | undefined, absent: Record<string, true> = {}): Record<string, string> {
+  const def = defaultValue?.trim();
+  if (!def) return expected;
+  return Object.fromEntries(urls.filter((u) => !absent[u]).map((u) => [u, (expected[u] ?? '').trim() === '' ? def : expected[u]!]));
+}
+
 /**
  * Greedy set cover over SAFE candidates: repeatedly take the candidate correct
  * on the most still-uncovered pages, ties going to today's rank. Returns []
@@ -115,8 +124,11 @@ export function checkedPages(urls: string[], expected: Record<string, string>, a
  * it would hand every one-page path a second page and let a pile of them certify.
  * The absent pages still take part in safety (a value there makes a path unsafe,
  * so it never reaches this cover), and any path chosen here is empty on them.
+ *
+ * On a default cell (spec 2026-10-13 §4) an empty read is correct but proves
+ * nothing, so `isProven` (correct with a value) counts the pages a path carries.
  */
-function greedyCover(safe: CandidatePath[], pages: string[], absent: Set<string>, isCorrect: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[]): CandidatePath[] {
+function greedyCover(safe: CandidatePath[], pages: string[], absent: Set<string>, isCorrect: (c: CandidatePath, url: string) => boolean, isProven: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[]): CandidatePath[] {
   const valued = pages.filter((u) => !absent.has(u));
   if (valued.length === 0) return [];
   const ranked = rank(safe);
@@ -135,7 +147,7 @@ function greedyCover(safe: CandidatePath[], pages: string[], absent: Set<string>
     for (const u of [...uncovered]) if (isCorrect(best, u)) uncovered.delete(u);
   }
   if (uncovered.size > 0) return [];
-  const proven = (c: CandidatePath) => valued.filter((u) => isCorrect(c, u)).length;
+  const proven = (c: CandidatePath) => valued.filter((u) => isProven(c, u)).length;
   // A cover is a common layout plus exceptions, never a pile of one-page paths. Ikea, 2026-09-17:
   // three XPaths anchored on data-product-name="KIVIK" / "GLOSTAD" / "HEMLINGBY" were each correct on
   // their own proof page and empty on the others, so each was safe and together they covered every
@@ -173,8 +185,14 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const absentMap: Record<string, true> = Object.fromEntries([...absentSet].map((u) => [u, true as const]));
   // Only the pages this field is checked on take part: evaluation, cells, completeness.
   // An absent page is checked too (spec 2026-10-10 §B2), but has no expected value.
-  const urls = checkedPages(Object.keys(captures), input.expected, absentMap);
-  const expected = Object.fromEntries(urls.filter((u) => !absentSet.has(u)).map((u) => [u, input.expected[u]!]));
+  const defaultValue = input.defaultValue?.trim() || undefined;
+  const allUrls = Object.keys(captures);
+  // With a default every captured page is checked (spec 2026-10-13 §3); otherwise only the pages with a value or an absent mark.
+  const urls = defaultValue !== undefined ? allUrls : checkedPages(allUrls, input.expected, absentMap);
+  const filled = expectedWithDefault(allUrls, input.expected, defaultValue, absentMap);
+  const expected = Object.fromEntries(urls.filter((u) => !absentSet.has(u)).map((u) => [u, filled[u] ?? input.expected[u] ?? '']));
+  // A default cell: blank or equal to the default (spec 2026-10-13 §4). A candidate reading the default or nothing is correct there.
+  const defaultCells = new Set(defaultValue === undefined ? [] : urls.filter((u) => !absentSet.has(u) && valuesEqual(field.type, expected[u]!, defaultValue)));
   const filtered = dedupe(input.candidates).filter((c) => c.source !== 'xpath' || !Object.values(expected).some((e) => xpathContainsValue(c.path, e)));
   // A confirmed path is always a candidate (spec 2026-09-29 C1), though still only a candidate:
   // it must be correct or empty on every checked page like any other. Dedupe on the FULL path
@@ -198,7 +216,17 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // same value", they are all unparseable — never flag that as weak evidence.
   const norms = new Set(Object.values(expected).map((e) => normalizeForWeak(field.type, e)));
   const weakEvidence = norms.size === 1 && !norms.has(null) && Object.keys(expected).length > 1;
+  const complete = capturedUrls.length === urls.length;
+  // Every captured page a default cell (spec 2026-10-13 §4): the field may pass by default only.
+  const allDefault = defaultValue !== undefined && complete && capturedUrls.length > 0 && capturedUrls.every((u) => defaultCells.has(u));
+  const defaultOnlyResult = (): FieldVerification => ({
+    key: field.key,
+    cells: Object.fromEntries(urls.map((u): [string, CellResult] => [u, captures[u] ? { status: 'pass', found: '' } : { status: 'not_captured' }])),
+    certified: [], weakEvidence, aiCalled: false, incomplete: false, defaultOnly: true,
+  });
   if (weak && candidates.length === 0) {
+    // Default only takes precedence over no_fitting_path (spec 2026-10-13 §4).
+    if (allDefault) return defaultOnlyResult();
     // Nothing on these pages can be told to be this field: say so, rather than
     // certify whatever happens to hold the same value everywhere.
     const cells: Record<string, CellResult> = Object.fromEntries(urls.map((u): [string, CellResult] =>
@@ -219,26 +247,31 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       const empty = raw === null || raw === undefined || raw === '';
       // An absent page: a candidate is correct iff it resolves to nothing; a value there
       // makes `e.correct || e.empty` false, so it is unsafe and never certifies (spec 2026-10-10 §B2).
-      const correct = absentSet.has(url) ? empty : !empty && valuesEqual(field.type, raw, expected[url] ?? '', ctx);
+      const matches = !empty && valuesEqual(field.type, raw, expected[url] ?? '', ctx);
+      // An absent page: correct iff nothing. A default cell: nothing or the default (spec 2026-10-13 §4). Otherwise the typed value.
+      const correct = absentSet.has(url) ? empty : defaultCells.has(url) ? (empty || matches) : matches;
       if (!evals.has(pathId(c))) evals.set(pathId(c), {});
       evals.get(pathId(c))![url] = { raw, correct, empty };
     }
   }
   const isCorrect = (c: CandidatePath, u: string) => evals.get(pathId(c))?.[u]?.correct === true;
+  const isProven = (c: CandidatePath, u: string) => { const e = evals.get(pathId(c))?.[u]; return !!e && e.correct && !e.empty; };
+  // Spec 2026-10-13 §4: with a default a candidate must read something somewhere — a path empty on every page proves nothing. Without one, nothing changes.
+  const readsSomething = (c: CandidatePath) => defaultValue === undefined || capturedUrls.some((u) => isProven(c, u));
 
-  const complete = capturedUrls.length === urls.length;
   // Safe: on every captured page the field is checked on, correct or nothing.
   // A path that resolves to a WRONG value anywhere is never certified: at
   // scale paths are tried in order and the first value wins.
-  const safe = candidates.filter((c) => capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
+  const safe = candidates.filter((c) => readsSomething(c) && capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
   const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
   const oneLayout = complete ? rank(correctOnAllCaptured).slice(0, MAX_CERTIFIED_PATHS) : [];
   // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
-  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, rank) : [];
+  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, isProven, rank) : [];
   // provenOn (and so thinEvidence) counts the pages with a value only: an absent page proves nothing about a path.
   const certified: CertifiedPath[] = oneLayout.length > 0
     ? oneLayout
-    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => !absentSet.has(u) && isCorrect(c, u)) }));
+    : cover.map((c) => ({ ...c, provenOn: capturedUrls.filter((u) => !absentSet.has(u) && isProven(c, u)) }));
+  if (certified.length === 0 && allDefault) return defaultOnlyResult();
   const thinEvidence = cover.length > 0 && certified.some((p) => p.provenOn?.length === 1);
   const rankedCorrectOnAllCaptured = rankCertified(correctOnAllCaptured);
   // Without a certification, a page a safe path is correct on still reads as

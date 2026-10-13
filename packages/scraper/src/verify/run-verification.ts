@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { IBrowser, PageCapture, ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
-import { certify, checkedPages, gatherCandidates, isVolatilePath, type CandidatePath, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
@@ -60,6 +60,8 @@ function confirmedPathsOf(set: VerificationSet, key: string): ConfirmedPath[] {
 /** Whole-definition hash, kept for history and the fast path. Excludes `name`: renaming is free (spec 4.3). */
 export function definitionHash(fields: SchemaDefinitionField[], set: VerificationSet): string {
   const paths = allPathDigests(set);
+  const defaultKeys = Object.keys(set.defaults ?? {}).filter((k) => (set.defaults![k] ?? '').trim() !== '').sort();
+  const defaults = defaultKeys.length ? Object.fromEntries(defaultKeys.map((k) => [k, set.defaults![k]!.trim()])) : undefined;
   return sha256(JSON.stringify({
     fields: fields.map((f) => ({ key: f.key, type: f.type, description: f.description, concept: f.concept })),
     urls: set.urls,
@@ -68,6 +70,7 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
     ...(set.marks && Object.keys(set.marks).length ? { marks: Object.fromEntries(Object.keys(set.marks).sort().map((k) => [k, markDigest(set.marks![k], set.urls)])) } : {}),
     ...(paths ? { paths } : {}),
     ...(set.absent && Object.keys(set.absent).length ? { absent: Object.fromEntries(Object.keys(set.absent).sort().map((k) => [k, Object.keys(set.absent![k]!).sort()])) } : {}),
+    ...(defaults ? { defaults } : {}),
   }));
 }
 
@@ -81,7 +84,9 @@ export function definitionHash(fields: SchemaDefinitionField[], set: Verificatio
 export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): string {
   const expected = set.expected[field.key] ?? {};
   const absent = Object.keys(set.absent?.[field.key] ?? {}).filter((u) => set.urls.includes(u)).sort();
-  const pages = checkedPages(set.urls, expected, Object.fromEntries(absent.map((u) => [u, true as const])));
+  const def = (set.defaults?.[field.key] ?? '').trim();
+  // A field with a default is checked on every proof page (spec 2026-10-13 §3).
+  const pages = def ? [...set.urls] : checkedPages(set.urls, expected, Object.fromEntries(absent.map((u) => [u, true as const])));
   const marks = markDigest(set.marks?.[field.key], pages);
   const paths = pathDigest(set.paths?.[field.key], pages);
   return sha256(JSON.stringify({
@@ -94,6 +99,7 @@ export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): s
     ...(marks ? { marks } : {}),
     ...(paths ? { paths } : {}),
     ...(absent.length ? { absent } : {}),
+    ...(def ? { default: def } : {}),
   }));
 }
 
@@ -151,8 +157,10 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       fields[field.key] = prev;
       continue;
     }
-    const expected = req.verificationSet.expected[field.key] ?? {};
     const absent = Object.keys(req.verificationSet.absent?.[field.key] ?? {});
+    const defaultValue = (req.verificationSet.defaults?.[field.key] ?? '').trim() || undefined;
+    // With a default the search looks for it on every blank page (spec 2026-10-13 §4): the JSON-LD brand path is found where nothing was typed.
+    const expected = expectedWithDefault(req.verificationSet.urls, req.verificationSet.expected[field.key] ?? {}, defaultValue, Object.fromEntries(absent.map((u) => [u, true as const])));
     const caps: Record<string, CaptureLike | null> = captures;
     // What the customer said about this field (spec 2026-09-29 C1/C2) goes to every certification
     // below, the domain-cache shortcut included: that is where a cached `priority` would slip in.
@@ -162,7 +170,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     let result: FieldVerification | null = null;
     const cached = deps.cachedPaths ? await deps.cachedPaths(field.concept) : [];
     if (cached.length > 0) {
-      const r = await certify({ field, expected, captures: caps, candidates: cached, confirmed, markXPaths, absent }, { evalXPaths });
+      const r = await certify({ field, expected, captures: caps, candidates: cached, confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
       // The shortcut is for a certification worth keeping. One that rests on a
       // volatile XPath (only possible as certify's last resort) is searched
       // again, so the stable paths the generator now finds can replace it.
@@ -172,9 +180,9 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     if (!result) {
       const gathered = await gatherCandidates(field, expected, caps, { runDomSearch, marks: req.verificationSet.marks?.[field.key] });
       candidates = [...cached, ...gathered.candidates];
-      result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths, absent }, { evalXPaths });
+      result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
     }
-    if (result.certified.length === 0 && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
+    if (result.certified.length === 0 && !result.defaultOnly && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
       deps.onProgress?.(`asking AI for ${field.key}`);
       const nearMisses = Object.fromEntries(Object.entries(result.cells).map(([u, c]) => [u, c.status === 'fail' ? c.nearMisses ?? [] : []]));
       // I1: only the pages this field is actually checked on go to the model
@@ -186,12 +194,12 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const checkedCaps: Record<string, CaptureLike | null> = Object.fromEntries(pages.map((u) => [u, caps[u] ?? null]));
       const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, deps.agent);
       aiCalls++;
-      result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths, absent }, { evalXPaths });
+      result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
       result.aiCalled = true;
     }
     fields[field.key] = { ...result, fieldHash: fh };
   }
 
-  const allPassed = req.fields.length > 0 && Object.values(fields).every((f) => f.certified.length > 0 && Object.values(f.cells).every((c) => c.status === 'pass'));
+  const allPassed = req.fields.length > 0 && Object.values(fields).every((f) => (f.certified.length > 0 || f.defaultOnly === true) && Object.values(f.cells).every((c) => c.status === 'pass'));
   return { outcome: { fields, allPassed, aiCalls }, captures, captureErrors };
 }

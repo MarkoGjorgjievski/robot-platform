@@ -502,3 +502,42 @@ describe('runVerification — the AI fallback is skipped when nothing can fit a 
     expect(run.outcome.aiCalls).toBe(1);
   }, 60_000);
 });
+
+describe('a website\'s default (spec 2026-10-13 §3/§4)', () => {
+  const brand = { key: 'brand', name: 'Brand', type: 'text' as const, description: 'the maker', concept: 'brand' };
+  const blank = { [U[0]!]: '', [U[1]!]: '', [U[2]!]: '' };
+  const base: VerificationSet = { urls: U, expected: { brand: blank } };
+  const withDefault: VerificationSet = { ...base, defaults: { brand: 'Widgetco' } };
+
+  it('a default moves the field\'s hash and the definition hash; another field\'s default does not; a blank default is no default', () => {
+    expect(fieldHash(brand, withDefault)).not.toBe(fieldHash(brand, base));
+    expect(fieldHash(brand, { ...base, defaults: { brand: ' Widgetco ' } })).toBe(fieldHash(brand, withDefault));
+    expect(fieldHash(brand, { ...base, defaults: { brand: '' } })).toBe(fieldHash(brand, base));
+    expect(fieldHash(fields[1]!, { ...set, defaults: { brand: 'Widgetco' } })).toBe(fieldHash(fields[1]!, set));
+    expect(definitionHash([brand], withDefault)).not.toBe(definitionHash([brand], base));
+    expect(definitionHash([brand], { ...base, defaults: {} })).toBe(definitionHash([brand], base));
+  });
+
+  it('a field with a default passes by default only on pages that never name it, with no AI call (property 4)', async () => {
+    let calls = 0;
+    const agent = { proposePaths: async () => { calls++; return []; } };
+    const run = await runVerification({ fields: [brand], verificationSet: withDefault }, { browser, agent, captures: loadShopExample() });
+    expect(run.outcome.fields.brand).toMatchObject({ certified: [], defaultOnly: true, aiCalled: false });
+    expect(Object.values(run.outcome.fields.brand!.cells).every((c) => c.status === 'pass')).toBe(true);
+    expect(run.outcome.allPassed).toBe(true);
+    expect(run.outcome.aiCalls).toBe(0);
+    expect(calls).toBe(0);
+  }, 60_000);
+
+  it('a path reading another product\'s value on a default cell is unsafe, and a typed page forbids default only', async () => {
+    const name = { ...fields[0]!, key: 'name2' };
+    const run = await runVerification(
+      { fields: [name], verificationSet: { urls: U, expected: { name2: { [U[0]!]: '', [U[1]!]: 'Widget B', [U[2]!]: '' } }, defaults: { name2: 'Widget A' } } },
+      { browser, agent: null, captures: loadShopExample() },
+    );
+    // Page 1 is a default cell the json-ld name path reads as "Widget A"; page 3 reads "Widget C" there — wrong on a default cell, so no path certifies and the typed page 2 forbids default only.
+    expect(run.outcome.fields.name2!.certified).toEqual([]);
+    expect(run.outcome.fields.name2!.defaultOnly).toBeUndefined();
+    expect(run.outcome.allPassed).toBe(false);
+  }, 60_000);
+});

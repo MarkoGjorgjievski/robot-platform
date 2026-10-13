@@ -46,6 +46,8 @@ export type VerificationSet = {
   variants?: Record<string, VariantAnswer>;
   /** fieldKey → url → true: the customer said this field is not on that product (spec 2026-10-10 §B1). A checked page where the right answer is "nothing". Absent on sets written before it existed. */
   absent?: Record<string, Record<string, true>>;
+  /** fieldKey → the website's default for that field, as typed and trimmed (spec 2026-10-13 §3): a run writes it into every cell the certified paths leave empty; at Verify a blank or default-equal cell is a default cell. Absent on sets written before it existed. */
+  defaults?: Record<string, string>;
 };
 
 export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';
@@ -67,6 +69,8 @@ export type FieldVerification = {
   weakEvidence: boolean;               // all checked expected values identical
   /** Set (true) only when some certified path is proven on a single page: several nodes can hold the same value on one page, so one page is thinner evidence than three. Never blocks certification. */
   thinEvidence?: boolean;
+  /** Set (true) only when the field passed by default only (spec 2026-10-13 §4): every checked page is a default cell and no candidate certified, so `certified` is empty and every product gets the default. Absent otherwise. */
+  defaultOnly?: true;
   aiCalled: boolean;
   incomplete: boolean;                 // true when any capture is null
   /** sha256 over this field's definition + the pages + its expected values; a result is current only while it matches (spec 4.4). Absent on rows written before phase 2. */
