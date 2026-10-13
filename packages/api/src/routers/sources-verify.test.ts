@@ -94,6 +94,23 @@ describe('sources.verify', () => {
     } finally { await f.cleanup(); }
   });
 
+  // Review fix 3 (handoff next-work item 9, "Verify fails silently after 'Not on this product' on products 1-3"):
+  // the gate must read the absent marks, or a "Not on this product" cell on products 1-3 is refused as a blank.
+  it('verify does not refuse a "Not on this product" cell on product 1 when products 2 and 3 have values', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'verify-absent', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const k = f.keys.Price!;
+      await caller.sources.updateBinding({
+        sourceId: f.sourceId, urls: f.urls, descriptions: { [k]: 'price' },
+        expected: { [k]: { [f.urls[1]!]: '2.00', [f.urls[2]!]: '3.00' } },
+        absent: { [k]: { [f.urls[0]!]: true } },
+      });
+      const r = await caller.sources.verify({ sourceId: f.sourceId });
+      expect(r.status).toBe('started');
+      expect(runSourceVerificationMock).toHaveBeenCalledTimes(1);
+    } finally { await f.cleanup(); }
+  });
+
   it('closes a stalled in-flight verification (older than VERIFY_STALL_MS) and starts a fresh one', async () => {
     const { sourceId, cleanup } = await makeSchemaSource('stalled');
     try {
