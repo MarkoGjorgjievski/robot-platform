@@ -95,7 +95,9 @@ export function fieldHash(field: SchemaDefinitionField, set: VerificationSet): s
     description: field.description,
     concept: field.concept,
     urls: pages,
-    expected: Object.fromEntries(Object.entries(expected).filter(([u]) => pages.includes(u)).sort()),
+    // With a default a blank cell is a default cell, so a stored blank and a missing key hash the same.
+    // Without one the filter is exactly the pre-2026-10-13 one (a blank page is not in `pages` anyway).
+    expected: Object.fromEntries(Object.entries(expected).filter(([u, v]) => pages.includes(u) && (!def || v.trim() !== '')).sort()),
     ...(marks ? { marks } : {}),
     ...(paths ? { paths } : {}),
     ...(absent.length ? { absent } : {}),
