@@ -5,7 +5,10 @@ import { visibleTextFromHtml } from '../corroborate-value.js';
 
 export type Shown = boolean | null;
 const PREFIX = 80;
-const UNCHECKED: ReadonlySet<string> = new Set(['url', 'image', 'boolean', 'date']);
+// `text_list` too: its rendered value is sorted, de-duplicated and joined, a
+// form the page almost never prints, so a substring check would flag nearly
+// every multi-item list (final review I1). The app's `UNCHECKED_TYPES` agrees.
+const UNCHECKED: ReadonlySet<string> = new Set(['url', 'image', 'boolean', 'date', 'text_list']);
 
 // `visibleTextFromHtml` strips tags but does not decode entities, so a literal
 // "&nbsp;" (common in serialized markup) survives alongside a real U+00A0
@@ -41,20 +44,37 @@ function renderings(n: number): string[] {
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export function numberShownInText(value: unknown, type: 'number' | 'money', text: string, fieldWords: string[]): boolean {
-  const raw = String(value ?? '').replace(/[^\d.,-]/g, '').replace(/,(?=\d{3}(\D|$))/g, '');
-  const n = Number(raw.replace(',', '.'));
-  if (!Number.isFinite(n) || raw === '') return false;
-  if (n === 0) {
-    // A bare 0 proves nothing (Decathlon's rating fallback): only next to the field's own words.
-    const words = fieldWords.map(escape).join('|');
-    return words.length > 0 && new RegExp(`(?:${words})\\s*[:]?\\s*0(?!\\d)|(?<!\\d)0\\s*(?:${words})`).test(text);
+/**
+ * A value read as a number under either decimal mark: "1,299.99" and
+ * "1.299,99" are both 1299.99; an ambiguous "1.299" or "1,299" reads as both
+ * 1.299 and 1299, and either reading shown on the page counts (final review
+ * M1). A canonical `Number` reads as itself. The app's `shown.ts` twin agrees.
+ */
+export function numberReadings(value: unknown): number[] {
+  if (typeof value === 'number') return Number.isFinite(value) ? [value] : [];
+  const raw = String(value ?? '').replace(/[^\d.,-]/g, '').replace(/^[.,]+|[.,]+$/g, '');
+  const out = new Set<number>();
+  for (const [g, d] of [[',', '.'], ['.', ',']] as const) {
+    if (!new RegExp(`^-?(?:\\d{1,3}(?:${escape(g)}\\d{3})+|\\d+)(?:${escape(d)}\\d+)?$`).test(raw)) continue;
+    const n = Number(raw.split(g).join('').replace(d, '.'));
+    if (Number.isFinite(n)) out.add(n);
   }
-  // A rendering must stand as its own token: not glued to a digit on the left
-  // (part of a longer integer like "1200"), and on the right neither glued to
-  // a word character (an identifier like "sku-12x") nor the start of a longer
-  // decimal ("12.5" must not read as containing "12").
-  return renderings(Math.abs(n)).some((r) => new RegExp(`(?<![\\d.,])${escape(r)}(?!\\w)(?![.,]\\d)`).test(text));
+  return [...out];
+}
+
+export function numberShownInText(value: unknown, type: 'number' | 'money', text: string, fieldWords: string[]): boolean {
+  return numberReadings(value).some((n) => {
+    if (n === 0) {
+      // A bare 0 proves nothing (Decathlon's rating fallback): only next to the field's own words.
+      const words = fieldWords.map(escape).join('|');
+      return words.length > 0 && new RegExp(`(?:${words})\\s*[:]?\\s*0(?!\\d)|(?<!\\d)0\\s*(?:${words})`).test(text);
+    }
+    // A rendering must stand as its own token: not glued to a digit on the left
+    // (part of a longer integer like "1200"), and on the right neither glued to
+    // a word character (an identifier like "sku-12x") nor the start of a longer
+    // decimal ("12.5" must not read as containing "12").
+    return renderings(Math.abs(n)).some((r) => new RegExp(`(?<![\\d.,])${escape(r)}(?!\\w)(?![.,]\\d)`).test(text));
+  });
 }
 
 export function shownOnPage(field: { type: CustomerFieldType; key: string; concept: string }, path: CertifiedPath, value: unknown, pageText: string): Shown {
