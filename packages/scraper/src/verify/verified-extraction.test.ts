@@ -6,7 +6,8 @@
 // (no AI, no cache/mechanical fallback chain, no network).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
-import { runVerifiedExtraction, type VerifiedField } from './verified-extraction.js';
+import type { ReadySnapshot } from '@robot/browser';
+import { runVerifiedExtraction, buildReadyCheck, type VerifiedField } from './verified-extraction.js';
 import { loadVerifyFixture } from '../__fixtures__/verify/load.js';
 
 const URL = 'https://shop.example/p/1';
@@ -134,4 +135,58 @@ describe('runVerifiedExtraction — two certified layouts, tried in order', () =
     expect(r.data.price).toBe(89.5);
     expect(r.stats.map((s) => s.hit)).toEqual([false, true]);
   }, 30_000);
+});
+
+describe('runVerifiedExtraction — a website\'s default (spec 2026-10-13 §5)', () => {
+  const BRAND: VerifiedField = {
+    key: 'brand', type: 'text', concept: 'brand',
+    paths: [{ source: 'json-ld', path: 'vendor.name', transform: 'identity' }],
+    defaultValue: 'Widgetco',
+  };
+
+  it('a field whose paths all miss takes the default; the path stat stays a miss and the flag is not checked (property 5)', async () => {
+    const result = await runVerifiedExtraction({ url: URL, fields: [PRICE, BRAND] }, { browser, capture: loadVerifyFixture('shop-example', 'p1') });
+    expect(result.data).toEqual({ price: 129.99, brand: 'Widgetco' });
+    expect(result.stats).toEqual([
+      { key: 'price', concept: 'price', path: PRICE.paths[0], hit: true, value: 129.99 },
+      { key: 'brand', concept: 'brand', path: BRAND.paths[0], hit: false },
+    ]);
+    expect(result.defaulted).toEqual(['brand']);
+    expect(result.shown).toEqual({ price: true, brand: null });
+  }, 30_000);
+
+  it('a path that reads a value wins over the default', async () => {
+    const named: VerifiedField = { ...PRODUCT_NAME, defaultValue: 'Nameless' };
+    const result = await runVerifiedExtraction({ url: URL, fields: [named] }, { browser, capture: loadVerifyFixture('shop-example', 'p1') });
+    expect(result.data).toEqual({ product_name: 'Widget A' });
+    expect(result.defaulted).toEqual([]);
+    expect(result.shown).toEqual({ product_name: true });
+  }, 30_000);
+
+  it('a default-only field (no path) is filled on every product and records no stat', async () => {
+    const result = await runVerifiedExtraction({ url: URL, fields: [{ ...BRAND, paths: [] }] }, { browser, capture: loadVerifyFixture('shop-example', 'p1') });
+    expect(result.data).toEqual({ brand: 'Widgetco' });
+    expect(result.stats).toEqual([]);
+    expect(result.defaulted).toEqual(['brand']);
+  }, 30_000);
+
+  it('a run without defaults reports an empty defaulted list (property 9)', async () => {
+    const result = await runVerifiedExtraction({ url: URL, fields: [PRICE] }, { browser, capture: loadVerifyFixture('shop-example', 'p1') });
+    expect(result.defaulted).toEqual([]);
+  }, 30_000);
+});
+
+describe('buildReadyCheck with defaults (spec 2026-10-13 §5, Review Focus 3)', () => {
+  const snap = (ld: Record<string, unknown>): ReadySnapshot => ({ probe: {}, structuredData: { ldJson: [ld], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
+  const BRAND: VerifiedField = { key: 'brand', type: 'text', concept: 'brand', paths: [{ source: 'json-ld', path: 'brand.name', transform: 'identity' }], defaultValue: 'Widgetco' };
+  it('a defaulted field does not block: ready once the other field resolves', () => {
+    const check = buildReadyCheck([PRODUCT_NAME, BRAND], URL);
+    expect(check.isReady(snap({ name: 'Widget A' }))).toBe(true);
+    expect(check.isReady(snap({}))).toBe(false);
+  });
+  it('with only defaulted fields, the check waits for them', () => {
+    const check = buildReadyCheck([BRAND], URL);
+    expect(check.isReady(snap({}))).toBe(false);
+    expect(check.isReady(snap({ brand: { name: 'X' } }))).toBe(true);
+  });
 });

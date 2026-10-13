@@ -19,12 +19,17 @@ import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
 import { CaptureProblemError } from './capture-check.js';
 import { normalize, renderValue } from './normalize.js';
 import { applyTransform } from './transforms.js';
+import { applyDefaults } from './defaults.js';
 import { resolveStructured } from './search-structured.js';
 import { buildXPathProbeScript, type XPathProbeResult } from './dom-scripts.js';
 import { pageTextOf, shownOnPage, type Shown } from './shown-on-page.js';
 import type { CertifiedPath, CustomerFieldType } from './types.js';
 
-export type VerifiedField = { key: string; type: CustomerFieldType; concept: string; paths: CertifiedPath[] };
+export type VerifiedField = {
+  key: string; type: CustomerFieldType; concept: string; paths: CertifiedPath[];
+  /** The website's default (spec 2026-10-13 §5): written when every path misses; such a field never blocks readiness unless no other field would wait. */
+  defaultValue?: string;
+};
 export type VerifiedExtractionResult = {
   data: Record<string, unknown>;
   stats: Array<{ key: string; concept: string; path: CertifiedPath; hit: boolean; value?: unknown }>;
@@ -36,6 +41,8 @@ export type VerifiedExtractionResult = {
    * field's type is not checked (url/image/boolean/date), or there was no hit
    * to check (spec 2026-10-12 §3). Never changes `data` or `stats`. */
   shown: Record<string, Shown>;
+  /** The field keys the website's default filled (spec §5): every certified path missed there. `[]` on a run with no defaults. */
+  defaulted: string[];
 };
 
 type Structured = Pick<PageCapture, 'structuredData' | 'interceptedRequests'>;
@@ -66,7 +73,10 @@ function certifiedXPaths(fields: VerifiedField[]): string[] {
  * a certified path resolves through at least one of them. A field with no
  * certified path can never be filled, so it never blocks readiness. */
 export function buildReadyCheck(fields: VerifiedField[], pageUrl: string): ReadyCheck {
-  const certified = fields.filter((f) => f.paths.length > 0);
+  const withPaths = fields.filter((f) => f.paths.length > 0);
+  // Spec 2026-10-13 §5: a field with a default never blocks readiness — its paths may legitimately never resolve on this product — unless no other field would wait at all.
+  const blocking = withPaths.filter((f) => f.defaultValue === undefined);
+  const certified = blocking.length > 0 ? blocking : withPaths;
   const ctx = { pageUrl };
   return {
     script: buildXPathProbeScript(certifiedXPaths(fields)),
@@ -106,13 +116,14 @@ export async function runVerifiedExtraction(
       break;
     }
   }
+  const applied = applyDefaults(data, req.fields);
   const pageText = pageTextOf(capture.html);
   const shown: Record<string, Shown> = {};
   for (const f of req.fields) {
     const hit = stats.find((s) => s.key === f.key && s.hit);
     shown[f.key] = hit ? shownOnPage(f, hit.path, hit.value, pageText) : null;
   }
-  return { data, stats, timings: deps.capture ? null : capture.timings ?? null, capture, shown };
+  return { data: applied.row, stats, timings: deps.capture ? null : capture.timings ?? null, capture, shown, defaulted: applied.defaulted };
 }
 
 async function captureUnderLock(

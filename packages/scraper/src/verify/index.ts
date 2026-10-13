@@ -3,6 +3,7 @@ export * from './derive-concept.js';
 export * from './constants.js';
 export * from './normalize.js';
 export * from './transforms.js';
+export * from './defaults.js';
 export { rankCertified, qualifiesForWeak, type CaptureLike, type CandidatePath } from './certify.js';
 export * from './field-fit.js';
 export { buildXPathProbeScript, buildDomSearchScript, type XPathProbeResult, type DomHit, type DomNeedle } from './dom-scripts.js';
