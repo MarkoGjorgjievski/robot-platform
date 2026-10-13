@@ -414,6 +414,17 @@ describe("rowStatus: a Title must be the page's main heading (spec 2026-10-12 §
     const nullHeadings = facts({ [U[0]!]: null, [U[1]!]: null, [U[2]!]: null });
     expect(rowStatus(titleField, b, live, maps(), undefined, undefined, nullHeadings).kind).not.toBe('needs-you');
   });
+  it('a Title carried from the customer\'s own mark (from-product) is not overridden by the heading (M5)', () => {
+    const b = board();
+    const carried = (v: string) => ({ ...sug(v, [0], TL), origin: 'from-product' as const });
+    const live = liveFor(b, 'title', [carried('Logo Co'), carried('Logo Co'), carried('Logo Co')]);
+    const pageFacts = facts({ [U[0]!]: 'Welcome', [U[1]!]: 'Welcome', [U[2]!]: 'Welcome' });
+    const status = rowStatus(titleField, b, live, maps(), undefined, undefined, pageFacts);
+    expect(status.kind === 'needs-you' ? status.reason : '').not.toContain('heading');
+    // The same values from page data still meet the rule.
+    const fromData = liveFor(b, 'title', [sug('Logo Co', [0], TL), sug('Logo Co', [0], TL), sug('Logo Co', [0], TL)]);
+    expect(rowStatus(titleField, b, fromData, maps(), undefined, undefined, pageFacts)).toEqual({ kind: 'needs-you', reason: "not the page's heading on product 1", product: 1 });
+  });
   it('a field whose concept is not product_name is never checked against a heading', () => {
     const b = board();
     const live = liveFor(b, 'price', [sug('129.99', [1], JL), sug('219.99', [1], JL), sug('149.00', [1], JL)]);

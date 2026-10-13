@@ -276,7 +276,8 @@ export function sampleFacts(
   if (rows.total > 0) facts.push({ label: 'Sample rows complete', value: `${rows.complete} of ${rows.total}` });
   else facts.push({ label: 'Rows extracted', value: String(extracted) });
   if (notShown && notShown.count > 0) {
-    facts.push({ label: 'Values not shown', value: `${notShown.count} values not shown on their page: ${notShown.fields.join(', ')}` });
+    const noun = notShown.count === 1 ? 'value' : 'values'; // final review M4
+    facts.push({ label: 'Values not shown', value: `${notShown.count} ${noun} not shown on their page: ${notShown.fields.join(', ')}` });
   }
   return facts;
 }

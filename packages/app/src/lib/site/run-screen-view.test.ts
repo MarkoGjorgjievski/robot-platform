@@ -169,6 +169,11 @@ describe('unshownRows', () => {
     ]);
   });
 
+  it('says "1 of 3 values is" for one value (M4)', () => {
+    const one: FieldCoverage[] = [{ name: 'description', filled: 3, missing: 0, confirmedAbsent: 0, total: 3, notShown: 1, checked: 3 }];
+    expect(unshownRows(one, nameOf, [])[0]!.line).toBe("Description: 1 of 3 values is not on the product's page");
+  });
+
   it('caps the product links at five', () => {
     const items = Array.from({ length: 7 }, (_, i) => ({ url: `https://example.com/p/${i}`, fields: ['description'] }));
     const rows = unshownRows(coverage, nameOf, items);

@@ -55,6 +55,15 @@ describe('typedNotShown (spec B2)', () => {
     const page = normText('nothing matches here');
     expect(typedNotShown(title, { value: 'Widget A', mark: null, via: { source: 'json-ld', path: 'name' } }, page)).toBe(false);
   });
+  it('a European-format price shown the same way, or the other way, does not warn (M1)', () => {
+    expect(typedNotShown(price, typed('1.299,99'), normText('Nur 1.299,99 € heute'))).toBe(false);
+    expect(typedNotShown(price, typed('1.299,99'), normText('Only $1,299.99 today'))).toBe(false);
+    expect(typedNotShown(price, typed('1.299,99'), normText('Only 1.299 left'))).toBe(true);
+  });
+  it('a list field never warns: a list is rarely printed the way it is typed (I1)', () => {
+    const colors: Field = { key: 'colors', name: 'Colors', type: 'text_list', description: 'colors', concept: 'colors' };
+    expect(typedNotShown(colors, typed('Red, Blue'), normText('Colours: blue / red'))).toBe(false);
+  });
   it('a boolean field never warns', () => {
     const page = normText('out of stock');
     expect(typedNotShown(available, typed('true'), page)).toBe(false);
