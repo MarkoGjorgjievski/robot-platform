@@ -56,6 +56,7 @@ export async function loadRunCoverage(db: Database, runId: string): Promise<RunC
     absentFields: (i.absentFields as string[] | null) ?? [],
     shown: (i.extraction?.validationResult as { shown?: Record<string, boolean | null> } | null)?.shown ?? null,
     paths: (i.extraction?.validationResult as { paths?: Record<string, { source: string; path: string }> } | null)?.paths ?? null,
+    defaulted: (i.extraction?.validationResult as { defaulted?: string[] } | null)?.defaulted ?? null,
   })));
 }
 

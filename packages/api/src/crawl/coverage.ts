@@ -26,6 +26,8 @@ export type FieldCoverage = {
   notShown: number;
   /** Values with an explicit flag (`true` or `false`) — the denominator for `notShown`. */
   checked: number;
+  /** Values the website's default filled (spec 2026-10-13 §7). */
+  defaulted: number;
 };
 export type ItemGap = { itemId: string; url: string; missingFields: string[] };
 /** The certified path a field's value came from — just enough for the run page's unshown panel to name it (spec §5/§7's "from {source} ({path})"). */
@@ -42,6 +44,8 @@ export type RunCoverage = {
   gapItems: ItemGap[];
   /** Items with at least one field flagged `false`, in item order, first `UNSHOWN_ITEMS_MAX` (500). */
   unshownItems: Array<{ url: string; fields: string[]; paths?: Record<string, UnshownPath> }>;
+  /** Items with at least one defaulted field, in item order, first `UNSHOWN_ITEMS_MAX` (spec 2026-10-13 §7). */
+  defaultedItems: Array<{ url: string; fields: string[] }>;
 };
 
 export function computeCoverage(
@@ -51,18 +55,22 @@ export function computeCoverage(
     shown?: Record<string, boolean | null> | null;
     /** The item's `validation_result.paths`, keyed by field — present only for a certified extraction's hits. */
     paths?: Record<string, UnshownPath> | null;
+    /** The item's `validation_result.defaulted` (spec 2026-10-13 §7): field keys the website's default filled. */
+    defaulted?: string[] | null;
   }>,
 ): RunCoverage {
   const fieldCoverage: FieldCoverage[] = fields.map((f) => ({
-    name: f.name, filled: 0, missing: 0, confirmedAbsent: 0, total: items.length, notShown: 0, checked: 0,
+    name: f.name, filled: 0, missing: 0, confirmedAbsent: 0, total: items.length, notShown: 0, checked: 0, defaulted: 0,
   }));
 
   const gapItems: ItemGap[] = [];
   const unshownItems: RunCoverage['unshownItems'] = [];
+  const defaultedItems: RunCoverage['defaultedItems'] = [];
 
   for (const item of items) {
     const missingFields: string[] = [];
     const unshownFields: string[] = [];
+    const defaultedFields: string[] = [];
     for (const fc of fieldCoverage) {
       const value = item.row ? item.row[fc.name] : undefined;
       const filled = item.row != null && value != null && value !== '';
@@ -84,6 +92,8 @@ export function computeCoverage(
         unshownFields.push(fc.name);
       }
       // flag === null or undefined (unset, or no shown map at all): not checked.
+
+      if (item.defaulted?.includes(fc.name)) { fc.defaulted++; defaultedFields.push(fc.name); }
     }
     if (missingFields.length > 0) {
       gapItems.push({ itemId: item.id, url: item.url, missingFields });
@@ -94,7 +104,8 @@ export function computeCoverage(
       // Focus 4) byte-identical to today's `unshownItems` shape.
       unshownItems.push(item.paths ? { url: item.url, fields: unshownFields, paths: item.paths } : { url: item.url, fields: unshownFields });
     }
+    if (defaultedFields.length > 0 && defaultedItems.length < UNSHOWN_ITEMS_MAX) defaultedItems.push({ url: item.url, fields: defaultedFields });
   }
 
-  return { fields: fieldCoverage, gapItems, unshownItems };
+  return { fields: fieldCoverage, gapItems, unshownItems, defaultedItems };
 }
