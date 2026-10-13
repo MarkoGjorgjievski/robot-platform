@@ -14,7 +14,7 @@ type: project
 
 1. **Backups that all come from one source.** A field's certified paths can all be sibling keys of one API response (Ikea's price: five paths, one response), so they fail together and aren't real backups. Ops only *shows* it ("All backups read the same response — if it changes, they fail together"). The fix changes certification — at most one or two paths per source, so backups come from different sources — and needs a short design first (spec → plan), like drift repair. Marko's pick for next, 2026-10-07.
 2. **Proof-page coverage of a site's variations — done, 2026-10-10.** See "Proof-page coverage and 'not on this product' (2026-10-10)" below: after a passing Verify, a free background check samples twenty listing products with the certified paths and tells the customer per field where they came back empty, with "Use as proof page"; live-checked again on Lookfantastic and Decathlon (both left needing a re-Verify after live rating drift — see that section). Article's `/furniture-bundles/…` pages, the third live case in the old item, were not checked.
-3. **Correctness on the run page.** Compare stored row values against the stored page text (not just "filled vs. empty") — the credit campaign's judge runs are the only check of this today, and they are paid and manual. A free, in-product check belongs on the run page itself.
+3. **Correctness on the run page — done, 2026-10-13.** See "Shown on the page (2026-10-12)" below: a run flags every certified value the product's page does not show, free, at extraction time; the run page and the Sample panel count and name them; at Verify a Title that is not the page's heading never reads agreed, and a typed value the page does not show warns.
 4. **Sitemap-first product discovery.** "Find products" and the listing walk both depend on a listing page's own links; a site's sitemap (where one exists and is reachable) would find products without needing a listing page at all, and would not be subject to a listing-level bot wall the way the current walk is.
 5. **Variant and drift loose ends**, each small:
    - the repair sweep reads only a product's first row (`data[0]`), so missing values on variant rows 1..n are never repaired;
@@ -27,8 +27,11 @@ type: project
 6. **Clean up test projects in Marko's own org** (e.g. "Site marks-from" at test-marks-from.example.com, left by earlier test runs). List them first; delete only what Marko approves; `pg_dump` before.
 7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
+9. **The campaign-2 product defects** (from the credit campaign's batch A notes, `docs/testing/results/campaign-2026-10-11/`): the variant chosen in the URL is ignored; screenshots that never show the product on wide pages; Verify fails silently after "Not on this product" on products 1–3; marked values that do not verify; the Extract button shows no estimate; Sample is labelled free but charged.
 
-**Newest: [Known-gap fixes (2026-10-11)](#known-gap-fixes-2026-10-11).** Five small fixes from the two October plans: a CAPTCHA-only thin page is a human check; a drift check says "could not be checked" instead of "page gone" for a page the site would not let us read; a superseded coverage check stops reading; the Status column stays in view; a card added by its address takes the page title. Merged into `main` 2026-10-11 (fast-forward) after the route smoke passed 22 of 22.
+**Newest: [Shown on the page (2026-10-12)](#shown-on-the-page-2026-10-12).** A run now flags every certified value the product's page does not show — free, at extraction time — and the run page and the Sample panel count and name them; separately, at Verify, a Title that is not the page's main heading never reads "agreed", and a typed expected value the page does not show warns without blocking. Merged into `main` 2026-10-13 after a whole-branch review (one fix wave, re-review clean) and the route smoke (23 of 23); live-checked the same day on the credit campaign's Gymshark and Colourpop websites.
+
+**Before it: [Known-gap fixes (2026-10-11)](#known-gap-fixes-2026-10-11).** Five small fixes from the two October plans: a CAPTCHA-only thin page is a human check; a drift check says "could not be checked" instead of "page gone" for a page the site would not let us read; a superseded coverage check stops reading; the Status column stays in view; a card added by its address takes the page title. Merged into `main` 2026-10-11 (fast-forward) after the route smoke passed 22 of 22.
 
 **Before it: [Proof-page coverage and "not on this product" (2026-10-10)](#proof-page-coverage-and-not-on-this-product-2026-10-10).** After a passing Verify, a free background check samples twenty products from the website's listing with its certified paths, and the Verification tab now tells the customer, per field, where they came back empty — "Empty on 14 of 20 sampled products · all 14 list their sizes as variants in the page data" — with a one-click "Use as proof page" to add that product as a fourth (through sixth) card. Separately, a cell can be marked **"Not on this product"**: that page becomes a checked page whose correct answer is nothing, so a path that writes any value there (like Decathlon's old `stats.averageRating` fallback, which wrote `0` for products with no rating) can never certify. On branch `feat/proof-page-coverage`, merged into `main` 2026-10-11 (fast-forward).
 
@@ -81,6 +84,87 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Shown on the page (2026-10-12)
+
+Spec `docs/superpowers/specs/2026-10-12-shown-on-the-page-design.md`, plan
+`docs/superpowers/plans/2026-10-12-shown-on-the-page.md`. Branch `feat/shown-on-the-page` from
+`main`, seven tasks (subagent-driven), merged fast-forward into `main` 2026-10-13.
+
+**Part A — a run flags a value the page does not show.** The credit campaign's judge runs found
+that a resolved certified value is not always a correct one: Allbirds' JSON-LD description the
+page never showed, Decathlon's rating fallback writing `0` where there was no rating, Made In's
+site name as a Title, Nike's other-colour title. A free, pure check (`shownOnPage`) now runs
+inside every certified extraction, type-aware (`text`/`number`/`money` compared against the
+capture's visible page text; `xpath` always counts as shown; `url`/`image`/`boolean`/`date` are
+never checked), and is stored per field beside the row (`extractions.validation_result`, no
+migration — the column already existed, unused). The run page's results sheet gets a per-field
+"not shown" badge in the column head, a warning rail on the flagged cells (the value stays), a
+"Values not shown on their page" panel naming the field, the count and the certified path, with
+"Use as proof page" on sample products, and the summary line gains a suffix ("… · 12 values not
+shown on their page"). The Sample panel shows the same count. Nothing is dropped, re-extracted or
+re-certified automatically — the flag only informs.
+
+**Part B — two rules at Verify**, added the same day after campaign 2 batch A found two patterns
+Part A cannot reach (the wrong value is itself on the page, or was typed by a person): (B1) a
+Title suggestion is never "agreed" unless its value is the proof page's main heading (the first
+`h1`, or the largest heading box with none) — Colourpop had been storing the shade name ("Drift")
+over the page's own heading ("Super Shock Shadow") on about a ninth of its catalogue because the
+suggestion "agreed" on three palette proof pages where name and heading happened to coincide; a
+suggestion that is on the page but not the heading now reads `needs-you`, reason "not the page's
+heading on product n", and can still be accepted cell by cell. (B2) a typed expected value the
+proof page does not show now warns ("not on this page") without blocking Verify — Gymshark's
+worker had typed the site's tagline ("Gymshark | We Do Gym") as Brand on all three proof pages to
+get past a Verify that kept failing on the literal "Gymshark"; the warning is the free, in-product
+version of what the paid judge caught 60 times downstream.
+
+**Files:** `packages/scraper/src/verify/shown-on-page.ts` (new), `verify/verified-extraction.ts`,
+`crawl/extract-item.ts`, `crawl/load-run-coverage.ts`, `verify/merge-backfill.ts`, `judge-run.ts`,
+`judge-run-report.ts`, `judge-local.ts`, `routers/sources.ts` (`suggestMarks` gains `headingText`
+and `pageText`); on the app side `lib/site/shown.ts`, `lib/site/coverage-view.ts`,
+`lib/site/run-screen-view.ts`, `lib/site/extract-view.ts`, `lib/site/verification-model.ts`,
+`components/runs/unshown-panel.tsx`, `components/runs/results-table.tsx`,
+`components/extract/extract-sample.tsx`, `components/verification/verification-table.tsx`; the
+route smoke's `test-helpers/seed-unshown-run.ts`.
+
+**How it was proven:** a per-task review on every task, plus a whole-branch review (on the most
+capable model) that found 5 important issues, fixed in one wave, then a scoped re-review that
+came back clean. Per-package tests throughout (scraper 1003, api 948, app 825 at the branch's
+end, `tsc` clean in all three). The route smoke (`pnpm test:ui:app`) passed 23 of 23 on `main`
+after the merge, including the seeded unshown run (the fill-table badge, the panel, the cell
+rail, the summary suffix) and the fifth-product heading rule. Live-checked 2026-10-12/13 on the
+credit campaign's real Gymshark and Colourpop websites:
+`docs/testing/results/2026-10-12-shown-on-the-page-live-check.md` — a fresh 10-product Extract on
+Gymshark showed exactly the expected `Brand 10 not shown` badge, panel row and summary suffix,
+cost $0.0000; the Verification tab showed card 1's typed Brand tagline flagged "not on this
+page"; Colourpop's Title row was already accepted (and its proof pages are palettes where name
+and heading coincide), so B1 had nothing live to show — recorded honestly rather than forced.
+
+**What NOT to redo:** never drop, re-extract or re-certify a value because the flag caught it —
+the flag only informs; the Verify rules (B1/B2) shape what a row offers or warns, never block a
+Verify or change what certifies; the judge keeps its own, stricter number matcher rather than
+reusing the free check's looser one — a value the judge calls locally correct must never become
+a false "shown" claim or vice versa.
+
+**Known gaps / next:** M6 — "Accept all agreed" ignores the B1 heading rule (it accepts
+everything agreed, heading or not; only the per-cell path respects it). M7 — the Sample panel's
+own coverage query does not refresh in lockstep with its sibling queries. A value with a
+boilerplate prefix the page also happens to carry still reads "shown" (the check cannot tell the
+two apart). A stored `0` beside the field's own concept word on the page still counts as shown,
+by design (spec §3), which is coarser than a human reading of context would be.
+
+### Judge changes (2026-10-12)
+
+Merged into `main` the same day, on branch `feat/judge-changes` (ahead of `feat/shown-on-the-page`,
+which rebased onto it). The judge-run report now shows the captured page's own text beside each
+value's screenshot tile, so a disagreement can be read without opening the capture separately.
+The judge's **local** (free, no AI call) pass — previously only exact string equality — now also
+passes a number when it matches with surrounding context (a unit, a decimal-mark variant) and a
+long text value when it is a verbatim substring of the page text; it is never used for money,
+which still always goes to the model. The report's per-value "how" (`local` vs the model) is
+saved on the row, and the summary's per-field line now says how many of its values resolved
+locally versus how many needed a call. The per-call cost estimate (`$0.0086/tile`) was not
+re-measured against these changes; it is carried over from before.
 
 ## Known-gap fixes (2026-10-11)
 
