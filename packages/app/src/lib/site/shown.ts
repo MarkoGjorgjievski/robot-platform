@@ -8,8 +8,12 @@ import type { FieldType } from '../fields-view';
 import type { Answer, Field } from './verification-model';
 
 const PREFIX = 80;
-/** Types the §3 rule does not check: availability words, dates and links/images vary too much to pin down. */
-const UNCHECKED_TYPES: ReadonlySet<FieldType> = new Set(['url', 'image', 'boolean', 'date']);
+/**
+ * Types the §3 rule does not check: availability words, dates and links/images
+ * vary too much to pin down, and a list is rarely printed the way it is typed
+ * or stored (final review I1; the scraper's `UNCHECKED` agrees).
+ */
+const UNCHECKED_TYPES: ReadonlySet<FieldType> = new Set(['url', 'image', 'boolean', 'date', 'text_list']);
 
 // A literal "&nbsp;" (common in serialized markup) and a real U+00A0 (common
 // in rendered text) must normalise to the same plain space, or neither a
@@ -39,16 +43,34 @@ function renderings(n: number): string[] {
   return [...out];
 }
 
-export function numberShown(value: unknown, text: string, fieldWords: string[]): boolean {
-  const raw = String(value ?? '').replace(/[^\d.,-]/g, '').replace(/,(?=\d{3}(\D|$))/g, '');
-  const n = Number(raw.replace(',', '.'));
-  if (!Number.isFinite(n) || raw === '') return false;
-  if (n === 0) {
-    // A bare 0 proves nothing (Decathlon's rating fallback): only next to the field's own words.
-    const words = fieldWords.map(escape).join('|');
-    return words.length > 0 && new RegExp(`(?:${words})\\s*[:]?\\s*0(?!\\d)|(?<!\\d)0\\s*(?:${words})`).test(text);
+/**
+ * A typed value read as a number under either decimal mark: "1,299.99" and
+ * "1.299,99" are both 1299.99; an ambiguous "1.299" or "1,299" reads as both
+ * 1.299 and 1299, and either reading shown on the page counts (final review
+ * M1). The app has a money validator (`validateValue`) but no normaliser, so
+ * both conventions are tried. The scraper's `numberReadings` twin agrees.
+ */
+export function numberReadings(value: unknown): number[] {
+  if (typeof value === 'number') return Number.isFinite(value) ? [value] : [];
+  const raw = String(value ?? '').replace(/[^\d.,-]/g, '').replace(/^[.,]+|[.,]+$/g, '');
+  const out = new Set<number>();
+  for (const [g, d] of [[',', '.'], ['.', ',']] as const) {
+    if (!new RegExp(`^-?(?:\\d{1,3}(?:${escape(g)}\\d{3})+|\\d+)(?:${escape(d)}\\d+)?$`).test(raw)) continue;
+    const n = Number(raw.split(g).join('').replace(d, '.'));
+    if (Number.isFinite(n)) out.add(n);
   }
-  return renderings(Math.abs(n)).some((r) => new RegExp(`(?<![\\d.,])${escape(r)}(?!\\w)(?![.,]\\d)`).test(text));
+  return [...out];
+}
+
+export function numberShown(value: unknown, text: string, fieldWords: string[]): boolean {
+  return numberReadings(value).some((n) => {
+    if (n === 0) {
+      // A bare 0 proves nothing (Decathlon's rating fallback): only next to the field's own words.
+      const words = fieldWords.map(escape).join('|');
+      return words.length > 0 && new RegExp(`(?:${words})\\s*[:]?\\s*0(?!\\d)|(?<!\\d)0\\s*(?:${words})`).test(text);
+    }
+    return renderings(Math.abs(n)).some((r) => new RegExp(`(?<![\\d.,])${escape(r)}(?!\\w)(?![.,]\\d)`).test(text));
+  });
 }
 
 export function textShown(value: string, text: string): boolean {

@@ -495,8 +495,10 @@ export function rowStatus(
     // Spec 2026-10-12 §B1: a Title suggestion is never agreed unless it is the
     // page's main heading (Colourpop stored the shade name, "Drift", because
     // the JSON-LD name "agreed" on all three proof pages though the heading
-    // read the product). Inert with no heading on record (Review Focus 5).
-    if (field.concept === 'product_name') {
+    // read the product). Inert with no heading on record (Review Focus 5), and
+    // for a suggestion carried from the customer's own mark (`from-product`):
+    // a person who pointed at a non-heading Title meant it (final review M5).
+    if (field.concept === 'product_name' && s.origin !== 'from-product') {
       const heading = pageFacts?.[card.url]?.headingText;
       if (heading && heading.trim() && !sameHeading(s.value, heading)) {
         return { kind: 'needs-you', reason: `not the page's heading on product ${n}`, product: n };

@@ -146,7 +146,9 @@ export function unshownRows(
     // for the same source; the structured sources keep their own names.
     const sourceLabel = path ? (path.source === 'xpath' ? 'page' : path.source) : null;
     const tail = path ? ` · from ${sourceLabel} (${path.path})` : '';
-    const line = `${nameOf(cov.name)}: ${cov.notShown} of ${cov.checked ?? 0} values are not on the product's page${tail}`;
+    // "1 of 3 values is …", "2 of 3 values are …" (final review M4).
+    const verb = cov.notShown === 1 ? 'is' : 'are';
+    const line = `${nameOf(cov.name)}: ${cov.notShown} of ${cov.checked ?? 0} values ${verb} not on the product's page${tail}`;
     rows.push({ field: cov.name, line, urls: matching.slice(0, 5).map((item) => item.url) });
   }
   return rows;

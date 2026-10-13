@@ -248,6 +248,11 @@ describe('sampleFacts', () => {
     expect(facts.at(-1)).toEqual({ label: 'Values not shown', value: '2 values not shown on their page: Description' });
   });
 
+  it('says "1 value not shown" for one value (M4)', () => {
+    const facts = sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3, { count: 1, fields: ['Brand'] });
+    expect(facts.at(-1)).toEqual({ label: 'Values not shown', value: '1 value not shown on their page: Brand' });
+  });
+
   it('omits the not-shown fact when nothing was caught, or the argument is left out', () => {
     const base = sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3);
     expect(sampleFacts({ pagesWalked: 3, itemsFound: 42, warningsCount: 0, paginationNote: 'offset' }, { complete: 3, total: 3 }, 3, { count: 0, fields: [] })).toEqual(base);
