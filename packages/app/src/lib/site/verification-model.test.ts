@@ -796,6 +796,21 @@ describe('a website\'s default (spec 2026-10-13 §6)', () => {
     expect(rowValue(b, {}, 'brand')).toBeNull();
   });
 
+  it('the shared value skips the odd products, as Accept anyway does (fix round 1)', () => {
+    const A = { source: 'json-ld', path: 'a' }, B = { source: 'meta', path: 'b' };
+    const b = board();
+    const live = liveFor(b, 'brand', [sug('X', [0], A), sug('Y', [0], B), sug('Y', [0], B)]);
+    const boxes = { [U[0]!]: boxesOf(['X']), [U[1]!]: boxesOf(['Y']), [U[2]!]: boxesOf(['Y']) };
+    const st = rowStatus(BRAND, b, live, boxes);
+    expect(st).toEqual({ kind: 'same-everywhere', odd: [1], via: B });
+    expect(rowValue(b, live, 'brand', st.kind === 'same-everywhere' ? st.odd : undefined)).toBe('Y');
+    expect(rowValue(b, live, 'brand')).toBe('X');
+  });
+
+  it('an invalid default stops the gate with its reason (fix round 1)', () => {
+    expect(verifyGate(setDefault(full(), 'price', 'abc'), ALL.filter((f) => f.key !== 'brand'), {})).toEqual({ ok: false, reason: 'Price default: Not a money amount', field: 'price' });
+  });
+
   it('a default-only result reads verified, with its row word only while unchanged', () => {
     const results = { brand: { certified: [], defaultOnly: true as const, cells: { [U[0]!]: { status: 'pass' as const } } } };
     expect(badge({ key: 'brand', results, unchangedKeys: ['brand'], running: false, cards: board().cards })).toEqual({ kind: 'verified' });

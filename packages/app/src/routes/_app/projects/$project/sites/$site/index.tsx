@@ -1320,7 +1320,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       // Same-everywhere's second action (spec 2026-10-13 §6): the row's value becomes the default and the row is
       // accepted as "Accept anyway" would, so the cells keep their path — it certifies, the default is the fallback.
       onMakeDefault: () => {
-        const v = rowValue(board, live, f.key);
+        const st = statuses[fi]!;
+        const v = rowValue(board, live, f.key, 'odd' in st ? st.odd : undefined);
         if (!v) return;
         setBoard((b) => acceptRow(setDefault(b, f.key, v), f, live, boxesByUrl, 'via' in statuses[fi]! ? statuses[fi]!.via : undefined));
       },

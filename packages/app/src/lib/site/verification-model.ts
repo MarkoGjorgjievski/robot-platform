@@ -270,9 +270,13 @@ export function isDefaultCell(board: Board, field: Field, live: Suggestions, url
   return defaultOf(board, field.key) !== undefined && !board.answers[field.key]?.[url] && !live[field.key]?.[url];
 }
 
-/** The first value a row carries across the cards — an answer or a suggestion — for "Make it the default"; null when it carries none. */
-export function rowValue(board: Board, live: Suggestions, key: string): string | null {
-  for (const c of board.cards) {
+/**
+ * The first value a row carries across the cards — an answer or a suggestion — for "Make it the default"; null when it carries none.
+ * `odd`: the row status's odd products (1-based), skipped — the value saved is the one Accept anyway takes, never an odd product's.
+ */
+export function rowValue(board: Board, live: Suggestions, key: string, odd: number[] = []): string | null {
+  for (const [i, c] of board.cards.entries()) {
+    if (odd.includes(i + 1)) continue;
     const v = board.answers[key]?.[c.url]?.value ?? live[key]?.[c.url]?.value;
     if (v && v.trim()) return v;
   }
@@ -717,6 +721,12 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
   // the product gaps: it is the one the customer cannot find on the screenshot.
   for (const f of fields) {
     if (!(board.descriptions[f.key] ?? f.description ?? '').trim()) return { ok: false, reason: `Say where ${f.name} is on this website`, field: f.key };
+  }
+  // The server refuses the whole binding while a default is not a value of its type (bindingProblems), so say so here.
+  for (const f of fields) {
+    const d = defaultOf(board, f.key);
+    const err = d === undefined ? null : validateValue(f.type, d);
+    if (err) return { ok: false, reason: `${f.name} default: ${err}`, field: f.key };
   }
   for (let i = 0; i < board.cards.length; i++) {
     const url = board.cards[i]!.url;
