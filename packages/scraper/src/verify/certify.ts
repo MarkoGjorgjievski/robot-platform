@@ -127,26 +127,32 @@ export function expectedWithDefault(urls: string[], expected: Record<string, str
  *
  * On a default cell (spec 2026-10-13 §4) an empty read is correct but proves
  * nothing, so `isProven` (correct with a value) counts the pages a path carries.
+ * With a default (`defaultCells` given) a path also scores and covers only the
+ * pages it is proven on, else a one-page path "covers" every default cell by
+ * reading nothing there and crowds out the common layout; and a default cell
+ * left uncovered is fine (the default fills it at extraction) — only an
+ * uncovered typed, non-default page fails the cover.
  */
-function greedyCover(safe: CandidatePath[], pages: string[], absent: Set<string>, isCorrect: (c: CandidatePath, url: string) => boolean, isProven: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[]): CandidatePath[] {
+function greedyCover(safe: CandidatePath[], pages: string[], absent: Set<string>, isCorrect: (c: CandidatePath, url: string) => boolean, isProven: (c: CandidatePath, url: string) => boolean, rank: (paths: CandidatePath[]) => CandidatePath[], defaultCells?: Set<string>): CandidatePath[] {
   const valued = pages.filter((u) => !absent.has(u));
   if (valued.length === 0) return [];
   const ranked = rank(safe);
   const uncovered = new Set(valued);
   const chosen: CandidatePath[] = [];
+  const covers = defaultCells ? isProven : isCorrect;
   while (uncovered.size > 0 && chosen.length < MAX_CERTIFIED_PATHS) {
     let best: CandidatePath | null = null;
     let bestGain = 0;
     for (const c of ranked) {
       if (chosen.includes(c)) continue;
-      const gain = [...uncovered].filter((u) => isCorrect(c, u)).length;
+      const gain = [...uncovered].filter((u) => covers(c, u)).length;
       if (gain > bestGain) { best = c; bestGain = gain; }
     }
     if (!best) break;
     chosen.push(best);
-    for (const u of [...uncovered]) if (isCorrect(best, u)) uncovered.delete(u);
+    for (const u of [...uncovered]) if (covers(best, u)) uncovered.delete(u);
   }
-  if (uncovered.size > 0) return [];
+  if ([...uncovered].some((u) => !defaultCells?.has(u))) return [];
   const proven = (c: CandidatePath) => valued.filter((u) => isProven(c, u)).length;
   // A cover is a common layout plus exceptions, never a pile of one-page paths. Ikea, 2026-09-17:
   // three XPaths anchored on data-product-name="KIVIK" / "GLOSTAD" / "HEMLINGBY" were each correct on
@@ -264,9 +270,14 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // scale paths are tried in order and the first value wins.
   const safe = candidates.filter((c) => readsSomething(c) && capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
   const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
-  const oneLayout = complete ? rank(correctOnAllCaptured).slice(0, MAX_CERTIFIED_PATHS) : [];
+  // With a default an empty read is correct on a default cell, so a path that reads a value on
+  // one page only is "correct on every page" without proving a layout: it may not certify as one
+  // layout (alone or riding along); it goes to the cover, which wants one path proven on two pages.
+  const provenCount = (c: CandidatePath) => capturedUrls.filter((u) => !absentSet.has(u) && isProven(c, u)).length;
+  const oneLayoutPool = defaultValue === undefined ? correctOnAllCaptured : correctOnAllCaptured.filter((c) => provenCount(c) >= 2);
+  const oneLayout = complete ? rank(oneLayoutPool).slice(0, MAX_CERTIFIED_PATHS) : [];
   // One layout: exactly today's result, no provenOn. Otherwise a cover, each path stamped with its pages.
-  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, isProven, rank) : [];
+  const cover = complete && oneLayout.length === 0 ? greedyCover(safe, capturedUrls, absentSet, isCorrect, isProven, rank, defaultValue === undefined ? undefined : defaultCells) : [];
   // provenOn (and so thinEvidence) counts the pages with a value only: an absent page proves nothing about a path.
   const certified: CertifiedPath[] = oneLayout.length > 0
     ? oneLayout

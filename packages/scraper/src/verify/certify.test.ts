@@ -615,6 +615,7 @@ describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
   const brandName = { source: 'json-ld' as const, path: 'brand.name', transform: 'identity' as const };
   const siteName = { source: 'meta' as const, path: 'og:site_name', transform: 'identity' as const };
   const nothing = { source: 'json-ld' as const, path: 'vendor.name', transform: 'identity' as const };
+  const collabLabel = { source: 'json-ld' as const, path: 'collab.label', transform: 'identity' as const };
   const deps = { evalXPaths: async () => ({}) };
 
   it('expectedWithDefault fills every blank, non-absent cell with the default and leaves a typed value alone', () => {
@@ -661,12 +662,46 @@ describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
     expect(r.cells[G[1]!]).toMatchObject({ status: 'pass', found: 'Gymshark x Whitney' });
   });
 
-  it('a path empty on the default cells and reading the typed value elsewhere certifies: empty is correct on a default cell', async () => {
+  // Review fix 1 (D): a path proven on one page only, the others default cells, is not a layout (the two-page rule).
+  it('a path reading the typed value on one page and nothing on the default cells does not certify alone (D)', async () => {
     const caps = { [G[0]!]: page(G[0]!, { name: 'a' }), [G[1]!]: named(G[1]!, 'Gymshark x Whitney'), [G[2]!]: page(G[2]!, { name: 'c' }) };
     const r = await certify({ field: brand, expected: { ...blank, [G[1]!]: 'Gymshark x Whitney' }, defaultValue: 'Gymshark', captures: caps, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.defaultOnly).toBeUndefined();
+    expect(r.thinEvidence).toBeUndefined();
+    // On three proof pages no safe path is correct with a value on every page, so each cell reads ambiguous (the code's existing reason).
+    expect(r.cells).toEqual({
+      [G[0]!]: { status: 'fail', reason: 'ambiguous' },
+      [G[1]!]: { status: 'fail', reason: 'ambiguous', nearMisses: ['Gymshark x Whitney'] },
+      [G[2]!]: { status: 'fail', reason: 'ambiguous' },
+    });
+  });
+
+  it('(A) all cells blank, a path reading the default on page 1 only: default only, the path does not certify', async () => {
+    const caps = { [G[0]!]: named(G[0]!), [G[1]!]: page(G[1]!, { name: 'b' }), [G[2]!]: page(G[2]!, { name: 'c' }) };
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: caps, candidates: [brandName] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.defaultOnly).toBe(true);
+    expect(r.cells).toEqual(Object.fromEntries(G.map((u) => [u, { status: 'pass', found: '' }])));
+  });
+
+  it('(B) a one-page path does not ride along beside a path proven on every page', async () => {
+    const caps = { [G[0]!]: page(G[0]!, { brand: { name: 'Gymshark' }, collab: { label: 'Gymshark' } }), [G[1]!]: named(G[1]!), [G[2]!]: named(G[2]!) };
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: caps, candidates: [brandName, collabLabel] }, deps);
     expect(r.certified).toEqual([brandName]);
-    expect(r.cells[G[0]!]).toEqual({ status: 'pass', found: '', path: brandName });
+    expect(r.thinEvidence).toBeUndefined();
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+
+  it('(C) a collab value on page 2 read by a one-page path, the brand path proven on pages 1 and 3: a cover of both, thin evidence', async () => {
+    const caps = { [G[0]!]: named(G[0]!), [G[1]!]: page(G[1]!, { collab: { label: 'Gymshark x Whitney' } }), [G[2]!]: named(G[2]!) };
+    const r = await certify({ field: brand, expected: { ...blank, [G[1]!]: 'Gymshark x Whitney' }, defaultValue: 'Gymshark', captures: caps, candidates: [collabLabel, brandName] }, deps);
+    expect(r.certified.map((p) => [p.path, p.provenOn])).toEqual([['brand.name', [G[0]!, G[2]!]], ['collab.label', [G[1]!]]]);
+    expect(r.thinEvidence).toBe(true);
+    expect(r.defaultOnly).toBeUndefined();
+    expect(r.cells[G[0]!]).toMatchObject({ status: 'pass', found: 'Gymshark' });
     expect(r.cells[G[1]!]).toMatchObject({ status: 'pass', found: 'Gymshark x Whitney' });
+    expect(r.cells[G[2]!]).toMatchObject({ status: 'pass', found: 'Gymshark' });
   });
 
   it('a weak field whose only matching path does not fit the concept passes by default only, never on that path', async () => {
