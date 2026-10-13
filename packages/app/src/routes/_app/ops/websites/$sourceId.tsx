@@ -11,7 +11,9 @@ import { TYPE_LABELS, type FieldType } from '../../../../lib/fields-view';
 import type { StaffEntryView } from '../../../../lib/staff-view';
 import { runDotState } from '../../../../lib/run-dot-view';
 import {
+  DEFAULT_ONLY_PATHS,
   backupsSummary,
+  defaultLine,
   driftNoticeLines,
   fieldFlag,
   oneSourceWarning,
@@ -428,7 +430,7 @@ function FieldRow({
           <span className="font-medium">{field.name}</span> <span className="text-sm text-muted-foreground">{typeLabel}</span>
         </span>
         <span className="hidden text-sm text-muted-foreground sm:inline">
-          {hasPaths ? backupsSummary(field.paths) : field.state === 'none' ? '' : 'No working path'}
+          {hasPaths ? backupsSummary(field.paths) : field.defaultOnly ? DEFAULT_ONLY_PATHS : field.state === 'none' ? '' : 'No working path'}
         </span>
         <span className="text-sm whitespace-nowrap">
           {field.state === 'none' ? (
@@ -448,6 +450,7 @@ function FieldRow({
           the button's `aria-controls` always names an element that exists
           (reviewer fix round 1, minor). */}
       <div id={`ops-field-${field.key}`} className="px-4 pb-4" hidden={!expanded}>
+        {defaultLine(field) ? <p className="mb-2 text-sm text-muted-foreground">{defaultLine(field)}</p> : null}
         {hasPaths ? (
           <>
             <ol className="relative ml-[9px] space-y-3 border-l-2 border-line pl-6">
@@ -459,7 +462,7 @@ function FieldRow({
           </>
         ) : (
           <p className="py-2 text-sm text-muted-foreground">
-            {field.state === 'none' ? 'Not verified yet.' : 'No path currently works.'}
+            {field.defaultOnly ? DEFAULT_ONLY_PATHS : field.state === 'none' ? 'Not verified yet.' : 'No path currently works.'}
           </p>
         )}
       </div>

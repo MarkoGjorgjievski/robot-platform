@@ -87,17 +87,29 @@ export function reExtractedLabel(count: number): string {
 
 /**
  * The line above the results sheet: how much came back, how sure the engine
- * was, and — once the "shown on the page" check has caught anything — how
- * many values it caught (spec 2026-10-12 §5/§7, property 7: a `notShown` of
- * `0` or `undefined` leaves this exactly as it reads today, same as an
- * older run with no `validation_result` at all, Review Focus 4).
+ * was, and — once the "shown on the page" check has caught anything, or the
+ * website's default has filled anything — how many values each caught (spec
+ * 2026-10-12 §5/§7, 2026-10-13 §7; property 7/property 9: a `notShown` or
+ * `defaulted` of `0` or `undefined` leaves this exactly as it reads today,
+ * same as an older run with no `validation_result` at all, Review Focus 4).
  */
-export function resultsSummary(rowCount: number, confidence: number | null | undefined, notShown?: number): string {
+export function resultsSummary(
+  rowCount: number,
+  confidence: number | null | undefined,
+  notShown?: number,
+  defaulted?: number,
+): string {
   const rows = rowCount === 0 ? 'No rows' : `${rowCount.toLocaleString('en-US')} ${rowCount === 1 ? 'row' : 'rows'}`;
-  const base = confidence == null ? rows : `${rows} · ${confidence}% confidence`;
-  if (!notShown) return base;
-  const noun = notShown === 1 ? 'value' : 'values';
-  return `${base} · ${notShown.toLocaleString('en-US')} ${noun} not shown on their page`;
+  let out = confidence == null ? rows : `${rows} · ${confidence}% confidence`;
+  if (notShown) {
+    const noun = notShown === 1 ? 'value' : 'values';
+    out += ` · ${notShown.toLocaleString('en-US')} ${noun} not shown on their page`;
+  }
+  if (defaulted) {
+    const noun = defaulted === 1 ? 'value' : 'values';
+    out += ` · ${defaulted.toLocaleString('en-US')} ${noun} from the website's defaults`;
+  }
+  return out;
 }
 
 /** `crawl.coverage`'s `unshownItems` entry, as the wire reports it (mirrors `@robot/api`'s `coverage.ts`). */

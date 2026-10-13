@@ -137,6 +137,14 @@ describe('resultsSummary', () => {
     expect(resultsSummary(1204, 92)).toBe('1,204 rows · 92% confidence');
     expect(resultsSummary(1204, 92, undefined)).toBe('1,204 rows · 92% confidence');
   });
+
+  // Spec 2026-10-13 §7.
+  it('adds the defaulted-values suffix once there is anything to report, singular at one', () => {
+    expect(resultsSummary(60, 100, 0, 60)).toBe("60 rows · 100% confidence · 60 values from the website's defaults");
+    expect(resultsSummary(60, 100, 2, 1)).toBe("60 rows · 100% confidence · 2 values not shown on their page · 1 value from the website's defaults");
+    expect(resultsSummary(60, 100, 0, 0)).toBe('60 rows · 100% confidence');
+    expect(resultsSummary(60, 100, undefined, undefined)).toBe('60 rows · 100% confidence');
+  });
 });
 
 describe('unshownRows', () => {

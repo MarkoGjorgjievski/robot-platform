@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  defaultBadge,
   fillBadge, notShownBadge, rowsMissingField, selectionToItemIds, reExtractLabel, cellState,
   emptyFilterNote,
   type FieldCoverage, type ItemGap, type Row,
@@ -160,5 +161,14 @@ describe('emptyFilterNote', () => {
     expect(emptyFilterNote(cov)).toBe(
       "All 1 remaining gap is confirmed absent — these pages don't have this field.",
     );
+  });
+});
+
+describe('defaultBadge (spec 2026-10-13 §7)', () => {
+  it('counts the values the default filled, and draws nothing on a run from before defaults', () => {
+    expect(defaultBadge({ name: 'brand', filled: 60, missing: 0, confirmedAbsent: 0, total: 60, defaulted: 60 })).toBe('default on 60');
+    expect(defaultBadge({ name: 'brand', filled: 60, missing: 0, confirmedAbsent: 0, total: 60, defaulted: 0 })).toBeNull();
+    expect(defaultBadge({ name: 'brand', filled: 60, missing: 0, confirmedAbsent: 0, total: 60 })).toBeNull();
+    expect(defaultBadge(undefined)).toBeNull();
   });
 });

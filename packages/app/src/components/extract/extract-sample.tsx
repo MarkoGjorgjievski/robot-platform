@@ -119,7 +119,14 @@ export function ExtractSample({
   const notShown = notShownCount > 0
     ? { count: notShownCount, fields: notShownFields.map((f) => columns.find((c) => c.key === f.name)?.name ?? f.name) }
     : undefined;
-  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length }, counts.done, notShown);
+  // Spec 2026-10-13 §7: the sample's own "from defaults" count, same report
+  // the run page reads for the same run.
+  const defaultedFields = (coverageQuery.data?.fields ?? []).filter((f) => (f.defaulted ?? 0) > 0);
+  const defaultedCount = defaultedFields.reduce((sum, f) => sum + (f.defaulted ?? 0), 0);
+  const defaulted = defaultedCount > 0
+    ? { count: defaultedCount, fields: defaultedFields.map((f) => columns.find((c) => c.key === f.name)?.name ?? f.name) }
+    : undefined;
+  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length }, counts.done, notShown, defaulted);
 
   return (
     <div className="space-y-3">

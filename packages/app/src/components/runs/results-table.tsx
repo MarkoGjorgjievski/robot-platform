@@ -1,11 +1,15 @@
 import { cellText } from '../../lib/output-view';
-import { notShownBadge, type FieldCoverage } from '../../lib/site/coverage-view';
+import { defaultBadge, notShownBadge, type FieldCoverage } from '../../lib/site/coverage-view';
 
 /** The project's contract, as the sheet reads it: `key` keys a row, `name` is the heading. */
 export type ResultColumn = { key: string; name: string };
 
 const NO_ABSENT_FIELDS: ReadonlySet<string> = new Set<string>();
 const NO_UNSHOWN_FIELDS: ReadonlySet<string> = new Set<string>();
+const NO_DEFAULTED_FIELDS: ReadonlySet<string> = new Set<string>();
+
+/** The defaulted cell rail's title (spec 2026-10-13 §7). */
+export const DEFAULT_CELL_RAIL_TITLE = "this website's default";
 
 /**
  * What this run extracted, one row per page.
@@ -24,6 +28,7 @@ export function ResultsTable({
   rows,
   absentByUrl,
   unshownByUrl,
+  defaultedByUrl,
   coverage,
   summary,
   note,
@@ -34,6 +39,8 @@ export function ResultsTable({
   absentByUrl: Map<string, Set<string>>;
   /** Per-row not-shown field keys, keyed by the row's `_url` (`crawl.coverage`'s `unshownItems`, spec 2026-10-12 §5). Absent on a run that never computed coverage. */
   unshownByUrl?: Map<string, Set<string>>;
+  /** Per-row defaulted field keys, keyed by the row's `_url` (`crawl.coverage`'s `defaultedItems`, spec 2026-10-13 §7). Absent on a run that never computed coverage. */
+  defaultedByUrl?: Map<string, Set<string>>;
   /** `crawl.coverage`'s per-field report, for the column head's second badge (`notShownBadge`, spec §5/§7). Absent — same as every entry missing — draws no badge, same as today. */
   coverage?: readonly FieldCoverage[];
   /** "1,204 rows · 92% confidence" (`resultsSummary`). */
@@ -81,6 +88,7 @@ export function ResultsTable({
                     // is why this reads `coverage` directly rather than riding
                     // along with a fill badge this table has never drawn.
                     const badge = notShownBadge(covByKey.get(column.key));
+                    const dBadge = defaultBadge(covByKey.get(column.key));
                     return (
                       <th key={column.key} title={`${column.key} · ${column.name}`}>
                         {column.name}
@@ -88,6 +96,9 @@ export function ResultsTable({
                           <span className={`ml-1.5 font-mono text-xs normal-case ${badge === 'not checked' ? 'text-muted-foreground' : 'text-warn'}`}>
                             {badge}
                           </span>
+                        ) : null}
+                        {dBadge ? (
+                          <span className="ml-1.5 font-mono text-xs normal-case text-muted-foreground">{dBadge}</span>
                         ) : null}
                       </th>
                     );
@@ -103,6 +114,7 @@ export function ResultsTable({
                   const url = typeof row._url === 'string' ? row._url : '';
                   const absent = absentByUrl.get(url) ?? NO_ABSENT_FIELDS;
                   const unshown = unshownByUrl?.get(url) ?? NO_UNSHOWN_FIELDS;
+                  const defaulted = defaultedByUrl?.get(url) ?? NO_DEFAULTED_FIELDS;
                   return (
                     <tr key={i} className="border-b border-line transition-colors last:border-0 hover:bg-raised">
                       {columns.map((column, c) => {
@@ -126,11 +138,12 @@ export function ResultsTable({
                         // cell above has nothing the check could have passed
                         // or failed.
                         const notShown = unshown.has(column.key);
+                        const isDefault = defaulted.has(column.key);
                         return (
                           <td
                             key={column.key}
-                            className={`px-4 py-2.5 align-top ${notShown ? 'border-l-2 border-warn' : ''}`}
-                            title={notShown ? 'not shown on the page' : undefined}
+                            className={`px-4 py-2.5 align-top ${isDefault ? 'border-l-2 border-line text-muted-foreground' : notShown ? 'border-l-2 border-warn' : ''}`}
+                            title={isDefault ? DEFAULT_CELL_RAIL_TITLE : notShown ? 'not shown on the page' : undefined}
                           >
                             {/* The cap is on a div, not on the cell:
                                 `max-width` on a `td` is ignored in automatic

@@ -15,6 +15,8 @@ export type FieldCoverage = {
   notShown?: number;
   /** Values with an explicit shown/not-shown flag — the denominator for `notShown`. Absent on a run that predates the check. */
   checked?: number;
+  /** Values the website's default filled (spec 2026-10-13 §7). Absent on a run that predates defaults. */
+  defaulted?: number;
 };
 export type ItemGap = { itemId: string; url: string; missingFields: string[] };
 
@@ -59,6 +61,12 @@ export function notShownBadge(cov: FieldCoverage | undefined): string | null {
   if (notShown > 0) return `${notShown} not shown`;
   if (checked === 0 && cov.filled > 0) return 'not checked';
   return null;
+}
+
+/** The column head's third badge (spec 2026-10-13 §7): "default on 60" once the website's default filled any value; null otherwise, and on a run from before defaults. */
+export function defaultBadge(cov: FieldCoverage | undefined): string | null {
+  const n = cov?.defaulted ?? 0;
+  return n > 0 ? `default on ${n}` : null;
 }
 
 /**
