@@ -1681,6 +1681,26 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => brand1.innerText(), { timeout: 20_000 }).toContain('not on this page');
     console.log(`typed: "${await brand1.getAttribute('aria-label')}" reads "${(await brand1.innerText()).replace(/\s+/g, ' ').trim()}"`);
 
+    // Spec 2026-10-13 §6: a default for this website. Typed into the expanded
+    // Brand row; products 2 and 3 have no Brand answer, so they read the default,
+    // muted, and the row stops asking for them. Product 1 keeps its typed tagline.
+    await page.getByRole('textbox', { name: 'Default Brand for this website', exact: true }).fill('Widget shop');
+    const brand2 = page.locator('button[aria-label^="Brand on product 2: "]');
+    await expect.poll(() => brand2.innerText(), { timeout: 20_000 }).toContain('Widget shop');
+    // The title attribute lives on the cell's inner span, not the button.
+    expect(await brand2.locator('span').first().getAttribute('title'), 'the default cell does not carry its title').toBe("This website's default; a path that reads a value here wins");
+    await expect.poll(() => page.getByText('Fills every product the paths leave empty.', { exact: false }).count(), { timeout: 10_000 }).toBe(1);
+    expect(await page.getByText('not on any proof page', { exact: true }).count(), 'the shop name is in every page\'s footer, so the default must not warn').toBe(0);
+    await expect
+      .poll(async () => ((await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! })).verificationSet as { defaults?: Record<string, string> } | null)?.defaults, { timeout: 20_000, interval: 500, message: 'the default was not saved' })
+      .toEqual({ [keyOf('Brand')!]: 'Widget shop' });
+    await shootViewportBothThemes(page, 'app-site-verification-default');
+
+    // Typing a value no proof page's footer shows turns the warning on; set it back.
+    await page.getByRole('textbox', { name: 'Default Brand for this website', exact: true }).fill('Widget shop | We Do Widgets');
+    await expect.poll(() => page.getByText('not on any proof page', { exact: true }).count(), { timeout: 10_000 }).toBe(1);
+    await page.getByRole('textbox', { name: 'Default Brand for this website', exact: true }).fill('Widget shop');
+
     expect(problems, `the coverage walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 300_000);
 
@@ -1740,6 +1760,40 @@ describe.skipIf(!ENABLED)('app shell', () => {
 
     await shoot(page, 'app-site-run-unshown.png');
     expect(problems, `the unshown run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 60_000);
+
+  // A website's default (spec 2026-10-13 §7): the run page counts and marks
+  // the values the default filled. Seeded like the unshown run — three items
+  // whose Brand the default filled, one of them from before the flag existed.
+  it('the run page counts and marks the values the website\'s default filled', async () => {
+    expect(projectSlug, 'there is no project to open a run on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to open a run on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const keyOf = (name: string) => site.fields.find((f) => f.name === name)?.key;
+    const [titleKey, priceKey, brandKey] = ['Title', 'Price', 'Brand'].map(keyOf);
+    for (const [name, key] of [['Title', titleKey], ['Price', priceKey], ['Brand', brandKey]] as const) expect(key, `no key for ${name}`).toBeTruthy();
+    const defaulted = { shown: { [titleKey!]: true, [priceKey!]: true, [brandKey!]: null }, paths: {}, defaulted: [brandKey!] };
+    const item = (n: number, validationResult?: typeof defaulted) => ({
+      url: `${SHOP}/p/${n}`,
+      row: { [titleKey!]: `Widget ${n}`, [priceKey!]: 100 + n, [brandKey!]: 'Widget shop' },
+      ...(validationResult ? { validationResult } : {}),
+    });
+    const runId = await seedUnshownRun(site.id, { items: [item(1, defaulted), item(2, defaulted), item(3)] });
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}/runs/${runId}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'main');
+    const main = page.locator('main');
+    await expect.poll(() => main.innerText(), { timeout: 20_000 }).toContain("values from the website's defaults");
+    const head = (name: string) => page.locator('thead th').filter({ hasText: new RegExp(`^${name}`) });
+    expect(await head('Brand').innerText(), "Brand's column head does not count the defaulted values").toContain('default on 2');
+    expect(await head('Price').innerText(), "Price's column head says default").not.toContain('default on');
+    expect(await main.innerText(), 'the summary does not count the defaulted values').toContain("2 values from the website's defaults");
+    expect(await page.locator(`td[title="this website's default"]`).count(), 'not exactly two cells carry the default rail').toBe(2);
+    expect(await page.getByRole('heading', { name: 'Values not shown on their page', exact: true }).count(), 'a defaulted value was flagged not shown').toBe(0);
+    await shoot(page, 'app-site-run-defaults.png');
+    expect(problems, `the defaults run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 60_000);
 
   // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
