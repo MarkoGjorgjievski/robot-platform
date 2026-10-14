@@ -3,7 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
 import { MAX_CERTIFIED_PATHS } from './verify/constants.js';
-import { pickPageEntry, type PathContext } from './verify/page-variant-match.js';
+import { axesFromVariesBy, pickPageEntry, type PathContext } from './verify/page-variant-match.js';
 import { sanitizeCatalogue, type CandidateCatalogue, type Candidate } from './candidate-catalogue.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -943,6 +943,7 @@ const PAGE_STEP = '[page]';
 export function getByDotPath(obj: unknown, path: string, ctx?: PathContext): unknown {
   const parts = path.split(/\.|\[(\d+)\]|(\[page\])/).filter(Boolean);
   let current: unknown = obj;
+  let container: unknown = undefined;   // the object holding `current`: its `variesBy` names the list's axes
 
   for (const part of parts) {
     if (current === null || current === undefined) return undefined;
@@ -950,9 +951,10 @@ export function getByDotPath(obj: unknown, path: string, ctx?: PathContext): unk
 
     if (part === PAGE_STEP) {
       if (!Array.isArray(current)) return undefined;
-      current = pickPageEntry(current, ctx?.pageVariant);
+      current = pickPageEntry(current, ctx?.pageVariant, axesFromVariesBy(container));
       continue;
     }
+    container = current;
     const index = parseInt(part, 10);
     if (!isNaN(index) && Array.isArray(current)) {
       current = current[index];

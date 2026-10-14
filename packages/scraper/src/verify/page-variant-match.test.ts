@@ -63,6 +63,29 @@ describe('matchesPageVariant', () => {
   });
 });
 
+describe('rule 3 reads only the spec §5 label keys (review fix round 1)', () => {
+  it('a numeric label never matches position, grams or weight: ?size=5 against Shopify sizes 2-10 at positions 1-5 resolves to nothing', () => {
+    const pv = pageVariantFrom('https://s.example/products/x?size=5', null, {});
+    const variants = [2, 4, 6, 8, 10].map((n, i) => ({ id: 1000 + i, title: String(n), option1: String(n), position: i + 1, grams: 5, weight: 5, sku: 'X-' + n }));
+    for (const v of variants) expect(matchesPageVariant(v, pv)).toBe(false);
+    expect(pickPageEntry(variants, pv)).toBeUndefined();
+    expect(getByDotPath({ variants }, 'variants[page].id', { pageVariant: pv })).toBeUndefined();
+  });
+  it('a rule-2 contradiction stops rule 3: { color: Blue, title: Red } does not match ?color=red', () => {
+    const pv = pageVariantFrom('https://s.example/p?color=red', null, {});
+    expect(matchesPageVariant({ color: 'Blue', title: 'Red' }, pv)).toBe(false);
+    expect(matchesPageVariant({ color: 'Red', title: 'Red' }, pv)).toBe(true);
+  });
+  it('an axis key the data names in variesBy is an exact label; an unlisted key is not', () => {
+    const pv = pageVariantFrom('https://s.example/p?pick=Walnut', null, {});
+    const group = { variesBy: ['https://schema.org/color', 'Wood'], hasVariant: [{ Wood: 'Walnut', sku: 'a' }, { Wood: 'Oak', sku: 'b' }] };
+    expect(getByDotPath(group, 'hasVariant[page].sku', { pageVariant: pv })).toBe('a');
+    expect(getByDotPath({ hasVariant: group.hasVariant }, 'hasVariant[page].sku', { pageVariant: pv })).toBeUndefined();
+    expect(matchesPageVariant({ material: 'Walnut' }, pv)).toBe(true);   // a known axis key (VARIANT_AXIS_KEYS)
+    expect(matchesPageVariant({ vendor: 'Walnut' }, pv)).toBe(false);
+  });
+});
+
 describe('pickPageEntry', () => {
   it('exactly one match → that entry; two matching entries resolve to nothing; none → nothing', () => {
     const pv = pageVariantFrom('https://k.example/p?size=M', null, {});
@@ -99,10 +122,10 @@ describe('getByDotPath with [page]', () => {
 });
 
 describe('resolveStructured with a page variant', () => {
-  it('skullcandy: one block per colour — offers[page].availability reads the block whose offer matches', () => {
+  it('skullcandy: hasVariant[page].offers.availability reads the ProductGroup entry the ?variant= id names; the api variants list too', () => {
     const fx = load('skullcandy');
     const ctx = { pageVariant: pvOf(fx) };
-    // `offers` is an object per block; `[page]` on it must not break a block-level read. The variant list is the ProductGroup's.
+    // The variant list is the ProductGroup's hasVariant (the per-colour Product blocks carry `offers` as an object, so `[page]` never applies to them).
     expect(resolveStructured(captureOf(fx), 'json-ld', 'hasVariant[page].offers.availability', ctx)).toBe('http://schema.org/OutOfStock');
     expect(resolveStructured(captureOf(fx), 'api', 'product.variants[page].available', ctx)).toBe(false);
     expect(resolveStructured(captureOf(fx), 'json-ld', 'hasVariant[0].offers.availability', ctx)).toBe('http://schema.org/InStock');

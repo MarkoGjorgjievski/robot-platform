@@ -781,7 +781,7 @@ describe('rankCertified — [page] twins (spec 2026-10-14 §4)', () => {
   const p = (path: string) => ({ source: 'json-ld' as const, path, transform: 'identity' as const });
   it('a [page] path ranks above its index twin even with a path whose length falls between them, in any input order', () => {
     const page = p('offers[page].price'), idx = p('offers[12].price'), mid = p('offers.lowPrice1');
-    const want = [page, mid, idx];   // rank lengths 16, 16, 16: [page] first on the tie, then input order
+    const want = [page, mid, idx];   // rank lengths 15 ([page] counted as [0]), 16, 16: [page] first, then the 16s in input order
     expect(rankCertified([idx, mid, page])[0]).toEqual(page);
     expect(rankCertified([mid, idx, page])[0]).toEqual(page);
     expect(rankCertified([page, mid, idx])).toEqual(want);
