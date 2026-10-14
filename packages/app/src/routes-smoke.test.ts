@@ -1746,6 +1746,11 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(projectSlug, 'there is no project to verify on').not.toBeNull();
     expect(websiteSlug, 'there is no website to verify on').not.toBeNull();
     problems.length = 0;
+    // The walk above leaves the Verification tab open; its flush-on-unmount autosave would land
+    // after the binding written below and put the old five cards back. Leave the tab first and
+    // let that save settle, then read the website and write.
+    await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.waitForTimeout(1500);
     const api = apiAs(await sessionCookie(context));
     const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
     const priceKey = site.fields.find((f) => f.name === 'Price')?.key;
