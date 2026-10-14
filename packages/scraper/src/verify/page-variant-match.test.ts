@@ -56,6 +56,7 @@ describe('matchesPageVariant', () => {
   it('matching never reads a price or an availability; an empty page variant matches nothing', () => {
     const pv = pageVariantFrom('https://k.example/p?size=810', null, {});
     expect(matchesPageVariant({ price: 810, availability: 'InStock' }, pv)).toBe(false);
+    expect(matchesPageVariant({ compare_at_price: 810, lowPrice: '810', priceCurrency: '810', inventory_quantity: 810, availableStock: '810' }, pv)).toBe(false);
     const empty = pageVariantFrom('https://k.example/p', null, {});
     expect(matchesPageVariant({ size: '' }, empty)).toBe(false);
     expect(matchesPageVariant({ id: 1 }, empty)).toBe(false);
