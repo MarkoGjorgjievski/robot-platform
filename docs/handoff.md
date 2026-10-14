@@ -137,7 +137,9 @@ but not its `selectedOptions`, text values only. Outside the brief, the capture 
 `pageVariant`, which it did not before. Fragments (§12) are kept only when every `&`-part is
 `key=value`; text fragments and hash routes are stripped. Final-review fix wave: a named value
 agrees when its tokens are a subset of the shown value's (`6x9` in `6' x 9' $499`), the picker's
-selected `value`/`data-value` count as alternate values (`?color=031`), page-data ids count only
+selected `value`/`data-value` count as alternate spellings for the wrong-variant check only, never
+in the page variant `[page]` matches against (`?color=031`), a decimal stays one token (`?size=10`
+is not `10.5`), page-data ids count only
 when id-shaped; the row warning fires only for an index on a variant-list key (`offers`,
 `hasVariant`, `variants`, …), never `@graph[n]`/`image[n]`; on a named or selected page an index
 path whose `[page]` twin is certified is skipped, so a `[page]` miss is an empty cell, not another

@@ -378,8 +378,8 @@ export function buildVariantPickerScript(): string {
  * (its label), a button group's `[aria-checked="true"]`,
  * `[aria-selected="true"]`, `[aria-pressed="true"]` or checked input.
  * The selected element's `value` and `data-value` (when present, non-empty
- * and not the shown text) are alternate values of the same pair, never labels.
- * Evaluates to `{ pairs, labels }` — the shape `pageVariantFrom` takes as its
+ * and not the shown text) are `alternates` of the same pair, never pairs or labels.
+ * Evaluates to `{ pairs, labels, alternates? }` — the shape `pageVariantFrom` takes as its
  * picker — or null when no picker shows a selection. Only the variant
  * controls `isVariantControl` accepts are read, so a review widget's
  * selection never counts; nested controls and shared anchors are read once,
@@ -412,10 +412,11 @@ export function buildSelectionScript(): string {
     const byAnchor = new Map();
     for (const k of kept) if (!byAnchor.has(k.picker.anchorEl)) byAnchor.set(k.picker.anchorEl, k);
     const SELECTED = '[aria-checked="true"],[aria-selected="true"],[aria-pressed="true"]';
-    const pairs = [], labels = [];
+    const pairs = [], labels = [], alternates = [];
     // The shown text is the pair's value and a label; the selected element's own
-    // value and data-value attributes (when present and non-empty) are alternate
-    // values of the same pair, so ?color=031 agrees with <input value="031">.
+    // value and data-value attributes (when present and non-empty) are alternates
+    // of the same pair, kept apart, so ?color=031 agrees with <input value="031">
+    // in wrongVariant without contradicting the right entry in [page] matching.
     const push = (axis, text, el) => {
       const t = (text || '').replace(/\s+/g, ' ').trim();
       if (!t || !axis) return;
@@ -426,7 +427,7 @@ export function buildSelectionScript(): string {
         const v = (el.getAttribute(attr) || '').trim();
         if (!v || seen.indexOf(v.toLowerCase()) !== -1) continue;
         seen.push(v.toLowerCase());
-        pairs.push({ name: axis, value: v });
+        alternates.push({ name: axis, value: v });
       }
     };
     for (const { controlEl, picker } of byAnchor.values()) {
@@ -446,6 +447,7 @@ export function buildSelectionScript(): string {
       if (!sel) continue;
       push(picker.axis, sel.tagName === 'INPUT' ? radioLabel(sel, labelForMap) : buttonLabel(sel), sel);
     }
-    return pairs.length ? { pairs, labels } : null;
+    if (!pairs.length) return null;
+    return alternates.length ? { pairs, labels, alternates } : { pairs, labels };
   })()`;
 }

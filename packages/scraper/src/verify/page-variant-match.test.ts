@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { pageVariantFrom, type PageVariant } from '@robot/browser';
+import { pageVariantFrom, wrongVariant, type PageVariant } from '@robot/browser';
 import { matchesPageVariant, pickPageEntry } from './page-variant-match.js';
 import { getByDotPath } from '../domain-cache.js';
 import { resolveStructured } from './search-structured.js';
@@ -95,6 +95,18 @@ describe('pickPageEntry', () => {
     expect(pickPageEntry(two, pv)).toBeUndefined();
     expect(pickPageEntry([{ size: 'S' }], pv)).toBeUndefined();
     expect(pickPageEntry(one, undefined)).toBeUndefined();
+  });
+});
+
+describe('alternates never contradict the right entry (fix wave round 2)', () => {
+  it('a picker showing Navy Blue with value 031 picks the Navy Blue entry; ?color=031 against it is not wrong-variant', () => {
+    const picker = { pairs: [{ name: 'color', value: 'Navy Blue' }], labels: ['Navy Blue'], alternates: [{ name: 'color', value: '031' }] };
+    const entries = [{ color: 'Navy Blue', sku: 'n' }, { color: 'Black', sku: 'b' }];
+    const pv = pageVariantFrom('https://l.example/PH5522-00.html', picker, {});
+    expect(pv.pairs).toEqual([{ name: 'color', value: 'Navy Blue' }]);
+    expect(matchesPageVariant(entries[0], pv)).toBe(true);
+    expect(pickPageEntry(entries, pv)).toEqual({ color: 'Navy Blue', sku: 'n' });
+    expect(wrongVariant('https://l.example/PH5522-00.html?color=031', picker, {})).toBeNull();
   });
 });
 

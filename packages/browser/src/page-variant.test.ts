@@ -141,10 +141,23 @@ describe('wrongVariant', () => {
     expect(wrongVariant('https://r.example/products/x?size=6x9', { pairs: [{ name: 'size', value: "6' x 9' $499" }] }, {})).toBeNull();
     expect(wrongVariant('https://r.example/products/x?size=6x9', { pairs: [{ name: 'size', value: "8' x 10' $699" }] }, {})).toBe('size=6x9');
   });
-  it('the selected element value is an alternate value of its pair: ?color=031 against Navy Blue with value 031', () => {
+  it('the selected element value is an alternate spelling of its pair: ?color=031 against Navy Blue with value 031', () => {
     const u = 'https://l.example/PH5522-00.html?color=031';
-    expect(wrongVariant(u, { labels: ['Navy Blue'], pairs: [{ name: 'color', value: 'Navy Blue' }, { name: 'color', value: '031' }] }, {})).toBeNull();
-    expect(wrongVariant(u, { labels: ['Black'], pairs: [{ name: 'color', value: 'Black' }, { name: 'color', value: '001' }] }, {})).toBe('color=031');
+    const navy = { labels: ['Navy Blue'], pairs: [{ name: 'color', value: 'Navy Blue' }], alternates: [{ name: 'color', value: '031' }] };
+    expect(wrongVariant(u, navy, {})).toBeNull();
+    expect(wrongVariant(u, { labels: ['Black'], pairs: [{ name: 'color', value: 'Black' }], alternates: [{ name: 'color', value: '001' }] }, {})).toBe('color=031');
+  });
+  it('alternates never enter the page variant: pairs and labels hold the shown text only', () => {
+    const navy = { labels: ['Navy Blue'], pairs: [{ name: 'color', value: 'Navy Blue' }], alternates: [{ name: 'color', value: '031' }] };
+    const pv = pageVariantFrom('https://l.example/p', navy, { alternates: [{ name: 'size', value: 'opt-m' }] });
+    expect(pv).toEqual({ ids: [], pairs: [{ name: 'color', value: 'Navy Blue' }], labels: ['Navy Blue'], named: false, selected: true });
+  });
+  it('a decimal size is one token: ?size=10 does not agree with 10.5; ?size=10.5 does', () => {
+    const shown = { pairs: [{ name: 'size', value: '10.5' }], labels: ['10.5'] };
+    expect(wrongVariant('https://s.example/p?size=10', shown, {})).toBe('size=10');
+    expect(wrongVariant('https://s.example/p?size=5', shown, {})).toBe('size=5');
+    expect(wrongVariant('https://s.example/p?size=10.5', shown, {})).toBeNull();
+    expect(wrongVariant('https://s.example/p?size=10.5', { pairs: [{ name: 'size', value: 'US 10.5 Wide' }] }, {})).toBeNull();
   });
   it('a non-id selected option id never decides: selectedOption { id: opt-m } against ?variant=123456', () => {
     const u = 'https://s.example/products/x?variant=123456';
