@@ -6,6 +6,7 @@ import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
+import { buildSelectionScript } from './variant-dom.js';
 import type { CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
 
 export type VerificationRequest = { fields: SchemaDefinitionField[]; verificationSet: VerificationSet };
@@ -25,7 +26,7 @@ export type VerificationRun = { outcome: VerificationOutcome; captures: Record<s
 // `load` plus a ready check, never `networkidle`: a site that holds a
 // connection open (Ikea) never goes idle and paid the full 60 s timeout on
 // every proof page. The check waits for the values typed on this page instead.
-const defaultCapture = (browser: IBrowser, url: string, ready?: ReadyCheck) => browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: true, ...(ready ? { ready } : {}) });
+const defaultCapture = (browser: IBrowser, url: string, ready?: ReadyCheck) => browser.capture(url, { waitUntil: 'load', interceptNetworkRequests: true, selection: buildSelectionScript(), ...(ready ? { ready } : {}) });
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 

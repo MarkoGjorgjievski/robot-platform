@@ -7,6 +7,7 @@ import { PROOF_PAGE_MAX_TILES } from './constants.js';
 import { buildBoxMapScript, boxesFromAnnotation, type Box } from './box-map.js';
 import { buildProofPageReadyCheck } from './proof-page-ready.js';
 import { captureProblem, CaptureProblemError } from './capture-check.js';
+import { buildSelectionScript } from './variant-dom.js';
 
 export type ProofPageCapture = { capture: PageCapture; boxes: Box[] };
 
@@ -17,6 +18,7 @@ export async function captureProofPage(browser: IBrowser, url: string): Promise<
     ready: buildProofPageReadyCheck(url),
     annotate: buildBoxMapScript(),
     maxTiles: PROOF_PAGE_MAX_TILES,
+    selection: buildSelectionScript(),
   });
   const problem = captureProblem(capture, url);
   if (problem) throw new CaptureProblemError(problem.reason, problem.verdict);

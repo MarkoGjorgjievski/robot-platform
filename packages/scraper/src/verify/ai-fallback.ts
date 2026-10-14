@@ -53,6 +53,8 @@ export function buildProposePrompt(e: FallbackEvidence): string {
     const expHere = e.expected[url] ?? '';
     if (expHere.trim() === '') continue;
     lines.push(`\n=== PAGE ${url} ===`);
+    // Spec 2026-10-14 §4: the model may address an array by the page's variant; certification still decides.
+    if (capture.pageVariant?.named) lines.push(`This address names a variant: ${JSON.stringify(capture.pageVariant.pairs)}. An array may be addressed by it as arr[page] (the entry whose url, id, sku or option values match).`);
     const misses = e.nearMisses[url] ?? [];
     if (misses.length) lines.push(`Near-misses we found but which did not certify: ${misses.join(' | ')}`);
     lines.push(`--- intercepted JSON ---\n${apiSection(capture)}`);

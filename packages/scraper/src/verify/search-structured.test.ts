@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { pageVariantFrom } from '@robot/browser';
 import { searchStructured, resolveStructured, searchStructuredByConcept } from './search-structured.js';
 import { applyTransform } from './transforms.js';
 
@@ -77,5 +79,31 @@ describe('searchStructuredByConcept', () => {
   it('money: a key not named for cents keeps identity first', () => {
     const found = searchStructuredByConcept(capture, 'money', 'price');
     expect(found.find((x) => x.path === 'offers.price')?.transform).toBe('identity');
+  });
+});
+
+describe('searchStructured — the [page] twin (spec 2026-10-14 §4)', () => {
+  const rug = JSON.parse(readFileSync(new URL('./__fixtures__/page-variant/ruggable.json', import.meta.url), 'utf8'));
+  const capture = { url: rug.url, structuredData: { ldJson: rug.ldJson, nextData: null, initialState: null, meta: {} }, interceptedRequests: [], pageVariant: pageVariantFrom(rug.url, null, {}) };
+  it('beside the index path whose entry is the page variant, emits the [page] form; other indexes get no twin', () => {
+    const out = searchStructured(capture, 'money', '569.00');
+    const paths = out.map((c) => c.path);
+    expect(paths).toContain('hasVariant[1].offers.price');
+    expect(paths).toContain('hasVariant[page].offers.price');
+    expect(out.find((c) => c.path === 'hasVariant[page].offers.price')).toMatchObject({ source: 'json-ld', transform: 'identity' });
+    const other = searchStructured(capture, 'money', '439.00');
+    expect(other.map((c) => c.path)).toContain('hasVariant[0].offers.price');
+    expect(other.map((c) => c.path)).not.toContain('hasVariant[page].offers.price');
+  });
+  it('no page variant on the capture: no twin', () => {
+    const { pageVariant: _, ...plain } = capture;
+    expect(searchStructured(plain, 'money', '569.00').map((c) => c.path)).not.toContain('hasVariant[page].offers.price');
+  });
+  it('every [page] twin resolves to the value it was found with (the twin agrees with getByDotPath)', () => {
+    const twin = searchStructured(capture, 'money', '569.00').find((c) => c.path === 'hasVariant[page].offers.price')!;
+    expect(resolveStructured(capture, 'json-ld', twin.path, { pageVariant: capture.pageVariant })).toBe('569.00');
+  });
+  it('the concept search emits the twin too', () => {
+    expect(searchStructuredByConcept(capture, 'money', 'price').map((c) => c.path)).toContain('hasVariant[page].offers.price');
   });
 });

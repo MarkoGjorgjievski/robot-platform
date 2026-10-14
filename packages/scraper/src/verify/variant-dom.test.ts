@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
-import { buildVariantLinksScript, buildVariantPickerScript, type VariantLinks, type VariantPicker } from './variant-dom.js';
+import { PlaywrightBrowser, pageVariantFrom, type Selection } from '@robot/browser';
+import { buildSelectionScript, buildVariantLinksScript, buildVariantPickerScript, type VariantLinks, type VariantPicker } from './variant-dom.js';
 
 let browser: PlaywrightBrowser;
 beforeAll(async () => { browser = new PlaywrightBrowser(); await browser.launch({ headless: true }); });
@@ -194,4 +194,37 @@ describe('hidden duplicates (fix round 1, #4)', () => {
     expect(links).toHaveLength(1);
     expect(links[0]!.links.map((l) => l.label)).toEqual(['Black', 'Red']);
   });
+});
+
+describe('buildSelectionScript (spec 2026-10-14 §3)', () => {
+  it('reads the selected size radio and a selected colour button, and null with no selection', async () => {
+    // The fieldset carries a variant-control class: findPickersIn only looks inside controls isVariantControl accepts.
+    const html = `<html><body><form><fieldset class="size-options"><legend>Size</legend><label><input type="radio" name="size" value="xs"> XS</label><label><input type="radio" name="size" value="s" checked> S</label></fieldset>
+      <div class="color-swatches" role="radiogroup" aria-label="Color"><button role="radio" aria-checked="false">Black</button><button role="radio" aria-checked="true">Chill Grey</button></div></form></body></html>`;
+    const r = await browser.setContentEvaluate<Selection | null>(html, buildSelectionScript());
+    expect(r).toEqual({ pairs: [{ name: 'size', value: 'S' }, { name: 'color', value: 'Chill Grey' }], labels: ['S', 'Chill Grey'] });
+    const none = await browser.setContentEvaluate<Selection | null>('<html><body><form><fieldset class="size-options"><legend>Size</legend><label><input type="radio" name="size" value="xs"> XS</label><label><input type="radio" name="size" value="s"> S</label></fieldset></form></body></html>', buildSelectionScript());
+    expect(none).toBeNull();
+  }, 30_000);
+
+  it('reads a select only when an option past the first is chosen, and never a review widget\'s selection', async () => {
+    const page = (sel: string) => `<html><body>
+      <div class="size-selector"><label for="sz">Size</label><select id="sz"><option value="7">7</option><option value="8" ${sel}>8</option><option value="9">9</option></select></div>
+      <div class="reviews-filter-stars"><button aria-pressed="true">5 stars</button><button aria-pressed="false">4 stars</button></div>
+    </body></html>`;
+    expect(await browser.setContentEvaluate<Selection | null>(page('selected'), buildSelectionScript())).toEqual({ pairs: [{ name: 'size', value: '8' }], labels: ['8'] });
+    expect(await browser.setContentEvaluate<Selection | null>(page(''), buildSelectionScript())).toBeNull();
+  }, 30_000);
+
+  it('a picker nested in another matching control is read once', async () => {
+    const html = `<html><body><div class="product-options"><div class="variant-color" aria-label="Color">
+      <button aria-selected="false">Black</button><button aria-selected="true">Red</button></div></div></body></html>`;
+    expect(await browser.setContentEvaluate<Selection | null>(html, buildSelectionScript())).toEqual({ pairs: [{ name: 'color', value: 'Red' }], labels: ['Red'] });
+  }, 30_000);
+
+  it('its shape is what pageVariantFrom takes as the picker', async () => {
+    const html = `<html><body><div class="size-selector" aria-label="Size"><button aria-checked="true">6x9</button><button aria-checked="false">8x10</button></div></body></html>`;
+    const picker = await browser.setContentEvaluate<Selection | null>(html, buildSelectionScript());
+    expect(pageVariantFrom('https://s.example/p', picker, {})).toMatchObject({ pairs: [{ name: 'size', value: '6x9' }], labels: ['6x9'], selected: true, named: false });
+  }, 30_000);
 });

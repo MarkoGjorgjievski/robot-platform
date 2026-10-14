@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import nike from '../__fixtures__/corpus/nike-air-jordan-detail.json';
 import { detectVariantLists, isVariantEntry } from './variant-detect.js';
 import type { CaptureLike } from './certify.js';
@@ -81,5 +82,20 @@ describe('detectVariantLists', () => {
   it('entries with only an axis value are variants', () => {
     expect(isVariantEntry({ '@type': 'Product', size: 'M' })).toBe(true);
     expect(isVariantEntry({ '@type': 'Product', url: 'https://s.example/x', name: 'x', image: 'i.jpg' })).toBe(false);
+  });
+});
+
+describe('variant entries keep their ids (spec 2026-10-14 §9)', () => {
+  it('entries keep url, @id, id and variant_id as text', () => {
+    const kith = JSON.parse(readFileSync(new URL('./__fixtures__/page-variant/kith.json', import.meta.url), 'utf8'));
+    const lists = detectVariantLists({ url: kith.url, html: '', structuredData: { ldJson: kith.ldJson, nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
+    expect(lists[0]?.entries[1]).toMatchObject({ sku: '2000372078', url: 'https://kith.com/products/khwa030086-001?variant=45144745050240' });
+    const api: CaptureLike = { url: 'https://s.example/p', html: '', structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [{ url: 'https://s.example/products/x.json', method: 'GET', resourceType: 'fetch', responseStatus: 200, responseHeaders: {}, responseBody: '', contentType: 'application/json', bodySize: 1, isJson: true, parsedJson: { product: { variants: [{ id: 45061353865273, sku: 'A', option1: 'Black', price: '209.99' }, { id: 45242474037305, sku: 'B', option1: 'Grey', price: '209.99' }] } }, timestamp: 0 }] };
+    expect(detectVariantLists(api)[0]?.entries[0]).toMatchObject({ id: '45061353865273', sku: 'A' });
+  });
+  it('an offer url stands in for an entry without its own url (ProductGroup.hasVariant[i].offers.url)', () => {
+    const rug = JSON.parse(readFileSync(new URL('./__fixtures__/page-variant/ruggable.json', import.meta.url), 'utf8'));
+    const lists = detectVariantLists({ url: rug.url, html: '', structuredData: { ldJson: rug.ldJson, nextData: null, initialState: null, meta: {} }, interceptedRequests: [] });
+    expect(lists[0]?.entries[1]).toMatchObject({ size: "6'x9'", url: '/products/ryder-soft-white-plush-rug?variant=42385836179511' });
   });
 });

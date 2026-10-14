@@ -18,7 +18,11 @@ export type VariantList = {
   count: number;
   /** Axis keys found on the entries, in VARIANT_AXIS_KEYS order (schema.org variesBy first when present). */
   axes: string[];
-  /** Up to 50: each entry's axis values plus sku/price when present, as text. */
+  /**
+   * Up to 50: each entry's axis values plus sku/price when present, as text;
+   * plus url/@id/id/variant_id as text when present (spec 2026-10-14 §9),
+   * unread until the next plan.
+   */
   entries: Array<Record<string, string>>;
 };
 
@@ -100,6 +104,11 @@ function toEntry(raw: PlainObject, axes: string[]): Record<string, string> {
   let price = toText(raw.price);
   if (price === undefined && isPlainObject(raw.offers)) price = toText((raw.offers as PlainObject).price);
   if (price !== undefined) out.price = price;
+  for (const k of ['url', '@id', 'id', 'variant_id'] as const) {
+    const t = toText(raw[k]);
+    if (t !== undefined) out[k] = t;
+  }
+  if (isPlainObject(raw.offers)) { const u = toText((raw.offers as PlainObject).url); if (u !== undefined && out.url === undefined) out.url = u; }
   return out;
 }
 

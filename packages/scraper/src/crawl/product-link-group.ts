@@ -44,6 +44,14 @@ export function largestProductGroup(
   return best.length >= MIN_CONTENT_GROUP || content.length === anchors.length ? best : largestGroup(anchors, listingUrl);
 }
 
+/**
+ * Spec 2026-10-14 §8: a fragment that carries key=value pairs names a
+ * variant and stays on the item's address; any other fragment is noise.
+ */
+function keepVariantFragment(u: URL): void {
+  if (!/^#[^=]+=/.test(u.hash)) u.hash = '';
+}
+
 function largestGroup(anchors: Array<{ href: string }>, listingUrl: string): string[] {
   const base = new URL(listingUrl);
   const basePath = trimTrailingSlash(base.pathname);
@@ -53,7 +61,7 @@ function largestGroup(anchors: Array<{ href: string }>, listingUrl: string): str
     let u: URL;
     try { u = new URL(a.href, listingUrl); } catch { continue; }
     if (u.hostname !== base.hostname || (u.protocol !== 'http:' && u.protocol !== 'https:')) continue;
-    u.hash = '';
+    keepVariantFragment(u);
     if (trimTrailingSlash(u.pathname) === basePath || u.pathname === '/') continue;
     if (seen.has(u.href)) continue;
     seen.add(u.href);
@@ -161,7 +169,8 @@ export function reconcileWithProductGroup(args: {
 
   const resolve = (v: unknown): string | null => {
     if (typeof v !== 'string' || v.trim() === '') return null;
-    try { const u = new URL(v, listingUrl); u.hash = ''; return u.href; } catch { return null; }
+    // The group's own fragment rule, so a row at `/p/a#sku=…` meets its group entry.
+    try { const u = new URL(v, listingUrl); keepVariantFragment(u); return u.href; } catch { return null; }
   };
   const byUrl = new Map<string, Record<string, unknown>>();
   for (const row of rows) {

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { IBrowser, CrawlOptions, CrawlPage, PageCapture, ScrollOptions } from '@robot/browser';
 import { planRun } from './plan-run.js';
-import { largestProductGroup, LISTING_ANCHORS_SCRIPT } from './product-link-group.js';
+import { largestProductGroup, LISTING_ANCHORS_SCRIPT, reconcileWithProductGroup } from './product-link-group.js';
 import type { ExtractionOutcome } from '../extraction-orchestrator.js';
 
 const FIXTURE = JSON.parse(
@@ -161,5 +161,33 @@ describe('planRun: the listing walk agrees with the finder (Allbirds /collection
     const outcome = await plan(reversed.map((u) => ({ detail_url: u })), { maxItems: 500 });
     expect(details(outcome)).toEqual(reversed);
     expect(outcome.warnings.some((w) => w.includes('planned from the page'))).toBe(false);
+  });
+});
+
+describe('largestProductGroup — fragments (spec 2026-10-14 §8)', () => {
+  // Handles of 12+ characters: `productPathTemplate` collapses them to one shape; a one-letter handle is its own group.
+  const L = 'https://s.example/collections/all';
+  it('a key=value fragment survives on the item address; a plain fragment is stripped; grouping is unchanged', () => {
+    const anchors = [
+      { href: 'https://s.example/products/alpha-runner-shoe#sku=a-blue', text: 'A' },
+      { href: 'https://s.example/products/bravo-runner-shoe#reviews', text: 'B' },
+      { href: 'https://s.example/products/charlie-runner-shoe', text: 'C' },
+      { href: 'https://s.example/products/charlie-runner-shoe#sku=c-red', text: 'C red' },
+    ];
+    expect(largestProductGroup(anchors, L)).toEqual([
+      'https://s.example/products/alpha-runner-shoe#sku=a-blue',
+      'https://s.example/products/bravo-runner-shoe',
+      'https://s.example/products/charlie-runner-shoe',
+      'https://s.example/products/charlie-runner-shoe#sku=c-red',
+    ]);
+  });
+  it('reconciling rows against the group keeps a key=value fragment on the row url too, so the row is not counted missed', () => {
+    const group = ['https://s.example/products/alpha-runner-shoe#sku=a-blue', 'https://s.example/products/bravo-runner-shoe', 'https://s.example/products/charlie-runner-shoe'];
+    const rows = [{ url: '/products/alpha-runner-shoe#sku=a-blue', title: 'A' }, { url: '/products/bravo-runner-shoe#reviews', title: 'B' }];
+    const r = reconcileWithProductGroup({ rows, urlField: 'url', group, listingUrl: L });
+    expect(r).toEqual({
+      rows: [{ url: 'https://s.example/products/alpha-runner-shoe#sku=a-blue', title: 'A' }, { url: 'https://s.example/products/bravo-runner-shoe', title: 'B' }, { url: 'https://s.example/products/charlie-runner-shoe' }],
+      added: 1,
+    });
   });
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildProposePrompt, proposeWithAi } from './ai-fallback.js';
+import { pageVariantFrom } from '@robot/browser';
 
 const field = { key: 'price', name: 'Price', type: 'money' as const, description: 'green number next to Add to cart', concept: 'price' };
 const cap = (url: string) => ({
@@ -40,5 +41,21 @@ describe('proposeWithAi', () => {
   it('returns proposals as candidate paths and reports the call', async () => {
     const agent = { proposePaths: async () => [{ source: 'api' as const, path: 'item.priceCents', transform: 'cents_to_units' as const }] };
     expect(await proposeWithAi(evidence, agent)).toEqual([{ source: 'api', path: 'item.priceCents', transform: 'cents_to_units' }]);
+  });
+});
+
+describe('buildProposePrompt — the page variant (spec 2026-10-14 §4)', () => {
+  const url = 'https://ruggable.com/products/ryder?size=6x9';
+  const capture = cap(url);
+  it('tells the model the page variant and the [page] form when the address names one', () => {
+    const prompt = buildProposePrompt({ field, expected: { [url]: '569.00' }, captures: { [url]: { ...capture, pageVariant: pageVariantFrom(url, null, {}) } }, nearMisses: {} });
+    expect(prompt).toContain('This address names a variant');
+    expect(prompt).toContain('[{"name":"size","value":"6x9"}]');
+    expect(prompt).toContain('arr[page]');
+  });
+  it('says nothing of it when the address names none', () => {
+    const plain = 'https://ruggable.com/products/ryder';
+    const prompt = buildProposePrompt({ field, expected: { [plain]: '569.00' }, captures: { [plain]: { ...cap(plain), pageVariant: pageVariantFrom(plain, null, {}) } }, nearMisses: {} });
+    expect(prompt).not.toContain('arr[page]');
   });
 });
