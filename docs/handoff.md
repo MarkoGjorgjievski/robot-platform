@@ -134,8 +134,14 @@ picker-only site waits out the ready timeout — values right, slower. The row w
 each cell's own proving path for a fixed index in a structured path (xpath excluded), not whether
 a `[page]` path exists elsewhere in the certified list. `toEntry` (§9) keeps a variant entry's ids
 but not its `selectedOptions`, text values only. Outside the brief, the capture file now persists
-`pageVariant`, which it did not before. Fragments (§12) are kept on `key=value`; the shipped test
-also keeps text fragments (`#:~:text=`) and hash routes — a known gap.
+`pageVariant`, which it did not before. Fragments (§12) are kept only when every `&`-part is
+`key=value`; text fragments and hash routes are stripped. Final-review fix wave: a named value
+agrees when its tokens are a subset of the shown value's (`6x9` in `6' x 9' $499`), the picker's
+selected `value`/`data-value` count as alternate values (`?color=031`), page-data ids count only
+when id-shaped; the row warning fires only for an index on a variant-list key (`offers`,
+`hasVariant`, `variants`, …), never `@graph[n]`/`image[n]`; on a named or selected page an index
+path whose `[page]` twin is certified is skipped, so a `[page]` miss is an empty cell, not another
+variant's value.
 
 **Known gaps / next:** `transfer-marks.test.ts`'s JSON-LD image-array case flaked more during
 review on this branch (2 of 10 vs 11 of 11 before, the code path provably untouched) — still the
@@ -143,7 +149,9 @@ pre-existing environmental flake, an external `<img>` on `x.example`. A bare lab
 against every axis key's value rather than only the axis it names (`width`/`height`/`length` of
 `5` vs `?size=5`); twins beyond variant index 25 are not covered; the AI prompt names the page
 variant only when the address names one (silent on picker-only pages); the nested-control filter
-drops an outer control's own pickers (inherited from `buildVariantPickerScript`). Next: fold
+drops an outer control's own pickers (inherited from `buildVariantPickerScript`); a single-entry
+`offers[0]` proving path on a `?variant=` proof page still shows the row warning — the app cannot
+see the entries, so it cannot tell one entry from many. Next: fold
 `?variant=` siblings under one product key and pick the row the address names in
 one-row-per-variant mode — entries now keep their ids for it.
 
