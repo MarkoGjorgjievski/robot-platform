@@ -1,8 +1,9 @@
 import { chromium, type Browser, type BrowserContext, type Page, type Locator, type Response } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
-import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
+import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, CaptureVerdict, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
 import { CaptureError } from './types.js';
 import { classifyVerdict, classifyNavigationError } from './verdict.js';
+import { pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
 import { detectPaginationFromHtml } from './pagination-detector.js';
 import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
@@ -274,6 +275,19 @@ export class PlaywrightBrowser implements IBrowser {
           page.title(),
           this.extractStructuredData(page),
         ]);
+        // Spec 2026-10-14 §3: which variant this page shows. The picker's
+        // selection comes from the caller's script (scraper's variant-dom),
+        // the data's `selected…` keys from what was captured. Never throws.
+        let picker: Selection | null = null;
+        if (options.selection) {
+          picker = await page.evaluate(options.selection).then((v) => (v && typeof v === 'object' ? (v as Selection) : null)).catch((err) => {
+            if (isCrash(err)) throw err;
+            console.warn(`[browser] selection script failed on ${url}: ${(err as Error).message.split('\n')[0]}`);
+            return null;
+          });
+        }
+        const apiBodies = intercepted.filter((r) => r.isJson && r.parsedJson !== null).map((r) => r.parsedJson);
+        const pageVariant = pageVariantFrom(page.url(), picker, selectedInPageData(structuredData, apiBodies));
         // fullPage:true expands the captured image to the full scrollable page,
         // so clips beyond the 800px viewport (any tile past the first) are in
         // bounds. Without it Playwright clips against the viewport and throws
@@ -328,10 +342,14 @@ export class PlaywrightBrowser implements IBrowser {
           : Array.isArray((annotation as { boxes?: unknown[] } | undefined)?.boxes) ? (annotation as { boxes: unknown[] }).boxes.length
           : undefined;
         const verdict = classifyVerdict({ requestedUrl: url, finalUrl: page.url(), status: main ? main.status() : null, headers, html, title, boxCount });
+        // Spec 2026-10-14 §7: the REQUESTED address names the variant the
+        // customer asked for; only an otherwise-ok page can be the wrong one.
+        const named = verdict.kind === 'ok' ? wrongVariant(pageVariant, url) : null;
+        const finalVerdict: CaptureVerdict = named !== null ? { kind: 'wrong-variant', status: verdict.status, named } : verdict;
 
         return {
           url: page.url(),
-          verdict,
+          verdict: finalVerdict,
           html,
           markdown,
           screenshot: screenshotTiles[0],
@@ -341,6 +359,7 @@ export class PlaywrightBrowser implements IBrowser {
           structuredData,
           interceptedRequests: rankedRequests,
           pageHeight,
+          pageVariant,
           ...(annotation !== undefined ? { annotation } : {}),
           timings: {
             navigateMs,
