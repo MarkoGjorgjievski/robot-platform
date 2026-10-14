@@ -65,8 +65,11 @@ outside the browser, like today's `timings`). Its parts:
   found by the existing `findEntitySubtree` preference for `selected*` keys.
 - `ids` and `labels` are stored as given; matching normalises (§5).
 
-A capture with `named: true` whose page shows a *different* selection (`selected: true` and no
-id, pair or label in common after normalisation) gets the verdict of §7. A capture with
+A capture with `named: true` whose page shows a *different* selection gets the verdict of §7 —
+"different" meaning the address and the page's selection carry the same kind of thing (an id
+and an id, a pair and a pair, a label and a label) and none agrees after normalisation. An
+address naming only an id (`?variant=123`) against a picker showing only a label ("Chill Grey")
+is not comparable, so it is never a wrong variant; the page data decides per path (§4). A capture with
 `named: false` uses the page's selection as its variant; with neither, `pageVariant` is present
 but empty and `[page]` resolves to nothing everywhere.
 
@@ -136,8 +139,9 @@ nothing.
 
 A new verdict kind beside `ok | refused | challenge | not-found | redirected | blank`:
 `{ kind: 'wrong-variant', status, named: string }` — set when the address named a variant
-(§3 `named: true`), the page shows a selection (`selected: true`), and nothing matches between
-them; `named` is the address's own text (`swatch=16`). Its sentence everywhere (`verdictSentence`):
+(§3 `named: true`), the page shows a selection (`selected: true`), the two carry a comparable
+kind (id/id, pair/pair, label/label), and none of that kind agrees; `named` is the address's own
+text (`swatch=16`). Its sentence everywhere (`verdictSentence`):
 **"The page did not show the variant the address names (swatch=16)."** Consumers behave as for
 `blank`: a run item fails with the sentence (no row, no path stats), a proof card shows it, the
 listing bar shows it; the per-host backoff is NOT fed (`reportVerdict` treats it as `ok` for pacing:
