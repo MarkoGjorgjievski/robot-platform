@@ -15,6 +15,8 @@ const URL_KEYS = ['url', '@id'] as const;
 const LABEL_KEYS = ['size', 'color', 'colour', 'option1', 'option2', 'option3'] as const;
 const NAME_KEYS = ['name', 'title'] as const;
 const MIN_CONTAINED = 3;
+/** Keys that carry a price, a stock level or an availability: never read for matching (spec §11 property 3). */
+const NEVER_READ = /price|availab|stock|inventory|quantity|offers/i;
 
 /** The variant id an entry carries: its id keys, or `variant=`/`id=` in its url or @id, relative urls included. */
 function entryIds(entry: Obj): string[] {
@@ -39,7 +41,7 @@ function entryPairs(entry: Obj): Array<{ name: string; value: string }> {
     for (const o of arr) if (isObj(o)) { const n = text(o.name), val = text(o.value); if (n && val) out.push({ name: n, value: val }); }
   }
   for (const [k, v] of Object.entries(entry)) {
-    if (k === 'price' || k === 'availability' || k === 'offers') continue;
+    if (NEVER_READ.test(k)) continue;
     const t = text(v);
     if (t && k.length <= 20) out.push({ name: k, value: t });
   }
