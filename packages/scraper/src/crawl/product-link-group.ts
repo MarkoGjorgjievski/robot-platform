@@ -16,6 +16,8 @@
 // (Everlane's men's tees, 2026-10-08: ~94 menu links to other collections
 // against 52 product links), and the largest group was the menu.
 
+import { isKeyValueFragment } from '@robot/browser';
+
 /** Drops a trailing slash for path comparison, except the bare root itself. */
 const trimTrailingSlash = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, '') : p);
 
@@ -45,11 +47,12 @@ export function largestProductGroup(
 }
 
 /**
- * Spec 2026-10-14 §8: a fragment that carries key=value pairs names a
- * variant and stays on the item's address; any other fragment is noise.
+ * Spec 2026-10-14 §8: a fragment whose every `&`-part is a key=value pair
+ * names a variant and stays on the item's address; any other fragment
+ * (`#reviews`, `#:~:text=…`, `#!/x?id=3`) is noise.
  */
 function keepVariantFragment(u: URL): void {
-  if (!/^#[^=]+=/.test(u.hash)) u.hash = '';
+  if (!isKeyValueFragment(u.hash)) u.hash = '';
 }
 
 function largestGroup(anchors: Array<{ href: string }>, listingUrl: string): string[] {

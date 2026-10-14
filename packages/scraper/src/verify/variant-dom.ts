@@ -377,6 +377,8 @@ export function buildVariantPickerScript(): string {
  * first option without anyone choosing it), a radio group's checked input
  * (its label), a button group's `[aria-checked="true"]`,
  * `[aria-selected="true"]`, `[aria-pressed="true"]` or checked input.
+ * The selected element's `value` and `data-value` (when present, non-empty
+ * and not the shown text) are alternate values of the same pair, never labels.
  * Evaluates to `{ pairs, labels }` — the shape `pageVariantFrom` takes as its
  * picker — or null when no picker shows a selection. Only the variant
  * controls `isVariantControl` accepts are read, so a review widget's
@@ -411,28 +413,38 @@ export function buildSelectionScript(): string {
     for (const k of kept) if (!byAnchor.has(k.picker.anchorEl)) byAnchor.set(k.picker.anchorEl, k);
     const SELECTED = '[aria-checked="true"],[aria-selected="true"],[aria-pressed="true"]';
     const pairs = [], labels = [];
-    const push = (axis, text) => {
+    // The shown text is the pair's value and a label; the selected element's own
+    // value and data-value attributes (when present and non-empty) are alternate
+    // values of the same pair, so ?color=031 agrees with <input value="031">.
+    const push = (axis, text, el) => {
       const t = (text || '').replace(/\s+/g, ' ').trim();
       if (!t || !axis) return;
       pairs.push({ name: axis, value: t });
       if (labels.indexOf(t) === -1) labels.push(t);
+      const seen = [t.toLowerCase()];
+      for (const attr of ['value', 'data-value']) {
+        const v = (el.getAttribute(attr) || '').trim();
+        if (!v || seen.indexOf(v.toLowerCase()) !== -1) continue;
+        seen.push(v.toLowerCase());
+        pairs.push({ name: axis, value: v });
+      }
     };
     for (const { controlEl, picker } of byAnchor.values()) {
       const a = picker.anchorEl;
       if (a.tagName === 'SELECT') {
         const o = a.options[a.selectedIndex];
-        if (o && (a.selectedIndex > 0 || o.hasAttribute('selected')) && (o.value || '').trim() !== '') push(picker.axis, o.textContent);
+        if (o && (a.selectedIndex > 0 || o.hasAttribute('selected')) && (o.value || '').trim() !== '') push(picker.axis, o.textContent, o);
         continue;
       }
       if (a.tagName === 'INPUT') {
         const name = a.getAttribute('name');
         const checked = Array.from(controlEl.querySelectorAll('input[type="radio"]')).find((r) => r.getAttribute('name') === name && r.checked);
-        if (checked) push(picker.axis, radioLabel(checked, labelForMap));
+        if (checked) push(picker.axis, radioLabel(checked, labelForMap), checked);
         continue;
       }
       const sel = a.querySelector(SELECTED + ',input:checked');
       if (!sel) continue;
-      push(picker.axis, sel.tagName === 'INPUT' ? radioLabel(sel, labelForMap) : buttonLabel(sel));
+      push(picker.axis, sel.tagName === 'INPUT' ? radioLabel(sel, labelForMap) : buttonLabel(sel), sel);
     }
     return pairs.length ? { pairs, labels } : null;
   })()`;
