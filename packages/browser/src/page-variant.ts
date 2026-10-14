@@ -5,7 +5,14 @@
 // this package never depends on the scraper's DOM scripts.
 import type { PageVariant } from './types.js';
 
-export type Selection = { ids?: string[]; pairs?: Array<{ name: string; value: string }>; labels?: string[] };
+/**
+ * A page's selection. `alternates` are other spellings of a selected pair's
+ * value (the picker element's `value`/`data-value`, `?color=031` for a swatch
+ * reading Navy Blue): only `wrongVariant`'s agreement check reads them; they
+ * never enter `PageVariant.pairs` or labels, where `[page]` matching would
+ * count them as a contradiction of the right entry.
+ */
+export type Selection = { ids?: string[]; pairs?: Array<{ name: string; value: string }>; labels?: string[]; alternates?: Array<{ name: string; value: string }> };
 
 /** Query keys that never name a variant: analytics, referrers, pagination. */
 const NOISE_KEYS = /^(utm_|gclid$|fbclid$|msclkid$|ref$|referrer$|source$|campaign$|_ga$|_gl$|page$|sort$|q$|search$|lang$|locale$|currency$|srsltid$|_pos$|_sid$|_ss$|_kx$|mc_|pr_|cm_|icid$|irclickid$|ranmid$|view$|gad_source$|gbraid$|wbraid$|dclid$|ttclid$|twclid$|igshid$|mkt_tok$|_hsenc$|_hsmi$|hsa_|si$|trk$|spm$|_branch_match_id$|clickid$)/i;
@@ -47,8 +54,13 @@ function idOf(value: string): string | null {
   return g ? g[1]! : null;
 }
 
-/** The normalised tokens of a label: `normalizeLabel` split on spaces. */
-const tokensOf = (s: string): string[] => normalizeLabel(s).split(' ').filter(Boolean);
+/** A decimal number stays one token (`10.5`, never `10` and `5`), its leading zeros dropped. */
+const DECIMAL = /\d+\.\d+/g;
+/** The tokens of a label for agreement: its decimals whole, the rest `normalizeLabel` split on spaces. */
+function tokensOf(s: string): string[] {
+  const decimals = (s.match(DECIMAL) ?? []).map((d) => d.replace(/^0+(?=\d)/, ''));
+  return [...decimals, ...normalizeLabel(s.replace(DECIMAL, ' ')).split(' ').filter(Boolean)];
+}
 /** A named value agrees with a shown one when every named token is among the shown tokens (`6x9` in `6' x 9' $499`). */
 function agrees(named: string, shown: string): boolean {
   const have = new Set(tokensOf(shown));
@@ -116,7 +128,10 @@ export function selectedInPageData(data: { ldJson: unknown[]; nextData: unknown;
   return out;
 }
 
-function merge(a: Selection | null | undefined, b: Selection | null | undefined): Required<Selection> {
+type Shown = { ids: string[]; pairs: Array<{ name: string; value: string }>; labels: string[] };
+
+/** ids, pairs and labels of both, deduped; never `alternates`. */
+function merge(a: Selection | null | undefined, b: Selection | null | undefined): Shown {
   const pairs = new Map<string, { name: string; value: string }>();
   for (const p of [...(a?.pairs ?? []), ...(b?.pairs ?? [])]) pairs.set(`${p.name}\u0000${p.value}`, p);
   return {
@@ -158,7 +173,8 @@ export function wrongVariant(url: string, picker: Selection | null, pageData: Se
   const shownNames = new Set(shown.pairs.map((p) => nameKey(p.name)));
   const comparable = named.pairs.filter((n) => !ID_KEY.test(n.name) && shownNames.has(nameKey(n.name)));
   if (comparable.length) {
-    verdicts.push(comparable.some((n) => shown.pairs.some((s) => nameKey(s.name) === nameKey(n.name) && agrees(n.value, s.value))));
+    const spellings = [...shown.pairs, ...(picker?.alternates ?? []), ...(pageData.alternates ?? [])];
+    verdicts.push(comparable.some((n) => spellings.some((s) => nameKey(s.name) === nameKey(n.name) && agrees(n.value, s.value))));
   }
   if (verdicts.length === 0) return null;   // nothing comparable
   return verdicts.some(Boolean) ? null : named.text;

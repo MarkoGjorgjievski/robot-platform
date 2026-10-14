@@ -28,9 +28,11 @@ smoke and the live check: see the plan's status and `docs/handoff.md`.
   `options`), never `@graph[n]` or `image[n]` (final review I2). A single-entry `offers[0]` on a
   `?variant=` address still warns: the app cannot see the entries.
 - §7, a named value agrees with a shown one when its normalised tokens are a subset of the shown
-  value's (`6x9` agrees with `6' x 9' $499`); the selection script also reports the selected
-  element's `value`/`data-value` as alternate values of its pair (`?color=031` against a selected
-  `<input value="031">` reading Navy Blue); a page-data id counts only when id-shaped (six or more
+  value's (`6x9` agrees with `6' x 9' $499`), a decimal staying one token (`?size=10` does not
+  agree with `10.5`); the selection script also reports the selected element's
+  `value`/`data-value` as `alternates` of its pair (`?color=031` against a selected
+  `<input value="031">` reading Navy Blue) — read only by the wrong-variant check, never part of
+  the page variant's pairs or labels, so `[page]` matching never sees them; a page-data id counts only when id-shaped (six or more
   digits, or a `gid://` string), any other is dropped; `selected…Index` keys are positions, not
   selections (final review I1).
 - §4, on a page that names or shows a variant, a certified index path whose `[page]` twin is also

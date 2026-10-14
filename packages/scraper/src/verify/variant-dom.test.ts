@@ -222,12 +222,13 @@ describe('buildSelectionScript (spec 2026-10-14 §3)', () => {
     expect(await browser.setContentEvaluate<Selection | null>(html, buildSelectionScript())).toEqual({ pairs: [{ name: 'color', value: 'Red' }], labels: ['Red'] });
   }, 30_000);
 
-  it('the selected element value and data-value are alternate values of its pair, never labels', async () => {
+  it('the selected element value and data-value are alternates of its pair, never pairs or labels', async () => {
     const html = `<html><body><fieldset class="color-options"><legend>Color</legend>
       <label><input type="radio" name="c" value="001"> Black</label><label><input type="radio" name="c" value="031" checked> Navy Blue</label></fieldset>
       <div class="size-selector" aria-label="Size"><button aria-checked="false" data-value="s">S</button><button aria-checked="true" data-value="m-32">M</button></div></body></html>`;
     const picker = await browser.setContentEvaluate<Selection | null>(html, buildSelectionScript());
-    expect(picker).toEqual({ pairs: [{ name: 'color', value: 'Navy Blue' }, { name: 'color', value: '031' }, { name: 'size', value: 'M' }, { name: 'size', value: 'm-32' }], labels: ['Navy Blue', 'M'] });
+    expect(picker).toEqual({ pairs: [{ name: 'color', value: 'Navy Blue' }, { name: 'size', value: 'M' }], labels: ['Navy Blue', 'M'], alternates: [{ name: 'color', value: '031' }, { name: 'size', value: 'm-32' }] });
+    expect(pageVariantFrom('https://l.example/PH5522-00.html', picker, {}).pairs).toEqual([{ name: 'color', value: 'Navy Blue' }, { name: 'size', value: 'M' }]);
     expect(wrongVariant('https://l.example/PH5522-00.html?color=031', picker, {})).toBeNull();
     expect(wrongVariant('https://l.example/PH5522-00.html?color=001', picker, {})).toBe('color=001');
   }, 30_000);
