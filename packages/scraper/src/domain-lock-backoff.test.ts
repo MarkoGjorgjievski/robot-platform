@@ -82,3 +82,12 @@ describe('backoffVerdict — what the wall was, for paths that answer instead of
     expect(backoffAnswer('https://other.example/x')).toBeNull();
   });
 });
+
+describe('wrong-variant and pacing (spec 2026-10-14 §11 property 5)', () => {
+  it('wrong-variant clears a backoff like ok: the host answered', () => {
+    reportVerdict('shop.example', 'challenge');
+    expect(backoffRemainingMs('shop.example')).toBeGreaterThan(0);
+    reportVerdict('shop.example', { kind: 'wrong-variant', status: 200, named: 'swatch=16' });
+    expect(backoffRemainingMs('shop.example')).toBe(0);
+  });
+});

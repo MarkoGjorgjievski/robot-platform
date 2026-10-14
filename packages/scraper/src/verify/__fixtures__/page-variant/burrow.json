@@ -1,0 +1,9 @@
+{
+  "url": "https://burrow.com/products/range-plus-4-piece?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+  "ldJson": [ { "@type": "ProductGroup", "variesBy": ["https://schema.org/color", "https://schema.org/material", "Leg Finish"], "hasVariant": [
+    { "@type": "Product", "name": "Range 4-Piece One Arm Sofa Lounger - Moss Green - Performance Flatweave / Black - Metal", "sku": "FLRST-SC-RGPL-S3-A1-C1-MGF-BM", "color": "Moss Green", "material": "Performance Flatweave", "offers": { "@type": "Offer", "price": "1306.0", "availability": "https://schema.org/InStock" } },
+    { "@type": "Product", "name": "Range 4-Piece One Arm Sofa Lounger - Navy Blue - Performance Flatweave / Black - Metal", "sku": "FLRST-SC-RGPL-S3-A1-C1-NBF-BM", "color": "Navy Blue", "material": "Performance Flatweave", "offers": { "@type": "Offer", "price": "1306.0", "availability": "https://schema.org/InStock" } },
+    { "@type": "Product", "name": "Range 4-Piece One Arm Sofa Lounger - Camel - Top Grain Leather / Black - Metal", "sku": "FLRST-SC-RGPL-S3-A1-C1-CTL-BM", "color": "Camel", "material": "Top Grain Leather", "offers": { "@type": "Offer", "price": "2801.0", "availability": "https://schema.org/InStock" } }
+  ] } ],
+  "api": []
+}

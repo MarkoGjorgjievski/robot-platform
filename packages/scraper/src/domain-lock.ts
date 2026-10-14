@@ -59,7 +59,9 @@ export function _resetBackoffForTests(): void {
 
 /**
  * Feed a capture's verdict back to the host's pacing (spec 2026-10-09 §A3).
- * A challenge or refusal starts or doubles the backoff; an ok clears it; the
+ * A challenge or refusal starts or doubles the backoff; an ok clears it, and
+ * so does a wrong-variant page (spec 2026-10-14 §7: the host answered with a
+ * product page, just not the named variant — it never feeds backoff); the
  * other kinds (not-found, a crash, a timeout, ...) say nothing about the
  * host's tolerance and change nothing.
  */
@@ -69,7 +71,7 @@ export function reportVerdict(
   nowFn: () => number = now,
 ): void {
   const kind = typeof verdictOrKind === 'string' ? verdictOrKind : verdictOrKind.kind;
-  if (kind === 'ok') {
+  if (kind === 'ok' || kind === 'wrong-variant') {
     backoff.delete(domain);
     return;
   }

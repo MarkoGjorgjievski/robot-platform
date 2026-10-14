@@ -1,5 +1,6 @@
 import type { PageCapture } from '@robot/browser';
 import { getByDotPath } from '../domain-cache.js';
+import type { PathContext } from './page-variant-match.js';
 import { applyTransform, inferTransform, inferTransformForType } from './transforms.js';
 import { normalize } from './normalize.js';
 import { pathFitsConcept } from './field-fit.js';
@@ -117,11 +118,12 @@ export function resolveStructured(
   capture: Pick<PageCapture, 'structuredData' | 'interceptedRequests'>,
   source: 'api' | 'json-ld' | 'meta',
   path: string,
+  ctx?: PathContext,
 ): unknown {
   if (source === 'meta') return capture.structuredData.meta[path];
   const containers = source === 'api' ? apiBodies(capture) : capture.structuredData.ldJson;
   for (const c of containers) {
-    const v = getByDotPath(c, path);
+    const v = getByDotPath(c, path, ctx);
     if (nonEmpty(v)) return v;
   }
   return undefined;

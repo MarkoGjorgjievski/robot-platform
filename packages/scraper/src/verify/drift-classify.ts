@@ -78,7 +78,7 @@ async function evalManyOnCapture(paths: CertifiedPath[], capture: DriftCapture, 
   const probe = xpaths.length ? await deps.evalXPaths(capture.html, xpaths) : {};
   const out = new Map<string, unknown>();
   for (const p of paths) {
-    const rawBase = p.source === 'xpath' ? probe[p.path] ?? null : resolveStructured(capture, p.source, p.path);
+    const rawBase = p.source === 'xpath' ? probe[p.path] ?? null : resolveStructured(capture, p.source, p.path, { pageVariant: capture.pageVariant });
     out.set(pathId(p), applyTransform(rawBase, p.transform));
   }
   return out;

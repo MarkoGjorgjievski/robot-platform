@@ -9,7 +9,7 @@ import { displayValue } from './structured-value.js';
 import type { CellResult, CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
 
 export type CandidatePath = CertifiedPath;
-export type CaptureLike = Pick<PageCapture, 'url' | 'html' | 'structuredData' | 'interceptedRequests'>;
+export type CaptureLike = Pick<PageCapture, 'url' | 'html' | 'structuredData' | 'interceptedRequests' | 'pageVariant'>;
 export type CertifyDeps = { evalXPaths: (html: string, xpaths: string[]) => Promise<XPathProbeResult> };
 export type CertifyInput = {
   field: SchemaDefinitionField;
@@ -28,8 +28,13 @@ export type CertifyInput = {
 
 const SOURCE_RANK: Record<CertifiedPath['source'], number> = { api: 0, 'json-ld': 1, meta: 2, xpath: 3 };
 
+/** A path's length for ranking: a `[page]` step counts as the shortest index `[0]`, so a `[page]` path is never longer than a twin that differs from it only by a numeric index (spec 2026-10-14 §4). Paths without `[page]` keep their own length, so their order is today's. */
+const rankLength = (p: string) => p.replace(/\[page\]/g, '[0]').length;
+const hasPage = (p: string) => (p.includes('[page]') ? 0 : 1);
+
 export function rankCertified(paths: CertifiedPath[]): CertifiedPath[] {
-  return [...paths].sort((a, b) => SOURCE_RANK[a.source] - SOURCE_RANK[b.source] || a.path.length - b.path.length);
+  // A total order (source, rank length, `[page]` first on a tie), so a `[page]` path ranks above its numeric-index twin whatever else is in the list.
+  return [...paths].sort((a, b) => SOURCE_RANK[a.source] - SOURCE_RANK[b.source] || rankLength(a.path) - rankLength(b.path) || hasPage(a.path) - hasPage(b.path));
 }
 
 /** Was this candidate confirmed by the customer? Source and path; the transform does not matter. */
@@ -244,11 +249,11 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const evals = new Map<string, Record<string, Eval>>(); // pathId → url → eval
   for (const url of capturedUrls) {
     const capture = captures[url]!;
-    const ctx = { pageUrl: capture.url };
+    const ctx = { pageUrl: capture.url, pageVariant: capture.pageVariant };
     const xpaths = candidates.filter((c) => c.source === 'xpath').map((c) => c.path);
     const probe = xpaths.length ? await deps.evalXPaths(capture.html, xpaths) : {};
     for (const c of candidates) {
-      const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(capture, c.source, c.path);
+      const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(capture, c.source, c.path, ctx);
       const raw = applyTransform(rawBase, c.transform);
       const empty = raw === null || raw === undefined || raw === '';
       // An absent page: a candidate is correct iff it resolves to nothing; a value there

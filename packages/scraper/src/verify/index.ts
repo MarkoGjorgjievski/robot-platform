@@ -5,6 +5,7 @@ export * from './normalize.js';
 export * from './transforms.js';
 export * from './defaults.js';
 export { rankCertified, qualifiesForWeak, type CaptureLike, type CandidatePath } from './certify.js';
+export { matchesPageVariant, pickPageEntry, type PathContext } from './page-variant-match.js';
 export * from './field-fit.js';
 export { buildXPathProbeScript, buildDomSearchScript, type XPathProbeResult, type DomHit, type DomNeedle } from './dom-scripts.js';
 export * from './ai-fallback.js';

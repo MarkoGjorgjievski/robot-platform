@@ -59,7 +59,7 @@ export async function transferMarks(input: TransferInput, deps: TransferDeps): P
     const probe = xpaths.length ? await deps.evalXPaths(target.capture.html, xpaths) : {};
     let hit: Transferred | null = null;
     for (const c of eligible) {
-      const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(target.capture, c.source, c.path);
+      const rawBase = c.source === 'xpath' ? probe[c.path] ?? null : resolveStructured(target.capture, c.source, c.path, { pageVariant: target.capture.pageVariant });
       const raw = applyTransform(rawBase, c.transform);
       if (raw === null || raw === undefined || raw === '') continue;
       if (normalize(field.type, raw, ctx) === null) continue;               // a value the type rejects is not this field

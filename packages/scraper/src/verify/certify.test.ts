@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
+import { pageVariantFrom } from '@robot/browser';
 import { certify, checkedPages, expectedWithDefault, gatherCandidates, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
 import type { DomHit } from './dom-scripts.js';
@@ -736,5 +738,56 @@ describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
     expect(before.certified).toEqual([brandName]);
     expect(before.defaultOnly).toBeUndefined();
     expect(withDefault).toEqual(before);
+  });
+});
+
+describe('certify — the [page] address form (spec 2026-10-14 §4)', () => {
+  const price = { key: 'price', name: 'Price', type: 'money' as const, description: 'the price', concept: 'price' };
+  const rug = JSON.parse(readFileSync(new URL('./__fixtures__/page-variant/ruggable.json', import.meta.url), 'utf8'));
+  // Three proof pages of the same rug at three sizes: the 6x9 entry sits at a different index on each.
+  const pageAt = (url: string, order: number[]) => ({
+    url, html: '<html></html>', interceptedRequests: [],
+    structuredData: { ldJson: [{ ...rug.ldJson[0], hasVariant: order.map((i) => rug.ldJson[0].hasVariant[i]) }], nextData: null, initialState: null, meta: {} },
+    pageVariant: pageVariantFrom(url, null, {}),
+  });
+  const U = ['https://r.example/p/a?size=6x9', 'https://r.example/p/b?size=6x9', 'https://r.example/p/c?size=6x9'];
+  const captures = { [U[0]!]: pageAt(U[0]!, [1, 0, 2]), [U[1]!]: pageAt(U[1]!, [0, 1, 2]), [U[2]!]: pageAt(U[2]!, [2, 0, 1]) };
+  const expected = { [U[0]!]: '569.00', [U[1]!]: '569.00', [U[2]!]: '569.00' };
+  const pagePath = { source: 'json-ld' as const, path: 'hasVariant[page].offers.price', transform: 'identity' as const };
+  const idx0 = { source: 'json-ld' as const, path: 'hasVariant[0].offers.price', transform: 'identity' as const };
+  const idx1 = { source: 'json-ld' as const, path: 'hasVariant[1].offers.price', transform: 'identity' as const };
+  const deps = { evalXPaths: async () => ({}) };
+
+  it('a [page] path correct with a value on three pages at different indexes certifies as one layout', async () => {
+    const r = await certify({ field: price, expected, captures, candidates: [idx0, idx1, pagePath] }, deps);
+    expect(r.certified).toEqual([pagePath]);
+    expect(Object.values(r.cells).every((c) => c.status === 'pass')).toBe(true);
+  });
+  it('a [page] path wrong on any page never certifies', async () => {
+    const wrong = { ...expected, [U[2]!]: '799.00' };
+    const r = await certify({ field: price, expected: wrong, captures, candidates: [pagePath] }, deps);
+    expect(r.certified).toEqual([]);
+  });
+  it('a numeric-index path that is also correct everywhere ranks below the [page] twin', async () => {
+    // The 6x9 entry at index 1 on every page, so hasVariant[1] is correct everywhere too.
+    const same = { [U[0]!]: pageAt(U[0]!, [0, 1, 2]), [U[1]!]: pageAt(U[1]!, [0, 1, 2]), [U[2]!]: pageAt(U[2]!, [0, 1, 2]) };
+    const r = await certify({ field: price, expected, captures: same, candidates: [idx1, pagePath] }, deps);
+    expect(r.certified[0]).toEqual(pagePath);
+    expect(r.certified[1]).toEqual(idx1);
+  });
+});
+
+describe('rankCertified — [page] twins (spec 2026-10-14 §4)', () => {
+  const p = (path: string) => ({ source: 'json-ld' as const, path, transform: 'identity' as const });
+  it('a [page] path ranks above its index twin even with a path whose length falls between them, in any input order', () => {
+    const page = p('offers[page].price'), idx = p('offers[12].price'), mid = p('offers.lowPrice1');
+    const want = [page, mid, idx];   // rank lengths 16, 16, 16: [page] first on the tie, then input order
+    expect(rankCertified([idx, mid, page])[0]).toEqual(page);
+    expect(rankCertified([mid, idx, page])[0]).toEqual(page);
+    expect(rankCertified([page, mid, idx])).toEqual(want);
+  });
+  it('paths without [page] keep today\'s order (source, then shorter first)', () => {
+    const a = p('a[0].b'), b = p('a.bcd'), c = p('offers[1].price');
+    expect(rankCertified([c, b, a])).toEqual([b, a, c]);
   });
 });
