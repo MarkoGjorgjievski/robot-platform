@@ -14,7 +14,7 @@
 // per-domain politeness lock the analysis chain takes, which this path used
 // to bypass.
 
-import { verdictSentence, type CaptureTimings, type IBrowser, type PageCapture, type ReadyCheck, type ReadySnapshot } from '@robot/browser';
+import { pageVariantFrom, verdictSentence, type CaptureTimings, type IBrowser, type PageCapture, type PageVariant, type ReadyCheck, type ReadySnapshot } from '@robot/browser';
 import { acquireDomainLock, reportVerdict } from '../domain-lock.js';
 import { CaptureProblemError } from './capture-check.js';
 import { normalize, renderValue } from './normalize.js';
@@ -55,9 +55,9 @@ function evaluatePath(
   path: CertifiedPath,
   structured: Structured,
   probe: XPathProbeResult,
-  ctx: { pageUrl: string },
+  ctx: { pageUrl: string; pageVariant?: PageVariant },
 ): unknown {
-  const rawBase = path.source === 'xpath' ? probe[path.path] ?? null : resolveStructured(structured, path.source, path.path);
+  const rawBase = path.source === 'xpath' ? probe[path.path] ?? null : resolveStructured(structured, path.source, path.path, ctx);
   const raw = applyTransform(rawBase, path.transform);
   const norm = raw === null || raw === undefined || raw === '' ? null : normalize(field.type, raw, ctx);
   if (norm === null) return null;
@@ -73,13 +73,15 @@ function certifiedXPaths(fields: VerifiedField[]): string[] {
  * a certified path resolves through at least one of them. A field with no
  * certified path can never be filled, so it never blocks readiness. A field
  * with a default never blocks readiness either, unless every certified field
- * has one: then the check waits for those fields' paths instead. */
-export function buildReadyCheck(fields: VerifiedField[], pageUrl: string): ReadyCheck {
+ * has one: then the check waits for those fields' paths instead. A `[page]`
+ * path reads by `pageVariant` (spec 2026-10-14 §4); before the capture only
+ * the address's part of it is known. */
+export function buildReadyCheck(fields: VerifiedField[], pageUrl: string, pageVariant?: PageVariant): ReadyCheck {
   const withPaths = fields.filter((f) => f.paths.length > 0);
   // Spec 2026-10-13 §5: a field with a default never blocks readiness — its paths may legitimately never resolve on this product — unless no other field would wait at all.
   const blocking = withPaths.filter((f) => f.defaultValue === undefined);
   const certified = blocking.length > 0 ? blocking : withPaths;
-  const ctx = { pageUrl };
+  const ctx = { pageUrl, pageVariant };
   return {
     script: buildXPathProbeScript(certifiedXPaths(fields)),
     isReady: (s: ReadySnapshot) => {
@@ -105,7 +107,7 @@ export async function runVerifiedExtraction(
   }
   const xpaths = certifiedXPaths(req.fields);
   const probe: XPathProbeResult = xpaths.length ? await deps.browser.setContentEvaluate<XPathProbeResult>(capture.html, buildXPathProbeScript(xpaths)) : {};
-  const ctx = { pageUrl: capture.url };
+  const ctx = { pageUrl: capture.url, pageVariant: capture.pageVariant };
   const data: Record<string, unknown> = {};
   const stats: VerifiedExtractionResult['stats'] = [];
   for (const f of req.fields) {
@@ -138,7 +140,8 @@ async function captureUnderLock(
     const capture = await deps.browser.capture(req.url, {
       waitUntil: 'load',
       interceptNetworkRequests: true,
-      ready: buildReadyCheck(req.fields, req.url),
+      // The picker's selection is unknown until the page is captured; the address's part is what `[page]` needs on a Shopify `?variant=` page.
+      ready: buildReadyCheck(req.fields, req.url, pageVariantFrom(req.url, null, {})),
     });
     // Feed the verdict back to the host's pacing (a challenge or refusal
     // backs the next acquire off; an ok clears it).

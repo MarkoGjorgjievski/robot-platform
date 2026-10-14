@@ -5,8 +5,9 @@
 // whose only path no longer resolves — against a REAL headless Chromium page
 // (no AI, no cache/mechanical fallback chain, no network).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser } from '@robot/browser';
-import type { ReadySnapshot } from '@robot/browser';
+import { readFileSync } from 'node:fs';
+import { PlaywrightBrowser, pageVariantFrom } from '@robot/browser';
+import type { PageCapture, ReadySnapshot } from '@robot/browser';
 import { runVerifiedExtraction, buildReadyCheck, type VerifiedField } from './verified-extraction.js';
 import { loadVerifyFixture } from '../__fixtures__/verify/load.js';
 
@@ -188,5 +189,32 @@ describe('buildReadyCheck with defaults (spec 2026-10-13 §5, Review Focus 3)', 
     const check = buildReadyCheck([BRAND], URL);
     expect(check.isReady(snap({}))).toBe(false);
     expect(check.isReady(snap({ brand: { name: 'X' } }))).toBe(true);
+  });
+});
+
+describe('runVerifiedExtraction — the [page] address form (spec 2026-10-14 §4)', () => {
+  const fx = JSON.parse(readFileSync(new globalThis.URL('./__fixtures__/page-variant/ruggable.json', import.meta.url), 'utf8'));
+  const fakeCapture = (url: string, ldJson: Record<string, unknown>[]): PageCapture => ({
+    ...loadVerifyFixture('shop-example', 'p1'),
+    url, interceptedRequests: [],
+    structuredData: { ldJson, nextData: null, initialState: null, meta: {} },
+  });
+  const fields: VerifiedField[] = [{ key: 'price', type: 'money', concept: 'price', paths: [{ source: 'json-ld', path: 'hasVariant[page].offers.price', transform: 'identity' }] }];
+
+  it('a certified [page] path writes the variant the address names and misses honestly when none matches', async () => {
+    const capture = { ...fakeCapture(fx.url, fx.ldJson), pageVariant: pageVariantFrom(fx.url, null, {}) };
+    const r = await runVerifiedExtraction({ url: fx.url, fields }, { browser, capture });
+    expect(r.data.price).toBe(569);
+    const otherUrl = 'https://ruggable.com/products/ryder?size=12x18&system=rug-cvr';
+    const other = { ...capture, url: otherUrl, pageVariant: pageVariantFrom(otherUrl, null, {}) };
+    const miss = await runVerifiedExtraction({ url: other.url, fields }, { browser, capture: other });
+    expect(miss.data.price).toBeNull();
+    expect(miss.stats[0]).toMatchObject({ hit: false });
+  }, 30_000);
+
+  it('the ready check reads [page] by the page variant it is given, and waits without one', () => {
+    const snap: ReadySnapshot = { probe: {}, structuredData: { ldJson: fx.ldJson, nextData: null, initialState: null, meta: {} }, interceptedRequests: [] };
+    expect(buildReadyCheck(fields, fx.url, pageVariantFrom(fx.url, null, {})).isReady(snap)).toBe(true);
+    expect(buildReadyCheck(fields, fx.url).isReady(snap)).toBe(false);
   });
 });

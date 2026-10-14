@@ -1,0 +1,10 @@
+{
+  "url": "https://kith.com/products/khwa030086-001",
+  "picker": { "pairs": [ { "name": "size", "value": "XS" } ], "labels": ["XS"] },
+  "ldJson": [ { "@type": "Product", "name": "Kith Women Elvina Paneled Hoodie - Black", "offers": [
+    { "@type": "Offer", "sku": "2000372077", "availability": "https://schema.org/OutOfStock", "price": 810, "url": "https://kith.com/products/khwa030086-001?variant=45144745017472", "additionalProperty": { "@type": "PropertyValue", "name": "size", "value": "XXS" } },
+    { "@type": "Offer", "sku": "2000372078", "availability": "https://schema.org/InStock", "price": 810, "url": "https://kith.com/products/khwa030086-001?variant=45144745050240", "additionalProperty": { "@type": "PropertyValue", "name": "size", "value": "XS" } },
+    { "@type": "Offer", "sku": "2000372079", "availability": "https://schema.org/InStock", "price": 810, "url": "https://kith.com/products/khwa030086-001?variant=45144745083008", "additionalProperty": { "@type": "PropertyValue", "name": "size", "value": "S" } }
+  ] } ],
+  "api": []
+}

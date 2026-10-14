@@ -1,0 +1,13 @@
+{
+  "url": "https://www.skullcandy.com/products/crusher-evo?variant=45242474037305",
+  "ldJson": [
+    { "@type": "Product", "name": "Crusher® Evo - True Black", "offers": { "@type": "Offer", "availability": "http://schema.org/InStock", "price": 209.99, "url": "https://www.skullcandy.com/products/crusher-evo?variant=45061353865273" } },
+    { "@type": "Product", "name": "Crusher® Evo - Chill Grey", "offers": { "@type": "Offer", "availability": "http://schema.org/OutOfStock", "price": 209.99, "url": "https://www.skullcandy.com/products/crusher-evo?variant=45242474037305" } },
+    { "@type": "ProductGroup", "hasVariant": [
+      { "@type": "Product", "name": "Crusher® Evo - True Black", "sku": "S6EVW-N740", "offers": { "url": "https://www.skullcandy.com/products/crusher-evo?variant=45061353865273", "availability": "http://schema.org/InStock", "price": 209.99 } },
+      { "@type": "Product", "name": "Crusher® Evo - Chill Grey", "sku": "S6EVW-N744", "offers": { "url": "https://www.skullcandy.com/products/crusher-evo?variant=45242474037305", "availability": "http://schema.org/OutOfStock", "price": 209.99 } },
+      { "@type": "Product", "name": "Crusher® Evo - Realtree", "sku": "S6EVW-T991", "offers": { "url": "https://www.skullcandy.com/products/crusher-evo?variant=44522482794553", "availability": "http://schema.org/InStock", "price": 219.99 } }
+    ] }
+  ],
+  "api": [ { "product": { "id": 7191195713593, "variants": [ { "id": 45061353865273, "sku": "S6EVW-N740", "available": true }, { "id": 45242474037305, "sku": "S6EVW-N744", "available": false } ] } } ]
+}

@@ -39,3 +39,10 @@ describe('captureProblem reads the verdict', () => {
     expect(e.verdict?.kind).toBe('blank');
   });
 });
+
+describe('captureProblem — wrong-variant (spec 2026-10-14 §7)', () => {
+  it('a wrong-variant capture is a capture problem with the verdict sentence', () => {
+    const c = { url: 'https://p.example/pd/x?swatch=16', html: '', title: '', verdict: { kind: 'wrong-variant' as const, status: 200, named: 'swatch=16' } };
+    expect(captureProblem(c, c.url)).toEqual({ reason: 'The page did not show the variant the address names (swatch=16).', verdict: c.verdict });
+  });
+});

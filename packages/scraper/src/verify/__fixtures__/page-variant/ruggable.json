@@ -1,0 +1,9 @@
+{
+  "url": "https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr",
+  "ldJson": [ { "@type": "ProductGroup", "variesBy": ["https://schema.org/size"], "hasVariant": [
+    { "@type": "Product", "sku": "RUG-CVR-IND-RCT-PLS-PH015-05x07", "size": "5'x7'", "name": "Ryder | 5'x7'", "offers": { "url": "/products/ryder-soft-white-plush-rug?variant=42385836146743", "price": "439.00" } },
+    { "@type": "Product", "sku": "RUG-CVR-IND-RCT-PLS-PH015-06x09", "size": "6'x9'", "name": "Ryder | 6'x9'", "offers": { "url": "/products/ryder-soft-white-plush-rug?variant=42385836179511", "price": "569.00" } },
+    { "@type": "Product", "sku": "RUG-CVR-IND-RCT-PLS-PH015-08x10", "size": "8'x10'", "name": "Ryder | 8'x10'", "offers": { "url": "/products/ryder-soft-white-plush-rug?variant=42385836212279", "price": "799.00" } }
+  ] } ],
+  "api": []
+}

@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { isThirdPartyNoise, type InterceptedRequest, type PaginationConfig } from '@robot/browser';
 import { extractBrand } from './domain-utils.js';
 import { MAX_CERTIFIED_PATHS } from './verify/constants.js';
+import { pickPageEntry, type PathContext } from './verify/page-variant-match.js';
 import { sanitizeCatalogue, type CandidateCatalogue, type Candidate } from './candidate-catalogue.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -930,18 +931,28 @@ export function buildCachedXPathScript(
   return { script, fieldNames: xpathFields.map(f => f.name), chosen };
 }
 
+/** The `[page]` step's own token: only the bracketed form is the step, so a dot key named `page` ("data.page.total") stays a key. */
+const PAGE_STEP = '[page]';
+
 /**
- * Navigate a JSON object using dot-notation path.
- * Supports array indexing: "data.items[0].price"
+ * Navigate a JSON object using dot-notation path. Supports array indexing
+ * ("data.items[0].price") and, with a page variant in `ctx`, the `[page]`
+ * step (spec 2026-10-14 §4): the one entry describing the page's variant,
+ * or nothing. Without `ctx`, `[page]` yields nothing.
  */
-export function getByDotPath(obj: unknown, path: string): unknown {
-  const parts = path.split(/\.|\[(\d+)\]/).filter(Boolean);
+export function getByDotPath(obj: unknown, path: string, ctx?: PathContext): unknown {
+  const parts = path.split(/\.|\[(\d+)\]|(\[page\])/).filter(Boolean);
   let current: unknown = obj;
 
   for (const part of parts) {
     if (current === null || current === undefined) return undefined;
     if (typeof current !== 'object') return undefined;
 
+    if (part === PAGE_STEP) {
+      if (!Array.isArray(current)) return undefined;
+      current = pickPageEntry(current, ctx?.pageVariant);
+      continue;
+    }
     const index = parseInt(part, 10);
     if (!isNaN(index) && Array.isArray(current)) {
       current = current[index];
