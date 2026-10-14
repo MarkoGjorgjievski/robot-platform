@@ -7,6 +7,7 @@ import { FIELD_TYPES, type FieldType } from '../fields-view';
 // The engine's own comparison. `@robot/scraper/normalize` is the one module of
 // that package safe for a browser bundle (it imports nothing but a type).
 import { normalize, valuesEqual } from '@robot/scraper/normalize';
+import type { PageVariantLike } from './verification-view';
 
 export { FIELD_TYPES };
 export type { FieldType };
@@ -41,7 +42,7 @@ function structuredVia(via: Via | undefined): StructuredVia | undefined {
 const sameVia = (a: Via | undefined, b: Via | undefined) => !!a && !!b && a.source === b.source && a.path === b.path;
 
 /** `defaultOnly`: the field passed on its default alone, no path certified (spec 2026-10-13 §4). */
-type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured' }> }>;
+type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured'; path?: { source?: string; path: string } }> }>;
 
 /** What `boardFrom` reads back — mirrors `@robot/scraper`'s `VerificationSet`
  * (not imported: that module graph reaches Playwright/the database/the
@@ -289,6 +290,37 @@ export const DEFAULT_CELL_TITLE = "This website's default; a path that reads a v
 /** The row word beside a verified badge for a field that passed by default only (spec 2026-10-13 §6); null otherwise or once the field changed since. */
 export function defaultOnlyWord(results: VerificationResultsLike | null, key: string, unchangedKeys: string[]): string | null {
   return results?.[key]?.defaultOnly === true && unchangedKeys.includes(key) ? DEFAULT_ONLY_WORD : null;
+}
+
+export const ADDRESS_WARNING = (n: number) => `reads the first variant, not the one the address names on product ${n}`;
+
+const INDEXED_STEP = /\[\d+\]/;
+
+/**
+ * Spec 2026-10-14 §6: a certified field whose proving path on a proof page
+ * addresses an array by a fixed index, while that page's address names a
+ * variant, reads the first variant whatever the address says. Pure; the page
+ * variant per url comes from the captures query, the proving path from the
+ * stored cell. Never changes a cell's status or the badge.
+ */
+export function addressWarning(
+  key: string,
+  results: VerificationResultsLike | null,
+  cards: Card[],
+  pageVariants: Record<string, PageVariantLike | null | undefined>,
+): string | null {
+  const r = results?.[key];
+  if (!r || r.certified.length === 0) return null;
+  for (const [i, card] of cards.entries()) {
+    if (!pageVariants[card.url]?.named) continue;
+    const cell = r.cells[card.url];
+    const proving = cell?.status === 'pass' ? cell.path : undefined;
+    // A page XPath's positional step (`(//span)[1]`) is not an entry of the page data's variants.
+    const path = proving && proving.source !== 'xpath' ? proving.path : undefined;
+    if (!path || path.includes('[page]') || !INDEXED_STEP.test(path)) continue;
+    return ADDRESS_WARNING(i + 1);
+  }
+  return null;
 }
 
 export function setDescription(board: Board, key: string, text: string): Board {

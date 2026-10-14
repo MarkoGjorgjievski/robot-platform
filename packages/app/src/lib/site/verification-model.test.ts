@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  addressWarning,
   answer, answerFromSuggestion, badge, boardFrom, canSave, pointable, MIN_BOX_SIDE, productsProblem, dropCard, emptyBoard, fieldsFor, liveSuggestions, mergeSuggestions, reverifyScope,
   segment, setCards, shortUrl, toBindingInput, validateValue, valueFromBox, verifyGate, type Board, type Box, type Field,
   acceptAllAgreed, acceptRow, rowStatus, sameValue, type RowStatus, cellLabel, verifyReason,
@@ -817,5 +818,36 @@ describe('a website\'s default (spec 2026-10-13 §6)', () => {
     expect(defaultOnlyWord(results, 'brand', ['brand'])).toBe(DEFAULT_ONLY_WORD);
     expect(defaultOnlyWord(results, 'brand', [])).toBeNull();
     expect(defaultOnlyWord({ brand: { certified: [BL], cells: {} } }, 'brand', ['brand'])).toBeNull();
+  });
+});
+
+describe('addressWarning (spec 2026-10-14 §6)', () => {
+  const cards = [{ url: 'https://r.example/p/a?size=6x9', title: 'A' }, { url: 'https://r.example/p/b', title: 'B' }, { url: 'https://r.example/p/c?size=6x9', title: 'C' }];
+  const named = { ids: [], pairs: [{ name: 'size', value: '6x9' }], labels: ['6x9'], named: true, selected: false };
+  const unnamed = { ids: [], pairs: [], labels: [], named: false, selected: false };
+  const pv = { [cards[0]!.url]: named, [cards[1]!.url]: unnamed, [cards[2]!.url]: named };
+  const resultsWith = (path: string) => ({ price: { certified: [{ source: 'json-ld', path, transform: 'identity' }], cells: Object.fromEntries(cards.map((c) => [c.url, { status: 'pass' as const, found: '569.00', path: { source: 'json-ld' as const, path } }])) } });
+  it('a certified index path on a named proof page warns with the first such product', () => {
+    expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, pv)).toBe('reads the first variant, not the one the address names on product 1');
+  });
+  it('a [page] path never warns', () => {
+    expect(addressWarning('price', resultsWith('hasVariant[page].offers.price'), cards, pv)).toBeNull();
+  });
+  it('an unnamed address never warns; a path with no array index never warns', () => {
+    expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, { [cards[0]!.url]: unnamed, [cards[2]!.url]: unnamed })).toBeNull();
+    expect(addressWarning('price', resultsWith('offers.price'), cards, pv)).toBeNull();
+  });
+  it('no page variant on record: no warning', () => {
+    expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, {})).toBeNull();
+    expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, { [cards[0]!.url]: null })).toBeNull();
+  });
+  it('a page XPath with a positional step never warns: it addresses the page, not a variant entry', () => {
+    const xp = "(//span[@class='price'])[1]";
+    const results = { price: { certified: [{ source: 'xpath', path: xp, transform: 'identity' }], cells: Object.fromEntries(cards.map((c) => [c.url, { status: 'pass' as const, found: '569.00', path: { source: 'xpath' as const, path: xp } }])) } };
+    expect(addressWarning('price', results, cards, pv)).toBeNull();
+  });
+  it('no results, or a failed field: no warning', () => {
+    expect(addressWarning('price', null, cards, pv)).toBeNull();
+    expect(addressWarning('price', { price: { certified: [], cells: {} } }, cards, pv)).toBeNull();
   });
 });
