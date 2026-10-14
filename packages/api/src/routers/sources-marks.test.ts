@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { db, captures } from '@robot/db';
-import { PlaywrightBrowser } from '@robot/browser';
+import { PlaywrightBrowser, pageVariantFrom, type PageVariant } from '@robot/browser';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation, pageTextOf } from '@robot/scraper';
 import { writeCaptureFile } from '../verify/capture-store.js';
@@ -32,8 +32,8 @@ beforeAll(async () => {
 afterAll(async () => { await browser.close(); delete process.env.CAPTURES_DIR; await rm(dir, { recursive: true, force: true }); });
 
 /** A captured proof page for `url`: fixture html + structured data, box map built by real Chromium. */
-async function seedProofPage(sourceId: string, url: string, page: 'p1' | 'p2' | 'p3', html?: string) {
-  const fixture = { ...SHOP_EXAMPLE[page], url, ...(html ? { html } : {}) };
+async function seedProofPage(sourceId: string, url: string, page: 'p1' | 'p2' | 'p3', html?: string, pageVariant?: PageVariant) {
+  const fixture = { ...SHOP_EXAMPLE[page], url, ...(html ? { html } : {}), ...(pageVariant ? { pageVariant } : {}) };
   const boxes = boxesFromAnnotation(await browser.setContentEvaluate<unknown>(fixture.html, buildBoxMapScript()));
   const now = new Date().toISOString();
   const [row] = await db.insert(captures).values({ sourceId, url, html: fixture.html, metadata: { kind: 'proof-page', status: 'captured', url, startedAt: now, capturedAt: now, tiles: ['/captures/x.png'], boxes, pageHeight: 900, capturedHeight: 900, contentHeight: 900 } }).returning({ id: captures.id });
@@ -100,6 +100,19 @@ describe('sources.suggestMarks', () => {
       const id = await seedProofPage(f.sourceId, f.urls[0]!, 'p1', html);
       const r = await caller.sources.suggestMarks({ captureId: id });
       expect(r.headingText).toBe('Widget A');
+    } finally { await f.cleanup(); }
+  });
+
+  it('returns the capture\'s page variant beside headingText and pageText, and null for a capture from before', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-sug-variant', fields: [{ name: 'Title', type: 'text' }] });
+    try {
+      const pageVariant = pageVariantFrom('https://s.example/p/1?variant=123', null, {});
+      const captureId = await seedProofPage(f.sourceId, f.urls[0]!, 'p1', undefined, pageVariant);
+      const oldCaptureId = await seedProofPage(f.sourceId, f.urls[1]!, 'p2');
+      const out = await caller.sources.suggestMarks({ captureId });
+      expect(out.pageVariant).toEqual({ ids: ['123'], pairs: [{ name: 'variant', value: '123' }], labels: [], named: true, selected: false });
+      const old = await caller.sources.suggestMarks({ captureId: oldCaptureId });
+      expect(old.pageVariant).toBeNull();
     } finally { await f.cleanup(); }
   });
 });

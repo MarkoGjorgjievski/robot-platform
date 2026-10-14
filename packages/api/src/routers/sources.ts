@@ -827,6 +827,8 @@ export const sourcesRouter = router({
         // The whole text, uncapped: the run-time flag checks the full page, so
         // a cap would warn at Verify on a value the run calls shown (final review I2).
         pageText: pageTextOf(capture.html),
+        // Spec 2026-10-14 §6: the Verification tab's row warning compares a proof page's named variant with the certified path's entry.
+        pageVariant: capture.pageVariant ?? null,
       };
     }),
 

@@ -1,7 +1,7 @@
 // packages/api/src/crawl/execute-run.test.ts
 import { describe, it, expect } from 'vitest';
 import { CaptureProblemError } from '@robot/scraper';
-import { executeRun, WALL_STREAK_LIMIT, type ExecuteDeps } from './execute-run.js';
+import { executeRun, wallSentence, WALL_STREAK_LIMIT, type ExecuteDeps } from './execute-run.js';
 import { rollUpStatus } from './roll-up-run.js';
 import type { ClaimedItem } from './claim-item.js';
 
@@ -292,5 +292,9 @@ describe('executeRun — the wall circuit breaker (review C2)', () => {
     const outcome = await executeRun('run-1', h.deps);
     expect(h.wallStops).toEqual([]);
     expect(outcome.failed).toBe(4);
+  });
+
+  it('wrong-variant is not a wall: no streak, no breaker', () => {
+    expect(wallSentence(new CaptureProblemError('The page did not show the variant the address names (swatch=16).', { kind: 'wrong-variant', status: 200, named: 'swatch=16' }))).toBeNull();
   });
 });
