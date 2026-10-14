@@ -8,16 +8,19 @@ import type { PageVariant } from './types.js';
 export type Selection = { ids?: string[]; pairs?: Array<{ name: string; value: string }>; labels?: string[] };
 
 /** Query keys that never name a variant: analytics, referrers, pagination. */
-const NOISE_KEYS = /^(utm_|gclid$|fbclid$|msclkid$|ref$|referrer$|source$|campaign$|_ga$|_gl$|page$|sort$|q$|search$|lang$|locale$|currency$|srsltid$|_pos$|_sid$|_ss$|_kx$|mc_)/i;
-/** A value that is an id: digits only, or a Shopify gid, 6+ characters. */
+const NOISE_KEYS = /^(utm_|gclid$|fbclid$|msclkid$|ref$|referrer$|source$|campaign$|_ga$|_gl$|page$|sort$|q$|search$|lang$|locale$|currency$|srsltid$|_pos$|_sid$|_ss$|_kx$|mc_|pr_|cm_|icid$|irclickid$|ranmid$|view$)/i;
+/** A value in page data that is an id: digits only, or a Shopify gid, 6+ characters. */
 const ID_VALUE = /^(gid:\/\/shopify\/ProductVariant\/)?\d{6,}$/;
-/** A query key whose digits are a variant id at any length (`?variant=123`, spec §3). */
-const ID_KEY = /^variant(_?id)?$/i;
+/** The only address keys that name an id (`?variant=123`, `?sku=4006…`); other keys' values are labels. */
+const ID_KEY = /^(variant|variant_?id|sku)$/i;
 
+/** Lowercase, strip quotes and primes, join `6 x 9` / `6 × 9` / `6 / 9` to their digits, drop leading zeros in digit runs, collapse punctuation to single spaces. */
 export function normalizeLabel(s: string): string {
   return s
     .toLowerCase()
     .replace(/[‘’“”'"`′″]/g, '')
+    .replace(/×/g, 'x')
+    .replace(/(\d)\s*([x/])\s*(?=\d)/g, '$1$2')
     .replace(/(^|[^\d.])0+(?=\d)/g, '$1')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
@@ -46,7 +49,7 @@ export function addressVariant(url: string): { ids: string[]; pairs: Array<{ nam
   take(u.searchParams);
   const hash = u.hash.replace(/^#/, '');
   if (hash.includes('=')) take(new URLSearchParams(hash));
-  const addrId = (p: { name: string; value: string }) => idOf(p.value) ?? (ID_KEY.test(p.name) && /^\d+$/.test(p.value) ? p.value : null);
+  const addrId = (p: { name: string; value: string }) => (ID_KEY.test(p.name) ? idOf(p.value) ?? (/^\d+$/.test(p.value) ? p.value : null) : null);
   const ids = pairs.map(addrId).filter((x): x is string => x !== null);
   const labels = pairs.filter((p) => addrId(p) === null).map((p) => p.value);
   return { ids, pairs, labels, text: parts.join('&') };
@@ -87,10 +90,12 @@ export function selectedInPageData(data: { ldJson: unknown[]; nextData: unknown;
   return out;
 }
 
-function merge(a: Selection | null | undefined, b: Selection | null | undefined): Selection {
+function merge(a: Selection | null | undefined, b: Selection | null | undefined): Required<Selection> {
+  const pairs = new Map<string, { name: string; value: string }>();
+  for (const p of [...(a?.pairs ?? []), ...(b?.pairs ?? [])]) pairs.set(`${p.name}\u0000${p.value}`, p);
   return {
     ids: [...new Set([...(a?.ids ?? []), ...(b?.ids ?? [])])],
-    pairs: [...(a?.pairs ?? []), ...(b?.pairs ?? [])],
+    pairs: [...pairs.values()],
     labels: [...new Set([...(a?.labels ?? []), ...(b?.labels ?? [])])],
   };
 }
@@ -101,29 +106,34 @@ export function pageVariantFrom(url: string, picker: Selection | null, pageData:
   const named = addressVariant(url);
   const shown = merge(picker, pageData);
   const all = merge({ ids: named.ids, pairs: named.pairs, labels: named.labels }, shown);
-  return { ids: all.ids!, pairs: all.pairs!, labels: all.labels!, named: named.pairs.length > 0, selected: hasAny(shown) };
+  return { ids: all.ids, pairs: all.pairs, labels: all.labels, named: named.pairs.length > 0, selected: hasAny(shown) };
 }
 
 /**
  * The address's own text when the page shows a different variant from the
- * one it names (spec 2026-10-14 §7): the two carry a comparable kind and
- * nothing of that kind agrees. Not comparable → null; no selection → null.
+ * one it names (spec 2026-10-14 §7), decided from the page's own selection
+ * (the picker's and the page data's, never the address's): for some kind
+ * the address names and the page shows, nothing of that kind agrees.
+ * Kinds: ids (from variant-style keys only) against the page's ids; a pair
+ * against the page's pairs of the same name — a pair whose name the page
+ * shows no selection for never decides (`?pid=…` against a size picker).
+ * Free labels never decide. Nothing comparable or no selection → null.
  */
-export function wrongVariant(pv: PageVariant, url: string): string | null {
-  if (!pv.named || !pv.selected) return null;
+export function wrongVariant(url: string, picker: Selection | null, pageData: Selection): string | null {
   const named = addressVariant(url);
-  // What the page showed is everything in `pv` that the address did not put there.
-  const shownIds = pv.ids.filter((id) => !named.ids.includes(id));
-  const namedPairKeys = new Set(named.pairs.map((p) => `${p.name}\u0000${p.value}`));
-  const shownPairs = pv.pairs.filter((p) => !namedPairKeys.has(`${p.name}\u0000${p.value}`));
-  const shownLabels = pv.labels.filter((l) => !named.labels.includes(l));
+  const shown = merge(picker, pageData);
+  if (named.pairs.length === 0 || !hasAny(shown)) return null;
+  const shownLabels = new Set(shown.labels.map(normalizeLabel));
   const verdicts: boolean[] = [];
-  if (named.ids.length && shownIds.length) verdicts.push(named.ids.some((id) => shownIds.includes(id)));
-  if (named.pairs.length && shownPairs.length) {
-    verdicts.push(named.pairs.some((n) => shownPairs.some((s) => normalizeLabel(s.name) === normalizeLabel(n.name) && normalizeLabel(s.value) === normalizeLabel(n.value))));
+  if (named.ids.length && shown.ids.length) {
+    // A numeric sku the page carries as a selected label still agrees.
+    verdicts.push(named.ids.some((id) => shown.ids.includes(id) || shownLabels.has(normalizeLabel(id))));
   }
-  if (named.labels.length && shownLabels.length) {
-    verdicts.push(named.labels.some((n) => shownLabels.some((s) => normalizeLabel(s) === normalizeLabel(n) || normalizeLabel(s).includes(normalizeLabel(n)))));
+  const nameKey = (s: string) => s.trim().toLowerCase();
+  const shownNames = new Set(shown.pairs.map((p) => nameKey(p.name)));
+  const comparable = named.pairs.filter((n) => !ID_KEY.test(n.name) && shownNames.has(nameKey(n.name)));
+  if (comparable.length) {
+    verdicts.push(comparable.some((n) => shown.pairs.some((s) => nameKey(s.name) === nameKey(n.name) && normalizeLabel(s.value) === normalizeLabel(n.value))));
   }
   if (verdicts.length === 0) return null;   // nothing comparable
   return verdicts.some(Boolean) ? null : named.text;

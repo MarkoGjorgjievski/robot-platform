@@ -287,7 +287,8 @@ export class PlaywrightBrowser implements IBrowser {
           });
         }
         const apiBodies = intercepted.filter((r) => r.isJson && r.parsedJson !== null).map((r) => r.parsedJson);
-        const pageVariant = pageVariantFrom(page.url(), picker, selectedInPageData(structuredData, apiBodies));
+        const pageData = selectedInPageData(structuredData, apiBodies);
+        const pageVariant = pageVariantFrom(page.url(), picker, pageData);
         // fullPage:true expands the captured image to the full scrollable page,
         // so clips beyond the 800px viewport (any tile past the first) are in
         // bounds. Without it Playwright clips against the viewport and throws
@@ -344,7 +345,7 @@ export class PlaywrightBrowser implements IBrowser {
         const verdict = classifyVerdict({ requestedUrl: url, finalUrl: page.url(), status: main ? main.status() : null, headers, html, title, boxCount });
         // Spec 2026-10-14 §7: the REQUESTED address names the variant the
         // customer asked for; only an otherwise-ok page can be the wrong one.
-        const named = verdict.kind === 'ok' ? wrongVariant(pageVariant, url) : null;
+        const named = verdict.kind === 'ok' ? wrongVariant(url, picker, pageData) : null;
         const finalVerdict: CaptureVerdict = named !== null ? { kind: 'wrong-variant', status: verdict.status, named } : verdict;
 
         return {

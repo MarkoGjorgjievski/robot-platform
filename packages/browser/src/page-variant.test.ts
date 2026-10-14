@@ -19,6 +19,15 @@ describe('addressVariant', () => {
     expect(a.ids).toEqual(['123']);
     expect(a.text).toBe('variant=123');
   });
+  it('marketing parameters are noise; ids come only from variant-style keys', () => {
+    const a = addressVariant('https://s.example/products/x?variant=123&pr_rec_id=abc&pr_prod_strat=x&cm_mmc=y&icid=z&irclickid=w&ranMID=1&view=quick');
+    expect(a.ids).toEqual(['123']);
+    expect(a.pairs).toEqual([{ name: 'variant', value: '123' }]);
+    expect(addressVariant('https://s.example/p?variantId=55').ids).toEqual(['55']);
+    expect(addressVariant('https://s.example/p?sku=4006381333931').ids).toEqual(['4006381333931']);
+    expect(addressVariant('https://s.example/p?pid=1234567').ids).toEqual([]);
+    expect(addressVariant('https://s.example/p?pid=1234567').labels).toEqual(['1234567']);
+  });
   it('an address with no query and no key=value fragment names nothing', () => {
     expect(addressVariant('https://k.example/products/khwa030086-001#reviews')).toEqual({ ids: [], pairs: [], labels: [], text: '' });
   });
@@ -35,6 +44,10 @@ describe('normalizeLabel', () => {
     expect(normalizeLabel('06x09')).toBe(normalizeLabel('6x9'));
     expect(normalizeLabel('Moss Green - Performance Flatweave')).toBe('moss green performance flatweave');
     expect(normalizeLabel('XXL ')).toBe('xxl');
+  });
+  it('spaces around x, × or / between digits do not count', () => {
+    for (const s of ["6' x 9'", "6'x9'", '06x09', '6 × 9', '6×9']) expect(normalizeLabel(s)).toBe(normalizeLabel('6x9'));
+    expect(normalizeLabel('6 / 9')).toBe(normalizeLabel('6/9'));
   });
 });
 
@@ -63,6 +76,11 @@ describe('pageVariantFrom', () => {
     expect(pv.selected).toBe(true);
     expect(pv.pairs).toEqual([{ name: 'size', value: 'XS' }]);
   });
+  it('de-duplicates what the address and the page both carry', () => {
+    const pv = pageVariantFrom('https://p.example/pd/x?swatch=16', { labels: ['16'], pairs: [{ name: 'swatch', value: '16' }] }, { labels: ['16'] });
+    expect(pv.pairs).toEqual([{ name: 'swatch', value: '16' }]);
+    expect(pv.labels).toEqual(['16']);
+  });
   it('neither: present but empty', () => {
     expect(pageVariantFrom('https://k.example/products/x', null, {})).toEqual({ ids: [], pairs: [], labels: [], named: false, selected: false });
   });
@@ -71,21 +89,38 @@ describe('pageVariantFrom', () => {
 describe('wrongVariant', () => {
   const url = 'https://p.example/pd/x/312123?swatch=16';
   it('named A, page shows B → the address text', () => {
-    const pv = pageVariantFrom(url, { labels: ['17'], pairs: [{ name: 'swatch', value: '17' }] }, {});
-    expect(wrongVariant(pv, url)).toBe('swatch=16');
+    expect(wrongVariant(url, { labels: ['17'], pairs: [{ name: 'swatch', value: '17' }] }, {})).toBe('swatch=16');
   });
   it('named A, page shows A → null', () => {
-    expect(wrongVariant(pageVariantFrom(url, { labels: ['16'] }, {}), url)).toBeNull();
+    expect(wrongVariant(url, { labels: ['16'], pairs: [{ name: 'swatch', value: '16' }] }, {})).toBeNull();
+  });
+  it('named A, page shows A on that axis and something else on another → null (multi-axis)', () => {
+    expect(wrongVariant(url, { labels: ['16', 'M'], pairs: [{ name: 'swatch', value: '16' }, { name: 'size', value: 'M' }] }, {})).toBeNull();
   });
   it('named A, no selection on the page → null', () => {
-    expect(wrongVariant(pageVariantFrom(url, null, {}), url)).toBeNull();
+    expect(wrongVariant(url, null, {})).toBeNull();
   });
   it('an id against a label is not comparable → null', () => {
     const u = 'https://s.example/products/x?variant=123';
-    expect(wrongVariant(pageVariantFrom(u, { labels: ['Chill Grey'] }, {}), u)).toBeNull();
+    expect(wrongVariant(u, { labels: ['Chill Grey'] }, {})).toBeNull();
   });
   it('an id against another id → the address text', () => {
     const u = 'https://s.example/products/x?variant=123';
-    expect(wrongVariant(pageVariantFrom(u, {}, { ids: ['999'] }), u)).toBe('variant=123');
+    expect(wrongVariant(u, {}, { ids: ['999'] })).toBe('variant=123');
+  });
+  it('an id the page shows among other ids → null', () => {
+    const u = 'https://s.example/products/x?variant=123';
+    expect(wrongVariant(u, {}, { ids: ['123', '999'] })).toBeNull();
+  });
+  it('a pair whose name the page does not show never decides: ?pid=12345 against a picker showing M → null', () => {
+    const u = 'https://s.example/products/x?pid=12345';
+    expect(addressVariant(u).ids).toEqual([]);
+    expect(wrongVariant(u, { labels: ['M'], pairs: [{ name: 'size', value: 'M' }] }, {})).toBeNull();
+    expect(wrongVariant(u, { labels: ['M'] }, { ids: ['999999'] })).toBeNull();
+  });
+  it('a pair name compares case-insensitively; a spaced size equals the address size', () => {
+    const u = 'https://r.example/products/x?size=6x9';
+    expect(wrongVariant(u, { pairs: [{ name: 'Size', value: "6' x 9'" }] }, {})).toBeNull();
+    expect(wrongVariant(u, { pairs: [{ name: 'Size', value: "8' x 10'" }] }, {})).toBe('size=6x9');
   });
 });
