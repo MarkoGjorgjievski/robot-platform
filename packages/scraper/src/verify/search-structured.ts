@@ -1,6 +1,6 @@
-import type { PageCapture } from '@robot/browser';
+import type { PageCapture, PageVariant } from '@robot/browser';
 import { getByDotPath } from '../domain-cache.js';
-import type { PathContext } from './page-variant-match.js';
+import { axesFromVariesBy, pickPageEntry, type PathContext } from './page-variant-match.js';
 import { applyTransform, inferTransform, inferTransformForType } from './transforms.js';
 import { normalize } from './normalize.js';
 import { pathFitsConcept } from './field-fit.js';
@@ -13,16 +13,27 @@ const MAX_ARRAY_ITEMS = 25;
 
 type Visit = (path: string, value: unknown) => void;
 
-function walk(value: unknown, path: string, depth: number, visit: Visit): void {
+/**
+ * `pv`: the capture's page variant. Beside the entry of an array that
+ * `pickPageEntry` names as the page's own (spec 2026-10-14 §4), the same
+ * subtree is also visited under `${path}[page]`. `parent` is the value holding
+ * `value`: its `variesBy` names the list's axes, exactly as `getByDotPath`
+ * reads them, so every `[page]` path visited here resolves there.
+ */
+function walk(value: unknown, path: string, depth: number, visit: Visit, pv?: PageVariant, parent?: unknown): void {
   if (depth > MAX_DEPTH) return;
   if (Array.isArray(value)) {
     if (path !== '') visit(path, value); // arrays are candidates themselves (first_of_list)
-    value.slice(0, MAX_ARRAY_ITEMS).forEach((v, i) => walk(v, `${path}[${i}]`, depth + 1, visit));
+    const pageEntry = pv ? pickPageEntry(value, pv, axesFromVariesBy(parent)) : undefined;
+    value.slice(0, MAX_ARRAY_ITEMS).forEach((v, i) => {
+      walk(v, `${path}[${i}]`, depth + 1, visit, pv, value);
+      if (pageEntry !== undefined && v === pageEntry) walk(v, `${path}[page]`, depth + 1, visit, pv, value);
+    });
     return;
   }
   if (value !== null && typeof value === 'object') {
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      walk(v, path === '' ? k : `${path}.${k}`, depth + 1, visit);
+      walk(v, path === '' ? k : `${path}.${k}`, depth + 1, visit, pv, value);
     }
     return;
   }
@@ -34,7 +45,7 @@ function apiBodies(capture: Pick<PageCapture, 'interceptedRequests'>): unknown[]
 }
 
 export function searchStructured(
-  capture: Pick<PageCapture, 'url' | 'structuredData' | 'interceptedRequests'>,
+  capture: Pick<PageCapture, 'url' | 'structuredData' | 'interceptedRequests' | 'pageVariant'>,
   type: CustomerFieldType,
   expected: string,
 ): StructuredCandidate[] {
@@ -49,8 +60,8 @@ export function searchStructured(
     seen.add(id);
     out.push({ source, path, transform, raw });
   };
-  for (const body of apiBodies(capture)) walk(body, '', 0, (p, v) => consider('api', p, v));
-  for (const block of capture.structuredData.ldJson) walk(block, '', 0, (p, v) => consider('json-ld', p, v));
+  for (const body of apiBodies(capture)) walk(body, '', 0, (p, v) => consider('api', p, v), capture.pageVariant);
+  for (const block of capture.structuredData.ldJson) walk(block, '', 0, (p, v) => consider('json-ld', p, v), capture.pageVariant);
   for (const [k, v] of Object.entries(capture.structuredData.meta)) consider('meta', k, v);
   return out;
 }
@@ -83,7 +94,7 @@ function centsBasePath(path: string): string | null {
 }
 
 export function searchStructuredByConcept(
-  capture: Pick<PageCapture, 'url' | 'structuredData' | 'interceptedRequests'>,
+  capture: Pick<PageCapture, 'url' | 'structuredData' | 'interceptedRequests' | 'pageVariant'>,
   type: CustomerFieldType,
   concept: string,
 ): ConceptCandidate[] {
@@ -104,8 +115,8 @@ export function searchStructuredByConcept(
     seen.add(id);
     out.push({ source, path, transform, raw });
   };
-  for (const body of apiBodies(capture)) walk(body, '', 0, (p, v) => consider('api', p, v));
-  for (const block of capture.structuredData.ldJson) walk(block, '', 0, (p, v) => consider('json-ld', p, v));
+  for (const body of apiBodies(capture)) walk(body, '', 0, (p, v) => consider('api', p, v), capture.pageVariant);
+  for (const block of capture.structuredData.ldJson) walk(block, '', 0, (p, v) => consider('json-ld', p, v), capture.pageVariant);
   for (const [k, v] of Object.entries(capture.structuredData.meta)) consider('meta', k, v);
   return out;
 }

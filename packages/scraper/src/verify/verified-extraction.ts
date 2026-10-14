@@ -22,6 +22,7 @@ import { applyTransform } from './transforms.js';
 import { applyDefaults } from './defaults.js';
 import { resolveStructured } from './search-structured.js';
 import { buildXPathProbeScript, type XPathProbeResult } from './dom-scripts.js';
+import { buildSelectionScript } from './variant-dom.js';
 import { pageTextOf, shownOnPage, type Shown } from './shown-on-page.js';
 import type { CertifiedPath, CustomerFieldType } from './types.js';
 
@@ -142,6 +143,8 @@ async function captureUnderLock(
       interceptNetworkRequests: true,
       // The picker's selection is unknown until the page is captured; the address's part is what `[page]` needs on a Shopify `?variant=` page.
       ready: buildReadyCheck(req.fields, req.url, pageVariantFrom(req.url, null, {})),
+      // The picker's selection, read into `capture.pageVariant` (spec 2026-10-14 §3).
+      selection: buildSelectionScript(),
     });
     // Feed the verdict back to the host's pacing (a challenge or refusal
     // backs the next acquire off; an ok clears it).

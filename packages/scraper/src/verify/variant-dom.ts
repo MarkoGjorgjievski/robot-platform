@@ -369,3 +369,71 @@ export function buildVariantPickerScript(): string {
     return Array.from(byAnchor.values()).map((k) => ({ axis: k.picker.axis, options: k.picker.options }));
   })()`;
 }
+
+/**
+ * The picker's current selection (spec 2026-10-14 §3): inside each picker
+ * `findPickersIn` finds, the option marked selected — a select's chosen
+ * option (past the first, or marked `selected`: an untouched select shows its
+ * first option without anyone choosing it), a radio group's checked input
+ * (its label), a button group's `[aria-checked="true"]`,
+ * `[aria-selected="true"]`, `[aria-pressed="true"]` or checked input.
+ * Evaluates to `{ pairs, labels }` — the shape `pageVariantFrom` takes as its
+ * picker — or null when no picker shows a selection. Only the variant
+ * controls `isVariantControl` accepts are read, so a review widget's
+ * selection never counts; nested controls and shared anchors are read once,
+ * as `buildVariantPickerScript` lists them.
+ */
+export function buildSelectionScript(): string {
+  return `(() => {
+    ${PAGE_SCRIPT_PRELUDE}
+    const controlRe = /${CONTROL_PATTERN}/i;
+    const excludeRe = /${EXCLUDE_PATTERN}/i;
+    const excludeTokenRe = /${EXCLUDE_TOKEN_PATTERN}/i;
+    const isVariantControl = ${isVariantControl.toString()};
+    const isExcluded = ${isExcluded.toString()};
+    const isHidden = ${isHidden.toString()};
+    const buildLabelForMap = ${buildLabelForMap.toString()};
+    const radioLabel = ${radioLabel.toString()};
+    const buttonLabel = ${buttonLabel.toString()};
+    const matchedWord = ${matchedWord.toString()};
+    const axisOf = ${axisOf.toString()};
+    const fieldsetOnlyHasGroup = ${fieldsetOnlyHasGroup.toString()};
+    const radioGroupAxis = ${radioGroupAxis.toString()};
+    const findPickersIn = ${findPickersIn.toString()};
+    const labelForMap = buildLabelForMap();
+    const candidates = [];
+    for (const el of document.body ? document.body.querySelectorAll('*') : []) {
+      if (!isVariantControl(el, controlRe) || isExcluded(el, excludeRe, excludeTokenRe) || isHidden(el)) continue;
+      for (const picker of findPickersIn(el, controlRe, labelForMap)) candidates.push({ controlEl: el, picker });
+    }
+    const kept = candidates.filter((c) => !candidates.some((d) => d !== c && c.controlEl.contains(d.controlEl) && d.controlEl !== c.controlEl));
+    const byAnchor = new Map();
+    for (const k of kept) if (!byAnchor.has(k.picker.anchorEl)) byAnchor.set(k.picker.anchorEl, k);
+    const SELECTED = '[aria-checked="true"],[aria-selected="true"],[aria-pressed="true"]';
+    const pairs = [], labels = [];
+    const push = (axis, text) => {
+      const t = (text || '').replace(/\s+/g, ' ').trim();
+      if (!t || !axis) return;
+      pairs.push({ name: axis, value: t });
+      if (labels.indexOf(t) === -1) labels.push(t);
+    };
+    for (const { controlEl, picker } of byAnchor.values()) {
+      const a = picker.anchorEl;
+      if (a.tagName === 'SELECT') {
+        const o = a.options[a.selectedIndex];
+        if (o && (a.selectedIndex > 0 || o.hasAttribute('selected')) && (o.value || '').trim() !== '') push(picker.axis, o.textContent);
+        continue;
+      }
+      if (a.tagName === 'INPUT') {
+        const name = a.getAttribute('name');
+        const checked = Array.from(controlEl.querySelectorAll('input[type="radio"]')).find((r) => r.getAttribute('name') === name && r.checked);
+        if (checked) push(picker.axis, radioLabel(checked, labelForMap));
+        continue;
+      }
+      const sel = a.querySelector(SELECTED + ',input:checked');
+      if (!sel) continue;
+      push(picker.axis, sel.tagName === 'INPUT' ? radioLabel(sel, labelForMap) : buttonLabel(sel));
+    }
+    return pairs.length ? { pairs, labels } : null;
+  })()`;
+}
