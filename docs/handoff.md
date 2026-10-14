@@ -157,6 +157,8 @@ see the entries, so it cannot tell one entry from many. Next: fold
 `?variant=` siblings under one product key and pick the row the address names in
 one-row-per-variant mode — entries now keep their ids for it.
 
+**Merged and proven so far (2026-10-14):** merged into `main` (fast-forward, 14 commits, `33424b9`) after six reviewed tasks, a whole-branch review (0 critical, 3 important) and a two-round fix wave (re-reviews clean). Route smoke on `main`: 25 of 25 after a dev-server restart (`902a53e`; the new test reads "verified 3/3 reads the first variant, not the one the address names on product 1"). Live check, free (`docs/testing/results/2026-10-14-variant-from-the-address-live-check.md`): the address warning appeared on exactly the predicted rows (Ruggable: Main image `hasVariant[0].image` and In stock; Glossier: Price `product.variants[0].prices[0].unit_price`); Skullcandy extracted 10 rows at $0 with sampled values matching the page, but its planned addresses carried no `?variant=`, so wrong-variant had nothing to test. **No `[page]` path has certified live yet:** Ruggable's Re-verify read "up to $0.05", Glossier's "up to $0.10", Kith's Verify "up to $0.40" and blocked ("Rating needs a value on at least two products") — none clicked without Marko. Skullcandy's proof page 2 (SLYR Pro) now returns 404.
+
 ## A website's default values (2026-10-13)
 
 Spec `docs/superpowers/specs/2026-10-13-website-defaults-design.md`, plan
