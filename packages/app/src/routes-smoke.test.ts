@@ -67,7 +67,10 @@
 // it "Widget E (Drift)" under an `<h1>` of "Widget E" — and reads the Title
 // row's heading rule; adds Brand to the contract and types a tagline on
 // product 1, which its cell flags "not on this page" (spec 2026-10-12 Part B).
-// The test after it adds Description and opens a seeded run whose
+// The test after it makes `/p/11?variant=f2` (not on the listing) product 1
+// over tRPC, seeds a result proving Price on `offers[0].price`, and reads the
+// row warning "reads the first variant, not the one the address names on
+// product 1" (spec 2026-10-14 §6). The one after that adds Description and opens a seeded run whose
 // extractions flag it not shown (`seedUnshownRun`, spec 2026-10-12 §5/§7).
 //
 // Needs the api-server and the app up, so it is opt-in:
@@ -146,6 +149,21 @@ const SECOND_SHAPE = { path: '/p/9', title: 'Widget D', price: '$99.00', rating:
  *  `/l` — the coverage test adds it by URL as product 5 and reads the Title row's heading rule. */
 const DRIFT_PRODUCT = { path: '/p/10', name: 'Widget E (Drift)', title: 'Widget E', rating: '3.9', sku: 'E5' };
 
+/** A product in two variants whose address names one (spec 2026-10-14 §6): JSON-LD `offers` lists
+ *  f1 at 59.00 then f2 at 79.00, and the page shows the price of the variant `?variant=` names (f1
+ *  when it names none). NOT linked from `/l` — linked, the coverage check would sample it beside
+ *  `/p/9` and its "1 of 1 sampled product" line would change; the address-warning test makes
+ *  `/p/11?variant=f2` product 1 through the binding instead. */
+const VARIANT_PRODUCT = {
+  path: '/p/11',
+  title: 'Widget F',
+  rating: '4.2',
+  offers: [
+    { price: '59.00', url: '/p/11?variant=f1', sku: 'F1' },
+    { price: '79.00', url: '/p/11?variant=f2', sku: 'F2' },
+  ],
+} as const;
+
 /** A 1×1 transparent PNG: every image the shop serves. */
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
@@ -164,7 +182,7 @@ const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQ
 const SHOP_FOOTER =
   '<footer><p>Widget shop: free delivery, easy returns and a friendly guarantee on every widget we sell. Questions about an order? Write to us any time and we will answer within a day.</p></footer>';
 
-function shopPage(pathname: string): { type: string; body: string | Buffer; status?: number; headers?: Record<string, string> } | null {
+function shopPage(pathname: string, search = ''): { type: string; body: string | Buffer; status?: number; headers?: Record<string, string> } | null {
   if (pathname === '/' || pathname === '/about') {
     return { type: 'text/html', body: `<html><head><title>Widget shop</title></head><body><h1>Widget shop</h1>${SHOP_FOOTER}</body></html>` };
   }
@@ -203,6 +221,16 @@ function shopPage(pathname: string): { type: string; body: string | Buffer; stat
     return {
       type: 'text/html',
       body: `<html><head><title>${DRIFT_PRODUCT.title}</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="main"><h1>${DRIFT_PRODUCT.title}</h1><p class="stock">In stock</p><span class="rating">${DRIFT_PRODUCT.rating}</span><span class="sku">${DRIFT_PRODUCT.sku}</span></div>${SHOP_FOOTER}</body></html>`,
+    };
+  }
+  if (pathname === VARIANT_PRODUCT.path) {
+    const named = new URLSearchParams(search).get('variant');
+    const shown = VARIANT_PRODUCT.offers.find((o) => o.url === `${VARIANT_PRODUCT.path}?variant=${named}`) ?? VARIANT_PRODUCT.offers[0];
+    const ld = { '@context': 'https://schema.org', '@type': 'Product', name: VARIANT_PRODUCT.title,
+      offers: VARIANT_PRODUCT.offers.map((o) => ({ '@type': 'Offer', price: o.price, priceCurrency: 'USD', url: o.url, sku: o.sku })) };
+    return {
+      type: 'text/html',
+      body: `<html><head><title>${VARIANT_PRODUCT.title}</title><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body><div id="main"><h1>${VARIANT_PRODUCT.title}</h1><p class="price">$${shown.price}</p><p class="stock">In stock</p><span class="rating">${VARIANT_PRODUCT.rating}</span><span class="sku">${shown.sku}</span></div>${SHOP_FOOTER}</body></html>`,
     };
   }
   const product = PRODUCTS.find((p) => p.path === pathname);
@@ -247,7 +275,8 @@ function variantGroup(productPath: string) {
 
 function serveShop(): Promise<{ server: Server; origin: string }> {
   const server = createServer((req, res) => {
-    const found = shopPage(new URL(req.url ?? '/', 'http://x').pathname);
+    const requested = new URL(req.url ?? '/', 'http://x');
+    const found = shopPage(requested.pathname, requested.search);
     if (!found) {
       res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
       return;
@@ -1706,6 +1735,72 @@ describe.skipIf(!ENABLED)('app shell', () => {
 
     expect(problems, `the coverage walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 300_000);
+
+  // The variant the address names (spec 2026-10-14 §6): a Verify from before
+  // `[page]` paths certified a fixed-index path on a proof page whose address
+  // names a variant, so it reads the first variant whatever the address says.
+  // No Verify is pressed: the binding is written over tRPC and the result is
+  // seeded (`seedPassingVerification`); the tab's own capture of the proof
+  // page (free, through the api-server) supplies its page variant.
+  it('a proof page whose address names a variant that the certified path ignores reads the row warning', async () => {
+    expect(projectSlug, 'there is no project to verify on').not.toBeNull();
+    expect(websiteSlug, 'there is no website to verify on').not.toBeNull();
+    problems.length = 0;
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const priceKey = site.fields.find((f) => f.name === 'Price')?.key;
+    expect(priceKey, 'no key for Price').toBeTruthy();
+
+    // Product 1's card is swapped for /p/11?variant=f2 with Price typed 79.00; products 2 and 3
+    // keep what the walks above left them. Everything stored about any other page is dropped.
+    const url11 = `${SHOP}${VARIANT_PRODUCT.path}?variant=f2`;
+    const kept = [`${SHOP}/p/2`, `${SHOP}/p/3`];
+    const urls = [url11, ...kept];
+    type ByUrl<T> = Record<string, Record<string, T>>;
+    const stored = site.verificationSet as {
+      listing_url?: string; expected?: ByUrl<string>; marks?: ByUrl<{ xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } }>;
+      paths?: ByUrl<{ source: 'api' | 'json-ld' | 'meta'; path: string }>; cards?: Array<{ url: string; title: string; image?: string }>; defaults?: Record<string, string>;
+    } | null;
+    const onKept = <T,>(m: ByUrl<T> | undefined): ByUrl<T> =>
+      Object.fromEntries(Object.entries(m ?? {}).map(([k, byUrl]) => [k, Object.fromEntries(Object.entries(byUrl).filter(([u]) => kept.includes(u)))]));
+    const expected = onKept(stored?.expected);
+    expected[priceKey!] = { ...expected[priceKey!], [url11]: '79.00' };
+    const descriptions = Object.fromEntries(((site.schemaDefinition ?? []) as Array<{ key: string; description?: string }>).map((f) => [f.key, f.description ?? '']));
+    await api.sources.updateBinding.mutate({
+      sourceId: site.id,
+      urls,
+      ...(stored?.listing_url ? { listingUrl: stored.listing_url } : {}),
+      descriptions,
+      expected,
+      marks: onKept(stored?.marks),
+      paths: onKept(stored?.paths),
+      ...(stored?.defaults ? { defaults: stored.defaults } : {}),
+      cards: [{ url: url11, title: VARIANT_PRODUCT.title }, ...kept.map((u) => stored?.cards?.find((c) => c.url === u) ?? { url: u, title: u })],
+      draft: true,
+    });
+
+    // The stored result a Verify from before this change would have made: Price proven on
+    // `offers[0].price` — f1's 59.00 — on a page whose address names f2. Every other field is
+    // certified on a path with no array index, so only Price's row can warn.
+    const otherPath: CertifiedPath = { source: 'json-ld', path: 'name', transform: 'identity' };
+    const certifiedByKey = Object.fromEntries(site.fields.map((f) => [
+      f.key,
+      [f.key === priceKey ? ({ source: 'json-ld', path: 'offers[0].price', transform: 'identity' } as CertifiedPath) : otherPath],
+    ]));
+    await seedPassingVerification(site.id, certifiedByKey);
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    // The page variant comes with product 1's capture (free, through the api-server).
+    await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000, interval: 1000 }).toBe(3);
+    const warning = 'reads the first variant, not the one the address names on product 1';
+    await expect.poll(() => page.getByText(warning, { exact: true }).count(), { timeout: 30_000 }).toBe(1);
+    expect(await rowStatusText('Price'), "the warning is not in Price's status column").toContain(warning);
+    console.log(`address: Price's status reads "${await rowStatusText('Price')}"`);
+    await page.getByText(warning, { exact: true }).scrollIntoViewIfNeeded();
+    await shootViewportBothThemes(page, 'app-site-verification-address-warning');
+    expect(problems, `the address-warning walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
+  }, 180_000);
 
   // Shown on the page (spec 2026-10-12 §5/§7): the run page counts, names and
   // marks the values the product's page does not show. Like the variants run

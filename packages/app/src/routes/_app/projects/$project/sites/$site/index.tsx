@@ -22,6 +22,7 @@ import {
   PRODUCTS_MIN,
   acceptAllAgreed,
   acceptRow,
+  addressWarning,
   answer,
   answerFromSuggestion,
   badge,
@@ -73,7 +74,7 @@ import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
 import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
-import { cellStatusFor, verificationState, type VerificationResults } from '../../../../../../lib/site/verification-view';
+import { cellStatusFor, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
@@ -228,7 +229,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const [queue, setQueue] = useState<Card[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestions>({});
   /** Each captured product's heading and page text, for the heading rule (B1) and the typed-value warning (B2) — spec 2026-10-12 Part B. */
-  const [pageFacts, setPageFacts] = useState<Record<string, { headingText: string | null; pageText: string }>>({});
+  const [pageFacts, setPageFacts] = useState<Record<string, { headingText: string | null; pageText: string; pageVariant?: PageVariantLike | null }>>({});
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const saveStateRef = useRef(saveState);
   saveStateRef.current = saveState;
@@ -570,7 +571,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       for (const d of landed) {
         const url = Object.keys(captureIds).find((u) => captureIds[u] === d.captureId);
         if (!url) continue;
-        next = { ...next, [url]: { headingText: d.headingText, pageText: d.pageText } };
+        next = { ...next, [url]: { headingText: d.headingText, pageText: d.pageText, pageVariant: d.pageVariant } };
       }
       return next;
     });
@@ -1270,6 +1271,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     return i === undefined ? null : (urlBoxes[i]?.rect ?? null);
   }
 
+  /** Each proof page's variant from its capture (spec 2026-10-14 §6), for the row's address warning. */
+  const pageVariants = Object.fromEntries(Object.entries(pageFacts).map(([u, pf]) => [u, pf.pageVariant]));
   const rows: TableRow[] = fields.map((f, fi) => {
     const a = detailUrl ? board.answers[f.key]?.[detailUrl] : undefined;
     const typed = a && a.mark === null ? a.value : '';
@@ -1293,6 +1296,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       })),
       hasDefault: defaultOf(board, f.key) !== undefined,
       defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys),
+      addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       count: headerCount(results, f.key, unchangedKeys, board.cards),
       expanded: !!expanded[f.key],

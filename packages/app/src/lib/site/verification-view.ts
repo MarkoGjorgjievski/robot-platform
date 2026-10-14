@@ -13,6 +13,10 @@ export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_m
 
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 
+/** The variant a proof page's capture shows and the variant its address names — mirrors
+ * `@robot/browser`'s `PageVariant` (not imported; spec 2026-10-14 §6). */
+export type PageVariantLike = { ids: string[]; pairs: Array<{ name: string; value: string }>; labels: string[]; named: boolean; selected: boolean };
+
 export type CellResult =
   | { status: 'pass'; found: string; path?: { source: CertifiedSource; path: string; transform?: string } }
   | { status: 'fail'; reason: FailReason; found?: string; nearMisses?: string[] }
