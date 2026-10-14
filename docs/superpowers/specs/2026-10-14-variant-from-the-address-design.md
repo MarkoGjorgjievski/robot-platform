@@ -23,14 +23,29 @@ smoke and the live check: see the plan's status and `docs/handoff.md`.
   the right values land — slower, not wrong (Task 2 minor, deferred).
 - §6, the row warning checks each cell's own proving path for a fixed array index inside a
   structured path (xpath paths excluded from the check), rather than whether a `[page]` path
-  exists anywhere else in the field's certified list.
+  exists anywhere else in the field's certified list; and only for an index directly on a
+  variant-list key (`offers`, `hasVariant`, `variants`, `variant`, `skus`, `items`, `products`,
+  `options`), never `@graph[n]` or `image[n]` (final review I2). A single-entry `offers[0]` on a
+  `?variant=` address still warns: the app cannot see the entries.
+- §7, a named value agrees with a shown one when its normalised tokens are a subset of the shown
+  value's (`6x9` agrees with `6' x 9' $499`); the selection script also reports the selected
+  element's `value`/`data-value` as alternate values of its pair (`?color=031` against a selected
+  `<input value="031">` reading Navy Blue); a page-data id counts only when id-shaped (six or more
+  digits, or a `gid://` string), any other is dropped; `selected…Index` keys are positions, not
+  selections (final review I1).
+- §4, on a page that names or shows a variant, a certified index path whose `[page]` twin is also
+  certified (`hasVariant[1].offers.price` beside `hasVariant[page].offers.price`) is skipped by
+  the extraction and the ready check: a `[page]` miss leaves the cell empty rather than writing
+  another variant's value (final review I3).
 - §9, `toEntry` does not keep `selectedOptions` on a variant entry, only its text values; the id
   fields (`url`, `@id`, `id`, `variant_id`) are kept as written.
 - Outside the brief: the capture file (`capture-store`'s `writeCaptureFile`) now persists
   `pageVariant`, which it did not before this branch.
-- §12 / property 8, fragments are kept whenever they carry a `key=value` pair, as written; the
-  shipped test also keeps text fragments (`#:~:text=`) and hash routes (`#!/x?id=3`) — a known
-  gap, not yet tightened to key=value parts only.
+- §12 / property 8, a fragment is kept (and read as pairs) only when every `&`-separated part is
+  `key=value` with a key that starts with a letter or `_`; text fragments (`#:~:text=`) and hash
+  routes (`#!/x?id=3`) are stripped (final review minor). The noise keys also cover gad_source,
+  gbraid, wbraid, dclid, ttclid, twclid, igshid, mkt_tok, _hsenc, _hsmi, hsa_*, si, trk, spm,
+  _branch_match_id and clickid.
 
 Design approved in conversation 2026-10-14 (Marko: the row means what the page shows for this
 address — the selected variant's values, not an aggregate; approach A, the `[page]` address form;

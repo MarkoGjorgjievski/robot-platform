@@ -837,6 +837,15 @@ describe('addressWarning (spec 2026-10-14 §6)', () => {
     expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, { [cards[0]!.url]: unnamed, [cards[2]!.url]: unnamed })).toBeNull();
     expect(addressWarning('price', resultsWith('offers.price'), cards, pv)).toBeNull();
   });
+  it('only an index directly on a variant-list key warns: never @graph[n] or image[n]', () => {
+    expect(addressWarning('price', resultsWith('@graph[1].name'), cards, pv)).toBeNull();
+    expect(addressWarning('price', resultsWith('image[0]'), cards, pv)).toBeNull();
+    expect(addressWarning('price', resultsWith('@graph[1].image[0]'), cards, pv)).toBeNull();
+    expect(addressWarning('price', resultsWith('offers[0].price'), cards, pv)).toBe('reads the first variant, not the one the address names on product 1');
+    expect(addressWarning('price', resultsWith('hasVariant[2].sku'), cards, pv)).toBe('reads the first variant, not the one the address names on product 1');
+    expect(addressWarning('price', resultsWith('@graph[1].hasVariant[0].offers.price'), cards, pv)).toBe('reads the first variant, not the one the address names on product 1');
+    expect(addressWarning('price', resultsWith('props.product.Variants[3].price'), cards, pv)).toBe('reads the first variant, not the one the address names on product 1');
+  });
   it('no page variant on record: no warning', () => {
     expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, {})).toBeNull();
     expect(addressWarning('price', resultsWith('hasVariant[0].offers.price'), cards, { [cards[0]!.url]: null })).toBeNull();
