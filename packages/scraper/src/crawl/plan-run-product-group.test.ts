@@ -181,6 +181,18 @@ describe('largestProductGroup — fragments (spec 2026-10-14 §8)', () => {
       'https://s.example/products/charlie-runner-shoe#sku=c-red',
     ]);
   });
+  it('a text fragment or a hashbang route is stripped, even with an = in it', () => {
+    const anchors = [
+      { href: 'https://s.example/products/alpha-runner-shoe#:~:text=Free%20shipping', text: 'A' },
+      { href: 'https://s.example/products/bravo-runner-shoe#!/x?id=3', text: 'B' },
+      { href: 'https://s.example/products/charlie-runner-shoe#size=M&color=red', text: 'C' },
+    ];
+    expect(largestProductGroup(anchors, L)).toEqual([
+      'https://s.example/products/alpha-runner-shoe',
+      'https://s.example/products/bravo-runner-shoe',
+      'https://s.example/products/charlie-runner-shoe#size=M&color=red',
+    ]);
+  });
   it('reconciling rows against the group keeps a key=value fragment on the row url too, so the row is not counted missed', () => {
     const group = ['https://s.example/products/alpha-runner-shoe#sku=a-blue', 'https://s.example/products/bravo-runner-shoe', 'https://s.example/products/charlie-runner-shoe'];
     const rows = [{ url: '/products/alpha-runner-shoe#sku=a-blue', title: 'A' }, { url: '/products/bravo-runner-shoe#reviews', title: 'B' }];

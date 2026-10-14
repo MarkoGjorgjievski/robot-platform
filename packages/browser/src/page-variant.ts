@@ -8,9 +8,22 @@ import type { PageVariant } from './types.js';
 export type Selection = { ids?: string[]; pairs?: Array<{ name: string; value: string }>; labels?: string[] };
 
 /** Query keys that never name a variant: analytics, referrers, pagination. */
-const NOISE_KEYS = /^(utm_|gclid$|fbclid$|msclkid$|ref$|referrer$|source$|campaign$|_ga$|_gl$|page$|sort$|q$|search$|lang$|locale$|currency$|srsltid$|_pos$|_sid$|_ss$|_kx$|mc_|pr_|cm_|icid$|irclickid$|ranmid$|view$)/i;
+const NOISE_KEYS = /^(utm_|gclid$|fbclid$|msclkid$|ref$|referrer$|source$|campaign$|_ga$|_gl$|page$|sort$|q$|search$|lang$|locale$|currency$|srsltid$|_pos$|_sid$|_ss$|_kx$|mc_|pr_|cm_|icid$|irclickid$|ranmid$|view$|gad_source$|gbraid$|wbraid$|dclid$|ttclid$|twclid$|igshid$|mkt_tok$|_hsenc$|_hsmi$|hsa_|si$|trk$|spm$|_branch_match_id$|clickid$)/i;
 /** A value in page data that is an id: digits only, or a Shopify gid, 6+ characters. */
 const ID_VALUE = /^(gid:\/\/shopify\/ProductVariant\/)?\d{6,}$/;
+/** Any other `gid://…/<id>` string is id-shaped too; its last segment is the id. */
+const GID_VALUE = /^gid:\/\/\S+\/([^/\s]+)$/;
+/** One `&`-part of a fragment that names a variant: a key=value pair. */
+const KEY_VALUE_PART = /^[A-Za-z_][\w.-]*=[^&]*$/;
+/**
+ * A fragment names a variant only when every `&`-separated part is a
+ * key=value pair (`#size=M&color=red`); `#:~:text=…`, `#!/x?id=3` and
+ * `#reviews` do not (spec 2026-10-14 §8).
+ */
+export function isKeyValueFragment(hash: string): boolean {
+  const h = hash.replace(/^#/, '');
+  return h !== '' && h.split('&').every((part) => KEY_VALUE_PART.test(part));
+}
 /** The only address keys that name an id (`?variant=123`, `?sku=4006…`); other keys' values are labels. */
 const ID_KEY = /^(variant|variant_?id|sku)$/i;
 
@@ -26,10 +39,20 @@ export function normalizeLabel(s: string): string {
     .trim();
 }
 
+/** The id an id-shaped value carries (ID_VALUE, or the last segment of a `gid://` string); null for anything else. */
 function idOf(value: string): string | null {
-  const m = ID_VALUE.exec(value.trim());
-  if (!m) return null;
-  return value.trim().replace(/^gid:\/\/shopify\/ProductVariant\//, '');
+  const v = value.trim();
+  if (ID_VALUE.test(v)) return v.replace(/^gid:\/\/shopify\/ProductVariant\//, '');
+  const g = GID_VALUE.exec(v);
+  return g ? g[1]! : null;
+}
+
+/** The normalised tokens of a label: `normalizeLabel` split on spaces. */
+const tokensOf = (s: string): string[] => normalizeLabel(s).split(' ').filter(Boolean);
+/** A named value agrees with a shown one when every named token is among the shown tokens (`6x9` in `6' x 9' $499`). */
+function agrees(named: string, shown: string): boolean {
+  const have = new Set(tokensOf(shown));
+  return tokensOf(named).every((t) => have.has(t));
 }
 
 /** What the address names: every query pair and key=value fragment pair that is not noise. */
@@ -48,7 +71,7 @@ export function addressVariant(url: string): { ids: string[]; pairs: Array<{ nam
   };
   take(u.searchParams);
   const hash = u.hash.replace(/^#/, '');
-  if (hash.includes('=')) take(new URLSearchParams(hash));
+  if (isKeyValueFragment(hash)) take(new URLSearchParams(hash));
   const addrId = (p: { name: string; value: string }) => (ID_KEY.test(p.name) ? idOf(p.value) ?? (/^\d+$/.test(p.value) ? p.value : null) : null);
   const ids = pairs.map(addrId).filter((x): x is string => x !== null);
   const labels = pairs.filter((p) => addrId(p) === null).map((p) => p.value);
@@ -56,6 +79,8 @@ export function addressVariant(url: string): { ids: string[]; pairs: Array<{ nam
 }
 
 const SELECTED_KEY = /^(selected|current)_?(variant|option|sku|offer)/i;
+/** A selected-variant key, never a position (`selectedVariantIndex`, `selectedOptionIndex`). */
+const isSelectedKey = (k: string): boolean => SELECTED_KEY.test(k) && !/index$/i.test(k);
 const MAX_DEPTH = 8;
 const MAX_NODES = 5_000;
 
@@ -65,12 +90,13 @@ function collect(node: unknown, out: Selection, depth: number, budget: { n: numb
   const obj = node as Record<string, unknown>;
   if (viaSelected) {
     const id = obj.id ?? obj.variant_id ?? obj.variantId;
-    if (typeof id === 'number' || typeof id === 'string') { const s = idOf(String(id)) ?? String(id); (out.ids ??= []).push(s); }
+    // Only an id-shaped id counts; any other (`opt-m`, `7`) is dropped, not made a label.
+    if (typeof id === 'number' || typeof id === 'string') { const s = idOf(String(id)); if (s) (out.ids ??= []).push(s); }
     if (typeof obj.sku === 'string' && obj.sku.trim()) (out.labels ??= []).push(obj.sku.trim());
     if (typeof obj.title === 'string' && obj.title.trim()) (out.labels ??= []).push(obj.title.trim());
   }
   for (const [k, v] of Object.entries(obj)) {
-    const sel = SELECTED_KEY.test(k);
+    const sel = isSelectedKey(k);
     if (sel && (typeof v === 'string' || typeof v === 'number')) {
       const s = idOf(String(v));
       if (s) (out.ids ??= []).push(s); else if (String(v).trim()) (out.labels ??= []).push(String(v).trim());
@@ -123,17 +149,16 @@ export function wrongVariant(url: string, picker: Selection | null, pageData: Se
   const named = addressVariant(url);
   const shown = merge(picker, pageData);
   if (named.pairs.length === 0 || !hasAny(shown)) return null;
-  const shownLabels = new Set(shown.labels.map(normalizeLabel));
   const verdicts: boolean[] = [];
   if (named.ids.length && shown.ids.length) {
     // A numeric sku the page carries as a selected label still agrees.
-    verdicts.push(named.ids.some((id) => shown.ids.includes(id) || shownLabels.has(normalizeLabel(id))));
+    verdicts.push(named.ids.some((id) => shown.ids.includes(id) || shown.labels.some((l) => agrees(id, l))));
   }
   const nameKey = (s: string) => s.trim().toLowerCase();
   const shownNames = new Set(shown.pairs.map((p) => nameKey(p.name)));
   const comparable = named.pairs.filter((n) => !ID_KEY.test(n.name) && shownNames.has(nameKey(n.name)));
   if (comparable.length) {
-    verdicts.push(comparable.some((n) => shown.pairs.some((s) => nameKey(s.name) === nameKey(n.name) && normalizeLabel(s.value) === normalizeLabel(n.value))));
+    verdicts.push(comparable.some((n) => shown.pairs.some((s) => nameKey(s.name) === nameKey(n.name) && agrees(n.value, s.value))));
   }
   if (verdicts.length === 0) return null;   // nothing comparable
   return verdicts.some(Boolean) ? null : named.text;

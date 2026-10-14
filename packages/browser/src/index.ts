@@ -6,7 +6,7 @@ export { CaptureError, type CaptureVerdict, type CaptureErrorKind, type WallVend
 export { detectPaginationFromHtml } from './pagination-detector.js';
 export { isThirdPartyNoise } from './intercept-noise.js';
 export { findLoadMore } from './load-more.js';
-export { addressVariant, normalizeLabel, pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
+export { addressVariant, isKeyValueFragment, normalizeLabel, pageVariantFrom, selectedInPageData, wrongVariant, type Selection } from './page-variant.js';
 export type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, ReadyCheck, ReadySnapshot, PageCapture, PageVariant, StructuredData, InterceptedRequest, PaginationConfig, CrawlOptions, CrawlPage, ScrollOptions } from './types.js';
 export { rankInterceptedRequests, urlWords, collectJsonKeys, DEFAULT_WEIGHTS, type RankOptions, type RankWeights } from './rank-requests.js';
 export { computeTileClips, TILE_WIDTH, TILE_HEIGHT, MAX_TILES, type TileClip } from './screenshot-tiles.js';
