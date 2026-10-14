@@ -27,10 +27,12 @@ type: project
 6. **Clean up test projects in Marko's own org** (e.g. "Site marks-from" at test-marks-from.example.com, left by earlier test runs). List them first; delete only what Marko approves; `pg_dump` before.
 7. **Staff-access polish** (from its final review, all fine to defer): the log shows internal field types ("Changed field Price to money"); the ops Staff activity pager flashes a skeleton (no `keepPreviousData`); "Back to ops" briefly refetches the customer page before leaving; `BlockedTooltip` lives in `shell/staff-banner.tsx`; a deduplicated probe/backfill still logs as a new action; "Verified Nike" is logged when Verify starts, not when it passes (ask Marko before rewording).
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
-9. **The campaign-2 product defects** (from the credit campaign's batch A notes, `docs/testing/results/campaign-2026-10-11/`): the variant chosen in the URL is ignored; screenshots that never show the product on wide pages; Verify fails silently after "Not on this product" on products 1–3 (likely fixed 2026-10-13 by the defaults branch (gate passes `absent`); confirm); marked values that do not verify; the Extract button shows no estimate; Sample is labelled free but charged.
+9. **The campaign-2 product defects** (from the credit campaign's batch A notes, `docs/testing/results/campaign-2026-10-11/`): the variant chosen in the URL is ignored — addressed 2026-10-14, see the section; screenshots that never show the product on wide pages; Verify fails silently after "Not on this product" on products 1–3 (likely fixed 2026-10-13 by the defaults branch (gate passes `absent`); confirm); marked values that do not verify; the Extract button shows no estimate; Sample is labelled free but charged.
 10. **A website's default values — merged 2026-10-13; route smoke re-run and the Gymshark live check done 2026-10-14 (Brand by default only, a 10-product run at $0 with "default on 10").** (The first smoke on `main` passed 23 of 24, the one failure a stale key lookup in the test itself, fixed in `42df0e2`; the re-run from Marko's terminal wrote every screenshot, the default-cell ones included, `90ca60b`.) See "A website's default values (2026-10-13)" below: a binding default per field fills every cell its certified paths leave empty, free, counted and marked everywhere a value shows.
 
-**Newest: [A website's default values (2026-10-13)](#a-websites-default-values-2026-10-13).** A website's binding now carries a default per field — a typed value a run writes into every cell its certified paths leave empty, so the customer can say "on this website, unless the page says otherwise, the Brand is Gymshark" instead of typing the tagline as a workaround. A path still wins where it reads a value; a field whose proof pages are all default cells and whose candidates all fail certifies by default only, free, no AI call. Defaulted values are counted and marked on the run page, read as empty by drift and the coverage check, shown in ops, and judged like any other value. Merged into `main` 2026-10-13 (fast-forward, 16 commits) after a whole-branch review on the most capable model (0 critical, 3 important, fixed in one wave, re-review clean). The route smoke on `main` passed 23 of 24 on its first run (the failure was the test's own stale key lookup, fixed in `42df0e2`); the re-run from Marko's own terminal (the memory watchdog had stopped mine) wrote every screenshot, the two default-cell ones included (`90ca60b`, `docs/testing/screens/app-site-verification-default-*.png`). The live check on the campaign's Gymshark website: see the section's "Live check" paragraph.
+**Newest: [The variant the address names (2026-10-14)](#the-variant-the-address-names-2026-10-14).** A row's values now follow the variant the page's own address names, through a new `[page]` form a certified path can use instead of a fixed index, and a page that does not show the variant its address names fails its capture instead of silently extracting the wrong one. Six tasks implemented and reviewed on `feat/variant-from-address`, one fix round each on Tasks 1 and 2; the whole-branch review, the merge, the route smoke on `main` and the live check are still to come — see the section.
+
+**Before it: [A website's default values (2026-10-13)](#a-websites-default-values-2026-10-13).** A website's binding now carries a default per field — a typed value a run writes into every cell its certified paths leave empty, so the customer can say "on this website, unless the page says otherwise, the Brand is Gymshark" instead of typing the tagline as a workaround. A path still wins where it reads a value; a field whose proof pages are all default cells and whose candidates all fail certifies by default only, free, no AI call. Defaulted values are counted and marked on the run page, read as empty by drift and the coverage check, shown in ops, and judged like any other value. Merged into `main` 2026-10-13 (fast-forward, 16 commits) after a whole-branch review on the most capable model (0 critical, 3 important, fixed in one wave, re-review clean). The route smoke on `main` passed 23 of 24 on its first run (the failure was the test's own stale key lookup, fixed in `42df0e2`); the re-run from Marko's own terminal (the memory watchdog had stopped mine) wrote every screenshot, the two default-cell ones included (`90ca60b`, `docs/testing/screens/app-site-verification-default-*.png`). The live check on the campaign's Gymshark website: see the section's "Live check" paragraph.
 
 **Before it: [Shown on the page (2026-10-12)](#shown-on-the-page-2026-10-12).** A run now flags every certified value the product's page does not show — free, at extraction time — and the run page and the Sample panel count and name them; separately, at Verify, a Title that is not the page's main heading never reads "agreed", and a typed expected value the page does not show warns without blocking. Merged into `main` 2026-10-13 after a whole-branch review (one fix wave, re-review clean) and the route smoke (23 of 23); live-checked the same day on the credit campaign's Gymshark and Colourpop websites.
 
@@ -87,6 +89,63 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## The variant the address names (2026-10-14)
+
+Spec `docs/superpowers/specs/2026-10-14-variant-from-the-address-design.md`, plan
+`docs/superpowers/plans/2026-10-14-variant-from-the-address.md`. Branch `feat/variant-from-address`
+from `main`, six tasks (subagent-driven), each reviewed — one fix round each on Tasks 1 and 2,
+Tasks 3–5 clean on first review. The whole-branch review, the merge, the route smoke on `main` and
+the live check: see the plan's status.
+
+**What a customer gets** (spec §2): a row's values are the values of the variant the address
+names, or the one the page shows selected when the address names none. Every capture computes a
+page variant; a certified path can read an array by it with `[page]` (`offers[page].price`,
+`hasVariant[page].sku`), which resolves to the one matching entry and to nothing otherwise, never
+entry 0. Verify proposes `[page]` whenever the typed value sits in the matching entry and ranks it
+above the fixed index, so Ruggable's three proof pages certify one path though the 6x9 entry sits
+at a different index on each. A proof page whose address names a variant the certified path
+ignores reads "reads the first variant, not the one the address names on product n" in its row. A
+page that does not show the variant its address names fails its capture: "The page did not show
+the variant the address names (swatch=16)." — a failed item with one sentence, no row, no backoff.
+
+**How it was proven, so far:** a review per task, with a fix round each on Task 1 (the merged-set
+false negative on multi-axis pages, the `6' x 9'` label gap) and Task 2 (the exact-label list
+over-matching `?size=5`); unit tests on entry shapes copied from the campaign's stored captures
+(Skullcandy's one-block-per-colour JSON-LD and Shopify `variants[].id`, Ruggable's
+`hasVariant[].sku …-06x09` and `size "6'x9'"`, Kith's `offers[]` with a selected size, Burrow's
+option pairs against entry names); Chromium tests for the selection script and the wrong-variant
+verdict; a route smoke addition for the certified `[page]` path and the row warning. **Still to
+come — see the plan's status:** the whole-branch review, the merge, the route smoke run on
+`main`, and the live check (Verify on Ruggable, Skullcandy, Kith and Glossier, a small Extract on
+each; Puma is expected to fail its capture with the new sentence).
+
+**Deviations from the spec:** wrong-variant (§7) fires only when every comparable kind disagrees,
+not some, and a label alone never decides; a query pair counts only when the page shows a pair of
+the same name, and an id only from a variant-style key (`variant`, `variant_id`, `variantId`,
+`sku`) — tracking and affiliate keys are ignored (Task 1 ruling). The label rule (§5) keeps
+`6' x 9' ≡ 6x9 ≡ 06x09` but narrows the exact-label keys to size/color/colour, option1–3,
+`selectedOptions`/`options`/`additionalProperty` values, `variesBy` and known axis keys, plus the
+sku's suffix; `name`/`title` match by containing every page label (≥3 characters), and a rule-2
+contradiction ends the match before rule 3 runs (Task 2 ruling). Matching also excludes any key
+containing price, availab, stock, inventory, quantity or offers, not just the two named in §5. The
+ready check (§4) knows only the address half of a page variant, so a `[page]` path on a
+picker-only site waits out the ready timeout — values right, slower. The row warning (§6) checks
+each cell's own proving path for a fixed index in a structured path (xpath excluded), not whether
+a `[page]` path exists elsewhere in the certified list. `toEntry` (§9) keeps a variant entry's ids
+but not its `selectedOptions`, text values only. Outside the brief, the capture file now persists
+`pageVariant`, which it did not before. Fragments (§12) are kept on `key=value`; the shipped test
+also keeps text fragments (`#:~:text=`) and hash routes — a known gap.
+
+**Known gaps / next:** `transfer-marks.test.ts`'s JSON-LD image-array case flaked more during
+review on this branch (2 of 10 vs 11 of 11 before, the code path provably untouched) — still the
+pre-existing environmental flake, an external `<img>` on `x.example`. A bare label still compares
+against every axis key's value rather than only the axis it names (`width`/`height`/`length` of
+`5` vs `?size=5`); twins beyond variant index 25 are not covered; the AI prompt names the page
+variant only when the address names one (silent on picker-only pages); the nested-control filter
+drops an outer control's own pickers (inherited from `buildVariantPickerScript`). Next: fold
+`?variant=` siblings under one product key and pick the row the address names in
+one-row-per-variant mode — entries now keep their ids for it.
 
 ## A website's default values (2026-10-13)
 
