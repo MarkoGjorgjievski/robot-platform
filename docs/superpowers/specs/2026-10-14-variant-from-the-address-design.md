@@ -1,6 +1,7 @@
 # The variant the address names — design
 
 **Status:** implemented on `feat/variant-from-address`, 2026-10-14; merge, final review, the route
+Merged into `main` 2026-10-14 (`33424b9`); route smoke 25 of 25 (`902a53e`); live check: `docs/testing/results/2026-10-14-variant-from-the-address-live-check.md` (no `[page]` certified live yet — the Re-verify buttons showed estimates).
 smoke and the live check: see the plan's status and `docs/handoff.md`.
 
 **Deviations:**
