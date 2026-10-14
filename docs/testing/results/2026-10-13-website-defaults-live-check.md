@@ -86,3 +86,51 @@ Did not prove / found:
 - Gymshark is left with Brand unverified and Extract locked. Restoring it needs either the typed
   tagline back on the four cells, or confirming the page-data suggestions and a Re-verify (whose
   button shows a cost estimate).
+
+## Second half, 2026-10-14 — the Re-verify and the Extract
+
+Signed in as `credit-campaign@example.com` through the app's `/login` form (headless Playwright,
+1440×1000, one Chromium at a time, scripted from the scratchpad, against the already-running
+main servers: api-server :4000, app :3000, on `main` at commit `ed3d89b`). Database read with
+SELECT only. One run was created on gymshark (`2a5f215d-e824-4b40-bdf4-699e54417ae0`); nothing
+else was created or deleted. Screenshots: `docs/testing/results/screens-2026-10-13-defaults/`
+(5 files, `second-` prefix).
+
+**The Re-verify, from the database (not reproduced live — already done this morning).** Marko
+rejected the page-data suggestion on product 4 (the thing the Verify gate was holding on) and
+then clicked Re-verify himself. `source_verifications` row `9fd53ef4-eebe-4eb9-8144-40b23d2f088c`:
+started `2026-10-14 07:21:59.04Z`, completed `07:22:03.17Z` (4s), **`all_passed = true`**,
+**`ai_calls = 0`**, **`cost_usd = 0.0000`**, `results->'brand'->>'defaultOnly' = true`, Brand's
+`paths` array length `0` — certified by the website's default alone, no path, no AI, $0. This is
+the state the run page should now reflect.
+
+| # | Action | Expected | Seen (verbatim) | Screenshot |
+|---|---|---|---|---|
+| 1 | Open the Extract tab, set custom 10 products across custom 1 page, read the Extract button | No `$` → click | Budget line after setting: **`1 listing · first 10 products from each · first 1 page of each · safety stop at 5,000 products per listing`**; button read only **`Extract`** (no amount). Clicked 08:28:48.344Z | `second-extract-budget-set.png` |
+| 1-hiccup | Wait for the "Open the run" link (the UI shows it as soon as a run is active) | Link appears within seconds | **Did not appear within 30s** — the script's own wait timed out and the script exited before the click's `planMutation` had resolved client-side, so the page's own follow-up `executeMutation` call (the thing that actually starts extraction — `handleExtract` awaits plan, then always calls `crawl.execute`) was never sent. The run the click *did* create (`2a5f215d-e824-4b40-bdf4-699e54417ae0`, found via the database) sat at `status = planned`, `completed_at` set (planning itself finished server-side at 08:30:05), all 10 detail items `pending`, 0 attempts — stalled, not extracting. No `$` was ever shown; this was a script timing mistake, not a product defect | `second-extract-started.png` (shows the plain `Extract` button again on reload, budget unchanged) |
+| 1-resume | Open the run page for that run id; use its documented crash-resume control (`run-progress.ts`: "Fetch and extract every pending URL — also the resume path for a stalled run"; `crawl.execute` is explicitly re-entrant for this) | A button naming the pending count, no `$` → click | Run page read **`10 URLs planned, not yet extracted`** with button **`Extract 10 pending`**, title `Fetch and extract every pending URL in the work list.` — no dollar amount. Clicked 08:35:56.824Z; the header immediately read `Running` and a `Stop` button appeared. Same run id throughout — nothing new was created | `second-run-before-resume.png`, `second-run-after-resume-click.png` |
+| 2 | Poll `runs` for gymshark's `source_id` created after 2026-10-14 07:00, up to 8 minutes | Completes | `runs` row `2a5f215d-e824-4b40-bdf4-699e54417ae0`: `started_at` 08:28:48.392Z (the original click), status moved `planned` → (resume) → `extracting` at 08:35:56 → **`completed`** at **08:37:52.697Z**. **`status = completed`**, **`result_count = 10`**, **`cost_usd = 0.0000`** | — |
+| 3 | Open the run page; read the Brand column head's badges, a Brand cell's title, the summary line, the facts area | `default on 10`, no `not shown`; title `this website's default`; summary `10 rows · 100% confidence · 10 values from the website's defaults` | Column heads verbatim: **`Title`**, **`Price`**, **`Main imagenot checked`**, **`SKU`**, **`Brandnot checkeddefault on 10`** (read: Brand carries only the **`default on 10`** badge — the `not checked` text belongs to the *previous* `<th>`, Main image, not Brand; Brand has no `not shown`/`not checked` badge of its own), **`In stocknot checked`**, **`Rating`**, **`Description`**. "Values not shown on their page" panel: **absent** (heading count 0). 10 of 10 `<td>`s carry `title="this website's default"`, text **`Gymshark`**; 0 `<td>`s carry `title="not shown on the page"`. Summary line, exact: **`10 rows · 100% confidence · 10 values from the website's defaults`**. Facts area (the Started/Completed/Duration/Rows strip): `Started 9 min ago · Completed just now · Duration 9 min · Rows 10` | `second-run-completed.png` |
+| 3-db | SELECT `extractions.validation_result->'defaulted'`, `->'shown'->'brand'`, and `data->0->>'brand'` for the run's 10 items | `defaulted` names brand; `shown.brand` not flagged; brand value `Gymshark` | All 10 rows, identically: `validation_result->'defaulted'` = **`["brand"]`**; `validation_result->'shown'->'brand'` = **`null`** (never flagged, since a defaulted value is not checked against the page); `data->0->>'brand'` = **`Gymshark`** on every row (the typed tagline `Gymshark \| We Do Gym` is gone — the default, not a path, is what extracted) | — |
+
+**Cost, precisely.** `runs.cost_usd = 0.0000` for `2a5f215d-e824-4b40-bdf4-699e54417ae0` (database,
+authoritative). The Re-verify this morning was also `$0.0000` (`ai_calls = 0`). Total for this
+half: **$0**.
+
+## What this proved
+
+- The default now does what the first half's step 4 could not reach: Brand certifies
+  `defaultOnly = true` with zero paths, zero AI calls, zero cost, and an Extract run actually
+  produces `Gymshark` (not the tagline `Gymshark | We Do Gym`) on every one of 10 rows.
+- The run page's default-aware badges and cell rail are real and match the committed strings
+  exactly: column head `default on {n}`, cell title `this website's default`, summary suffix
+  `{n} values from the website's defaults`. None of the ten defaulted Brand values is flagged
+  `not shown` — a defaulted cell is correctly exempted from the shown-on-the-page check.
+- `extractions.validation_result` records which fields were defaulted per row (`"defaulted":
+  ["brand"]`), independent of the `shown` map, which stays `null` for a defaulted field.
+- Caveat on this check's own conduct, not the product: the first Extract click did fire — the
+  stall came from the checking script giving up on a 30-second UI wait before the server-side
+  plan phase (which took ~77s) had returned to the browser tab, so the client never sent the
+  follow-up `crawl.execute` call. The run was recovered, not restarted, through the run page's own
+  documented stalled-run control (`Extract {n} pending`, no new run, no `$`) — exactly the
+  crash-resume path the codebase comments describe `crawl.execute` as existing for.
