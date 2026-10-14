@@ -246,6 +246,24 @@ describe('extractItem — with a certification', () => {
     expect(recordStats).not.toHaveBeenCalled();
   });
 
+  // Spec 2026-10-14 §7: a page that does not show the variant its own address
+  // names is not the requested page — same honest failure as a wall, no row,
+  // no path stats, whichever certified field asked for it.
+  it('a wrong-variant capture fails the item with the sentence: no row, no path stats (spec 2026-10-14 §7)', async () => {
+    const verdict: CaptureVerdict = { kind: 'wrong-variant', status: 200, named: 'swatch=16' };
+    const sentence = verdictSentence(verdict, ITEM.url);
+    const extractVerified = async (): Promise<VerifiedExtractionResult> => { throw new CaptureProblemError(sentence, verdict); };
+    const recordStats = vi.fn(async () => {});
+    const insert = vi.fn(() => ({ values: () => ({ returning: async () => [{ id: 'never' }] }) }));
+
+    await expect(extractItem({ insert } as never, ITEM, {
+      browser: fakeBrowser, agent: null, sourceId: 's', runId: 'r', schema: CERT_SCHEMA,
+      certification: CERTIFICATION, schemaDefinition: SCHEMA_DEFINITION, extractVerified, recordStats,
+    })).rejects.toMatchObject({ name: 'CaptureProblemError', message: 'The page did not show the variant the address names (swatch=16).', verdict });
+    expect(insert).not.toHaveBeenCalled();
+    expect(recordStats).not.toHaveBeenCalled();
+  });
+
   it('defaults an untyped field to \'text\' when the key has no schemaDefinition entry', async () => {
     const cert: Certification = { verificationId: 'v2', completedAt: new Date(), paths: { price: [] }, concepts: {}, hostname: 'shop.example.com' };
     let seenFields: VerifiedField[] = [];

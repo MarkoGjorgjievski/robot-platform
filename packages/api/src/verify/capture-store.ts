@@ -23,6 +23,10 @@ export async function writeCaptureFile(captureId: string, c: PageCapture): Promi
       html: c.html,
       structuredData: c.structuredData,
       interceptedRequests: c.interceptedRequests.filter((r) => r.isJson && r.parsedJson !== null),
+      // Spec 2026-10-14 §6: absent on a capture from before this field existed —
+      // JSON.stringify drops an undefined value, so an old sidecar file and a
+      // reload of this one stay byte-identical.
+      pageVariant: c.pageVariant,
     }),
   );
 }
