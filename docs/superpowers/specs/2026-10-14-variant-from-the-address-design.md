@@ -1,9 +1,40 @@
 # The variant the address names — design
 
-**Status:** design approved in conversation 2026-10-14 (Marko: the row means what the page shows
-for this address — the selected variant's values, not an aggregate; approach A, the `[page]`
-address form; a page that does not show the named variant is a failed capture). Spec written the
-same day, not yet planned.
+**Status:** implemented on `feat/variant-from-address`, 2026-10-14; merge, final review, the route
+smoke and the live check: see the plan's status and `docs/handoff.md`.
+
+**Deviations:**
+- §7, wrong-variant fires only when every comparable kind disagrees, not some — a label alone
+  never decides; a query pair counts only when the page shows a pair of the same name, and an id
+  counts only from a variant-style key (`variant`, `variant_id`, `variantId`, `sku`); tracking and
+  affiliate query keys are ignored (Task 1 ruling, after a review finding that the merged set gave
+  false negatives on multi-axis pages).
+- §5 rule 3 (label): the exact-label key list is narrower than written — `size`, `color`,
+  `colour`, `option1`–`option3`, the values of `selectedOptions`/`options`/`additionalProperty`,
+  `variesBy`, an entry's own known axis keys, and the sku's suffix; `name`/`title` match by
+  containing every page label of three characters or more, not equality; a rule-2 contradiction
+  ends the match before rule 3 is tried (Task 2 ruling, after `?size=5` matched `width`/`height`/
+  `length` positions).
+- §5's "matching never reads prices or availability" shipped as a key-substring exclusion: any key
+  containing `price`, `availab`, `stock`, `inventory`, `quantity` or `offers` is never read, not
+  only keys literally named price or availability.
+- §4, the ready check sees only the address half of the page variant (`named`), not the page's own
+  selection (`selected`); on a picker-only site a `[page]` path waits out the ready timeout before
+  the right values land — slower, not wrong (Task 2 minor, deferred).
+- §6, the row warning checks each cell's own proving path for a fixed array index inside a
+  structured path (xpath paths excluded from the check), rather than whether a `[page]` path
+  exists anywhere else in the field's certified list.
+- §9, `toEntry` does not keep `selectedOptions` on a variant entry, only its text values; the id
+  fields (`url`, `@id`, `id`, `variant_id`) are kept as written.
+- Outside the brief: the capture file (`capture-store`'s `writeCaptureFile`) now persists
+  `pageVariant`, which it did not before this branch.
+- §12 / property 8, fragments are kept whenever they carry a `key=value` pair, as written; the
+  shipped test also keeps text fragments (`#:~:text=`) and hash routes (`#!/x?id=3`) — a known
+  gap, not yet tightened to key=value parts only.
+
+Design approved in conversation 2026-10-14 (Marko: the row means what the page shows for this
+address — the selected variant's values, not an aggregate; approach A, the `[page]` address form;
+a page that does not show the named variant is a failed capture). Spec written the same day.
 
 Builds on `2026-10-01-variants-design.md` (one row per variant, product and variant keys, "a run
 never stops to ask"), `2026-10-09-honest-page-verdicts-design.md` (one verdict per capture, one
