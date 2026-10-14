@@ -212,6 +212,28 @@ describe('runVerifiedExtraction — the [page] address form (spec 2026-10-14 §4
     expect(miss.stats[0]).toMatchObject({ hit: false });
   }, 30_000);
 
+  it('a [page] miss on a named page leaves the cell empty, never the certified index twin; with no page variant the index fills', async () => {
+    const twins: VerifiedField[] = [{ key: 'price', type: 'money', concept: 'price', paths: [
+      { source: 'json-ld', path: 'hasVariant[page].offers.price', transform: 'identity' },
+      { source: 'json-ld', path: 'hasVariant[0].offers.price', transform: 'identity' },
+    ] }];
+    const otherUrl = 'https://ruggable.com/products/ryder?size=12x18&system=rug-cvr';
+    const named = { ...fakeCapture(otherUrl, fx.ldJson), pageVariant: pageVariantFrom(otherUrl, null, {}) };
+    const miss = await runVerifiedExtraction({ url: otherUrl, fields: twins }, { browser, capture: named });
+    expect(miss.data.price).toBeNull();
+    expect(miss.stats).toEqual([{ key: 'price', concept: 'price', path: twins[0]!.paths[0], hit: false }]);
+    const plainUrl = 'https://ruggable.com/products/ryder';
+    for (const pageVariant of [undefined, pageVariantFrom(plainUrl, null, {})]) {
+      const plain = { ...fakeCapture(plainUrl, fx.ldJson), pageVariant };
+      const r = await runVerifiedExtraction({ url: plainUrl, fields: twins }, { browser, capture: plain });
+      expect(r.data.price).not.toBeNull();
+      expect(r.stats.at(-1)).toMatchObject({ path: twins[0]!.paths[1], hit: true });
+    }
+    const snap: ReadySnapshot = { probe: {}, structuredData: { ldJson: fx.ldJson, nextData: null, initialState: null, meta: {} }, interceptedRequests: [] };
+    expect(buildReadyCheck(twins, otherUrl, pageVariantFrom(otherUrl, null, {})).isReady(snap)).toBe(false);
+    expect(buildReadyCheck(twins, plainUrl).isReady(snap)).toBe(true);
+  }, 30_000);
+
   it('the ready check reads [page] by the page variant it is given, and waits without one', () => {
     const snap: ReadySnapshot = { probe: {}, structuredData: { ldJson: fx.ldJson, nextData: null, initialState: null, meta: {} }, interceptedRequests: [] };
     expect(buildReadyCheck(fields, fx.url, pageVariantFrom(fx.url, null, {})).isReady(snap)).toBe(true);

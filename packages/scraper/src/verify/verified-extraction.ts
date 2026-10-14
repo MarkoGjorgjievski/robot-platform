@@ -65,6 +65,26 @@ function evaluatePath(
   return field.type === 'text' ? String(raw).normalize('NFKC').replace(/\s+/g, ' ').trim() : renderValue(field.type, norm);
 }
 
+/** `index` is `page` with exactly one `[page]` step replaced by a numeric index (`hasVariant[1].offers.price` / `hasVariant[page].offers.price`). */
+function isIndexTwin(index: CertifiedPath, page: CertifiedPath): boolean {
+  if (index.source !== page.source || !page.path.includes('[page]')) return false;
+  for (const m of index.path.matchAll(/\[\d+\]/g)) {
+    if (index.path.slice(0, m.index) + '[page]' + index.path.slice(m.index + m[0].length) === page.path) return true;
+  }
+  return false;
+}
+
+/**
+ * The paths a field is read by on this page. On a page that names or shows a
+ * variant, a certified index path whose `[page]` twin is also certified is
+ * skipped: when `[page]` misses, the index would write some other variant's
+ * value (final review I3). With no page variant every path is read.
+ */
+function pathsFor(field: VerifiedField, pageVariant?: PageVariant): CertifiedPath[] {
+  if (!pageVariant || (!pageVariant.named && !pageVariant.selected)) return field.paths;
+  return field.paths.filter((p) => !field.paths.some((q) => q !== p && isIndexTwin(p, q)));
+}
+
 function certifiedXPaths(fields: VerifiedField[]): string[] {
   return [...new Set(fields.flatMap((f) => f.paths.filter((p) => p.source === 'xpath').map((p) => p.path)))];
 }
@@ -76,7 +96,8 @@ function certifiedXPaths(fields: VerifiedField[]): string[] {
  * with a default never blocks readiness either, unless every certified field
  * has one: then the check waits for those fields' paths instead. A `[page]`
  * path reads by `pageVariant` (spec 2026-10-14 §4); before the capture only
- * the address's part of it is known. */
+ * the address's part of it is known; an index path whose `[page]` twin
+ * is certified is skipped on a named page, as the extraction skips it. */
 export function buildReadyCheck(fields: VerifiedField[], pageUrl: string, pageVariant?: PageVariant): ReadyCheck {
   const withPaths = fields.filter((f) => f.paths.length > 0);
   // Spec 2026-10-13 §5: a field with a default never blocks readiness — its paths may legitimately never resolve on this product — unless no other field would wait at all.
@@ -87,7 +108,7 @@ export function buildReadyCheck(fields: VerifiedField[], pageUrl: string, pageVa
     script: buildXPathProbeScript(certifiedXPaths(fields)),
     isReady: (s: ReadySnapshot) => {
       const probe = (s.probe ?? {}) as XPathProbeResult;
-      return certified.every((f) => f.paths.some((p) => evaluatePath(f, p, s, probe, ctx) !== null));
+      return certified.every((f) => pathsFor(f, pageVariant).some((p) => evaluatePath(f, p, s, probe, ctx) !== null));
     },
   };
 }
@@ -113,7 +134,7 @@ export async function runVerifiedExtraction(
   const stats: VerifiedExtractionResult['stats'] = [];
   for (const f of req.fields) {
     data[f.key] = null;
-    for (const p of f.paths) {
+    for (const p of pathsFor(f, capture.pageVariant)) {
       const value = evaluatePath(f, p, capture, probe, ctx);
       if (value === null) { stats.push({ key: f.key, concept: f.concept, path: p, hit: false }); continue; }
       data[f.key] = value;
