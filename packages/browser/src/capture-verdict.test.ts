@@ -31,6 +31,7 @@ beforeAll(async () => {
       );
     }
     if (u.pathname === '/poll') return res.writeHead(204).end();
+    if (u.pathname === '/swatch') return res.writeHead(200, { 'content-type': 'text/html' }).end(`${PRODUCT}<div role="radiogroup" aria-label="Colour"><button role="radio" aria-checked="false">16</button><button role="radio" aria-checked="true">17</button></div>`);
     res.writeHead(500).end('boom');
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -71,6 +72,15 @@ describe('capture() verdicts', () => {
     expect(c.verdict).toEqual({ kind: 'ok', status: 200 });
     expect(c.html).toContain('Real product copy');
   }, 30_000);
+  it('a page whose picker selects a variant the address does not name is wrong-variant; no selection script → ok', async () => {
+    const selection = `(() => { const el = document.querySelector('[role="radio"][aria-checked="true"]'); return el ? { labels: [el.textContent.trim()], pairs: [{ name: 'swatch', value: el.textContent.trim() }] } : null; })()`;
+    const c = await browser.capture(`${base}/swatch?swatch=16`, { selection });
+    expect(c.verdict).toEqual({ kind: 'wrong-variant', status: 200, named: 'swatch=16' });
+    expect(c.pageVariant).toMatchObject({ named: true, selected: true, labels: expect.arrayContaining(['16', '17']) });
+    const plain = await browser.capture(`${base}/swatch?swatch=16`);
+    expect(plain.verdict).toEqual({ kind: 'ok', status: 200 });
+    expect(plain.pageVariant).toMatchObject({ named: true, selected: false });
+  }, 60_000);
   it('a dead host rejects with a CaptureError of kind unreachable, its sentence as the message', async () => {
     // A port that was just free: nothing listens on it (port 9 is ERR_UNSAFE_PORT in Chromium).
     const probe = createTcpServer();

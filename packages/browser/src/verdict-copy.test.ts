@@ -17,6 +17,9 @@ describe('verdictSentence', () => {
     expect(verdictSentence({ kind: 'timeout' }, U)).toBe('scan.co.uk did not answer in time.');
     expect(verdictSentence({ kind: 'ok', status: 200 }, U)).toBe('Reached scan.co.uk (HTTP 200).');
   });
+  it('wrong-variant names the address text', () => {
+    expect(verdictSentence({ kind: 'wrong-variant', status: 200, named: 'swatch=16' }, 'https://p.example/pd/x?swatch=16')).toBe('The page did not show the variant the address names (swatch=16).');
+  });
   it('strips a leading www. from the host', () => {
     expect(verdictSentence({ kind: 'blank', status: 200 }, 'https://www.otto.de/p/1')).toBe('otto.de sent an empty page. Try again.');
   });

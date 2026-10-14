@@ -39,6 +39,24 @@ export type CaptureTimings = {
   totalMs: number;
 };
 
+/**
+ * Which variant this page is showing (spec 2026-10-14 §3): what the address
+ * names (`named`) and what the page marks selected (`selected`). Absent on
+ * captures built outside the browser (fixtures, replays), like `timings`.
+ */
+export type PageVariant = {
+  /** Variant ids: `?variant=`, a `variant_id`, a selected variant's id. */
+  ids: string[];
+  /** Option pairs from the address's query or fragment, and the picker's selection, as given. */
+  pairs: Array<{ name: string; value: string }>;
+  /** Free labels: the pairs' values, a selected option's text, a selected sku. */
+  labels: string[];
+  /** The address named a variant (a query pair or a key=value fragment, tracking parameters excluded). */
+  named: boolean;
+  /** The page showed a selection (a picker's selected option or a `selected…` key in its data). */
+  selected: boolean;
+};
+
 export type PageCapture = {
   url: string;
   html: string;
@@ -57,6 +75,8 @@ export type PageCapture = {
    * on captures built outside the browser (fixtures, replays).
    */
   pageHeight?: number;
+  /** Spec 2026-10-14 §3. Absent on captures built outside the browser. */
+  pageVariant?: PageVariant;
   /** The `annotate` script's value, when one was given (box map for a proof page). */
   annotation?: unknown;
   /**
@@ -142,6 +162,14 @@ export type CaptureOptions = {
   annotate?: string;
   /** How many screenshot tiles to take (default `MAX_TILES`). */
   maxTiles?: number;
+  /**
+   * A self-invoking page script returning the picker's current selection
+   * (`{ ids?, pairs?, labels? }` or null) — `buildSelectionScript()` in
+   * @robot/scraper's variant-dom.ts. Evaluated once, after the structured
+   * data, into `PageCapture.pageVariant` (spec 2026-10-14 §3). Unset: the
+   * page variant is read from the address and the page data alone.
+   */
+  selection?: string;
 };
 
 export interface IBrowser {
@@ -261,7 +289,9 @@ export type CaptureVerdict =
   | { kind: 'challenge'; status: number; vendor?: WallVendor }
   | { kind: 'not-found'; status: number }
   | { kind: 'redirected'; status: number; to: string }
-  | { kind: 'blank'; status: number };
+  | { kind: 'blank'; status: number }
+  /** The address named a variant the page did not show (spec 2026-10-14 §7); `named` is the address's own text. */
+  | { kind: 'wrong-variant'; status: number; named: string };
 
 /** Why no document arrived at all; the only reason `capture()` rejects. */
 export type CaptureErrorKind = 'crashed' | 'unreachable' | 'timeout';
