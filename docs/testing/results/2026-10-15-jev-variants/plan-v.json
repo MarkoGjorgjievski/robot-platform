@@ -1,0 +1,4075 @@
+{
+  "set": "v",
+  "preparedAt": "2026-10-15T16:04:49.350Z",
+  "pages": [
+    {
+      "id": "v01",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+      "from": "proof page 1",
+      "questions": [
+        {
+          "qid": "v01-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Sierra Ivory & Opal Rug | All-In-One Rug | 2'x3' | Ruggable",
+            "e2": "Sierra Ivory & Opal Rug | All-In-One Rug | 2'x5' | Ruggable",
+            "e3": "Sierra Ivory & Opal Rug | All-In-One Rug | 2'x6' | Ruggable",
+            "e4": "Sierra Ivory & Opal Rug | All-In-One Rug | 2.5'x7' | Ruggable",
+            "e5": "Sierra Ivory & Opal Rug | All-In-One Rug | 2.5'x10' | Ruggable",
+            "e6": "Sierra Ivory & Opal Rug | All-In-One Rug | 2.5'x12' | Ruggable",
+            "e7": "Sierra Ivory & Opal Rug | All-In-One Rug | 3'x5' | Ruggable",
+            "e8": "Sierra Ivory & Opal Rug | All-In-One Rug | 4'x6' | Ruggable",
+            "e9": "Sierra Ivory & Opal Rug | All-In-One Rug | 5'x7' | Ruggable",
+            "e10": "Sierra Ivory & Opal Rug | All-In-One Rug | 6'x9' | Ruggable",
+            "e11": "Sierra Ivory & Opal Rug | All-In-One Rug | 6.5'x9.5' | Ruggable",
+            "e12": "Sierra Ivory & Opal Rug | All-In-One Rug | 8'x10' | Ruggable",
+            "e13": "Sierra Ivory & Opal Rug | All-In-One Rug | 9'x12' | Ruggable",
+            "e14": "Sierra Ivory & Opal Rug | All-In-One Rug | 10'x14' | Ruggable",
+            "e15": "Sierra Ivory & Opal Rug | All-In-One Rug | 6' Round | Ruggable",
+            "e16": "Sierra Ivory & Opal Rug | All-In-One Rug | 8' Round | Ruggable",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v01-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with size 6x9 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v01-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "size=6x9",
+          "instructions": "The page's address carries the parameter \"size=6x9\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v01-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "system=rug-cvr",
+          "instructions": "The page's address carries the parameter \"system=rug-cvr\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+      "pageTitle": "Sierra Ivory & Opal Rug | Ruggable US",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v01-ruggable.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 16,
+        "axes": [
+          "size"
+        ],
+        "variesBy": [
+          "size"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 2'x3' | Ruggable",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 2'x5' | Ruggable",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 2'x6' | Ruggable",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 2.5'x7' | Ruggable",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 2.5'x10' | Ruggable",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 2.5'x12' | Ruggable",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 3'x5' | Ruggable",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 4'x6' | Ruggable",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 5'x7' | Ruggable",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 6'x9' | Ruggable",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 6.5'x9.5' | Ruggable",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 8'x10' | Ruggable",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 9'x12' | Ruggable",
+          "raw": 12
+        },
+        {
+          "id": "e14",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 10'x14' | Ruggable",
+          "raw": 13
+        },
+        {
+          "id": "e15",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 6' Round | Ruggable",
+          "raw": 14
+        },
+        {
+          "id": "e16",
+          "label": "Sierra Ivory & Opal Rug | All-In-One Rug | 8' Round | Ruggable",
+          "raw": 15
+        }
+      ],
+      "ours": "e10",
+      "namedEntry": "e10",
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v02",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+      "from": "proof page 2",
+      "questions": [
+        {
+          "qid": "v02-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 2'x3' | Ruggable",
+            "e2": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 2.5'x7' | Ruggable",
+            "e3": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 2.5'x10' | Ruggable",
+            "e4": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 3'x5' | Ruggable",
+            "e5": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 4'x6' | Ruggable",
+            "e6": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 5'x7' | Ruggable",
+            "e7": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 6'x9' | Ruggable",
+            "e8": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 8'x10' | Ruggable",
+            "e9": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 9'x12' | Ruggable",
+            "e10": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 10'x14' | Ruggable",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v02-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with size 6x9 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v02-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "size=6x9",
+          "instructions": "The page's address carries the parameter \"size=6x9\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v02-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "system=rug-cvr",
+          "instructions": "The page's address carries the parameter \"system=rug-cvr\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+      "pageTitle": "Pimpernel Jade Rug by Morris & Co. | Ruggable US",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v02-ruggable.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 10,
+        "axes": [
+          "size"
+        ],
+        "variesBy": [
+          "size"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 2'x3' | Ruggable",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 2.5'x7' | Ruggable",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 2.5'x10' | Ruggable",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 3'x5' | Ruggable",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 4'x6' | Ruggable",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 5'x7' | Ruggable",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 6'x9' | Ruggable",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 8'x10' | Ruggable",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 9'x12' | Ruggable",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Pimpernel Jade Rug by Morris & Co. | All-In-One Rug | 10'x14' | Ruggable",
+          "raw": 9
+        }
+      ],
+      "ours": "e7",
+      "namedEntry": "e7",
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v03",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+      "from": "proof page 3",
+      "questions": [
+        {
+          "qid": "v03-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Cyrus Rose Gold Rug | All-In-One Rug | 2'x3' | Ruggable",
+            "e2": "Cyrus Rose Gold Rug | All-In-One Rug | 2'x5' | Ruggable",
+            "e3": "Cyrus Rose Gold Rug | All-In-One Rug | 2'x6' | Ruggable",
+            "e4": "Cyrus Rose Gold Rug | All-In-One Rug | 2.5'x7' | Ruggable",
+            "e5": "Cyrus Rose Gold Rug | All-In-One Rug | 2.5'x10' | Ruggable",
+            "e6": "Cyrus Rose Gold Rug | All-In-One Rug | 2.5'x12' | Ruggable",
+            "e7": "Cyrus Rose Gold Rug | All-In-One Rug | 3'x5' | Ruggable",
+            "e8": "Cyrus Rose Gold Rug | All-In-One Rug | 4'x6' | Ruggable",
+            "e9": "Cyrus Rose Gold Rug | All-In-One Rug | 5'x7' | Ruggable",
+            "e10": "Cyrus Rose Gold Rug | All-In-One Rug | 6'x9' | Ruggable",
+            "e11": "Cyrus Rose Gold Rug | All-In-One Rug | 6.5'x9.5' | Ruggable",
+            "e12": "Cyrus Rose Gold Rug | All-In-One Rug | 8'x10' | Ruggable",
+            "e13": "Cyrus Rose Gold Rug | All-In-One Rug | 9'x12' | Ruggable",
+            "e14": "Cyrus Rose Gold Rug | All-In-One Rug | 10'x14' | Ruggable",
+            "e15": "Cyrus Rose Gold Rug | All-In-One Rug | 6' Round | Ruggable",
+            "e16": "Cyrus Rose Gold Rug | All-In-One Rug | 8' Round | Ruggable",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v03-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with size 6x9 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v03-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "size=6x9",
+          "instructions": "The page's address carries the parameter \"size=6x9\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v03-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "system=rug-cvr",
+          "instructions": "The page's address carries the parameter \"system=rug-cvr\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+      "pageTitle": "Cyrus Rose Gold Rug | Ruggable US",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v03-ruggable.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 16,
+        "axes": [
+          "size"
+        ],
+        "variesBy": [
+          "size"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 2'x3' | Ruggable",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 2'x5' | Ruggable",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 2'x6' | Ruggable",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 2.5'x7' | Ruggable",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 2.5'x10' | Ruggable",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 2.5'x12' | Ruggable",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 3'x5' | Ruggable",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 4'x6' | Ruggable",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 5'x7' | Ruggable",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 6'x9' | Ruggable",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 6.5'x9.5' | Ruggable",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 8'x10' | Ruggable",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 9'x12' | Ruggable",
+          "raw": 12
+        },
+        {
+          "id": "e14",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 10'x14' | Ruggable",
+          "raw": 13
+        },
+        {
+          "id": "e15",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 6' Round | Ruggable",
+          "raw": 14
+        },
+        {
+          "id": "e16",
+          "label": "Cyrus Rose Gold Rug | All-In-One Rug | 8' Round | Ruggable",
+          "raw": 15
+        }
+      ],
+      "ours": "e10",
+      "namedEntry": "e10",
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v04",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr",
+      "from": "stored capture (a replaced proof page)",
+      "questions": [
+        {
+          "qid": "v04-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Ryder Soft White Plush Rug | All-In-One Rug | 5'x7' | Ruggable",
+            "e2": "Ryder Soft White Plush Rug | All-In-One Rug | 6'x9' | Ruggable",
+            "e3": "Ryder Soft White Plush Rug | All-In-One Rug | 8'x10' | Ruggable",
+            "e4": "Ryder Soft White Plush Rug | All-In-One Rug | 9'x12' | Ruggable",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v04-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with size 6x9 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v04-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "size=6x9",
+          "instructions": "The page's address carries the parameter \"size=6x9\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v04-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "system=rug-cvr",
+          "instructions": "The page's address carries the parameter \"system=rug-cvr\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr",
+      "pageTitle": "Ryder Soft White Plush Rug | Ruggable US",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "size",
+            "value": "6x9"
+          },
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "6x9",
+          "rug-cvr"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v04-ruggable.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 4,
+        "axes": [
+          "size"
+        ],
+        "variesBy": [
+          "size"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Ryder Soft White Plush Rug | All-In-One Rug | 5'x7' | Ruggable",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Ryder Soft White Plush Rug | All-In-One Rug | 6'x9' | Ruggable",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Ryder Soft White Plush Rug | All-In-One Rug | 8'x10' | Ruggable",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Ryder Soft White Plush Rug | All-In-One Rug | 9'x12' | Ruggable",
+          "raw": 3
+        }
+      ],
+      "ours": "e2",
+      "namedEntry": "e2",
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v05",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/sierra-soft-black-tufted-rug",
+      "from": "stored capture (a replaced proof page; names no variant)",
+      "questions": [
+        {
+          "qid": "v05-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Sierra Soft Black Rug | All-In-One Rug | 2'x3' | Ruggable",
+            "e2": "Sierra Soft Black Rug | All-In-One Rug | 2.5'x7' | Ruggable",
+            "e3": "Sierra Soft Black Rug | All-In-One Rug | 2.5'x10' | Ruggable",
+            "e4": "Sierra Soft Black Rug | All-In-One Rug | 2.5'x12' | Ruggable",
+            "e5": "Sierra Soft Black Rug | All-In-One Rug | 3'x5' | Ruggable",
+            "e6": "Sierra Soft Black Rug | All-In-One Rug | 4'x6' | Ruggable",
+            "e7": "Sierra Soft Black Rug | All-In-One Rug | 5'x7' | Ruggable",
+            "e8": "Sierra Soft Black Rug | All-In-One Rug | 6'x9' | Ruggable",
+            "e9": "Sierra Soft Black Rug | All-In-One Rug | 8'x10' | Ruggable",
+            "e10": "Sierra Soft Black Rug | All-In-One Rug | 9'x12' | Ruggable",
+            "e11": "Sierra Soft Black Rug | All-In-One Rug | 10'x14' | Ruggable",
+            "e12": "Sierra Soft Black Rug | All-In-One Rug | 6' Round | Ruggable",
+            "e13": "Sierra Soft Black Rug | All-In-One Rug | 8' Round | Ruggable",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://ruggable.com/products/sierra-soft-black-tufted-rug?system=rug-cvr",
+      "pageTitle": "Sierra Soft Black Rug | Ruggable US",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "system",
+            "value": "rug-cvr"
+          }
+        ],
+        "labels": [
+          "rug-cvr"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v05-ruggable.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 13,
+        "axes": [
+          "size"
+        ],
+        "variesBy": [
+          "size"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 2'x3' | Ruggable",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 2.5'x7' | Ruggable",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 2.5'x10' | Ruggable",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 2.5'x12' | Ruggable",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 3'x5' | Ruggable",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 4'x6' | Ruggable",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 5'x7' | Ruggable",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 6'x9' | Ruggable",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 8'x10' | Ruggable",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 9'x12' | Ruggable",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 10'x14' | Ruggable",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 6' Round | Ruggable",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Sierra Soft Black Rug | All-In-One Rug | 8' Round | Ruggable",
+          "raw": 12
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v06",
+      "site": "kith",
+      "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+      "from": "proof page 1",
+      "questions": [
+        {
+          "qid": "v06-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "size: XXS",
+            "e2": "size: XS",
+            "e3": "size: S",
+            "e4": "size: M",
+            "e5": "size: L",
+            "e6": "size: XL",
+            "e7": "size: XXL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+      "pageTitle": "Kith Women Toyo Zip Hoodie - Chelonian",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [],
+        "labels": [],
+        "named": false,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v06-kith.png",
+      "list": {
+        "source": "json-ld",
+        "path": "offers",
+        "count": 7,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "size: XXS",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "size: XS",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "size: S",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "size: M",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "size: L",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "size: XL",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "size: XXL",
+          "raw": 6
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v07",
+      "site": "kith",
+      "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+      "from": "proof page 2",
+      "questions": [
+        {
+          "qid": "v07-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "size: XXS",
+            "e2": "size: XS",
+            "e3": "size: S",
+            "e4": "size: M",
+            "e5": "size: L",
+            "e6": "size: XL",
+            "e7": "size: XXL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+      "pageTitle": "Kith Women Tye Pinstripe Zip Hoodie - Quilt",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [],
+        "labels": [],
+        "named": false,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v07-kith.png",
+      "list": {
+        "source": "json-ld",
+        "path": "offers",
+        "count": 7,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "size: XXS",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "size: XS",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "size: S",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "size: M",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "size: L",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "size: XL",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "size: XXL",
+          "raw": 6
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v08",
+      "site": "kith",
+      "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030086-001",
+      "from": "proof page 3",
+      "questions": [
+        {
+          "qid": "v08-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "size: XXS",
+            "e2": "size: XS",
+            "e3": "size: S",
+            "e4": "size: M",
+            "e5": "size: L",
+            "e6": "size: XL",
+            "e7": "size: XXL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030086-001",
+      "pageTitle": "Kith Women Elvina Paneled Hoodie - Black",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [],
+        "labels": [],
+        "named": false,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v08-kith.png",
+      "list": {
+        "source": "json-ld",
+        "path": "offers",
+        "count": 7,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "size: XXS",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "size: XS",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "size: S",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "size: M",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "size: L",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "size: XL",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "size: XXL",
+          "raw": 6
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v09",
+      "site": "kith",
+      "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-001",
+      "from": "stored capture",
+      "questions": [
+        {
+          "qid": "v09-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "size: XXS",
+            "e2": "size: XS",
+            "e3": "size: S",
+            "e4": "size: M",
+            "e5": "size: L",
+            "e6": "size: XL",
+            "e7": "size: XXL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-001",
+      "pageTitle": "Kith Women Toyo Zip Hoodie - Black",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [],
+        "labels": [],
+        "named": false,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v09-kith.png",
+      "list": {
+        "source": "json-ld",
+        "path": "offers",
+        "count": 7,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "size: XXS",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "size: XS",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "size: S",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "size: M",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "size: L",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "size: XL",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "size: XXL",
+          "raw": 6
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v10",
+      "site": "kith",
+      "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338?variant=45144758124672",
+      "from": "derived: proof page 1 with its size L variant id (product .js)",
+      "questions": [
+        {
+          "qid": "v10-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "size: XXS",
+            "e2": "size: XS",
+            "e3": "size: S",
+            "e4": "size: M",
+            "e5": "size: L",
+            "e6": "size: XL",
+            "e7": "size: XXL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v10-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"size: L\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338?variant=45144758124672",
+      "pageTitle": "Kith Women Toyo Zip Hoodie - Chelonian",
+      "pageVariant": {
+        "ids": [
+          "45144758124672"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "45144758124672"
+          }
+        ],
+        "labels": [],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [
+          "45144758124672"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "45144758124672"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v10-kith.png",
+      "list": {
+        "source": "json-ld",
+        "path": "offers",
+        "count": 7,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "size: XXS",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "size: XS",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "size: S",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "size: M",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "size: L",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "size: XL",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "size: XXL",
+          "raw": 6
+        }
+      ],
+      "ours": "e5",
+      "namedEntry": "e5",
+      "optionNames": [
+        "size"
+      ]
+    },
+    {
+      "id": "v11",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+      "from": "run 860cacc7 item",
+      "questions": [
+        {
+          "qid": "v11-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Smokin’ Buds® - Bone",
+            "e2": "Smokin’ Buds® - Matcha",
+            "e3": "Smokin’ Buds® - True Black",
+            "e4": "Smokin’ Buds® - Smoke",
+            "e5": "Smokin’ Buds® - Flame",
+            "e6": "Smokin’ Buds® - Pink",
+            "e7": "Smokin’ Buds® - Preppy Sage",
+            "e8": "Smokin’ Buds® - Preppy Blue",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v11-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"Smokin’ Buds® - Preppy Sage\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+      "pageTitle": "Smokin' Buds - True Wireless Earbuds | Bluetooth 5.2 | Built-in Microphone | Sweat & Water Resistant",
+      "pageVariant": {
+        "ids": [
+          "44804831182905"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44804831182905"
+          },
+          {
+            "name": "color: preppy sage – only [num] left in stock",
+            "value": "Preppy Sage"
+          }
+        ],
+        "labels": [
+          "Preppy Sage"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "44804831182905"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44804831182905"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v11-skullcandy.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 8,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Smokin’ Buds® - Bone",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Smokin’ Buds® - Matcha",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Smokin’ Buds® - True Black",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Smokin’ Buds® - Smoke",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Smokin’ Buds® - Flame",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Smokin’ Buds® - Pink",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Smokin’ Buds® - Preppy Sage",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Smokin’ Buds® - Preppy Blue",
+          "raw": 7
+        }
+      ],
+      "ours": "e7",
+      "namedEntry": "e7",
+      "optionNames": [
+        "Color"
+      ]
+    },
+    {
+      "id": "v12",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=45061353865273",
+      "from": "run 860cacc7 item",
+      "questions": [
+        {
+          "qid": "v12-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Crusher® Evo - True Black",
+            "e2": "Crusher® Evo - Chill Grey",
+            "e3": "Crusher® Evo - Primer",
+            "e4": "Crusher® Evo - Realtree APX Black/Orange",
+            "e5": "Crusher® Evo - Bone",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v12-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"Crusher® Evo - True Black\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=45061353865273",
+      "pageTitle": "Crusher Evo - Bass Headphones with Personal Sound | True Wireless | Bluetooth 5.0 | Built-in Microphone",
+      "pageVariant": {
+        "ids": [
+          "45061353865273"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "45061353865273"
+          },
+          {
+            "name": "color: true black – only [num] left in stock",
+            "value": "True Black"
+          }
+        ],
+        "labels": [
+          "True Black"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "45061353865273"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "45061353865273"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v12-skullcandy.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 5,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Crusher® Evo - True Black",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Crusher® Evo - Chill Grey",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Crusher® Evo - Primer",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Crusher® Evo - Realtree APX Black/Orange",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Crusher® Evo - Bone",
+          "raw": 4
+        }
+      ],
+      "ours": "e1",
+      "namedEntry": "e1",
+      "optionNames": [
+        "Color"
+      ]
+    },
+    {
+      "id": "v13",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/push-anc-active?variant=45276014772281",
+      "from": "run 860cacc7 item",
+      "questions": [
+        {
+          "qid": "v13-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Push® ANC Active - Black/Orange",
+            "e2": "Push® ANC Active - Primer",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v13-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"Push® ANC Active - Primer\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.skullcandy.com/products/push-anc-active?variant=45276014772281",
+      "pageTitle": "Push ANC Active - True Wireless Sport Earbuds with Active Noise Canceling & Ear Hooks | Bluetooth 5.3 | Waterproof",
+      "pageVariant": {
+        "ids": [
+          "45276014772281"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "45276014772281"
+          },
+          {
+            "name": "color: primer – only [num] left in stock",
+            "value": "Primer"
+          }
+        ],
+        "labels": [
+          "Primer"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "45276014772281"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "45276014772281"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v13-skullcandy.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 2,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Push® ANC Active - Black/Orange",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Push® ANC Active - Primer",
+          "raw": 1
+        }
+      ],
+      "ours": "e2",
+      "namedEntry": "e2",
+      "optionNames": [
+        "Color"
+      ]
+    },
+    {
+      "id": "v14",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
+      "from": "run 860cacc7 item (names no variant)",
+      "questions": [
+        {
+          "qid": "v14-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Hesh® 540 ANC - Bone",
+            "e2": "Hesh® 540 ANC - True Black",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
+      "pageTitle": "Hesh 540 ANC - Wireless Noise Canceling Headphones | Bluetooth 5.3 | Over Ear | Spatial Sound | 65 Hours Battery",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "color: bone – only [num] left in stock",
+            "value": "Bone"
+          },
+          {
+            "name": "popular topics",
+            "value": "All rating"
+          }
+        ],
+        "labels": [
+          "Bone",
+          "All rating"
+        ],
+        "named": false,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v14-skullcandy.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 2,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Hesh® 540 ANC - Bone",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Hesh® 540 ANC - True Black",
+          "raw": 1
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "Color"
+      ]
+    },
+    {
+      "id": "v15",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds",
+      "from": "run 860cacc7 item (names no variant)",
+      "questions": [
+        {
+          "qid": "v15-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Smokin’ Buds® - Bone",
+            "e2": "Smokin’ Buds® - Matcha",
+            "e3": "Smokin’ Buds® - True Black",
+            "e4": "Smokin’ Buds® - Smoke",
+            "e5": "Smokin’ Buds® - Flame",
+            "e6": "Smokin’ Buds® - Pink",
+            "e7": "Smokin’ Buds® - Preppy Sage",
+            "e8": "Smokin’ Buds® - Preppy Blue",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds",
+      "pageTitle": "Smokin' Buds - True Wireless Earbuds | Bluetooth 5.2 | Built-in Microphone | Sweat & Water Resistant",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "color: bone – only [num] left in stock",
+            "value": "Bone"
+          }
+        ],
+        "labels": [
+          "Bone"
+        ],
+        "named": false,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v15-skullcandy.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 8,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Smokin’ Buds® - Bone",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Smokin’ Buds® - Matcha",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Smokin’ Buds® - True Black",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Smokin’ Buds® - Smoke",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Smokin’ Buds® - Flame",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Smokin’ Buds® - Pink",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Smokin’ Buds® - Preppy Sage",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Smokin’ Buds® - Preppy Blue",
+          "raw": 7
+        }
+      ],
+      "ours": "e1",
+      "namedEntry": null,
+      "optionNames": [
+        "Color"
+      ]
+    },
+    {
+      "id": "v16",
+      "site": "glossier",
+      "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832752373",
+      "from": "proof page 1",
+      "questions": [
+        {
+          "qid": "v16-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "177 mL",
+            "e2": "60 mL",
+            "e3": "300 mL",
+            "e4": "15 mL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v16-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"177 mL\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832752373",
+      "pageTitle": "Milky Jelly Cleanser – Glossier",
+      "pageVariant": {
+        "ids": [
+          "44415832752373"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44415832752373"
+          },
+          {
+            "name": "options[size]",
+            "value": "177 mL"
+          },
+          {
+            "name": "options",
+            "value": "Ship every \n                              3 month"
+          }
+        ],
+        "labels": [
+          "177 mL",
+          "Ship every \n                              3 month"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "44415832752373"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44415832752373"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1000
+      },
+      "crop": "crops/v-v16-glossier.png",
+      "optionNames": [
+        "Size"
+      ],
+      "list": {
+        "source": "product.js (fallback: not in the capture)",
+        "path": "variants",
+        "count": 4,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "177 mL",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "60 mL",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "300 mL",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "15 mL",
+          "raw": 3
+        }
+      ],
+      "ours": null,
+      "oursIfListed": "e1",
+      "namedEntry": "e1"
+    },
+    {
+      "id": "v17",
+      "site": "glossier",
+      "url": "https://www.glossier.com/products/priming-moisturizer-rich?variant=43781983076597",
+      "from": "proof page 2",
+      "questions": [],
+      "verdict": "ok",
+      "finalUrl": "https://www.glossier.com/products/priming-moisturizer-rich?variant=43781983076597",
+      "pageTitle": "Priming Moisturizer Rich – Glossier",
+      "pageVariant": {
+        "ids": [
+          "43781983076597"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "43781983076597"
+          },
+          {
+            "name": "options",
+            "value": "Ship every \n                              3 month"
+          }
+        ],
+        "labels": [
+          "Ship every \n                              3 month"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "43781983076597"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "43781983076597"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1000
+      },
+      "crop": "crops/v-v17-glossier.png",
+      "optionNames": [],
+      "skipped": "nothing to ask (no variant list, no address value)"
+    },
+    {
+      "id": "v18",
+      "site": "glossier",
+      "url": "https://www.glossier.com/products/glossier-after-baume?variant=44416231604469",
+      "from": "proof page 3",
+      "questions": [
+        {
+          "qid": "v18-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "50 mL",
+            "e2": "125 mL",
+            "e3": "15 mL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v18-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"50 mL\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.glossier.com/products/glossier-after-baume?variant=44416231604469",
+      "pageTitle": "After Baume – Glossier",
+      "pageVariant": {
+        "ids": [
+          "44416231604469"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44416231604469"
+          },
+          {
+            "name": "options",
+            "value": "Ship every \n                              3 month"
+          }
+        ],
+        "labels": [
+          "Ship every \n                              3 month"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "44416231604469"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44416231604469"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1000
+      },
+      "crop": "crops/v-v18-glossier.png",
+      "optionNames": [
+        "Size"
+      ],
+      "list": {
+        "source": "product.js (fallback: not in the capture)",
+        "path": "variants",
+        "count": 3,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "50 mL",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "125 mL",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "15 mL",
+          "raw": 2
+        }
+      ],
+      "ours": null,
+      "oursIfListed": "e1",
+      "namedEntry": "e1"
+    },
+    {
+      "id": "v19",
+      "site": "glossier",
+      "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832785141",
+      "from": "derived: proof page 1 with its 60 mL variant id (product .js)",
+      "questions": [
+        {
+          "qid": "v19-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "177 mL",
+            "e2": "60 mL",
+            "e3": "300 mL",
+            "e4": "15 mL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v19-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is \"60 mL\" the variant selected on the screenshot?"
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832785141",
+      "pageTitle": "Milky Jelly Cleanser – Glossier",
+      "pageVariant": {
+        "ids": [
+          "44415832785141"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44415832785141"
+          },
+          {
+            "name": "options[size]",
+            "value": "60 mL"
+          }
+        ],
+        "labels": [
+          "60 mL"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [
+          "44415832785141"
+        ],
+        "pairs": [
+          {
+            "name": "variant",
+            "value": "44415832785141"
+          }
+        ],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1000
+      },
+      "crop": "crops/v-v19-glossier.png",
+      "optionNames": [
+        "Size"
+      ],
+      "list": {
+        "source": "product.js (fallback: not in the capture)",
+        "path": "variants",
+        "count": 4,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "177 mL",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "60 mL",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "300 mL",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "15 mL",
+          "raw": 3
+        }
+      ],
+      "ours": null,
+      "oursIfListed": "e2",
+      "namedEntry": "e2"
+    },
+    {
+      "id": "v20",
+      "site": "glossier",
+      "url": "https://www.glossier.com/products/milky-jelly-cleanser",
+      "from": "derived: proof page 1 without its query (names no variant)",
+      "questions": [
+        {
+          "qid": "v20-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "177 mL",
+            "e2": "60 mL",
+            "e3": "300 mL",
+            "e4": "15 mL",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://www.glossier.com/products/milky-jelly-cleanser",
+      "pageTitle": "Milky Jelly Cleanser – Glossier",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "options[size]",
+            "value": "177 mL"
+          },
+          {
+            "name": "options",
+            "value": "Ship every \n                              3 month"
+          }
+        ],
+        "labels": [
+          "177 mL",
+          "Ship every \n                              3 month"
+        ],
+        "named": false,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1000
+      },
+      "crop": "crops/v-v20-glossier.png",
+      "optionNames": [
+        "Size"
+      ],
+      "list": {
+        "source": "product.js (fallback: not in the capture)",
+        "path": "variants",
+        "count": 4,
+        "axes": [],
+        "variesBy": []
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "177 mL",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "60 mL",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "300 mL",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "15 mL",
+          "raw": 3
+        }
+      ],
+      "ours": null,
+      "oursIfListed": "e1",
+      "namedEntry": null
+    },
+    {
+      "id": "v21",
+      "site": "burrow",
+      "url": "https://burrow.com/products/range-pro-109-3-seat-sofa?Fabric=Camel+-+Top+Grain+Leather",
+      "from": "run fb5ee28d item (judge: base price stored)",
+      "questions": [
+        {
+          "qid": "v21-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Range Pro 109\" 3-Seat Sofa - Moss Green - Performance Flatweave",
+            "e2": "Range Pro 109\" 3-Seat Sofa - Camel - Top Grain Leather",
+            "e3": "Range Pro 109\" 3-Seat Sofa - Georgia Clay - Performance Chenille",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v21-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with Fabric Camel - Top Grain Leather the one selected on the screenshot?"
+        },
+        {
+          "qid": "v21-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "Fabric=Camel - Top Grain Leather",
+          "instructions": "The page's address carries the parameter \"Fabric=Camel - Top Grain Leather\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "o2": "material",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://burrow.com/products/range-pro-109-3-seat-sofa?Fabric=Camel+-+Top+Grain+Leather",
+      "pageTitle": "Range Pro 109\" 3-Seat Sofa",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Camel - Top Grain Leather"
+          }
+        ],
+        "labels": [
+          "Camel - Top Grain Leather"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Camel - Top Grain Leather"
+          }
+        ],
+        "labels": [
+          "Camel - Top Grain Leather"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v21-burrow.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 3,
+        "axes": [
+          "color",
+          "material"
+        ],
+        "variesBy": [
+          "color",
+          "material"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Range Pro 109\" 3-Seat Sofa - Moss Green - Performance Flatweave",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Range Pro 109\" 3-Seat Sofa - Camel - Top Grain Leather",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Range Pro 109\" 3-Seat Sofa - Georgia Clay - Performance Chenille",
+          "raw": 2
+        }
+      ],
+      "ours": "e2",
+      "namedEntry": "e2",
+      "optionNames": [
+        "color",
+        "material"
+      ]
+    },
+    {
+      "id": "v22",
+      "site": "burrow",
+      "url": "https://burrow.com/products/union-pro-108-3-seat-sofa?Fabric=Ivory+-+Performance+Chenille",
+      "from": "run fb5ee28d item",
+      "questions": [
+        {
+          "qid": "v22-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Union Pro 108\" 3-Seat Sofa - Crushed Gravel - Performance Chenille",
+            "e2": "Union Pro 108\" 3-Seat Sofa - Ivory - Performance Chenille",
+            "e3": "Union Pro 108\" 3-Seat Sofa - Navy Blue - Performance Flatweave",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v22-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with Fabric Ivory - Performance Chenille the one selected on the screenshot?"
+        },
+        {
+          "qid": "v22-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "Fabric=Ivory - Performance Chenille",
+          "instructions": "The page's address carries the parameter \"Fabric=Ivory - Performance Chenille\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "o2": "material",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://burrow.com/products/union-pro-108-3-seat-sofa?Fabric=Ivory+-+Performance+Chenille",
+      "pageTitle": "Union Pro 108\" 3-Seat Sofa",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Ivory - Performance Chenille"
+          }
+        ],
+        "labels": [
+          "Ivory - Performance Chenille"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Ivory - Performance Chenille"
+          }
+        ],
+        "labels": [
+          "Ivory - Performance Chenille"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v22-burrow.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 3,
+        "axes": [
+          "color",
+          "material"
+        ],
+        "variesBy": [
+          "color",
+          "material"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Union Pro 108\" 3-Seat Sofa - Crushed Gravel - Performance Chenille",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Union Pro 108\" 3-Seat Sofa - Ivory - Performance Chenille",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Union Pro 108\" 3-Seat Sofa - Navy Blue - Performance Flatweave",
+          "raw": 2
+        }
+      ],
+      "ours": "e2",
+      "namedEntry": "e2",
+      "optionNames": [
+        "color",
+        "material"
+      ]
+    },
+    {
+      "id": "v23",
+      "site": "burrow",
+      "url": "https://burrow.com/products/field-leather-2-piece-sofa?Fabric=Slate+-+Top+Grain+Leather&Leg+Finish=Oak+-+Wood",
+      "from": "run fb5ee28d item",
+      "questions": [
+        {
+          "qid": "v23-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Field Leather 2-Piece Sofa - Slate - Top Grain Leather / Oak - Wood · Leg Finish: Oak - Wood",
+            "e2": "Field Leather 2-Piece Sofa - Camel - Top Grain Leather / Oak - Wood · Leg Finish: Oak - Wood",
+            "e3": "Field Leather 2-Piece Sofa - Slate - Top Grain Leather / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "e4": "Field Leather 2-Piece Sofa - Slate - Top Grain Leather / Black - Metal · Leg Finish: Black - Metal",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v23-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with Fabric Slate - Top Grain Leather and Leg Finish Oak - Wood the one selected on the screenshot?"
+        },
+        {
+          "qid": "v23-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "Fabric=Slate - Top Grain Leather",
+          "instructions": "The page's address carries the parameter \"Fabric=Slate - Top Grain Leather\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "o2": "material",
+            "o3": "leg finish",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v23-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "Leg Finish=Oak - Wood",
+          "instructions": "The page's address carries the parameter \"Leg Finish=Oak - Wood\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "o2": "material",
+            "o3": "leg finish",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://burrow.com/products/field-leather-2-piece-sofa?Fabric=Slate+-+Top+Grain+Leather&Leg+Finish=Oak+-+Wood",
+      "pageTitle": "Field Leather 2-Piece Sofa",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Slate - Top Grain Leather"
+          },
+          {
+            "name": "Leg Finish",
+            "value": "Oak - Wood"
+          }
+        ],
+        "labels": [
+          "Slate - Top Grain Leather",
+          "Oak - Wood"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Slate - Top Grain Leather"
+          },
+          {
+            "name": "Leg Finish",
+            "value": "Oak - Wood"
+          }
+        ],
+        "labels": [
+          "Slate - Top Grain Leather",
+          "Oak - Wood"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v23-burrow.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 4,
+        "axes": [
+          "color",
+          "material",
+          "leg finish"
+        ],
+        "variesBy": [
+          "color",
+          "material",
+          "Leg Finish"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Field Leather 2-Piece Sofa - Slate - Top Grain Leather / Oak - Wood · Leg Finish: Oak - Wood",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Field Leather 2-Piece Sofa - Camel - Top Grain Leather / Oak - Wood · Leg Finish: Oak - Wood",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Field Leather 2-Piece Sofa - Slate - Top Grain Leather / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Field Leather 2-Piece Sofa - Slate - Top Grain Leather / Black - Metal · Leg Finish: Black - Metal",
+          "raw": 3
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "color",
+        "material",
+        "leg finish"
+      ]
+    },
+    {
+      "id": "v24",
+      "site": "burrow",
+      "url": "https://burrow.com/products/ember-sofa?Size=75%22&Fabric=Georgia+Clay+-+Performance+Chenille&Leg+Finish=Walnut+-+Wood",
+      "from": "run fb5ee28d item",
+      "questions": [
+        {
+          "qid": "v24-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Ember Sofa - 75\" / Georgia Clay - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "e2": "Ember Sofa - 89\" / Georgia Clay - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "e3": "Ember Sofa - 75\" / Crushed Gravel - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "e4": "Ember Sofa - 75\" / Sage - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "e5": "Ember Sofa - 75\" / Seaglass - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "e6": "Ember Sofa - 75\" / Georgia Clay - Performance Chenille / Oak - Wood · Leg Finish: Oak - Wood",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v24-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with Size 75\" and Fabric Georgia Clay - Performance Chenille and Leg Finish Walnut - Wood the one selected on the screenshot?"
+        },
+        {
+          "qid": "v24-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "Size=75\"",
+          "instructions": "The page's address carries the parameter \"Size=75\"\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "o2": "color",
+            "o3": "material",
+            "o4": "leg finish",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v24-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "Fabric=Georgia Clay - Performance Chenille",
+          "instructions": "The page's address carries the parameter \"Fabric=Georgia Clay - Performance Chenille\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "o2": "color",
+            "o3": "material",
+            "o4": "leg finish",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v24-param3",
+          "role": "param",
+          "kind": "choice",
+          "param": "Leg Finish=Walnut - Wood",
+          "instructions": "The page's address carries the parameter \"Leg Finish=Walnut - Wood\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "size",
+            "o2": "color",
+            "o3": "material",
+            "o4": "leg finish",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://burrow.com/products/ember-sofa?Size=75%22&Fabric=Georgia+Clay+-+Performance+Chenille&Leg+Finish=Walnut+-+Wood",
+      "pageTitle": "Ember Sofa",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Size",
+            "value": "75\""
+          },
+          {
+            "name": "Fabric",
+            "value": "Georgia Clay - Performance Chenille"
+          },
+          {
+            "name": "Leg Finish",
+            "value": "Walnut - Wood"
+          }
+        ],
+        "labels": [
+          "75\"",
+          "Georgia Clay - Performance Chenille",
+          "Walnut - Wood"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Size",
+            "value": "75\""
+          },
+          {
+            "name": "Fabric",
+            "value": "Georgia Clay - Performance Chenille"
+          },
+          {
+            "name": "Leg Finish",
+            "value": "Walnut - Wood"
+          }
+        ],
+        "labels": [
+          "75\"",
+          "Georgia Clay - Performance Chenille",
+          "Walnut - Wood"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v24-burrow.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 6,
+        "axes": [
+          "size",
+          "color",
+          "material",
+          "leg finish"
+        ],
+        "variesBy": [
+          "size",
+          "color",
+          "material",
+          "Leg Finish"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Ember Sofa - 75\" / Georgia Clay - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Ember Sofa - 89\" / Georgia Clay - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Ember Sofa - 75\" / Crushed Gravel - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Ember Sofa - 75\" / Sage - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Ember Sofa - 75\" / Seaglass - Performance Chenille / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Ember Sofa - 75\" / Georgia Clay - Performance Chenille / Oak - Wood · Leg Finish: Oak - Wood",
+          "raw": 5
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "size",
+        "color",
+        "material",
+        "leg finish"
+      ]
+    },
+    {
+      "id": "v25",
+      "site": "burrow",
+      "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+      "from": "proof page 2",
+      "questions": [
+        {
+          "qid": "v25-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Range 3-Piece One Arm Sofa - Moss Green - Performance Flatweave / Black - Metal · Leg Finish: Black - Metal",
+            "e2": "Range 3-Piece One Arm Sofa - Navy Blue - Performance Flatweave / Black - Metal · Leg Finish: Black - Metal",
+            "e3": "Range 3-Piece One Arm Sofa - Stone Grey - Performance Flatweave / Black - Metal · Leg Finish: Black - Metal",
+            "e4": "Range 3-Piece One Arm Sofa - Heather Charcoal - Performance Chenille / Black - Metal · Leg Finish: Black - Metal",
+            "e5": "Range 3-Piece One Arm Sofa - Georgia Clay - Performance Chenille / Black - Metal · Leg Finish: Black - Metal",
+            "e6": "Range 3-Piece One Arm Sofa - Moss Green - Performance Flatweave / Oak - Wood · Leg Finish: Oak - Wood",
+            "e7": "Range 3-Piece One Arm Sofa - Moss Green - Performance Flatweave / Walnut - Wood · Leg Finish: Walnut - Wood",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v25-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with Fabric Moss Green - Performance Flatweave and Leg Finish Black - Metal the one selected on the screenshot?"
+        },
+        {
+          "qid": "v25-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "Fabric=Moss Green - Performance Flatweave",
+          "instructions": "The page's address carries the parameter \"Fabric=Moss Green - Performance Flatweave\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "o2": "material",
+            "o3": "leg finish",
+            "none": "None of these options"
+          }
+        },
+        {
+          "qid": "v25-param2",
+          "role": "param",
+          "kind": "choice",
+          "param": "Leg Finish=Black - Metal",
+          "instructions": "The page's address carries the parameter \"Leg Finish=Black - Metal\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "o2": "material",
+            "o3": "leg finish",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+      "pageTitle": "Range 3-Piece One Arm Sofa",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Moss Green - Performance Flatweave"
+          },
+          {
+            "name": "Leg Finish",
+            "value": "Black - Metal"
+          }
+        ],
+        "labels": [
+          "Moss Green - Performance Flatweave",
+          "Black - Metal"
+        ],
+        "named": true,
+        "selected": false
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "Fabric",
+            "value": "Moss Green - Performance Flatweave"
+          },
+          {
+            "name": "Leg Finish",
+            "value": "Black - Metal"
+          }
+        ],
+        "labels": [
+          "Moss Green - Performance Flatweave",
+          "Black - Metal"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v25-burrow.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 7,
+        "axes": [
+          "color",
+          "material",
+          "leg finish"
+        ],
+        "variesBy": [
+          "color",
+          "material",
+          "Leg Finish"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Range 3-Piece One Arm Sofa - Moss Green - Performance Flatweave / Black - Metal · Leg Finish: Black - Metal",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Range 3-Piece One Arm Sofa - Navy Blue - Performance Flatweave / Black - Metal · Leg Finish: Black - Metal",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Range 3-Piece One Arm Sofa - Stone Grey - Performance Flatweave / Black - Metal · Leg Finish: Black - Metal",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Range 3-Piece One Arm Sofa - Heather Charcoal - Performance Chenille / Black - Metal · Leg Finish: Black - Metal",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Range 3-Piece One Arm Sofa - Georgia Clay - Performance Chenille / Black - Metal · Leg Finish: Black - Metal",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Range 3-Piece One Arm Sofa - Moss Green - Performance Flatweave / Oak - Wood · Leg Finish: Oak - Wood",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Range 3-Piece One Arm Sofa - Moss Green - Performance Flatweave / Walnut - Wood · Leg Finish: Walnut - Wood",
+          "raw": 6
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "color",
+        "material",
+        "leg finish"
+      ]
+    },
+    {
+      "id": "v26",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+      "from": "run 3ca46d0a item (judge: rendered swatch 17)",
+      "questions": [
+        {
+          "qid": "v26-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-PUMA White-PUMA Silver",
+            "e2": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Feather Gray",
+            "e3": "Deviate NITRO™ 4 Men's Road Running Shoes - Vibrant Silver-Lux Lime",
+            "e4": "Deviate NITRO™ 4 Men's Road Running Shoes - Apple Spritz-Lux Lime",
+            "e5": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Flat Dark Gray-PUMA Silver",
+            "e6": "Deviate NITRO™ 4 Men's Road Running Shoes - Baltic Sea Blue-Fresh Water",
+            "e7": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Fresh Water",
+            "e8": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Poison Pink-Ultra Blue",
+            "e9": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Warm White",
+            "e10": "Deviate NITRO™ 4 Men's Road Running Shoes - Jasmine Flower-Pearl Pink",
+            "e11": "Deviate NITRO™ 4 Men's Road Running Shoes - Chocolate Brown-Purple Charcoal",
+            "e12": "Deviate NITRO™ 4 Men's Road Running Shoes - Dusty Orchid-Rosy Outlook",
+            "e13": "Deviate NITRO™ 4 Men's Road Running Shoes - Espresso Brown-Russet Brown",
+            "e14": "Deviate NITRO™ 4 Men's Road Running Shoes - Ultra Red-PUMA Silver",
+            "e15": "Deviate NITRO™ 4 Men's Road Running Shoes - Light Lavender-Inky Depths",
+            "e16": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Ultra Red",
+            "e17": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Slate Sky",
+            "e18": "Deviate NITRO™ 4 Men's Road Running Shoes - Créme De Mint-Moody Gray",
+            "e19": "Deviate NITRO™ 4 Men's Road Running Shoes - Zen Blue-Moody Gray",
+            "e20": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Ultra Red",
+            "e21": "Deviate NITRO™ 4 Men's Road Running Shoes - Sunny Lime-PUMA Black",
+            "e22": "Deviate NITRO™ 4 Men's Road Running Shoes - Soft Grass-Créme De Mint",
+            "e23": "Deviate NITRO™ 4 Men's Road Running Shoes - Slate Sky-Moody Gray",
+            "e24": "Deviate NITRO™ 4 Men's Road Running Shoes - Buttercream-Inky Depths",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v26-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with swatch 16 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v26-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "swatch=16",
+          "instructions": "The page's address carries the parameter \"swatch=16\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+      "pageTitle": "Deviate NITRO™ 4 Men's Road Running Shoes | PUMA",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "16"
+          },
+          {
+            "name": "styles",
+            "value": "Chocolate Brown-Purple Charcoal"
+          }
+        ],
+        "labels": [
+          "16",
+          "Chocolate Brown-Purple Charcoal"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "16"
+          }
+        ],
+        "labels": [
+          "16"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v26-puma.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 24,
+        "axes": [
+          "color"
+        ],
+        "variesBy": [
+          "color"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-PUMA White-PUMA Silver",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Feather Gray",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Vibrant Silver-Lux Lime",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Apple Spritz-Lux Lime",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Flat Dark Gray-PUMA Silver",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Baltic Sea Blue-Fresh Water",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Fresh Water",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Poison Pink-Ultra Blue",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Warm White",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Jasmine Flower-Pearl Pink",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Chocolate Brown-Purple Charcoal",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Dusty Orchid-Rosy Outlook",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Espresso Brown-Russet Brown",
+          "raw": 12
+        },
+        {
+          "id": "e14",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Ultra Red-PUMA Silver",
+          "raw": 13
+        },
+        {
+          "id": "e15",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Light Lavender-Inky Depths",
+          "raw": 14
+        },
+        {
+          "id": "e16",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Ultra Red",
+          "raw": 15
+        },
+        {
+          "id": "e17",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Slate Sky",
+          "raw": 16
+        },
+        {
+          "id": "e18",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Créme De Mint-Moody Gray",
+          "raw": 17
+        },
+        {
+          "id": "e19",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Zen Blue-Moody Gray",
+          "raw": 18
+        },
+        {
+          "id": "e20",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Ultra Red",
+          "raw": 19
+        },
+        {
+          "id": "e21",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Sunny Lime-PUMA Black",
+          "raw": 20
+        },
+        {
+          "id": "e22",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Soft Grass-Créme De Mint",
+          "raw": 21
+        },
+        {
+          "id": "e23",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Slate Sky-Moody Gray",
+          "raw": 22
+        },
+        {
+          "id": "e24",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Buttercream-Inky Depths",
+          "raw": 23
+        }
+      ],
+      "ours": "e11",
+      "namedEntry": null,
+      "optionNames": [
+        "color"
+      ]
+    },
+    {
+      "id": "v27",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=17",
+      "from": "run 3ca46d0a item",
+      "questions": [
+        {
+          "qid": "v27-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-PUMA White-PUMA Silver",
+            "e2": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Feather Gray",
+            "e3": "Deviate NITRO™ 4 Men's Road Running Shoes - Vibrant Silver-Lux Lime",
+            "e4": "Deviate NITRO™ 4 Men's Road Running Shoes - Apple Spritz-Lux Lime",
+            "e5": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Flat Dark Gray-PUMA Silver",
+            "e6": "Deviate NITRO™ 4 Men's Road Running Shoes - Baltic Sea Blue-Fresh Water",
+            "e7": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Fresh Water",
+            "e8": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Poison Pink-Ultra Blue",
+            "e9": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Warm White",
+            "e10": "Deviate NITRO™ 4 Men's Road Running Shoes - Jasmine Flower-Pearl Pink",
+            "e11": "Deviate NITRO™ 4 Men's Road Running Shoes - Chocolate Brown-Purple Charcoal",
+            "e12": "Deviate NITRO™ 4 Men's Road Running Shoes - Dusty Orchid-Rosy Outlook",
+            "e13": "Deviate NITRO™ 4 Men's Road Running Shoes - Espresso Brown-Russet Brown",
+            "e14": "Deviate NITRO™ 4 Men's Road Running Shoes - Ultra Red-PUMA Silver",
+            "e15": "Deviate NITRO™ 4 Men's Road Running Shoes - Light Lavender-Inky Depths",
+            "e16": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Ultra Red",
+            "e17": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Slate Sky",
+            "e18": "Deviate NITRO™ 4 Men's Road Running Shoes - Créme De Mint-Moody Gray",
+            "e19": "Deviate NITRO™ 4 Men's Road Running Shoes - Zen Blue-Moody Gray",
+            "e20": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Ultra Red",
+            "e21": "Deviate NITRO™ 4 Men's Road Running Shoes - Sunny Lime-PUMA Black",
+            "e22": "Deviate NITRO™ 4 Men's Road Running Shoes - Soft Grass-Créme De Mint",
+            "e23": "Deviate NITRO™ 4 Men's Road Running Shoes - Slate Sky-Moody Gray",
+            "e24": "Deviate NITRO™ 4 Men's Road Running Shoes - Buttercream-Inky Depths",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v27-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with swatch 17 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v27-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "swatch=17",
+          "instructions": "The page's address carries the parameter \"swatch=17\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=17",
+      "pageTitle": "Deviate NITRO™ 4 Men's Road Running Shoes | PUMA",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "17"
+          },
+          {
+            "name": "styles",
+            "value": "Du ty Orchid-Ro y Outlook"
+          }
+        ],
+        "labels": [
+          "17",
+          "Du ty Orchid-Ro y Outlook"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "17"
+          }
+        ],
+        "labels": [
+          "17"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v27-puma.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 24,
+        "axes": [
+          "color"
+        ],
+        "variesBy": [
+          "color"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-PUMA White-PUMA Silver",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Feather Gray",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Vibrant Silver-Lux Lime",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Apple Spritz-Lux Lime",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Flat Dark Gray-PUMA Silver",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Baltic Sea Blue-Fresh Water",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Fresh Water",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Poison Pink-Ultra Blue",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Warm White",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Jasmine Flower-Pearl Pink",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Chocolate Brown-Purple Charcoal",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Dusty Orchid-Rosy Outlook",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Espresso Brown-Russet Brown",
+          "raw": 12
+        },
+        {
+          "id": "e14",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Ultra Red-PUMA Silver",
+          "raw": 13
+        },
+        {
+          "id": "e15",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Light Lavender-Inky Depths",
+          "raw": 14
+        },
+        {
+          "id": "e16",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA Black-Ultra Red",
+          "raw": 15
+        },
+        {
+          "id": "e17",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Alpine Snow-Slate Sky",
+          "raw": 16
+        },
+        {
+          "id": "e18",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Créme De Mint-Moody Gray",
+          "raw": 17
+        },
+        {
+          "id": "e19",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Zen Blue-Moody Gray",
+          "raw": 18
+        },
+        {
+          "id": "e20",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - PUMA White-Ultra Red",
+          "raw": 19
+        },
+        {
+          "id": "e21",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Sunny Lime-PUMA Black",
+          "raw": 20
+        },
+        {
+          "id": "e22",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Soft Grass-Créme De Mint",
+          "raw": 21
+        },
+        {
+          "id": "e23",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Slate Sky-Moody Gray",
+          "raw": 22
+        },
+        {
+          "id": "e24",
+          "label": "Deviate NITRO™ 4 Men's Road Running Shoes - Buttercream-Inky Depths",
+          "raw": 23
+        }
+      ],
+      "ours": null,
+      "namedEntry": null,
+      "optionNames": [
+        "color"
+      ]
+    },
+    {
+      "id": "v28",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+      "from": "run 3ca46d0a item",
+      "questions": [
+        {
+          "qid": "v28-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Speedcat OG Sneakers - PUMA Black-PUMA White",
+            "e2": "Speedcat OG Sneakers - For All Time Red-PUMA White",
+            "e3": "Speedcat OG Sneakers - Cool Mid Gray-PUMA White",
+            "e4": "Speedcat OG Sneakers - Archive Gold-PUMA White",
+            "e5": "Speedcat OG Sneakers - PUMA Black-Mauve Mist",
+            "e6": "Speedcat OG Sneakers - Dark Myrtle-PUMA White",
+            "e7": "Speedcat OG Sneakers - PUMA Team Royal-PUMA White",
+            "e8": "Speedcat OG Sneakers - Pelé Yellow-PUMA Black",
+            "e9": "Speedcat OG Sneakers - PUMA Black-Rickie Orange",
+            "e10": "Speedcat OG Sneakers - Alpine Snow-PUMA White",
+            "e11": "Speedcat OG Sneakers - Yellow Alert-PUMA White",
+            "e12": "Speedcat OG Sneakers - Haute Coffee-Frosted Ivory",
+            "e13": "Speedcat OG Sneakers - New Navy-Warm White",
+            "e14": "Speedcat OG Sneakers - Sea Glass-Orange Glo",
+            "e15": "Speedcat OG Sneakers - Clyde Royal-Pelé Yellow",
+            "e16": "Speedcat OG Sneakers - Pistachio Green-Warm White",
+            "e17": "Speedcat OG Sneakers - Shadow Gray-PUMA Black",
+            "e18": "Speedcat OG Sneakers - Olive Green-PUMA Black",
+            "e19": "Speedcat OG Sneakers - Emerald Ice-PUMA Black",
+            "e20": "Speedcat OG Sneakers - Bordeaux Red-PUMA Black",
+            "e21": "Speedcat OG Sneakers - Blue Jewel-PUMA Black",
+            "e22": "Speedcat OG Sneakers - Inky Depths-PUMA Black",
+            "e23": "Speedcat OG Sneakers - Dark Olive-PUMA Black",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v28-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with swatch 94 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v28-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "swatch=94",
+          "instructions": "The page's address carries the parameter \"swatch=94\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+      "pageTitle": "Speedcat OG Sneakers | PUMA",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "94"
+          },
+          {
+            "name": "styles",
+            "value": "Dark Olive-PUMA Black"
+          }
+        ],
+        "labels": [
+          "94",
+          "Dark Olive-PUMA Black"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "94"
+          }
+        ],
+        "labels": [
+          "94"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v28-puma.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 23,
+        "axes": [
+          "color"
+        ],
+        "variesBy": [
+          "color"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Speedcat OG Sneakers - PUMA Black-PUMA White",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Speedcat OG Sneakers - For All Time Red-PUMA White",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Speedcat OG Sneakers - Cool Mid Gray-PUMA White",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Speedcat OG Sneakers - Archive Gold-PUMA White",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Speedcat OG Sneakers - PUMA Black-Mauve Mist",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Speedcat OG Sneakers - Dark Myrtle-PUMA White",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Speedcat OG Sneakers - PUMA Team Royal-PUMA White",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Speedcat OG Sneakers - Pelé Yellow-PUMA Black",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Speedcat OG Sneakers - PUMA Black-Rickie Orange",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Speedcat OG Sneakers - Alpine Snow-PUMA White",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Speedcat OG Sneakers - Yellow Alert-PUMA White",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Speedcat OG Sneakers - Haute Coffee-Frosted Ivory",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Speedcat OG Sneakers - New Navy-Warm White",
+          "raw": 12
+        },
+        {
+          "id": "e14",
+          "label": "Speedcat OG Sneakers - Sea Glass-Orange Glo",
+          "raw": 13
+        },
+        {
+          "id": "e15",
+          "label": "Speedcat OG Sneakers - Clyde Royal-Pelé Yellow",
+          "raw": 14
+        },
+        {
+          "id": "e16",
+          "label": "Speedcat OG Sneakers - Pistachio Green-Warm White",
+          "raw": 15
+        },
+        {
+          "id": "e17",
+          "label": "Speedcat OG Sneakers - Shadow Gray-PUMA Black",
+          "raw": 16
+        },
+        {
+          "id": "e18",
+          "label": "Speedcat OG Sneakers - Olive Green-PUMA Black",
+          "raw": 17
+        },
+        {
+          "id": "e19",
+          "label": "Speedcat OG Sneakers - Emerald Ice-PUMA Black",
+          "raw": 18
+        },
+        {
+          "id": "e20",
+          "label": "Speedcat OG Sneakers - Bordeaux Red-PUMA Black",
+          "raw": 19
+        },
+        {
+          "id": "e21",
+          "label": "Speedcat OG Sneakers - Blue Jewel-PUMA Black",
+          "raw": 20
+        },
+        {
+          "id": "e22",
+          "label": "Speedcat OG Sneakers - Inky Depths-PUMA Black",
+          "raw": 21
+        },
+        {
+          "id": "e23",
+          "label": "Speedcat OG Sneakers - Dark Olive-PUMA Black",
+          "raw": 22
+        }
+      ],
+      "ours": "e23",
+      "namedEntry": null,
+      "optionNames": [
+        "color"
+      ]
+    },
+    {
+      "id": "v29",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/suede-classic-sneakers/399781?swatch=01",
+      "from": "proof page 2",
+      "questions": [
+        {
+          "qid": "v29-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Suede Classic Sneakers - PUMA Black-PUMA White",
+            "e2": "Suede Classic Sneakers - For All Time Red-PUMA White",
+            "e3": "Suede Classic Sneakers - PUMA Navy-PUMA White",
+            "e4": "Suede Classic Sneakers - Amber-PUMA White",
+            "e5": "Suede Classic Sneakers - Team Regal Red-PUMA White",
+            "e6": "Suede Classic Sneakers - Cast Iron-PUMA White",
+            "e7": "Suede Classic Sneakers - PUMA Black-PUMA Black",
+            "e8": "Suede Classic Sneakers - Dark Myrtle-PUMA White",
+            "e9": "Suede Classic Sneakers - Pebble Path-Warm White",
+            "e10": "Suede Classic Sneakers - Chocolate Brown-PUMA White",
+            "e11": "Suede Classic Sneakers - Olive Green-PUMA White",
+            "e12": "Suede Classic Sneakers - Mountain Blue-PUMA White",
+            "e13": "Suede Classic Sneakers - Alpine Snow-PUMA White",
+            "e14": "Suede Classic Sneakers - Lavender Alert-PUMA White",
+            "e15": "Suede Classic Sneakers - Cayenne Pepper-PUMA White",
+            "e16": "Suede Classic Sneakers - Haute Coffee-PUMA White",
+            "e17": "Suede Classic Sneakers - Buttercream-PUMA White",
+            "e18": "Suede Classic Sneakers - Créme De Mint-PUMA White",
+            "e19": "Suede Classic Sneakers - Misty Pink-PUMA White",
+            "e20": "Suede Classic Sneakers - Rich Cocoa-PUMA White",
+            "e21": "Suede Classic Sneakers - Bright Mango Yellow-PUMA White",
+            "e22": "Suede Classic Sneakers - Chambray Blue-PUMA White",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        },
+        {
+          "qid": "v29-named",
+          "role": "named",
+          "kind": "noul",
+          "instructions": "Is the variant with swatch 01 the one selected on the screenshot?"
+        },
+        {
+          "qid": "v29-param1",
+          "role": "param",
+          "kind": "choice",
+          "param": "swatch=01",
+          "instructions": "The page's address carries the parameter \"swatch=01\". Which of the product's options does that parameter choose?",
+          "options": {
+            "o1": "color",
+            "none": "None of these options"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://us.puma.com/us/en/pd/suede-classic-sneakers/399781?swatch=01",
+      "pageTitle": "Suede Classic Sneakers | PUMA",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "01"
+          },
+          {
+            "name": "styles",
+            "value": "PUMA Black-PUMA White"
+          }
+        ],
+        "labels": [
+          "01",
+          "PUMA Black-PUMA White"
+        ],
+        "named": true,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "swatch",
+            "value": "01"
+          }
+        ],
+        "labels": [
+          "01"
+        ]
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v29-puma.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 22,
+        "axes": [
+          "color"
+        ],
+        "variesBy": [
+          "color"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Suede Classic Sneakers - PUMA Black-PUMA White",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Suede Classic Sneakers - For All Time Red-PUMA White",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Suede Classic Sneakers - PUMA Navy-PUMA White",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Suede Classic Sneakers - Amber-PUMA White",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Suede Classic Sneakers - Team Regal Red-PUMA White",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Suede Classic Sneakers - Cast Iron-PUMA White",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Suede Classic Sneakers - PUMA Black-PUMA Black",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Suede Classic Sneakers - Dark Myrtle-PUMA White",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Suede Classic Sneakers - Pebble Path-Warm White",
+          "raw": 8
+        },
+        {
+          "id": "e10",
+          "label": "Suede Classic Sneakers - Chocolate Brown-PUMA White",
+          "raw": 9
+        },
+        {
+          "id": "e11",
+          "label": "Suede Classic Sneakers - Olive Green-PUMA White",
+          "raw": 10
+        },
+        {
+          "id": "e12",
+          "label": "Suede Classic Sneakers - Mountain Blue-PUMA White",
+          "raw": 11
+        },
+        {
+          "id": "e13",
+          "label": "Suede Classic Sneakers - Alpine Snow-PUMA White",
+          "raw": 12
+        },
+        {
+          "id": "e14",
+          "label": "Suede Classic Sneakers - Lavender Alert-PUMA White",
+          "raw": 13
+        },
+        {
+          "id": "e15",
+          "label": "Suede Classic Sneakers - Cayenne Pepper-PUMA White",
+          "raw": 14
+        },
+        {
+          "id": "e16",
+          "label": "Suede Classic Sneakers - Haute Coffee-PUMA White",
+          "raw": 15
+        },
+        {
+          "id": "e17",
+          "label": "Suede Classic Sneakers - Buttercream-PUMA White",
+          "raw": 16
+        },
+        {
+          "id": "e18",
+          "label": "Suede Classic Sneakers - Créme De Mint-PUMA White",
+          "raw": 17
+        },
+        {
+          "id": "e19",
+          "label": "Suede Classic Sneakers - Misty Pink-PUMA White",
+          "raw": 18
+        },
+        {
+          "id": "e20",
+          "label": "Suede Classic Sneakers - Rich Cocoa-PUMA White",
+          "raw": 19
+        },
+        {
+          "id": "e21",
+          "label": "Suede Classic Sneakers - Bright Mango Yellow-PUMA White",
+          "raw": 20
+        },
+        {
+          "id": "e22",
+          "label": "Suede Classic Sneakers - Chambray Blue-PUMA White",
+          "raw": 21
+        }
+      ],
+      "ours": "e1",
+      "namedEntry": null,
+      "optionNames": [
+        "color"
+      ]
+    },
+    {
+      "id": "v30",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904",
+      "from": "derived: proof page 3 without its query (names no variant)",
+      "questions": [
+        {
+          "qid": "v30-sel",
+          "role": "selected",
+          "kind": "choice",
+          "instructions": "Which of the product's variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?",
+          "options": {
+            "e1": "Deviate Pure NITRO™ Men's Running Shoes - PUMA White-PUMA Silver",
+            "e2": "Deviate Pure NITRO™ Men's Running Shoes - Alpine Snow-Warm White",
+            "e3": "Deviate Pure NITRO™ Men's Running Shoes - PUMA White-Ultra Red-PUMA Silver",
+            "e4": "Deviate Pure NITRO™ Men's Running Shoes - Sunny Lime-PUMA Black",
+            "e5": "Deviate Pure NITRO™ Men's Running Shoes - PUMA Black-Flat Dark Gray-PUMA Silver",
+            "e6": "Deviate Pure NITRO™ Men's Running Shoes - Rich Cocoa-PUMA Black",
+            "e7": "Deviate Pure NITRO™ Men's Running Shoes - Inky Depths-New Navy",
+            "e8": "Deviate Pure NITRO™ Men's Running Shoes - Shadow Gray-Moss Veil-Matte Bronze",
+            "e9": "Deviate Pure NITRO™ Men's Running Shoes - Moss Veil-PUMA Black",
+            "none": "None: the screenshot shows no variant as selected"
+          }
+        }
+      ],
+      "verdict": "ok",
+      "finalUrl": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904",
+      "pageTitle": "Deviate Pure NITRO™ Men's Running Shoes | PUMA",
+      "pageVariant": {
+        "ids": [],
+        "pairs": [
+          {
+            "name": "styles",
+            "value": "PUMA White-PUMA Silver"
+          }
+        ],
+        "labels": [
+          "PUMA White-PUMA Silver"
+        ],
+        "named": false,
+        "selected": true
+      },
+      "named": {
+        "ids": [],
+        "pairs": [],
+        "labels": []
+      },
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1500
+      },
+      "crop": "crops/v-v30-puma.png",
+      "list": {
+        "source": "json-ld",
+        "path": "hasVariant",
+        "count": 9,
+        "axes": [
+          "color"
+        ],
+        "variesBy": [
+          "color"
+        ]
+      },
+      "options": [
+        {
+          "id": "e1",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - PUMA White-PUMA Silver",
+          "raw": 0
+        },
+        {
+          "id": "e2",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - Alpine Snow-Warm White",
+          "raw": 1
+        },
+        {
+          "id": "e3",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - PUMA White-Ultra Red-PUMA Silver",
+          "raw": 2
+        },
+        {
+          "id": "e4",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - Sunny Lime-PUMA Black",
+          "raw": 3
+        },
+        {
+          "id": "e5",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - PUMA Black-Flat Dark Gray-PUMA Silver",
+          "raw": 4
+        },
+        {
+          "id": "e6",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - Rich Cocoa-PUMA Black",
+          "raw": 5
+        },
+        {
+          "id": "e7",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - Inky Depths-New Navy",
+          "raw": 6
+        },
+        {
+          "id": "e8",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - Shadow Gray-Moss Veil-Matte Bronze",
+          "raw": 7
+        },
+        {
+          "id": "e9",
+          "label": "Deviate Pure NITRO™ Men's Running Shoes - Moss Veil-PUMA Black",
+          "raw": 8
+        }
+      ],
+      "ours": "e1",
+      "namedEntry": null,
+      "optionNames": [
+        "color"
+      ]
+    }
+  ]
+}

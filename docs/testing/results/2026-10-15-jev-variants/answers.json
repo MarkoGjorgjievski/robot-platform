@@ -1,0 +1,3432 @@
+{
+ "calls": [
+  {
+   "id": "k1",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v01-ruggable.png",
+   "repeat": 1,
+   "qids": [
+    "v01-sel",
+    "v01-named",
+    "v01-param1",
+    "v01-param2"
+   ],
+   "at": "2026-10-15T14:49:07.516Z",
+   "ms": 669,
+   "input_tokens": 7447,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k2",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v02-ruggable.png",
+   "repeat": 1,
+   "qids": [
+    "v02-sel",
+    "v02-named",
+    "v02-param1",
+    "v02-param2"
+   ],
+   "at": "2026-10-15T14:49:08.198Z",
+   "ms": 980,
+   "input_tokens": 7031,
+   "output_tokens": 201,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k3",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v03-ruggable.png",
+   "repeat": 1,
+   "qids": [
+    "v03-sel",
+    "v03-named",
+    "v03-param1",
+    "v03-param2"
+   ],
+   "at": "2026-10-15T14:49:09.196Z",
+   "ms": 766,
+   "input_tokens": 7381,
+   "output_tokens": 256,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k4",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v04-ruggable.png",
+   "repeat": 1,
+   "qids": [
+    "v04-sel",
+    "v04-named",
+    "v04-param1",
+    "v04-param2"
+   ],
+   "at": "2026-10-15T14:49:09.963Z",
+   "ms": 872,
+   "input_tokens": 6488,
+   "output_tokens": 152,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k5",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-soft-black-tufted-rug",
+   "crop": "crops/v-v05-ruggable.png",
+   "repeat": 1,
+   "qids": [
+    "v05-sel"
+   ],
+   "at": "2026-10-15T14:49:10.848Z",
+   "ms": 914,
+   "input_tokens": 6983,
+   "output_tokens": 138,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k6",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+   "crop": "crops/v-v06-kith.png",
+   "repeat": 1,
+   "qids": [
+    "v06-sel"
+   ],
+   "at": "2026-10-15T14:49:11.774Z",
+   "ms": 619,
+   "input_tokens": 6279,
+   "output_tokens": 85,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k7",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+   "crop": "crops/v-v07-kith.png",
+   "repeat": 1,
+   "qids": [
+    "v07-sel"
+   ],
+   "at": "2026-10-15T14:49:12.406Z",
+   "ms": 779,
+   "input_tokens": 6282,
+   "output_tokens": 85,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k8",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030086-001",
+   "crop": "crops/v-v08-kith.png",
+   "repeat": 1,
+   "qids": [
+    "v08-sel"
+   ],
+   "at": "2026-10-15T14:49:13.197Z",
+   "ms": 808,
+   "input_tokens": 6280,
+   "output_tokens": 85,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k9",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-001",
+   "crop": "crops/v-v09-kith.png",
+   "repeat": 1,
+   "qids": [
+    "v09-sel"
+   ],
+   "at": "2026-10-15T14:49:14.007Z",
+   "ms": 553,
+   "input_tokens": 6276,
+   "output_tokens": 85,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k10",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338?variant=45144758124672",
+   "crop": "crops/v-v10-kith.png",
+   "repeat": 1,
+   "qids": [
+    "v10-sel",
+    "v10-named"
+   ],
+   "at": "2026-10-15T14:49:14.563Z",
+   "ms": 709,
+   "input_tokens": 6300,
+   "output_tokens": 107,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k11",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+   "crop": "crops/v-v11-skullcandy.png",
+   "repeat": 1,
+   "qids": [
+    "v11-sel",
+    "v11-named"
+   ],
+   "at": "2026-10-15T14:49:15.275Z",
+   "ms": 930,
+   "input_tokens": 6446,
+   "output_tokens": 116,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k12",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=45061353865273",
+   "crop": "crops/v-v12-skullcandy.png",
+   "repeat": 1,
+   "qids": [
+    "v12-sel",
+    "v12-named"
+   ],
+   "at": "2026-10-15T14:49:16.208Z",
+   "ms": 1019,
+   "input_tokens": 6305,
+   "output_tokens": 92,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k13",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/push-anc-active?variant=45276014772281",
+   "crop": "crops/v-v13-skullcandy.png",
+   "repeat": 1,
+   "qids": [
+    "v13-sel",
+    "v13-named"
+   ],
+   "at": "2026-10-15T14:49:17.238Z",
+   "ms": 1242,
+   "input_tokens": 6152,
+   "output_tokens": 68,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k14",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones",
+   "crop": "crops/v-v14-skullcandy.png",
+   "repeat": 1,
+   "qids": [
+    "v14-sel"
+   ],
+   "at": "2026-10-15T14:49:18.482Z",
+   "ms": 664,
+   "input_tokens": 6151,
+   "output_tokens": 46,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k15",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds",
+   "crop": "crops/v-v15-skullcandy.png",
+   "repeat": 1,
+   "qids": [
+    "v15-sel"
+   ],
+   "at": "2026-10-15T14:49:19.153Z",
+   "ms": 805,
+   "input_tokens": 6424,
+   "output_tokens": 94,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k16",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832752373",
+   "crop": "crops/v-v16-glossier.png",
+   "repeat": 1,
+   "qids": [
+    "v16-sel",
+    "v16-named"
+   ],
+   "at": "2026-10-15T14:49:19.990Z",
+   "ms": 677,
+   "input_tokens": 4332,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k17",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/glossier-after-baume?variant=44416231604469",
+   "crop": "crops/v-v18-glossier.png",
+   "repeat": 1,
+   "qids": [
+    "v18-sel",
+    "v18-named"
+   ],
+   "at": "2026-10-15T14:49:20.670Z",
+   "ms": 1154,
+   "input_tokens": 4285,
+   "output_tokens": 76,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k18",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832785141",
+   "crop": "crops/v-v19-glossier.png",
+   "repeat": 1,
+   "qids": [
+    "v19-sel",
+    "v19-named"
+   ],
+   "at": "2026-10-15T14:49:21.842Z",
+   "ms": 707,
+   "input_tokens": 4328,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k19",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser",
+   "crop": "crops/v-v20-glossier.png",
+   "repeat": 1,
+   "qids": [
+    "v20-sel"
+   ],
+   "at": "2026-10-15T14:49:22.554Z",
+   "ms": 650,
+   "input_tokens": 4306,
+   "output_tokens": 62,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k20",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/range-pro-109-3-seat-sofa?Fabric=Camel+-+Top+Grain+Leather",
+   "crop": "crops/v-v21-burrow.png",
+   "repeat": 1,
+   "qids": [
+    "v21-sel",
+    "v21-named",
+    "v21-param1"
+   ],
+   "at": "2026-10-15T14:49:23.213Z",
+   "ms": 724,
+   "input_tokens": 6345,
+   "output_tokens": 118,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k21",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/union-pro-108-3-seat-sofa?Fabric=Ivory+-+Performance+Chenille",
+   "crop": "crops/v-v22-burrow.png",
+   "repeat": 1,
+   "qids": [
+    "v22-sel",
+    "v22-named",
+    "v22-param1"
+   ],
+   "at": "2026-10-15T14:49:23.950Z",
+   "ms": 1379,
+   "input_tokens": 6351,
+   "output_tokens": 118,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k22",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/field-leather-2-piece-sofa?Fabric=Slate+-+Top+Grain+Leather&Leg+Finish=Oak+-+Wood",
+   "crop": "crops/v-v23-burrow.png",
+   "repeat": 1,
+   "qids": [
+    "v23-sel",
+    "v23-named",
+    "v23-param1",
+    "v23-param2"
+   ],
+   "at": "2026-10-15T14:49:25.347Z",
+   "ms": 551,
+   "input_tokens": 6569,
+   "output_tokens": 185,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k23",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/ember-sofa?Size=75%22&Fabric=Georgia+Clay+-+Performance+Chenille&Leg+Finish=Walnut+-+Wood",
+   "crop": "crops/v-v24-burrow.png",
+   "repeat": 1,
+   "qids": [
+    "v24-sel",
+    "v24-named",
+    "v24-param1",
+    "v24-param2",
+    "v24-param3"
+   ],
+   "at": "2026-10-15T14:49:25.907Z",
+   "ms": 641,
+   "input_tokens": 6902,
+   "output_tokens": 276,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k24",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+   "crop": "crops/v-v25-burrow.png",
+   "repeat": 1,
+   "qids": [
+    "v25-sel",
+    "v25-named",
+    "v25-param1",
+    "v25-param2"
+   ],
+   "at": "2026-10-15T14:49:26.564Z",
+   "ms": 1076,
+   "input_tokens": 6855,
+   "output_tokens": 209,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k25",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/v-v26-puma.png",
+   "repeat": 1,
+   "qids": [
+    "v26-sel",
+    "v26-named",
+    "v26-param1"
+   ],
+   "at": "2026-10-15T14:49:27.657Z",
+   "ms": 2256,
+   "input_tokens": 7922,
+   "output_tokens": 294,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k26",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v01-ruggable.png",
+   "repeat": 2,
+   "qids": [
+    "v01-sel",
+    "v01-named",
+    "v01-param1",
+    "v01-param2"
+   ],
+   "at": "2026-10-15T14:49:29.916Z",
+   "ms": 393,
+   "input_tokens": 7446,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k27",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v04-ruggable.png",
+   "repeat": 2,
+   "qids": [
+    "v04-sel",
+    "v04-named",
+    "v04-param1",
+    "v04-param2"
+   ],
+   "at": "2026-10-15T14:49:30.310Z",
+   "ms": 677,
+   "input_tokens": 6487,
+   "output_tokens": 152,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k28",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+   "crop": "crops/v-v07-kith.png",
+   "repeat": 2,
+   "qids": [
+    "v07-sel"
+   ],
+   "at": "2026-10-15T14:49:30.990Z",
+   "ms": 792,
+   "input_tokens": 6279,
+   "output_tokens": 85,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k29",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338?variant=45144758124672",
+   "crop": "crops/v-v10-kith.png",
+   "repeat": 2,
+   "qids": [
+    "v10-sel",
+    "v10-named"
+   ],
+   "at": "2026-10-15T14:49:31.783Z",
+   "ms": 757,
+   "input_tokens": 6300,
+   "output_tokens": 107,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k30",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/push-anc-active?variant=45276014772281",
+   "crop": "crops/v-v13-skullcandy.png",
+   "repeat": 2,
+   "qids": [
+    "v13-sel",
+    "v13-named"
+   ],
+   "at": "2026-10-15T14:49:32.541Z",
+   "ms": 697,
+   "input_tokens": 6152,
+   "output_tokens": 68,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k31",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832752373",
+   "crop": "crops/v-v16-glossier.png",
+   "repeat": 2,
+   "qids": [
+    "v16-sel",
+    "v16-named"
+   ],
+   "at": "2026-10-15T14:49:33.240Z",
+   "ms": 660,
+   "input_tokens": 4329,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k32",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832785141",
+   "crop": "crops/v-v19-glossier.png",
+   "repeat": 2,
+   "qids": [
+    "v19-sel",
+    "v19-named"
+   ],
+   "at": "2026-10-15T14:49:33.902Z",
+   "ms": 735,
+   "input_tokens": 4325,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k33",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/union-pro-108-3-seat-sofa?Fabric=Ivory+-+Performance+Chenille",
+   "crop": "crops/v-v22-burrow.png",
+   "repeat": 2,
+   "qids": [
+    "v22-sel",
+    "v22-named",
+    "v22-param1"
+   ],
+   "at": "2026-10-15T14:49:34.638Z",
+   "ms": 769,
+   "input_tokens": 6351,
+   "output_tokens": 118,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k34",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+   "crop": "crops/v-v25-burrow.png",
+   "repeat": 2,
+   "qids": [
+    "v25-sel",
+    "v25-named",
+    "v25-param1",
+    "v25-param2"
+   ],
+   "at": "2026-10-15T14:49:35.409Z",
+   "ms": 693,
+   "input_tokens": 6860,
+   "output_tokens": 209,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k35",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v01-ruggable.png",
+   "repeat": 3,
+   "qids": [
+    "v01-sel",
+    "v01-named",
+    "v01-param1",
+    "v01-param2"
+   ],
+   "at": "2026-10-15T14:49:36.103Z",
+   "ms": 321,
+   "input_tokens": 7448,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k36",
+   "set": "v",
+   "kind": "main",
+   "url": "https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/v-v04-ruggable.png",
+   "repeat": 3,
+   "qids": [
+    "v04-sel",
+    "v04-named",
+    "v04-param1",
+    "v04-param2"
+   ],
+   "at": "2026-10-15T14:49:36.426Z",
+   "ms": 516,
+   "input_tokens": 6490,
+   "output_tokens": 152,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k37",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+   "crop": "crops/v-v07-kith.png",
+   "repeat": 3,
+   "qids": [
+    "v07-sel"
+   ],
+   "at": "2026-10-15T14:49:36.944Z",
+   "ms": 870,
+   "input_tokens": 6279,
+   "output_tokens": 85,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k38",
+   "set": "v",
+   "kind": "main",
+   "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338?variant=45144758124672",
+   "crop": "crops/v-v10-kith.png",
+   "repeat": 3,
+   "qids": [
+    "v10-sel",
+    "v10-named"
+   ],
+   "at": "2026-10-15T14:49:37.815Z",
+   "ms": 722,
+   "input_tokens": 6299,
+   "output_tokens": 107,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k39",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/push-anc-active?variant=45276014772281",
+   "crop": "crops/v-v13-skullcandy.png",
+   "repeat": 3,
+   "qids": [
+    "v13-sel",
+    "v13-named"
+   ],
+   "at": "2026-10-15T14:49:38.538Z",
+   "ms": 1107,
+   "input_tokens": 6153,
+   "output_tokens": 68,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k40",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832752373",
+   "crop": "crops/v-v16-glossier.png",
+   "repeat": 3,
+   "qids": [
+    "v16-sel",
+    "v16-named"
+   ],
+   "at": "2026-10-15T14:49:39.646Z",
+   "ms": 793,
+   "input_tokens": 4327,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k41",
+   "set": "v",
+   "kind": "main",
+   "url": "https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832785141",
+   "crop": "crops/v-v19-glossier.png",
+   "repeat": 3,
+   "qids": [
+    "v19-sel",
+    "v19-named"
+   ],
+   "at": "2026-10-15T14:49:40.442Z",
+   "ms": 802,
+   "input_tokens": 4328,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k42",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/union-pro-108-3-seat-sofa?Fabric=Ivory+-+Performance+Chenille",
+   "crop": "crops/v-v22-burrow.png",
+   "repeat": 3,
+   "qids": [
+    "v22-sel",
+    "v22-named",
+    "v22-param1"
+   ],
+   "at": "2026-10-15T14:49:41.245Z",
+   "ms": 802,
+   "input_tokens": 6349,
+   "output_tokens": 118,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k43",
+   "set": "v",
+   "kind": "main",
+   "url": "https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal",
+   "crop": "crops/v-v25-burrow.png",
+   "repeat": 3,
+   "qids": [
+    "v25-sel",
+    "v25-named",
+    "v25-param1",
+    "v25-param2"
+   ],
+   "at": "2026-10-15T14:49:42.049Z",
+   "ms": 650,
+   "input_tokens": 6859,
+   "output_tokens": 209,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k44",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=17",
+   "crop": "crops/v-v27-puma.png",
+   "repeat": 1,
+   "qids": [
+    "v27-sel",
+    "v27-named",
+    "v27-param1"
+   ],
+   "at": "2026-10-15T16:04:49.393Z",
+   "ms": 952,
+   "input_tokens": 7923,
+   "output_tokens": 294,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k45",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/v-v28-puma.png",
+   "repeat": 1,
+   "qids": [
+    "v28-sel",
+    "v28-named",
+    "v28-param1"
+   ],
+   "at": "2026-10-15T16:04:50.346Z",
+   "ms": 675,
+   "input_tokens": 7427,
+   "output_tokens": 285,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k46",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/suede-classic-sneakers/399781?swatch=01",
+   "crop": "crops/v-v29-puma.png",
+   "repeat": 1,
+   "qids": [
+    "v29-sel",
+    "v29-named",
+    "v29-param1"
+   ],
+   "at": "2026-10-15T16:04:51.022Z",
+   "ms": 608,
+   "input_tokens": 7325,
+   "output_tokens": 275,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k47",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904",
+   "crop": "crops/v-v30-puma.png",
+   "repeat": 1,
+   "qids": [
+    "v30-sel"
+   ],
+   "at": "2026-10-15T16:04:51.632Z",
+   "ms": 427,
+   "input_tokens": 6656,
+   "output_tokens": 102,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k48",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/v-v28-puma.png",
+   "repeat": 2,
+   "qids": [
+    "v28-sel",
+    "v28-named",
+    "v28-param1"
+   ],
+   "at": "2026-10-15T16:04:52.061Z",
+   "ms": 835,
+   "input_tokens": 7426,
+   "output_tokens": 285,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k49",
+   "set": "v",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/v-v28-puma.png",
+   "repeat": 3,
+   "qids": [
+    "v28-sel",
+    "v28-named",
+    "v28-param1"
+   ],
+   "at": "2026-10-15T16:04:52.899Z",
+   "ms": 489,
+   "input_tokens": 7429,
+   "output_tokens": 285,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k50",
+   "set": "d",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "crop": "crops/d-d01-sigmabeauty.png",
+   "repeat": 1,
+   "qids": [
+    "d01"
+   ],
+   "at": "2026-10-15T16:04:56.672Z",
+   "ms": 759,
+   "input_tokens": 1294,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k51",
+   "set": "d",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+   "crop": "crops/d-d02-sigmabeauty.png",
+   "repeat": 1,
+   "qids": [
+    "d02"
+   ],
+   "at": "2026-10-15T16:04:57.550Z",
+   "ms": 475,
+   "input_tokens": 1306,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k52",
+   "set": "d",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/basic-eye-kit",
+   "crop": "crops/d-d03-sigmabeauty.png",
+   "repeat": 1,
+   "qids": [
+    "d03"
+   ],
+   "at": "2026-10-15T16:04:58.098Z",
+   "ms": 437,
+   "input_tokens": 1294,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k53",
+   "set": "d",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f53-air-contour-blush",
+   "crop": "crops/d-d04-sigmabeauty.png",
+   "repeat": 1,
+   "qids": [
+    "d04"
+   ],
+   "at": "2026-10-15T16:04:58.609Z",
+   "ms": 439,
+   "input_tokens": 1297,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k54",
+   "set": "d",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+   "crop": "crops/d-d05-sigmabeauty.png",
+   "repeat": 1,
+   "qids": [
+    "d05"
+   ],
+   "at": "2026-10-15T16:04:59.112Z",
+   "ms": 1301,
+   "input_tokens": 1300,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k55",
+   "set": "d",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/3dhdr-kabuki-brush",
+   "crop": "crops/d-d06-sigmabeauty.png",
+   "repeat": 1,
+   "qids": [
+    "d06"
+   ],
+   "at": "2026-10-15T16:05:00.447Z",
+   "ms": 1711,
+   "input_tokens": 1301,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k56",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=02S",
+   "crop": "crops/d-d07-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d07"
+   ],
+   "at": "2026-10-15T16:05:02.162Z",
+   "ms": 546,
+   "input_tokens": null,
+   "output_tokens": null,
+   "error": "BadRequestError: 400 Invalid image dimensions."
+  },
+  {
+   "id": "k57",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=EL6",
+   "crop": "crops/d-d08-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d08"
+   ],
+   "at": "2026-10-15T16:05:02.718Z",
+   "ms": 4433,
+   "input_tokens": null,
+   "output_tokens": null,
+   "error": "BadRequestError: 400 Invalid image dimensions."
+  },
+  {
+   "id": "k58",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=JPR",
+   "crop": "crops/d-d09-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d09"
+   ],
+   "at": "2026-10-15T16:05:07.163Z",
+   "ms": 812,
+   "input_tokens": null,
+   "output_tokens": null,
+   "error": "BadRequestError: 400 Invalid image dimensions."
+  },
+  {
+   "id": "k59",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH0213-00.html?color=EL6",
+   "crop": "crops/d-d10-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d10"
+   ],
+   "at": "2026-10-15T16:05:07.985Z",
+   "ms": 396,
+   "input_tokens": null,
+   "output_tokens": null,
+   "error": "BadRequestError: 400 Invalid image dimensions."
+  },
+  {
+   "id": "k60",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/L1312-00.html?color=BDM",
+   "crop": "crops/d-d11-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d11"
+   ],
+   "at": "2026-10-15T16:05:08.391Z",
+   "ms": 279,
+   "input_tokens": null,
+   "output_tokens": null,
+   "error": "BadRequestError: 400 Invalid image dimensions."
+  },
+  {
+   "id": "k61",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=02S",
+   "crop": "crops/d-d07-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d07"
+   ],
+   "at": "2026-10-15T16:32:26.823Z",
+   "ms": 547,
+   "input_tokens": 935,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k62",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=EL6",
+   "crop": "crops/d-d08-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d08"
+   ],
+   "at": "2026-10-15T16:32:27.371Z",
+   "ms": 266,
+   "input_tokens": 945,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k63",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=JPR",
+   "crop": "crops/d-d09-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d09"
+   ],
+   "at": "2026-10-15T16:32:27.640Z",
+   "ms": 272,
+   "input_tokens": 941,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k64",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH0213-00.html?color=EL6",
+   "crop": "crops/d-d10-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d10"
+   ],
+   "at": "2026-10-15T16:32:27.915Z",
+   "ms": 260,
+   "input_tokens": 924,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k65",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/L1312-00.html?color=BDM",
+   "crop": "crops/d-d11-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d11"
+   ],
+   "at": "2026-10-15T16:32:28.176Z",
+   "ms": 265,
+   "input_tokens": 939,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k66",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=031",
+   "crop": "crops/d-d12-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d12"
+   ],
+   "at": "2026-10-15T16:32:28.443Z",
+   "ms": 393,
+   "input_tokens": 935,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k67",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH9851-00.html?color=001",
+   "crop": "crops/d-d13-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d13"
+   ],
+   "at": "2026-10-15T16:32:28.839Z",
+   "ms": 266,
+   "input_tokens": 934,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k68",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=BDM",
+   "crop": "crops/d-d14-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d14"
+   ],
+   "at": "2026-10-15T16:32:29.107Z",
+   "ms": 276,
+   "input_tokens": 936,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k69",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/PH2481-00.html?color=166",
+   "crop": "crops/d-d15-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d15"
+   ],
+   "at": "2026-10-15T16:32:29.384Z",
+   "ms": 259,
+   "input_tokens": 926,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k70",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH4012-00.html?color=166",
+   "crop": "crops/d-d16-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d16"
+   ],
+   "at": "2026-10-15T16:32:29.644Z",
+   "ms": 285,
+   "input_tokens": 938,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k71",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH6809-00.html?color=ZDQ",
+   "crop": "crops/d-d17-lacoste.png",
+   "repeat": 1,
+   "qids": [
+    "d17"
+   ],
+   "at": "2026-10-15T16:32:29.930Z",
+   "ms": 261,
+   "input_tokens": 924,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k72",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/personalised-heart-and-birthstone-charm-bracelet",
+   "crop": "crops/d-d18-notonthehighstreet.png",
+   "repeat": 1,
+   "qids": [
+    "d18"
+   ],
+   "at": "2026-10-15T16:32:30.193Z",
+   "ms": 333,
+   "input_tokens": 997,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k73",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/d-d19-notonthehighstreet.png",
+   "repeat": 1,
+   "qids": [
+    "d19"
+   ],
+   "at": "2026-10-15T16:32:30.528Z",
+   "ms": 285,
+   "input_tokens": 1023,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k74",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/silkpursesowsear/product/art-deco-emerald-baguette-earrings",
+   "crop": "crops/d-d20-notonthehighstreet.png",
+   "repeat": 1,
+   "qids": [
+    "d20"
+   ],
+   "at": "2026-10-15T16:32:30.816Z",
+   "ms": 271,
+   "input_tokens": 997,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k75",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/potiega/product/sterling-silver-name-necklace-with-heart-birthstone",
+   "crop": "crops/d-d21-notonthehighstreet.png",
+   "repeat": 1,
+   "qids": [
+    "d21"
+   ],
+   "at": "2026-10-15T16:32:31.089Z",
+   "ms": 270,
+   "input_tokens": 993,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k76",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/augustajewellery/product/ginkgo-earrings",
+   "crop": "crops/d-d22-notonthehighstreet.png",
+   "repeat": 1,
+   "qids": [
+    "d22"
+   ],
+   "at": "2026-10-15T16:32:31.363Z",
+   "ms": 276,
+   "input_tokens": 1082,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k77",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/d-d23-ikea.png",
+   "repeat": 1,
+   "qids": [
+    "d23"
+   ],
+   "at": "2026-10-15T16:32:31.642Z",
+   "ms": 1113,
+   "input_tokens": 2957,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k78",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/hyltarp-3-seat-sofa-kilanda-pale-blue-s99489647/",
+   "crop": "crops/d-d24-ikea.png",
+   "repeat": 1,
+   "qids": [
+    "d24"
+   ],
+   "at": "2026-10-15T16:32:32.756Z",
+   "ms": 582,
+   "input_tokens": 2954,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k79",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-1-seat-section-kelinge-dark-yellow-s99621595/",
+   "crop": "crops/d-d25-ikea.png",
+   "repeat": 1,
+   "qids": [
+    "d25"
+   ],
+   "at": "2026-10-15T16:32:33.340Z",
+   "ms": 387,
+   "input_tokens": 2955,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k80",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-4-seat-sofa-with-chaise-longue-tresund-anthracite-s99494385/",
+   "crop": "crops/d-d26-ikea.png",
+   "repeat": 1,
+   "qids": [
+    "d26"
+   ],
+   "at": "2026-10-15T16:32:33.728Z",
+   "ms": 440,
+   "input_tokens": 2957,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k81",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/lillehem-3-seat-modular-sofa-w-chaise-longue-vissle-beige-wood-s89570412/",
+   "crop": "crops/d-d27-ikea.png",
+   "repeat": 1,
+   "qids": [
+    "d27"
+   ],
+   "at": "2026-10-15T16:32:34.169Z",
+   "ms": 264,
+   "input_tokens": 860,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k82",
+   "set": "d",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/d-d28-ikea.png",
+   "repeat": 1,
+   "qids": [
+    "d28"
+   ],
+   "at": "2026-10-15T16:32:34.435Z",
+   "ms": 676,
+   "input_tokens": 4157,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  }
+ ],
+ "answers": [
+  {
+   "callId": "k1",
+   "set": "v",
+   "qid": "v01-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.92,
+   "probabilities": {
+    "e1": 0.04,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0.01,
+    "e9": 0.01,
+    "e10": 0.01,
+    "e11": 0,
+    "e12": 0.01,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "none": 0.92
+   }
+  },
+  {
+   "callId": "k1",
+   "set": "v",
+   "qid": "v01-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k1",
+   "set": "v",
+   "qid": "v01-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.92,
+   "probabilities": {
+    "o1": 0.96,
+    "none": 0.04
+   }
+  },
+  {
+   "callId": "k1",
+   "set": "v",
+   "qid": "v01-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.76,
+   "probabilities": {
+    "o1": 0.12,
+    "none": 0.88
+   }
+  },
+  {
+   "callId": "k2",
+   "set": "v",
+   "qid": "v02-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e7",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 1,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k2",
+   "set": "v",
+   "qid": "v02-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k2",
+   "set": "v",
+   "qid": "v02-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.96,
+   "probabilities": {
+    "o1": 0.98,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k2",
+   "set": "v",
+   "qid": "v02-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.96,
+   "probabilities": {
+    "o1": 0.02,
+    "none": 0.98
+   }
+  },
+  {
+   "callId": "k3",
+   "set": "v",
+   "qid": "v03-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e10",
+   "confidence": 0.98,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0.98,
+    "e11": 0,
+    "e12": 0,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k3",
+   "set": "v",
+   "qid": "v03-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k3",
+   "set": "v",
+   "qid": "v03-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.92,
+   "probabilities": {
+    "o1": 0.96,
+    "none": 0.04
+   }
+  },
+  {
+   "callId": "k3",
+   "set": "v",
+   "qid": "v03-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.82,
+   "probabilities": {
+    "o1": 0.09,
+    "none": 0.91
+   }
+  },
+  {
+   "callId": "k4",
+   "set": "v",
+   "qid": "v04-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 1,
+    "e3": 0,
+    "e4": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k4",
+   "set": "v",
+   "qid": "v04-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k4",
+   "set": "v",
+   "qid": "v04-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k4",
+   "set": "v",
+   "qid": "v04-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.96,
+   "probabilities": {
+    "o1": 0.02,
+    "none": 0.98
+   }
+  },
+  {
+   "callId": "k5",
+   "set": "v",
+   "qid": "v05-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e8",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 1,
+    "e9": 0,
+    "e10": 0,
+    "e11": 0,
+    "e12": 0,
+    "e13": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k6",
+   "set": "v",
+   "qid": "v06-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0.01,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.97
+   }
+  },
+  {
+   "callId": "k7",
+   "set": "v",
+   "qid": "v07-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.01,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.97
+   }
+  },
+  {
+   "callId": "k8",
+   "set": "v",
+   "qid": "v08-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.98,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.98
+   }
+  },
+  {
+   "callId": "k9",
+   "set": "v",
+   "qid": "v09-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.98,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.98
+   }
+  },
+  {
+   "callId": "k10",
+   "set": "v",
+   "qid": "v10-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.98,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.98
+   }
+  },
+  {
+   "callId": "k10",
+   "set": "v",
+   "qid": "v10-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k11",
+   "set": "v",
+   "qid": "v11-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e7",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0.99,
+    "e8": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k11",
+   "set": "v",
+   "qid": "v11-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k12",
+   "set": "v",
+   "qid": "v12-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k12",
+   "set": "v",
+   "qid": "v12-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k13",
+   "set": "v",
+   "qid": "v13-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.02,
+    "e2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k13",
+   "set": "v",
+   "qid": "v13-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k14",
+   "set": "v",
+   "qid": "v14-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k15",
+   "set": "v",
+   "qid": "v15-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k16",
+   "set": "v",
+   "qid": "v16-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.98,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k16",
+   "set": "v",
+   "qid": "v16-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k17",
+   "set": "v",
+   "qid": "v18-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.92,
+   "probabilities": {
+    "e1": 0.94,
+    "e2": 0,
+    "e3": 0,
+    "none": 0.06
+   }
+  },
+  {
+   "callId": "k17",
+   "set": "v",
+   "qid": "v18-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k18",
+   "set": "v",
+   "qid": "v19-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.82,
+   "probabilities": {
+    "e1": 0.08,
+    "e2": 0.86,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.06
+   }
+  },
+  {
+   "callId": "k18",
+   "set": "v",
+   "qid": "v19-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.87
+  },
+  {
+   "callId": "k19",
+   "set": "v",
+   "qid": "v20-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.98,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k20",
+   "set": "v",
+   "qid": "v21-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 1,
+    "e3": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k20",
+   "set": "v",
+   "qid": "v21-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k20",
+   "set": "v",
+   "qid": "v21-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.61,
+   "probabilities": {
+    "o1": 0.1,
+    "o2": 0.74,
+    "none": 0.16
+   }
+  },
+  {
+   "callId": "k21",
+   "set": "v",
+   "qid": "v22-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0.01,
+    "e2": 0.99,
+    "e3": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k21",
+   "set": "v",
+   "qid": "v22-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k21",
+   "set": "v",
+   "qid": "v22-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.16,
+   "probabilities": {
+    "o1": 0.27,
+    "o2": 0.44,
+    "none": 0.29
+   }
+  },
+  {
+   "callId": "k22",
+   "set": "v",
+   "qid": "v23-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.98,
+    "e2": 0,
+    "e3": 0.01,
+    "e4": 0.01,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k22",
+   "set": "v",
+   "qid": "v23-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k22",
+   "set": "v",
+   "qid": "v23-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.37,
+   "probabilities": {
+    "o1": 0.53,
+    "o2": 0.41,
+    "o3": 0,
+    "none": 0.06
+   }
+  },
+  {
+   "callId": "k22",
+   "set": "v",
+   "qid": "v23-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o3",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 0,
+    "o2": 0,
+    "o3": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k23",
+   "set": "v",
+   "qid": "v24-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0.99,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0,
+    "e6": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k23",
+   "set": "v",
+   "qid": "v24-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k23",
+   "set": "v",
+   "qid": "v24-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 1,
+    "o2": 0,
+    "o3": 0,
+    "o4": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k23",
+   "set": "v",
+   "qid": "v24-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.57,
+   "probabilities": {
+    "o1": 0,
+    "o2": 0.66,
+    "o3": 0.31,
+    "o4": 0,
+    "none": 0.03
+   }
+  },
+  {
+   "callId": "k23",
+   "set": "v",
+   "qid": "v24-param3",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o4",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 0,
+    "o2": 0,
+    "o3": 0,
+    "o4": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k24",
+   "set": "v",
+   "qid": "v25-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k24",
+   "set": "v",
+   "qid": "v25-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k24",
+   "set": "v",
+   "qid": "v25-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.44,
+   "probabilities": {
+    "o1": 0.21,
+    "o2": 0.58,
+    "o3": 0,
+    "none": 0.21
+   }
+  },
+  {
+   "callId": "k24",
+   "set": "v",
+   "qid": "v25-param2",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o3",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 0,
+    "o2": 0,
+    "o3": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k25",
+   "set": "v",
+   "qid": "v26-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e11",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "e11": 1,
+    "e12": 0,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "e17": 0,
+    "e18": 0,
+    "e19": 0,
+    "e20": 0,
+    "e21": 0,
+    "e22": 0,
+    "e23": 0,
+    "e24": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k25",
+   "set": "v",
+   "qid": "v26-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.08
+  },
+  {
+   "callId": "k25",
+   "set": "v",
+   "qid": "v26-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.98,
+   "probabilities": {
+    "o1": 0.99,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k26",
+   "set": "v",
+   "qid": "v01-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.93,
+   "probabilities": {
+    "e1": 0.03,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0.01,
+    "e9": 0,
+    "e10": 0.01,
+    "e11": 0,
+    "e12": 0.01,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "none": 0.93
+   }
+  },
+  {
+   "callId": "k26",
+   "set": "v",
+   "qid": "v01-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.18
+  },
+  {
+   "callId": "k26",
+   "set": "v",
+   "qid": "v01-param1",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.92,
+   "probabilities": {
+    "o1": 0.96,
+    "none": 0.04
+   }
+  },
+  {
+   "callId": "k26",
+   "set": "v",
+   "qid": "v01-param2",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.78,
+   "probabilities": {
+    "o1": 0.11,
+    "none": 0.89
+   }
+  },
+  {
+   "callId": "k27",
+   "set": "v",
+   "qid": "v04-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 1,
+    "e3": 0,
+    "e4": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k27",
+   "set": "v",
+   "qid": "v04-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k27",
+   "set": "v",
+   "qid": "v04-param1",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k27",
+   "set": "v",
+   "qid": "v04-param2",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.94,
+   "probabilities": {
+    "o1": 0.03,
+    "none": 0.97
+   }
+  },
+  {
+   "callId": "k28",
+   "set": "v",
+   "qid": "v07-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.01,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.97
+   }
+  },
+  {
+   "callId": "k29",
+   "set": "v",
+   "qid": "v10-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0.01,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.97
+   }
+  },
+  {
+   "callId": "k29",
+   "set": "v",
+   "qid": "v10-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k30",
+   "set": "v",
+   "qid": "v13-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.02,
+    "e2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k30",
+   "set": "v",
+   "qid": "v13-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k31",
+   "set": "v",
+   "qid": "v16-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.98,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k31",
+   "set": "v",
+   "qid": "v16-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k32",
+   "set": "v",
+   "qid": "v19-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.82,
+   "probabilities": {
+    "e1": 0.06,
+    "e2": 0.86,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.08
+   }
+  },
+  {
+   "callId": "k32",
+   "set": "v",
+   "qid": "v19-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k33",
+   "set": "v",
+   "qid": "v22-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0.01,
+    "e2": 0.99,
+    "e3": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k33",
+   "set": "v",
+   "qid": "v22-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k33",
+   "set": "v",
+   "qid": "v22-param1",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.3,
+   "probabilities": {
+    "o1": 0.15,
+    "o2": 0.53,
+    "none": 0.32
+   }
+  },
+  {
+   "callId": "k34",
+   "set": "v",
+   "qid": "v25-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k34",
+   "set": "v",
+   "qid": "v25-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k34",
+   "set": "v",
+   "qid": "v25-param1",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.4,
+   "probabilities": {
+    "o1": 0.21,
+    "o2": 0.55,
+    "o3": 0,
+    "none": 0.24
+   }
+  },
+  {
+   "callId": "k34",
+   "set": "v",
+   "qid": "v25-param2",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "o3",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 0,
+    "o2": 0,
+    "o3": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k35",
+   "set": "v",
+   "qid": "v01-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.95,
+   "probabilities": {
+    "e1": 0.03,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0.01,
+    "e11": 0,
+    "e12": 0.01,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "none": 0.95
+   }
+  },
+  {
+   "callId": "k35",
+   "set": "v",
+   "qid": "v01-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.18
+  },
+  {
+   "callId": "k35",
+   "set": "v",
+   "qid": "v01-param1",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.92,
+   "probabilities": {
+    "o1": 0.96,
+    "none": 0.04
+   }
+  },
+  {
+   "callId": "k35",
+   "set": "v",
+   "qid": "v01-param2",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.78,
+   "probabilities": {
+    "o1": 0.11,
+    "none": 0.89
+   }
+  },
+  {
+   "callId": "k36",
+   "set": "v",
+   "qid": "v04-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 1,
+    "e3": 0,
+    "e4": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k36",
+   "set": "v",
+   "qid": "v04-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k36",
+   "set": "v",
+   "qid": "v04-param1",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.98,
+   "probabilities": {
+    "o1": 0.99,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k36",
+   "set": "v",
+   "qid": "v04-param2",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.96,
+   "probabilities": {
+    "o1": 0.02,
+    "none": 0.98
+   }
+  },
+  {
+   "callId": "k37",
+   "set": "v",
+   "qid": "v07-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.94,
+   "probabilities": {
+    "e1": 0.02,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0.01,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.95
+   }
+  },
+  {
+   "callId": "k38",
+   "set": "v",
+   "qid": "v10-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "none",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0.01,
+    "e5": 0.01,
+    "e6": 0,
+    "e7": 0,
+    "none": 0.97
+   }
+  },
+  {
+   "callId": "k38",
+   "set": "v",
+   "qid": "v10-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.02
+  },
+  {
+   "callId": "k39",
+   "set": "v",
+   "qid": "v13-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.95,
+   "probabilities": {
+    "e1": 0.03,
+    "e2": 0.97,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k39",
+   "set": "v",
+   "qid": "v13-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k40",
+   "set": "v",
+   "qid": "v16-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 0.97,
+   "probabilities": {
+    "e1": 0.98,
+    "e2": 0.01,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k40",
+   "set": "v",
+   "qid": "v16-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k41",
+   "set": "v",
+   "qid": "v19-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.84,
+   "probabilities": {
+    "e1": 0.05,
+    "e2": 0.87,
+    "e3": 0,
+    "e4": 0,
+    "none": 0.08
+   }
+  },
+  {
+   "callId": "k41",
+   "set": "v",
+   "qid": "v19-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.94
+  },
+  {
+   "callId": "k42",
+   "set": "v",
+   "qid": "v22-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e2",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0.01,
+    "e2": 0.99,
+    "e3": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k42",
+   "set": "v",
+   "qid": "v22-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k42",
+   "set": "v",
+   "qid": "v22-param1",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.13,
+   "probabilities": {
+    "o1": 0.31,
+    "o2": 0.42,
+    "none": 0.27
+   }
+  },
+  {
+   "callId": "k43",
+   "set": "v",
+   "qid": "v25-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k43",
+   "set": "v",
+   "qid": "v25-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k43",
+   "set": "v",
+   "qid": "v25-param1",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "o2",
+   "confidence": 0.43,
+   "probabilities": {
+    "o1": 0.19,
+    "o2": 0.57,
+    "o3": 0,
+    "none": 0.24
+   }
+  },
+  {
+   "callId": "k43",
+   "set": "v",
+   "qid": "v25-param2",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "o3",
+   "confidence": 1,
+   "probabilities": {
+    "o1": 0,
+    "o2": 0,
+    "o3": 1,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k44",
+   "set": "v",
+   "qid": "v27-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e12",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "e11": 0,
+    "e12": 1,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "e17": 0,
+    "e18": 0,
+    "e19": 0,
+    "e20": 0,
+    "e21": 0,
+    "e22": 0,
+    "e23": 0,
+    "e24": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k44",
+   "set": "v",
+   "qid": "v27-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k44",
+   "set": "v",
+   "qid": "v27-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.94,
+   "probabilities": {
+    "o1": 0.97,
+    "none": 0.03
+   }
+  },
+  {
+   "callId": "k45",
+   "set": "v",
+   "qid": "v28-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e23",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "e11": 0,
+    "e12": 0,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "e17": 0,
+    "e18": 0.01,
+    "e19": 0,
+    "e20": 0,
+    "e21": 0,
+    "e22": 0,
+    "e23": 0.99,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k45",
+   "set": "v",
+   "qid": "v28-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.86
+  },
+  {
+   "callId": "k45",
+   "set": "v",
+   "qid": "v28-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.98,
+   "probabilities": {
+    "o1": 0.99,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k46",
+   "set": "v",
+   "qid": "v29-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "e11": 0,
+    "e12": 0,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "e17": 0,
+    "e18": 0,
+    "e19": 0,
+    "e20": 0,
+    "e21": 0,
+    "e22": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k46",
+   "set": "v",
+   "qid": "v29-named",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.91
+  },
+  {
+   "callId": "k46",
+   "set": "v",
+   "qid": "v29-param1",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.84,
+   "probabilities": {
+    "o1": 0.92,
+    "none": 0.08
+   }
+  },
+  {
+   "callId": "k47",
+   "set": "v",
+   "qid": "v30-sel",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "e1",
+   "confidence": 1,
+   "probabilities": {
+    "e1": 1,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k48",
+   "set": "v",
+   "qid": "v28-sel",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "e23",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "e11": 0,
+    "e12": 0,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "e17": 0,
+    "e18": 0.01,
+    "e19": 0,
+    "e20": 0,
+    "e21": 0,
+    "e22": 0,
+    "e23": 0.99,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k48",
+   "set": "v",
+   "qid": "v28-named",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.84
+  },
+  {
+   "callId": "k48",
+   "set": "v",
+   "qid": "v28-param1",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.98,
+   "probabilities": {
+    "o1": 0.99,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k49",
+   "set": "v",
+   "qid": "v28-sel",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "e23",
+   "confidence": 0.99,
+   "probabilities": {
+    "e1": 0,
+    "e2": 0,
+    "e3": 0,
+    "e4": 0,
+    "e5": 0,
+    "e6": 0,
+    "e7": 0,
+    "e8": 0,
+    "e9": 0,
+    "e10": 0,
+    "e11": 0,
+    "e12": 0,
+    "e13": 0,
+    "e14": 0,
+    "e15": 0,
+    "e16": 0,
+    "e17": 0,
+    "e18": 0.01,
+    "e19": 0,
+    "e20": 0,
+    "e21": 0,
+    "e22": 0,
+    "e23": 0.99,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k49",
+   "set": "v",
+   "qid": "v28-named",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.87
+  },
+  {
+   "callId": "k49",
+   "set": "v",
+   "qid": "v28-param1",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "o1",
+   "confidence": 0.98,
+   "probabilities": {
+    "o1": 0.99,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k50",
+   "set": "d",
+   "qid": "d01",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k51",
+   "set": "d",
+   "qid": "d02",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.22
+  },
+  {
+   "callId": "k52",
+   "set": "d",
+   "qid": "d03",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k53",
+   "set": "d",
+   "qid": "d04",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k54",
+   "set": "d",
+   "qid": "d05",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k55",
+   "set": "d",
+   "qid": "d06",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.13
+  },
+  {
+   "callId": "k61",
+   "set": "d",
+   "qid": "d07",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.13
+  },
+  {
+   "callId": "k62",
+   "set": "d",
+   "qid": "d08",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k63",
+   "set": "d",
+   "qid": "d09",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k64",
+   "set": "d",
+   "qid": "d10",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.48
+  },
+  {
+   "callId": "k65",
+   "set": "d",
+   "qid": "d11",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.15
+  },
+  {
+   "callId": "k66",
+   "set": "d",
+   "qid": "d12",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.15
+  },
+  {
+   "callId": "k67",
+   "set": "d",
+   "qid": "d13",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.27
+  },
+  {
+   "callId": "k68",
+   "set": "d",
+   "qid": "d14",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.14
+  },
+  {
+   "callId": "k69",
+   "set": "d",
+   "qid": "d15",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k70",
+   "set": "d",
+   "qid": "d16",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k71",
+   "set": "d",
+   "qid": "d17",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.23
+  },
+  {
+   "callId": "k72",
+   "set": "d",
+   "qid": "d18",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.46
+  },
+  {
+   "callId": "k73",
+   "set": "d",
+   "qid": "d19",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.57
+  },
+  {
+   "callId": "k74",
+   "set": "d",
+   "qid": "d20",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.44
+  },
+  {
+   "callId": "k75",
+   "set": "d",
+   "qid": "d21",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.58
+  },
+  {
+   "callId": "k76",
+   "set": "d",
+   "qid": "d22",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.39
+  },
+  {
+   "callId": "k77",
+   "set": "d",
+   "qid": "d23",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.09
+  },
+  {
+   "callId": "k78",
+   "set": "d",
+   "qid": "d24",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.03
+  },
+  {
+   "callId": "k79",
+   "set": "d",
+   "qid": "d25",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.09
+  },
+  {
+   "callId": "k80",
+   "set": "d",
+   "qid": "d26",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.14
+  },
+  {
+   "callId": "k81",
+   "set": "d",
+   "qid": "d27",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.24
+  },
+  {
+   "callId": "k82",
+   "set": "d",
+   "qid": "d28",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.12
+  }
+ ]
+}

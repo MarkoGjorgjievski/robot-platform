@@ -1,0 +1,1255 @@
+{
+  "set": "d",
+  "preparedAt": "2026-10-15T16:32:26.810Z",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "questions": [
+    {
+      "id": "d01",
+      "set": "d",
+      "group": "sigmabeauty",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/skincare-brush-set",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Take your self-care up a notch with this luxurious brush set, featuring extra-soft SigmaTech® fiber and silicone brushes for the ultimate at-home spa experience. Uniquely designed to apply and blend your favorite skincare formulas without absorbing and wasting product, or pulling and tugging at the skin, these brushes help you create a beautiful base for makeup. HOW TO USE Use the S01 Clay/Mud MaskTM Brush to scoop and spread thick masks onto your skin. Use the S02 SpatulaTM Brush to reach the bottom of small bottles and jars, or scoop and mix skincare products for customizable care. Use the S05 MoisturizerTM Brush to gently apply moisturizer all over your face, using the angled brush head to reach small areas. Use the S10 SerumTM Brush to apply gel or liquid serums onto your skin. For gel serums, apply product directly onto S10 brush. For liquid serums, apply product directly onto face before using the S10 to blend it in. Use the S15 Gel MaskTM Brush to gently apply gel masks onto your skin in a circular motion. Use the S20 Eye CreamTM Brush to gently press on eye cream around your entire eye area, from under the eye to the brow bone. You can also use this brush to spot treat blemishes. For a cooling application to soothe and de-puff skin, chill these brushes in the fridge before use. DETAILS Brushes Included: S01 Clay/Mud MaskTM Brush - Apply thick masks onto skin S02 SpatulaTM Brush - Scoop + mix skincare products S05 MoisturizerTM Brush - Gently apply moisturizer S10 SerumTM Brush - Evenly apply liquid + gel serums S15 Gel MaskTM Brush - Swirl gel masks onto skin S20 Eye CreamTM Brush - Apply eye cream without tugging TECHNOLOGY Formulated without: Latex, BPA, LeadMade of non-toxic material + high-grade siliconeHIGHEST-QUALITY MATERIALS:Exclusive synthetic antimicrobial fibers to protect skinEngineered to better hold, apply + blend productFlexible + smooth, high-grade siliconeFERRULES WITH UNMATCHED STRENGTH:Durable, corrosion-resistant SigmaAlloyTMPrecious metal plating for shine + strengthExclusive, patented interlocking technologyDouble-threaded engineeringSLEEK, DURABLE HANDLES:Solid, polymer-based handles are waterproof + unbreakableOutlasts all product formulas + frequent brush careUS Patent No. D862,901EU Registered Design 005782018-0001ZL 201830331890.3Additional Patents PendingFor more information, visit our Patents page.",
+      "judge": "correct",
+      "prevId": "b007",
+      "prevNoul": 0.38,
+      "prevCrop": "crops/b-p001-sigmabeauty-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "Skincare Brush Set | Makeup Brush Set for Healthy Skin",
+      "found": "hidden",
+      "collapsed": "display:none on <div .product-info__block-item>; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 937,
+        "y": 157,
+        "w": 413,
+        "h": 1423
+      },
+      "elRect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"Take your self-care up a notch with this luxurious brush set, featuring extra-soft SigmaTech® fiber and silicone brushes for the ultimate at-home spa experience…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d01-sigmabeauty.png",
+      "clip": {
+        "x": 897,
+        "y": 117,
+        "width": 493,
+        "height": 680
+      }
+    },
+    {
+      "id": "d02",
+      "set": "d",
+      "group": "sigmabeauty",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Hit your high points with this fluffy but firm Sigmax® fiber brush using your favorite cream, liquid or powder products for a precise gleam. HOW TO USE Apply and buff liquid, cream, or powder highlighter down the nose and on the chin and cheekbones for a precise gleam. Winner of Harper's Bazaar Malaysia Best Face Brushes 2016 DETAILS Function: Blended highlightingUnique Feature: Beveled Sigmax® fibersRecommended Use: Apply and buff cream and powder highlighter down the nose, chin and cheekbonesCoverage: Sheer to Medium Net Wt. 11g Product Dimensions: 9mm x20 mm x185 mm Package Dimensions: 30mm x 26mm x 200mm TECHNOLOGY HIGHEST-QUALITY FIBERS:Exclusive synthetic antimicrobial fibersEngineered to better hold, apply + blend productsFERRULES WITH UNMATCHED STRENGTH:Durable + corrosion-resistant SigmaAlloyTMPrecious metal plating for shine + strengthExclusive, patented interlocking technologyDouble-threaded engineeringSLEEK, DURABLE HANDLES:Solid polymer-based handles are waterproofOutlasts all product formulas + frequent brush careUS Patent No. D862,901EU Registered Design 005782018-0001ZL 201830331890.3Additional Patents PendingFor more information, visit our Patents page.",
+      "judge": "correct",
+      "prevId": "b020",
+      "prevNoul": 0.43,
+      "prevCrop": "crops/b-p003-sigmabeauty-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "F03 High Cheekbone Highlighter™ Brush | Sigmax® fiber brush",
+      "found": "hidden",
+      "collapsed": "display:none on <div .product-info__block-item>; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 937,
+        "y": 181,
+        "w": 413,
+        "h": 1487
+      },
+      "elRect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"Hit your high points with this fluffy but firm Sigmax® fiber brush using your favorite cream, liquid or powder products for a precise gleam. HOW TO USE Apply an…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d02-sigmabeauty.png",
+      "clip": {
+        "x": 897,
+        "y": 141,
+        "width": 493,
+        "height": 680
+      }
+    },
+    {
+      "id": "d03",
+      "set": "d",
+      "group": "sigmabeauty",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/basic-eye-kit",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "This set does it all with 7 classic, professional-quality eye brushes for eyeliner, eyeshadow and eyebrows. Engineered to better hold, apply and blend your favorite powder, cream or gel products, each luxurious brush has its own role for the eyes. Whether you’re blending shadow shades, softening harsh lines, covering your lid in color, or creating hairlike brow strokes, this set has got you covered! HOW TO USE Pack color onto the lid using the E55 Eye Shading Brush or the E60 Larger Shader Brush. Then use the E40 Tapered Blending Brush for all-over blending on the lid or crease. With the E70 Medium Angled Shading Brush, apply your favorite transition shade to the crease or highlight the brow bone. Next, apply eyeliner with the E05 Eyeliner Brush and soften it with the E30 Pencil Brush. Fill in the brows for a finishing touch with the E65 Small Angle Brush. DETAILS Brushes Included:E60 Large Shader Brush - Quickly cover the lid in colorE70 Medium Angled Shading Brush - Softly highlight the brow boneE55 Eye Shading Brush - Evenly apply color across the entire lidE40 Tapered Blending Brush - Soften + blend harsh color linesE30 Pencil Brush - Soften liner along the lashline E65 Small Angle Brush - Create precision lines and strokesE05 Eyeliner Brush - Define the eyes with gel or liquid liner TECHNOLOGY HIGHEST-QUALITY FIBERS:Exclusive synthetic antimicrobial fibersEngineered to better hold, apply + blend productsFERRULES WITH UNMATCHED STRENGTH:Durable + corrosion-resistant SigmaAlloyTMPrecious metal plating for shine + strengthExclusive, patented interlocking technologyDouble-threaded engineeringSLEEK, DURABLE HANDLES:Solid polymer-based handles are waterproofOutlasts all product formulas + frequent brush careUS Patent No. D862,901EU Registered Design 005782018-0001ZL 201830331890.3Additional Patents Pending For more information, visit our Patents page.",
+      "judge": "correct",
+      "prevId": "b027",
+      "prevNoul": 0.33,
+      "prevCrop": "crops/b-p004-sigmabeauty-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "Basic Eye Brush Set | Professional Eye Makeup Brushes | Sigma",
+      "found": "hidden",
+      "collapsed": "display:none on <div .product-info__block-item>; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 937,
+        "y": 157,
+        "w": 413,
+        "h": 1304
+      },
+      "elRect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"This set does it all with 7 classic, professional-quality eye brushes for eyeliner, eyeshadow and eyebrows. Engineered to better hold, apply and blend your favo…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d03-sigmabeauty.png",
+      "clip": {
+        "x": 897,
+        "y": 117,
+        "width": 493,
+        "height": 680
+      }
+    },
+    {
+      "id": "d04",
+      "set": "d",
+      "group": "sigmabeauty",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/f53-air-contour-blush",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Wake up your skin with a natural flush of color! This feathery soft duo fiber brush gently diffuses blush or bronzer onto your skin for a beautiful, healthy-looking glow. HOW TO USE Use the softly angled shape to sweep blush on the apples of your cheeks or apply bronzer to the hollows of your cheeks for a light, natural-looking finish. DETAILS Function: Sweep on blush or bronzerUnique Feature: Duo fiber, softly angled brush headRecommended Use: Apply blush or bronzer to the cheekbones for a natural wash of colorCoverage: Sheer to Medium; BuildableAdditional Info: Provides a beautiful, healthy-looking glow with blush or bronzer Super soft, synthetic bristles mimic animal hair Perfect for those who want a sheer, airbrushed complexion Great for lightweight summer looks Universal curve of the brush head allows for multiple function Length: 180mm (7.125 in) TECHNOLOGY HIGHEST-QUALITY FIBERS:Exclusive synthetic antimicrobial fibersEngineered to better hold, apply + blend productsFERRULES WITH UNMATCHED STRENGTH:Durable + corrosion-resistant SigmaAlloyTMPrecious metal plating for shine + strengthExclusive, patented interlocking technologyDouble-threaded engineeringSLEEK, DURABLE HANDLES:Solid polymer-based handles are waterproofOutlasts all product formulas + frequent brush careUS Patent No. D862,901EU Registered Design 005782018-0001ZL 201830331890.3Additional Patents PendingFor more information, visit our Patents page.",
+      "judge": "correct",
+      "prevId": "b034",
+      "prevNoul": 0.26,
+      "prevCrop": "crops/b-p005-sigmabeauty-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "F53 Air Contour/ Blush™ Brush | Sigma Contour Brushes",
+      "found": "hidden",
+      "collapsed": "display:none on <div .product-info__block-item>; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 937,
+        "y": 181,
+        "w": 413,
+        "h": 1671
+      },
+      "elRect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"Wake up your skin with a natural flush of color! This feathery soft duo fiber brush gently diffuses blush or bronzer onto your skin for a beautiful, healthy-loo…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d04-sigmabeauty.png",
+      "clip": {
+        "x": 897,
+        "y": 141,
+        "width": 493,
+        "height": 680
+      }
+    },
+    {
+      "id": "d05",
+      "set": "d",
+      "group": "sigmabeauty",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "The pyramid-shaped, Sigmax® brush you didn't know you needed for blending concealer and powder on spots, scars, crevices and under the eye. HOW TO USE Blend concealer or powder products in a circular motion over spots, scars, blemishes and under the eyes, using the unique pyramid-shaped brush head to blend with control and accuracy. DETAILS Function: Detailed concealer blendingUnique Feature: Pointed, 4-sided kabukiRecommended Use: Diffuse concealer under the eye, on spots, crevices and scarsCoverage: Medium to Full Net Wt. 48.54g Product Dimensions: 19mm x 23mm x 154mm Package Dimensions: 50mm x 44mm x 185mm TECHNOLOGY HIGHEST-QUALITY FIBERS:Exclusive synthetic antimicrobial fibers to protect skinEngineered to better hold, apply + blend productFERRULES WITH UNMATCHED STRENGTH:Durable + corrosion-resistant SigmaAlloyTMPrecious metal plating for shine + strengthExclusive, patented interlocking technologyDouble-threaded engineeringSLEEK, DURABLE HANDLES:Solid polymer-based handles are waterproof + unbreakableOutlasts all product formulas + frequent brush careUS Patent D801,058US Patent D718,060ZL 201730430935.8ZL 201730430472.5Additional Patents PendingFor more information, visit our Patents page.",
+      "judge": "correct",
+      "prevId": "b041",
+      "prevNoul": 0.39,
+      "prevCrop": "crops/b-p006-sigmabeauty-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "4DHD™ Kabuki Brush | Kabuki Makeup Brush | Sigma Beauty",
+      "found": "hidden",
+      "collapsed": "display:none on <div .product-info__block-item>; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 937,
+        "y": 181,
+        "w": 413,
+        "h": 1242
+      },
+      "elRect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"The pyramid-shaped, Sigmax® brush you didn't know you needed for blending concealer and powder on spots, scars, crevices and under the eye. HOW TO USE Blend con…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d05-sigmabeauty.png",
+      "clip": {
+        "x": 897,
+        "y": 141,
+        "width": 493,
+        "height": 680
+      }
+    },
+    {
+      "id": "d06",
+      "set": "d",
+      "group": "sigmabeauty",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/3dhdr-kabuki-brush",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "You'll achieve perfect skin on every curve and contour using the angles and Sigmax® fibers designed to prime, conceal, sculpt and highlight. As Seen in Vogue India HOW TO USE Buff liquid or cream foundation using circular motions and the uniquely angled brush head to maneuver around the mouth, nose, and eyes. The angles of this brush are also great for priming, concealing, sculpting, and highlighting. DETAILS Function: Buffed foundation applicationUnique Feature: Dense 3DHD® brush with a double wedge flat and pointed headRecommended Use: A multi-functional design for all areas of the face to apply liquid, cream and powder products uniformly on every curve, crease and angleCoverage: Medium to Full Net Wt. 42.6g Product Dimensions: 19mm x 41mm x 156mm Package Dimensions: 50mm x 44mm x 185mm TECHNOLOGY HIGHEST-QUALITY FIBERS:Exclusive synthetic antimicrobial fibersEngineered to better hold, apply + blend productsFERRULES WITH UNMATCHED STRENGTH:Durable + corrosion-resistant SigmaAlloyTMPrecious metal plating for shine + strengthExclusive, patented interlocking technologyDouble-threaded engineeringSLEEK, DURABLE HANDLES:Solid polymer-based handles are waterproofOutlasts all product formulas + frequent brush careUS Patent No. 9,675,167US Patent No. D718,060US Patent No. D762,988European Patent EP 2995218EU Registered Design 002607614-0001EU Registered Design 002607614-0002(Chinese Patent for Utility Model)ZL 201520016663.2(Chinese Patent for Design)ZL 201530056059.8(Chinese Patent for Design)ZL 201530056084.6Additional Patents PendingFor more information, visit our Patents page.",
+      "judge": "correct",
+      "prevId": "b055",
+      "prevNoul": 0.41,
+      "prevCrop": "crops/b-p008-sigmabeauty-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "3DHD® Kabuki Brush - Black/Chrome | Kabuki Makeup Brushes",
+      "found": "hidden",
+      "collapsed": "display:none on <div .product-info__block-item>; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 937,
+        "y": 181,
+        "w": 413,
+        "h": 1288
+      },
+      "elRect": {
+        "x": 0,
+        "y": 0,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"You'll achieve perfect skin on every curve and contour using the angles and Sigmax® fibers designed to prime, conceal, sculpt and highlight. As Seen in Vogue In…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d06-sigmabeauty.png",
+      "clip": {
+        "x": 897,
+        "y": 141,
+        "width": 493,
+        "height": 680
+      }
+    },
+    {
+      "id": "d07",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=02S",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. All the classic hallmarks are there, including a comfortable straight cut, ribbed collar, green embroidered crocodile, and supple, breathable textured Petit Piqué knit fabric. A chic, timeless, authentic style.",
+      "judge": "correct",
+      "prevId": "b063",
+      "prevNoul": 0.26,
+      "prevCrop": "crops/b-p010-lacoste-0-596.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit L.12.12 Original Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1036,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1036,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. All the classic hallmarks are th…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d07-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 896,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d08",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=EL6",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "1933. René Lacoste invented the first polo shirt, the Original L.12.12. With a collar, a button placket and a new type of knit, the tennis player ushered in a new era of sportswear. Freedom of movement, elegance... the Original L.12.12 is the coming together of extensive know-how and expertise, and is knitted with two levels of tension and adorned with a crocodile logo made of 2367 stitches.",
+      "judge": "correct",
+      "prevId": "b069",
+      "prevNoul": 0.18,
+      "prevCrop": "crops/b-p011-lacoste-0-558.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit L.12.12 Marl Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 978,
+        "w": 370,
+        "h": 160
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 978,
+        "w": 370,
+        "h": 160
+      },
+      "instructions": "Does the screenshot show \"1933. René Lacoste invented the first polo shirt, the Original L.12.12. With a collar, a button placket and a new type of knit, the tennis player ushered in a n…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d08-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 858,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d09",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=JPR",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "1933. René Lacoste invented the first polo shirt, the Original L.12.12. With a collar, a button placket and a new type of knit, the tennis player ushered in a new era of sportswear. Freedom of movement, elegance... the Original L.12.12 is the coming together of extensive know-how and expertise, and is knitted with two levels of tension and adorned with a crocodile logo made of 2367 stitches.",
+      "judge": "correct",
+      "prevId": "b075",
+      "prevNoul": 0.26,
+      "prevCrop": "crops/b-p012-lacoste-0-578.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit L.12.12 Marl Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 998,
+        "w": 370,
+        "h": 160
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 998,
+        "w": 370,
+        "h": 160
+      },
+      "instructions": "Does the screenshot show \"1933. René Lacoste invented the first polo shirt, the Original L.12.12. With a collar, a button placket and a new type of knit, the tennis player ushered in a n…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d09-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 878,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d10",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH0213-00.html?color=EL6",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "An elegant winter version of an iconic style from Lacoste, creators of polo shirts since 1933. Straight cut from a soft, marbled wool-blend jersey that’s both breathable and warm. A sophisticated piece, finished with a signature embroidered crocodile and premium details including mother-of-pearl buttons.",
+      "judge": "correct",
+      "prevId": "b081",
+      "prevNoul": 0.35,
+      "prevCrop": "crops/b-p013-lacoste-0-564.png",
+      "prevCropMode": "element",
+      "pageTitle": "Regular Fit Wool Blend Jersey Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1004,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1004,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"An elegant winter version of an iconic style from Lacoste, creators of polo shirts since 1933. Straight cut from a soft, marbled wool-blend jersey that’s both b…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d10-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 864,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d11",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/L1312-00.html?color=BDM",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Invented by René Lacoste, the Original L.12.12 has been the epitome of elegant sportswear since 1933. The first polo shirt in history, with its collar, button placket, Petit Piqué knitted with two levels of tension and its crocodile logo made from 2367 stitches, is here complemented with long sleeves.",
+      "judge": "correct",
+      "prevId": "b086",
+      "prevNoul": 0.27,
+      "prevCrop": "crops/b-p014-lacoste-0-546.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit Long Sleeved L.12.12 Polo Shirt - Long Sleeves - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1060,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1060,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"Invented by René Lacoste, the Original L.12.12 has been the epitome of elegant sportswear since 1933. The first polo shirt in history, with its collar, button p…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d11-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 920,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d12",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=031",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. All the classic hallmarks are there, including a comfortable straight cut, ribbed collar, green embroidered crocodile, and supple, breathable textured Petit Piqué knit fabric. A chic, timeless, authentic style.",
+      "judge": "correct",
+      "prevId": "b091",
+      "prevNoul": 0.21,
+      "prevCrop": "crops/b-p015-lacoste-0-522.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit L.12.12 Original Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1036,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1036,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. All the classic hallmarks are th…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d12-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 896,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d13",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH9851-00.html?color=001",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Lacoste is proud to present the L.12.12 LIGHT polo shirt, a new version of the iconic polo shirt design launched in 1933. Made from an innovative lightweight Piqué fabric that is soft, breathable and fluid, with all the iconic signature details you'd expect from a Lacoste polo shirt. Timeless elegance, unrivaled freedom of movement.",
+      "judge": "correct",
+      "prevId": "b096",
+      "prevNoul": 0.22,
+      "prevCrop": "crops/b-p016-lacoste-0-484.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit L.12.12 LIGHT Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 998,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 998,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"Lacoste is proud to present the L.12.12 LIGHT polo shirt, a new version of the iconic polo shirt design launched in 1933. Made from an innovative lightweight Pi…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d13-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 858,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d14",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=BDM",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. All the classic hallmarks are there, including a comfortable straight cut, ribbed collar, green embroidered crocodile, and supple, breathable textured Petit Piqué knit fabric. A chic, timeless, authentic style.",
+      "judge": "correct",
+      "prevId": "b101",
+      "prevNoul": 0.22,
+      "prevCrop": "crops/b-p017-lacoste-0-522.png",
+      "prevCropMode": "element",
+      "pageTitle": "Classic Fit L.12.12 Original Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1036,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1036,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. All the classic hallmarks are th…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d14-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 896,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d15",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/PH2481-00.html?color=166",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Inventor of polo shirts since 1933, Lacoste presents the Smart Paris, the elegant polo shirt. The long-sleeved version is easy to slip into, and ideal for an effortless chic style. With its signature stretch knit, tailoring-inspired finishes and iconic Lacoste codes, this is a coming together of extensive know-how and expertise.",
+      "judge": "correct",
+      "prevId": "b107",
+      "prevNoul": 0.11,
+      "prevCrop": "crops/b-p018-lacoste-0-488.png",
+      "prevCropMode": "element",
+      "pageTitle": "Regular Fit Paris Stretch Piqué Polo Shirt - Long Sleeves - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1002,
+        "w": 370,
+        "h": 120
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1002,
+        "w": 370,
+        "h": 120
+      },
+      "instructions": "Does the screenshot show \"Inventor of polo shirts since 1933, Lacoste presents the Smart Paris, the elegant polo shirt. The long-sleeved version is easy to slip into, and ideal for an ef…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d15-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 862,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d16",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH4012-00.html?color=166",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. This fitted version of our iconic polo features all the hallmarks of the original, including a ribbed collar, green embroidered crocodile, and supple, breathable textured Petit Piqué knit fabric. A chic, timeless, authentic style.",
+      "judge": "correct",
+      "prevId": "b112",
+      "prevNoul": 0.27,
+      "prevCrop": "crops/b-p019-lacoste-0-512.png",
+      "prevCropMode": "element",
+      "pageTitle": "Slim Fit L.12.12 Original Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1016,
+        "w": 370,
+        "h": 140
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1016,
+        "w": 370,
+        "h": 140
+      },
+      "instructions": "Does the screenshot show \"Go back to where all started with the elegant L.12.12 Original, the first polo shirt ever designed, created by Lacoste in 1933. This fitted version of our iconi…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d16-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 886,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d17",
+      "set": "d",
+      "group": "lacoste",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH6809-00.html?color=ZDQ",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "The polo that Novak Djokovic wears on court. Championship technology for legendary players: an innovative piece in anti-odor lightweight stretch jersey with Ultra Dry technology for total freedom of movement and comfort as you play. A sleek style with subtle contrast details, blending elegance and high-performance design.",
+      "judge": "correct",
+      "prevId": "b118",
+      "prevNoul": 0.29,
+      "prevCrop": "crops/b-p020-lacoste-0-498.png",
+      "prevCropMode": "element",
+      "pageTitle": "Lacoste Tennis x Novak Djokovic On Court Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "found": "visible",
+      "collapsed": "aria-hidden; hidden attribute",
+      "cropMode": "element",
+      "target": {
+        "x": 1015,
+        "y": 1002,
+        "w": 370,
+        "h": 140
+      },
+      "elRect": {
+        "x": 1015,
+        "y": 1002,
+        "w": 370,
+        "h": 140
+      },
+      "instructions": "Does the screenshot show \"The polo that Novak Djokovic wears on court. Championship technology for legendary players: an innovative piece in anti-odor lightweight stretch jersey with Ult…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d17-lacoste.png",
+      "clip": {
+        "x": 975,
+        "y": 872,
+        "width": 450,
+        "height": 400
+      }
+    },
+    {
+      "id": "d18",
+      "set": "d",
+      "group": "notonthehighstreet",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/personalised-heart-and-birthstone-charm-bracelet",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "A sweet heart charm and special birthstone bracelet that is perfect for a special daughter, handmade in our Norwich Studio.Completley customisable and unique to you, this charm bracelet in silver plating, choose from 14ct gold plating or 14ct rose gold plating. This bracelet also comes with a heart charm that will be hand-stamped with the name of your choice. Complete the look with a birthstone crystal charm. This bracelet bracelet would make a wonderful gift for Mum this Mother's Day. Why not complete the present with one of our desigend gift boxes? This is presented in a beautiful LISA ANGEL drawstring cotton gift bag and kraft box, plus you can upgrade and add a sentiment sleeve to the box for an additional £1. Our story Lisa Angel began in 2004, when our founder and creative director, Lisa, decided to leave her career as a buyer for a London high street chain and return home to Norwich. With a long-held passion for creativity and a desire to build something of her own, she sold her car to fund her first collection of handmade jewellery. Those early designs were taken to local craft markets and trade fairs, where her distinctive style quickly found an audience and laid the foundations for what was to come. Over two decades on, Lisa Angel has evolved into an established and much-loved independent business.sterling silver plated brass, 14ct gold plated brass, 14ct rose gold plated brass, cubic zirconia crystalPersonalisation Information: Choose your bracelet from gold, rose gold and silver. The heart charm can be hand-stamped with up to 7 characters. Choose your crystal birthstone. Birthstones January - Garnet February - Amethyst March - Aquamarine April - Crystal May - Emerald June - Pearl July - Ruby August - Peridot September - Sapphire October - Opal November - Topaz December - Blue Zirconinner circumference - can be worn at 16.5cm - 18.5cm small heart charm - width 9mm x height 5mm",
+      "judge": "correct",
+      "prevId": "b188",
+      "prevNoul": 0.49,
+      "prevCrop": "crops/b-p034-notonthehighstreet-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "Personalised Heart And Birthstone Charm Bracelet By Lisa Angel",
+      "found": "visible",
+      "cropMode": "element",
+      "target": {
+        "x": 834,
+        "y": 311,
+        "w": 459,
+        "h": 40
+      },
+      "elRect": {
+        "x": 834,
+        "y": 311,
+        "w": 459,
+        "h": 40
+      },
+      "instructions": "Does the screenshot show \"A sweet heart charm and special birthstone bracelet that is perfect for a special daughter, handmade in our Norwich Studio.Completley customisable and unique to…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d18-notonthehighstreet.png",
+      "clip": {
+        "x": 794,
+        "y": 131,
+        "width": 539,
+        "height": 400
+      }
+    },
+    {
+      "id": "d19",
+      "set": "d",
+      "group": "notonthehighstreet",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "A sterling silver beaded stretch birthday bracelet for a 20th, 30th, 40th, 50th, 60th, 70th, 80th or 90th birthday gift for her.Make her milestone birthday extra special with a beautiful sterling silver bracelet designed to celebrate every decade of her life. Each bracelet features delicate 3mm sterling silver beads and hammered silver rings, with each ring representing a decade. Choose from 20th, 30th, 40th, 50th, 60th, 70th, 80th or 90th birthdays. Handmade in our UK studio, this meaningful birthday bracelet makes a thoughtful gift for mum, daughter, sister, wife, partner, friend or grandma. Beautifully presented in a gift box and made to order, it’s a keepsake she can wear and treasure long after her special birthday celebrations are over.Sterling Silver 925You can personalise the card inside the gift box with your very own gift message. 7 inches (bigger or smaller sizes can be made on request)",
+      "judge": "correct",
+      "prevId": "b194",
+      "prevNoul": 0.18,
+      "prevCrop": "crops/b-p035-notonthehighstreet-0-1363.png",
+      "prevCropMode": "hint",
+      "pageTitle": "Sterling Silver Milestone Birthday Bracelet In Various Ages By With Love Jewellery Limited",
+      "found": "visible",
+      "cropMode": "element",
+      "target": {
+        "x": 834,
+        "y": 311,
+        "w": 459,
+        "h": 40
+      },
+      "elRect": {
+        "x": 834,
+        "y": 311,
+        "w": 459,
+        "h": 40
+      },
+      "instructions": "Does the screenshot show \"A sterling silver beaded stretch birthday bracelet for a 20th, 30th, 40th, 50th, 60th, 70th, 80th or 90th birthday gift for her.Make her milestone birthday extr…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d19-notonthehighstreet.png",
+      "clip": {
+        "x": 794,
+        "y": 131,
+        "width": 539,
+        "height": 400
+      }
+    },
+    {
+      "id": "d20",
+      "set": "d",
+      "group": "notonthehighstreet",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/silkpursesowsear/product/art-deco-emerald-baguette-earrings",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Beautiful emerald earrings, with art deco detailing and a classic baguette cut.These beautiful, emerald green earrings are translucent glass gems set in a delicate golden brass setting. They are a great deep jade jewel shade of green which is complimented with the deep gold tones of the brass settings. The fan part of these earrings are coloured glass. Above the fan is a beautifully cut emerald green glass stone, with a simple stud and butterfly back closure. This piece of handmade jewellery comes packaged in a nice recycled gift box with a handmade tag, all ready to give or keep.glass and gold plated brass.For those of you who are sending gifts straight to your loved one, we are happy to offer gift wrapping and to include a personal message from you in the package, printed on a sweet little hand-designed notecard! If you would like these services, please be sure to check the delivery address is correct and to let us know of your chosen message.L2cm",
+      "judge": "correct",
+      "prevId": "b214",
+      "prevNoul": 0.46,
+      "prevCrop": "crops/b-p038-notonthehighstreet-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "Art Deco Emerald Baguette Earrings By Silk Purse, Sow's Ear",
+      "found": "visible",
+      "cropMode": "element",
+      "target": {
+        "x": 834,
+        "y": 279,
+        "w": 459,
+        "h": 40
+      },
+      "elRect": {
+        "x": 834,
+        "y": 279,
+        "w": 459,
+        "h": 40
+      },
+      "instructions": "Does the screenshot show \"Beautiful emerald earrings, with art deco detailing and a classic baguette cut.These beautiful, emerald green earrings are translucent glass gems set in a delic…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d20-notonthehighstreet.png",
+      "clip": {
+        "x": 794,
+        "y": 99,
+        "width": 539,
+        "height": 400
+      }
+    },
+    {
+      "id": "d21",
+      "set": "d",
+      "group": "notonthehighstreet",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/potiega/product/sterling-silver-name-necklace-with-heart-birthstone",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Make a statement or give the gift of timeless elegance with our Name Necklace With Heart Birthstone.Exquisitely personalized just for you, this name necklace with heart birthstone is the perfect blend of elegance and sentimental value. Meticulously crafted with attention to detail, this piece offers a distinctive way to celebrate yourself or someone you love. Constructed with high-quality brass, known for its durability and natural luster. Choose from the classic silver, the warm hues of 18k gold plated, or the blush tones of rose gold plated to match your style and skin tone. Premium Material &amp; Finish Our jewelry is expertly crafted from a solid brass core for strength and durability. To ensure a lasting shine, choose from our two premium finishes: Gold: A thick layer of 18ct Gold Plating for a luxurious, warm glow. Silver: High-quality Silver Plating for a sleek, modern aesthetic. Customizable Name Necklace: Celebrate your individuality by customizing this necklace with your name or the name of someone special. Heart Charm with Birthstone: Add a shimmering touch with a heart charm that cradles a sparkling birthstone representing you or a loved one's month of birth, making each piece truly unique. Adjustable Chain Length: Accommodates a variety of preferences and neck sizes with a versatile chain that can be adjusted from 14\" to 22\". Ideal Gift Choice: A heartfelt and meaningful gift touching hearts on birthdays, anniversaries, Mother's Day, or any special occasion. It comes ready to be gifted, making a splendid surprise for someone dear. 5cm. * 2cm.",
+      "judge": "correct",
+      "prevId": "b221",
+      "prevNoul": 0.47,
+      "prevCrop": "crops/b-p039-notonthehighstreet-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "Name Necklace With Heart Birthstone By Potiega",
+      "found": "visible",
+      "cropMode": "element",
+      "target": {
+        "x": 834,
+        "y": 279,
+        "w": 459,
+        "h": 40
+      },
+      "elRect": {
+        "x": 834,
+        "y": 279,
+        "w": 459,
+        "h": 40
+      },
+      "instructions": "Does the screenshot show \"Make a statement or give the gift of timeless elegance with our Name Necklace With Heart Birthstone.Exquisitely personalized just for you, this name necklace wi…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d21-notonthehighstreet.png",
+      "clip": {
+        "x": 794,
+        "y": 99,
+        "width": 539,
+        "height": 400
+      }
+    },
+    {
+      "id": "d22",
+      "set": "d",
+      "group": "notonthehighstreet",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/augustajewellery/product/ginkgo-earrings",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Nature inspired statement earrings.A beautiful pair of statement earrings featuring intricately detailed Ginkgo leaves. Symbolizing endurance and peace, the design brings both meaning and style to any look. If more than one of this design is needed please message us. All Augusta Jewellery will be thoughtfully and eco-consciously packaged in our signature gift box and delivered straight through your letterbox. Gift wrapping and personalised card available. Please take a look at our other listings for more unique boho style handmade jewellery. Gold plated brassThis piece comes in a jewellery gift box. We also offer a gift wrapping service which includes a personal message on a floral gift card within the package.If you would like this service, please add your message to the text box and select 'yes please' to add gift wrap to your order. If you are giving the gift in person and would prefer to write the card yourself, just leave the text box blank and we will enclose the blank card and envelope. Leaf measures 3 x 2.5 cms",
+      "judge": "correct",
+      "prevId": "b235",
+      "prevNoul": 0.23,
+      "prevCrop": "crops/b-p041-notonthehighstreet-0-0.png",
+      "prevCropMode": "viewport",
+      "pageTitle": "Ginkgo Leaf Statement Earrings By Augusta Jewellery",
+      "found": "visible",
+      "cropMode": "element",
+      "target": {
+        "x": 147,
+        "y": 1799,
+        "w": 553,
+        "h": 72
+      },
+      "elRect": {
+        "x": 147,
+        "y": 1799,
+        "w": 553,
+        "h": 72
+      },
+      "instructions": "Does the screenshot show \"Nature inspired statement earrings.A beautiful pair of statement earrings featuring intricately detailed Ginkgo leaves. Symbolizing endurance and peace, the des…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d22-notonthehighstreet.png",
+      "clip": {
+        "x": 107,
+        "y": 1635,
+        "width": 633,
+        "height": 400
+      }
+    },
+    {
+      "id": "d23",
+      "set": "d",
+      "group": "ikea",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "SÖDERHAMN Corner sofa, 6-seat - Kelinge dark yellow. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. The sofa's sections can be used freestanding or combined in different ways to get a size and shape that suits you and your home.",
+      "judge": "correct",
+      "prevId": "b249",
+      "prevNoul": 0.15,
+      "prevCrop": "crops/b-p044-ikea-0-499.png",
+      "prevCropMode": "hint",
+      "pageTitle": "SÖDERHAMN corner sofa, 6-seat, Kelinge dark yellow - IKEA Malaysia",
+      "found": "hidden",
+      "collapsed": "display:none on <div .pipf-tabs__panel>; hidden attribute; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 48,
+        "y": 973,
+        "w": 1344,
+        "h": 3143
+      },
+      "elRect": {
+        "x": 0,
+        "y": 923,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"SÖDERHAMN Corner sofa, 6-seat - Kelinge dark yellow. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra su…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d23-ikea.png",
+      "clip": {
+        "x": 8,
+        "y": 933,
+        "width": 1424,
+        "height": 680
+      }
+    },
+    {
+      "id": "d24",
+      "set": "d",
+      "group": "ikea",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/hyltarp-3-seat-sofa-kilanda-pale-blue-s99489647/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "HYLTARP 3-seat sofa - Kilanda pale blue. Skillful craftsmanship and a perfect fit means that the sofa will always shows off its best side. The Kilanda fabric with a melange effect is made of at least 90 percent recycled polyester and has a soft surface.",
+      "judge": "correct",
+      "prevId": "b256",
+      "prevNoul": 0.07,
+      "prevCrop": "crops/b-p045-ikea-0-499.png",
+      "prevCropMode": "hint",
+      "pageTitle": "HYLTARP 3-seat sofa, Kilanda pale blue - IKEA Malaysia",
+      "found": "hidden",
+      "collapsed": "display:none on <div .pipf-tabs__panel>; hidden attribute; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 48,
+        "y": 973,
+        "w": 1344,
+        "h": 1975
+      },
+      "elRect": {
+        "x": 0,
+        "y": 923,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"HYLTARP 3-seat sofa - Kilanda pale blue. Skillful craftsmanship and a perfect fit means that the sofa will always shows off its best side. The Kilanda fabric wi…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d24-ikea.png",
+      "clip": {
+        "x": 8,
+        "y": 933,
+        "width": 1424,
+        "height": 680
+      }
+    },
+    {
+      "id": "d25",
+      "set": "d",
+      "group": "ikea",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/soederhamn-1-seat-section-kelinge-dark-yellow-s99621595/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "SÖDERHAMN 1-seat section - Kelinge dark yellow. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. The sofa's sections can be used freestanding or combined in different ways to get a size and shape that suits you and your home.",
+      "judge": "correct",
+      "prevId": "b263",
+      "prevNoul": 0.14,
+      "prevCrop": "crops/b-p046-ikea-0-499.png",
+      "prevCropMode": "hint",
+      "pageTitle": "SÖDERHAMN 1-seat section, Kelinge dark yellow - IKEA Malaysia",
+      "found": "hidden",
+      "collapsed": "display:none on <div .pipf-tabs__panel>; hidden attribute; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 48,
+        "y": 973,
+        "w": 1344,
+        "h": 1740
+      },
+      "elRect": {
+        "x": 0,
+        "y": 923,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"SÖDERHAMN 1-seat section - Kelinge dark yellow. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d25-ikea.png",
+      "clip": {
+        "x": 8,
+        "y": 933,
+        "width": 1424,
+        "height": 680
+      }
+    },
+    {
+      "id": "d26",
+      "set": "d",
+      "group": "ikea",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/kivik-4-seat-sofa-with-chaise-longue-tresund-anthracite-s99494385/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "KIVIK 4-seat sofa with chaise longue - Tresund anthracite. Enjoy the super comfy KIVIK sofa with deep seat cushions made of pocket springs, high resilience foam and polyester fibres – adding both firm support and relaxing softness. 10-year guarantee. Read about the terms in the guarantee brochure.",
+      "judge": "correct",
+      "prevId": "b270",
+      "prevNoul": 0.2,
+      "prevCrop": "crops/b-p047-ikea-0-499.png",
+      "prevCropMode": "hint",
+      "pageTitle": "KIVIK 4-seat sofa with chaise longue, Tresund anthracite - IKEA Malaysia",
+      "found": "hidden",
+      "collapsed": "display:none on <div .pipf-tabs__panel>; hidden attribute; zero box",
+      "cropMode": "hint",
+      "target": {
+        "x": 48,
+        "y": 973,
+        "w": 1344,
+        "h": 3085
+      },
+      "elRect": {
+        "x": 0,
+        "y": 923,
+        "w": 0,
+        "h": 0
+      },
+      "instructions": "Does the screenshot show \"KIVIK 4-seat sofa with chaise longue - Tresund anthracite. Enjoy the super comfy KIVIK sofa with deep seat cushions made of pocket springs, high resilience foam…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d26-ikea.png",
+      "clip": {
+        "x": 8,
+        "y": 933,
+        "width": 1424,
+        "height": 680
+      }
+    },
+    {
+      "id": "d27",
+      "set": "d",
+      "group": "ikea",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/lillehem-3-seat-modular-sofa-w-chaise-longue-vissle-beige-wood-s89570412/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "LILLEHEM 3-seat modular sofa w chaise longue - Vissle/beige wood. Combine the seat modules with armrests. Use the planning tool to put the modules together in different ways until the combination feels just right. A flexible solution that you can always update, expand and change if conditions shift.",
+      "judge": "correct",
+      "prevId": "b290",
+      "prevNoul": 0.13,
+      "prevCrop": "crops/b-p050-ikea-0-499.png",
+      "prevCropMode": "hint",
+      "pageTitle": "LILLEHEM 3-seat modular sofa w chaise longue, Vissle/beige wood - IKEA Malaysia",
+      "found": "visible",
+      "cropMode": "element",
+      "target": {
+        "x": 343,
+        "y": 138,
+        "w": 265,
+        "h": 19
+      },
+      "elRect": {
+        "x": 343,
+        "y": 138,
+        "w": 265,
+        "h": 19
+      },
+      "instructions": "Does the screenshot show \"LILLEHEM 3-seat modular sofa w chaise longue - Vissle/beige wood. Combine the seat modules with armrests. Use the planning tool to put the modules together in d…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d27-ikea.png",
+      "clip": {
+        "x": 276,
+        "y": 0,
+        "width": 400,
+        "height": 400
+      }
+    },
+    {
+      "id": "d28",
+      "set": "d",
+      "group": "ikea",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "FRIHETEN 3-seat sofa-bed - Faringe brown-orange. Readily converts into a bed. Big, practical storage space under the seat. 10 year guarantee. Read about the terms in the guarantee brochure.",
+      "judge": "correct",
+      "prevId": "b297",
+      "prevNoul": 0.09,
+      "prevCrop": "crops/b-p051-ikea-0-1811.png",
+      "prevCropMode": "element",
+      "pageTitle": "FRIHETEN 3-seat sofa-bed, Faringe brown-orange - IKEA Malaysia",
+      "found": "none",
+      "cropMode": "fallback",
+      "target": null,
+      "elRect": null,
+      "instructions": "Does the screenshot show \"FRIHETEN 3-seat sofa-bed - Faringe brown-orange. Readily converts into a bed. Big, practical storage space under the seat. 10 year guarantee. Read about the ter…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "crop": "crops/d-d28-ikea.png",
+      "clip": {
+        "x": 0,
+        "y": 0,
+        "width": 1440,
+        "height": 1000
+      }
+    }
+  ],
+  "walled": [],
+  "pages": []
+}
