@@ -108,3 +108,90 @@ Did not prove:
   (campaign 2 had used custom 60 products × 2 pages).
 - No proof page address, typed value, verification or other customer data was changed on any
   of the four websites.
+
+## Part 2, 2026-10-15 — the Re-verifies Marko approved
+
+Same setup as above: signed in as `credit-campaign@example.com` through `/login`, headless
+Playwright 1440×1000, one Chromium at a time, against the already-running main servers (not
+restarted). Marko approved exactly two clicks that show a dollar amount: Ruggable's
+`Re-verify 1 field · up to $0.05` and Glossier's `Re-verify 2 fields · up to $0.10`. Each was
+clicked only after the script confirmed the button text was exactly that. Database: SELECT only.
+Screenshots: `part2-*.png` in the same folder (4 files).
+
+**Summary.** **Neither Verify passed** (`all_passed = false` on both), so no Extract ran, and
+**no `[page]` path certified on either website**. A Re-verify only re-checks the fields that
+failed. On Ruggable that was Price, which failed again with nothing certified. On Glossier it was
+Main image and SKU, which both failed again. The fields carrying the address warning (Ruggable
+In stock and Main image, Glossier Price) had passed before, so neither Re-verify checked them
+again. Their fixed-index paths are still certified and **the warnings are still there**.
+**Both verifications cost more than their buttons said**: Ruggable $0.1152 against "up to
+$0.05", and Glossier $0.2451 against "up to $0.10".
+
+### Ruggable
+
+| # | Action | Expected | Seen (verbatim) | Screenshot |
+|---|---|---|---|---|
+| 1a | Read the button, click | `Re-verify 1 field · up to $0.05` | **`Re-verify 1 field · up to $0.05`** (enabled), matched exactly; clicked 2026-10-15 09:15:56Z. The tab then showed `Verifying`, `asking AI for price` and `Locked while this verification runs` | `part2-ruggable-01-before.png` |
+| 1b | Poll latest `source_verifications` | Completes | Row **`5c4129c1-218c-47fa-8bf1-34a17e944422`**: 09:15:56 → 09:16:08, **`all_passed = false`**, **`ai_calls = 1`**, **`cost_usd = 0.1152`** (the button said up to $0.05). `error_message` empty, `variant_results` null. Captures reused from 2026-10-14 15:37 | — |
+| 1c | Price (`aiCalled = true`) | `[page]` path such as `hasVariant[page].offers.price` / `product.variants[page]…` | **`certified = []`**. Typed values 499.00 / 449.25 / 424.15. Cells: Sierra **`fail` / `different_value`, found `374.25`**, near misses `499.00`, `126.75`, `374.25`. Morris & Co. **`fail` / `ambiguous`**, near misses `1549.00`, `599.00`, `449.25`. Cyrus **`fail` / `ambiguous`**, near misses `499.00`, `143.65`, `424.15`. Here `ambiguous` (certify.ts) means some candidate path reads the typed value on this page, but no single path is right on all three. Every page's typed value appears among its near misses, yet no one path finds it across the three | — |
+| 1d | Other variant fields (not re-checked, `aiCalled = false`) | — | **In stock**: `hasVariant[0].offers[0].availability` (json-ld), `data.product.variants.edges[0..3].node.availableForSale` (api); 3× `pass`, found `http://schema.org/InStock`. **SKU**: `[0].vendorCode`, `[0].productCode` (api); 3× `pass` (`RUG-CVR-IND-RCT-TMP-FO026-06x09` etc.). **Main image**: `hasVariant[0].image`; 3× `pass`. All unchanged from 2026-10-12 | — |
+| 1e | Verification tab after | Warning gone if a `[page]` path certified | **The warning is still there**: `reads the first variant, not the one the address names on product 1` under **Main image** and **In stock**, as before. Price `fails on products 1, 2 and 3 0/3`; the other rows `verified 3/3`. Button again `Re-verify 1 field · up to $0.05`; `Go to Extract` disabled | `part2-ruggable-02-after.png` |
+| 2 | Extract | — | **Not reached**: Verify did not pass | — |
+| 3 | Why it stopped | — | Price: no path certifies (above). Not retyped (brief) | — |
+
+### Glossier
+
+| # | Action | Expected | Seen (verbatim) | Screenshot |
+|---|---|---|---|---|
+| 1a | Read the button, click | `Re-verify 2 fields · up to $0.10` | **`Re-verify 2 fields · up to $0.10`** (enabled), matched exactly; clicked 2026-10-15 09:17:01Z | `part2-glossier-01-before.png` |
+| 1b | Poll latest `source_verifications` | Completes | Row **`f9f797aa-ee3c-4b8a-ae4c-ad67292a7287`**: 09:17:01 → 09:17:22, **`all_passed = false`**, **`ai_calls = 2`**, **`cost_usd = 0.2451`** (the button said up to $0.10). `variant_results` null | — |
+| 1c | Re-checked fields (`aiCalled = true`) | — | **SKU**: `certified = []`; 3× **`fail` / `not_found`**, no near misses (typed `AFB-000-00-00`, `MJC-000-00-00`, `PMR-000-00-00`). **Main image**: `certified = []`; 3× **`fail` / `not_found`**. Near misses were the page's `…-carousel-04…png` / `…-carousel-03.png` and Shopify's `no-image-2048…gif`; the typed values are `glossier-prod.imgix.net/…carousel-02…` addresses | — |
+| 1d | Variant fields not re-checked (`aiCalled = false`) | `[page]` path for Price | **Price**: still `product.variants[0].prices[0].unit_price`, `product.variants[0].prices[0].plans[5].discounted_price` (api) plus three `pv-price__original` XPaths; 3× `pass` (34.00 / 24.00 / 35.00). **In stock**: `offers.availability` (json-ld), `product:availability` (meta); 3× `pass` | — |
+| 1e | Verification tab after | Warning gone if a `[page]` path certified | **The warning is still there**: `reads the first variant, not the one the address names on product 1` under **Price**. Main image and SKU `fails on products 1, 2 and 3`. Button again `Re-verify 2 fields · up to $0.10`; `Go to Extract` disabled | `part2-glossier-02-after.png` |
+| 2 | Extract | — | **Not reached**: Verify did not pass | — |
+| 3 | Why it stopped | — | SKU and Main image: the typed values are not on the page (SKU) or not the page's image address (Main image). Not retyped (brief) | — |
+
+### What Part 2 proved / did not
+
+- **A `[page]` path is still unproven live.** A Re-verify re-checks only the fields that failed, and the
+  warned fields had passed. To certify a `[page]` path on Ruggable In stock / Main image or Glossier Price,
+  something must make those fields re-verify: a changed value or address, or a full Verify. Neither
+  click did that. Ruggable Price did go through AI matching, and the typed 6'×9' value was a near
+  miss on every page, but no single path, `[page]` or fixed, read it on all three.
+- **The button's estimate was low on both clicks**: 2.3× ($0.1152 against $0.05) and 2.5× ($0.2451 against
+  $0.10), at $0.115 to $0.123 per AI call against the estimate's $0.05 per field.
+- The address warning stays after a failed Re-verify, which is consistent: the paths it names are
+  still certified.
+
+**Cost, precisely (both parts).** **$0.3603**: verification `5c4129c1…` (Ruggable)
+`cost_usd = 0.1152` + verification `f9f797aa…` (Glossier) `cost_usd = 0.2451`. Part 1's run
+`a3d0ab4e…` `cost_usd = 0.0000`. No runs on Ruggable or Glossier since 2026-10-15 00:00 (SELECT
+count = 0). Nothing else that showed a dollar amount was clicked.
+
+**State left behind (Part 2, in addition to Part 1's).**
+- Two new `source_verifications` rows: Ruggable `5c4129c1-218c-47fa-8bf1-34a17e944422` and
+  Glossier `f9f797aa-ee3c-4b8a-ae4c-ad67292a7287`, both `all_passed = false`. They are now each
+  website's latest verification. What is certified did not change on either website.
+- No proof page address, typed value, run or other customer data was changed. No server was
+  restarted.
+
+## Diagnosis of Ruggable's Price (controller, 2026-10-15)
+
+The Sierra proof page's stored capture (`9f123f6d….capture.json`) carries the page variant the
+feature computes: `pairs [size=6x9, system=rug-cvr]`, `named: true`. Its JSON-LD `ProductGroup`
+(`variesBy: size`) lists 16 `hasVariant` entries; the 6'x9' entry is index 9, sku
+`…-06x09`, `offers.price` **374.25**. That is the value Verify reported (`different_value`, found
+374.25). The typed expected value, 499.00, is the list price the page shows struck through beside
+the sale price; the page data holds only the sale price. So the page variant matched the right
+entry; the cell fails on list price vs sale price, not on the variant. The near misses on Morris
+and Cyrus show the same pattern (typed 449.25 / 424.15 against their 6'x9' sale prices).
+
+**What would prove `[page]` live:** type the sale prices the page data carries (374.25 on Sierra,
+and the 6'x9' sale price on the other two), or mark the sale price on the screenshot, then
+Re-verify Price. Not done here: the brief forbids retyping values.
+
+**Two product defects this surfaced:**
+1. The Verify buttons' estimates undercount: "up to $0.05" spent $0.1152, "up to $0.10" spent
+   $0.2451 ($0.3603 against $0.15). Belongs with the money-label work in the handoff.
+2. A Re-verify re-checks only failed fields, so a field that passed on a fixed index and carries
+   the new address warning is never re-checked — the warning has no action that clears it.
