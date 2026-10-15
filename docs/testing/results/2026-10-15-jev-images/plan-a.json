@@ -1,0 +1,1788 @@
+{
+  "set": "a",
+  "preparedAt": "2026-10-15T12:51:16.385Z",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "questions": [
+    {
+      "id": "a01",
+      "set": "a",
+      "group": "ruggable-price",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+      "field": {
+        "key": "price",
+        "name": "Price",
+        "type": "money",
+        "concept": "price",
+        "description": "the price a buyer pays now for the selected size (6'x9')"
+      },
+      "kind": "choice",
+      "pageTitle": "Sierra Ivory & Opal Rug | Ruggable US",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "89.25",
+          "source": "json-ld hasVariant[0].offers[0].price"
+        },
+        {
+          "id": "c2",
+          "value": "119.00",
+          "source": "json-ld hasVariant[0].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c3",
+          "value": "104.25",
+          "source": "json-ld hasVariant[1].offers[0].price"
+        },
+        {
+          "id": "c4",
+          "value": "139.00",
+          "source": "json-ld hasVariant[1].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c5",
+          "value": "134.25",
+          "source": "json-ld hasVariant[2].offers[0].price"
+        },
+        {
+          "id": "c6",
+          "value": "179.00",
+          "source": "json-ld hasVariant[2].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c7",
+          "value": "149.25",
+          "source": "json-ld hasVariant[3].offers[0].price"
+        },
+        {
+          "id": "c8",
+          "value": "199.00",
+          "source": "json-ld hasVariant[3].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c9",
+          "value": "186.75",
+          "source": "json-ld hasVariant[4].offers[0].price"
+        },
+        {
+          "id": "c10",
+          "value": "249.00",
+          "source": "json-ld hasVariant[4].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c11",
+          "value": "224.25",
+          "source": "json-ld hasVariant[5].offers[0].price"
+        },
+        {
+          "id": "c12",
+          "value": "299.00",
+          "source": "json-ld hasVariant[5].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c13",
+          "value": "126.75",
+          "source": "json-ld hasVariant[6].offers[0].price"
+        },
+        {
+          "id": "c14",
+          "value": "169.00",
+          "source": "json-ld hasVariant[6].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c15",
+          "value": "261.75",
+          "source": "json-ld hasVariant[8].offers[0].price"
+        },
+        {
+          "id": "c16",
+          "value": "349.00",
+          "source": "json-ld hasVariant[8].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c17",
+          "value": "374.25",
+          "source": "json-ld hasVariant[9].offers[0].price"
+        },
+        {
+          "id": "c18",
+          "value": "499.00",
+          "source": "json-ld hasVariant[9].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c19",
+          "value": "449.25",
+          "source": "json-ld hasVariant[10].offers[0].price"
+        },
+        {
+          "id": "c20",
+          "value": "599.00",
+          "source": "json-ld hasVariant[10].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c21",
+          "value": "561.75",
+          "source": "json-ld hasVariant[11].offers[0].price"
+        },
+        {
+          "id": "c22",
+          "value": "749.00",
+          "source": "json-ld hasVariant[11].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c23",
+          "value": "801.75",
+          "source": "json-ld hasVariant[12].offers[0].price"
+        },
+        {
+          "id": "c24",
+          "value": "1069.00",
+          "source": "json-ld hasVariant[12].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c25",
+          "value": "1049.25",
+          "source": "json-ld hasVariant[13].offers[0].price"
+        },
+        {
+          "id": "c26",
+          "value": "1399.00",
+          "source": "json-ld hasVariant[13].offers[0].priceSpecification.price"
+        }
+      ],
+      "instructions": "Which candidate is the Price of the product shown — the price a buyer pays now for the selected size (6'x9')?",
+      "target": {
+        "x": 2151,
+        "y": 310,
+        "w": 53,
+        "h": 23
+      },
+      "cropMode": "element",
+      "crop": "crops/a-p001-ruggable-1458-0.png"
+    },
+    {
+      "id": "a02",
+      "set": "a",
+      "group": "ruggable-price",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+      "field": {
+        "key": "price",
+        "name": "Price",
+        "type": "money",
+        "concept": "price",
+        "description": "the price a buyer pays now for the selected size (6'x9')"
+      },
+      "kind": "choice",
+      "pageTitle": "Pimpernel Jade Rug by Morris & Co. | Ruggable US",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "104.25",
+          "source": "json-ld hasVariant[0].offers[0].price"
+        },
+        {
+          "id": "c2",
+          "value": "139.00",
+          "source": "json-ld hasVariant[0].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c3",
+          "value": "179.25",
+          "source": "json-ld hasVariant[1].offers[0].price"
+        },
+        {
+          "id": "c4",
+          "value": "239.00",
+          "source": "json-ld hasVariant[1].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c5",
+          "value": "224.25",
+          "source": "json-ld hasVariant[2].offers[0].price"
+        },
+        {
+          "id": "c6",
+          "value": "299.00",
+          "source": "json-ld hasVariant[2].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c7",
+          "value": "149.25",
+          "source": "json-ld hasVariant[3].offers[0].price"
+        },
+        {
+          "id": "c8",
+          "value": "199.00",
+          "source": "json-ld hasVariant[3].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c9",
+          "value": "269.25",
+          "source": "json-ld hasVariant[4].offers[0].price"
+        },
+        {
+          "id": "c10",
+          "value": "359.00",
+          "source": "json-ld hasVariant[4].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c11",
+          "value": "314.25",
+          "source": "json-ld hasVariant[5].offers[0].price"
+        },
+        {
+          "id": "c12",
+          "value": "419.00",
+          "source": "json-ld hasVariant[5].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c13",
+          "value": "449.25",
+          "source": "json-ld hasVariant[6].offers[0].price"
+        },
+        {
+          "id": "c14",
+          "value": "599.00",
+          "source": "json-ld hasVariant[6].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c15",
+          "value": "636.75",
+          "source": "json-ld hasVariant[7].offers[0].price"
+        },
+        {
+          "id": "c16",
+          "value": "849.00",
+          "source": "json-ld hasVariant[7].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c17",
+          "value": "951.75",
+          "source": "json-ld hasVariant[8].offers[0].price"
+        },
+        {
+          "id": "c18",
+          "value": "1269.00",
+          "source": "json-ld hasVariant[8].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c19",
+          "value": "1161.75",
+          "source": "json-ld hasVariant[9].offers[0].price"
+        },
+        {
+          "id": "c20",
+          "value": "1549.00",
+          "source": "json-ld hasVariant[9].offers[0].priceSpecification.price"
+        }
+      ],
+      "instructions": "Which candidate is the Price of the product shown — the price a buyer pays now for the selected size (6'x9')?",
+      "target": {
+        "x": 871,
+        "y": 310,
+        "w": 55,
+        "h": 23
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p002-ruggable-0-0.png"
+    },
+    {
+      "id": "a03",
+      "set": "a",
+      "group": "ruggable-price",
+      "site": "ruggable",
+      "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+      "field": {
+        "key": "price",
+        "name": "Price",
+        "type": "money",
+        "concept": "price",
+        "description": "the price a buyer pays now for the selected size (6'x9')"
+      },
+      "kind": "choice",
+      "pageTitle": "Cyrus Rose Gold Rug | Ruggable US",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "101.15",
+          "source": "json-ld hasVariant[0].offers[0].price"
+        },
+        {
+          "id": "c2",
+          "value": "119.00",
+          "source": "json-ld hasVariant[0].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c3",
+          "value": "118.15",
+          "source": "json-ld hasVariant[1].offers[0].price"
+        },
+        {
+          "id": "c4",
+          "value": "139.00",
+          "source": "json-ld hasVariant[1].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c5",
+          "value": "152.15",
+          "source": "json-ld hasVariant[2].offers[0].price"
+        },
+        {
+          "id": "c6",
+          "value": "179.00",
+          "source": "json-ld hasVariant[2].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c7",
+          "value": "169.15",
+          "source": "json-ld hasVariant[3].offers[0].price"
+        },
+        {
+          "id": "c8",
+          "value": "199.00",
+          "source": "json-ld hasVariant[3].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c9",
+          "value": "211.65",
+          "source": "json-ld hasVariant[4].offers[0].price"
+        },
+        {
+          "id": "c10",
+          "value": "249.00",
+          "source": "json-ld hasVariant[4].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c11",
+          "value": "254.15",
+          "source": "json-ld hasVariant[5].offers[0].price"
+        },
+        {
+          "id": "c12",
+          "value": "299.00",
+          "source": "json-ld hasVariant[5].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c13",
+          "value": "143.65",
+          "source": "json-ld hasVariant[6].offers[0].price"
+        },
+        {
+          "id": "c14",
+          "value": "169.00",
+          "source": "json-ld hasVariant[6].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c15",
+          "value": "296.65",
+          "source": "json-ld hasVariant[8].offers[0].price"
+        },
+        {
+          "id": "c16",
+          "value": "349.00",
+          "source": "json-ld hasVariant[8].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c17",
+          "value": "424.15",
+          "source": "json-ld hasVariant[9].offers[0].price"
+        },
+        {
+          "id": "c18",
+          "value": "499.00",
+          "source": "json-ld hasVariant[9].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c19",
+          "value": "509.15",
+          "source": "json-ld hasVariant[10].offers[0].price"
+        },
+        {
+          "id": "c20",
+          "value": "599.00",
+          "source": "json-ld hasVariant[10].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c21",
+          "value": "636.65",
+          "source": "json-ld hasVariant[11].offers[0].price"
+        },
+        {
+          "id": "c22",
+          "value": "749.00",
+          "source": "json-ld hasVariant[11].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c23",
+          "value": "908.65",
+          "source": "json-ld hasVariant[12].offers[0].price"
+        },
+        {
+          "id": "c24",
+          "value": "1069.00",
+          "source": "json-ld hasVariant[12].offers[0].priceSpecification.price"
+        },
+        {
+          "id": "c25",
+          "value": "1189.15",
+          "source": "json-ld hasVariant[13].offers[0].price"
+        },
+        {
+          "id": "c26",
+          "value": "1399.00",
+          "source": "json-ld hasVariant[13].offers[0].priceSpecification.price"
+        }
+      ],
+      "instructions": "Which candidate is the Price of the product shown — the price a buyer pays now for the selected size (6'x9')?",
+      "target": {
+        "x": 871,
+        "y": 310,
+        "w": 51,
+        "h": 23
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p003-ruggable-0-0.png"
+    },
+    {
+      "id": "a04",
+      "set": "a",
+      "group": "gymshark-brand",
+      "site": "gymshark",
+      "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+      "field": {
+        "key": "brand",
+        "name": "Brand",
+        "type": "text",
+        "concept": "brand",
+        "description": "The brand or manufacturer"
+      },
+      "kind": "choice",
+      "truth": "Gymshark",
+      "pageTitle": "Gymshark Everyday Seamless Leggings - Espresso Brown | Gymshark",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Gymshark | We Do Gym",
+          "source": "json-ld brand.name"
+        },
+        {
+          "id": "c2",
+          "value": "Gymshark",
+          "source": "meta og:site_name"
+        }
+      ],
+      "instructions": "Which candidate is the Brand of the product shown — The brand or manufacturer?",
+      "target": {
+        "x": 875,
+        "y": 229,
+        "w": 410,
+        "h": 29
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p004-gymshark-0-0.png"
+    },
+    {
+      "id": "a05",
+      "set": "a",
+      "group": "gymshark-brand",
+      "site": "gymshark",
+      "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+      "field": {
+        "key": "brand",
+        "name": "Brand",
+        "type": "text",
+        "concept": "brand",
+        "description": "The brand or manufacturer"
+      },
+      "kind": "choice",
+      "truth": "Gymshark",
+      "pageTitle": "Gymshark Everyday Seamless Flared Leggings - Black | Gymshark",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Gymshark | We Do Gym",
+          "source": "json-ld brand.name"
+        },
+        {
+          "id": "c2",
+          "value": "Gymshark",
+          "source": "meta og:site_name"
+        }
+      ],
+      "instructions": "Which candidate is the Brand of the product shown — The brand or manufacturer?",
+      "target": {
+        "x": 875,
+        "y": 229,
+        "w": 410,
+        "h": 58
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p005-gymshark-0-0.png"
+    },
+    {
+      "id": "a06",
+      "set": "a",
+      "group": "gymshark-brand",
+      "site": "gymshark",
+      "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+      "field": {
+        "key": "brand",
+        "name": "Brand",
+        "type": "text",
+        "concept": "brand",
+        "description": "The brand or manufacturer"
+      },
+      "kind": "choice",
+      "truth": "Gymshark",
+      "pageTitle": "Gymshark Whitney Mid-Rise Leggings - Black | Gymshark",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Gymshark | We Do Gym",
+          "source": "json-ld brand.name"
+        },
+        {
+          "id": "c2",
+          "value": "Gymshark",
+          "source": "meta og:site_name"
+        }
+      ],
+      "instructions": "Which candidate is the Brand of the product shown — The brand or manufacturer?",
+      "target": {
+        "x": 875,
+        "y": 229,
+        "w": 410,
+        "h": 29
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p006-gymshark-0-0.png"
+    },
+    {
+      "id": "a07",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/change-me-mega-highlighter",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Change Me Twilight Eclipse Mega Highlighter | ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Change Me",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Change Me Twilight Eclipse Mega Highlighter | ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Change Me",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 723,
+        "y": 246,
+        "w": 626,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p007-colourpop-0-0.png"
+    },
+    {
+      "id": "a08",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/game-over-shadow-stix",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Game Over | Shadow Stix | ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Game Over",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Shadow Stix",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c4",
+          "value": "Game Over | Shadow Stix | ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Shadow Stix",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 246,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p008-colourpop-0-0.png"
+    },
+    {
+      "id": "a09",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/beetle-chrome-liquid-shadow",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Beetle | Chrome Liquid Eyeshadow | ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Beetle",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Chrome Liquid Eyeshadow",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c4",
+          "value": "Beetle | Chrome Liquid Eyeshadow | ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Chrome Liquid Eyeshadow",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 246,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p009-colourpop-0-0.png"
+    },
+    {
+      "id": "a10",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/truth-or-bare-lippie-pencil-vault",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Truth or Bare | Nude Lip Liner Vault | ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Truth or Bare",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Lippie Pencil Vault",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c4",
+          "value": "Truth or Bare | Nude Lip Liner Vault | ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Lippie Pencil Vault",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 282,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p010-colourpop-0-0.png"
+    },
+    {
+      "id": "a11",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/drift",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Drift Deep Wine-Berry Satin Super Shock Shadow · ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Drift",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Super Shock Shadow",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c4",
+          "value": "Drift Deep Wine-Berry Satin Super Shock Shadow · ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Super Shock Shadow",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 246,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p011-colourpop-0-0.png"
+    },
+    {
+      "id": "a12",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/cotton-candy-shadow-stix",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Cotton Candy | Shadow Stix | ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Cotton Candy",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Shadow Stix",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c4",
+          "value": "Cotton Candy | Shadow Stix | ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Shadow Stix",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 246,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p012-colourpop-0-0.png"
+    },
+    {
+      "id": "a13",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/opaltini",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Opaltini Iridescent Lilac Shimmer Dry Oil · ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "SOL Body",
+          "source": "json-ld brand.name"
+        },
+        {
+          "id": "c2",
+          "value": "Opaltini",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c4",
+          "value": "Mini Shimmering Dry Oil",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c5",
+          "value": "Opaltini Iridescent Lilac Shimmer Dry Oil · ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Mini Shimmering Dry Oil",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 246,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p013-colourpop-0-0.png"
+    },
+    {
+      "id": "a14",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/coven-clash-jelly-much-duo",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Shop Coven Clash | Twilight Eclipse Jelly Much Set by ColourPop®",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Coven Clash",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Shop Coven Clash | Twilight Eclipse Jelly Much Set by ColourPop®",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Coven Clash",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 723,
+        "y": 282,
+        "w": 626,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p014-colourpop-0-0.png"
+    },
+    {
+      "id": "a15",
+      "set": "a",
+      "group": "colourpop-title",
+      "site": "colourpop",
+      "url": "https://colourpop.com/products/emo-inside-jelly-much-shadow-n",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "choice",
+      "pageTitle": "Emo Inside Jelly Much Shadow | ColourPop",
+      "candidates": [
+        {
+          "id": "c1",
+          "value": "Emo Inside",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c2",
+          "value": "ColourPop",
+          "source": "json-ld name"
+        },
+        {
+          "id": "c3",
+          "value": "Jelly Much Shadow",
+          "source": "json-ld itemListElement[0].name"
+        },
+        {
+          "id": "c4",
+          "value": "Emo Inside Jelly Much Shadow | ColourPop",
+          "source": "meta og:title"
+        }
+      ],
+      "truth": "Jelly Much Shadow",
+      "instructions": "Which candidate is the Title of the product shown — The product name as shown in the page heading?",
+      "target": {
+        "x": 731,
+        "y": 246,
+        "w": 633,
+        "h": 39
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p015-colourpop-0-0.png"
+    },
+    {
+      "id": "a16",
+      "set": "a",
+      "group": "skullcandy-stock",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+      "field": {
+        "key": "in_stock",
+        "name": "In stock",
+        "type": "boolean",
+        "concept": "availability",
+        "description": "Whether the product can be bought now"
+      },
+      "kind": "noul",
+      "value": true,
+      "instructions": "Does the screenshot show the selected colour of this product as in stock (it can be bought now)?",
+      "pageTitle": "Smokin' Buds - True Wireless Earbuds | Bluetooth 5.2 | Built-in Microphone | Sweat & Water Resistant",
+      "carried": true,
+      "target": {
+        "x": 867,
+        "y": 657,
+        "w": 511,
+        "h": 52
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p016-skullcandy-0-0.png"
+    },
+    {
+      "id": "a17",
+      "set": "a",
+      "group": "skullcandy-stock",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=46368310689849",
+      "field": {
+        "key": "in_stock",
+        "name": "In stock",
+        "type": "boolean",
+        "concept": "availability",
+        "description": "Whether the product can be bought now"
+      },
+      "kind": "noul",
+      "value": true,
+      "instructions": "Does the screenshot show the selected colour of this product as in stock (it can be bought now)?",
+      "pageTitle": "Crusher Evo - Bass Headphones with Personal Sound | True Wireless | Bluetooth 5.0 | Built-in Microphone",
+      "carried": true,
+      "target": {
+        "x": 877,
+        "y": 916,
+        "w": 491,
+        "h": 24
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p017-skullcandy-0-0.png"
+    },
+    {
+      "id": "a18",
+      "set": "a",
+      "group": "skullcandy-stock",
+      "site": "skullcandy",
+      "url": "https://www.skullcandy.com/products/push-anc-active?variant=43208350498873",
+      "field": {
+        "key": "in_stock",
+        "name": "In stock",
+        "type": "boolean",
+        "concept": "availability",
+        "description": "Whether the product can be bought now"
+      },
+      "kind": "noul",
+      "value": true,
+      "instructions": "Does the screenshot show the selected colour of this product as in stock (it can be bought now)?",
+      "pageTitle": "Push ANC Active - True Wireless Sport Earbuds with Active Noise Canceling & Ear Hooks | Bluetooth 5.3 | Waterproof",
+      "carried": true,
+      "target": {
+        "x": 867,
+        "y": 549,
+        "w": 511,
+        "h": 52
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p018-skullcandy-0-0.png"
+    },
+    {
+      "id": "a19",
+      "set": "a",
+      "group": "real-error",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/basic-eye-kit",
+      "field": {
+        "key": "rating",
+        "name": "Rating",
+        "type": "number",
+        "concept": "rating",
+        "description": "The average customer rating"
+      },
+      "kind": "noul",
+      "value": 4.9,
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Basic Eye Brush Set | Professional Eye Makeup Brushes | Sigma",
+      "instructions": "Does the screenshot show \"4.9\" as this product's Rating?",
+      "carried": true,
+      "target": {
+        "x": 1079,
+        "y": 234,
+        "w": 81,
+        "h": 30
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p019-sigmabeauty-0-0.png"
+    },
+    {
+      "id": "a20",
+      "set": "a",
+      "group": "real-error",
+      "site": "sigmabeauty",
+      "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+      "field": {
+        "key": "rating",
+        "name": "Rating",
+        "type": "number",
+        "concept": "rating",
+        "description": "The average customer rating"
+      },
+      "kind": "noul",
+      "value": 4.9,
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "4DHD™ Kabuki Brush | Kabuki Makeup Brush | Sigma Beauty",
+      "instructions": "Does the screenshot show \"4.9\" as this product's Rating?",
+      "carried": true,
+      "target": {
+        "x": 1079,
+        "y": 214,
+        "w": 81,
+        "h": 30
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p020-sigmabeauty-0-0.png"
+    },
+    {
+      "id": "a21",
+      "set": "a",
+      "group": "real-error",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+      "field": {
+        "key": "sku",
+        "name": "SKU",
+        "type": "text",
+        "concept": "sku",
+        "description": "The seller's article number or product code"
+      },
+      "kind": "noul",
+      "value": "Style: 312123_16",
+      "truth": "no",
+      "shown": true,
+      "pageTitle": "Deviate NITRO™ 4 Men's Road Running Shoes | PUMA",
+      "instructions": "Does the screenshot show \"Style: 312123_16\" as this product's SKU?",
+      "carried": true,
+      "target": {
+        "x": 985,
+        "y": 1373,
+        "w": 383,
+        "h": 24
+      },
+      "cropMode": "element",
+      "crop": "crops/a-p021-puma-0-885.png"
+    },
+    {
+      "id": "a22",
+      "set": "a",
+      "group": "real-error",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Deviate 4 isn't just fast – its too fast. 15g lighter than its predecessor, this high-performance shoe is built for runners who refuse to slow down. Featuring enhanced NITROFOAMTM technology for even better energy return, a breathable engineered mesh upper, and a carbon composite PWRPLATE, Deviate 4 gives you the edge you need to push through tempo runs or crush race day. Go further. Go faster.",
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Deviate NITRO™ 4 Men's Road Running Shoes | PUMA",
+      "instructions": "Does the screenshot show \"Deviate 4 isn't just fast – its too fast. 15g lighter than its predecessor, this high-performance shoe is built for runners who refuse to slow down. Featuring e…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 965,
+        "y": 1197,
+        "w": 94,
+        "h": 40
+      },
+      "cropMode": "hint",
+      "crop": "crops/a-p021-puma-0-717.png"
+    },
+    {
+      "id": "a23",
+      "set": "a",
+      "group": "real-error",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Deviate Pure NITROTM Road Running Shoes are ready for training and daily runs with lightweight NITROFOAMTM cushioning and a flexible ride. No plate, just smooth propulsion, so you can pick up the pace when it feels right.",
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Deviate Pure NITRO™ Men's Running Shoes | PUMA",
+      "instructions": "Does the screenshot show \"Deviate Pure NITROTM Road Running Shoes are ready for training and daily runs with lightweight NITROFOAMTM cushioning and a flexible ride. No plate, just smooth…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 965,
+        "y": 208,
+        "w": 443,
+        "h": 36
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p022-puma-0-0.png"
+    },
+    {
+      "id": "a24",
+      "set": "a",
+      "group": "real-error",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "Deviate 4 isn't just fast – its too fast. 15g lighter than its predecessor, this high-performance shoe is built for runners who refuse to slow down. Featuring enhanced NITROFOAMTM technology for even better energy return, a breathable engineered mesh upper, and a carbon composite PWRPLATE, Deviate 4 gives you the edge you need to push through tempo runs or crush race day. Go further. Go faster.",
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Deviate NITRO™ 4 Men's Road Running Shoes | PUMA",
+      "instructions": "Does the screenshot show \"Deviate 4 isn't just fast – its too fast. 15g lighter than its predecessor, this high-performance shoe is built for runners who refuse to slow down. Featuring e…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 965,
+        "y": 1197,
+        "w": 94,
+        "h": 40
+      },
+      "cropMode": "hint",
+      "crop": "crops/a-p023-puma-0-717.png"
+    },
+    {
+      "id": "a25",
+      "set": "a",
+      "group": "real-error",
+      "site": "puma",
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "When fast isn’t fast enough, you go beyond. The Deviate NITROTM Elite 4 is built for race day – those moments when every second counts. Upgraded NITROFOAMTM ELITE delivers elite responsiveness for unbeatable speed, while a reengineered PWRPLATE channels every ounce of energy forward. 12% lighter than its predecessor, Deviate Elite 4 will keep you light, fast, and locked on your goal pace. Every detail is engineered to take you beyond fast.",
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Deviate NITRO™ Elite 4 Men's Road Running Shoes | PUMA",
+      "instructions": "Does the screenshot show \"When fast isn’t fast enough, you go beyond. The Deviate NITROTM Elite 4 is built for race day – those moments when every second counts. Upgraded NITROFOAMTM ELI…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 965,
+        "y": 1005,
+        "w": 94,
+        "h": 40
+      },
+      "cropMode": "hint",
+      "crop": "crops/a-p024-puma-0-525.png"
+    },
+    {
+      "id": "a26",
+      "set": "a",
+      "group": "real-error",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+      "field": {
+        "key": "rating",
+        "name": "Rating",
+        "type": "number",
+        "concept": "rating",
+        "description": "The average customer rating"
+      },
+      "kind": "noul",
+      "value": 4.9,
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Sterling Silver Milestone Birthday Bracelet In Various Ages By With Love Jewellery Limited",
+      "instructions": "Does the screenshot show \"4.9\" as this product's Rating?",
+      "carried": true,
+      "target": {
+        "x": 859,
+        "y": 811,
+        "w": 116,
+        "h": 18
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p025-notonthehighstreet-0-0.png"
+    },
+    {
+      "id": "a27",
+      "set": "a",
+      "group": "real-error",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+      "field": {
+        "key": "rating",
+        "name": "Rating",
+        "type": "number",
+        "concept": "rating",
+        "description": "The average customer rating"
+      },
+      "kind": "noul",
+      "value": 4.6,
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Sisters Necklace – Sterling Silver Heart Infinity Charm, Personalised Gift For Sister, Birthday Or Just Because By Lunity",
+      "instructions": "Does the screenshot show \"4.6\" as this product's Rating?",
+      "carried": true,
+      "target": {
+        "x": 859,
+        "y": 799,
+        "w": 116,
+        "h": 18
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p026-notonthehighstreet-0-0.png"
+    },
+    {
+      "id": "a28",
+      "set": "a",
+      "group": "real-error",
+      "site": "notonthehighstreet",
+      "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+      "field": {
+        "key": "rating",
+        "name": "Rating",
+        "type": "number",
+        "concept": "rating",
+        "description": "The average customer rating"
+      },
+      "kind": "noul",
+      "value": 4.2,
+      "truth": "no",
+      "shown": false,
+      "pageTitle": "Personalised Mens Bracelet With Leather Woven Strap By Feel Good Centre",
+      "instructions": "Does the screenshot show \"4.2\" as this product's Rating?",
+      "carried": true,
+      "target": {
+        "x": 859,
+        "y": 912,
+        "w": 116,
+        "h": 18
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p027-notonthehighstreet-0-0.png"
+    },
+    {
+      "id": "a29",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "lacoste",
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH1417-00.html?color=WD9",
+      "field": {
+        "key": "rating",
+        "name": "Rating",
+        "type": "number",
+        "concept": "rating",
+        "description": "The average customer rating"
+      },
+      "kind": "noul",
+      "value": 4.625,
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "Classic Fit Monogram Jacquard Polo Shirt - Men's Short Sleeves Polo Shirts - New In 2026 | Lacoste",
+      "instructions": "Does the screenshot show \"4.625\" as this product's Rating?",
+      "carried": true,
+      "target": {
+        "x": 1000,
+        "y": 231,
+        "w": 64,
+        "h": 18
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p028-lacoste-0-0.png"
+    },
+    {
+      "id": "a30",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "noul",
+      "value": "FRIHETEN 3-seat sofa-bed - Faringe brown-orange",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "FRIHETEN 3-seat sofa-bed, Faringe brown-orange - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"FRIHETEN 3-seat sofa-bed - Faringe brown-orange\" as this product's Title?",
+      "carried": true,
+      "target": {
+        "x": 886,
+        "y": 239,
+        "w": 290,
+        "h": 40
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p029-ikea-0-0.png"
+    },
+    {
+      "id": "a31",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "FRIHETEN 3-seat sofa-bed - Faringe brown-orange. Readily converts into a bed. Big, practical storage space under the seat. 10 year guarantee. Read about the terms in the guarantee brochure.",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "FRIHETEN 3-seat sofa-bed, Faringe brown-orange - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"FRIHETEN 3-seat sofa-bed - Faringe brown-orange. Readily converts into a bed. Big, practical storage space under the seat. 10 year guarantee. Read about the ter…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 111,
+        "y": 2300,
+        "w": 169,
+        "h": 22
+      },
+      "cropMode": "element",
+      "crop": "crops/a-p029-ikea-0-1811.png"
+    },
+    {
+      "id": "a32",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "noul",
+      "value": "MANNARP 4-seat sofa with chaise longue - Saxemara black-blue",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "MANNARP 4-seat sofa with chaise longue, Saxemara black-blue - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"MANNARP 4-seat sofa with chaise longue - Saxemara black-blue\" as this product's Title?",
+      "carried": true,
+      "target": {
+        "x": 886,
+        "y": 239,
+        "w": 388,
+        "h": 40
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p030-ikea-0-0.png"
+    },
+    {
+      "id": "a33",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "MANNARP 4-seat sofa with chaise longue - Saxemara black-blue. This sofa combines soft, cosy comfort with a modern design and neat armrests that evoke a sense of elegant lightness. You can lean back into the high backrest, relax and enjoy the embracing comfort.",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "MANNARP 4-seat sofa with chaise longue, Saxemara black-blue - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"MANNARP 4-seat sofa with chaise longue - Saxemara black-blue. This sofa combines soft, cosy comfort with a modern design and neat armrests that evoke a sense of…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 173,
+        "y": 973,
+        "w": 119,
+        "h": 52
+      },
+      "cropMode": "hint",
+      "crop": "crops/a-p030-ikea-0-499.png"
+    },
+    {
+      "id": "a34",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "noul",
+      "value": "SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "SÖDERHAMN 4-seat sofa with chaise longue, and open end/Kelinge beige - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige\" as this product's Title?",
+      "carried": true,
+      "target": {
+        "x": 886,
+        "y": 263,
+        "w": 444,
+        "h": 40
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p031-ikea-0-0.png"
+    },
+    {
+      "id": "a35",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. If you need a larger sofa, you can add a section or two to your existing combination.",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "SÖDERHAMN 4-seat sofa with chaise longue, and open end/Kelinge beige - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"SÖDERHAMN 4-seat sofa with chaise longue - and open end/Kelinge beige. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cus…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 173,
+        "y": 973,
+        "w": 119,
+        "h": 52
+      },
+      "cropMode": "hint",
+      "crop": "crops/a-p031-ikea-0-499.png"
+    },
+    {
+      "id": "a36",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "noul",
+      "value": "KIVIK 3-seat sofa with chaise longue - Tibbleby beige/grey",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "KIVIK 3-seat sofa with chaise longue, Tibbleby beige/grey - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"KIVIK 3-seat sofa with chaise longue - Tibbleby beige/grey\" as this product's Title?",
+      "carried": true,
+      "target": {
+        "x": 886,
+        "y": 239,
+        "w": 381,
+        "h": 40
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p032-ikea-0-0.png"
+    },
+    {
+      "id": "a37",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+      "field": {
+        "key": "title",
+        "name": "Title",
+        "type": "text",
+        "concept": "product_name",
+        "description": "The product name as shown in the page heading"
+      },
+      "kind": "noul",
+      "value": "SÖDERHAMN Corner sofa, 6-seat - Kelinge dark yellow",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "SÖDERHAMN corner sofa, 6-seat, Kelinge dark yellow - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"SÖDERHAMN Corner sofa, 6-seat - Kelinge dark yellow\" as this product's Title?",
+      "carried": true,
+      "target": {
+        "x": 886,
+        "y": 263,
+        "w": 294,
+        "h": 40
+      },
+      "cropMode": "viewport",
+      "crop": "crops/a-p033-ikea-0-0.png"
+    },
+    {
+      "id": "a38",
+      "set": "a",
+      "group": "flagged-correct",
+      "site": "ikea",
+      "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+      "field": {
+        "key": "description",
+        "name": "Description",
+        "type": "text",
+        "concept": "description",
+        "description": "The main product description"
+      },
+      "kind": "noul",
+      "value": "SÖDERHAMN Corner sofa, 6-seat - Kelinge dark yellow. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra support. The sofa's sections can be used freestanding or combined in different ways to get a size and shape that suits you and your home.",
+      "truth": "yes",
+      "shown": false,
+      "pageTitle": "SÖDERHAMN corner sofa, 6-seat, Kelinge dark yellow - IKEA Malaysia",
+      "instructions": "Does the screenshot show \"SÖDERHAMN Corner sofa, 6-seat - Kelinge dark yellow. SÖDERHAMN seating series allows you to sit deeply, low and softly with the loose back cushions for extra su…\" as this product's Description? (The quoted text is the beginning of a longer text.)",
+      "carried": true,
+      "target": {
+        "x": 173,
+        "y": 973,
+        "w": 119,
+        "h": 52
+      },
+      "cropMode": "hint",
+      "crop": "crops/a-p033-ikea-0-499.png"
+    }
+  ],
+  "walled": [],
+  "pages": [
+    {
+      "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+      "viewport": "crops/a-p001-ruggable-0-0.png"
+    },
+    {
+      "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+      "viewport": "crops/a-p002-ruggable-0-0.png"
+    },
+    {
+      "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+      "viewport": "crops/a-p003-ruggable-0-0.png"
+    },
+    {
+      "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+      "viewport": "crops/a-p004-gymshark-0-0.png"
+    },
+    {
+      "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+      "viewport": "crops/a-p005-gymshark-0-0.png"
+    },
+    {
+      "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+      "viewport": "crops/a-p006-gymshark-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/change-me-mega-highlighter",
+      "viewport": "crops/a-p007-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/game-over-shadow-stix",
+      "viewport": "crops/a-p008-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/beetle-chrome-liquid-shadow",
+      "viewport": "crops/a-p009-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/truth-or-bare-lippie-pencil-vault",
+      "viewport": "crops/a-p010-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/drift",
+      "viewport": "crops/a-p011-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/cotton-candy-shadow-stix",
+      "viewport": "crops/a-p012-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/opaltini",
+      "viewport": "crops/a-p013-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/coven-clash-jelly-much-duo",
+      "viewport": "crops/a-p014-colourpop-0-0.png"
+    },
+    {
+      "url": "https://colourpop.com/products/emo-inside-jelly-much-shadow-n",
+      "viewport": "crops/a-p015-colourpop-0-0.png"
+    },
+    {
+      "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+      "viewport": "crops/a-p016-skullcandy-0-0.png"
+    },
+    {
+      "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=46368310689849",
+      "viewport": "crops/a-p017-skullcandy-0-0.png"
+    },
+    {
+      "url": "https://www.skullcandy.com/products/push-anc-active?variant=43208350498873",
+      "viewport": "crops/a-p018-skullcandy-0-0.png"
+    },
+    {
+      "url": "https://sigmabeauty.com/products/basic-eye-kit",
+      "viewport": "crops/a-p019-sigmabeauty-0-0.png"
+    },
+    {
+      "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+      "viewport": "crops/a-p020-sigmabeauty-0-0.png"
+    },
+    {
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+      "viewport": "crops/a-p021-puma-0-0.png"
+    },
+    {
+      "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+      "viewport": "crops/a-p022-puma-0-0.png"
+    },
+    {
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+      "viewport": "crops/a-p023-puma-0-0.png"
+    },
+    {
+      "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+      "viewport": "crops/a-p024-puma-0-0.png"
+    },
+    {
+      "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+      "viewport": "crops/a-p025-notonthehighstreet-0-0.png"
+    },
+    {
+      "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+      "viewport": "crops/a-p026-notonthehighstreet-0-0.png"
+    },
+    {
+      "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+      "viewport": "crops/a-p027-notonthehighstreet-0-0.png"
+    },
+    {
+      "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH1417-00.html?color=WD9",
+      "viewport": "crops/a-p028-lacoste-0-0.png"
+    },
+    {
+      "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+      "viewport": "crops/a-p029-ikea-0-0.png"
+    },
+    {
+      "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+      "viewport": "crops/a-p030-ikea-0-0.png"
+    },
+    {
+      "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+      "viewport": "crops/a-p031-ikea-0-0.png"
+    },
+    {
+      "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+      "viewport": "crops/a-p032-ikea-0-0.png"
+    },
+    {
+      "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+      "viewport": "crops/a-p033-ikea-0-0.png"
+    }
+  ]
+}
