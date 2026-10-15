@@ -1,0 +1,8295 @@
+{
+ "calls": [
+  {
+   "id": "k1",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "repeat": 0,
+   "kind": "control",
+   "crop": null,
+   "qids": [
+    "b001"
+   ],
+   "at": "2026-10-15T13:01:37.638Z",
+   "ms": 440,
+   "input_tokens": 315,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k2",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "repeat": 0,
+   "kind": "bill-a",
+   "crop": "crops/b-p001-sigmabeauty-0-0.png",
+   "qids": [
+    "b001"
+   ],
+   "at": "2026-10-15T13:01:38.081Z",
+   "ms": 720,
+   "input_tokens": 4102,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k3",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "repeat": 0,
+   "kind": "bill-b",
+   "crop": "crops/b-p001-sigmabeauty-0-0.png",
+   "qids": [
+    "b001",
+    "b002",
+    "b003",
+    "b004",
+    "b005"
+   ],
+   "at": "2026-10-15T13:01:38.803Z",
+   "ms": 655,
+   "input_tokens": 4237,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k4",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "repeat": 0,
+   "kind": "bill-c",
+   "crop": "crops/b-p001-sigmabeauty-0-0.png",
+   "qids": [
+    "b001",
+    "b002",
+    "b003",
+    "b004",
+    "b005"
+   ],
+   "at": "2026-10-15T13:01:39.459Z",
+   "ms": 782,
+   "input_tokens": 22980,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k5",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "repeat": 0,
+   "kind": "control",
+   "crop": null,
+   "qids": [
+    "b008"
+   ],
+   "at": "2026-10-15T13:01:40.242Z",
+   "ms": 227,
+   "input_tokens": 317,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k6",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "repeat": 0,
+   "kind": "bill-a",
+   "crop": "crops/b-p002-sigmabeauty-0-0.png",
+   "qids": [
+    "b008"
+   ],
+   "at": "2026-10-15T13:01:40.474Z",
+   "ms": 485,
+   "input_tokens": 4101,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k7",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "repeat": 0,
+   "kind": "bill-b",
+   "crop": "crops/b-p002-sigmabeauty-0-0.png",
+   "qids": [
+    "b008",
+    "b009",
+    "b010",
+    "b011",
+    "b012"
+   ],
+   "at": "2026-10-15T13:01:40.960Z",
+   "ms": 490,
+   "input_tokens": 4242,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k8",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "repeat": 0,
+   "kind": "bill-c",
+   "crop": "crops/b-p002-sigmabeauty-0-0.png",
+   "qids": [
+    "b008",
+    "b009",
+    "b010",
+    "b011",
+    "b012"
+   ],
+   "at": "2026-10-15T13:01:41.451Z",
+   "ms": 613,
+   "input_tokens": 22983,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k9",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+   "repeat": 0,
+   "kind": "control",
+   "crop": null,
+   "qids": [
+    "b015"
+   ],
+   "at": "2026-10-15T13:01:42.065Z",
+   "ms": 229,
+   "input_tokens": 318,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k10",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+   "repeat": 0,
+   "kind": "bill-a",
+   "crop": "crops/b-p003-sigmabeauty-0-0.png",
+   "qids": [
+    "b015"
+   ],
+   "at": "2026-10-15T13:01:42.304Z",
+   "ms": 495,
+   "input_tokens": 4108,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k11",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+   "repeat": 0,
+   "kind": "bill-b",
+   "crop": "crops/b-p003-sigmabeauty-0-0.png",
+   "qids": [
+    "b015",
+    "b016",
+    "b017",
+    "b018",
+    "b019"
+   ],
+   "at": "2026-10-15T13:01:42.801Z",
+   "ms": 433,
+   "input_tokens": 4238,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k12",
+   "set": "b",
+   "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+   "repeat": 0,
+   "kind": "bill-c",
+   "crop": "crops/b-p003-sigmabeauty-0-0.png",
+   "qids": [
+    "b015",
+    "b016",
+    "b017",
+    "b018",
+    "b019"
+   ],
+   "at": "2026-10-15T13:01:43.237Z",
+   "ms": 529,
+   "input_tokens": 22980,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k13",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p001-ruggable-1458-0.png",
+   "repeat": 1,
+   "qids": [
+    "a01"
+   ],
+   "at": "2026-10-15T13:01:49.689Z",
+   "ms": 901,
+   "input_tokens": 5284,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k14",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p002-ruggable-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a02"
+   ],
+   "at": "2026-10-15T13:01:50.594Z",
+   "ms": 628,
+   "input_tokens": 5022,
+   "output_tokens": 200,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k15",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p003-ruggable-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a03"
+   ],
+   "at": "2026-10-15T13:01:51.225Z",
+   "ms": 762,
+   "input_tokens": 5282,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k16",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+   "crop": "crops/a-p004-gymshark-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a04"
+   ],
+   "at": "2026-10-15T13:01:51.989Z",
+   "ms": 508,
+   "input_tokens": 4226,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k17",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+   "crop": "crops/a-p005-gymshark-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a05"
+   ],
+   "at": "2026-10-15T13:01:52.499Z",
+   "ms": 419,
+   "input_tokens": 4232,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k18",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+   "crop": "crops/a-p006-gymshark-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a06"
+   ],
+   "at": "2026-10-15T13:01:52.921Z",
+   "ms": 425,
+   "input_tokens": 4229,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k19",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/change-me-mega-highlighter",
+   "crop": "crops/a-p007-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a07"
+   ],
+   "at": "2026-10-15T13:01:53.349Z",
+   "ms": 538,
+   "input_tokens": 4275,
+   "output_tokens": 52,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k20",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/game-over-shadow-stix",
+   "crop": "crops/a-p008-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a08"
+   ],
+   "at": "2026-10-15T13:01:53.889Z",
+   "ms": 433,
+   "input_tokens": 4298,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k21",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/beetle-chrome-liquid-shadow",
+   "crop": "crops/a-p009-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a09"
+   ],
+   "at": "2026-10-15T13:01:54.325Z",
+   "ms": 461,
+   "input_tokens": 4309,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k22",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/truth-or-bare-lippie-pencil-vault",
+   "crop": "crops/a-p010-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a10"
+   ],
+   "at": "2026-10-15T13:01:54.789Z",
+   "ms": 525,
+   "input_tokens": 4317,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k23",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/drift",
+   "crop": "crops/a-p011-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a11"
+   ],
+   "at": "2026-10-15T13:01:55.316Z",
+   "ms": 537,
+   "input_tokens": 4311,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k24",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/cotton-candy-shadow-stix",
+   "crop": "crops/a-p012-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a12"
+   ],
+   "at": "2026-10-15T13:01:55.857Z",
+   "ms": 769,
+   "input_tokens": 4299,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k25",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/opaltini",
+   "crop": "crops/a-p013-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a13"
+   ],
+   "at": "2026-10-15T13:01:56.628Z",
+   "ms": 654,
+   "input_tokens": 4362,
+   "output_tokens": 68,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k26",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/coven-clash-jelly-much-duo",
+   "crop": "crops/a-p014-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a14"
+   ],
+   "at": "2026-10-15T13:01:57.284Z",
+   "ms": 689,
+   "input_tokens": 4279,
+   "output_tokens": 52,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k27",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/emo-inside-jelly-much-shadow-n",
+   "crop": "crops/a-p015-colourpop-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a15"
+   ],
+   "at": "2026-10-15T13:01:57.974Z",
+   "ms": 453,
+   "input_tokens": 4302,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k28",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+   "crop": "crops/a-p016-skullcandy-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a16"
+   ],
+   "at": "2026-10-15T13:01:58.431Z",
+   "ms": 665,
+   "input_tokens": 4121,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k29",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=46368310689849",
+   "crop": "crops/a-p017-skullcandy-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a17"
+   ],
+   "at": "2026-10-15T13:01:59.099Z",
+   "ms": 701,
+   "input_tokens": 4120,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k30",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/push-anc-active?variant=43208350498873",
+   "crop": "crops/a-p018-skullcandy-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a18"
+   ],
+   "at": "2026-10-15T13:01:59.802Z",
+   "ms": 491,
+   "input_tokens": 4120,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k31",
+   "set": "a",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/basic-eye-kit",
+   "crop": "crops/a-p019-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a19"
+   ],
+   "at": "2026-10-15T13:02:00.297Z",
+   "ms": 393,
+   "input_tokens": 4096,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k32",
+   "set": "a",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+   "crop": "crops/a-p020-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a20"
+   ],
+   "at": "2026-10-15T13:02:00.692Z",
+   "ms": 397,
+   "input_tokens": 4099,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k33",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/a-p021-puma-0-885.png",
+   "repeat": 1,
+   "qids": [
+    "a21"
+   ],
+   "at": "2026-10-15T13:02:01.093Z",
+   "ms": 597,
+   "input_tokens": 4112,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k34",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/a-p021-puma-0-717.png",
+   "repeat": 1,
+   "qids": [
+    "a22"
+   ],
+   "at": "2026-10-15T13:02:01.692Z",
+   "ms": 535,
+   "input_tokens": 4150,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k35",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+   "crop": "crops/a-p022-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a23"
+   ],
+   "at": "2026-10-15T13:02:02.230Z",
+   "ms": 510,
+   "input_tokens": 4148,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k36",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/a-p023-puma-0-717.png",
+   "repeat": 1,
+   "qids": [
+    "a24"
+   ],
+   "at": "2026-10-15T13:02:02.742Z",
+   "ms": 1460,
+   "input_tokens": 4149,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k37",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/a-p024-puma-0-525.png",
+   "repeat": 1,
+   "qids": [
+    "a25"
+   ],
+   "at": "2026-10-15T13:02:04.205Z",
+   "ms": 793,
+   "input_tokens": 4153,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k38",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/a-p025-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a26"
+   ],
+   "at": "2026-10-15T13:02:05.002Z",
+   "ms": 1333,
+   "input_tokens": 4103,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k39",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+   "crop": "crops/a-p026-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a27"
+   ],
+   "at": "2026-10-15T13:02:06.338Z",
+   "ms": 523,
+   "input_tokens": 4108,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k40",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+   "crop": "crops/a-p027-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a28"
+   ],
+   "at": "2026-10-15T13:02:06.866Z",
+   "ms": 1011,
+   "input_tokens": 4102,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k41",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH1417-00.html?color=WD9",
+   "crop": "crops/a-p028-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a29"
+   ],
+   "at": "2026-10-15T13:02:07.879Z",
+   "ms": 410,
+   "input_tokens": 4117,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k42",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/a-p029-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a30"
+   ],
+   "at": "2026-10-15T13:02:08.291Z",
+   "ms": 458,
+   "input_tokens": 4119,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k43",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/a-p029-ikea-0-1811.png",
+   "repeat": 1,
+   "qids": [
+    "a31"
+   ],
+   "at": "2026-10-15T13:02:08.752Z",
+   "ms": 325,
+   "input_tokens": 4153,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k44",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+   "crop": "crops/a-p030-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a32"
+   ],
+   "at": "2026-10-15T13:02:09.079Z",
+   "ms": 485,
+   "input_tokens": 4122,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k45",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+   "crop": "crops/a-p030-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "a33"
+   ],
+   "at": "2026-10-15T13:02:09.566Z",
+   "ms": 442,
+   "input_tokens": 4150,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k46",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "crop": "crops/a-p031-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a34"
+   ],
+   "at": "2026-10-15T13:02:10.011Z",
+   "ms": 428,
+   "input_tokens": 4131,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k47",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "crop": "crops/a-p031-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "a35"
+   ],
+   "at": "2026-10-15T13:02:10.441Z",
+   "ms": 1252,
+   "input_tokens": 4158,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k48",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/a-p032-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a36"
+   ],
+   "at": "2026-10-15T13:02:11.696Z",
+   "ms": 440,
+   "input_tokens": 4127,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k49",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/a-p033-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "a37"
+   ],
+   "at": "2026-10-15T13:02:12.137Z",
+   "ms": 396,
+   "input_tokens": 4121,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k50",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/a-p033-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "a38"
+   ],
+   "at": "2026-10-15T13:02:12.536Z",
+   "ms": 692,
+   "input_tokens": 4156,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k51",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p001-ruggable-1458-0.png",
+   "repeat": 2,
+   "qids": [
+    "a01"
+   ],
+   "at": "2026-10-15T13:02:13.231Z",
+   "ms": 699,
+   "input_tokens": 5283,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k52",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p002-ruggable-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a02"
+   ],
+   "at": "2026-10-15T13:02:13.932Z",
+   "ms": 536,
+   "input_tokens": 5024,
+   "output_tokens": 200,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k53",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p003-ruggable-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a03"
+   ],
+   "at": "2026-10-15T13:02:14.469Z",
+   "ms": 518,
+   "input_tokens": 5282,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k54",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+   "crop": "crops/a-p004-gymshark-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a04"
+   ],
+   "at": "2026-10-15T13:02:14.989Z",
+   "ms": 686,
+   "input_tokens": 4225,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k55",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+   "crop": "crops/a-p005-gymshark-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a05"
+   ],
+   "at": "2026-10-15T13:02:15.677Z",
+   "ms": 585,
+   "input_tokens": 4232,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k56",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+   "crop": "crops/a-p006-gymshark-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a06"
+   ],
+   "at": "2026-10-15T13:02:16.263Z",
+   "ms": 425,
+   "input_tokens": 4230,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k57",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/change-me-mega-highlighter",
+   "crop": "crops/a-p007-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a07"
+   ],
+   "at": "2026-10-15T13:02:16.691Z",
+   "ms": 1084,
+   "input_tokens": 4273,
+   "output_tokens": 52,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k58",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/game-over-shadow-stix",
+   "crop": "crops/a-p008-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a08"
+   ],
+   "at": "2026-10-15T13:02:17.778Z",
+   "ms": 643,
+   "input_tokens": 4298,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k59",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/beetle-chrome-liquid-shadow",
+   "crop": "crops/a-p009-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a09"
+   ],
+   "at": "2026-10-15T13:02:18.423Z",
+   "ms": 707,
+   "input_tokens": 4307,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k60",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/truth-or-bare-lippie-pencil-vault",
+   "crop": "crops/a-p010-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a10"
+   ],
+   "at": "2026-10-15T13:02:19.131Z",
+   "ms": 632,
+   "input_tokens": 4316,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k61",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/drift",
+   "crop": "crops/a-p011-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a11"
+   ],
+   "at": "2026-10-15T13:02:19.765Z",
+   "ms": 556,
+   "input_tokens": 4315,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k62",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/cotton-candy-shadow-stix",
+   "crop": "crops/a-p012-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a12"
+   ],
+   "at": "2026-10-15T13:02:20.324Z",
+   "ms": 564,
+   "input_tokens": 4301,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k63",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/opaltini",
+   "crop": "crops/a-p013-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a13"
+   ],
+   "at": "2026-10-15T13:02:20.890Z",
+   "ms": 504,
+   "input_tokens": 4360,
+   "output_tokens": 68,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k64",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/coven-clash-jelly-much-duo",
+   "crop": "crops/a-p014-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a14"
+   ],
+   "at": "2026-10-15T13:02:21.396Z",
+   "ms": 608,
+   "input_tokens": 4281,
+   "output_tokens": 52,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k65",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/emo-inside-jelly-much-shadow-n",
+   "crop": "crops/a-p015-colourpop-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a15"
+   ],
+   "at": "2026-10-15T13:02:22.006Z",
+   "ms": 457,
+   "input_tokens": 4301,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k66",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+   "crop": "crops/a-p016-skullcandy-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a16"
+   ],
+   "at": "2026-10-15T13:02:22.464Z",
+   "ms": 766,
+   "input_tokens": 4126,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k67",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=46368310689849",
+   "crop": "crops/a-p017-skullcandy-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a17"
+   ],
+   "at": "2026-10-15T13:02:23.231Z",
+   "ms": 470,
+   "input_tokens": 4120,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k68",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/push-anc-active?variant=43208350498873",
+   "crop": "crops/a-p018-skullcandy-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a18"
+   ],
+   "at": "2026-10-15T13:02:23.703Z",
+   "ms": 538,
+   "input_tokens": 4122,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k69",
+   "set": "a",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/basic-eye-kit",
+   "crop": "crops/a-p019-sigmabeauty-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a19"
+   ],
+   "at": "2026-10-15T13:02:24.244Z",
+   "ms": 513,
+   "input_tokens": 4092,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k70",
+   "set": "a",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+   "crop": "crops/a-p020-sigmabeauty-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a20"
+   ],
+   "at": "2026-10-15T13:02:24.758Z",
+   "ms": 406,
+   "input_tokens": 4101,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k71",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/a-p021-puma-0-885.png",
+   "repeat": 2,
+   "qids": [
+    "a21"
+   ],
+   "at": "2026-10-15T13:02:25.165Z",
+   "ms": 987,
+   "input_tokens": 4115,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k72",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/a-p021-puma-0-717.png",
+   "repeat": 2,
+   "qids": [
+    "a22"
+   ],
+   "at": "2026-10-15T13:02:26.154Z",
+   "ms": 533,
+   "input_tokens": 4148,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k73",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+   "crop": "crops/a-p022-puma-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a23"
+   ],
+   "at": "2026-10-15T13:02:26.689Z",
+   "ms": 588,
+   "input_tokens": 4150,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k74",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/a-p023-puma-0-717.png",
+   "repeat": 2,
+   "qids": [
+    "a24"
+   ],
+   "at": "2026-10-15T13:02:27.279Z",
+   "ms": 707,
+   "input_tokens": 4149,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k75",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/a-p024-puma-0-525.png",
+   "repeat": 2,
+   "qids": [
+    "a25"
+   ],
+   "at": "2026-10-15T13:02:27.989Z",
+   "ms": 683,
+   "input_tokens": 4155,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k76",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/a-p025-notonthehighstreet-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a26"
+   ],
+   "at": "2026-10-15T13:02:28.674Z",
+   "ms": 843,
+   "input_tokens": 4103,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k77",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+   "crop": "crops/a-p026-notonthehighstreet-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a27"
+   ],
+   "at": "2026-10-15T13:02:29.518Z",
+   "ms": 1276,
+   "input_tokens": 4110,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k78",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+   "crop": "crops/a-p027-notonthehighstreet-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a28"
+   ],
+   "at": "2026-10-15T13:02:30.796Z",
+   "ms": 835,
+   "input_tokens": 4099,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k79",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH1417-00.html?color=WD9",
+   "crop": "crops/a-p028-lacoste-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a29"
+   ],
+   "at": "2026-10-15T13:02:31.633Z",
+   "ms": 726,
+   "input_tokens": 4116,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k80",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/a-p029-ikea-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a30"
+   ],
+   "at": "2026-10-15T13:02:32.360Z",
+   "ms": 400,
+   "input_tokens": 4122,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k81",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/a-p029-ikea-0-1811.png",
+   "repeat": 2,
+   "qids": [
+    "a31"
+   ],
+   "at": "2026-10-15T13:02:32.762Z",
+   "ms": 303,
+   "input_tokens": 4154,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k82",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+   "crop": "crops/a-p030-ikea-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a32"
+   ],
+   "at": "2026-10-15T13:02:33.067Z",
+   "ms": 396,
+   "input_tokens": 4125,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k83",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+   "crop": "crops/a-p030-ikea-0-499.png",
+   "repeat": 2,
+   "qids": [
+    "a33"
+   ],
+   "at": "2026-10-15T13:02:33.464Z",
+   "ms": 414,
+   "input_tokens": 4153,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k84",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "crop": "crops/a-p031-ikea-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a34"
+   ],
+   "at": "2026-10-15T13:02:33.880Z",
+   "ms": 402,
+   "input_tokens": 4132,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k85",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "crop": "crops/a-p031-ikea-0-499.png",
+   "repeat": 2,
+   "qids": [
+    "a35"
+   ],
+   "at": "2026-10-15T13:02:34.283Z",
+   "ms": 552,
+   "input_tokens": 4163,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k86",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/a-p032-ikea-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a36"
+   ],
+   "at": "2026-10-15T13:02:34.838Z",
+   "ms": 362,
+   "input_tokens": 4126,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k87",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/a-p033-ikea-0-0.png",
+   "repeat": 2,
+   "qids": [
+    "a37"
+   ],
+   "at": "2026-10-15T13:02:35.201Z",
+   "ms": 399,
+   "input_tokens": 4123,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k88",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/a-p033-ikea-0-499.png",
+   "repeat": 2,
+   "qids": [
+    "a38"
+   ],
+   "at": "2026-10-15T13:02:35.603Z",
+   "ms": 519,
+   "input_tokens": 4150,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k89",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p001-ruggable-1458-0.png",
+   "repeat": 3,
+   "qids": [
+    "a01"
+   ],
+   "at": "2026-10-15T13:02:36.125Z",
+   "ms": 444,
+   "input_tokens": 5280,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k90",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p002-ruggable-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a02"
+   ],
+   "at": "2026-10-15T13:02:36.570Z",
+   "ms": 650,
+   "input_tokens": 5025,
+   "output_tokens": 200,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k91",
+   "set": "a",
+   "kind": "main",
+   "url": "https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr",
+   "crop": "crops/a-p003-ruggable-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a03"
+   ],
+   "at": "2026-10-15T13:02:37.221Z",
+   "ms": 569,
+   "input_tokens": 5280,
+   "output_tokens": 254,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k92",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-leggings-leggings-brown-aw26",
+   "crop": "crops/a-p004-gymshark-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a04"
+   ],
+   "at": "2026-10-15T13:02:37.791Z",
+   "ms": 816,
+   "input_tokens": 4229,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k93",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-everyday-seamless-flared-legging-leggings-black-aw25",
+   "crop": "crops/a-p005-gymshark-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a05"
+   ],
+   "at": "2026-10-15T13:02:38.609Z",
+   "ms": 570,
+   "input_tokens": 4227,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k94",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.gymshark.com/products/gymshark-whitney-mid-rise-legging-leggings-black-ss26",
+   "crop": "crops/a-p006-gymshark-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a06"
+   ],
+   "at": "2026-10-15T13:02:39.180Z",
+   "ms": 444,
+   "input_tokens": 4229,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k95",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/change-me-mega-highlighter",
+   "crop": "crops/a-p007-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a07"
+   ],
+   "at": "2026-10-15T13:02:39.625Z",
+   "ms": 605,
+   "input_tokens": 4275,
+   "output_tokens": 52,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k96",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/game-over-shadow-stix",
+   "crop": "crops/a-p008-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a08"
+   ],
+   "at": "2026-10-15T13:02:40.231Z",
+   "ms": 555,
+   "input_tokens": 4297,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k97",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/beetle-chrome-liquid-shadow",
+   "crop": "crops/a-p009-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a09"
+   ],
+   "at": "2026-10-15T13:02:40.787Z",
+   "ms": 924,
+   "input_tokens": 4306,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k98",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/truth-or-bare-lippie-pencil-vault",
+   "crop": "crops/a-p010-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a10"
+   ],
+   "at": "2026-10-15T13:02:41.714Z",
+   "ms": 448,
+   "input_tokens": 4315,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k99",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/drift",
+   "crop": "crops/a-p011-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a11"
+   ],
+   "at": "2026-10-15T13:02:42.164Z",
+   "ms": 614,
+   "input_tokens": 4316,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k100",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/cotton-candy-shadow-stix",
+   "crop": "crops/a-p012-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a12"
+   ],
+   "at": "2026-10-15T13:02:42.779Z",
+   "ms": 399,
+   "input_tokens": 4299,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k101",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/opaltini",
+   "crop": "crops/a-p013-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a13"
+   ],
+   "at": "2026-10-15T13:02:43.179Z",
+   "ms": 856,
+   "input_tokens": 4366,
+   "output_tokens": 68,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k102",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/coven-clash-jelly-much-duo",
+   "crop": "crops/a-p014-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a14"
+   ],
+   "at": "2026-10-15T13:02:44.036Z",
+   "ms": 476,
+   "input_tokens": 4281,
+   "output_tokens": 52,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k103",
+   "set": "a",
+   "kind": "main",
+   "url": "https://colourpop.com/products/emo-inside-jelly-much-shadow-n",
+   "crop": "crops/a-p015-colourpop-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a15"
+   ],
+   "at": "2026-10-15T13:02:44.513Z",
+   "ms": 646,
+   "input_tokens": 4303,
+   "output_tokens": 60,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k104",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905",
+   "crop": "crops/a-p016-skullcandy-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a16"
+   ],
+   "at": "2026-10-15T13:02:45.161Z",
+   "ms": 496,
+   "input_tokens": 4119,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k105",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=46368310689849",
+   "crop": "crops/a-p017-skullcandy-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a17"
+   ],
+   "at": "2026-10-15T13:02:45.659Z",
+   "ms": 1220,
+   "input_tokens": 4118,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k106",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.skullcandy.com/products/push-anc-active?variant=43208350498873",
+   "crop": "crops/a-p018-skullcandy-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a18"
+   ],
+   "at": "2026-10-15T13:02:46.881Z",
+   "ms": 446,
+   "input_tokens": 4120,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k107",
+   "set": "a",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/basic-eye-kit",
+   "crop": "crops/a-p019-sigmabeauty-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a19"
+   ],
+   "at": "2026-10-15T13:02:47.328Z",
+   "ms": 441,
+   "input_tokens": 4093,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k108",
+   "set": "a",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+   "crop": "crops/a-p020-sigmabeauty-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a20"
+   ],
+   "at": "2026-10-15T13:02:47.771Z",
+   "ms": 397,
+   "input_tokens": 4100,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k109",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/a-p021-puma-0-885.png",
+   "repeat": 3,
+   "qids": [
+    "a21"
+   ],
+   "at": "2026-10-15T13:02:48.171Z",
+   "ms": 500,
+   "input_tokens": 4116,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k110",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/a-p021-puma-0-717.png",
+   "repeat": 3,
+   "qids": [
+    "a22"
+   ],
+   "at": "2026-10-15T13:02:48.672Z",
+   "ms": 518,
+   "input_tokens": 4148,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k111",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+   "crop": "crops/a-p022-puma-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a23"
+   ],
+   "at": "2026-10-15T13:02:49.192Z",
+   "ms": 551,
+   "input_tokens": 4148,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k112",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/a-p023-puma-0-717.png",
+   "repeat": 3,
+   "qids": [
+    "a24"
+   ],
+   "at": "2026-10-15T13:02:49.745Z",
+   "ms": 471,
+   "input_tokens": 4149,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k113",
+   "set": "a",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/a-p024-puma-0-525.png",
+   "repeat": 3,
+   "qids": [
+    "a25"
+   ],
+   "at": "2026-10-15T13:02:50.218Z",
+   "ms": 859,
+   "input_tokens": 4156,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k114",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/a-p025-notonthehighstreet-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a26"
+   ],
+   "at": "2026-10-15T13:02:51.080Z",
+   "ms": 485,
+   "input_tokens": 4102,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k115",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+   "crop": "crops/a-p026-notonthehighstreet-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a27"
+   ],
+   "at": "2026-10-15T13:02:51.567Z",
+   "ms": 535,
+   "input_tokens": 4110,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k116",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+   "crop": "crops/a-p027-notonthehighstreet-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a28"
+   ],
+   "at": "2026-10-15T13:02:52.105Z",
+   "ms": 742,
+   "input_tokens": 4102,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k117",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH1417-00.html?color=WD9",
+   "crop": "crops/a-p028-lacoste-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a29"
+   ],
+   "at": "2026-10-15T13:02:52.849Z",
+   "ms": 748,
+   "input_tokens": 4117,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k118",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/a-p029-ikea-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a30"
+   ],
+   "at": "2026-10-15T13:02:53.598Z",
+   "ms": 594,
+   "input_tokens": 4123,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k119",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/a-p029-ikea-0-1811.png",
+   "repeat": 3,
+   "qids": [
+    "a31"
+   ],
+   "at": "2026-10-15T13:02:54.194Z",
+   "ms": 335,
+   "input_tokens": 4153,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k120",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+   "crop": "crops/a-p030-ikea-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a32"
+   ],
+   "at": "2026-10-15T13:02:54.531Z",
+   "ms": 742,
+   "input_tokens": 4121,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k121",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/mannarp-4-seat-sofa-with-chaise-longue-saxemara-black-blue-s49619203/",
+   "crop": "crops/a-p030-ikea-0-499.png",
+   "repeat": 3,
+   "qids": [
+    "a33"
+   ],
+   "at": "2026-10-15T13:02:55.274Z",
+   "ms": 466,
+   "input_tokens": 4150,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k122",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "crop": "crops/a-p031-ikea-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a34"
+   ],
+   "at": "2026-10-15T13:02:55.743Z",
+   "ms": 392,
+   "input_tokens": 4133,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k123",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-4-seat-sofa-with-chaise-longue-and-open-end-kelinge-beige-s99621675/",
+   "crop": "crops/a-p031-ikea-0-499.png",
+   "repeat": 3,
+   "qids": [
+    "a35"
+   ],
+   "at": "2026-10-15T13:02:56.137Z",
+   "ms": 1071,
+   "input_tokens": 4162,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k124",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/a-p032-ikea-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a36"
+   ],
+   "at": "2026-10-15T13:02:57.209Z",
+   "ms": 398,
+   "input_tokens": 4125,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k125",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/a-p033-ikea-0-0.png",
+   "repeat": 3,
+   "qids": [
+    "a37"
+   ],
+   "at": "2026-10-15T13:02:57.608Z",
+   "ms": 388,
+   "input_tokens": 4120,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k126",
+   "set": "a",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/a-p033-ikea-0-499.png",
+   "repeat": 3,
+   "qids": [
+    "a38"
+   ],
+   "at": "2026-10-15T13:02:57.999Z",
+   "ms": 1008,
+   "input_tokens": 4155,
+   "output_tokens": 23,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k127",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "crop": "crops/b-p001-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b001",
+    "b002",
+    "b004",
+    "b005",
+    "b006",
+    "b007"
+   ],
+   "at": "2026-10-15T13:03:04.171Z",
+   "ms": 1421,
+   "input_tokens": 4303,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k128",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/skincare-brush-set",
+   "crop": "crops/b-p001-sigmabeauty-0-1068.png",
+   "repeat": 1,
+   "qids": [
+    "b003"
+   ],
+   "at": "2026-10-15T13:03:05.594Z",
+   "ms": 646,
+   "input_tokens": 4102,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k129",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "crop": "crops/b-p002-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b008",
+    "b009",
+    "b011",
+    "b012",
+    "b013"
+   ],
+   "at": "2026-10-15T13:03:06.242Z",
+   "ms": 1023,
+   "input_tokens": 4233,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k130",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "crop": "crops/b-p002-sigmabeauty-0-1292.png",
+   "repeat": 1,
+   "qids": [
+    "b010"
+   ],
+   "at": "2026-10-15T13:03:07.268Z",
+   "ms": 968,
+   "input_tokens": 4102,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k131",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f30-large-powder-chrome",
+   "crop": "crops/b-p002-sigmabeauty-0-529.png",
+   "repeat": 1,
+   "qids": [
+    "b014"
+   ],
+   "at": "2026-10-15T13:03:08.240Z",
+   "ms": 414,
+   "input_tokens": 4139,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k132",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f03-high-cheekbone-highlighter",
+   "crop": "crops/b-p003-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b015",
+    "b016",
+    "b017",
+    "b018",
+    "b019",
+    "b020"
+   ],
+   "at": "2026-10-15T13:03:08.655Z",
+   "ms": 472,
+   "input_tokens": 4312,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k133",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/basic-eye-kit",
+   "crop": "crops/b-p004-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b021",
+    "b022",
+    "b024",
+    "b025",
+    "b026",
+    "b027"
+   ],
+   "at": "2026-10-15T13:03:09.129Z",
+   "ms": 492,
+   "input_tokens": 4305,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k134",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/basic-eye-kit",
+   "crop": "crops/b-p004-sigmabeauty-0-948.png",
+   "repeat": 1,
+   "qids": [
+    "b023"
+   ],
+   "at": "2026-10-15T13:03:09.624Z",
+   "ms": 662,
+   "input_tokens": 4099,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k135",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/f53-air-contour-blush",
+   "crop": "crops/b-p005-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b028",
+    "b029",
+    "b030",
+    "b031",
+    "b032",
+    "b033",
+    "b034"
+   ],
+   "at": "2026-10-15T13:03:10.289Z",
+   "ms": 659,
+   "input_tokens": 4354,
+   "output_tokens": 144,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k136",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+   "crop": "crops/b-p006-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b035",
+    "b036",
+    "b038",
+    "b039",
+    "b040",
+    "b041"
+   ],
+   "at": "2026-10-15T13:03:10.951Z",
+   "ms": 656,
+   "input_tokens": 4312,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k137",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/4dhd-kabuki",
+   "crop": "crops/b-p006-sigmabeauty-0-910.png",
+   "repeat": 1,
+   "qids": [
+    "b037"
+   ],
+   "at": "2026-10-15T13:03:11.611Z",
+   "ms": 432,
+   "input_tokens": 4103,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k138",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/e42-precision-firm-blender",
+   "crop": "crops/b-p007-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b042",
+    "b043",
+    "b044",
+    "b045",
+    "b046",
+    "b047"
+   ],
+   "at": "2026-10-15T13:03:12.045Z",
+   "ms": 407,
+   "input_tokens": 4274,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k139",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/e42-precision-firm-blender",
+   "crop": "crops/b-p007-sigmabeauty-0-562.png",
+   "repeat": 1,
+   "qids": [
+    "b048"
+   ],
+   "at": "2026-10-15T13:03:12.456Z",
+   "ms": 368,
+   "input_tokens": 4142,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k140",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/3dhdr-kabuki-brush",
+   "crop": "crops/b-p008-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b049",
+    "b050",
+    "b052",
+    "b053",
+    "b054",
+    "b055"
+   ],
+   "at": "2026-10-15T13:03:12.834Z",
+   "ms": 667,
+   "input_tokens": 4313,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k141",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/3dhdr-kabuki-brush",
+   "crop": "crops/b-p008-sigmabeauty-0-957.png",
+   "repeat": 1,
+   "qids": [
+    "b051"
+   ],
+   "at": "2026-10-15T13:03:13.513Z",
+   "ms": 395,
+   "input_tokens": 4105,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k142",
+   "set": "b",
+   "kind": "main",
+   "url": "https://sigmabeauty.com/products/e55-eye-shading-chrome",
+   "crop": "crops/b-p009-sigmabeauty-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b056",
+    "b057",
+    "b058"
+   ],
+   "at": "2026-10-15T13:03:13.912Z",
+   "ms": 386,
+   "input_tokens": 4171,
+   "output_tokens": 64,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k143",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=02S",
+   "crop": "crops/b-p010-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b059",
+    "b060",
+    "b061",
+    "b062"
+   ],
+   "at": "2026-10-15T13:03:14.301Z",
+   "ms": 482,
+   "input_tokens": 4223,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k144",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=02S",
+   "crop": "crops/b-p010-lacoste-0-596.png",
+   "repeat": 1,
+   "qids": [
+    "b063"
+   ],
+   "at": "2026-10-15T13:03:14.786Z",
+   "ms": 699,
+   "input_tokens": 4169,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k145",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=EL6",
+   "crop": "crops/b-p011-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b064",
+    "b065",
+    "b066",
+    "b067",
+    "b068"
+   ],
+   "at": "2026-10-15T13:03:15.487Z",
+   "ms": 498,
+   "input_tokens": 4256,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k146",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=EL6",
+   "crop": "crops/b-p011-lacoste-0-558.png",
+   "repeat": 1,
+   "qids": [
+    "b069"
+   ],
+   "at": "2026-10-15T13:03:15.989Z",
+   "ms": 430,
+   "input_tokens": 4175,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k147",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=JPR",
+   "crop": "crops/b-p012-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b070",
+    "b071",
+    "b072",
+    "b073",
+    "b074"
+   ],
+   "at": "2026-10-15T13:03:16.422Z",
+   "ms": 583,
+   "input_tokens": 4258,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k148",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1264-00.html?color=JPR",
+   "crop": "crops/b-p012-lacoste-0-578.png",
+   "repeat": 1,
+   "qids": [
+    "b075"
+   ],
+   "at": "2026-10-15T13:03:17.008Z",
+   "ms": 346,
+   "input_tokens": 4176,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k149",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH0213-00.html?color=EL6",
+   "crop": "crops/b-p013-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b076",
+    "b077",
+    "b078",
+    "b079",
+    "b080"
+   ],
+   "at": "2026-10-15T13:03:17.357Z",
+   "ms": 427,
+   "input_tokens": 4261,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k150",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH0213-00.html?color=EL6",
+   "crop": "crops/b-p013-lacoste-0-564.png",
+   "repeat": 1,
+   "qids": [
+    "b081"
+   ],
+   "at": "2026-10-15T13:03:17.787Z",
+   "ms": 637,
+   "input_tokens": 4161,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k151",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/L1312-00.html?color=BDM",
+   "crop": "crops/b-p014-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b082",
+    "b083",
+    "b084",
+    "b085"
+   ],
+   "at": "2026-10-15T13:03:18.427Z",
+   "ms": 691,
+   "input_tokens": 4226,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k152",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/L1312-00.html?color=BDM",
+   "crop": "crops/b-p014-lacoste-0-546.png",
+   "repeat": 1,
+   "qids": [
+    "b086"
+   ],
+   "at": "2026-10-15T13:03:19.119Z",
+   "ms": 625,
+   "input_tokens": 4173,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k153",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=031",
+   "crop": "crops/b-p015-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b087",
+    "b088",
+    "b089",
+    "b090"
+   ],
+   "at": "2026-10-15T13:03:19.746Z",
+   "ms": 648,
+   "input_tokens": 4224,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k154",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=031",
+   "crop": "crops/b-p015-lacoste-0-522.png",
+   "repeat": 1,
+   "qids": [
+    "b091"
+   ],
+   "at": "2026-10-15T13:03:20.397Z",
+   "ms": 450,
+   "input_tokens": 4165,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k155",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH9851-00.html?color=001",
+   "crop": "crops/b-p016-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b092",
+    "b093",
+    "b094",
+    "b095"
+   ],
+   "at": "2026-10-15T13:03:20.851Z",
+   "ms": 428,
+   "input_tokens": 4227,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k156",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH9851-00.html?color=001",
+   "crop": "crops/b-p016-lacoste-0-484.png",
+   "repeat": 1,
+   "qids": [
+    "b096"
+   ],
+   "at": "2026-10-15T13:03:21.281Z",
+   "ms": 463,
+   "input_tokens": 4167,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k157",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=BDM",
+   "crop": "crops/b-p017-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b097",
+    "b098",
+    "b099",
+    "b100"
+   ],
+   "at": "2026-10-15T13:03:21.747Z",
+   "ms": 730,
+   "input_tokens": 4227,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k158",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=BDM",
+   "crop": "crops/b-p017-lacoste-0-522.png",
+   "repeat": 1,
+   "qids": [
+    "b101"
+   ],
+   "at": "2026-10-15T13:03:22.479Z",
+   "ms": 348,
+   "input_tokens": 4170,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k159",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/PH2481-00.html?color=166",
+   "crop": "crops/b-p018-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b102",
+    "b103",
+    "b104",
+    "b105",
+    "b106"
+   ],
+   "at": "2026-10-15T13:03:22.830Z",
+   "ms": 604,
+   "input_tokens": 4251,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k160",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/PH2481-00.html?color=166",
+   "crop": "crops/b-p018-lacoste-0-488.png",
+   "repeat": 1,
+   "qids": [
+    "b107"
+   ],
+   "at": "2026-10-15T13:03:23.437Z",
+   "ms": 411,
+   "input_tokens": 4161,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k161",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH4012-00.html?color=166",
+   "crop": "crops/b-p019-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b108",
+    "b109",
+    "b110",
+    "b111"
+   ],
+   "at": "2026-10-15T13:03:23.850Z",
+   "ms": 504,
+   "input_tokens": 4225,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k162",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH4012-00.html?color=166",
+   "crop": "crops/b-p019-lacoste-0-512.png",
+   "repeat": 1,
+   "qids": [
+    "b112"
+   ],
+   "at": "2026-10-15T13:03:24.357Z",
+   "ms": 908,
+   "input_tokens": 4171,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k163",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH6809-00.html?color=ZDQ",
+   "crop": "crops/b-p020-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b113",
+    "b114",
+    "b115",
+    "b116",
+    "b117"
+   ],
+   "at": "2026-10-15T13:03:25.267Z",
+   "ms": 861,
+   "input_tokens": 4268,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k164",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH6809-00.html?color=ZDQ",
+   "crop": "crops/b-p020-lacoste-0-498.png",
+   "repeat": 1,
+   "qids": [
+    "b118"
+   ],
+   "at": "2026-10-15T13:03:26.130Z",
+   "ms": 782,
+   "input_tokens": 4156,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k165",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/long-sleeve/L1312-00.html?color=3KE",
+   "crop": "crops/b-p021-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b119",
+    "b120",
+    "b121"
+   ],
+   "at": "2026-10-15T13:03:26.914Z",
+   "ms": 1464,
+   "input_tokens": 4196,
+   "output_tokens": 64,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k166",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH9851-00.html?color=166",
+   "crop": "crops/b-p022-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b122"
+   ],
+   "at": "2026-10-15T13:03:28.381Z",
+   "ms": 1705,
+   "input_tokens": 4120,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k167",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH5522-00.html?color=031",
+   "crop": "crops/b-p023-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b123"
+   ],
+   "at": "2026-10-15T13:03:30.088Z",
+   "ms": 1754,
+   "input_tokens": 4129,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k168",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/DH1417-00.html?color=WD9",
+   "crop": "crops/b-p024-lacoste-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b124"
+   ],
+   "at": "2026-10-15T13:03:31.846Z",
+   "ms": 2472,
+   "input_tokens": 4121,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k169",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/b-p025-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b125",
+    "b126",
+    "b128",
+    "b129"
+   ],
+   "at": "2026-10-15T13:03:34.321Z",
+   "ms": 2934,
+   "input_tokens": 4213,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k170",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/b-p025-puma-0-5276.png",
+   "repeat": 1,
+   "qids": [
+    "b130"
+   ],
+   "at": "2026-10-15T13:03:37.258Z",
+   "ms": 1124,
+   "input_tokens": 4102,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k171",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16",
+   "crop": "crops/b-p025-puma-0-717.png",
+   "repeat": 1,
+   "qids": [
+    "b131"
+   ],
+   "at": "2026-10-15T13:03:38.384Z",
+   "ms": 3767,
+   "input_tokens": 4152,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k172",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+   "crop": "crops/b-p026-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b132",
+    "b133",
+    "b135",
+    "b136",
+    "b138"
+   ],
+   "at": "2026-10-15T13:03:42.163Z",
+   "ms": 3294,
+   "input_tokens": 4287,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k173",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+   "crop": "crops/b-p026-puma-0-757.png",
+   "repeat": 1,
+   "qids": [
+    "b134"
+   ],
+   "at": "2026-10-15T13:03:45.459Z",
+   "ms": 2858,
+   "input_tokens": 4112,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k174",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904?swatch=19",
+   "crop": "crops/b-p026-puma-0-5994.png",
+   "repeat": 1,
+   "qids": [
+    "b137"
+   ],
+   "at": "2026-10-15T13:03:48.318Z",
+   "ms": 636,
+   "input_tokens": 4094,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k175",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/b-p027-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b139",
+    "b142"
+   ],
+   "at": "2026-10-15T13:03:48.956Z",
+   "ms": 2980,
+   "input_tokens": 4140,
+   "output_tokens": 44,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k176",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/b-p027-puma-0-885.png",
+   "repeat": 1,
+   "qids": [
+    "b140"
+   ],
+   "at": "2026-10-15T13:03:51.940Z",
+   "ms": 3207,
+   "input_tokens": 4114,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k177",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/b-p027-puma-0-520.png",
+   "repeat": 1,
+   "qids": [
+    "b141"
+   ],
+   "at": "2026-10-15T13:03:55.153Z",
+   "ms": 3344,
+   "input_tokens": 4101,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k178",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/b-p027-puma-0-5813.png",
+   "repeat": 1,
+   "qids": [
+    "b143"
+   ],
+   "at": "2026-10-15T13:03:58.510Z",
+   "ms": 669,
+   "input_tokens": 4099,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k179",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=19",
+   "crop": "crops/b-p027-puma-0-717.png",
+   "repeat": 1,
+   "qids": [
+    "b144"
+   ],
+   "at": "2026-10-15T13:03:59.209Z",
+   "ms": 2851,
+   "input_tokens": 4149,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k180",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/lafrance-sneakers/314471?swatch=01",
+   "crop": "crops/b-p028-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b145",
+    "b146",
+    "b148",
+    "b149"
+   ],
+   "at": "2026-10-15T13:04:02.063Z",
+   "ms": 1517,
+   "input_tokens": 4194,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k181",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/lafrance-sneakers/314471?swatch=01",
+   "crop": "crops/b-p028-puma-0-741.png",
+   "repeat": 1,
+   "qids": [
+    "b147"
+   ],
+   "at": "2026-10-15T13:04:03.584Z",
+   "ms": 2427,
+   "input_tokens": 4107,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k182",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/lafrance-sneakers/314471?swatch=01",
+   "crop": "crops/b-p028-puma-0-665.png",
+   "repeat": 1,
+   "qids": [
+    "b150"
+   ],
+   "at": "2026-10-15T13:04:06.013Z",
+   "ms": 2436,
+   "input_tokens": 4144,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k183",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/b-p029-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b151",
+    "b152",
+    "b154",
+    "b155"
+   ],
+   "at": "2026-10-15T13:04:08.463Z",
+   "ms": 2298,
+   "input_tokens": 4192,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k184",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/b-p029-puma-0-889.png",
+   "repeat": 1,
+   "qids": [
+    "b153"
+   ],
+   "at": "2026-10-15T13:04:10.779Z",
+   "ms": 2903,
+   "input_tokens": 4107,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k185",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/b-p029-puma-0-5845.png",
+   "repeat": 1,
+   "qids": [
+    "b156"
+   ],
+   "at": "2026-10-15T13:04:13.697Z",
+   "ms": 454,
+   "input_tokens": 4093,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k186",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94",
+   "crop": "crops/b-p029-puma-0-765.png",
+   "repeat": 1,
+   "qids": [
+    "b157"
+   ],
+   "at": "2026-10-15T13:04:14.163Z",
+   "ms": 2606,
+   "input_tokens": 4139,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k187",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/b-p030-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b158",
+    "b159",
+    "b161",
+    "b162"
+   ],
+   "at": "2026-10-15T13:04:16.775Z",
+   "ms": 2689,
+   "input_tokens": 4215,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k188",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/b-p030-puma-0-693.png",
+   "repeat": 1,
+   "qids": [
+    "b160"
+   ],
+   "at": "2026-10-15T13:04:19.468Z",
+   "ms": 1841,
+   "input_tokens": 4114,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k189",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/b-p030-puma-0-6029.png",
+   "repeat": 1,
+   "qids": [
+    "b163"
+   ],
+   "at": "2026-10-15T13:04:21.313Z",
+   "ms": 462,
+   "input_tokens": 4102,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k190",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/deviate-nitro-elite-4-mens-road-running-shoes/312127?swatch=09",
+   "crop": "crops/b-p030-puma-0-525.png",
+   "repeat": 1,
+   "qids": [
+    "b164"
+   ],
+   "at": "2026-10-15T13:04:21.796Z",
+   "ms": 1759,
+   "input_tokens": 4153,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k191",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/suede-snake-print-sneakers/408329?swatch=01",
+   "crop": "crops/b-p031-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b165",
+    "b166",
+    "b168",
+    "b169"
+   ],
+   "at": "2026-10-15T13:04:23.558Z",
+   "ms": 997,
+   "input_tokens": 4194,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k192",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/suede-snake-print-sneakers/408329?swatch=01",
+   "crop": "crops/b-p031-puma-0-729.png",
+   "repeat": 1,
+   "qids": [
+    "b167"
+   ],
+   "at": "2026-10-15T13:04:24.558Z",
+   "ms": 1356,
+   "input_tokens": 4104,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k193",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/suede-snake-print-sneakers/408329?swatch=01",
+   "crop": "crops/b-p031-puma-0-653.png",
+   "repeat": 1,
+   "qids": [
+    "b170"
+   ],
+   "at": "2026-10-15T13:04:25.917Z",
+   "ms": 2239,
+   "input_tokens": 4149,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k194",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/arizona-suede-sneakers/402362?swatch=11",
+   "crop": "crops/b-p032-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b171",
+    "b172",
+    "b174",
+    "b175"
+   ],
+   "at": "2026-10-15T13:04:28.159Z",
+   "ms": 1637,
+   "input_tokens": 4195,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k195",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/arizona-suede-sneakers/402362?swatch=11",
+   "crop": "crops/b-p032-puma-0-737.png",
+   "repeat": 1,
+   "qids": [
+    "b173"
+   ],
+   "at": "2026-10-15T13:04:29.799Z",
+   "ms": 1410,
+   "input_tokens": 4103,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k196",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/arizona-suede-sneakers/402362?swatch=11",
+   "crop": "crops/b-p032-puma-0-3914.png",
+   "repeat": 1,
+   "qids": [
+    "b176"
+   ],
+   "at": "2026-10-15T13:04:31.212Z",
+   "ms": 366,
+   "input_tokens": 4090,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k197",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/arizona-suede-sneakers/402362?swatch=11",
+   "crop": "crops/b-p032-puma-0-661.png",
+   "repeat": 1,
+   "qids": [
+    "b177"
+   ],
+   "at": "2026-10-15T13:04:31.580Z",
+   "ms": 1849,
+   "input_tokens": 4140,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k198",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/future-9-match-playmaker-indoor-soccer-cleats/109152?swatch=03",
+   "crop": "crops/b-p033-puma-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b178",
+    "b179",
+    "b181",
+    "b182"
+   ],
+   "at": "2026-10-15T13:04:33.431Z",
+   "ms": 1858,
+   "input_tokens": 4214,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k199",
+   "set": "b",
+   "kind": "main",
+   "url": "https://us.puma.com/us/en/pd/future-9-match-playmaker-indoor-soccer-cleats/109152?swatch=03",
+   "crop": "crops/b-p033-puma-0-761.png",
+   "repeat": 1,
+   "qids": [
+    "b180"
+   ],
+   "at": "2026-10-15T13:04:35.292Z",
+   "ms": 1577,
+   "input_tokens": 4114,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k200",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/personalised-heart-and-birthstone-charm-bracelet",
+   "crop": "crops/b-p034-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b183",
+    "b184",
+    "b186",
+    "b187",
+    "b188"
+   ],
+   "at": "2026-10-15T13:04:36.873Z",
+   "ms": 1418,
+   "input_tokens": 4278,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k201",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/personalised-heart-and-birthstone-charm-bracelet",
+   "crop": "crops/b-p034-notonthehighstreet-0-2348.png",
+   "repeat": 1,
+   "qids": [
+    "b185"
+   ],
+   "at": "2026-10-15T13:04:38.295Z",
+   "ms": 446,
+   "input_tokens": 4105,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k202",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/b-p035-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b189",
+    "b190",
+    "b192"
+   ],
+   "at": "2026-10-15T13:04:38.746Z",
+   "ms": 1045,
+   "input_tokens": 4182,
+   "output_tokens": 64,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k203",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/b-p035-notonthehighstreet-0-1906.png",
+   "repeat": 1,
+   "qids": [
+    "b191"
+   ],
+   "at": "2026-10-15T13:04:39.794Z",
+   "ms": 501,
+   "input_tokens": 4110,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k204",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/withlovejewellerylimited/product/20th-30th-40th-50th-60th-70th-80th-or-90th-sterling-silver-birthday-bracelet",
+   "crop": "crops/b-p035-notonthehighstreet-0-1363.png",
+   "repeat": 1,
+   "qids": [
+    "b194"
+   ],
+   "at": "2026-10-15T13:04:40.298Z",
+   "ms": 578,
+   "input_tokens": 4169,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k205",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+   "crop": "crops/b-p036-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b195",
+    "b196",
+    "b198",
+    "b199",
+    "b200",
+    "b201"
+   ],
+   "at": "2026-10-15T13:04:40.883Z",
+   "ms": 1407,
+   "input_tokens": 4330,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k206",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lunity/product/sisters-necklace-sterling-silver-heart-infinity-charm-personalised-gift-for-sister-birthday-or-just-because",
+   "crop": "crops/b-p036-notonthehighstreet-0-1447.png",
+   "repeat": 1,
+   "qids": [
+    "b197"
+   ],
+   "at": "2026-10-15T13:04:42.296Z",
+   "ms": 500,
+   "input_tokens": 4115,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k207",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+   "crop": "crops/b-p037-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b202",
+    "b203",
+    "b205",
+    "b206",
+    "b207"
+   ],
+   "at": "2026-10-15T13:04:42.805Z",
+   "ms": 956,
+   "input_tokens": 4279,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k208",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/giftsonline4u/product/personalised-mens-bracelet-with-leather-woven-strap",
+   "crop": "crops/b-p037-notonthehighstreet-0-1694.png",
+   "repeat": 1,
+   "qids": [
+    "b204"
+   ],
+   "at": "2026-10-15T13:04:43.776Z",
+   "ms": 294,
+   "input_tokens": 4108,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k209",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/silkpursesowsear/product/art-deco-emerald-baguette-earrings",
+   "crop": "crops/b-p038-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b208",
+    "b209",
+    "b211",
+    "b212",
+    "b213",
+    "b214"
+   ],
+   "at": "2026-10-15T13:04:44.073Z",
+   "ms": 831,
+   "input_tokens": 4318,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k210",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/silkpursesowsear/product/art-deco-emerald-baguette-earrings",
+   "crop": "crops/b-p038-notonthehighstreet-0-2122.png",
+   "repeat": 1,
+   "qids": [
+    "b210"
+   ],
+   "at": "2026-10-15T13:04:44.905Z",
+   "ms": 366,
+   "input_tokens": 4113,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k211",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/potiega/product/sterling-silver-name-necklace-with-heart-birthstone",
+   "crop": "crops/b-p039-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b215",
+    "b216",
+    "b218",
+    "b219",
+    "b220",
+    "b221"
+   ],
+   "at": "2026-10-15T13:04:45.275Z",
+   "ms": 807,
+   "input_tokens": 4297,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k212",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/potiega/product/sterling-silver-name-necklace-with-heart-birthstone",
+   "crop": "crops/b-p039-notonthehighstreet-0-1641.png",
+   "repeat": 1,
+   "qids": [
+    "b217"
+   ],
+   "at": "2026-10-15T13:04:46.084Z",
+   "ms": 332,
+   "input_tokens": 4104,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k213",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/long-wildflower-amazing-friend-trinket-dish",
+   "crop": "crops/b-p040-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b222",
+    "b223",
+    "b225",
+    "b226",
+    "b227",
+    "b228"
+   ],
+   "at": "2026-10-15T13:04:46.420Z",
+   "ms": 1127,
+   "input_tokens": 4309,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k214",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/long-wildflower-amazing-friend-trinket-dish",
+   "crop": "crops/b-p040-notonthehighstreet-0-1857.png",
+   "repeat": 1,
+   "qids": [
+    "b224"
+   ],
+   "at": "2026-10-15T13:04:47.550Z",
+   "ms": 378,
+   "input_tokens": 4107,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k215",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/augustajewellery/product/ginkgo-earrings",
+   "crop": "crops/b-p041-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b229",
+    "b230",
+    "b232",
+    "b233",
+    "b234",
+    "b235"
+   ],
+   "at": "2026-10-15T13:04:47.938Z",
+   "ms": 1467,
+   "input_tokens": 4305,
+   "output_tokens": 124,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k216",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/augustajewellery/product/ginkgo-earrings",
+   "crop": "crops/b-p041-notonthehighstreet-0-1818.png",
+   "repeat": 1,
+   "qids": [
+    "b231"
+   ],
+   "at": "2026-10-15T13:04:49.408Z",
+   "ms": 307,
+   "input_tokens": 4105,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k217",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/personalised-men-s-stainless-steel-plaque-bracelet",
+   "crop": "crops/b-p042-notonthehighstreet-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b236"
+   ],
+   "at": "2026-10-15T13:04:49.722Z",
+   "ms": 817,
+   "input_tokens": 4104,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k218",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.notonthehighstreet.com/lisaangeljewellery/product/personalised-men-s-stainless-steel-plaque-bracelet",
+   "crop": "crops/b-p042-notonthehighstreet-0-1959.png",
+   "repeat": 1,
+   "qids": [
+    "b237"
+   ],
+   "at": "2026-10-15T13:04:50.541Z",
+   "ms": 348,
+   "input_tokens": 4109,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k219",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/b-p043-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b238",
+    "b239",
+    "b241"
+   ],
+   "at": "2026-10-15T13:04:50.892Z",
+   "ms": 478,
+   "input_tokens": 4188,
+   "output_tokens": 64,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k220",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/b-p043-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b240"
+   ],
+   "at": "2026-10-15T13:04:51.374Z",
+   "ms": 693,
+   "input_tokens": 4117,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k221",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/b-p043-ikea-0-3758.png",
+   "repeat": 1,
+   "qids": [
+    "b242"
+   ],
+   "at": "2026-10-15T13:04:52.069Z",
+   "ms": 352,
+   "input_tokens": 4107,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k222",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-3-seat-sofa-with-chaise-longue-tibbleby-beige-grey-s19440589/",
+   "crop": "crops/b-p043-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b243"
+   ],
+   "at": "2026-10-15T13:04:52.424Z",
+   "ms": 534,
+   "input_tokens": 4154,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k223",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/b-p044-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b244",
+    "b245",
+    "b247",
+    "b248"
+   ],
+   "at": "2026-10-15T13:04:52.961Z",
+   "ms": 587,
+   "input_tokens": 4218,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k224",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/b-p044-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b246"
+   ],
+   "at": "2026-10-15T13:04:53.553Z",
+   "ms": 588,
+   "input_tokens": 4112,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k225",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-corner-sofa-6-seat-kelinge-dark-yellow-s99622335/",
+   "crop": "crops/b-p044-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b249"
+   ],
+   "at": "2026-10-15T13:04:54.151Z",
+   "ms": 1555,
+   "input_tokens": 4154,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k226",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/hyltarp-3-seat-sofa-kilanda-pale-blue-s99489647/",
+   "crop": "crops/b-p045-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b250",
+    "b251",
+    "b253",
+    "b254"
+   ],
+   "at": "2026-10-15T13:04:55.709Z",
+   "ms": 485,
+   "input_tokens": 4211,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k227",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/hyltarp-3-seat-sofa-kilanda-pale-blue-s99489647/",
+   "crop": "crops/b-p045-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b252"
+   ],
+   "at": "2026-10-15T13:04:56.196Z",
+   "ms": 638,
+   "input_tokens": 4110,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k228",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/hyltarp-3-seat-sofa-kilanda-pale-blue-s99489647/",
+   "crop": "crops/b-p045-ikea-0-2637.png",
+   "repeat": 1,
+   "qids": [
+    "b255"
+   ],
+   "at": "2026-10-15T13:04:56.836Z",
+   "ms": 308,
+   "input_tokens": 4099,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k229",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/hyltarp-3-seat-sofa-kilanda-pale-blue-s99489647/",
+   "crop": "crops/b-p045-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b256"
+   ],
+   "at": "2026-10-15T13:04:57.147Z",
+   "ms": 616,
+   "input_tokens": 4144,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k230",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-1-seat-section-kelinge-dark-yellow-s99621595/",
+   "crop": "crops/b-p046-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b257",
+    "b258",
+    "b260",
+    "b261"
+   ],
+   "at": "2026-10-15T13:04:57.769Z",
+   "ms": 511,
+   "input_tokens": 4216,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k231",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-1-seat-section-kelinge-dark-yellow-s99621595/",
+   "crop": "crops/b-p046-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b259"
+   ],
+   "at": "2026-10-15T13:04:58.285Z",
+   "ms": 601,
+   "input_tokens": 4113,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k232",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-1-seat-section-kelinge-dark-yellow-s99621595/",
+   "crop": "crops/b-p046-ikea-0-2393.png",
+   "repeat": 1,
+   "qids": [
+    "b262"
+   ],
+   "at": "2026-10-15T13:04:58.888Z",
+   "ms": 312,
+   "input_tokens": 4099,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k233",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/soederhamn-1-seat-section-kelinge-dark-yellow-s99621595/",
+   "crop": "crops/b-p046-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b263"
+   ],
+   "at": "2026-10-15T13:04:59.215Z",
+   "ms": 710,
+   "input_tokens": 4152,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k234",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-4-seat-sofa-with-chaise-longue-tresund-anthracite-s99494385/",
+   "crop": "crops/b-p047-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b264",
+    "b265",
+    "b267",
+    "b268"
+   ],
+   "at": "2026-10-15T13:04:59.928Z",
+   "ms": 492,
+   "input_tokens": 4218,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k235",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-4-seat-sofa-with-chaise-longue-tresund-anthracite-s99494385/",
+   "crop": "crops/b-p047-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b266"
+   ],
+   "at": "2026-10-15T13:05:00.424Z",
+   "ms": 498,
+   "input_tokens": 4117,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k236",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-4-seat-sofa-with-chaise-longue-tresund-anthracite-s99494385/",
+   "crop": "crops/b-p047-ikea-0-3738.png",
+   "repeat": 1,
+   "qids": [
+    "b269"
+   ],
+   "at": "2026-10-15T13:05:00.925Z",
+   "ms": 384,
+   "input_tokens": 4106,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k237",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/kivik-4-seat-sofa-with-chaise-longue-tresund-anthracite-s99494385/",
+   "crop": "crops/b-p047-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b270"
+   ],
+   "at": "2026-10-15T13:05:01.312Z",
+   "ms": 802,
+   "input_tokens": 4149,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k238",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green-s69635037/",
+   "crop": "crops/b-p048-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b271",
+    "b272",
+    "b274",
+    "b275",
+    "b276"
+   ],
+   "at": "2026-10-15T13:05:02.118Z",
+   "ms": 512,
+   "input_tokens": 4264,
+   "output_tokens": 104,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k239",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green-s69635037/",
+   "crop": "crops/b-p048-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b273"
+   ],
+   "at": "2026-10-15T13:05:02.634Z",
+   "ms": 856,
+   "input_tokens": 4122,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k240",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/vimle-3-seat-sofa-with-chaise-longue-with-wide-armrests-knaebaeck-grey-green-s69635037/",
+   "crop": "crops/b-p048-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b277"
+   ],
+   "at": "2026-10-15T13:05:03.494Z",
+   "ms": 1004,
+   "input_tokens": 4163,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k241",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/vimle-corner-sofa-5-seat-gunnared-beige-s99399576/",
+   "crop": "crops/b-p049-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b278",
+    "b279",
+    "b281",
+    "b282"
+   ],
+   "at": "2026-10-15T13:05:04.502Z",
+   "ms": 548,
+   "input_tokens": 4213,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k242",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/vimle-corner-sofa-5-seat-gunnared-beige-s99399576/",
+   "crop": "crops/b-p049-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b280"
+   ],
+   "at": "2026-10-15T13:05:05.052Z",
+   "ms": 469,
+   "input_tokens": 4112,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k243",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/vimle-corner-sofa-5-seat-gunnared-beige-s99399576/",
+   "crop": "crops/b-p049-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b283"
+   ],
+   "at": "2026-10-15T13:05:05.525Z",
+   "ms": 552,
+   "input_tokens": 4145,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k244",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/lillehem-3-seat-modular-sofa-w-chaise-longue-vissle-beige-wood-s89570412/",
+   "crop": "crops/b-p050-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b284",
+    "b285",
+    "b287",
+    "b288"
+   ],
+   "at": "2026-10-15T13:05:06.080Z",
+   "ms": 578,
+   "input_tokens": 4226,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k245",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/lillehem-3-seat-modular-sofa-w-chaise-longue-vissle-beige-wood-s89570412/",
+   "crop": "crops/b-p050-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b286"
+   ],
+   "at": "2026-10-15T13:05:06.660Z",
+   "ms": 1405,
+   "input_tokens": 4116,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k246",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/lillehem-3-seat-modular-sofa-w-chaise-longue-vissle-beige-wood-s89570412/",
+   "crop": "crops/b-p050-ikea-0-2794.png",
+   "repeat": 1,
+   "qids": [
+    "b289"
+   ],
+   "at": "2026-10-15T13:05:08.067Z",
+   "ms": 578,
+   "input_tokens": 4107,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k247",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/lillehem-3-seat-modular-sofa-w-chaise-longue-vissle-beige-wood-s89570412/",
+   "crop": "crops/b-p050-ikea-0-499.png",
+   "repeat": 1,
+   "qids": [
+    "b290"
+   ],
+   "at": "2026-10-15T13:05:08.648Z",
+   "ms": 1333,
+   "input_tokens": 4157,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k248",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/b-p051-ikea-0-0.png",
+   "repeat": 1,
+   "qids": [
+    "b291",
+    "b292",
+    "b294",
+    "b295"
+   ],
+   "at": "2026-10-15T13:05:09.983Z",
+   "ms": 851,
+   "input_tokens": 4220,
+   "output_tokens": 84,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k249",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/b-p051-ikea-0-577.png",
+   "repeat": 1,
+   "qids": [
+    "b293"
+   ],
+   "at": "2026-10-15T13:05:10.836Z",
+   "ms": 814,
+   "input_tokens": 4113,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k250",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/b-p051-ikea-0-2356.png",
+   "repeat": 1,
+   "qids": [
+    "b296"
+   ],
+   "at": "2026-10-15T13:05:11.653Z",
+   "ms": 585,
+   "input_tokens": 4103,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  },
+  {
+   "id": "k251",
+   "set": "b",
+   "kind": "main",
+   "url": "https://www.ikea.com/my/en/p/friheten-3-seat-sofa-bed-faringe-brown-orange-80551229/",
+   "crop": "crops/b-p051-ikea-0-1811.png",
+   "repeat": 1,
+   "qids": [
+    "b297"
+   ],
+   "at": "2026-10-15T13:05:12.240Z",
+   "ms": 350,
+   "input_tokens": 4153,
+   "output_tokens": 24,
+   "model": "jev-1.14.0"
+  }
+ ],
+ "answers": [
+  {
+   "callId": "k1",
+   "set": "b",
+   "qid": "b001",
+   "repeat": 0,
+   "kind": "control",
+   "noul": 0.87
+  },
+  {
+   "callId": "k2",
+   "set": "b",
+   "qid": "b001",
+   "repeat": 0,
+   "kind": "bill-a",
+   "noul": 0.98
+  },
+  {
+   "callId": "k3",
+   "set": "b",
+   "qid": "b001",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.99
+  },
+  {
+   "callId": "k3",
+   "set": "b",
+   "qid": "b002",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.95
+  },
+  {
+   "callId": "k3",
+   "set": "b",
+   "qid": "b003",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.11
+  },
+  {
+   "callId": "k3",
+   "set": "b",
+   "qid": "b004",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.29
+  },
+  {
+   "callId": "k3",
+   "set": "b",
+   "qid": "b005",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.95
+  },
+  {
+   "callId": "k4",
+   "set": "b",
+   "qid": "b001",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.99
+  },
+  {
+   "callId": "k4",
+   "set": "b",
+   "qid": "b002",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.96
+  },
+  {
+   "callId": "k4",
+   "set": "b",
+   "qid": "b003",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.08
+  },
+  {
+   "callId": "k4",
+   "set": "b",
+   "qid": "b004",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.14
+  },
+  {
+   "callId": "k4",
+   "set": "b",
+   "qid": "b005",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.98
+  },
+  {
+   "callId": "k5",
+   "set": "b",
+   "qid": "b008",
+   "repeat": 0,
+   "kind": "control",
+   "noul": 0.94
+  },
+  {
+   "callId": "k6",
+   "set": "b",
+   "qid": "b008",
+   "repeat": 0,
+   "kind": "bill-a",
+   "noul": 0.88
+  },
+  {
+   "callId": "k7",
+   "set": "b",
+   "qid": "b008",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.92
+  },
+  {
+   "callId": "k7",
+   "set": "b",
+   "qid": "b009",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.85
+  },
+  {
+   "callId": "k7",
+   "set": "b",
+   "qid": "b010",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.04
+  },
+  {
+   "callId": "k7",
+   "set": "b",
+   "qid": "b011",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.21
+  },
+  {
+   "callId": "k7",
+   "set": "b",
+   "qid": "b012",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0
+  },
+  {
+   "callId": "k8",
+   "set": "b",
+   "qid": "b008",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.88
+  },
+  {
+   "callId": "k8",
+   "set": "b",
+   "qid": "b009",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.96
+  },
+  {
+   "callId": "k8",
+   "set": "b",
+   "qid": "b010",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.02
+  },
+  {
+   "callId": "k8",
+   "set": "b",
+   "qid": "b011",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.1
+  },
+  {
+   "callId": "k8",
+   "set": "b",
+   "qid": "b012",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0
+  },
+  {
+   "callId": "k9",
+   "set": "b",
+   "qid": "b015",
+   "repeat": 0,
+   "kind": "control",
+   "noul": 0.16
+  },
+  {
+   "callId": "k10",
+   "set": "b",
+   "qid": "b015",
+   "repeat": 0,
+   "kind": "bill-a",
+   "noul": 0.49
+  },
+  {
+   "callId": "k11",
+   "set": "b",
+   "qid": "b015",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.38
+  },
+  {
+   "callId": "k11",
+   "set": "b",
+   "qid": "b016",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.82
+  },
+  {
+   "callId": "k11",
+   "set": "b",
+   "qid": "b017",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.17
+  },
+  {
+   "callId": "k11",
+   "set": "b",
+   "qid": "b018",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.96
+  },
+  {
+   "callId": "k11",
+   "set": "b",
+   "qid": "b019",
+   "repeat": 0,
+   "kind": "bill-b",
+   "noul": 0.99
+  },
+  {
+   "callId": "k12",
+   "set": "b",
+   "qid": "b015",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.77
+  },
+  {
+   "callId": "k12",
+   "set": "b",
+   "qid": "b016",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.75
+  },
+  {
+   "callId": "k12",
+   "set": "b",
+   "qid": "b017",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.12
+  },
+  {
+   "callId": "k12",
+   "set": "b",
+   "qid": "b018",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.99
+  },
+  {
+   "callId": "k12",
+   "set": "b",
+   "qid": "b019",
+   "repeat": 0,
+   "kind": "bill-c",
+   "noul": 0.99
+  },
+  {
+   "callId": "k13",
+   "set": "a",
+   "qid": "a01",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c17",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 0,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 1,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "c21": 0,
+    "c22": 0,
+    "c23": 0,
+    "c24": 0,
+    "c25": 0,
+    "c26": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k14",
+   "set": "a",
+   "qid": "a02",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c13",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 1,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 0,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k15",
+   "set": "a",
+   "qid": "a03",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c17",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 0,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 1,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "c21": 0,
+    "c22": 0,
+    "c23": 0,
+    "c24": 0,
+    "c25": 0,
+    "c26": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k16",
+   "set": "a",
+   "qid": "a04",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k17",
+   "set": "a",
+   "qid": "a05",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.98,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0.99,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k18",
+   "set": "a",
+   "qid": "a06",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k19",
+   "set": "a",
+   "qid": "a07",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c1",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.98,
+    "c2": 0,
+    "c3": 0.01,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k20",
+   "set": "a",
+   "qid": "a08",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.92,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0,
+    "c3": 0.94,
+    "c4": 0.05,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k21",
+   "set": "a",
+   "qid": "a09",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.99,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.99,
+    "c4": 0.01,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k22",
+   "set": "a",
+   "qid": "a10",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.98,
+    "c4": 0.02,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k23",
+   "set": "a",
+   "qid": "a11",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.94,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.95,
+    "c4": 0.03,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k24",
+   "set": "a",
+   "qid": "a12",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.85,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0,
+    "c3": 0.88,
+    "c4": 0.11,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k25",
+   "set": "a",
+   "qid": "a13",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c4",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 1,
+    "c5": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k26",
+   "set": "a",
+   "qid": "a14",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c1",
+   "confidence": 0.57,
+   "probabilities": {
+    "c1": 0.6799999999999999,
+    "c2": 0,
+    "c3": 0.3,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k27",
+   "set": "a",
+   "qid": "a15",
+   "repeat": 1,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.89,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.91,
+    "c4": 0.09,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k28",
+   "set": "a",
+   "qid": "a16",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k29",
+   "set": "a",
+   "qid": "a17",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k30",
+   "set": "a",
+   "qid": "a18",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k31",
+   "set": "a",
+   "qid": "a19",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.02
+  },
+  {
+   "callId": "k32",
+   "set": "a",
+   "qid": "a20",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k33",
+   "set": "a",
+   "qid": "a21",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k34",
+   "set": "a",
+   "qid": "a22",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k35",
+   "set": "a",
+   "qid": "a23",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.17
+  },
+  {
+   "callId": "k36",
+   "set": "a",
+   "qid": "a24",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k37",
+   "set": "a",
+   "qid": "a25",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.19
+  },
+  {
+   "callId": "k38",
+   "set": "a",
+   "qid": "a26",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k39",
+   "set": "a",
+   "qid": "a27",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k40",
+   "set": "a",
+   "qid": "a28",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k41",
+   "set": "a",
+   "qid": "a29",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.08
+  },
+  {
+   "callId": "k42",
+   "set": "a",
+   "qid": "a30",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.72
+  },
+  {
+   "callId": "k43",
+   "set": "a",
+   "qid": "a31",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.09
+  },
+  {
+   "callId": "k44",
+   "set": "a",
+   "qid": "a32",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.65
+  },
+  {
+   "callId": "k45",
+   "set": "a",
+   "qid": "a33",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k46",
+   "set": "a",
+   "qid": "a34",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.57
+  },
+  {
+   "callId": "k47",
+   "set": "a",
+   "qid": "a35",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.17
+  },
+  {
+   "callId": "k48",
+   "set": "a",
+   "qid": "a36",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.66
+  },
+  {
+   "callId": "k49",
+   "set": "a",
+   "qid": "a37",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.53
+  },
+  {
+   "callId": "k50",
+   "set": "a",
+   "qid": "a38",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k51",
+   "set": "a",
+   "qid": "a01",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c17",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 0,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 1,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "c21": 0,
+    "c22": 0,
+    "c23": 0,
+    "c24": 0,
+    "c25": 0,
+    "c26": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k52",
+   "set": "a",
+   "qid": "a02",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c13",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 1,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 0,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k53",
+   "set": "a",
+   "qid": "a03",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c17",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 0,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 1,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "c21": 0,
+    "c22": 0,
+    "c23": 0,
+    "c24": 0,
+    "c25": 0,
+    "c26": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k54",
+   "set": "a",
+   "qid": "a04",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k55",
+   "set": "a",
+   "qid": "a05",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k56",
+   "set": "a",
+   "qid": "a06",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k57",
+   "set": "a",
+   "qid": "a07",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c1",
+   "confidence": 0.95,
+   "probabilities": {
+    "c1": 0.96,
+    "c2": 0,
+    "c3": 0.02,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k58",
+   "set": "a",
+   "qid": "a08",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.91,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0,
+    "c3": 0.9299999999999999,
+    "c4": 0.06,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k59",
+   "set": "a",
+   "qid": "a09",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.99,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.99,
+    "c4": 0.01,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k60",
+   "set": "a",
+   "qid": "a10",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.99,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.99,
+    "c4": 0.01,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k61",
+   "set": "a",
+   "qid": "a11",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.96,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.97,
+    "c4": 0.01,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k62",
+   "set": "a",
+   "qid": "a12",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.85,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0,
+    "c3": 0.88,
+    "c4": 0.11,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k63",
+   "set": "a",
+   "qid": "a13",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c4",
+   "confidence": 0.99,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0.99,
+    "c5": 0,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k64",
+   "set": "a",
+   "qid": "a14",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c1",
+   "confidence": 0.57,
+   "probabilities": {
+    "c1": 0.68,
+    "c2": 0,
+    "c3": 0.3,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k65",
+   "set": "a",
+   "qid": "a15",
+   "repeat": 2,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.9,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.92,
+    "c4": 0.08,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k66",
+   "set": "a",
+   "qid": "a16",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k67",
+   "set": "a",
+   "qid": "a17",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k68",
+   "set": "a",
+   "qid": "a18",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k69",
+   "set": "a",
+   "qid": "a19",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.02
+  },
+  {
+   "callId": "k70",
+   "set": "a",
+   "qid": "a20",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k71",
+   "set": "a",
+   "qid": "a21",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k72",
+   "set": "a",
+   "qid": "a22",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k73",
+   "set": "a",
+   "qid": "a23",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.15
+  },
+  {
+   "callId": "k74",
+   "set": "a",
+   "qid": "a24",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k75",
+   "set": "a",
+   "qid": "a25",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.21
+  },
+  {
+   "callId": "k76",
+   "set": "a",
+   "qid": "a26",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0
+  },
+  {
+   "callId": "k77",
+   "set": "a",
+   "qid": "a27",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k78",
+   "set": "a",
+   "qid": "a28",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k79",
+   "set": "a",
+   "qid": "a29",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.07
+  },
+  {
+   "callId": "k80",
+   "set": "a",
+   "qid": "a30",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.73
+  },
+  {
+   "callId": "k81",
+   "set": "a",
+   "qid": "a31",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k82",
+   "set": "a",
+   "qid": "a32",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.68
+  },
+  {
+   "callId": "k83",
+   "set": "a",
+   "qid": "a33",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.09
+  },
+  {
+   "callId": "k84",
+   "set": "a",
+   "qid": "a34",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.59
+  },
+  {
+   "callId": "k85",
+   "set": "a",
+   "qid": "a35",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.19
+  },
+  {
+   "callId": "k86",
+   "set": "a",
+   "qid": "a36",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.64
+  },
+  {
+   "callId": "k87",
+   "set": "a",
+   "qid": "a37",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.55
+  },
+  {
+   "callId": "k88",
+   "set": "a",
+   "qid": "a38",
+   "repeat": 2,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k89",
+   "set": "a",
+   "qid": "a01",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c17",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 0,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 1,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "c21": 0,
+    "c22": 0,
+    "c23": 0,
+    "c24": 0,
+    "c25": 0,
+    "c26": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k90",
+   "set": "a",
+   "qid": "a02",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c13",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 1,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 0,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k91",
+   "set": "a",
+   "qid": "a03",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c17",
+   "confidence": 1,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0,
+    "c5": 0,
+    "c6": 0,
+    "c7": 0,
+    "c8": 0,
+    "c9": 0,
+    "c10": 0,
+    "c11": 0,
+    "c12": 0,
+    "c13": 0,
+    "c14": 0,
+    "c15": 0,
+    "c16": 0,
+    "c17": 1,
+    "c18": 0,
+    "c19": 0,
+    "c20": 0,
+    "c21": 0,
+    "c22": 0,
+    "c23": 0,
+    "c24": 0,
+    "c25": 0,
+    "c26": 0,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k92",
+   "set": "a",
+   "qid": "a04",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k93",
+   "set": "a",
+   "qid": "a05",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k94",
+   "set": "a",
+   "qid": "a06",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c2",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.02,
+    "c2": 0.98,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k95",
+   "set": "a",
+   "qid": "a07",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c1",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0.98,
+    "c2": 0,
+    "c3": 0.01,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k96",
+   "set": "a",
+   "qid": "a08",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.87,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0,
+    "c3": 0.9,
+    "c4": 0.09,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k97",
+   "set": "a",
+   "qid": "a09",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.96,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.97,
+    "c4": 0.03,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k98",
+   "set": "a",
+   "qid": "a10",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.98,
+    "c4": 0.02,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k99",
+   "set": "a",
+   "qid": "a11",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.97,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.98,
+    "c4": 0.01,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k100",
+   "set": "a",
+   "qid": "a12",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.89,
+   "probabilities": {
+    "c1": 0.01,
+    "c2": 0,
+    "c3": 0.91,
+    "c4": 0.08,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k101",
+   "set": "a",
+   "qid": "a13",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c4",
+   "confidence": 0.99,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0,
+    "c4": 0.99,
+    "c5": 0,
+    "none": 0.01
+   }
+  },
+  {
+   "callId": "k102",
+   "set": "a",
+   "qid": "a14",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c1",
+   "confidence": 0.6,
+   "probabilities": {
+    "c1": 0.7,
+    "c2": 0,
+    "c3": 0.28,
+    "none": 0.02
+   }
+  },
+  {
+   "callId": "k103",
+   "set": "a",
+   "qid": "a15",
+   "repeat": 3,
+   "kind": "main",
+   "choice": "c3",
+   "confidence": 0.9,
+   "probabilities": {
+    "c1": 0,
+    "c2": 0,
+    "c3": 0.92,
+    "c4": 0.08,
+    "none": 0
+   }
+  },
+  {
+   "callId": "k104",
+   "set": "a",
+   "qid": "a16",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k105",
+   "set": "a",
+   "qid": "a17",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k106",
+   "set": "a",
+   "qid": "a18",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k107",
+   "set": "a",
+   "qid": "a19",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.03
+  },
+  {
+   "callId": "k108",
+   "set": "a",
+   "qid": "a20",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k109",
+   "set": "a",
+   "qid": "a21",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.91
+  },
+  {
+   "callId": "k110",
+   "set": "a",
+   "qid": "a22",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k111",
+   "set": "a",
+   "qid": "a23",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k112",
+   "set": "a",
+   "qid": "a24",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k113",
+   "set": "a",
+   "qid": "a25",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k114",
+   "set": "a",
+   "qid": "a26",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k115",
+   "set": "a",
+   "qid": "a27",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k116",
+   "set": "a",
+   "qid": "a28",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k117",
+   "set": "a",
+   "qid": "a29",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.06
+  },
+  {
+   "callId": "k118",
+   "set": "a",
+   "qid": "a30",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.72
+  },
+  {
+   "callId": "k119",
+   "set": "a",
+   "qid": "a31",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k120",
+   "set": "a",
+   "qid": "a32",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.64
+  },
+  {
+   "callId": "k121",
+   "set": "a",
+   "qid": "a33",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k122",
+   "set": "a",
+   "qid": "a34",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.6
+  },
+  {
+   "callId": "k123",
+   "set": "a",
+   "qid": "a35",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.19
+  },
+  {
+   "callId": "k124",
+   "set": "a",
+   "qid": "a36",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.68
+  },
+  {
+   "callId": "k125",
+   "set": "a",
+   "qid": "a37",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.57
+  },
+  {
+   "callId": "k126",
+   "set": "a",
+   "qid": "a38",
+   "repeat": 3,
+   "kind": "main",
+   "noul": 0.13
+  },
+  {
+   "callId": "k127",
+   "set": "b",
+   "qid": "b001",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k127",
+   "set": "b",
+   "qid": "b002",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.95
+  },
+  {
+   "callId": "k127",
+   "set": "b",
+   "qid": "b004",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.28
+  },
+  {
+   "callId": "k127",
+   "set": "b",
+   "qid": "b005",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k127",
+   "set": "b",
+   "qid": "b006",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k127",
+   "set": "b",
+   "qid": "b007",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.38
+  },
+  {
+   "callId": "k128",
+   "set": "b",
+   "qid": "b003",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k129",
+   "set": "b",
+   "qid": "b008",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.9
+  },
+  {
+   "callId": "k129",
+   "set": "b",
+   "qid": "b009",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.9
+  },
+  {
+   "callId": "k129",
+   "set": "b",
+   "qid": "b011",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.21
+  },
+  {
+   "callId": "k129",
+   "set": "b",
+   "qid": "b012",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0
+  },
+  {
+   "callId": "k129",
+   "set": "b",
+   "qid": "b013",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k130",
+   "set": "b",
+   "qid": "b010",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k131",
+   "set": "b",
+   "qid": "b014",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.61
+  },
+  {
+   "callId": "k132",
+   "set": "b",
+   "qid": "b015",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.41
+  },
+  {
+   "callId": "k132",
+   "set": "b",
+   "qid": "b016",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.8
+  },
+  {
+   "callId": "k132",
+   "set": "b",
+   "qid": "b017",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.17
+  },
+  {
+   "callId": "k132",
+   "set": "b",
+   "qid": "b018",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k132",
+   "set": "b",
+   "qid": "b019",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k132",
+   "set": "b",
+   "qid": "b020",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.43
+  },
+  {
+   "callId": "k133",
+   "set": "b",
+   "qid": "b021",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k133",
+   "set": "b",
+   "qid": "b022",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.94
+  },
+  {
+   "callId": "k133",
+   "set": "b",
+   "qid": "b024",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.14
+  },
+  {
+   "callId": "k133",
+   "set": "b",
+   "qid": "b025",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k133",
+   "set": "b",
+   "qid": "b026",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.03
+  },
+  {
+   "callId": "k133",
+   "set": "b",
+   "qid": "b027",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.33
+  },
+  {
+   "callId": "k134",
+   "set": "b",
+   "qid": "b023",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b028",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.85
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b029",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b030",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.75
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b031",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.21
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b032",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b033",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k135",
+   "set": "b",
+   "qid": "b034",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.26
+  },
+  {
+   "callId": "k136",
+   "set": "b",
+   "qid": "b035",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.84
+  },
+  {
+   "callId": "k136",
+   "set": "b",
+   "qid": "b036",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.5
+  },
+  {
+   "callId": "k136",
+   "set": "b",
+   "qid": "b038",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.43
+  },
+  {
+   "callId": "k136",
+   "set": "b",
+   "qid": "b039",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k136",
+   "set": "b",
+   "qid": "b040",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k136",
+   "set": "b",
+   "qid": "b041",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.39
+  },
+  {
+   "callId": "k137",
+   "set": "b",
+   "qid": "b037",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k138",
+   "set": "b",
+   "qid": "b042",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.9
+  },
+  {
+   "callId": "k138",
+   "set": "b",
+   "qid": "b043",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.47
+  },
+  {
+   "callId": "k138",
+   "set": "b",
+   "qid": "b044",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.57
+  },
+  {
+   "callId": "k138",
+   "set": "b",
+   "qid": "b045",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.21
+  },
+  {
+   "callId": "k138",
+   "set": "b",
+   "qid": "b046",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k138",
+   "set": "b",
+   "qid": "b047",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k139",
+   "set": "b",
+   "qid": "b048",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.58
+  },
+  {
+   "callId": "k140",
+   "set": "b",
+   "qid": "b049",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k140",
+   "set": "b",
+   "qid": "b050",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.64
+  },
+  {
+   "callId": "k140",
+   "set": "b",
+   "qid": "b052",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k140",
+   "set": "b",
+   "qid": "b053",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k140",
+   "set": "b",
+   "qid": "b054",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k140",
+   "set": "b",
+   "qid": "b055",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.41
+  },
+  {
+   "callId": "k141",
+   "set": "b",
+   "qid": "b051",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k142",
+   "set": "b",
+   "qid": "b056",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k142",
+   "set": "b",
+   "qid": "b057",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.63
+  },
+  {
+   "callId": "k142",
+   "set": "b",
+   "qid": "b058",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.69
+  },
+  {
+   "callId": "k143",
+   "set": "b",
+   "qid": "b059",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k143",
+   "set": "b",
+   "qid": "b060",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k143",
+   "set": "b",
+   "qid": "b061",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.69
+  },
+  {
+   "callId": "k143",
+   "set": "b",
+   "qid": "b062",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.03
+  },
+  {
+   "callId": "k144",
+   "set": "b",
+   "qid": "b063",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.26
+  },
+  {
+   "callId": "k145",
+   "set": "b",
+   "qid": "b064",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k145",
+   "set": "b",
+   "qid": "b065",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k145",
+   "set": "b",
+   "qid": "b066",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.72
+  },
+  {
+   "callId": "k145",
+   "set": "b",
+   "qid": "b067",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.79
+  },
+  {
+   "callId": "k145",
+   "set": "b",
+   "qid": "b068",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.07
+  },
+  {
+   "callId": "k146",
+   "set": "b",
+   "qid": "b069",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.18
+  },
+  {
+   "callId": "k147",
+   "set": "b",
+   "qid": "b070",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k147",
+   "set": "b",
+   "qid": "b071",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k147",
+   "set": "b",
+   "qid": "b072",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.85
+  },
+  {
+   "callId": "k147",
+   "set": "b",
+   "qid": "b073",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.75
+  },
+  {
+   "callId": "k147",
+   "set": "b",
+   "qid": "b074",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.04
+  },
+  {
+   "callId": "k148",
+   "set": "b",
+   "qid": "b075",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.26
+  },
+  {
+   "callId": "k149",
+   "set": "b",
+   "qid": "b076",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k149",
+   "set": "b",
+   "qid": "b077",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k149",
+   "set": "b",
+   "qid": "b078",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.04
+  },
+  {
+   "callId": "k149",
+   "set": "b",
+   "qid": "b079",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.76
+  },
+  {
+   "callId": "k149",
+   "set": "b",
+   "qid": "b080",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k150",
+   "set": "b",
+   "qid": "b081",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.35
+  },
+  {
+   "callId": "k151",
+   "set": "b",
+   "qid": "b082",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k151",
+   "set": "b",
+   "qid": "b083",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k151",
+   "set": "b",
+   "qid": "b084",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.81
+  },
+  {
+   "callId": "k151",
+   "set": "b",
+   "qid": "b085",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.04
+  },
+  {
+   "callId": "k152",
+   "set": "b",
+   "qid": "b086",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.27
+  },
+  {
+   "callId": "k153",
+   "set": "b",
+   "qid": "b087",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k153",
+   "set": "b",
+   "qid": "b088",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k153",
+   "set": "b",
+   "qid": "b089",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.73
+  },
+  {
+   "callId": "k153",
+   "set": "b",
+   "qid": "b090",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.04
+  },
+  {
+   "callId": "k154",
+   "set": "b",
+   "qid": "b091",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.21
+  },
+  {
+   "callId": "k155",
+   "set": "b",
+   "qid": "b092",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 1
+  },
+  {
+   "callId": "k155",
+   "set": "b",
+   "qid": "b093",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k155",
+   "set": "b",
+   "qid": "b094",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.73
+  },
+  {
+   "callId": "k155",
+   "set": "b",
+   "qid": "b095",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.09
+  },
+  {
+   "callId": "k156",
+   "set": "b",
+   "qid": "b096",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.22
+  },
+  {
+   "callId": "k157",
+   "set": "b",
+   "qid": "b097",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k157",
+   "set": "b",
+   "qid": "b098",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k157",
+   "set": "b",
+   "qid": "b099",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.71
+  },
+  {
+   "callId": "k157",
+   "set": "b",
+   "qid": "b100",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.07
+  },
+  {
+   "callId": "k158",
+   "set": "b",
+   "qid": "b101",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.22
+  },
+  {
+   "callId": "k159",
+   "set": "b",
+   "qid": "b102",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k159",
+   "set": "b",
+   "qid": "b103",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k159",
+   "set": "b",
+   "qid": "b104",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.82
+  },
+  {
+   "callId": "k159",
+   "set": "b",
+   "qid": "b105",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.73
+  },
+  {
+   "callId": "k159",
+   "set": "b",
+   "qid": "b106",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.05
+  },
+  {
+   "callId": "k160",
+   "set": "b",
+   "qid": "b107",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.11
+  },
+  {
+   "callId": "k161",
+   "set": "b",
+   "qid": "b108",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k161",
+   "set": "b",
+   "qid": "b109",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k161",
+   "set": "b",
+   "qid": "b110",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.68
+  },
+  {
+   "callId": "k161",
+   "set": "b",
+   "qid": "b111",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.02
+  },
+  {
+   "callId": "k162",
+   "set": "b",
+   "qid": "b112",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.27
+  },
+  {
+   "callId": "k163",
+   "set": "b",
+   "qid": "b113",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.94
+  },
+  {
+   "callId": "k163",
+   "set": "b",
+   "qid": "b114",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k163",
+   "set": "b",
+   "qid": "b115",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.04
+  },
+  {
+   "callId": "k163",
+   "set": "b",
+   "qid": "b116",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.87
+  },
+  {
+   "callId": "k163",
+   "set": "b",
+   "qid": "b117",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.56
+  },
+  {
+   "callId": "k164",
+   "set": "b",
+   "qid": "b118",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.29
+  },
+  {
+   "callId": "k165",
+   "set": "b",
+   "qid": "b119",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k165",
+   "set": "b",
+   "qid": "b120",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k165",
+   "set": "b",
+   "qid": "b121",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.03
+  },
+  {
+   "callId": "k166",
+   "set": "b",
+   "qid": "b122",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.05
+  },
+  {
+   "callId": "k167",
+   "set": "b",
+   "qid": "b123",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.03
+  },
+  {
+   "callId": "k168",
+   "set": "b",
+   "qid": "b124",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.51
+  },
+  {
+   "callId": "k169",
+   "set": "b",
+   "qid": "b125",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.52
+  },
+  {
+   "callId": "k169",
+   "set": "b",
+   "qid": "b126",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k169",
+   "set": "b",
+   "qid": "b128",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.84
+  },
+  {
+   "callId": "k169",
+   "set": "b",
+   "qid": "b129",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.66
+  },
+  {
+   "callId": "k170",
+   "set": "b",
+   "qid": "b130",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k171",
+   "set": "b",
+   "qid": "b131",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k172",
+   "set": "b",
+   "qid": "b132",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.57
+  },
+  {
+   "callId": "k172",
+   "set": "b",
+   "qid": "b133",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k172",
+   "set": "b",
+   "qid": "b135",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.62
+  },
+  {
+   "callId": "k172",
+   "set": "b",
+   "qid": "b136",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.78
+  },
+  {
+   "callId": "k172",
+   "set": "b",
+   "qid": "b138",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.18
+  },
+  {
+   "callId": "k173",
+   "set": "b",
+   "qid": "b134",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.92
+  },
+  {
+   "callId": "k174",
+   "set": "b",
+   "qid": "b137",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k175",
+   "set": "b",
+   "qid": "b139",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k175",
+   "set": "b",
+   "qid": "b142",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.51
+  },
+  {
+   "callId": "k176",
+   "set": "b",
+   "qid": "b140",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.9
+  },
+  {
+   "callId": "k177",
+   "set": "b",
+   "qid": "b141",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.89
+  },
+  {
+   "callId": "k178",
+   "set": "b",
+   "qid": "b143",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k179",
+   "set": "b",
+   "qid": "b144",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k180",
+   "set": "b",
+   "qid": "b145",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.84
+  },
+  {
+   "callId": "k180",
+   "set": "b",
+   "qid": "b146",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k180",
+   "set": "b",
+   "qid": "b148",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.75
+  },
+  {
+   "callId": "k180",
+   "set": "b",
+   "qid": "b149",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.85
+  },
+  {
+   "callId": "k181",
+   "set": "b",
+   "qid": "b147",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.94
+  },
+  {
+   "callId": "k182",
+   "set": "b",
+   "qid": "b150",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k183",
+   "set": "b",
+   "qid": "b151",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.24
+  },
+  {
+   "callId": "k183",
+   "set": "b",
+   "qid": "b152",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k183",
+   "set": "b",
+   "qid": "b154",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.83
+  },
+  {
+   "callId": "k183",
+   "set": "b",
+   "qid": "b155",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.69
+  },
+  {
+   "callId": "k184",
+   "set": "b",
+   "qid": "b153",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k185",
+   "set": "b",
+   "qid": "b156",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.04
+  },
+  {
+   "callId": "k186",
+   "set": "b",
+   "qid": "b157",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k187",
+   "set": "b",
+   "qid": "b158",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.53
+  },
+  {
+   "callId": "k187",
+   "set": "b",
+   "qid": "b159",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k187",
+   "set": "b",
+   "qid": "b161",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.76
+  },
+  {
+   "callId": "k187",
+   "set": "b",
+   "qid": "b162",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.59
+  },
+  {
+   "callId": "k188",
+   "set": "b",
+   "qid": "b160",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.9
+  },
+  {
+   "callId": "k189",
+   "set": "b",
+   "qid": "b163",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k190",
+   "set": "b",
+   "qid": "b164",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.16
+  },
+  {
+   "callId": "k191",
+   "set": "b",
+   "qid": "b165",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k191",
+   "set": "b",
+   "qid": "b166",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k191",
+   "set": "b",
+   "qid": "b168",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.67
+  },
+  {
+   "callId": "k191",
+   "set": "b",
+   "qid": "b169",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.8
+  },
+  {
+   "callId": "k192",
+   "set": "b",
+   "qid": "b167",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.91
+  },
+  {
+   "callId": "k193",
+   "set": "b",
+   "qid": "b170",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k194",
+   "set": "b",
+   "qid": "b171",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.1
+  },
+  {
+   "callId": "k194",
+   "set": "b",
+   "qid": "b172",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k194",
+   "set": "b",
+   "qid": "b174",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.73
+  },
+  {
+   "callId": "k194",
+   "set": "b",
+   "qid": "b175",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.92
+  },
+  {
+   "callId": "k195",
+   "set": "b",
+   "qid": "b173",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k196",
+   "set": "b",
+   "qid": "b176",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k197",
+   "set": "b",
+   "qid": "b177",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k198",
+   "set": "b",
+   "qid": "b178",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.79
+  },
+  {
+   "callId": "k198",
+   "set": "b",
+   "qid": "b179",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k198",
+   "set": "b",
+   "qid": "b181",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.85
+  },
+  {
+   "callId": "k198",
+   "set": "b",
+   "qid": "b182",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.72
+  },
+  {
+   "callId": "k199",
+   "set": "b",
+   "qid": "b180",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.92
+  },
+  {
+   "callId": "k200",
+   "set": "b",
+   "qid": "b183",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k200",
+   "set": "b",
+   "qid": "b184",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.8
+  },
+  {
+   "callId": "k200",
+   "set": "b",
+   "qid": "b186",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.79
+  },
+  {
+   "callId": "k200",
+   "set": "b",
+   "qid": "b187",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k200",
+   "set": "b",
+   "qid": "b188",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.49
+  },
+  {
+   "callId": "k201",
+   "set": "b",
+   "qid": "b185",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k202",
+   "set": "b",
+   "qid": "b189",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k202",
+   "set": "b",
+   "qid": "b190",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.78
+  },
+  {
+   "callId": "k202",
+   "set": "b",
+   "qid": "b192",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.75
+  },
+  {
+   "callId": "k203",
+   "set": "b",
+   "qid": "b191",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k204",
+   "set": "b",
+   "qid": "b194",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.18
+  },
+  {
+   "callId": "k205",
+   "set": "b",
+   "qid": "b195",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k205",
+   "set": "b",
+   "qid": "b196",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k205",
+   "set": "b",
+   "qid": "b198",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k205",
+   "set": "b",
+   "qid": "b199",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k205",
+   "set": "b",
+   "qid": "b200",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k205",
+   "set": "b",
+   "qid": "b201",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.65
+  },
+  {
+   "callId": "k206",
+   "set": "b",
+   "qid": "b197",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k207",
+   "set": "b",
+   "qid": "b202",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k207",
+   "set": "b",
+   "qid": "b203",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k207",
+   "set": "b",
+   "qid": "b205",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.59
+  },
+  {
+   "callId": "k207",
+   "set": "b",
+   "qid": "b206",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.01
+  },
+  {
+   "callId": "k207",
+   "set": "b",
+   "qid": "b207",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.76
+  },
+  {
+   "callId": "k208",
+   "set": "b",
+   "qid": "b204",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k209",
+   "set": "b",
+   "qid": "b208",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k209",
+   "set": "b",
+   "qid": "b209",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.81
+  },
+  {
+   "callId": "k209",
+   "set": "b",
+   "qid": "b211",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.81
+  },
+  {
+   "callId": "k209",
+   "set": "b",
+   "qid": "b212",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k209",
+   "set": "b",
+   "qid": "b213",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k209",
+   "set": "b",
+   "qid": "b214",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.46
+  },
+  {
+   "callId": "k210",
+   "set": "b",
+   "qid": "b210",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k211",
+   "set": "b",
+   "qid": "b215",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k211",
+   "set": "b",
+   "qid": "b216",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k211",
+   "set": "b",
+   "qid": "b218",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.9
+  },
+  {
+   "callId": "k211",
+   "set": "b",
+   "qid": "b219",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k211",
+   "set": "b",
+   "qid": "b220",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k211",
+   "set": "b",
+   "qid": "b221",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.47
+  },
+  {
+   "callId": "k212",
+   "set": "b",
+   "qid": "b217",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k213",
+   "set": "b",
+   "qid": "b222",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k213",
+   "set": "b",
+   "qid": "b223",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.83
+  },
+  {
+   "callId": "k213",
+   "set": "b",
+   "qid": "b225",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.86
+  },
+  {
+   "callId": "k213",
+   "set": "b",
+   "qid": "b226",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k213",
+   "set": "b",
+   "qid": "b227",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k213",
+   "set": "b",
+   "qid": "b228",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.65
+  },
+  {
+   "callId": "k214",
+   "set": "b",
+   "qid": "b224",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k215",
+   "set": "b",
+   "qid": "b229",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k215",
+   "set": "b",
+   "qid": "b230",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.86
+  },
+  {
+   "callId": "k215",
+   "set": "b",
+   "qid": "b232",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.83
+  },
+  {
+   "callId": "k215",
+   "set": "b",
+   "qid": "b233",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k215",
+   "set": "b",
+   "qid": "b234",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.86
+  },
+  {
+   "callId": "k215",
+   "set": "b",
+   "qid": "b235",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.23
+  },
+  {
+   "callId": "k216",
+   "set": "b",
+   "qid": "b231",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k217",
+   "set": "b",
+   "qid": "b236",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.87
+  },
+  {
+   "callId": "k218",
+   "set": "b",
+   "qid": "b237",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k219",
+   "set": "b",
+   "qid": "b238",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.59
+  },
+  {
+   "callId": "k219",
+   "set": "b",
+   "qid": "b239",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.95
+  },
+  {
+   "callId": "k219",
+   "set": "b",
+   "qid": "b241",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.57
+  },
+  {
+   "callId": "k220",
+   "set": "b",
+   "qid": "b240",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.6
+  },
+  {
+   "callId": "k221",
+   "set": "b",
+   "qid": "b242",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k222",
+   "set": "b",
+   "qid": "b243",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.24
+  },
+  {
+   "callId": "k223",
+   "set": "b",
+   "qid": "b244",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.55
+  },
+  {
+   "callId": "k223",
+   "set": "b",
+   "qid": "b245",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k223",
+   "set": "b",
+   "qid": "b247",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.64
+  },
+  {
+   "callId": "k223",
+   "set": "b",
+   "qid": "b248",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.94
+  },
+  {
+   "callId": "k224",
+   "set": "b",
+   "qid": "b246",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.92
+  },
+  {
+   "callId": "k225",
+   "set": "b",
+   "qid": "b249",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.15
+  },
+  {
+   "callId": "k226",
+   "set": "b",
+   "qid": "b250",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.65
+  },
+  {
+   "callId": "k226",
+   "set": "b",
+   "qid": "b251",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k226",
+   "set": "b",
+   "qid": "b253",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.63
+  },
+  {
+   "callId": "k226",
+   "set": "b",
+   "qid": "b254",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k227",
+   "set": "b",
+   "qid": "b252",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.92
+  },
+  {
+   "callId": "k228",
+   "set": "b",
+   "qid": "b255",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k229",
+   "set": "b",
+   "qid": "b256",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.07
+  },
+  {
+   "callId": "k230",
+   "set": "b",
+   "qid": "b257",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.69
+  },
+  {
+   "callId": "k230",
+   "set": "b",
+   "qid": "b258",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k230",
+   "set": "b",
+   "qid": "b260",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.55
+  },
+  {
+   "callId": "k230",
+   "set": "b",
+   "qid": "b261",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.79
+  },
+  {
+   "callId": "k231",
+   "set": "b",
+   "qid": "b259",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k232",
+   "set": "b",
+   "qid": "b262",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k233",
+   "set": "b",
+   "qid": "b263",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.14
+  },
+  {
+   "callId": "k234",
+   "set": "b",
+   "qid": "b264",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.64
+  },
+  {
+   "callId": "k234",
+   "set": "b",
+   "qid": "b265",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k234",
+   "set": "b",
+   "qid": "b267",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.66
+  },
+  {
+   "callId": "k234",
+   "set": "b",
+   "qid": "b268",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k235",
+   "set": "b",
+   "qid": "b266",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.72
+  },
+  {
+   "callId": "k236",
+   "set": "b",
+   "qid": "b269",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k237",
+   "set": "b",
+   "qid": "b270",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.2
+  },
+  {
+   "callId": "k238",
+   "set": "b",
+   "qid": "b271",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.59
+  },
+  {
+   "callId": "k238",
+   "set": "b",
+   "qid": "b272",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k238",
+   "set": "b",
+   "qid": "b274",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.61
+  },
+  {
+   "callId": "k238",
+   "set": "b",
+   "qid": "b275",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.93
+  },
+  {
+   "callId": "k238",
+   "set": "b",
+   "qid": "b276",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.18
+  },
+  {
+   "callId": "k239",
+   "set": "b",
+   "qid": "b273",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k240",
+   "set": "b",
+   "qid": "b277",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.17
+  },
+  {
+   "callId": "k241",
+   "set": "b",
+   "qid": "b278",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.67
+  },
+  {
+   "callId": "k241",
+   "set": "b",
+   "qid": "b279",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k241",
+   "set": "b",
+   "qid": "b281",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.52
+  },
+  {
+   "callId": "k241",
+   "set": "b",
+   "qid": "b282",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.02
+  },
+  {
+   "callId": "k242",
+   "set": "b",
+   "qid": "b280",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k243",
+   "set": "b",
+   "qid": "b283",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.13
+  },
+  {
+   "callId": "k244",
+   "set": "b",
+   "qid": "b284",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.8
+  },
+  {
+   "callId": "k244",
+   "set": "b",
+   "qid": "b285",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k244",
+   "set": "b",
+   "qid": "b287",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.58
+  },
+  {
+   "callId": "k244",
+   "set": "b",
+   "qid": "b288",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.77
+  },
+  {
+   "callId": "k245",
+   "set": "b",
+   "qid": "b286",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k246",
+   "set": "b",
+   "qid": "b289",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k247",
+   "set": "b",
+   "qid": "b290",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.13
+  },
+  {
+   "callId": "k248",
+   "set": "b",
+   "qid": "b291",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.72
+  },
+  {
+   "callId": "k248",
+   "set": "b",
+   "qid": "b292",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.97
+  },
+  {
+   "callId": "k248",
+   "set": "b",
+   "qid": "b294",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.56
+  },
+  {
+   "callId": "k248",
+   "set": "b",
+   "qid": "b295",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.96
+  },
+  {
+   "callId": "k249",
+   "set": "b",
+   "qid": "b293",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.98
+  },
+  {
+   "callId": "k250",
+   "set": "b",
+   "qid": "b296",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.99
+  },
+  {
+   "callId": "k251",
+   "set": "b",
+   "qid": "b297",
+   "repeat": 1,
+   "kind": "main",
+   "noul": 0.09
+  }
+ ]
+}
