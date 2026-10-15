@@ -28,9 +28,6 @@ import { buildBoxMapScript, normalize, pathFitsConcept, type Box, type CustomerF
 import { contractFields, type ContractField } from './contract.js';
 
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
-const OUT = join(repoRoot, 'docs', 'testing', 'results', '2026-10-15-jev-images');
-const CROPS = join(OUT, 'crops');
-const ANSWERS = join(OUT, 'answers.json');
 const MODEL = 'jev-1.14.0';
 const USD_PER_TOKEN = 0.042 / 1e6;
 const W = 1440;
@@ -41,28 +38,38 @@ const PAGE_GAP_MS = 2_000;
 // ─── Arguments ───────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-let set: 'a' | 'b' | undefined;
+type SetId = 'a' | 'b' | 'v' | 'd';
+let set: SetId | undefined;
 let dryRun = false;
 let recapture = false;
 let reportOnly = false;
 let billingOnly = false;
-let maxUsd = 2;
-let maxQuestions = 600;
+let maxUsd: number | undefined;
+let maxQuestions: number | undefined;
 let repeats: number | undefined;
 for (let i = 0; i < args.length; i++) {
   const a = args[i]!;
-  if (a === '--set') { const v = args[++i]; if (v !== 'a' && v !== 'b') die('--set a|b'); set = v; }
+  if (a === '--set') { const v = args[++i]; if (v !== 'a' && v !== 'b' && v !== 'v' && v !== 'd') die('--set a|b|v|d'); set = v; }
   else if (a === '--dry-run') dryRun = true;
   else if (a === '--recapture') recapture = true;
   else if (a === '--report-only') reportOnly = true;
   else if (a === '--billing') billingOnly = true;
-  else if (a === '--max-usd') maxUsd = Math.min(2, Number(args[++i]));
-  else if (a === '--max-questions') maxQuestions = Math.min(600, Number(args[++i]));
+  else if (a === '--max-usd') maxUsd = Number(args[++i]);
+  else if (a === '--max-questions') maxQuestions = Number(args[++i]);
   else if (a === '--repeats') repeats = Number(args[++i]);
   else die(`unknown argument ${a}`);
 }
-if (!set && !reportOnly) die('usage: jev-images-run --set a|b [--dry-run] [--recapture] [--max-usd X] [--max-questions N] [--repeats N] [--billing] [--report-only]');
+if (!set && !reportOnly) die('usage: jev-images-run --set a|b|v|d [--dry-run] [--recapture] [--max-usd X] [--max-questions N] [--repeats N] [--billing] [--report-only]');
 function die(msg: string): never { console.error(msg); process.exit(1); }
+/** Sets v and d (spec 2026-10-15, experiment 2: variants) write to their own folder under a hard cap of $1.00 / 400 questions. */
+const VD = set === 'v' || set === 'd';
+const HARD_USD = VD ? 1 : 2;
+const HARD_Q = VD ? 400 : 600;
+const capUsd = Math.min(HARD_USD, maxUsd ?? HARD_USD);
+const capQuestions = Math.min(HARD_Q, maxQuestions ?? HARD_Q);
+const OUT = join(repoRoot, 'docs', 'testing', 'results', VD ? '2026-10-15-jev-variants' : '2026-10-15-jev-images');
+const CROPS = join(OUT, 'crops');
+const ANSWERS = join(OUT, 'answers.json');
 
 mkdirSync(CROPS, { recursive: true });
 
@@ -73,7 +80,7 @@ type Candidate = { id: string; value: string; source: string };
 type Rect = { x: number; y: number; w: number; h: number };
 /** One question as planned: everything needed to send it, without the image bytes. */
 type Planned = {
-  id: string; set: 'a' | 'b'; group: string; site: string; url: string;
+  id: string; set: SetId; group: string; site: string; url: string;
   field: Field; kind: 'choice' | 'noul';
   /** Noul: the value asked about. */
   value?: unknown;
@@ -88,16 +95,19 @@ type Planned = {
   /** Set B: the fresh page still carries the stored value in its text or data. */
   carried?: boolean;
   skipped?: string;
+  /** Set d: experiment 1's question, answer and crop; where the description element was found, why it is not on screen. */
+  prevId?: string; prevNoul?: number; prevCrop?: string; prevCropMode?: string;
+  found?: 'visible' | 'hidden' | 'none'; collapsed?: string; elRect?: Rect | null; clip?: { x: number; y: number; width: number; height: number };
 };
-type Plan = { set: 'a' | 'b'; preparedAt: string; viewport: { width: number; height: number }; questions: Planned[]; walled: Array<{ url: string; reason: string }>; pages: Array<{ url: string; viewport: string }> };
+type Plan = { set: SetId; preparedAt: string; viewport: { width: number; height: number }; questions: Planned[]; walled: Array<{ url: string; reason: string }>; pages: Array<{ url: string; viewport: string }> };
 /** One systemOne request. kind: main (the experiment) or a billing probe (control = text only, a, b, c). */
 type Call = {
-  id: string; set: 'a' | 'b'; kind: 'main' | 'control' | 'bill-a' | 'bill-b' | 'bill-c'; url: string; crop: string | null;
+  id: string; set: SetId; kind: 'main' | 'control' | 'bill-a' | 'bill-b' | 'bill-c'; url: string; crop: string | null;
   qids: string[]; repeat: number; at: string; ms: number; model?: string;
   input_tokens: number | null; output_tokens: number | null; error?: string;
 };
 type Answer = {
-  callId: string; set: 'a' | 'b'; qid: string; repeat: number; kind: Call['kind'];
+  callId: string; set: SetId; qid: string; repeat: number; kind: Call['kind'];
   noul?: number; choice?: string; confidence?: number; probabilities?: Record<string, number>;
 };
 type Store = { calls: Call[]; answers: Answer[] };
@@ -642,11 +652,11 @@ async function call(
   return c;
 }
 
-const capOk = (store: Store, nextEst: number) => {
+const capOk = (store: Store, nextEst: number, nextQuestions = 1) => {
   const spent = tokensOf(store.calls) * USD_PER_TOKEN;
-  if (spent + nextEst * USD_PER_TOKEN * 2 > maxUsd) { console.warn(`[jev] STOP: spend cap $${maxUsd} (spent $${spent.toFixed(4)})`); return false; }
+  if (spent + nextEst * USD_PER_TOKEN * 2 > capUsd) { console.warn(`[jev] STOP: spend cap $${capUsd} (spent $${spent.toFixed(4)})`); return false; }
   const asked = store.answers.length + store.calls.filter((c) => c.error).length;
-  if (asked >= maxQuestions) { console.warn(`[jev] STOP: ${maxQuestions} questions`); return false; }
+  if (asked + nextQuestions > capQuestions) { console.warn(`[jev] STOP: ${capQuestions} questions`); return false; }
   return true;
 };
 
@@ -689,7 +699,7 @@ async function send(plan: Plan, reps: number): Promise<void> {
     for (const qs0 of groups.values()) {
       const qs = qs0.filter((q) => !done.has(`${q.id}#${rep}`));
       if (qs.length === 0) continue;
-      if (!capOk(store, estimateCall(qs))) return;
+      if (!capOk(store, estimateCall(qs), qs.length)) return;
       const c = await call(store, sdk, client, { set: plan.set, kind: 'main', url: qs[0]!.url, crop: qs[0]!.crop!, repeat: rep }, qs,
         (img) => ({ state: stateFor(qs, img), questions: Object.fromEntries(qs.map((q) => [`q_${q.id}`, questionFor(q, sdk)])) }));
       errStreak = c.error ? errStreak + 1 : 0;
@@ -874,11 +884,659 @@ function report(): void {
   console.log(`[jev] wrote ${join(OUT, 'report.md')}`);
 }
 
+// ─── Experiment 2: variants (sets v and d) ───────────────────────────────────
+//
+// Set v — which variant does the page show? Thirty product pages of six variant sites (campaign 2's
+// project `campaign-2-2026-10-11`): addresses from each website's proof pages, its last run's items and
+// its stored captures (SELECT), plus four derived ones (a proof address without its query; another variant
+// id of the same product from the store's public product JSON). Per page one call, the screenshot once in
+// state, and: (1) Choice — which of the page data's variant entries is selected (options = the entries'
+// verbatim name/size/colour/option values, no prices, plus `none`); (2) Noul — is the variant the address
+// names the one selected (only when it names one); (3) Choice per address parameter — which of the page
+// data's option names it sets. Beside it, what our code decided: `capture.pageVariant` and `pickPageEntry`
+// over the same list. Ten pages are asked twice more (stability).
+// Set d — experiment 1's 28 description false alarms, re-captured and cropped around the description
+// element's own box (found in the DOM, hidden or not; a collapsed section is recorded), the same Noul.
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** Chosen 2026-10-15 from SELECTs on campaign 2's six variant websites (verification_set.urls, the last run's run_items, captures). */
+const V_PAGES: Array<{ site: string; url: string; from: string }> = [
+  { site: 'ruggable', url: 'https://ruggable.com/products/sierra-ivory-opal-tufted-rug?size=6x9&system=rug-cvr', from: 'proof page 1' },
+  { site: 'ruggable', url: 'https://ruggable.com/products/morris-and-co-pimpernel-jade-tufted-rug?size=6x9&system=rug-cvr', from: 'proof page 2' },
+  { site: 'ruggable', url: 'https://ruggable.com/products/cyrus-rose-gold-tufted-rug?size=6x9&system=rug-cvr', from: 'proof page 3' },
+  { site: 'ruggable', url: 'https://ruggable.com/products/ryder-soft-white-plush-rug?size=6x9&system=rug-cvr', from: 'stored capture (a replaced proof page)' },
+  { site: 'ruggable', url: 'https://ruggable.com/products/sierra-soft-black-tufted-rug', from: 'stored capture (a replaced proof page; names no variant)' },
+  { site: 'kith', url: 'https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338', from: 'proof page 1' },
+  { site: 'kith', url: 'https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017', from: 'proof page 2' },
+  { site: 'kith', url: 'https://kith.com/collections/kith-women-sweatshirts/products/khwa030086-001', from: 'proof page 3' },
+  { site: 'kith', url: 'https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-001', from: 'stored capture' },
+  { site: 'kith', url: 'https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338?variant=45144758124672', from: 'derived: proof page 1 with its size L variant id (product .js)' },
+  { site: 'skullcandy', url: 'https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds?variant=44804831182905', from: 'run 860cacc7 item' },
+  { site: 'skullcandy', url: 'https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound?variant=45061353865273', from: 'run 860cacc7 item' },
+  { site: 'skullcandy', url: 'https://www.skullcandy.com/products/push-anc-active?variant=45276014772281', from: 'run 860cacc7 item' },
+  { site: 'skullcandy', url: 'https://www.skullcandy.com/products/hesh-540-anc-noise-canceling-headphones', from: 'run 860cacc7 item (names no variant)' },
+  { site: 'skullcandy', url: 'https://www.skullcandy.com/products/smokin-buds-true-wireless-earbuds', from: 'run 860cacc7 item (names no variant)' },
+  { site: 'glossier', url: 'https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832752373', from: 'proof page 1' },
+  { site: 'glossier', url: 'https://www.glossier.com/products/priming-moisturizer-rich?variant=43781983076597', from: 'proof page 2' },
+  { site: 'glossier', url: 'https://www.glossier.com/products/glossier-after-baume?variant=44416231604469', from: 'proof page 3' },
+  { site: 'glossier', url: 'https://www.glossier.com/products/milky-jelly-cleanser?variant=44415832785141', from: 'derived: proof page 1 with its 60 mL variant id (product .js)' },
+  { site: 'glossier', url: 'https://www.glossier.com/products/milky-jelly-cleanser', from: 'derived: proof page 1 without its query (names no variant)' },
+  { site: 'burrow', url: 'https://burrow.com/products/range-pro-109-3-seat-sofa?Fabric=Camel+-+Top+Grain+Leather', from: 'run fb5ee28d item (judge: base price stored)' },
+  { site: 'burrow', url: 'https://burrow.com/products/union-pro-108-3-seat-sofa?Fabric=Ivory+-+Performance+Chenille', from: 'run fb5ee28d item' },
+  { site: 'burrow', url: 'https://burrow.com/products/field-leather-2-piece-sofa?Fabric=Slate+-+Top+Grain+Leather&Leg+Finish=Oak+-+Wood', from: 'run fb5ee28d item' },
+  { site: 'burrow', url: 'https://burrow.com/products/ember-sofa?Size=75%22&Fabric=Georgia+Clay+-+Performance+Chenille&Leg+Finish=Walnut+-+Wood', from: 'run fb5ee28d item' },
+  { site: 'burrow', url: 'https://burrow.com/products/range-plus-3-piece-one-arm-sofa?Fabric=Moss+Green+-+Performance+Flatweave&Leg+Finish=Black+-+Metal', from: 'proof page 2' },
+  { site: 'puma', url: 'https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=16', from: 'run 3ca46d0a item (judge: rendered swatch 17)' },
+  { site: 'puma', url: 'https://us.puma.com/us/en/pd/deviate-nitro-4-mens-road-running-shoes/312123?swatch=17', from: 'run 3ca46d0a item' },
+  { site: 'puma', url: 'https://us.puma.com/us/en/pd/speedcat-og-sneakers/398846?swatch=94', from: 'run 3ca46d0a item' },
+  { site: 'puma', url: 'https://us.puma.com/us/en/pd/suede-classic-sneakers/399781?swatch=01', from: 'proof page 2' },
+  { site: 'puma', url: 'https://us.puma.com/us/en/pd/deviate-pure-nitro-mens-running-shoes/313904', from: 'derived: proof page 3 without its query (names no variant)' },
+];
+/** Pages asked twice more (stability): every third page, ten in all, at least one per site. */
+const V_REPEAT = (i: number) => i % 3 === 0;
+const V_MAX_OPTIONS = 40;
+const VH = 1500;
+
+type VOption = { id: string; label: string; raw: number };
+type VQuestion = { qid: string; role: 'selected' | 'named' | 'param'; kind: 'choice' | 'noul'; instructions: string; options?: Record<string, string>; param?: string };
+type VPage = {
+  id: string; site: string; url: string; from: string;
+  finalUrl?: string; pageTitle?: string; verdict?: string; crop?: string; clip?: { x: number; y: number; width: number; height: number };
+  list?: { source: string; path: string; count: number; axes: string[]; variesBy: string[] };
+  options?: VOption[]; cut?: string; optionNames?: string[];
+  named?: { ids: string[]; pairs: Array<{ name: string; value: string }>; labels: string[] };
+  /** The option the address alone names (id / pair / label matching, address half only); null: none or several. */
+  namedEntry?: string | null;
+  pageVariant?: unknown;
+  /** Our code's `[page]` answer: pickPageEntry over the same raw list with capture.pageVariant. */
+  ours?: string | null;
+  /** Glossier fallback only: what pickPageEntry would pick over the product.js list with capture.pageVariant. */
+  oursIfListed?: string | null;
+  questions: VQuestion[];
+  skipped?: string;
+};
+type VPlan = { set: 'v'; preparedAt: string; pages: VPage[] };
+
+/** a.b[0].c → the value there. */
+function getAt(root: unknown, path: string): unknown {
+  let cur: unknown = root;
+  for (const s of path.match(/[^.[\]]+|\[\d+\]/g) ?? []) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    cur = s.startsWith('[') ? (cur as unknown[])[Number(s.slice(1, -1))] : (cur as Obj)[s];
+  }
+  return cur;
+}
+const parentPath = (path: string) => path.replace(/(\.[^.[\]]+|\[\d+\])$/, '');
+const variesByOf = (container: unknown): string[] => {
+  if (!isObj(container)) return [];
+  const v = container.variesBy;
+  return (Array.isArray(v) ? v : v === undefined ? [] : [v]).filter((x): x is string => typeof x === 'string').map((t) => t.replace(/^https?:\/\/schema\.org\//i, '').trim()).filter(Boolean);
+};
+
+/** The raw array (unfiltered, as `[page]` sees it) behind a detected variant list, and its container. */
+function rawListFor(capture: { structuredData: { ldJson: unknown[] }; interceptedRequests: Array<{ isJson: boolean; parsedJson: unknown }> }, list: { source: string; path: string; count: number }, isVariantEntry: (e: Obj) => boolean): { arr: unknown[]; container: unknown } | null {
+  const roots: unknown[] = [];
+  if (list.source === 'json-ld') {
+    for (const b of capture.structuredData.ldJson) { if (!isObj(b)) continue; roots.push(b); if (Array.isArray(b['@graph'])) roots.push(...b['@graph']); }
+  } else {
+    for (const r of capture.interceptedRequests) if (r.isJson && r.parsedJson != null) roots.push(r.parsedJson);
+  }
+  for (const root of roots) {
+    const arr = getAt(root, list.path);
+    if (!Array.isArray(arr)) continue;
+    if (arr.filter(isObj).filter(isVariantEntry).length !== list.count) continue;
+    const pp = parentPath(list.path);
+    return { arr, container: pp === list.path ? root : pp === '' ? root : getAt(root, pp) };
+  }
+  return null;
+}
+
+/** An entry's verbatim name, title and option values (never a price, a stock level, an id or an address). */
+function entryLabel(e: Obj, axes: string[], entryAxisValue: (e: Obj, k: string) => string | undefined): string {
+  const parts: string[] = [];
+  const add = (v: unknown) => {
+    if (typeof v !== 'string' && typeof v !== 'number') return;
+    const t = String(v).replace(/\s+/g, ' ').trim();
+    if (!t || t.length > 140 || /^https?:/.test(t)) return;
+    if (parts.some((p) => p.toLowerCase().includes(t.toLowerCase()))) return;
+    parts.push(t);
+  };
+  add(e.name); add(e.title); add(e.public_title);
+  for (const a of axes) add(entryAxisValue(e, a));
+  for (const k of ['size', 'color', 'colour', 'option1', 'option2', 'option3']) add(e[k]);
+  for (const k of ['selectedOptions', 'options', 'additionalProperty']) {
+    const v = e[k];
+    for (const o of Array.isArray(v) ? v : isObj(v) ? [v] : []) {
+      if (isObj(o)) { if (typeof o.name === 'string' && (typeof o.value === 'string' || typeof o.value === 'number')) add(`${o.name}: ${o.value}`); }
+      else add(o);
+    }
+  }
+  return parts.join(' · ');
+}
+
+/** The option names the page data carries: the list's axes, `variesBy`, the entries' option names, and an API body's `options` names. */
+function optionNamesOf(list: { axes: string[] }, raw: unknown[], container: unknown, apiBodies: unknown[]): string[] {
+  const out = new Map<string, string>();
+  const add = (n: unknown) => { if (typeof n === 'string' && n.trim() && n.length <= 40) { const k = n.trim().toLowerCase(); if (!out.has(k)) out.set(k, n.trim()); } };
+  list.axes.forEach(add);
+  variesByOf(container).forEach(add);
+  for (const e of raw) {
+    if (!isObj(e)) continue;
+    for (const k of ['selectedOptions', 'options', 'additionalProperty']) {
+      const v = e[k];
+      for (const o of Array.isArray(v) ? v : isObj(v) ? [v] : []) if (isObj(o)) add(o.name);
+    }
+  }
+  const walk = (node: unknown, depth: number) => {
+    if (depth > 5 || node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.slice(0, 20).forEach((x) => walk(x, depth + 1)); return; }
+    const o = node as Obj;
+    if (Array.isArray(o.options) && Array.isArray(o.variants)) for (const x of o.options) add(isObj(x) ? x.name : x);
+    for (const v of Object.values(o)) walk(v, depth + 1);
+  };
+  apiBodies.forEach((b) => walk(b, 0));
+  return [...out.values()];
+}
+
+const ID_PARAM = /^(variant|variant_?id|sku)$/i;
+const decodePlus = (s: string) => s.replace(/\+/g, ' ');
+
+async function prepareV(): Promise<VPlan> {
+  const scraper = await import('@robot/scraper');
+  const { PlaywrightBrowser, verdictSentence, addressVariant } = await import('@robot/browser');
+  const browser = new PlaywrightBrowser();
+  await browser.launch({ headless: true, viewport: { width: W, height: H } });
+  type PageLike = { close: () => Promise<void>; screenshot: (o: Record<string, unknown>) => Promise<Buffer> };
+  let held: { page: PageLike; close: () => Promise<void> } | null = null;
+  const ctx = (browser as unknown as { context: { newPage: () => Promise<PageLike> } }).context;
+  const newPage = ctx.newPage.bind(ctx);
+  ctx.newPage = async () => { const p = await newPage(); const realClose = p.close.bind(p); p.close = async () => { held = { page: p, close: realClose }; }; return p; };
+  const pages: VPage[] = V_PAGES.map((p, i) => ({ id: `v${String(i + 1).padStart(2, '0')}`, ...p, questions: [] }));
+  const lastByHost = new Map<string, number>();
+  try {
+    for (const [i, vp] of pages.entries()) {
+      const host = new URL(vp.url).host;
+      const wait = Math.max(i > 0 ? PAGE_GAP_MS : 0, (lastByHost.get(host) ?? 0) + HOST_GAP_MS - Date.now());
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      lastByHost.set(host, Date.now());
+      console.log(`[jev] ${vp.id} ${vp.url}`);
+      held = null;
+      try {
+        const capture = await browser.capture(vp.url, {
+          waitUntil: 'load', interceptNetworkRequests: true, maxTiles: 1, annotate: annotateScript(),
+          ready: scraper.buildProofPageReadyCheck(vp.url), selection: scraper.buildSelectionScript(),
+        });
+        const page = held as { page: PageLike; close: () => Promise<void> } | null;
+        try {
+          vp.verdict = capture.verdict.kind;
+          if (capture.verdict.kind !== 'ok' && capture.verdict.kind !== 'wrong-variant') { vp.skipped = `walled: ${verdictSentence(capture.verdict, vp.url)}`; console.warn(`  ${vp.skipped}`); continue; }
+          const ann = capture.annotation as Annotation | undefined;
+          if (!ann || !page) { vp.skipped = 'no annotation'; continue; }
+          vp.finalUrl = capture.url;
+          vp.pageTitle = capture.title;
+          vp.pageVariant = capture.pageVariant;
+          const named = addressVariant(vp.url);
+          vp.named = { ids: named.ids, pairs: named.pairs.map((p) => ({ name: p.name, value: p.value })), labels: named.labels };
+          // The crop: 1440 x 1500 from the top, or from 300 px above the heading when it sits lower (the buy box).
+          const h1 = ann.h1s[0]?.rect;
+          const height = Math.max(256, Math.min(VH, ann.scrollHeight));
+          const y = Math.max(0, Math.min(h1 && h1.y > 500 ? h1.y - 300 : 0, ann.scrollHeight - height));
+          vp.clip = { x: 0, y, width: W, height };
+          const name = `v-${vp.id}-${slug(vp.site)}.png`;
+          writeFileSync(join(CROPS, name), await page.page.screenshot({ type: 'png', fullPage: true, clip: vp.clip, timeout: 60_000 }));
+          vp.crop = `crops/${name}`;
+
+          const lists = scraper.detectVariantLists(capture);
+          const apiBodies = capture.interceptedRequests.filter((r) => r.isJson && r.parsedJson != null).map((r) => r.parsedJson);
+          const list = lists[0];
+          const raw = list ? rawListFor(capture, list, scraper.isVariantEntry as (e: Obj) => boolean) : null;
+          if (list && raw) {
+            const variesBy = variesByOf(raw.container);
+            vp.list = { source: list.source, path: list.path, count: list.count, axes: list.axes, variesBy };
+            const entries = raw.arr.map((e, idx) => ({ e, idx })).filter((x) => isObj(x.e) && (scraper.isVariantEntry as (e: Obj) => boolean)(x.e as Obj));
+            let opts: VOption[] = entries.map((x, k) => ({ id: `e${k + 1}`, label: entryLabel(x.e as Obj, list.axes, scraper.entryAxisValue as (e: Obj, k: string) => string | undefined), raw: x.idx }));
+            // Empty or repeated labels: the sku (or the entry number) tells them apart.
+            const seen = new Map<string, number>();
+            for (const o of opts) seen.set(o.label, (seen.get(o.label) ?? 0) + 1);
+            for (const o of opts) {
+              if (o.label !== '' && seen.get(o.label) === 1) continue;
+              const e = raw.arr[o.raw] as Obj;
+              const sku = typeof e.sku === 'string' ? e.sku : typeof e.mpn === 'string' ? e.mpn : null;
+              o.label = `${o.label}${o.label ? ' ' : ''}(${sku ? `SKU ${sku}` : `entry ${o.raw + 1}`})`;
+            }
+            const axes = variesBy;
+            const pickIdx = (pv: unknown) => { const hit = scraper.pickPageEntry(raw.arr, pv as never, axes); return hit === undefined ? null : raw.arr.indexOf(hit); };
+            const oursIdx = capture.pageVariant ? pickIdx(capture.pageVariant) : null;
+            const namedIdx = named.pairs.length ? pickIdx({ ids: named.ids, pairs: named.pairs, labels: named.labels, named: true, selected: false }) : null;
+            if (opts.length > V_MAX_OPTIONS) {
+              const keep = new Set<number>([opts[0]!.raw, ...(oursIdx !== null ? [oursIdx] : []), ...(namedIdx !== null ? [namedIdx] : [])]);
+              const step = opts.length / (V_MAX_OPTIONS - keep.size);
+              for (let k = 0; keep.size < V_MAX_OPTIONS && k < opts.length; k = Math.floor(k + step) === k ? k + 1 : Math.floor(k + step)) keep.add(opts[k]!.raw);
+              vp.cut = `${opts.length} entries; asked about ${keep.size} (the first, the address's match, our code's pick and a spread)`;
+              opts = opts.filter((o) => keep.has(o.raw));
+            }
+            vp.options = opts;
+            const idOf = (idx: number | null) => (idx === null ? null : opts.find((o) => o.raw === idx)?.id ?? `raw#${idx}`);
+            vp.ours = idOf(oursIdx);
+            vp.namedEntry = named.pairs.length ? idOf(namedIdx) : null;
+            vp.optionNames = optionNamesOf(list, raw.arr, raw.container, apiBodies);
+          } else {
+            vp.optionNames = [];
+            // No list in the capture (Glossier): the store's public product JSON (`<product>.js`) gives the options for the
+            // Choice, labelled by the variant titles. Our code had no list, so its `[page]` answer is nothing; what
+            // pickPageEntry would pick were that list in the page data is recorded beside it (oursIfListed).
+            try {
+              const u = new URL(capture.url);
+              // Node's fetch fails now and then against this host ("fetch failed"): three tries.
+              let res: Response | null = null;
+              for (let t = 0; t < 3 && !res; t++) {
+                res = await fetch(`${u.origin}${u.pathname.replace(/\/$/, '')}.js`, { headers: { 'user-agent': 'Mozilla/5.0' } }).catch(() => null);
+                if (!res) await new Promise((r) => setTimeout(r, 2_000));
+              }
+              if (!res) throw new Error('fetch failed three times');
+              const js = res.ok ? await res.json() as Obj : null;
+              const vs = js && Array.isArray(js.variants) ? (js.variants as Obj[]) : [];
+              if (vs.length >= 2) {
+                vp.list = { source: 'product.js (fallback: not in the capture)', path: 'variants', count: vs.length, axes: [], variesBy: [] };
+                vp.options = vs.map((v, k) => ({ id: `e${k + 1}`, label: String(v.title ?? v.public_title ?? `entry ${k + 1}`), raw: k }));
+                vp.ours = null;
+                const hit = capture.pageVariant ? scraper.pickPageEntry(vs, capture.pageVariant as never, []) : undefined;
+                vp.oursIfListed = hit === undefined ? null : `e${vs.indexOf(hit as Obj) + 1}`;
+                const nIdx = named.ids.length ? vs.findIndex((v) => named.ids.includes(String(v.id))) : -1;
+                vp.namedEntry = named.pairs.length ? (nIdx >= 0 ? `e${nIdx + 1}` : null) : null;
+                vp.optionNames = Array.isArray(js!.options) ? (js!.options as unknown[]).map((o) => (isObj(o) ? String(o.name) : String(o))) : [];
+              }
+            } catch (err) { console.warn(`  product.js fallback failed: ${(err as Error).message}`); }
+          }
+          // Questions.
+          if (vp.options?.length) {
+            vp.questions.push({
+              qid: `${vp.id}-sel`, role: 'selected', kind: 'choice',
+              instructions: 'Which of the product\'s variants does the screenshot show as selected — the highlighted size, colour or option in the picker, or the variant named beside the price?',
+              options: { ...Object.fromEntries(vp.options.map((o) => [o.id, o.label])), none: 'None: the screenshot shows no variant as selected' },
+            });
+          }
+          const labelPairs = named.pairs.filter((p) => !ID_PARAM.test(p.name));
+          if (labelPairs.length) {
+            // The pairs that name an option: its name is an option name, or its value is in some entry's label (Ruggable's
+            // `system=rug-cvr` is neither); when none does (Puma's `swatch=16`), all of them.
+            const names = new Set((vp.optionNames ?? []).map((n) => n.toLowerCase()));
+            const inLabels = (v: string) => (vp.options ?? []).some((o) => normText(o.label).includes(normText(decodePlus(v))));
+            const onOptions = labelPairs.filter((p) => names.has(p.name.toLowerCase()) || inLabels(p.value));
+            const said = (onOptions.length ? onOptions : labelPairs).map((p) => `${decodePlus(p.name)} ${decodePlus(p.value)}`).join(' and ');
+            vp.questions.push({ qid: `${vp.id}-named`, role: 'named', kind: 'noul', instructions: `Is the variant with ${said} the one selected on the screenshot?` });
+          } else if (named.ids.length && vp.namedEntry && vp.options) {
+            const o = vp.options.find((x) => x.id === vp.namedEntry);
+            if (o) vp.questions.push({ qid: `${vp.id}-named`, role: 'named', kind: 'noul', instructions: `Is "${o.label}" the variant selected on the screenshot?` });
+          }
+          if (vp.optionNames?.length) {
+            for (const [k, p] of labelPairs.entries()) {
+              vp.questions.push({
+                qid: `${vp.id}-param${k + 1}`, role: 'param', kind: 'choice', param: `${p.name}=${p.value}`,
+                instructions: `The page's address carries the parameter "${decodePlus(p.name)}=${decodePlus(p.value)}". Which of the product's options does that parameter choose?`,
+                options: { ...Object.fromEntries(vp.optionNames.map((n, j) => [`o${j + 1}`, n])), none: 'None of these options' },
+              });
+            }
+          }
+          if (vp.questions.length === 0) vp.skipped = 'nothing to ask (no variant list, no address value)';
+          console.log(`  verdict ${vp.verdict}; list ${vp.list ? `${vp.list.source} ${vp.list.path} ×${vp.list.count}` : 'none'}; ours ${vp.ours ?? '-'}; named ${vp.namedEntry ?? '-'}; options ${vp.optionNames?.join('/')}; ${vp.questions.length} q`);
+        } finally {
+          await page?.close().catch(() => {});
+        }
+      } catch (err) {
+        vp.skipped = `capture failed: ${(err instanceof Error ? err.message : String(err)).split('\n')[0]}`;
+        console.warn(`  ${vp.skipped}`);
+      }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+  const plan: VPlan = { set: 'v', preparedAt: new Date().toISOString(), pages };
+  writeFileSync(join(OUT, 'plan-v.json'), JSON.stringify(plan, null, 2));
+  return plan;
+}
+
+async function sendV(plan: VPlan): Promise<void> {
+  const { sdk, client } = await makeClient();
+  const store = readStore();
+  const sendable = plan.pages.filter((p) => !p.skipped && p.crop && p.questions.length);
+  let errStreak = 0;
+  for (let rep = 1; rep <= 3; rep++) {
+    for (const p of sendable) {
+      if (rep > 1 && !V_REPEAT(plan.pages.indexOf(p))) continue;
+      if (store.answers.some((a) => a.set === 'v' && a.repeat === rep && a.qid === p.questions[0]!.qid)) continue;
+      const est = IMAGE_TOKENS_EST * (VH / H) + JSON.stringify(p.questions).length / 4 + 200;
+      if (!capOk(store, est, p.questions.length)) return;
+      const qs = p.questions.map((q) => ({ id: q.qid }) as Planned);
+      const c = await call(store, sdk, client, { set: 'v', kind: 'main', url: p.url, crop: p.crop!, repeat: rep }, qs, (img) => ({
+        state: { screenshot: img as never, page_title: p.pageTitle ?? '', variants: (p.options ?? []).map((o) => ({ id: o.id, value: o.label })), ...(p.optionNames?.length ? { option_names: p.optionNames } : {}) },
+        questions: Object.fromEntries(p.questions.map((q) => [`q_${q.qid}`, q.kind === 'choice' ? sdk.choice(q.instructions, q.options!) : sdk.noul(q.instructions)])),
+      }));
+      errStreak = c.error ? errStreak + 1 : 0;
+      if (errStreak >= 5) { console.warn('[jev] ABORT: 5 failed requests in a row'); return; }
+    }
+  }
+}
+
+// Set d.
+const EXP1 = join(repoRoot, 'docs', 'testing', 'results', '2026-10-15-jev-images');
+
+/** In-page: hide overlays, then find the deepest element holding one of the needles — rendered first, else anywhere (a collapsed section). */
+function descScript(needles: string[]): string {
+  return `(() => {
+    const vw = window.innerWidth * window.innerHeight;
+    for (const el of Array.from(document.querySelectorAll("body *"))) {
+      const cs = window.getComputedStyle(el); if (cs.display === "none" || cs.visibility === "hidden") continue;
+      if (/MODAL|DIALOG|DRAWER|LIGHTBOX/.test(el.tagName) && el.hasAttribute("open")) { el.style.setProperty("display", "none", "important"); continue; }
+      const modal = el.getAttribute("aria-modal") === "true" || el.getAttribute("role") === "dialog" || el.tagName === "DIALOG";
+      if (cs.position !== "fixed" && !modal) continue;
+      const r = el.getBoundingClientRect(); if (r.width * r.height >= 0.25 * vw) el.style.setProperty("display", "none", "important");
+    }
+    document.documentElement.style.setProperty("overflow", "auto", "important"); if (document.body) document.body.style.setProperty("overflow", "auto", "important");
+    const needles = ${JSON.stringify(needles)};
+    const norm = (s) => (s || "").normalize("NFKC").replace(/[\\u2018\\u2019\\u02bc]/g, "'").replace(/[\\u201c\\u201d]/g, '"').replace(/\\s+/g, " ").trim().toLowerCase();
+    const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "svg", "SVG"]);
+    const rendered = (el) => el.getClientRects().length > 0;
+    const textOf = (el, visible) => {
+      if (visible) return norm(el.innerText);
+      const c = el.cloneNode(true); for (const s of Array.from(c.querySelectorAll("script,style,noscript,template"))) s.remove(); return norm(c.textContent);
+    };
+    const descend = (visible) => {
+      let cur = document.body; let needle = null;
+      if (!cur) return null;
+      const t0 = textOf(cur, visible); needle = needles.find((n) => t0.includes(n)) || null;
+      if (!needle) return null;
+      for (;;) {
+        let next = null;
+        for (const ch of Array.from(cur.children)) {
+          if (SKIP.has(ch.tagName)) continue;
+          if (visible && !rendered(ch)) continue;
+          if (textOf(ch, visible).includes(needle)) { next = ch; break; }
+        }
+        if (!next) return { el: cur, needle };
+        cur = next;
+      }
+    };
+    const rectOf = (el) => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY), w: Math.round(r.width), h: Math.round(r.height) }; };
+    let hit = descend(true); let found = hit ? "visible" : "none";
+    if (!hit) { hit = descend(false); if (hit) found = "hidden"; }
+    const h1 = document.querySelector("h1");
+    const out = { found, scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight, h1: h1 ? rectOf(h1) : null };
+    if (!hit) return out;
+    const el = hit.el;
+    out.needle = hit.needle; out.tag = el.tagName.toLowerCase(); out.rect = rectOf(el);
+    // Why it is not on screen, if it is not: a closed <details>, a display:none / hidden / aria-hidden ancestor, a zero or clipped box.
+    const reasons = [];
+    let anchor = null;
+    for (let a = el; a && a !== document.body; a = a.parentElement) {
+      const cs = window.getComputedStyle(a);
+      if (a.tagName === "DETAILS" && !a.open) reasons.push("closed <details>");
+      if (cs.display === "none") reasons.push("display:none on <" + a.tagName.toLowerCase() + (a.className && typeof a.className === "string" ? " ." + a.className.split(/\\s+/)[0] : "") + ">");
+      if (cs.visibility === "hidden") reasons.push("visibility:hidden");
+      if (a.getAttribute("aria-hidden") === "true") reasons.push("aria-hidden");
+      if (a.hasAttribute("hidden")) reasons.push("hidden attribute");
+      const r = a.getBoundingClientRect();
+      if (r.height > 0 && r.height < 4 && cs.overflow !== "visible") reasons.push("collapsed to " + Math.round(r.height) + "px");
+      if (!anchor && r.width > 0 && r.height > 0) anchor = a;
+    }
+    const r0 = el.getBoundingClientRect();
+    if (r0.width <= 0 || r0.height <= 0) reasons.push("zero box");
+    out.collapsed = Array.from(new Set(reasons)).join("; ");
+    out.anchorRect = anchor ? rectOf(anchor) : null;
+    // A collapsed section: crop at the section's header (the nearest rendered ancestor's top).
+    return out;
+  })()`;
+}
+type DAnn = { found: 'visible' | 'hidden' | 'none'; scrollWidth: number; scrollHeight: number; h1: Rect | null; needle?: string; tag?: string; rect?: Rect; collapsed?: string; anchorRect?: Rect | null };
+
+/** The needles: 40-character windows of the value (normalised), the start first, then past a "Name. " prefix, then the middle. */
+function descNeedles(v: unknown): string[] {
+  const n = normText(String(v));
+  const out = [n.slice(0, 40)];
+  const dot = n.indexOf('. ');
+  if (dot > 0 && dot < 120) out.push(n.slice(dot + 2, dot + 42));
+  for (const at of [40, 100, 200]) if (n.length >= at + 40) out.push(n.slice(at, at + 40));
+  return [...new Set(out.filter((s) => s.length >= 25))];
+}
+/** The element's own box with a 40 px margin, each side within 400..1440 (width) / 400..1500 (height) — TypeSafe answered "400 Invalid image dimensions" to a 450x256 crop, so 256 is not a usable minimum, clamped to the document; a box taller than 1500 keeps its top. */
+const D_MIN = 400;
+function cropAround(r: Rect, docW: number, docH: number): { x: number; y: number; width: number; height: number } {
+  const m = 40;
+  const width = Math.max(D_MIN, Math.min(W, r.w + 2 * m));
+  const height = Math.max(D_MIN, Math.min(VH, r.h + 2 * m, docH));
+  const cx = r.x + r.w / 2;
+  const x = Math.max(0, Math.min(Math.round(r.w + 2 * m > W ? r.x - m : cx - width / 2), Math.max(0, docW - width)));
+  const y0 = r.h + 2 * m > VH ? r.y - m : r.y + r.h / 2 - height / 2;
+  const y = Math.max(0, Math.min(Math.round(y0), Math.max(0, docH - height)));
+  return { x, y, width, height };
+}
+
+async function prepareD(): Promise<Plan> {
+  const p1 = JSON.parse(readFileSync(join(EXP1, 'plan-b.json'), 'utf8')) as Plan;
+  const s1 = JSON.parse(readFileSync(join(EXP1, 'answers.json'), 'utf8')) as Store;
+  const prev = new Map(s1.answers.filter((a) => a.set === 'b' && a.kind === 'main' && a.repeat === 1).map((a) => [a.qid, a.noul]));
+  const picked = p1.questions.filter((q) => q.judge === 'correct' && q.field.key === 'description' && (prev.get(q.id) ?? 1) < 0.5);
+  console.log(`[jev] set d: ${picked.length} description false alarms from experiment 1`);
+  const { PlaywrightBrowser, verdictSentence } = await import('@robot/browser');
+  const browser = new PlaywrightBrowser();
+  await browser.launch({ headless: true, viewport: { width: W, height: H } });
+  type PageLike = { close: () => Promise<void>; screenshot: (o: Record<string, unknown>) => Promise<Buffer> };
+  let held: { page: PageLike; close: () => Promise<void> } | null = null;
+  const ctx = (browser as unknown as { context: { newPage: () => Promise<PageLike> } }).context;
+  const newPage = ctx.newPage.bind(ctx);
+  ctx.newPage = async () => { const p = await newPage(); const realClose = p.close.bind(p); p.close = async () => { held = { page: p, close: realClose }; }; return p; };
+  const questions: Planned[] = [];
+  const walled: Plan['walled'] = [];
+  const lastByHost = new Map<string, number>();
+  try {
+    for (const [i, q1] of picked.entries()) {
+      const q: Planned = {
+        id: `d${String(i + 1).padStart(2, '0')}`, set: 'd', group: q1.site, site: q1.site, url: q1.url, field: q1.field, kind: 'noul', value: q1.value,
+        judge: q1.judge, prevId: q1.id, prevNoul: prev.get(q1.id), prevCrop: q1.crop, prevCropMode: q1.cropMode,
+      };
+      questions.push(q);
+      const host = new URL(q.url).host;
+      const wait = Math.max(i > 0 ? PAGE_GAP_MS : 0, (lastByHost.get(host) ?? 0) + HOST_GAP_MS - Date.now());
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      lastByHost.set(host, Date.now());
+      console.log(`[jev] ${q.id} (${q1.id}) ${q.url}`);
+      held = null;
+      try {
+        const capture = await browser.capture(q.url, { waitUntil: 'load', maxTiles: 1, annotate: descScript(descNeedles(q.value)) });
+        const page = held as { page: PageLike; close: () => Promise<void> } | null;
+        try {
+          if (capture.verdict.kind !== 'ok' && capture.verdict.kind !== 'wrong-variant') { const reason = verdictSentence(capture.verdict, q.url); walled.push({ url: q.url, reason }); q.skipped = `walled: ${reason}`; continue; }
+          const ann = capture.annotation as DAnn | undefined;
+          if (!ann || !page) { q.skipped = 'no annotation'; continue; }
+          q.pageTitle = capture.title;
+          q.found = ann.found;
+          q.collapsed = ann.collapsed || undefined;
+          const target = ann.found === 'visible' ? ann.rect : ann.found === 'hidden' ? (ann.anchorRect ?? null) : null;
+          let clip: { x: number; y: number; width: number; height: number };
+          if (target && target.w > 0 && target.h > 0) {
+            // A collapsed section: the rendered ancestor can be the whole page; crop at the top of it, never more than 1440 x 1500.
+            clip = cropAround(ann.found === 'hidden' ? { ...target, h: Math.min(target.h, 600) } : target, ann.scrollWidth, ann.scrollHeight);
+            q.cropMode = ann.found === 'visible' ? 'element' : 'hint';
+          } else {
+            clip = cropFor(ann.h1 ?? null, ann.scrollWidth, ann.scrollHeight).clip;
+            q.cropMode = 'fallback';
+          }
+          q.target = target ?? null;
+          q.elRect = ann.rect ?? null;
+          q.instructions = noulInstructions(q.field, q.value);
+          const name = `d-${q.id}-${slug(q.site)}.png`;
+          writeFileSync(join(CROPS, name), await page.page.screenshot({ type: 'png', fullPage: true, clip, timeout: 60_000 }));
+          q.crop = `crops/${name}`;
+          q.clip = clip;
+          console.log(`  found ${ann.found}${ann.collapsed ? ` (${ann.collapsed})` : ''} <${ann.tag ?? '-'}> rect ${JSON.stringify(ann.rect ?? null)} → crop ${clip.width}x${clip.height} at ${clip.x},${clip.y}`);
+        } finally {
+          await page?.close().catch(() => {});
+        }
+      } catch (err) {
+        const msg = (err instanceof Error ? err.message : String(err)).split('\n')[0]!;
+        walled.push({ url: q.url, reason: `capture failed: ${msg}` });
+        q.skipped = `capture failed: ${msg}`;
+      }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+  const plan: Plan = { set: 'd', preparedAt: new Date().toISOString(), viewport: { width: W, height: H }, questions, walled, pages: [] };
+  writeFileSync(join(OUT, 'plan-d.json'), JSON.stringify(plan, null, 2));
+  return plan;
+}
+
+// Report (sets v and d).
+type VTruth = Record<string, { selected?: string; named?: 'yes' | 'no'; params?: Record<string, string>; unclear?: boolean; why: string }>;
+
+function reportVD(): void {
+  const store = readStore();
+  const pv = existsSync(join(OUT, 'plan-v.json')) ? JSON.parse(readFileSync(join(OUT, 'plan-v.json'), 'utf8')) as VPlan : null;
+  const pd = existsSync(join(OUT, 'plan-d.json')) ? JSON.parse(readFileSync(join(OUT, 'plan-d.json'), 'utf8')) as Plan : null;
+  const truth = existsSync(join(OUT, 'truth-v.json')) ? JSON.parse(readFileSync(join(OUT, 'truth-v.json'), 'utf8')) as VTruth : {};
+  const main = store.answers.filter((a) => a.kind === 'main');
+  const okCalls = store.calls.filter((c) => !c.error);
+  const tok = tokensOf(store.calls);
+  const L: string[] = [];
+  L.push('# Jev with images, experiment 2 — variants', '');
+  L.push('Spec: `docs/superpowers/specs/2026-10-15-jev-images-experiment.md` (inputs, §2) and experiment 1\'s results `docs/testing/results/2026-10-15-jev-images/report.md`; the variant feature: `docs/superpowers/specs/2026-10-14-variant-from-the-address-design.md`. CLI: `packages/api/src/jev-images-run.ts --set v|d`. Model `' + MODEL + '`, header `TypeSafe-Danger-Zone-Images: true`.', '');
+  L.push(`- Requests: ${store.calls.length} (${store.calls.filter((c) => c.error).length} failed). Answers: ${store.answers.length}. Input tokens ${tok.toLocaleString('en-US')}.`);
+  L.push(`- **Cost: $${(tok * USD_PER_TOKEN).toFixed(4)}** (input tokens × $0.042 / 1M; hard cap $1.00 / 400 questions in code).`);
+  if (okCalls.length) L.push(`- Latency per request: median ${median(okCalls.map((c) => c.ms))} ms; input tokens per call median ${median(okCalls.map((c) => c.input_tokens ?? 0))}.`);
+  L.push('');
+  if (pv) {
+    const ans = (qid: string, rep = 1) => main.find((a) => a.set === 'v' && a.qid === qid && a.repeat === rep);
+    const label = (p: VPage, id: string | null | undefined) => (id == null ? 'nothing' : id === 'none' ? 'none shown' : `${id} "${(p.options?.find((o) => o.id === id)?.label ?? id).slice(0, 50)}"`);
+    L.push('## Set V — which variant does the page show', '');
+    L.push(`Fresh captures (${pv.preparedAt}) with our own Chromium: \`load\` + the proof-page ready check, network interception and the variant selection script, as Verify captures; overlays hidden; crop ${W}×${VH} from the top (or from 300 px above the heading when it sits lower). The variant list is the first one \`detectVariantLists\` finds; options are its entries' verbatim name/title/option values (no price, stock or id), \`none\` added. "Ours" is \`pickPageEntry\` over the same raw list with \`capture.pageVariant\` — the entry a \`[page]\` path would read, or nothing. Truth by reading each crop (\`truth-v.json\`, with the reason).`, '');
+    type Row = { p: VPage; t?: VTruth[string]; a?: Answer; jevRight?: boolean; oursRight?: boolean };
+    const rows: Row[] = pv.pages.map((p) => {
+      const t = truth[p.id];
+      const a = ans(`${p.id}-sel`);
+      const scored = !!t && !t.unclear && t.selected !== undefined && !!a;
+      return { p, t, a, jevRight: scored ? a!.choice === t!.selected : undefined, oursRight: scored ? (p.ours ?? 'none') === t!.selected || (p.ours == null && t!.selected === 'none') : undefined };
+    });
+    L.push('| Site | Pages | Scored (truth clear) | Jev right | Our code right | Both right | Jev only | Ours only | Both wrong |', '|---|---:|---:|---:|---:|---:|---:|---:|---:|');
+    const sites = [...new Set(pv.pages.map((p) => p.site))];
+    const line = (name: string, rs: Row[]) => {
+      const s = rs.filter((r) => r.jevRight !== undefined);
+      L.push(`| ${name} | ${rs.length} | ${s.length} | ${s.filter((r) => r.jevRight).length}/${s.length} | ${s.filter((r) => r.oursRight).length}/${s.length} | ${s.filter((r) => r.jevRight && r.oursRight).length} | ${s.filter((r) => r.jevRight && !r.oursRight).length} | ${s.filter((r) => !r.jevRight && r.oursRight).length} | ${s.filter((r) => !r.jevRight && !r.oursRight).length} |`);
+    };
+    for (const s of sites) line(s, rows.filter((r) => r.p.site === s));
+    line('**all**', rows);
+    L.push('');
+    L.push('"Our code right" counts nothing (no single match) as right only when the truth is `none shown`; a `[page]` path that resolves to nothing leaves the cell empty, which is not a wrong value but is not the shown variant either.', '');
+    L.push('### Per page', '', '| Page | Address (from) | List | Truth (selected) | Jev | p | Ours | Address names | Noul p(yes) / truth | Params: Jev / truth | Crop |', '|---|---|---|---|---|---:|---|---|---|---|---|');
+    for (const r of rows) {
+      const p = r.p;
+      if (p.skipped) { L.push(`| ${p.id} | ${short(p.url)} (${p.from}) | | not asked: ${p.skipped} | | | | | | | |`); continue; }
+      const n = ans(`${p.id}-named`);
+      const params = p.questions.filter((q) => q.role === 'param').map((q) => {
+        const a = ans(q.qid);
+        const jn = a?.choice === 'none' ? 'none' : q.options?.[a?.choice ?? ''] ?? '?';
+        return `${q.param}: ${jn} / ${r.t?.params?.[q.param!] ?? '?'}`;
+      }).join('; ');
+      const tsel = r.t ? (r.t.unclear ? 'unclear' : label(p, r.t.selected)) : '?';
+      L.push(`| ${p.id} ${p.site} | ${short(p.url).replace(/\|/g, '\\|')} (${p.from}) | ${p.list ? `${p.list.source} \`${p.list.path}\` ×${p.list.count}${p.cut ? ` (${p.options?.length} asked)` : ''}` : 'none'} | ${tsel.replace(/\|/g, '\\|')} | ${r.a ? label(p, r.a.choice).replace(/\|/g, '\\|') : '—'}${r.jevRight === undefined ? '' : r.jevRight ? ' ✓' : ' ✗'} | ${r.a?.confidence?.toFixed(2) ?? ''} | ${label(p, p.ours).replace(/\|/g, '\\|')}${p.oursIfListed !== undefined ? ` (if listed: ${p.oursIfListed ?? 'nothing'})` : ''}${r.oursRight === undefined ? '' : r.oursRight ? ' ✓' : ' ✗'} | ${p.namedEntry !== undefined && p.named?.pairs.length ? label(p, p.namedEntry).replace(/\|/g, '\\|') : '—'} | ${n ? `${n.noul!.toFixed(3)} / ${r.t?.named ?? '?'}` : '—'} | ${params.replace(/\|/g, '\\|') || '—'} | [crop](${p.crop}) |`);
+    }
+    L.push('');
+    // Noul.
+    const nouls = pv.pages.filter((p) => truth[p.id]?.named && ans(`${p.id}-named`));
+    const nRight = nouls.filter((p) => (ans(`${p.id}-named`)!.noul! >= 0.5) === (truth[p.id]!.named === 'yes'));
+    L.push('## Does the page show the variant the address names (Noul)', '');
+    L.push(`- **${nRight.length}/${nouls.length} right** (p(yes) ≥ 0.5 = yes). Truth yes: ${nouls.filter((p) => truth[p.id]!.named === 'yes').length}, no: ${nouls.filter((p) => truth[p.id]!.named === 'no').length}.`);
+    for (const p of nouls.filter((x) => !nRight.includes(x))) L.push(`  - wrong: ${p.id} ${short(p.url)} — "${p.questions.find((q) => q.role === 'named')!.instructions}" p(yes) ${ans(`${p.id}-named`)!.noul!.toFixed(3)}, truth ${truth[p.id]!.named}`);
+    L.push('');
+    // Params.
+    const pq = pv.pages.flatMap((p) => p.questions.filter((q) => q.role === 'param').map((q) => ({ p, q, a: ans(q.qid), t: truth[p.id]?.params?.[q.param!] })));
+    const pScored = pq.filter((x) => x.a && x.t !== undefined);
+    const jevParam = (x: { q: VQuestion; a?: Answer }) => (x.a!.choice === 'none' ? 'none' : x.q.options?.[x.a!.choice!] ?? '?');
+    /** A truth may list alternatives (Burrow's Fabric is a colour and a material: 'color|material'). */
+    const pRight = pScored.filter((x) => x.t!.split('|').includes(jevParam(x)));
+    L.push('## Which option does each address parameter set (Choice)', '');
+    L.push(`- **${pRight.length}/${pScored.length} right.**`);
+    for (const x of pScored.filter((y) => !pRight.includes(y))) L.push(`  - wrong: ${x.p.id} ${x.q.param} → ${x.a!.choice === 'none' ? 'none' : x.q.options?.[x.a!.choice!]} (truth ${x.t}; options ${x.p.optionNames?.join(', ')})`);
+    L.push('');
+    // Stability.
+    const rep = pv.pages.filter((p) => main.some((a) => a.set === 'v' && a.repeat === 3 && a.qid.startsWith(`${p.id}-`)));
+    if (rep.length) {
+      L.push('## Stability (the Choice asked three times on ten pages)', '');
+      let flips = 0, maxMove = 0;
+      for (const p of rep) {
+        const as = [1, 2, 3].map((r) => ans(`${p.id}-sel`, r)).filter((a): a is Answer => !!a);
+        if (as.length < 3) continue;
+        const same = as.every((a) => a.choice === as[0]!.choice);
+        if (!same) flips++;
+        const c0 = as[0]!.choice!;
+        const ps = as.map((a) => a.probabilities?.[c0] ?? 0);
+        maxMove = Math.max(maxMove, Math.max(...ps) - Math.min(...ps));
+        L.push(`- ${p.id} ${p.site}: ${as.map((a) => `${a.choice} (${(a.confidence ?? 0).toFixed(2)})`).join(' / ')}${same ? '' : ' **flipped**'}`);
+      }
+      const otherFlips = rep.flatMap((p) => p.questions.filter((q) => q.role !== 'selected').map((q) => [1, 2, 3].map((r) => ans(q.qid, r)))).filter((as) => as.every(Boolean) && !as.every((a) => (a!.choice ?? String(a!.noul! >= 0.5)) === (as[0]!.choice ?? String(as[0]!.noul! >= 0.5)))).length;
+      L.push('', `- **${flips} of ${rep.length} Choice answers flipped**; the first answer's probability moved by at most ${maxMove.toFixed(2)}. Noul and parameter answers on the same pages that flipped: ${otherFlips}.`, '');
+    }
+  }
+  if (pd) {
+    const ds = pd.questions;
+    const a = (q: Planned) => main.find((x) => x.set === 'd' && x.qid === q.id && x.repeat === 1);
+    const asked = ds.filter((q) => a(q));
+    const yes = asked.filter((q) => a(q)!.noul! >= 0.5);
+    L.push('## Set D — description false alarms with a crop around the description', '');
+    L.push(`Experiment 1's ${ds.length} description values the judge called correct and Jev said no to (set B, p(yes) < 0.5), re-captured (\`load\`, overlays hidden) and cropped around the description element's own box: the deepest element whose rendered text holds a 40-character window of the stored value (its start, past a "Name. " prefix, or further in), with a 40 px margin, each side 400–${W} / 400–${VH} px (a first attempt with a 256 px minimum got "400 Invalid image dimensions" on its 450×256 crops; d01–d06, whose crops were larger, kept their answers); when only hidden text holds it (a collapsed section), the nearest rendered ancestor and the reason are recorded and the crop sits at that ancestor's top. The same Noul as experiment 1.`, '');
+    L.push(`- **${yes.length} of ${asked.length} now answer yes** (${ds.length - asked.length} not asked: ${ds.filter((q) => !a(q)).map((q) => `${q.id} ${q.skipped ?? ''}`).join('; ') || '—'}).`);
+    const by = (f: (q: Planned) => boolean) => { const s = asked.filter(f); return `${s.filter((q) => a(q)!.noul! >= 0.5).length}/${s.length}`; };
+    L.push(`- Found rendered: ${by((q) => q.found === 'visible')} yes; found only in hidden text (collapsed): ${by((q) => q.found === 'hidden')} yes; not found in the page at all: ${by((q) => q.found === 'none')} yes.`);
+    for (const s of [...new Set(ds.map((q) => q.site))]) L.push(`- ${s}: ${by((q) => q.site === s)} yes.`);
+    L.push('', '| Id (exp. 1) | Page | Stored value (start) | Found | Collapsed | Exp. 1 p(yes) / crop | Now p(yes) | Crop |', '|---|---|---|---|---|---|---:|---|');
+    for (const q of ds) {
+      const x = a(q);
+      L.push(`| ${q.id} (${q.prevId}) | ${short(q.url)} | ${cellText(q.value)} | ${q.found ?? '—'} | ${q.collapsed ?? ''} | ${q.prevNoul?.toFixed(3) ?? '?'} / ${q.prevCropMode} | ${x ? x.noul!.toFixed(3) : `not asked: ${q.skipped ?? ''}`} | ${q.crop ? `[${q.cropMode}](${q.crop})` : ''} |`);
+    }
+    L.push('');
+  }
+  if (existsSync(join(OUT, 'reading.md'))) L.push(readFileSync(join(OUT, 'reading.md'), 'utf8'));
+  writeFileSync(join(OUT, 'report.md'), `${L.join('\n')}\n`);
+  console.log(`[jev] wrote ${join(OUT, 'report.md')}`);
+}
+
+async function mainVD(): Promise<void> {
+  if (reportOnly) { reportVD(); return; }
+  if (set === 'v') {
+    const path = join(OUT, 'plan-v.json');
+    const plan = !recapture && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) as VPlan : await prepareV();
+    const sendable = plan.pages.filter((p) => !p.skipped && p.crop && p.questions.length);
+    const nq = sendable.reduce((n, p) => n + p.questions.length, 0);
+    const nRep = sendable.filter((p) => V_REPEAT(plan.pages.indexOf(p))).reduce((n, p) => n + p.questions.length, 0);
+    const calls = sendable.length + 2 * sendable.filter((p) => V_REPEAT(plan.pages.indexOf(p))).length;
+    console.log(`[jev] set v: ${plan.pages.length} pages, ${sendable.length} sendable, ${nq} questions + ${2 * nRep} on repeats, ${calls} calls; estimate ≈ $${(calls * IMAGE_TOKENS_EST * 1.5 * USD_PER_TOKEN).toFixed(4)}; spent so far $${(tokensOf(readStore().calls) * USD_PER_TOKEN).toFixed(4)} of $${capUsd.toFixed(2)}`);
+    for (const p of plan.pages) {
+      console.log(`  ${p.id} ${p.site} ${p.skipped ? `SKIPPED ${p.skipped}` : `${p.list ? `${p.list.source}:${p.list.path}×${p.list.count}` : 'no list'} ours=${p.ours ?? '-'} named=${p.namedEntry ?? '-'} names=[${p.optionNames?.join(', ')}]`}`);
+      for (const o of (p.options ?? []).slice(0, 6)) console.log(`      ${o.id} ${o.label.slice(0, 90)}`);
+      if ((p.options?.length ?? 0) > 6) console.log(`      … ${p.options!.length - 6} more`);
+      for (const q of p.questions.filter((x) => x.role !== 'selected')) console.log(`      [${q.role}] ${q.instructions}`);
+    }
+    if (dryRun) { console.log('[jev] --dry-run: nothing sent.'); return; }
+    await sendV(plan);
+  } else {
+    const path = join(OUT, 'plan-d.json');
+    const plan = !recapture && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) as Plan : await prepareD();
+    const sendable = plan.questions.filter((q) => !q.skipped && q.crop);
+    console.log(`[jev] set d: ${plan.questions.length} values, ${sendable.length} sendable; spent so far $${(tokensOf(readStore().calls) * USD_PER_TOKEN).toFixed(4)} of $${capUsd.toFixed(2)}`);
+    for (const q of plan.questions) console.log(`  ${q.id} ${q.site} found=${q.found ?? '-'} ${q.collapsed ?? ''} crop=${q.cropMode} ${q.skipped ?? ''}`);
+    if (dryRun) { console.log('[jev] --dry-run: nothing sent.'); return; }
+    await send(plan, 1);
+  }
+  reportVD();
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
+if (VD) { await mainVD(); process.exit(0); }
 if (reportOnly) { report(); process.exit(0); }
 const planPath = join(OUT, `plan-${set!}.json`);
-const plan = !recapture && existsSync(planPath) ? JSON.parse(readFileSync(planPath, 'utf8')) as Plan : await prepare(set!);
+const plan = !recapture && existsSync(planPath) ? JSON.parse(readFileSync(planPath, 'utf8')) as Plan : await prepare(set as 'a' | 'b');
 // Truth decided by looking at the crops (Ruggable's shown sale price, Skullcandy's stock): truth-a.json, { qid: truth }.
 const truthPath = join(OUT, 'truth-a.json');
 if (set === 'a' && existsSync(truthPath)) {
@@ -890,7 +1548,7 @@ const groupCount = new Set(sendable.map((q) => `${q.url}|${q.crop}`)).size;
 const reps = repeats ?? (set === 'a' ? 3 : 1);
 const est = (groupCount * IMAGE_TOKENS_EST + sendable.length * 120) * reps;
 console.log(`[jev] set ${set}: ${plan.questions.length} questions, ${sendable.length} sendable in ${groupCount} calls, ${plan.questions.filter((q) => q.skipped === 'changed since').length} changed since, ${plan.questions.filter((q) => q.skipped && q.skipped !== 'changed since').length} not captured; × ${reps} repeat(s)`);
-console.log(`[jev] estimate ~${est.toLocaleString('en-US')} input tokens ≈ $${(est * USD_PER_TOKEN).toFixed(4)} (image ≈ ${IMAGE_TOKENS_EST} tokens, billed once per call); already spent $${(tokensOf(readStore().calls) * USD_PER_TOKEN).toFixed(4)} of the $${maxUsd.toFixed(2)} cap`);
+console.log(`[jev] estimate ~${est.toLocaleString('en-US')} input tokens ≈ $${(est * USD_PER_TOKEN).toFixed(4)} (image ≈ ${IMAGE_TOKENS_EST} tokens, billed once per call); already spent $${(tokensOf(readStore().calls) * USD_PER_TOKEN).toFixed(4)} of the $${capUsd.toFixed(2)} cap`);
 for (const g of [...new Set(plan.questions.map((q) => q.group))]) {
   const gq = plan.questions.filter((q) => q.group === g);
   console.log(`  ${g}: ${gq.length} (${gq.filter((q) => q.skipped).length} skipped) — crops ${gq.map((q) => q.cropMode ?? '-').join(',')}`);
