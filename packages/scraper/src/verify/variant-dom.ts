@@ -418,7 +418,7 @@ export function buildSelectionScript(): string {
     // of the same pair, kept apart, so ?color=031 agrees with <input value="031">
     // in wrongVariant without contradicting the right entry in [page] matching.
     const push = (axis, text, el) => {
-      const t = (text || '').replace(/\s+/g, ' ').trim();
+      const t = (text || '').replace(/\\s+/g, ' ').trim();
       if (!t || !axis) return;
       pairs.push({ name: axis, value: t });
       if (labels.indexOf(t) === -1) labels.push(t);
