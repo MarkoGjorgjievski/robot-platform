@@ -216,6 +216,13 @@ describe('buildSelectionScript (spec 2026-10-14 §3)', () => {
     expect(await browser.setContentEvaluate<Selection | null>(page(''), buildSelectionScript())).toBeNull();
   }, 30_000);
 
+  it('a label keeps its letter s and collapses only whitespace (Jev variants experiment, 2026-10-15)', async () => {
+    const html = `<html><body><div class="variant-color" aria-label="Color">
+      <button aria-selected="false">Black</button><button aria-selected="true">Dusty   Orchid-Rosy
+        Outlook</button></div></body></html>`;
+    expect(await browser.setContentEvaluate<Selection | null>(html, buildSelectionScript())).toEqual({ pairs: [{ name: 'color', value: 'Dusty Orchid-Rosy Outlook' }], labels: ['Dusty Orchid-Rosy Outlook'] });
+  }, 30_000);
+
   it('a picker nested in another matching control is read once', async () => {
     const html = `<html><body><div class="product-options"><div class="variant-color" aria-label="Color">
       <button aria-selected="false">Black</button><button aria-selected="true">Red</button></div></div></body></html>`;
