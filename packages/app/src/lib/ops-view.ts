@@ -178,7 +178,16 @@ export type OpsField = {
   defaultValue?: string;
   /** This field is certified default-only — every product gets the default, no path (spec 2026-10-13 §7). */
   defaultOnly?: boolean;
+  /** How often Jev's reading agreed with the verified value on this field's proof pages (spec 2026-10-16 §8); absent when never asked. */
+  jevAgreement?: { agreed: number; asked: number };
 };
+
+/** Spec 2026-10-16 §8: how often Jev agreed with the verified value on this field's proof pages; null when never asked. */
+export function jevAgreementLine(field: Pick<OpsField, 'jevAgreement'>): string | null {
+  const a = field.jevAgreement;
+  if (!a || a.asked === 0) return null;
+  return `Jev agreed on ${a.agreed} of ${a.asked} proof ${a.asked === 1 ? 'page' : 'pages'}`;
+}
 
 /** The field row's default line (spec 2026-10-13 §7): "Default: {value}", or `null` with no default set. */
 export function defaultLine(field: Pick<OpsField, 'defaultValue'>): string | null {
