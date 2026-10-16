@@ -465,7 +465,7 @@ async function prepare(s: 'a' | 'b'): Promise<Plan> {
           for (const q of qs) {
             q.pageTitle = capture.title;
             if (q.kind === 'choice') {
-              q.candidates = jevFieldCandidates(q.field, capture.structuredData, ann.boxes);
+              q.candidates = jevFieldCandidates(q.field, capture.structuredData, ann.boxes, capture.html);
               if (q.group === 'colourpop-title' && ann.h1s[0]) q.truth = ann.h1s[0].text;
               const c = q.candidates;
               q.instructions = `Which candidate is the ${q.field.name} of the product shown — ${q.field.description}?`;
