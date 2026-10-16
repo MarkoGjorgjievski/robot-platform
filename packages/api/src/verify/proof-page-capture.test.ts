@@ -1,9 +1,19 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { db, captures } from '@robot/db';
+import { db, captures, jevReadings } from '@robot/db';
+
+// The capture's success path starts a Jev reading (verify/jev-reading.ts) with the
+// real TypeSafe client. Never a real request from a test: the client is a fake here.
+const { jevAsk } = vi.hoisted(() => ({
+  jevAsk: vi.fn(async (req: { questions: Array<{ key: string }> }) => ({
+    model: 'jev-1.14.0', inputTokens: 100,
+    answers: Object.fromEntries(req.questions.map((q) => [q.key, { choice: 'c1', probabilities: { c1: 0.9 } }])),
+  })),
+}));
+vi.mock('./jev-client.js', () => ({ typesafeJevClient: () => ({ ask: jevAsk }) }));
 import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type IBrowser, type PageCapture } from '@robot/browser';
 import { backoffAnswer, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -174,5 +184,48 @@ describe('a capture waiting for a browser slot (final review M4)', () => {
         }
       }
     } finally { release(); await f.cleanup(); }
+  });
+});
+
+describe('the Jev reading after a capture (spec 2026-10-16 §3)', () => {
+  // A page whose Price is ambiguous (a sale price and a crossed-out one): with the switch on it is read.
+  const pricedCapture = (url: string): PageCapture => ({
+    ...fakeCapture(url),
+    structuredData: { ldJson: [{ '@type': 'Product', offers: { price: '374.25' } }], nextData: null, initialState: null, meta: {} },
+    annotation: [box, { ...box, xpaths: ['//span'], text: '$374.25', tag: 'span', rect: { x: 0, y: 40, w: 10, h: 10 } }, { ...box, xpaths: ['//s'], text: '$499.00', tag: 's', rect: { x: 0, y: 40, w: 10, h: 10 } }],
+  });
+  const saved = { shadow: process.env.JEV_SHADOW, key: process.env.TYPESAFE_API_KEY };
+  afterEach(() => {
+    if (saved.shadow === undefined) delete process.env.JEV_SHADOW; else process.env.JEV_SHADOW = saved.shadow;
+    if (saved.key === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = saved.key;
+    jevAsk.mockClear();
+  });
+
+  it('with JEV_SHADOW unset, a successful capture leaves no jev_readings row and sends nothing', async () => {
+    delete process.env.JEV_SHADOW;
+    const f = await createProjectWithSource(caller, { tag: 'ppc-jev-off', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      await runProofPageCapture(captureId, sessionWith(async (u) => pricedCapture(u)));
+      expect(((await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta).status).toBe('captured');
+      await new Promise((r) => setTimeout(r, 200));
+      expect(await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, captureId) })).toBeUndefined();
+      expect(jevAsk).not.toHaveBeenCalled();
+    } finally { await f.cleanup(); }
+  });
+
+  it('with the switch on, the capture finishes without waiting and the reading lands in its own row', async () => {
+    process.env.JEV_SHADOW = '1';
+    process.env.TYPESAFE_API_KEY = 'test-key-never-sent';
+    const f = await createProjectWithSource(caller, { tag: 'ppc-jev-on', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      await runProofPageCapture(captureId, sessionWith(async (u) => pricedCapture(u)));
+      expect(((await db.query.captures.findFirst({ where: eq(captures.id, captureId) }))!.metadata as ProofPageMeta).status).toBe('captured');
+      await vi.waitFor(async () => {
+        expect((await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, captureId) }))?.status).toBe('done');
+      });
+      expect(jevAsk).toHaveBeenCalledTimes(1);
+    } finally { await f.cleanup(); }
   });
 });

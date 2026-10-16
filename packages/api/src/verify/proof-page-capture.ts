@@ -11,6 +11,7 @@ import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
 import { writeCaptureFile, readCaptureFile, persistTiles, type StoredCaptureRef } from './capture-store.js';
 import { createLimiter } from './limiter.js';
+import { startJevReading } from './jev-reading.js';
 
 /**
  * At most three product-page captures run at once — a real browser tab each, so a burst of "mark this page" clicks does not pile up unbounded Chromium processes.
@@ -77,7 +78,7 @@ export function runProofPageCaptureInSlot(captureId: string, session?: Session):
 
 export async function runProofPageCapture(captureId: string, session: Session = withBrowserSession): Promise<void> {
   const row = await db.query.captures
-    .findFirst({ where: eq(captures.id, captureId), columns: { id: true, url: true, metadata: true } })
+    .findFirst({ where: eq(captures.id, captureId), columns: { id: true, sourceId: true, url: true, metadata: true } })
     .catch(() => null);
   if (!row) {
     waitingForSlot.delete(captureId);
@@ -113,6 +114,9 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     const contentHeight = visible.reduce((h, b) => Math.max(h, b.rect.y + b.rect.h), 0);
     const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes: visible, pageHeight, capturedHeight, contentHeight, ...(capture.title?.trim() ? { title: capture.title.trim().slice(0, 120) } : {}) };
     await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
+    // Jev at Verify, in shadow (spec 2026-10-16 §3): never awaited, never fails the capture.
+    void startJevReading({ sourceId: row.sourceId, captureId, url: row.url, title: done.title ?? '', capture, boxes: visible })
+      .catch((e) => console.error(`[jev] could not start for ${captureId}:`, e));
   } catch (err) {
     // The raw text is logged here only. A `CaptureProblemError` or
     // `CaptureError` already carries a customer sentence as its message
