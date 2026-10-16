@@ -1,7 +1,7 @@
 // packages/db/src/schema.test.ts
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, users, memberships, sessions } from './index.js';
+import { db, orgs, projects, datasets, sources, runs, runItems, sourceVerifications, captures, jevReadings, users, memberships, sessions } from './index.js';
 
 const SLUG = 'test-repair-engine-columns';
 
@@ -73,6 +73,30 @@ describe('schema verification columns', () => {
   it('sources and runs carry the schema-verification columns', () => {
     expect(Object.keys(sources)).toEqual(expect.arrayContaining(['schemaDefinition', 'verificationSet', 'driftedFields']));
     expect(Object.keys(runs)).toContain('driftedFields');
+  });
+});
+
+describe('jev readings', () => {
+  let jevOrgId: string | null = null;
+  afterEach(async () => {
+    if (jevOrgId) await db.delete(orgs).where(eq(orgs.id, jevOrgId));
+    jevOrgId = null;
+  });
+
+  async function makeSource() {
+    const { orgId: seededOrgId, source } = await seedSource();
+    jevOrgId = seededOrgId;
+    return source.id;
+  }
+
+  it('stores a Jev reading per capture, unique on the capture', async () => {
+    const sourceId = await makeSource(); // the helper the file's earlier tests use to insert a source
+    const [cap] = await db.insert(captures).values({ sourceId, url: 'https://s.example/p/1' }).returning({ id: captures.id });
+    const [r] = await db.insert(jevReadings).values({ sourceId, captureId: cap!.id, url: 'https://s.example/p/1', status: 'running' }).returning();
+    expect(r!.status).toBe('running');
+    await expect(db.insert(jevReadings).values({ sourceId, captureId: cap!.id, url: 'https://s.example/p/1', status: 'running' })).rejects.toThrow();
+    const [v] = await db.insert(sourceVerifications).values({ sourceId, definitionHash: 'x', verifyAgreement: { asked: 1, agreed: 1, pages: {} } }).returning();
+    expect(v!.verifyAgreement).toEqual({ asked: 1, agreed: 1, pages: {} });
   });
 });
 
