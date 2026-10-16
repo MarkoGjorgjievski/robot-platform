@@ -36,6 +36,29 @@ const DEFAULT_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36';
 
 /**
+ * The stealth evasions we leave off, and why.
+ *
+ * `iframe.contentWindow` (2026-10-16): together with `user-agent-override` it makes some sites'
+ * layout scripts write `width: 4000px` onto `<body>` — Ruggable, Ridge and Mejuri all rendered
+ * 4000 px wide at a 1280 px viewport, so the product column fell outside every screenshot (blank
+ * proof-page tiles; nothing to mark; nothing for the judge or Jev to read). Removing either evasion
+ * fixes it; this one is the less important disguise (the UA override hides "HeadlessChrome").
+ * Before/after on the campaign's walled and borderline sites (Thomann, Kith, Bombas, Skims): no
+ * site that got through started getting walled.
+ *
+ * Note: `user-agent-override` replaces the context's `userAgent` too — sites see the bundled
+ * Chromium's own version, not DEFAULT_USER_AGENT.
+ */
+export const STEALTH_EVASIONS_OFF = ['iframe.contentWindow'] as const;
+
+/** A stealth plugin with `STEALTH_EVASIONS_OFF` removed from its enabled evasions. */
+export function stealthPlugin<P extends { enabledEvasions: Set<string> }>(make: () => P): P {
+  const plugin = make();
+  for (const e of STEALTH_EVASIONS_OFF) plugin.enabledEvasions.delete(e);
+  return plugin;
+}
+
+/**
  * playwright-extra + the stealth plugin, loaded lazily and memoised.
  *
  * Lazy because it is a heavy import on a module every package pulls in, and
@@ -50,7 +73,7 @@ function stealthChromium(): Promise<typeof chromium> {
         import('playwright-extra'),
         import('puppeteer-extra-plugin-stealth'),
       ]);
-      extra.use(StealthPlugin());
+      extra.use(stealthPlugin(StealthPlugin));
       return extra as unknown as typeof chromium;
     } catch (err) {
       console.warn(`[browser] stealth unavailable, falling back to vanilla chromium: ${(err as Error).message}`);
@@ -268,6 +291,11 @@ export class PlaywrightBrowser implements IBrowser {
         }
 
         const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+        // A page laid out far wider than the window puts content outside every tile (the
+        // 2026-10-16 stealth case). Said out loud, so a new cause is noticed, not silently blank.
+        const pageWidth = await page.evaluate(() => document.documentElement.scrollWidth).catch(() => 0);
+        const viewportWidth = page.viewportSize()?.width ?? 1280;
+        if (pageWidth > viewportWidth * 1.25) console.warn(`[browser] ${url} is laid out ${pageWidth}px wide in a ${viewportWidth}px window; screenshots will miss content to the right`);
         const clips = computeTileClips(pageHeight, options.maxTiles);
 
         const [html, title, structuredData] = await Promise.all([
