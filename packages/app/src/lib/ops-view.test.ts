@@ -6,6 +6,7 @@ import {
   backupsSummary,
   decodeOpsOverviewState,
   defaultLine,
+  jevAgreementLine,
   defaultOpsView,
   driftNoticeLines,
   encodeOpsOverviewState,
@@ -471,5 +472,14 @@ describe('a website\'s default in ops (spec 2026-10-13 §7)', () => {
     expect(defaultLine({ defaultValue: 'Gymshark' })).toBe('Default: Gymshark');
     expect(defaultLine({})).toBeNull();
     expect(DEFAULT_ONLY_PATHS).toBe('no path — every product gets the default');
+  });
+});
+
+describe('Jev agreement in ops (spec 2026-10-16 §8)', () => {
+  it('counts the proof pages Jev agreed on, and says nothing when never asked', () => {
+    expect(jevAgreementLine({ jevAgreement: { agreed: 5, asked: 6 } })).toBe('Jev agreed on 5 of 6 proof pages');
+    expect(jevAgreementLine({ jevAgreement: { agreed: 1, asked: 1 } })).toBe('Jev agreed on 1 of 1 proof page');
+    expect(jevAgreementLine({ jevAgreement: { agreed: 0, asked: 0 } })).toBeNull();
+    expect(jevAgreementLine({})).toBeNull();
   });
 });

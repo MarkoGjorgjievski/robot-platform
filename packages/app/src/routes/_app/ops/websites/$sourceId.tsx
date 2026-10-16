@@ -14,6 +14,7 @@ import {
   DEFAULT_ONLY_PATHS,
   backupsSummary,
   defaultLine,
+  jevAgreementLine,
   driftNoticeLines,
   fieldFlag,
   oneSourceWarning,
@@ -451,6 +452,7 @@ function FieldRow({
           (reviewer fix round 1, minor). */}
       <div id={`ops-field-${field.key}`} className="px-4 pb-4" hidden={!expanded}>
         {defaultLine(field) ? <p className="mb-2 text-sm text-muted-foreground">{defaultLine(field)}</p> : null}
+        {jevAgreementLine(field) ? <p className="mb-2 text-sm text-muted-foreground">{jevAgreementLine(field)}</p> : null}
         {hasPaths ? (
           <>
             <ol className="relative ml-[9px] space-y-3 border-l-2 border-line pl-6">

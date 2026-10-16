@@ -78,6 +78,7 @@ import { cellStatusFor, verificationState, type PageVariantLike, type Verificati
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
+import { jevDetailText, jevNote, jevPollMs, readsVariantList, type JevReadingLike } from '../../../../../../lib/site/jev-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -550,6 +551,21 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       t.sources.suggestMarks({ captureId: captures.byUrl[u]!.captureId }, { staleTime: Infinity, refetchOnWindowFocus: false, retry: false }),
     ),
   );
+
+  // Jev at Verify, in shadow (spec 2026-10-16 §6): each captured product's reading, polled while one runs.
+  // Read-only: it feeds the row notes and the detail bar, never the board or a suggestion.
+  const jevCaptureIds = capturedUrls.map((u) => captures.byUrl[u]!.captureId);
+  const jevQuery = trpc.sources.jevReadings.useQuery(
+    { sourceId, captureIds: jevCaptureIds },
+    {
+      enabled: jevCaptureIds.length > 0,
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchInterval: (q) => jevPollMs(q.state.data, jevCaptureIds, { errored: q.state.status === 'error', fetches: q.state.dataUpdateCount }),
+    },
+  );
+  const jevByUrl: Record<string, JevReadingLike | undefined> = Object.fromEntries(capturedUrls.map((u) => [u, jevQuery.data?.[captures.byUrl[u]!.captureId]]));
+
   const mergedCaptures = useRef(new Set<string>());
   const suggestKey = suggestQueries.map((q) => q.data?.captureId ?? '').join(',');
   useEffect(() => {
@@ -1297,6 +1313,11 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       hasDefault: defaultOf(board, f.key) !== undefined,
       defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
+      // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.
+      jevNote: jevNote(f, board, live, jevByUrl, board.cards.some((c) => {
+        const cell = results?.[f.key]?.cells[c.url];
+        return readsVariantList(cell && cell.status === 'pass' ? cell.path?.path : undefined) || readsVariantList(live[f.key]?.[c.url]?.via?.path);
+      })),
       badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
       count: headerCount(results, f.key, unchangedKeys, board.cards),
       expanded: !!expanded[f.key],
@@ -1386,6 +1407,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onTypeIt: () => typeIt(detailField.key),
             onAbsent: url && !isAbsent(board, detailField.key, url) && defaultOf(board, detailField.key) === undefined ? () => markAbsentCell(selection) : null,
             absent: url !== '' && isAbsent(board, detailField.key, url),
+            // Only when the product has a reading: a tab with Jev off shows nothing.
+            jevText: url && jevByUrl[url] ? jevDetailText(jevByUrl[url], detailField.key) : undefined,
             // A card with no URL has no screenshot to take.
             preview: panelOpen || !url ? null : (
               <ScreenshotCrop
