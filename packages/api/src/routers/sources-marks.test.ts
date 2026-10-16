@@ -118,6 +118,21 @@ describe('sources.suggestMarks', () => {
 });
 
 describe('sources.jevReadings (spec 2026-10-16 §6)', () => {
+  // Readings are staff-only (Marko, 2026-10-16): these tests read as an operator; a customer gets nothing.
+  let savedOps: string | undefined;
+  beforeAll(() => { savedOps = process.env.OPS_EMAILS; process.env.OPS_EMAILS = me.session.user.email; });
+  afterAll(() => { if (savedOps === undefined) delete process.env.OPS_EMAILS; else process.env.OPS_EMAILS = savedOps; });
+
+  it('a customer, neither operator nor staff, receives no reading', async () => {
+    const customer = await signedInCaller('sources-marks-customer');
+    const f = await createProjectWithSource(customer.caller, { tag: 'marks-jev-customer', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const done = (await db.insert(captures).values({ sourceId: f.sourceId, url: f.urls[0]!, html: '' }).returning({ id: captures.id }))[0]!.id;
+      await db.insert(jevReadings).values({ sourceId: f.sourceId, captureId: done, url: f.urls[0]!, status: 'done', answers: { fields: {} } });
+      expect(await customer.caller.sources.jevReadings({ sourceId: f.sourceId, captureIds: [done] })).toEqual({});
+    } finally { await f.cleanup(); await customer.cleanup(); }
+  });
+
   const answers = { fields: { price: { candidates: [{ id: 'c1', value: '374.25', source: 's' }, { id: 'c2', value: '499.00', source: 's' }], pick: 'c1', p: 0.97 } } };
   const capture = async (sourceId: string, url: string) => (await db.insert(captures).values({ sourceId, url, html: '' }).returning({ id: captures.id }))[0]!.id;
 

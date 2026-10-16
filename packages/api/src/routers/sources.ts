@@ -851,6 +851,9 @@ export const sourcesRouter = router({
     .query(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       const out: Record<string, { status: 'running' | 'done' | 'failed'; answers: JevAnswers | null }> = {};
+      // Shadow is ours to measure, not the customer's to read (Marko, 2026-10-16): only an
+      // operator, or a staff session inside the customer's org, ever receives a reading.
+      if (!ctx.isOperator && !ctx.session.staff) return out;
       if (input.captureIds.length === 0) return out;
       const owned = await ctx.db.query.captures.findMany({ where: inArray(captures.id, input.captureIds), columns: { id: true, sourceId: true } });
       const foreign = input.captureIds.find((id) => owned.find((c) => c.id === id)?.sourceId !== input.sourceId);

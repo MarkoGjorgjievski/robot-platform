@@ -1,6 +1,7 @@
 # Jev at Verify, in shadow — design
 
 **Status:** implemented on `feat/jev-at-verify`, 2026-10-16; merge, final review, the route smoke and
+**Staff-only (Marko, 2026-10-16, after the merge):** a customer is not technical and does not know what Jev is, so no reading reaches a customer: `sources.jevReadings` answers only an operator or a staff session, and the Verification tab neither asks for nor shows a reading unless the viewer is staff. §6's notes are for staff working in ops or inside a customer's org. When Jev leaves shadow (§9) its pick becomes the row's ordinary suggestion in customer words, never a line naming Jev.
 the live check: see `docs/handoff.md`. Builds on `2026-10-15-jev-images-experiment.md` and its
 results (`docs/testing/results/2026-10-15-jev-images/report.md`,
 `…/2026-10-15-jev-variants/report.md`), `2026-10-14-variant-from-the-address-design.md` (`[page]`),

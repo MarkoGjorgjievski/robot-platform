@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Link, createFileRoute, useNavigate, useRouteContext } from '@tanstack/react-router';
 import { Button } from '../../../../../../components/ui/button';
 import { Skeleton } from '../../../../../../components/ui/skeleton';
 import { ListingBar } from '../../../../../../components/verification/listing-bar';
@@ -555,16 +555,19 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // Jev at Verify, in shadow (spec 2026-10-16 §6): each captured product's reading, polled while one runs.
   // Read-only: it feeds the row notes and the detail bar, never the board or a suggestion.
   const jevCaptureIds = capturedUrls.map((u) => captures.byUrl[u]!.captureId);
+  // Shadow is staff-only (Marko, 2026-10-16): a customer never sees, or asks for, a reading.
+  const { session: viewer } = useRouteContext({ from: '/_app' });
+  const showJev = viewer.isOperator || !!viewer.staff;
   const jevQuery = trpc.sources.jevReadings.useQuery(
     { sourceId, captureIds: jevCaptureIds },
     {
-      enabled: jevCaptureIds.length > 0,
+      enabled: showJev && jevCaptureIds.length > 0,
       retry: false,
       refetchOnWindowFocus: false,
       refetchInterval: (q) => jevPollMs(q.state.data, jevCaptureIds, { errored: q.state.status === 'error', fetches: q.state.dataUpdateCount }),
     },
   );
-  const jevByUrl: Record<string, JevReadingLike | undefined> = Object.fromEntries(capturedUrls.map((u) => [u, jevQuery.data?.[captures.byUrl[u]!.captureId]]));
+  const jevByUrl: Record<string, JevReadingLike | undefined> = showJev ? Object.fromEntries(capturedUrls.map((u) => [u, jevQuery.data?.[captures.byUrl[u]!.captureId]])) : {};
 
   const mergedCaptures = useRef(new Set<string>());
   const suggestKey = suggestQueries.map((q) => q.data?.captureId ?? '').join(',');
