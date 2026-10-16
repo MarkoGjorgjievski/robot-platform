@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { asc, eq } from 'drizzle-orm';
 import { db, runs, runItems, extractions, sources } from '@robot/db';
-import { buildBoxMapScript, normalize, pathFitsConcept, type Box, type CustomerFieldType } from '@robot/scraper';
+import { buildBoxMapScript, jevFieldCandidates, normalize, type Box, type CustomerFieldType } from '@robot/scraper';
 import { contractFields, type ContractField } from './contract.js';
 
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
@@ -199,67 +199,6 @@ export function cropFor(target: Rect | null, docW: number, docH: number): { clip
   const x = Math.max(0, Math.min(Math.round(cx - W / 2), Math.max(0, docW - W)));
   const y = Math.max(0, Math.min(Math.round(cy - H / 2), Math.max(0, docH - height)));
   return { clip: { x, y, width: W, height }, mode: 'element' };
-}
-
-type Leaf = { source: string; path: string; raw: unknown };
-function leaves(value: unknown, path: string, depth: number, out: Leaf[], source: string): void {
-  if (depth > 12 || out.length > 5000) return;
-  if (Array.isArray(value)) { value.slice(0, 30).forEach((v, i) => leaves(v, `${path}[${i}]`, depth + 1, out, source)); return; }
-  if (value !== null && typeof value === 'object') {
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) leaves(v, path === '' ? k : `${path}.${k}`, depth + 1, out, source);
-    return;
-  }
-  if (path !== '' && value !== null && value !== undefined && value !== '') out.push({ source, path, raw: value });
-}
-
-/**
- * Choice candidates: distinct values of the page's structured leaves whose path fits the field
- * (JSON-LD and meta), plus the visible strings for the field (money strings near the heading for a
- * price, the h1 for a title, og:site_name for a brand). Verbatim; never free page text.
- */
-export function candidatesFor(
-  field: Field,
-  structured: { ldJson: unknown[]; meta: Record<string, string> },
-  boxes: Box[],
-  h1s: Array<{ text: string; rect: Rect }>,
-): Candidate[] {
-  const out: Array<Omit<Candidate, 'id'>> = [];
-  const seen = new Set<string>();
-  const key = (v: string) => (field.type === 'money' ? normalize('money', v) : normText(v));
-  const add = (value: string, source: string) => {
-    const v = value.replace(/\s+/g, ' ').trim();
-    if (v === '' || v.length > 200) return;
-    const k = key(v);
-    if (k === null || k === '' || seen.has(k)) return;
-    seen.add(k);
-    out.push({ value: v, source });
-  };
-  const ls: Leaf[] = [];
-  structured.ldJson.forEach((b) => leaves(b, '', 0, ls, 'json-ld'));
-  for (const [k, v] of Object.entries(structured.meta)) ls.push({ source: 'meta', path: k, raw: v });
-  for (const l of ls) {
-    if (!pathFitsConcept(field.concept, l.path)) continue;
-    if (field.type === 'money' && normalize('money', l.raw) === null) continue;
-    if (typeof l.raw === 'object') continue;
-    add(String(l.raw), `${l.source} ${l.path}`);
-  }
-  if (field.concept === 'brand') {
-    for (const k of ['og:site_name', 'application-name', 'product:brand']) if (structured.meta[k]) add(structured.meta[k]!, `meta ${k}`);
-  }
-  if (field.concept === 'product_name') {
-    for (const h of h1s.slice(0, 2)) add(h.text, 'visible h1');
-    if (structured.meta['og:title']) add(structured.meta['og:title'], 'meta og:title');
-  }
-  if (field.concept === 'price') {
-    const h1 = h1s[0]?.rect;
-    const moneyText = /^[^\d]{0,8}[$£€]\s?\d[\d,]*(\.\d{1,2})?\s*$|^\s*\d[\d,]*(\.\d{1,2})?\s?(€|£)\s*$/;
-    for (const b of [...boxes].sort((a, c) => a.rect.y - c.rect.y || a.rect.x - c.rect.x)) {
-      if (!moneyText.test(b.text)) continue;
-      if (h1 ? Math.abs(b.rect.y - h1.y) > 700 || Math.abs(b.rect.x - h1.x) > 900 : b.rect.y > 1200) continue;
-      add(b.text, 'visible');
-    }
-  }
-  return out.slice(0, 30).map((c, i) => ({ id: `c${i + 1}`, ...c }));
 }
 
 /** How the value is written in a question: long text cut to its first 160 characters. */
@@ -526,7 +465,7 @@ async function prepare(s: 'a' | 'b'): Promise<Plan> {
           for (const q of qs) {
             q.pageTitle = capture.title;
             if (q.kind === 'choice') {
-              q.candidates = candidatesFor(q.field, capture.structuredData, ann.boxes, ann.h1s);
+              q.candidates = jevFieldCandidates(q.field, capture.structuredData, ann.boxes);
               if (q.group === 'colourpop-title' && ann.h1s[0]) q.truth = ann.h1s[0].text;
               const c = q.candidates;
               q.instructions = `Which candidate is the ${q.field.name} of the product shown — ${q.field.description}?`;
