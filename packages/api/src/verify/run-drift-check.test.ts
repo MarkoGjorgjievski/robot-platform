@@ -8,7 +8,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { and, eq, count } from 'drizzle-orm';
-import { db, captures, driftChecks, sources, sourceVerifications } from '@robot/db';
+import { db, captures, driftChecks, jevReadings, sources, sourceVerifications } from '@robot/db';
 import { CaptureError, BROWSER_UNAVAILABLE, PlaywrightBrowser, type IBrowser, type PageCapture } from '@robot/browser';
 import {
   buildBoxMapScript, fieldHash,
@@ -17,8 +17,17 @@ import {
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { SHOP_EXAMPLE } from '../test-helpers/shop-example.js';
 import { writeCaptureFile } from './capture-store.js';
-import { startProofPageCapture, type ProofPageCaptureRecord } from './proof-page-capture.js';
+import { startProofPageCapture, runProofPageCaptureInSlot, type ProofPageCaptureRecord } from './proof-page-capture.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+
+// The Jev test turns the switch on with this fake client: never a real TypeSafe request.
+const { jevAsk } = vi.hoisted(() => ({
+  jevAsk: vi.fn(async (req: { questions: Array<{ key: string }> }) => ({
+    model: 'jev-1.14.0', inputTokens: 100,
+    answers: Object.fromEntries(req.questions.map((q) => [q.key, { choice: 'c1', probabilities: { c1: 0.9 } }])),
+  })),
+}));
+vi.mock('./jev-client.js', async (importOriginal) => ({ ...(await importOriginal<typeof import('./jev-client.js')>()), typesafeJevClient: () => ({ ask: jevAsk }) }));
 
 // No agent, ever (Global Constraints): both ways a model could be reached are spied on.
 const { agentCtor, proposeSpy } = vi.hoisted(() => ({ agentCtor: vi.fn(), proposeSpy: vi.fn() }));
@@ -400,6 +409,43 @@ describe('the default capture function', () => {
         }
       }
     } finally { release(); await f.cleanup(); }
+  });
+
+  it('never starts a Jev reading, even with the switch on; a proof-page capture of the same page still does (whole-branch review I1)', async () => {
+    const saved = { shadow: process.env.JEV_SHADOW, key: process.env.TYPESAFE_API_KEY };
+    process.env.JEV_SHADOW = '1';
+    process.env.TYPESAFE_API_KEY = 'test-key-never-sent';
+    jevAsk.mockClear();
+    // A page whose Price is ambiguous (a sale price and a crossed-out one): a proof-page capture would ask about it.
+    const priced = (u: string): PageCapture => ({
+      ...fakeCapture(u),
+      structuredData: { ldJson: [{ '@type': 'Product', offers: { price: '374.25' } }], nextData: null, initialState: null, meta: {} },
+      annotation: [
+        { xpaths: ['//span'], text: '$374.25', rect: { x: 0, y: 40, w: 10, h: 10 }, tag: 'span', kind: 'text' },
+        { xpaths: ['//s'], text: '$499.00', rect: { x: 0, y: 40, w: 10, h: 10 }, tag: 's', kind: 'text' },
+      ],
+    });
+    const session = async <T,>(fn: (b: IBrowser) => Promise<T>) => fn({ launch: async () => {}, close: async () => {}, capture: async (u: string) => priced(u) } as unknown as IBrowser);
+    const f = await createProjectWithSource(caller, { tag: 'drift-no-jev', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const got = await captureProofPagesWith(session)(f.sourceId, [f.urls[0]!]);
+      expect(captured(got[f.urls[0]!]).meta.status).toBe('captured');
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await db.select({ n: count() }).from(jevReadings).where(eq(jevReadings.sourceId, f.sourceId))).toEqual([{ n: 0 }]);
+      expect(jevAsk).not.toHaveBeenCalled();
+
+      // The control: the Verification tab's capture of the same page is read.
+      const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });
+      await runProofPageCaptureInSlot(captureId, session);
+      await vi.waitFor(async () => {
+        expect((await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, captureId) }))?.status).toBe('done');
+      });
+      expect(jevAsk).toHaveBeenCalledTimes(1);
+    } finally {
+      if (saved.shadow === undefined) delete process.env.JEV_SHADOW; else process.env.JEV_SHADOW = saved.shadow;
+      if (saved.key === undefined) delete process.env.TYPESAFE_API_KEY; else process.env.TYPESAFE_API_KEY = saved.key;
+      await f.cleanup();
+    }
   });
 });
 
