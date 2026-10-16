@@ -8,29 +8,21 @@ import { db, jevReadings, sources } from '@robot/db';
 import { TILE_HEIGHT, type PageCapture } from '@robot/browser';
 import { isAmbiguous, jevFieldCandidates, jevVariantOptions, type Box, type JevCandidate, type JevField, type JevVariantOption } from '@robot/scraper';
 import { contractFields } from '../contract.js';
-import { typesafeJevClient } from './jev-client.js';
+// One direction only: jev-client.ts holds the model, the request/client types and the TIMEOUT, and
+// imports nothing from here; this module re-exports them so callers have one place to import from.
+import { JEV_MODEL, JEV_TIMEOUT_MS, typesafeJevClient, type JevClient, type JevQuestion, type JevRequest } from './jev-client.js';
+export { JEV_MODEL, type JevClient, type JevQuestion, type JevRequest };
 
-export const JEV_MODEL = 'jev-1.14.0';
 const USD_PER_TOKEN = 0.042 / 1e6;
 const DEFAULT_DAILY = 2000;
 /** TypeSafe answered "400 Invalid image dimensions" to a 256 px side (experiment 2); 400 was accepted. */
 const MIN_TILE_HEIGHT = 400;
-const TIMEOUT_MS = 10_000;
 
-export type JevQuestion = {
-  key: string; kind: 'field' | 'variant'; instructions: string; options: Array<{ id: string; label: string }>;
-  /** The `none` option's wording (the experiments' own); the client falls back to a generic one. */
-  noneLabel?: string;
-};
-export type JevRequest = { tileIndex: number; state: { page_title: string; candidates: Record<string, Array<{ id: string; value: string }>> }; questions: JevQuestion[] };
 export type JevAnswer = { pick: string; p: number };
 export type JevAnswers = {
   fields: Record<string, { candidates: JevCandidate[]; pick: string; p: number }>;
   variant?: { entries: JevVariantOption[]; pick: string; p: number; pageMatch: string | null };
 };
-export interface JevClient {
-  ask(req: { image: Buffer; state: JevRequest['state']; questions: JevQuestion[] }): Promise<{ model: string; inputTokens: number; answers: Record<string, { choice: string; probabilities: Record<string, number> }> }>;
-}
 /** The variant question's key, and its options' key in `state.candidates`. Never a contract field key (those never start with `_`). */
 export const VARIANT_KEY = '_variant';
 
@@ -123,31 +115,42 @@ export function answersFrom(built: JevBuilt, raw: Record<string, { choice: strin
   return out;
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+/** One attempt: rejects after `ms` and aborts the request, so a timed-out call never overlaps the retry. */
+function askWithTimeout(client: JevClient, req: Parameters<JevClient['ask']>[0], ms: number): ReturnType<JevClient['ask']> {
+  const ctrl = new AbortController();
   return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
-    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+    const t = setTimeout(() => { ctrl.abort(); reject(new Error(`timed out after ${ms} ms`)); }, ms);
+    Promise.resolve().then(() => client.ask({ ...req, signal: ctrl.signal }))
+      .then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
   });
 }
 
-/** Never rejects; writes only its own row. A 10 s timeout per attempt, one retry. */
+/**
+ * Never rejects; writes only its own row. A 10 s timeout per attempt and one retry — of the request
+ * only: the answers are written once, after it, so a database error never sends a second paid request.
+ */
 export async function runJevReading(readingId: string, built: JevBuilt, image: Buffer, client: JevClient, opts: { timeoutMs?: number } = {}): Promise<void> {
-  const ms = opts.timeoutMs ?? TIMEOUT_MS;
-  let last: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await withTimeout(Promise.resolve().then(() => client.ask({ image, state: built.request.state, questions: built.request.questions })), ms);
-      const tokens = Number.isFinite(res.inputTokens) ? res.inputTokens : 0;
-      await db.update(jevReadings).set({
-        status: 'done', model: res.model, answers: answersFrom(built, res.answers), inputTokens: tokens,
-        costUsd: (tokens * USD_PER_TOKEN).toFixed(6), error: null, completedAt: new Date(),
-      }).where(eq(jevReadings.id, readingId));
-      return;
-    } catch (err) { last = err; }
-  }
-  const error = (last instanceof Error ? last.message : String(last)).slice(0, 500);
-  await db.update(jevReadings).set({ status: 'failed', error, completedAt: new Date() }).where(eq(jevReadings.id, readingId))
+  const ms = opts.timeoutMs ?? JEV_TIMEOUT_MS;
+  const fail = (err: unknown) => db.update(jevReadings)
+    .set({ status: 'failed', error: (err instanceof Error ? err.message : String(err)).slice(0, 500), completedAt: new Date() })
+    .where(eq(jevReadings.id, readingId))
     .catch((e) => console.error(`[jev] failed to record failure for ${readingId}:`, e));
+  let res: Awaited<ReturnType<JevClient['ask']>> | null = null;
+  let last: unknown;
+  for (let attempt = 0; attempt < 2 && !res; attempt++) {
+    try { res = await askWithTimeout(client, { image, state: built.request.state, questions: built.request.questions }, ms); } catch (err) { last = err; }
+  }
+  if (!res) { await fail(last); return; }
+  try {
+    const tokens = Number.isFinite(res.inputTokens) ? res.inputTokens : 0;
+    await db.update(jevReadings).set({
+      status: 'done', model: res.model, answers: answersFrom(built, res.answers), inputTokens: tokens,
+      costUsd: (tokens * USD_PER_TOKEN).toFixed(6), error: null, completedAt: new Date(),
+    }).where(eq(jevReadings.id, readingId));
+  } catch (err) {
+    console.error(`[jev] could not store the answers of ${readingId}:`, err);
+    await fail(err);
+  }
 }
 
 const startOfUtcDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -166,6 +169,7 @@ export async function startJevReading(
   const exists = await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, input.captureId), columns: { id: true } });
   if (exists) return { readingId: null, reason: 'exists' };
   const [today] = await db.select({ n: count() }).from(jevReadings).where(gte(jevReadings.createdAt, startOfUtcDay(deps.now ?? new Date())));
+  // Count, then insert: captures running at once can each pass this check, so a day overshoots by at most that many.
   if ((today?.n ?? 0) >= jevDailyBudget(env)) return { readingId: null, reason: 'budget' };
   const source = await db.query.sources.findFirst({ where: eq(sources.id, input.sourceId), columns: { id: true }, with: { dataset: { columns: { schema: true } } } });
   const fields: JevField[] = contractFields(source?.dataset?.schema).map((f) => ({

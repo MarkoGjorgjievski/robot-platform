@@ -13,7 +13,7 @@ const { jevAsk } = vi.hoisted(() => ({
     answers: Object.fromEntries(req.questions.map((q) => [q.key, { choice: 'c1', probabilities: { c1: 0.9 } }])),
   })),
 }));
-vi.mock('./jev-client.js', () => ({ typesafeJevClient: () => ({ ask: jevAsk }) }));
+vi.mock('./jev-client.js', async (importOriginal) => ({ ...(await importOriginal<typeof import('./jev-client.js')>()), typesafeJevClient: () => ({ ask: jevAsk }) }));
 import { TILE_HEIGHT, CaptureError, BROWSER_UNAVAILABLE, type IBrowser, type PageCapture } from '@robot/browser';
 import { backoffAnswer, reportVerdict, _resetBackoffForTests } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
@@ -201,8 +201,8 @@ describe('the Jev reading after a capture (spec 2026-10-16 §3)', () => {
     jevAsk.mockClear();
   });
 
-  it('with JEV_SHADOW unset, a successful capture leaves no jev_readings row and sends nothing', async () => {
-    delete process.env.JEV_SHADOW;
+  it('with JEV_SHADOW off (vitest.config.ts sets it to ""), a successful capture leaves no jev_readings row and sends nothing', async () => {
+    expect(process.env.JEV_SHADOW).toBe('');
     const f = await createProjectWithSource(caller, { tag: 'ppc-jev-off', fields: [{ name: 'Price', type: 'money' }] });
     try {
       const { captureId } = await startProofPageCapture(f.sourceId, f.urls[0]!, { fire: false });

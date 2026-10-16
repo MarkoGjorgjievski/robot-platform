@@ -6,7 +6,7 @@ import type { Box } from '@robot/scraper';
 // The real TypeSafe client must never be built in a test: every reading here gets
 // an injected fake, and this spy fails the file if anything reaches for the real one.
 const { realClient } = vi.hoisted(() => ({ realClient: vi.fn(() => { throw new Error('the real TypeSafe client was built in a test'); }) }));
-vi.mock('./jev-client.js', () => ({ typesafeJevClient: realClient }));
+vi.mock('./jev-client.js', async (importOriginal) => ({ ...(await importOriginal<typeof import('./jev-client.js')>()), typesafeJevClient: realClient }));
 
 import { answersFrom, buildJevRequest, jevDailyBudget, jevEnabled, runJevReading, startJevReading, tileFor, VARIANT_KEY, type JevClient } from './jev-reading.js';
 import { createTestSource, deleteTestSource } from '../test-helpers/source.js';
@@ -46,7 +46,8 @@ describe('the switch and the budget', () => {
     expect(jevEnabled({ TYPESAFE_API_KEY: 'k' } as NodeJS.ProcessEnv)).toBe(false);
     expect(jevEnabled(ON)).toBe(true);
   });
-  it('is off in the test environment (the repo .env may hold a TypeSafe key, never JEV_SHADOW=1)', () => {
+  it('is off in the test environment: vitest.config.ts sets JEV_SHADOW to "", which beats a JEV_SHADOW=1 in the repo .env', () => {
+    expect(process.env.JEV_SHADOW).toBe('');
     expect(jevEnabled()).toBe(false);
   });
   it('reads JEV_DAILY_READINGS, default 2000', () => {
@@ -130,9 +131,36 @@ describe('startJevReading / runJevReading', () => {
     expect(await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, captureId) })).toBeUndefined();
   });
 
-  it('off by default in the test environment, even with no client injected', async () => {
-    const r = await startJevReading({ sourceId, captureId, url: 'https://s.example/p/1', title: 'x', capture, boxes });
+  it('off by default in the test environment, even with no client injected and a key present', async () => {
+    expect(process.env.JEV_SHADOW).toBe('');
+    const r = await startJevReading({ sourceId, captureId, url: 'https://s.example/p/1', title: 'x', capture, boxes }, { env: { ...process.env, TYPESAFE_API_KEY: 'k' } });
     expect(r).toEqual({ readingId: null, reason: 'off' });
+    expect(await startJevReading({ sourceId, captureId, url: 'https://s.example/p/1', title: 'x', capture, boxes })).toEqual({ readingId: null, reason: 'off' });
+    expect(await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, captureId) })).toBeUndefined();
+  });
+
+  it('a database error storing the answers never sends a second request', async () => {
+    // model is varchar(40): a longer one makes the `done` write fail.
+    const client: JevClient & { calls: number } = { calls: 0, async ask(req) { this.calls++; return { model: 'm'.repeat(60), inputTokens: 10, answers: Object.fromEntries(req.questions.map((q) => [q.key, { choice: 'c1', probabilities: { c1: 1 } }])) }; } };
+    const r = await startJevReading({ sourceId, captureId, url: 'u', title: 'x', capture, boxes }, { client, env: ON, fire: false });
+    const built = buildJevRequest({ title: 'x', fields: [{ key: 'price', name: 'Price', type: 'money', concept: 'price' }], capture, boxes, tileHeights: [1536] })!;
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try { await runJevReading(r.readingId!, built, Buffer.from('t'), client); } finally { quiet.mockRestore(); }
+    expect(client.calls).toBe(1);
+    expect((await db.query.jevReadings.findFirst({ where: eq(jevReadings.id, r.readingId!) }))!.status).toBe('failed');
+  });
+
+  it('a timed-out attempt is aborted before the retry starts', async () => {
+    const signals: AbortSignal[] = [];
+    const slow: JevClient = { ask: (req) => { signals.push(req.signal!); return new Promise(() => {}); } };
+    const r = await startJevReading({ sourceId, captureId, url: 'u', title: 'x', capture, boxes }, { client: slow, env: ON, fire: false });
+    const built = buildJevRequest({ title: 'x', fields: [{ key: 'price', name: 'Price', type: 'money', concept: 'price' }], capture, boxes, tileHeights: [1536] })!;
+    let abortedBeforeSecond: boolean | null = null;
+    const watch: JevClient = { ask: (req) => { if (signals.length === 1) abortedBeforeSecond = signals[0]!.aborted; return slow.ask(req); } };
+    await runJevReading(r.readingId!, built, Buffer.from('t'), watch, { timeoutMs: 20 });
+    expect(signals).toHaveLength(2);
+    expect(abortedBeforeSecond).toBe(true);
+    expect(signals.every((s) => s.aborted)).toBe(true);
   });
 
   it('at the budget, startJevReading inserts nothing and sends nothing', async () => {
