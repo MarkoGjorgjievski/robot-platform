@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import type { PageCapture } from '@robot/browser';
-import { db, sources, sourceVerifications, captures } from '@robot/db';
+import { db, sources, sourceVerifications, captures, jevReadings } from '@robot/db';
+import type { JevAgreement } from './jev-agreement.js';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { runSourceVerification, writeStage } from './run-source-verification.js';
 import { writeCaptureFile } from './capture-store.js';
@@ -139,6 +140,44 @@ describe('runSourceVerification', () => {
     } finally {
       await cleanup();
     }
+  });
+
+  it('records Jev agreement from each proof page\'s newest done reading on verify_agreement, and leaves results, allPassed and cost as they would be without (spec 2026-10-16 §7, §10.2)', async () => {
+    const outcome = (key: string) => ({
+      fields: { [key]: { key, cells: {}, certified: [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }], weakEvidence: false, aiCalled: false, incomplete: false } },
+      allPassed: true, aiCalls: 0,
+    });
+    const run = async (tag: string, seed: (sourceId: string, urls: string[]) => Promise<void>) => {
+      const { sourceId, urls, cleanup } = await makeSchemaSource(tag);
+      try {
+        await seed(sourceId, urls);
+        const verificationId = await startVerificationRow(sourceId);
+        runVerificationMock.mockResolvedValue({ outcome: outcome('price'), captures: Object.fromEntries(urls.map((u) => [u, fakeCapture(u, '<html></html>')])), captureErrors: {} });
+        await runSourceVerification(sourceId, verificationId, { startCoverage });
+        return (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!;
+      } finally { await cleanup(); }
+    };
+    const answers = (pick: string) => ({ fields: { price: { candidates: [{ id: 'c1', value: '$1.00', source: 's' }, { id: 'c2', value: '$9.00', source: 's' }], pick, p: 0.95 } } });
+
+    const withJev = await run('jev-agree', async (sourceId, urls) => {
+      const cap = async (url: string) => (await db.insert(captures).values({ sourceId, url, html: '' }).returning({ id: captures.id }))[0]!.id;
+      // Page 1: an older reading that disagrees, then a newer one that agrees (the newer counts);
+      // page 2: a reading still running (not counted); page 3: none.
+      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[0]!), url: urls[0]!, status: 'done', answers: answers('c2'), createdAt: new Date(Date.now() - 60_000) });
+      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[0]!), url: urls[0]!, status: 'done', answers: answers('c1') });
+      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[1]!), url: urls[1]!, status: 'running' });
+    });
+    const agreement = withJev.verifyAgreement as JevAgreement;
+    expect(agreement).toMatchObject({ asked: 1, agreed: 1 });
+    expect(Object.keys(agreement.pages)).toHaveLength(1);
+    expect(Object.values(agreement.pages)[0]!.fields.price).toMatchObject({ pick: 'c1', value: '$1.00', expected: '1.00', agree: true, certified: true });
+
+    const without = await run('jev-none', async () => {});
+    expect(without.verifyAgreement).toBeNull();
+    expect(withJev.results).toEqual(without.results);
+    expect(withJev.allPassed).toBe(without.allPassed);
+    expect(withJev.costUsd).toBe(without.costUsd);
+    expect(withJev.aiCalls).toBe(without.aiCalls);
   });
 
   it('on failure: writes errorMessage and completedAt (terminal, never stuck)', async () => {

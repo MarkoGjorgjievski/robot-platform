@@ -27,6 +27,7 @@ import { safeErrorMessage } from '../crawl/plan-source.js';
 import { loadStoredCapture, writeCaptureFile, type StoredCaptureRef } from './capture-store.js';
 import { loadProofPageCaptures } from './proof-page-capture.js';
 import { startCoverageCheck } from './run-coverage-check.js';
+import { recordJevAgreement } from './jev-agreement.js';
 
 /**
  * Strips ANSI escape codes (e.g. the dim/reset styling Playwright's own
@@ -173,6 +174,9 @@ export async function runSourceVerification(
       costUsd: cost.toFixed(4),
       completedAt: new Date(),
     }).where(eq(sourceVerifications.id, verificationId));
+    // Jev at Verify, in shadow (spec 2026-10-16 §7): Jev's picks against what the customer
+    // verified, on this row's verify_agreement only. Never throws; touches nothing written above.
+    await recordJevAgreement(verificationId, sourceId, fields, set, run.outcome.fields);
 
     if (run.outcome.allPassed) {
       const byConcept: Record<string, CertifiedPath[]> = {};

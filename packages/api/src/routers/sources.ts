@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, desc, sql, isNotNull, isNull } from 'drizzle-orm';
-import { sources, datasets, projects, inputSets, sourceVerifications, captures, type Database } from '@robot/db';
+import { eq, and, desc, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
+import { sources, datasets, projects, inputSets, sourceVerifications, captures, jevReadings, type Database } from '@robot/db';
 import {
   VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf, visibleTextFromHtml,
@@ -30,6 +30,7 @@ import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
+import type { JevAnswers } from '../verify/jev-reading.js';
 import { startDriftCheck, latestDriftCheck, latestDriftedRun } from '../verify/run-drift-check.js';
 import { latestCoverageCheck } from '../verify/run-coverage-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
@@ -830,6 +831,32 @@ export const sourcesRouter = router({
         // Spec 2026-10-14 §6: the Verification tab's row warning compares a proof page's named variant with the certified path's entry.
         pageVariant: capture.pageVariant ?? null,
       };
+    }),
+
+  /**
+   * Jev at Verify, in shadow (spec 2026-10-16 §6): each capture's reading, keyed by
+   * capture id, polled by the tab while one runs. A capture with no reading is absent;
+   * `answers` only when `done`. A capture of another website (so of another org) is
+   * NOT_FOUND, as `captureInOrg` would say, in one query for the whole list.
+   */
+  jevReadings: protectedProcedure
+    .input(z.object({ sourceId: z.string().uuid(), captureIds: z.array(z.string().uuid()).max(VERIFY_URL_MAX) }))
+    .query(async ({ ctx, input }) => {
+      await sourceInOrg(ctx, input.sourceId);
+      const out: Record<string, { status: 'running' | 'done' | 'failed'; answers: JevAnswers | null }> = {};
+      if (input.captureIds.length === 0) return out;
+      const owned = await ctx.db.query.captures.findMany({ where: inArray(captures.id, input.captureIds), columns: { id: true, sourceId: true } });
+      const foreign = input.captureIds.find((id) => owned.find((c) => c.id === id)?.sourceId !== input.sourceId);
+      if (foreign) throw new TRPCError({ code: 'NOT_FOUND', message: `Page capture ${foreign} not found` });
+      const rows = await ctx.db.query.jevReadings.findMany({
+        where: and(eq(jevReadings.sourceId, input.sourceId), inArray(jevReadings.captureId, input.captureIds)),
+        columns: { captureId: true, status: true, answers: true },
+      });
+      for (const r of rows) {
+        const status = r.status as 'running' | 'done' | 'failed';
+        out[r.captureId] = { status, answers: status === 'done' ? (r.answers as JevAnswers) : null };
+      }
+      return out;
     }),
 
   /**
