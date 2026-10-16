@@ -30,6 +30,12 @@ describe('jevFieldCandidates', () => {
     const stock: JevField = { key: 'stock', name: 'In stock', type: 'boolean', concept: 'availability' };
     expect(isAmbiguous(stock, [{ id: 'c1', value: 'yes', source: 'x' }, { id: 'c2', value: 'no', source: 'y' }])).toBe(false);
   });
+  it('never asks a description field, however many texts are on offer (whole-branch review minor 2)', () => {
+    const description: JevField = { key: 'description', name: 'Description', type: 'text', concept: 'description' };
+    const two = [{ id: 'c1', value: 'A soft wool rug.', source: 'ld' }, { id: 'c2', value: 'Free shipping on all orders.', source: 'meta' }];
+    expect(isAmbiguous(description, two)).toBe(false);
+    expect(isAmbiguous({ ...description, concept: 'brand' }, two)).toBe(true); // the concept, not the type, rules it out
+  });
   it('caps at 30 candidates with stable ids c1…', () => {
     const ld = { offers: Array.from({ length: 40 }, (_, i) => ({ price: String(100 + i) })) };
     const c = jevFieldCandidates(price, { ldJson: [ld], meta: {} }, []);

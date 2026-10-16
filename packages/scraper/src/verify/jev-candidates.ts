@@ -100,8 +100,9 @@ export function jevFieldCandidates(field: JevField, structured: { ldJson: unknow
   return out.slice(0, JEV_MAX_FIELD_OPTIONS).map((c, i) => ({ id: `c${i + 1}`, ...c }));
 }
 
+/** A description is never asked: its candidates are long prose, not a choice between values. */
 export function isAmbiguous(field: JevField, candidates: JevCandidate[]): boolean {
-  return JEV_FIELD_TYPES.includes(field.type) && candidates.length >= 2;
+  return JEV_FIELD_TYPES.includes(field.type) && field.concept !== 'description' && candidates.length >= 2;
 }
 
 const variesByOf = (container: unknown): string[] => {
