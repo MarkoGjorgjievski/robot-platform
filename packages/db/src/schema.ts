@@ -407,6 +407,9 @@ export const sourceVerifications = pgTable('source_verifications', {
   // alongside this Verify, when the website's project wants variants (spec 2026-10-01 §4). Null
   // for a website with variants off, or a verification row written before this existed.
   variantResults: jsonb('variant_results'),
+  // JevAgreement (@robot/api verify/jev-reading.ts): per proof page, Jev's picks against what the
+  // customer verified (spec 2026-10-16 §7). Null when no reading was done for its pages.
+  verifyAgreement: jsonb('verify_agreement'),
   allPassed: boolean('all_passed').notNull().default(false),
   aiCalls: integer('ai_calls').notNull().default(0),
   costUsd: numeric('cost_usd', { precision: 10, scale: 4 }).notNull().default('0'),
@@ -473,6 +476,37 @@ export const coverageChecks = pgTable('coverage_checks', {
 export const coverageChecksRelations = relations(coverageChecks, ({ one }) => ({
   source: one(sources, { fields: [coverageChecks.sourceId], references: [sources.id] }),
   verification: one(sourceVerifications, { fields: [coverageChecks.verificationId], references: [sourceVerifications.id] }),
+}));
+
+// ─── Jev readings (2026-10-16) ──────────────────────────────────────────────
+// Jev at Verify, in shadow (spec 2026-10-16): one reading per proof-page
+// capture — which candidate each ambiguous field is, which variant the page
+// shows. Shown and measured, never applied.
+
+export const jevReadings = pgTable('jev_readings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id').notNull().references(() => sources.id, { onDelete: 'cascade' }),
+  captureId: uuid('capture_id').notNull().references(() => captures.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  // 'running' | 'done' | 'failed'
+  status: varchar('status', { length: 12 }).notNull().default('running'),
+  model: varchar('model', { length: 40 }),
+  // JevAnswers (@robot/api verify/jev-reading.ts)
+  answers: jsonb('answers'),
+  inputTokens: integer('input_tokens'),
+  costUsd: numeric('cost_usd', { precision: 10, scale: 6 }),
+  error: text('error'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (table) => [
+  uniqueIndex('jev_readings_capture_id_idx').on(table.captureId),
+  index('jev_readings_source_id_idx').on(table.sourceId),
+  index('jev_readings_created_at_idx').on(table.createdAt),
+]);
+
+export const jevReadingsRelations = relations(jevReadings, ({ one }) => ({
+  source: one(sources, { fields: [jevReadings.sourceId], references: [sources.id] }),
+  capture: one(captures, { fields: [jevReadings.captureId], references: [captures.id] }),
 }));
 
 // ─── Extractions (AI Scraper) ───────────────────────────────────────────────
