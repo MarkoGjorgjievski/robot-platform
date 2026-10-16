@@ -42,8 +42,10 @@ measured against what the customer finally verifies, so we learn when Jev may be
   per capture; a capture already read is not read again.
 - **Switch:** `JEV_SHADOW=1` in the api-server's environment **and** `TYPESAFE_API_KEY` set. Either
   missing → no reading, no error, nothing shown. No per-website setting in this spec.
-- **Budget:** at most 2,000 readings per day across the api-server (≈ $0.40); past it, readings
-  wait for the next day. Each reading's `input_tokens` and cost are stored.
+- **Budget:** at most `JEV_DAILY_READINGS` readings per day across the api-server, default **2,000**
+  (≈ $0.40). A reading happens only per proof-page capture (3–6 per Verify), so 2,000 covers
+  roughly 330–650 websites verified a day; raise the setting in `.env` when needed, no code change.
+  Past it, readings wait for the next day. Each reading's `input_tokens` and cost are stored.
 - **Isolation:** runs after the capture is stored, in its own async job (like the coverage check),
   with a 10 s timeout and one retry; a failure stores `{ status: 'failed', error }` and shows nothing.
   A Verify click never waits for a reading.
@@ -165,7 +167,7 @@ becomes `[page]`'s fallback when `[page]` resolves to nothing, under the same ba
 ## 13. Decisions (recommended, 2026-10-16)
 
 1. Shadow only: shown, measured, never applied.
-2. One call per proof page, image once in state; budget 2,000 readings/day.
+2. One call per proof page, image once in state; a daily budget from `JEV_DAILY_READINGS`, default 2,000.
 3. Ambiguity = two or more distinct candidates; only text, money and number fields.
 4. Notes only when Jev differs, at p ≥ 0.6, one per row, prefixed "Jev reads".
 5. A global switch (`JEV_SHADOW`) rather than per website, for now.
