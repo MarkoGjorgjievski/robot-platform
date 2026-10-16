@@ -99,6 +99,7 @@ import { seedCompletedVariantsRun } from '../../api/src/test-helpers/seed-varian
 import { seedUnshownRun } from '../../api/src/test-helpers/seed-unshown-run';
 import { seedDriftCheck } from '../../api/src/test-helpers/seed-drift-check';
 import { seedPassingVerification } from '../../api/src/test-helpers/seed-coverage-check';
+import { seedJevReading } from '../../api/src/test-helpers/seed-jev-reading';
 import { startCoverageCheck, runCoverageCheck } from '../../api/src/verify/run-coverage-check';
 import type { CertifiedPath } from '@robot/scraper';
 
@@ -1806,6 +1807,37 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await shootViewportBothThemes(page, 'app-site-verification-address-warning');
     expect(problems, `the address-warning walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 180_000);
+
+  // Jev at Verify, in shadow (spec 2026-10-16 §6): a seeded reading on product 1 reads Price
+  // differently from the row's value → the row note and the detail bar's text. No request is sent.
+  it('a Jev reading that differs from the row shows its note and its pick', async () => {
+    expect(projectSlug, 'there is no project').not.toBeNull();
+    expect(websiteSlug, 'there is no website').not.toBeNull();
+    problems.length = 0;
+    await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const priceKey = site.fields.find((f) => f.name === 'Price')?.key;
+    expect(priceKey, 'no key for Price').toBeTruthy();
+    const urls = (site.verificationSet as { urls: string[] }).urls;
+    const caps = await api.sources.proofPageCaptures.query({ sourceId: site.id, urls });
+    const first = caps[urls[0]!];
+    expect(first?.captureId, 'product 1 has no capture to seed a reading on').toBeTruthy();
+    await seedJevReading({
+      sourceId: site.id, captureId: first!.captureId, url: urls[0]!,
+      answers: { fields: { [priceKey!]: { candidates: [{ id: 'c1', value: '59.00', source: 'seed' }, { id: 'c2', value: '79.00', source: 'seed' }], pick: 'c1', p: 0.93 } } },
+    });
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const note = 'Jev reads 59.00 as the Price on product 1';
+    await expect.poll(() => page.getByTestId('jev-note').filter({ hasText: note }).count(), { timeout: 30_000 }).toBe(1);
+    expect(await rowStatusText('Price'), "the note is not in Price's status column").toContain(note);
+    await page.locator('button[aria-label^="Price on product 1: "]').click();
+    await expect.poll(() => page.getByTestId('jev-text').innerText(), { timeout: 10_000 }).toBe('Jev: 59.00 (0.93)');
+    await shootViewportBothThemes(page, 'app-site-verification-jev');
+    expect(problems, problems.join('\n')).toEqual([]);
+  }, 120_000);
 
   // Shown on the page (spec 2026-10-12 §5/§7): the run page counts, names and
   // marks the values the product's page does not show. Like the variants run
