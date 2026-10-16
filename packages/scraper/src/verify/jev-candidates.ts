@@ -5,6 +5,7 @@
 // options experiment 2 asked about.
 import type { PageCapture } from '@robot/browser';
 import type { Box } from './box-map.js';
+import { visibleTextFromHtml } from '../corroborate-value.js';
 import { pathFitsConcept } from './field-fit.js';
 import { normalize } from './normalize.js';
 import { detectVariantLists, entryAxisValue, isVariantEntry } from './variant-detect.js';
@@ -38,11 +39,31 @@ function keyOf(type: CustomerFieldType, v: string): string | null {
 }
 
 /**
+ * The page's rendered heading text — exactly as `packages/api/src/routers/sources.ts` `headingTextFrom`
+ * does: the first rendered `<h1>` in the html (scripts/styles stripped first, so a templated `<h1>` in
+ * a `<script>` never counts, and a nested `<span>` is read, unlike a box's own-text-only `.text`), else
+ * the largest h1/h2/h3 box's own text.
+ */
+function headingTextFrom(html: string, boxes: Box[]): string | null {
+  const markup = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ');
+  const h1 = /<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1\s*>/i.exec(markup);
+  if (h1) return visibleTextFromHtml(h1[1]!).trim();
+  let best: Box | null = null;
+  for (const b of boxes) {
+    if (b.tag.toLowerCase() !== 'h1' && b.tag.toLowerCase() !== 'h2' && b.tag.toLowerCase() !== 'h3') continue;
+    if (!best || b.rect.w * b.rect.h > best.rect.w * best.rect.h) best = b;
+  }
+  return best ? best.text.trim() : null;
+}
+
+/**
  * Choice candidates for a field: distinct values of the page's structured leaves whose path fits the
  * field (JSON-LD and meta), plus the visible strings for it — money strings near the heading for a
- * price, the h1 and og:title for a name, og:site_name/product:brand for a brand. Verbatim; ≤ 30.
+ * price, the heading and og:title for a name, og:site_name/product:brand for a brand. Verbatim; ≤ 30.
+ * `html` is the capture's rendered html, read for the heading text (a wrapped `<h1><span>…</span></h1>`
+ * has no text of its own on the box); omit it to fall back to the box's own text only.
  */
-export function jevFieldCandidates(field: JevField, structured: { ldJson: unknown[]; meta: Record<string, string> }, boxes: Box[]): JevCandidate[] {
+export function jevFieldCandidates(field: JevField, structured: { ldJson: unknown[]; meta: Record<string, string> }, boxes: Box[], html = ''): JevCandidate[] {
   const out: Array<Omit<JevCandidate, 'id'>> = [];
   const seen = new Set<string>();
   const add = (value: string, source: string) => {
@@ -61,14 +82,14 @@ export function jevFieldCandidates(field: JevField, structured: { ldJson: unknow
     if ((field.type === 'money' || field.type === 'number') && normalize(field.type, l.raw) === null) continue;
     add(String(l.raw), `${l.source} ${l.path}`);
   }
-  const h1s = boxes.filter((b) => b.tag.toLowerCase() === 'h1' && b.text.trim() !== '');
   if (field.concept === 'brand') for (const k of ['og:site_name', 'application-name', 'product:brand']) if (structured.meta[k]) add(structured.meta[k]!, `meta ${k}`);
   if (field.concept === 'product_name') {
-    for (const h of h1s.slice(0, 2)) add(h.text, 'visible h1');
+    const heading = headingTextFrom(html, boxes);
+    if (heading) add(heading, 'visible h1');
     if (structured.meta['og:title']) add(structured.meta['og:title'], 'meta og:title');
   }
   if (field.concept === 'price') {
-    const h1 = h1s[0]?.rect;
+    const h1 = boxes.find((b) => b.tag.toLowerCase() === 'h1')?.rect;
     const moneyText = /^[^\d]{0,8}[$£€]\s?\d[\d,]*(\.\d{1,2})?\s*$|^\s*\d[\d,]*(\.\d{1,2})?\s?(€|£)\s*$/;
     for (const b of [...boxes].sort((a, c) => a.rect.y - c.rect.y || a.rect.x - c.rect.x)) {
       if (!moneyText.test(b.text)) continue;
@@ -134,12 +155,23 @@ export function jevVariantOptions(capture: Pick<PageCapture, 'structuredData' | 
   for (const root of roots) {
     const arr = getAt(root, list.path);
     if (!Array.isArray(arr)) continue;
+    const entries = arr.map((e, idx) => ({ e, idx })).filter((x) => isObj(x.e) && isVariantEntry(x.e as Obj));
+    // Only the array `[page]` would really read — a same-named array shaped differently on another root is not it.
+    if (entries.length !== list.count) continue;
     const dot = list.path.lastIndexOf('.');
     const container = dot < 0 ? root : getAt(root, list.path.slice(0, dot));
     const axes = variesByOf(container);
-    const entries = arr.map((e, idx) => ({ e, idx })).filter((x) => isObj(x.e) && isVariantEntry(x.e as Obj));
-    if (entries.length === 0) continue;
-    let options = entries.map((x, k) => ({ id: `e${k + 1}`, label: entryLabel(x.e as Obj, list.axes) || `entry ${x.idx + 1}`, entryIndex: x.idx }));
+    let options: JevVariantOption[] = entries.map((x, k) => ({ id: `e${k + 1}`, label: entryLabel(x.e as Obj, list.axes), entryIndex: x.idx }));
+    // Empty or repeated labels: the sku (or the entry number) tells them apart.
+    const seen = new Map<string, number>();
+    for (const o of options) seen.set(o.label, (seen.get(o.label) ?? 0) + 1);
+    for (let i = 0; i < options.length; i++) {
+      const o = options[i]!;
+      if (o.label !== '' && seen.get(o.label) === 1) continue;
+      const e = entries[i]!.e as Obj;
+      const sku = typeof e.sku === 'string' ? e.sku : typeof e.mpn === 'string' ? e.mpn : null;
+      o.label = `${o.label}${o.label ? ' ' : ''}(${sku ? `SKU ${sku}` : `entry ${o.entryIndex + 1}`})`;
+    }
     const hit = capture.pageVariant ? pickPageEntry(arr, capture.pageVariant, axes) : undefined;
     const matchIdx = hit === undefined ? null : arr.indexOf(hit);
     if (options.length > JEV_MAX_VARIANT_OPTIONS) {

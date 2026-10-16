@@ -36,6 +36,12 @@ describe('jevFieldCandidates', () => {
     expect(c).toHaveLength(30);
     expect(c[0]!.id).toBe('c1');
   });
+  it('reads a wrapped heading from the html, not just the box\'s own text (Colourpop nested span)', () => {
+    const html = '<html><body><h1><span>Super Shock Shadow</span></h1></body></html>';
+    const c = jevFieldCandidates(title, { ldJson: [{ '@type': 'Product', name: 'Drift' }], meta: {} }, [box('', 'h1', 80)], html);
+    expect(c.map((x) => x.value).sort()).toEqual(['Drift', 'Super Shock Shadow']);
+    expect(c.find((x) => x.value === 'Super Shock Shadow')?.source).toBe('visible h1');
+  });
 });
 
 describe('jevVariantOptions', () => {
@@ -59,5 +65,20 @@ describe('jevVariantOptions', () => {
     expect(r.options.length).toBeLessThanOrEqual(JEV_MAX_VARIANT_OPTIONS);
     expect(r.pageMatch).not.toBeNull();
     expect(r.options.some((o) => o.id === r.pageMatch)).toBe(true);
+  });
+  it('tells apart two entries with the same label by sku, or by entry number without one', () => {
+    const dupEntries = (withSku: boolean) => [
+      { '@type': 'Product', color: 'Black', ...(withSku ? { sku: 'A1' } : {}) },
+      { '@type': 'Product', color: 'Red', ...(withSku ? { sku: 'C3' } : {}) },
+      { '@type': 'Product', color: 'Black', ...(withSku ? { sku: 'B2' } : {}) },
+    ];
+    const capDup = (withSku: boolean) => ({
+      structuredData: { ldJson: [{ '@type': 'ProductGroup', variesBy: ['https://schema.org/color'], hasVariant: dupEntries(withSku) }], nextData: null, initialState: null, meta: {} },
+      interceptedRequests: [],
+    });
+    const withSkus = jevVariantOptions(capDup(true))!;
+    expect(withSkus.options.map((o) => o.label)).toEqual(['Black (SKU A1)', 'Red', 'Black (SKU B2)']);
+    const withoutSkus = jevVariantOptions(capDup(false))!;
+    expect(withoutSkus.options.map((o) => o.label)).toEqual(['Black (entry 1)', 'Red', 'Black (entry 3)']);
   });
 });
