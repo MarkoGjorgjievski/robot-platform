@@ -44,6 +44,7 @@ AI-powered web scraping platform for in-house use. Customers request data from w
 - `pnpm test:liveness` — do the corpus fixtures still match the pages their URLs serve? (live, free)
 - `pnpm test:ui:app` — `@robot/app` route smoke: signs in through `/login` as a throwaway address, walks every screen in both themes, screenshots into `docs/testing/screens/app-*.png`; needs `pnpm dev:all` running (live, free)
 - `pnpm test:ui:staff` — staff-access smoke: a throwaway operator works on a throwaway customer's website as staff, and the customer reads the log; screenshots into `docs/testing/screens/staff-*.png`. Runs only against an isolated pair (keyless api-server on :4100 with `OPS_EMAILS=staff-smoke-op@example.com APP_ORIGINS=http://localhost:3100`, the app on :3100 with `VITE_API_URL=http://localhost:4100`; see the top of `packages/app/src/staff-smoke.test.ts`), never `pnpm dev:all` (live, free)
+- Keep `JEV_SHADOW` unset in the servers a `pnpm test:ui:app` or `pnpm test:ui:staff` run talks to, or they send real, paid Jev readings for the captures the smokes trigger
 - `pnpm --filter @robot/api dogfood` — Tier 2 live dogfood + LLM judge; writes `docs/testing/results/`. Needs `ANTHROPIC_API_KEY`
 - `pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — CLI test run
 - `HEADFUL=1 pnpm --filter @robot/scraper exec tsx src/test-run.ts "URL"` — with visible browser

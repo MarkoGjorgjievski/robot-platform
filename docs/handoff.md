@@ -144,6 +144,8 @@ round trips nothing answers. Booleans, images and descriptions are not asked (th
 showed hidden/collapsed sections defeat a crop); no store-JSON variant fallback for a page like
 Glossier's with no JSON-LD variant list. **How to turn it on:** set `JEV_SHADOW=1` and
 `TYPESAFE_API_KEY` (and, optionally, `JEV_DAILY_READINGS`) in `.env` and restart the api-server.
+Keep `JEV_SHADOW` unset for `pnpm test:ui:app` and `pnpm test:ui:staff` runs, or the servers send real,
+paid readings for the captures the smokes trigger. A drift check's re-captures never start a reading.
 **How to read the numbers:** `pnpm --filter @robot/api exec tsx src/jev-agreement.ts`. **Next (spec
 §9):** after ~20 websites, read the agreement and decide whether Jev's pick becomes the row's
 suggestion for ambiguous fields and the variant pick becomes `[page]`'s fallback.
