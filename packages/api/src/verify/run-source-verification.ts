@@ -174,10 +174,6 @@ export async function runSourceVerification(
       costUsd: cost.toFixed(4),
       completedAt: new Date(),
     }).where(eq(sourceVerifications.id, verificationId));
-    // Jev at Verify, in shadow (spec 2026-10-16 §7): Jev's picks against what the customer
-    // verified, on this row's verify_agreement only. Never throws; touches nothing written above.
-    await recordJevAgreement(verificationId, sourceId, fields, set, run.outcome.fields);
-
     if (run.outcome.allPassed) {
       const byConcept: Record<string, CertifiedPath[]> = {};
       for (const f of fields) (byConcept[f.concept] ??= []).push(...run.outcome.fields[f.key]!.certified);
@@ -186,6 +182,12 @@ export async function runSourceVerification(
       // The coverage check (spec 2026-10-10 §A1): free, in the background, never awaited.
       void startCoverage(sourceId, verificationId).catch((err) => console.error(`[coverage] could not start for ${sourceId}:`, err));
     }
+
+    // Jev at Verify, in shadow (spec 2026-10-16 §7): Jev's picks against what the customer
+    // verified, on this row's verify_agreement only — after the certification writes and never
+    // awaited, so measurement never delays certification. It never throws; the catch is a backstop.
+    void recordJevAgreement(verificationId, sourceId, fields, set, captureRefs, run.outcome.fields)
+      .catch((err) => console.error(`[jev] agreement for ${verificationId} failed:`, err));
   } catch (err) {
     console.error(`[verify] verification ${verificationId} failed:`, err);
     try {
