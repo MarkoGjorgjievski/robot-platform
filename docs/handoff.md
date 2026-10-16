@@ -150,6 +150,8 @@ paid readings for the captures the smokes trigger. A drift check's re-captures n
 §9):** after ~20 websites, read the agreement and decide whether Jev's pick becomes the row's
 suggestion for ambiguous fields and the variant pick becomes `[page]`'s fallback.
 
+**Merged and live-checked (2026-10-16):** merged into `main` (fast-forward, 16 commits) after six reviewed tasks (fix rounds on Tasks 1, 3, 5), a whole-branch review (0 critical, 1 important: drift checks started readings — fixed) and a fix wave (re-review clean). Route smoke on `main`: 26 of 26 with shadow off. Live (`docs/testing/results/2026-10-16-jev-at-verify-live-check.md`, $0.0046, 14 readings): Gymshark 15/16 and Kith Brand/Title 6/6 agree with the verified values; Colourpop's "Mega Palette" disagreement is the page having changed; Ruggable's screenshot is nearly blank (wide layout off the 1280 px capture), so Jev honestly answers "none". Follow-ups: wide-layout captures; drop `og:title` long forms as Title candidates; trim variant labels to option values.
+
 ## The variant the address names (2026-10-14)
 
 Spec `docs/superpowers/specs/2026-10-14-variant-from-the-address-design.md`, plan
