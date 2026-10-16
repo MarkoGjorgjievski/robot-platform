@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JEV_MISSING_FETCHES, jevDetailText, jevNote, jevPollMs, readsVariantList, type JevReadingLike } from './jev-view';
+import { JEV_MAX_FETCHES, JEV_MISSING_FETCHES, jevDetailText, jevTextFor, jevNote, jevPollMs, readsVariantList, type JevReadingLike } from './jev-view';
 import { emptyBoard, type Board, type Field, type Suggestions } from './verification-model';
 
 const price: Field = { key: 'price', name: 'Price', type: 'money', description: '', concept: 'price' };
@@ -34,6 +34,11 @@ describe('jevNote', () => {
     const r = done('c1', 0.98, { variant: { entries: [{ id: 'e1', label: "2'x3'" }, { id: 'e2', label: "6'x9'" }], pick: 'e2', p: 0.95, pageMatch: 'e1' } });
     expect(jevNote(price, board(), live('$374.25'), { u1: r }, true)).toBe("Jev reads the selected variant as 6'x9' on product 1");
     expect(jevNote(price, board(), live('$374.25'), { u1: r }, false)).toBeNull();
+  });
+  it('identical text that is no amount ("Free" and "Free") is never a difference', () => {
+    const free: JevReadingLike = { status: 'done', answers: { fields: { price: { candidates: [{ id: 'c1', value: 'Free' }, { id: 'c2', value: '$5.00' }], pick: 'c1', p: 0.95 } } } };
+    expect(jevNote(price, board(), live('Free'), { u1: free }, false)).toBeNull();
+    expect(jevNote(price, board(), live('5.00'), { u1: free }, false)).toBe('Jev reads Free as the Price on product 1');
   });
   it('one note per row: the lowest product that differs, the field note first', () => {
     const r = done('c1', 0.98, { variant: { entries: [{ id: 'e1', label: 'a' }, { id: 'e2', label: 'b' }], pick: 'e2', p: 0.95, pageMatch: 'e1' } });
@@ -70,8 +75,23 @@ describe('jevPollMs', () => {
     expect(jevPollMs(undefined, [], { errored: false, fetches: 0 })).toBe(false);
     expect(jevPollMs(undefined, ['k1'], { errored: true, fetches: 0 })).toBe(false);
   });
+  it('stops at the cap even while a reading still reads running (a stuck reading)', () => {
+    expect(JEV_MAX_FETCHES).toBe(40);
+    expect(jevPollMs({ k1: run }, ['k1'], { errored: false, fetches: JEV_MAX_FETCHES - 1 })).toBe(3000);
+    expect(jevPollMs({ k1: run }, ['k1'], { errored: false, fetches: JEV_MAX_FETCHES })).toBe(false);
+  });
   it('re-asks a few times for a capture with no reading yet, then stops (Jev off)', () => {
     expect(jevPollMs({}, ['k1'], { errored: false, fetches: 1 })).toBe(3000);
     expect(jevPollMs({}, ['k1'], { errored: false, fetches: JEV_MISSING_FETCHES })).toBe(false);
+  });
+});
+
+describe('jevTextFor', () => {
+  it('only a done reading shows a line; none, running or failed shows nothing', () => {
+    expect(jevTextFor(done('c1', 0.98), 'price')).toBe('Jev: 374.25 (0.98)');
+    expect(jevTextFor(done('c1', 0.98), 'title')).toBe('Jev: not read');
+    expect(jevTextFor(undefined, 'price')).toBeUndefined();
+    expect(jevTextFor({ status: 'running', answers: null }, 'price')).toBeUndefined();
+    expect(jevTextFor({ status: 'failed', answers: null }, 'price')).toBeUndefined();
   });
 });

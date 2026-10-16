@@ -135,6 +135,21 @@ describe('sources.jevReadings (spec 2026-10-16 §6)', () => {
     } finally { await f.cleanup(); }
   });
 
+  it('a running reading older than two minutes reads failed (read-time only; the row stays running)', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-jev-stuck', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const [stuck, fresh] = [await capture(f.sourceId, f.urls[0]!), await capture(f.sourceId, f.urls[1]!)];
+      await db.insert(jevReadings).values([
+        { sourceId: f.sourceId, captureId: stuck, url: f.urls[0]!, status: 'running', createdAt: new Date(Date.now() - 3 * 60_000) },
+        { sourceId: f.sourceId, captureId: fresh, url: f.urls[1]!, status: 'running', createdAt: new Date(Date.now() - 60_000) },
+      ]);
+      const r = await caller.sources.jevReadings({ sourceId: f.sourceId, captureIds: [stuck, fresh] });
+      expect(r).toEqual({ [stuck]: { status: 'failed', answers: null }, [fresh]: { status: 'running', answers: null } });
+      const row = await db.query.jevReadings.findFirst({ where: eq(jevReadings.captureId, stuck), columns: { status: true } });
+      expect(row?.status).toBe('running');
+    } finally { await f.cleanup(); }
+  });
+
   it('NOT_FOUND for a capture of another org, and for another org\'s website', async () => {
     const other = await signedInCaller('sources-marks-other');
     const f = await createProjectWithSource(caller, { tag: 'marks-jev-mine', fields: [{ name: 'Price', type: 'money' }] });
