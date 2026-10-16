@@ -2,7 +2,7 @@
 // Spec 2026-10-16 §7: when a Verify completes, Jev's picks against what the
 // customer verified. Measurement only: written to `verify_agreement` on the
 // verification row and nowhere else, never read by Verify, a run or a gate (§10.2).
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db, jevReadings, sourceVerifications } from '@robot/db';
 import { normalize, type CustomerFieldType, type FieldVerification, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import type { JevAnswers } from './jev-reading.js';
@@ -55,24 +55,31 @@ function certifiedOf(results: Record<string, FieldVerification>): Record<string,
   return Object.fromEntries(Object.entries(results).map(([key, r]) => [key, r.certified.length > 0 || r.defaultOnly === true]));
 }
 
-/** Never throws: agreement is measurement, not Verify. Uses each proof page's newest `done` reading for this website. */
+/**
+ * Never throws: agreement is measurement, not Verify. Scores, per proof page, the `done` reading
+ * of the capture this Verify used (`captureRefs`, its `captures` column); a page whose capture has
+ * no done reading has none here — an older reading, of another capture, is never scored.
+ */
 export async function recordJevAgreement(
   verificationId: string,
   sourceId: string,
   fields: SchemaDefinitionField[],
   set: VerificationSet,
+  captureRefs: Record<string, { captureId: string }>,
   results?: Record<string, FieldVerification>,
 ): Promise<void> {
   try {
-    if (set.urls.length === 0) return;
+    const urlOf = new Map<string, string>();
+    for (const url of set.urls) { const id = captureRefs[url]?.captureId; if (id) urlOf.set(id, url); }
+    if (urlOf.size === 0) return;
     const rows = await db.query.jevReadings.findMany({
-      where: and(eq(jevReadings.sourceId, sourceId), eq(jevReadings.status, 'done'), inArray(jevReadings.url, set.urls)),
-      orderBy: [desc(jevReadings.createdAt)],
-      columns: { id: true, url: true, answers: true },
+      where: and(eq(jevReadings.sourceId, sourceId), eq(jevReadings.status, 'done'), inArray(jevReadings.captureId, [...urlOf.keys()])),
+      columns: { id: true, url: true, captureId: true, answers: true },
     });
-    const latest = new Map<string, { id: string; url: string; answers: JevAnswers }>();
-    for (const r of rows) if (r.answers && !latest.has(r.url)) latest.set(r.url, { id: r.id, url: r.url, answers: r.answers as JevAnswers });
-    const agreement = agreementOf(fields, set, [...latest.values()], results ? certifiedOf(results) : undefined);
+    const readings = rows
+      .filter((r) => r.answers && urlOf.get(r.captureId) === r.url)
+      .map((r) => ({ id: r.id, url: r.url, answers: r.answers as JevAnswers }));
+    const agreement = agreementOf(fields, set, readings, results ? certifiedOf(results) : undefined);
     if (agreement) await db.update(sourceVerifications).set({ verifyAgreement: agreement }).where(eq(sourceVerifications.id, verificationId));
   } catch (err) {
     console.error(`[jev] agreement for ${verificationId} failed:`, err);

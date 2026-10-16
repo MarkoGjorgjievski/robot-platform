@@ -142,37 +142,47 @@ describe('runSourceVerification', () => {
     }
   });
 
-  it('records Jev agreement from each proof page\'s newest done reading on verify_agreement, and leaves results, allPassed and cost as they would be without (spec 2026-10-16 §7, §10.2)', async () => {
+  it('records Jev agreement from the reading of each capture this Verify used, never an older one, after the certification writes, and leaves results, allPassed and cost as they would be without (spec 2026-10-16 §7, §10.2)', async () => {
     const outcome = (key: string) => ({
       fields: { [key]: { key, cells: {}, certified: [{ source: 'api' as const, path: 'item.price', transform: 'identity' as const }], weakEvidence: false, aiCalled: false, incomplete: false } },
       allPassed: true, aiCalls: 0,
     });
-    const run = async (tag: string, seed: (sourceId: string, urls: string[]) => Promise<void>) => {
+    let used = '';
+    const run = async (tag: string, seed: (sourceId: string, urls: string[]) => Promise<void>, waitForAgreement: boolean) => {
       const { sourceId, urls, cleanup } = await makeSchemaSource(tag);
       try {
         await seed(sourceId, urls);
         const verificationId = await startVerificationRow(sourceId);
         runVerificationMock.mockResolvedValue({ outcome: outcome('price'), captures: Object.fromEntries(urls.map((u) => [u, fakeCapture(u, '<html></html>')])), captureErrors: {} });
         await runSourceVerification(sourceId, verificationId, { startCoverage });
-        return (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!;
+        const read = async () => (await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, verificationId) }))!;
+        // The agreement is fired after the certification writes, not awaited: it lands a moment later.
+        if (waitForAgreement) await vi.waitFor(async () => { expect((await read()).verifyAgreement).not.toBeNull(); });
+        return read();
       } finally { await cleanup(); }
     };
     const answers = (pick: string) => ({ fields: { price: { candidates: [{ id: 'c1', value: '$1.00', source: 's' }, { id: 'c2', value: '$9.00', source: 's' }], pick, p: 0.95 } } });
 
     const withJev = await run('jev-agree', async (sourceId, urls) => {
       const cap = async (url: string) => (await db.insert(captures).values({ sourceId, url, html: '' }).returning({ id: captures.id }))[0]!.id;
-      // Page 1: an older reading that disagrees, then a newer one that agrees (the newer counts);
-      // page 2: a reading still running (not counted); page 3: none.
-      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[0]!), url: urls[0]!, status: 'done', answers: answers('c2'), createdAt: new Date(Date.now() - 60_000) });
-      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[0]!), url: urls[0]!, status: 'done', answers: answers('c1') });
-      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[1]!), url: urls[1]!, status: 'running' });
-    });
+      // Page 1: the fresh proof-page capture Verify reuses, read earlier and agreeing; and a NEWER
+      // reading, of a capture Verify does not use, that disagrees (never scored).
+      const now = new Date().toISOString();
+      used = (await db.insert(captures).values({ sourceId, url: urls[0]!, html: '', metadata: { kind: 'proof-page', status: 'captured', url: urls[0]!, startedAt: now, capturedAt: now, tiles: [], boxes: [], pageHeight: 0, capturedHeight: 0, contentHeight: 0 } }).returning({ id: captures.id }))[0]!.id;
+      await writeCaptureFile(used, fakeCapture(urls[0]!, '<html></html>'));
+      await db.insert(jevReadings).values({ sourceId, captureId: used, url: urls[0]!, status: 'done', answers: answers('c1'), createdAt: new Date(Date.now() - 60_000) });
+      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[0]!), url: urls[0]!, status: 'done', answers: answers('c2') });
+      // Page 2: only an older reading, of a capture Verify does not use (it takes its own): no reading.
+      await db.insert(jevReadings).values({ sourceId, captureId: await cap(urls[1]!), url: urls[1]!, status: 'done', answers: answers('c1'), createdAt: new Date(Date.now() - 60_000) });
+      // Page 3: none.
+    }, true);
     const agreement = withJev.verifyAgreement as JevAgreement;
     expect(agreement).toMatchObject({ asked: 1, agreed: 1 });
     expect(Object.keys(agreement.pages)).toHaveLength(1);
     expect(Object.values(agreement.pages)[0]!.fields.price).toMatchObject({ pick: 'c1', value: '$1.00', expected: '1.00', agree: true, certified: true });
+    expect(Object.values(withJev.captures as Record<string, { captureId: string }>).map((r) => r.captureId)).toContain(used);
 
-    const without = await run('jev-none', async () => {});
+    const without = await run('jev-none', async () => {}, false);
     expect(without.verifyAgreement).toBeNull();
     expect(withJev.results).toEqual(without.results);
     expect(withJev.allPassed).toBe(without.allPassed);
