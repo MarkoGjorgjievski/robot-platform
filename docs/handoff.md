@@ -29,12 +29,15 @@ type: project
 8. **Run speed, soon but not now** (Marko, 2026-10-07; after items 1–4): `docs/superpowers/specs/2026-10-07-run-speed-and-language-note.md`. Two levers decided: (a) the lean-capture **second increment** as already designed in the 2026-09-11 note — skip the popup/expand/screenshot/markdown steps and the second render on certified runs, fall back to the full capture on a miss; (b) **websites in parallel** — a run scheduler with a cap on open pages, designed together with the roadmap's job queue (short spec first). Together they take a certified product from the measured 10.5 s to ~4 s and a 1,000-page run from ~3 h to ~10 min, with no change to what is extracted. Skipping Chromium for structured-only sources is written up with its caveats but **deferred** until the fetchable share of the corpus is measured. The note also records the decision **not** to rewrite anything in Go or Rust: a certified run spends under 0.1 s of its 10.5 s in our own code.
 9. **The campaign-2 product defects** (from the credit campaign's batch A notes, `docs/testing/results/campaign-2026-10-11/`): the variant chosen in the URL is ignored — addressed 2026-10-14, see the section; screenshots that never show the product on wide pages; Verify fails silently after "Not on this product" on products 1–3 (likely fixed 2026-10-13 by the defaults branch (gate passes `absent`); confirm); marked values that do not verify; the Extract button shows no estimate; Sample is labelled free but charged.
 10. **A website's default values — merged 2026-10-13; route smoke re-run and the Gymshark live check done 2026-10-14 (Brand by default only, a 10-product run at $0 with "default on 10").** (The first smoke on `main` passed 23 of 24, the one failure a stale key lookup in the test itself, fixed in `42df0e2`; the re-run from Marko's terminal wrote every screenshot, the default-cell ones included, `90ca60b`.) See "A website's default values (2026-10-13)" below: a binding default per field fills every cell its certified paths leave empty, free, counted and marked everywhere a value shows.
+11. **Jev at Verify, in shadow — implemented 2026-10-16, see the section.** After ~20 websites have been verified with readings, read the agreement (`pnpm --filter @robot/api exec tsx src/jev-agreement.ts`) and decide spec §9 — whether Jev's pick becomes the row's suggestion for ambiguous fields, and the variant pick becomes `[page]`'s fallback.
 
 **Jev variants, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-variants/report.md`, $0.0147):** asked which variant each screenshot shows as selected, Jev was right on 28 of 28 scorable pages across Ruggable, Kith, Skullcandy, Glossier, Burrow and Puma; our `[page]` code was right on 17. Where they differed Jev was right every time. Our misses: a default selection the address does not name is never read (Ruggable, Skullcandy); Glossier's capture carries no variant list; Burrow's two-pair addresses match two entries on one pair; and a selection-script bug turned every letter "s" into a space (fixed, `fix(scraper): the selection script keeps the letter s`). "Does the page show the address's variant" 16/18; parameter mapping 21/21; no answer flipped on repeats. Per-element crops fixed only 2 of 28 description false alarms: the rest sit in hidden or folded sections, so a crop cannot show them — open collapsed sections first, or skip descriptions in a visual check.
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [The variant the address names (2026-10-14)](#the-variant-the-address-names-2026-10-14).** A row's values now follow the variant the page's own address names, through a new `[page]` form a certified path can use instead of a fixed index, and a page that does not show the variant its address names fails its capture instead of silently extracting the wrong one. Six tasks implemented and reviewed on `feat/variant-from-address`, one fix round each on Tasks 1 and 2; the whole-branch review, the merge, the route smoke on `main` and the live check are still to come — see the section.
+**Newest: [Jev at Verify, in shadow (2026-10-16)](#jev-at-verify-in-shadow-2026-10-16).** After a proof-page capture, a background Jev reading now picks among our own candidates for each ambiguous text/money/number field and reads which variant the page shows — stored, shown where it differs, never applied. Six tasks implemented and reviewed on `feat/jev-at-verify`, fix rounds on Tasks 1, 3 and 5; the whole-branch review, the merge, the route smoke and the live check are still to come — see the plan's status.
+
+**Before it: [The variant the address names (2026-10-14)](#the-variant-the-address-names-2026-10-14).** A row's values now follow the variant the page's own address names, through a new `[page]` form a certified path can use instead of a fixed index, and a page that does not show the variant its address names fails its capture instead of silently extracting the wrong one. Six tasks implemented and reviewed on `feat/variant-from-address`, one fix round each on Tasks 1 and 2; the whole-branch review, the merge, the route smoke on `main` and the live check are still to come — see the section.
 
 **Before it: [A website's default values (2026-10-13)](#a-websites-default-values-2026-10-13).** A website's binding now carries a default per field — a typed value a run writes into every cell its certified paths leave empty, so the customer can say "on this website, unless the page says otherwise, the Brand is Gymshark" instead of typing the tagline as a workaround. A path still wins where it reads a value; a field whose proof pages are all default cells and whose candidates all fail certifies by default only, free, no AI call. Defaulted values are counted and marked on the run page, read as empty by drift and the coverage check, shown in ops, and judged like any other value. Merged into `main` 2026-10-13 (fast-forward, 16 commits) after a whole-branch review on the most capable model (0 critical, 3 important, fixed in one wave, re-review clean). The route smoke on `main` passed 23 of 24 on its first run (the failure was the test's own stale key lookup, fixed in `42df0e2`); the re-run from Marko's own terminal (the memory watchdog had stopped mine) wrote every screenshot, the two default-cell ones included (`90ca60b`, `docs/testing/screens/app-site-verification-default-*.png`). The live check on the campaign's Gymshark website: see the section's "Live check" paragraph.
 
@@ -93,6 +96,57 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Jev at Verify, in shadow (2026-10-16)
+
+Spec `docs/superpowers/specs/2026-10-16-jev-at-verify-shadow-design.md`, plan
+`docs/superpowers/plans/2026-10-16-jev-at-verify-shadow.md`. Branch `feat/jev-at-verify` from
+`main`, six tasks (subagent-driven), each reviewed — fix rounds on Tasks 1, 3 and 5, Tasks 2 and 4
+clean on first review. The whole-branch review, the merge, the route smoke on `main` and the live
+check: see the plan's status.
+
+**What a customer sees** (spec §6): after a proof page's capture is stored, a Jev reading runs in
+the background — one call, the screenshot once in state — and picks among our own candidates for
+every ambiguous text/money/number field, plus which variant the page shows when its data carries a
+list. Nothing it says changes an answer, a suggestion, a certification or a run. Where its pick
+differs from the row's own suggestion or the customer's answer (p ≥ 0.6), the row's status column
+shows one muted line, "Jev reads 374.25 as the Price on product 1"; the cell detail bar shows
+`Jev: 374.25 (0.98)` for the selected cell, read-only. Every reading is recorded against what the
+customer finally verifies (`verify_agreement` on the verification row), so the agreement can be
+read later without touching anything live.
+
+**How it was proven, so far:** unit tests per package — `jevCandidates` on fixtures copied from the
+two Jev experiments (Ruggable price, Gymshark brand, Colourpop title), `buildJevRequest` and
+`runJevReading` against a fake TypeSafe client (done, failed, timeout, the switch and the daily
+budget), `jevNote`/`jevDetailText`/`jevPollMs` pure over fixture boards; a route smoke addition
+seeding one `done` reading on the smoke website's product 1 and reading the row note and the
+detail-bar text, with no reading on the rest of the table showing no note. **Still to come — see
+the plan's status:** the whole-branch review, the merge, the route smoke run on `main`, and the
+live check (re-capture the proof pages of Ruggable, Gymshark, Colourpop and Kith in the campaign
+project with `JEV_SHADOW=1`, read the notes and the detail-bar text, check the stored rows; expected
+total ≈ $0.01).
+
+**Deviations from the spec:** no re-read when a field is added to the contract — a re-capture
+covers it (planner deviation, accepted up front). A separate polled `sources.jevReadings` query
+feeds the tab instead of folding readings into `suggestMarks` (`suggestMarks` is merged once per
+page, not polled). The variant note shows under the fields that read a variant list, never on the
+Variants row itself — deferred. The stored tile is 1280×1536, not the spec's 1440×1000 (within the
+size budget; the live check confirms it reads the same). App polling caps at 40 fetches, and
+`sources.jevReadings` reports a `running` row older than two minutes as `failed` at read time (no
+write), so a reading stuck running after an api-server restart never polls forever. The variant
+question's certified `[page]` entry is not recorded in the agreement — no resolver exists for it
+today.
+
+**Known gaps / next:** a reading that lands more than ~6 seconds after its capture shows only after
+a reload (the tab's polling window closes first). With Jev off (no key, or `JEV_SHADOW` unset) the
+tab still asks `sources.jevReadings` three times per capture set before giving up — free, but three
+round trips nothing answers. Booleans, images and descriptions are not asked (the images experiment
+showed hidden/collapsed sections defeat a crop); no store-JSON variant fallback for a page like
+Glossier's with no JSON-LD variant list. **How to turn it on:** set `JEV_SHADOW=1` and
+`TYPESAFE_API_KEY` (and, optionally, `JEV_DAILY_READINGS`) in `.env` and restart the api-server.
+**How to read the numbers:** `pnpm --filter @robot/api exec tsx src/jev-agreement.ts`. **Next (spec
+§9):** after ~20 websites, read the agreement and decide whether Jev's pick becomes the row's
+suggestion for ambiguous fields and the variant pick becomes `[page]`'s fallback.
 
 ## The variant the address names (2026-10-14)
 

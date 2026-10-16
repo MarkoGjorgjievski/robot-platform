@@ -1,11 +1,23 @@
 # Jev at Verify, in shadow — design
 
-**Status:** spec written 2026-10-16 at Marko's request ("yes" to writing the spec for Jev at Verify
-in shadow), after two measured experiments; not yet planned. Builds on
-`2026-10-15-jev-images-experiment.md` and its results
-(`docs/testing/results/2026-10-15-jev-images/report.md`, `…/2026-10-15-jev-variants/report.md`),
-`2026-10-14-variant-from-the-address-design.md` (`[page]`), and the parked
-`2026-09-28-jev-shadow-checks-design.md` (whose per-row check stays a separate, later spec).
+**Status:** implemented on `feat/jev-at-verify`, 2026-10-16; merge, final review, the route smoke and
+the live check: see `docs/handoff.md`. Builds on `2026-10-15-jev-images-experiment.md` and its
+results (`docs/testing/results/2026-10-15-jev-images/report.md`,
+`…/2026-10-15-jev-variants/report.md`), `2026-10-14-variant-from-the-address-design.md` (`[page]`),
+and the parked `2026-09-28-jev-shadow-checks-design.md` (whose per-row check stays a separate, later
+spec).
+
+**Deviations:**
+- No re-read when a field is added to the contract (a re-capture covers it).
+- A separate polled `sources.jevReadings` query instead of folding readings into `suggestMarks`
+  (`suggestMarks` is merged once per page, not polled).
+- The variant note shows under fields that read a variant list, never on the Variants row itself
+  (deferred).
+- The stored tile is 1280×1536, not 1440×1000 (within the spec's size budget; to confirm live).
+- App polling caps at 40 fetches, and a `running` reading older than two minutes is reported as
+  `failed` at read time (no write) so a stuck row never polls forever.
+- The variant question's certified `[page]` entry is not recorded in the agreement (no resolver
+  exists for it today).
 
 ## 1. The problem
 
