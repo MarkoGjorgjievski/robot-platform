@@ -69,6 +69,9 @@ Variables already set in the shell take precedence over `.env`.
 - `DATABASE_URL` — PostgreSQL connection string
 - `OPS_EMAILS` — comma-separated emails that land in ops mode (staff), matched case-insensitively and trimmed; empty or unset means nobody is an operator
 - `APP_ORIGINS` — comma-separated origins the api-server accepts (CORS); default `http://localhost:3000`. An isolated pair (app :3100 → api :4100) sets its own
+- `TYPESAFE_API_KEY` — TypeSafe (Jev) API key; with `JEV_SHADOW=1` set too, enables a Jev reading after each proof-page capture (spec 2026-10-16). Either missing, no reading runs
+- `JEV_SHADOW` — set to `1` to turn on Jev at Verify, in shadow; needs `TYPESAFE_API_KEY` too
+- `JEV_DAILY_READINGS` — readings per UTC day across the api-server (one per proof-page capture); default 2000
 
 ## Key Technical Decisions
 
@@ -80,6 +83,7 @@ Variables already set in the shell take precedence over `.env`.
 - Shown on the page (2026-10-12): a run flags every certified value the product's page does not show (free, at extraction time); the run page counts and names them; at Verify a Title that is not the page's heading never reads agreed and a typed value the page does not show warns; the judge report measures the flag against its verdicts.
 - A website's default values (2026-10-13): a binding carries a default per field; a run writes the certified path's value where one reads and the default where every path misses; Verify treats a blank cell on such a field as a default cell and certifies by default only, free, when nothing reads the field; defaulted values are counted on the run page, read as empty by drift and the coverage check, shown in ops and judged like any value.
 - The variant the address names (2026-10-14): every capture knows its page variant; a certified path reads an array by it with `[page]` (the one matching entry or nothing, never entry 0); Verify proposes and prefers that form; a page that does not show the variant its address names fails its capture with one sentence.
+- Jev at Verify, in shadow (2026-10-16): with JEV_SHADOW=1 and a TypeSafe key, each proof-page capture gets one Jev reading (screenshot once in state): which candidate each ambiguous text/money/number field is, which variant the page shows. Shown where Jev differs ("Jev reads …"), recorded against what the customer verifies, never applied.
 - Popup auto-dismissal — 3 rounds of click + JS removal before capture
 - Provider abstraction — Anthropic and Ollama supported, auto-detected from env
 - `"type": "module"` in all packages
