@@ -43,6 +43,7 @@ function scopedCalls(bc: Caller, ids: { projectSlug: string; sourceSlug: string;
       ['sources.captureProofPage', () => bc.sources.captureProofPage({ sourceId, url: `${HOST}/` })],
       ['sources.proofPageCapture', () => bc.sources.proofPageCapture({ captureId })],
       ['sources.suggestMarks', () => bc.sources.suggestMarks({ captureId })],
+      ['sources.jevReadings', () => bc.sources.jevReadings({ sourceId, captureIds: [captureId] })],
       ['sources.proofPageCaptures', () => bc.sources.proofPageCaptures({ sourceId, urls: [`${HOST}/p/1`] })],
       ['sources.transferMarks', () => bc.sources.transferMarks({ sourceId, fromUrl: PROOF[0]!, toUrls: [PROOF[1]!] })],
       ['runs.getWithDetails', () => bc.runs.getWithDetails({ id: runId })],

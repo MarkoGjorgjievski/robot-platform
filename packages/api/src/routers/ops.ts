@@ -9,6 +9,7 @@ import { loadFieldCurrency, loadFieldCurrencyBatch } from '../verify/current-cer
 import { latestDriftCheck } from '../verify/run-drift-check.js';
 import { recordStaffAction, recordStaffStop } from '../auth/staff-actions.js';
 import { listStaffActivity } from '../auth/staff-activity.js';
+import type { JevAgreement } from '../verify/jev-agreement.js';
 import { monthBounds } from './usage.js';
 
 /** The host for the quiet mono line under a website's name. Never throws: a
@@ -213,6 +214,11 @@ export const opsRouter = router({
       latestDriftCheck(row.sourceId),
     ]);
     const results = (fieldCurrency.latest?.results ?? {}) as Record<string, FieldVerification>;
+    // Jev at Verify, in shadow (spec 2026-10-16 §7, §8): the same verification row's agreement, per field.
+    const agreementRow = fieldCurrency.latest
+      ? await db.query.sourceVerifications.findFirst({ where: eq(sourceVerifications.id, fieldCurrency.latest.id), columns: { verifyAgreement: true } })
+      : null;
+    const agreement = (agreementRow?.verifyAgreement ?? null) as JevAgreement | null;
 
     // Hostname for the domain store's stats: `verificationSet.urls[0]`
     // directly (same derivation `loadCertificationState` uses for the
@@ -263,6 +269,12 @@ export const opsRouter = router({
           state,
           ...(def ? { defaultValue: def } : {}),
           ...(result?.defaultOnly ? { defaultOnly: true as const } : {}),
+          // "Jev agreed on 5 of 6 proof pages": absent when Jev was never asked about this field.
+          ...((): { jevAgreement?: { agreed: number; asked: number } } => {
+            if (!agreement) return {};
+            const cells = Object.values(agreement.pages).map((p) => p.fields[f.key]).filter((c): c is NonNullable<typeof c> => !!c);
+            return cells.length ? { jevAgreement: { agreed: cells.filter((c) => c.agree).length, asked: cells.length } } : {};
+          })(),
           paths: certified.map((p) => {
             // A verified stat's identity is (origin, path) — `sameVerified` in
             // domain-cache.ts, matched here by source + path alone (Review

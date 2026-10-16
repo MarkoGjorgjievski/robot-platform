@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { db, captures } from '@robot/db';
+import { db, captures, jevReadings } from '@robot/db';
 import { PlaywrightBrowser, pageVariantFrom, type PageVariant } from '@robot/browser';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { buildBoxMapScript, boxesFromAnnotation, pageTextOf } from '@robot/scraper';
@@ -114,6 +114,38 @@ describe('sources.suggestMarks', () => {
       const old = await caller.sources.suggestMarks({ captureId: oldCaptureId });
       expect(old.pageVariant).toBeNull();
     } finally { await f.cleanup(); }
+  });
+});
+
+describe('sources.jevReadings (spec 2026-10-16 §6)', () => {
+  const answers = { fields: { price: { candidates: [{ id: 'c1', value: '374.25', source: 's' }, { id: 'c2', value: '499.00', source: 's' }], pick: 'c1', p: 0.97 } } };
+  const capture = async (sourceId: string, url: string) => (await db.insert(captures).values({ sourceId, url, html: '' }).returning({ id: captures.id }))[0]!.id;
+
+  it('answers a done reading and a running one keyed by capture id; a capture with no reading is absent', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'marks-jev', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const [done, running, none] = [await capture(f.sourceId, f.urls[0]!), await capture(f.sourceId, f.urls[1]!), await capture(f.sourceId, f.urls[2]!)];
+      await db.insert(jevReadings).values([
+        { sourceId: f.sourceId, captureId: done, url: f.urls[0]!, status: 'done', answers },
+        { sourceId: f.sourceId, captureId: running, url: f.urls[1]!, status: 'running' },
+      ]);
+      const r = await caller.sources.jevReadings({ sourceId: f.sourceId, captureIds: [done, running, none] });
+      expect(r).toEqual({ [done]: { status: 'done', answers }, [running]: { status: 'running', answers: null } });
+      expect(await caller.sources.jevReadings({ sourceId: f.sourceId, captureIds: [] })).toEqual({});
+    } finally { await f.cleanup(); }
+  });
+
+  it('NOT_FOUND for a capture of another org, and for another org\'s website', async () => {
+    const other = await signedInCaller('sources-marks-other');
+    const f = await createProjectWithSource(caller, { tag: 'marks-jev-mine', fields: [{ name: 'Price', type: 'money' }] });
+    const g = await createProjectWithSource(other.caller, { tag: 'marks-jev-theirs', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const mine = await capture(f.sourceId, f.urls[0]!);
+      const theirs = await capture(g.sourceId, g.urls[0]!);
+      await db.insert(jevReadings).values({ sourceId: g.sourceId, captureId: theirs, url: g.urls[0]!, status: 'done', answers });
+      await expect(caller.sources.jevReadings({ sourceId: f.sourceId, captureIds: [mine, theirs] })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await expect(caller.sources.jevReadings({ sourceId: g.sourceId, captureIds: [theirs] })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    } finally { await f.cleanup(); await g.cleanup(); await other.cleanup(); }
   });
 });
 

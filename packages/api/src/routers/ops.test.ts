@@ -398,6 +398,28 @@ describe('ops.website', () => {
     }
   });
 
+  it("carries Jev's agreement per field from the verification's verify_agreement, and none for a field never asked (spec 2026-10-16 §8)", async () => {
+    const tag = Date.now();
+    const op = await signIn(`ops-site-op-jev-${tag}@example.com`);
+    process.env.OPS_EMAILS = op.user.email;
+    const urls = [1, 2, 3, 4, 5, 6].map((i) => `https://test-ops4-jev-${tag}.example.com/p/${i}`);
+    try {
+      const built = await createProjectWithSource(op.caller, { tag: `ops4-jev-${tag}`, fields: [{ name: 'Price', type: 'money' }, { name: 'Name', type: 'text' }], urls,
+        expected: { Price: Object.fromEntries(urls.map((u) => [u, '9.99'])), Name: Object.fromEntries(urls.map((u) => [u, 'Widget'])) } });
+      const priceKey = built.keys.Price!;
+      await certifyPaths(built.sourceId, {});
+      const cell = (agree: boolean) => ({ pick: 'c1', value: '9.99', p: 0.95, expected: agree ? '9.99' : '8.99', agree });
+      const pages = Object.fromEntries(urls.map((u, i) => [u, { readingId: `r${i}`, fields: { [priceKey]: cell(i !== 3) } }]));
+      await db.update(sourceVerifications).set({ verifyAgreement: { asked: 6, agreed: 5, pages } }).where(eq(sourceVerifications.sourceId, built.sourceId));
+      const result = await op.caller.ops.website({ sourceId: built.sourceId });
+      expect(result.fields.find((f) => f.key === priceKey)!.jevAgreement).toEqual({ agreed: 5, asked: 6 });
+      expect(result.fields.find((f) => f.key !== priceKey)).not.toHaveProperty('jevAgreement');
+      await built.cleanup();
+    } finally {
+      await dropIdentity(op);
+    }
+  });
+
   it("gives FORBIDDEN to a signed-in non-operator, and UNAUTHORIZED to a signed-out caller", async () => {
     const tag = Date.now();
     process.env.OPS_EMAILS = '';
