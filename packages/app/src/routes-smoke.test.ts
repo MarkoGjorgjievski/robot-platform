@@ -1810,7 +1810,9 @@ describe.skipIf(!ENABLED)('app shell', () => {
 
   // Jev at Verify, in shadow (spec 2026-10-16 §6): a seeded reading on product 1 reads Price
   // differently from the row's value → the row note and the detail bar's text. No request is sent.
-  it('a Jev reading that differs from the row shows its note and its pick', async () => {
+  // Jev is staff-only (Marko, 2026-10-16): the smoke signs in as a customer, so a seeded reading that
+  // differs from the row must show nothing — no note, no detail-bar line. Its wording is unit-tested.
+  it('a Jev reading is never shown to a customer', async () => {
     expect(projectSlug, 'there is no project').not.toBeNull();
     expect(websiteSlug, 'there is no website').not.toBeNull();
     problems.length = 0;
@@ -1830,18 +1832,12 @@ describe.skipIf(!ENABLED)('app shell', () => {
     });
     await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
     await waitForHydration(page, 'input[aria-label="Listing page"]');
-    const note = 'Jev reads 59.00 as the Price on product 1';
-    await expect.poll(() => page.getByTestId('jev-note').filter({ hasText: note }).count(), { timeout: 30_000 }).toBe(1);
-    expect(await rowStatusText('Price'), "the note is not in Price's status column").toContain(note);
+    await page.waitForTimeout(3000);
+    expect(await page.getByTestId('jev-note').count(), 'a customer sees a Jev note').toBe(0);
     await page.locator('button[aria-label^="Price on product 1: "]').click();
-    await expect.poll(() => page.getByTestId('jev-text').innerText(), { timeout: 10_000 }).toBe('Jev: 59.00 (0.93)');
-    await shootViewportBothThemes(page, 'app-site-verification-jev');
-    // The negative case: products 2 and 3 have no seeded reading, so no note names them and
-    // their cells' detail bar has no Jev line (the smoke's servers run with JEV_SHADOW unset).
-    for (const n of [2, 3]) expect(await page.getByTestId('jev-note').filter({ hasText: `on product ${n}` }).count(), `a Jev note names product ${n}, which has no reading`).toBe(0);
-    await page.locator('button[aria-label^="Price on product 2: "]').click();
     await page.waitForTimeout(500);
-    expect(await page.getByTestId('jev-text').count(), 'product 2 has no reading, yet its detail bar shows a Jev line').toBe(0);
+    expect(await page.getByTestId('jev-text').count(), 'a customer sees a Jev line in the detail bar').toBe(0);
+    expect(await page.getByText(/\bJev\b/).count(), 'the word Jev appears on a customer page').toBe(0);
     expect(problems, problems.join('\n')).toEqual([]);
   }, 120_000);
 
