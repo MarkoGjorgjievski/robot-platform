@@ -18,9 +18,16 @@ export function readsVariantList(path: string | undefined): boolean {
   return !!path && VARIANT_LIST_STEP.test(path);
 }
 
+const sameText = (a: string, b: string) => a.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase() === b.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+/** By amount for money and number; when neither side reads as one ("Free" and "Free"), by text, so identical text never yields a note. */
 function same(field: Field, a: string, b: string): boolean {
-  if (field.type === 'money' || field.type === 'number') { const x = normalize(field.type, a); return x !== null && x === normalize(field.type, b); }
-  return a.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase() === b.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (field.type === 'money' || field.type === 'number') {
+    const x = normalize(field.type, a);
+    const y = normalize(field.type, b);
+    if (x === null && y === null) return sameText(a, b);
+    return x !== null && x === y;
+  }
+  return sameText(a, b);
 }
 
 export function jevNote(field: Field, board: Board, live: Suggestions, readings: Record<string, JevReadingLike | undefined>, readsVariant: boolean): string | null {
@@ -60,21 +67,29 @@ export const JEV_POLL_MS = 3000;
  * reading" (the switch off, the budget spent, nothing to ask).
  */
 export const JEV_MISSING_FETCHES = 3;
+/** Polling stops after this many answers for one set of captures (about two minutes), whatever they say: a reading stuck `running` never polls forever. */
+export const JEV_MAX_FETCHES = 40;
 
 /**
  * The polled `sources.jevReadings` query's interval: every `JEV_POLL_MS` while
  * a reading runs, or while a capture has no row and the query has answered
  * fewer than `JEV_MISSING_FETCHES` times; otherwise stop. An error (NOT_FOUND
- * for a capture that is no longer this website's) stops it too.
+ * for a capture that is no longer this website's) stops it too, and so does
+ * the `JEV_MAX_FETCHES`th answer.
  */
 export function jevPollMs(
   data: Record<string, JevReadingLike | undefined> | undefined,
   captureIds: string[],
   state: { errored: boolean; fetches: number },
 ): number | false {
-  if (state.errored || captureIds.length === 0) return false;
+  if (state.errored || captureIds.length === 0 || state.fetches >= JEV_MAX_FETCHES) return false;
   if (!data) return JEV_POLL_MS;
   if (captureIds.some((id) => data[id]?.status === 'running')) return JEV_POLL_MS;
   if (captureIds.some((id) => !data[id]) && state.fetches < JEV_MISSING_FETCHES) return JEV_POLL_MS;
   return false;
+}
+
+/** The detail bar's Jev line: only for a `done` reading (spec §10.5) — none, running or failed shows nothing. */
+export function jevTextFor(reading: JevReadingLike | undefined, fieldKey: string): string | undefined {
+  return reading?.status === 'done' ? jevDetailText(reading, fieldKey) : undefined;
 }

@@ -78,7 +78,7 @@ import { cellStatusFor, verificationState, type PageVariantLike, type Verificati
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
-import { jevDetailText, jevNote, jevPollMs, readsVariantList, type JevReadingLike } from '../../../../../../lib/site/jev-view';
+import { jevNote, jevPollMs, jevTextFor, readsVariantList, type JevReadingLike } from '../../../../../../lib/site/jev-view';
 import { trpc } from '../../../../../../lib/trpc';
 import { useSite } from '../$site';
 
@@ -1407,8 +1407,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             onTypeIt: () => typeIt(detailField.key),
             onAbsent: url && !isAbsent(board, detailField.key, url) && defaultOf(board, detailField.key) === undefined ? () => markAbsentCell(selection) : null,
             absent: url !== '' && isAbsent(board, detailField.key, url),
-            // Only when the product has a reading: a tab with Jev off shows nothing.
-            jevText: url && jevByUrl[url] ? jevDetailText(jevByUrl[url], detailField.key) : undefined,
+            // Only for a finished reading (spec §10.5): Jev off, running or failed shows nothing; "Jev: not read" is a done reading that did not ask about this field.
+            jevText: jevTextFor(url ? jevByUrl[url] : undefined, detailField.key),
             // A card with no URL has no screenshot to take.
             preview: panelOpen || !url ? null : (
               <ScreenshotCrop

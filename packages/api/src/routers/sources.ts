@@ -31,6 +31,13 @@ import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, 
 import { readCaptureFile } from '../verify/capture-store.js';
 import { resolveInFlightVerification } from '../verify/in-flight.js';
 import type { JevAnswers } from '../verify/jev-reading.js';
+
+/**
+ * A reading still `running` this long after its row was written is reported
+ * `failed` (read-time only, nothing written): its process died mid-reading (an
+ * api-server restart), and a reading that never ends must not keep the tab polling.
+ */
+export const JEV_STUCK_MS = 2 * 60_000;
 import { startDriftCheck, latestDriftCheck, latestDriftedRun } from '../verify/run-drift-check.js';
 import { latestCoverageCheck } from '../verify/run-coverage-check.js';
 import { requireCertification } from '../crawl/require-certification.js';
@@ -850,10 +857,12 @@ export const sourcesRouter = router({
       if (foreign) throw new TRPCError({ code: 'NOT_FOUND', message: `Page capture ${foreign} not found` });
       const rows = await ctx.db.query.jevReadings.findMany({
         where: and(eq(jevReadings.sourceId, input.sourceId), inArray(jevReadings.captureId, input.captureIds)),
-        columns: { captureId: true, status: true, answers: true },
+        columns: { captureId: true, status: true, answers: true, createdAt: true },
       });
+      const stuckBefore = Date.now() - JEV_STUCK_MS;
       for (const r of rows) {
-        const status = r.status as 'running' | 'done' | 'failed';
+        const stored = r.status as 'running' | 'done' | 'failed';
+        const status = stored === 'running' && r.createdAt.getTime() < stuckBefore ? 'failed' : stored;
         out[r.captureId] = { status, answers: status === 'done' ? (r.answers as JevAnswers) : null };
       }
       return out;
