@@ -1836,6 +1836,12 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await page.locator('button[aria-label^="Price on product 1: "]').click();
     await expect.poll(() => page.getByTestId('jev-text').innerText(), { timeout: 10_000 }).toBe('Jev: 59.00 (0.93)');
     await shootViewportBothThemes(page, 'app-site-verification-jev');
+    // The negative case: products 2 and 3 have no seeded reading, so no note names them and
+    // their cells' detail bar has no Jev line (the smoke's servers run with JEV_SHADOW unset).
+    for (const n of [2, 3]) expect(await page.getByTestId('jev-note').filter({ hasText: `on product ${n}` }).count(), `a Jev note names product ${n}, which has no reading`).toBe(0);
+    await page.locator('button[aria-label^="Price on product 2: "]').click();
+    await page.waitForTimeout(500);
+    expect(await page.getByTestId('jev-text').count(), 'product 2 has no reading, yet its detail bar shows a Jev line').toBe(0);
     expect(problems, problems.join('\n')).toEqual([]);
   }, 120_000);
 
