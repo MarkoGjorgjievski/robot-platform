@@ -77,7 +77,8 @@ export function captureProofPagesWith(session: Session = withBrowserSession): Ca
   return async (sourceId, urls) => {
     const taken = await Promise.all(urls.map(async (url) => {
       const { captureId } = await startProofPageCapture(sourceId, url, { fire: false });
-      await runProofPageCaptureInSlot(captureId, session);
+      // Never a Jev reading: a drift re-capture is not a page the customer is verifying, and a reading is paid.
+      await runProofPageCaptureInSlot(captureId, session, { jev: false });
       const row = await db.query.captures.findFirst({ where: eq(captureRows.id, captureId), columns: { metadata: true } });
       const meta = row?.metadata as ProofPageMeta | null | undefined;
       if (meta?.status === 'failed') return [url, outcomeOfFailedCapture(meta)] as const;

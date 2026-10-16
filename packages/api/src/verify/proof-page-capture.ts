@@ -71,12 +71,19 @@ export async function startProofPageCapture(sourceId: string, url: string, opts:
  * queues it is marked as waiting, so the stall rule never closes it for time spent in the queue.
  * Never rejects (`runProofPageCapture` does not).
  */
-export function runProofPageCaptureInSlot(captureId: string, session?: Session): Promise<void> {
+export function runProofPageCaptureInSlot(captureId: string, session?: Session, opts: CaptureRunOptions = {}): Promise<void> {
   waitingForSlot.add(captureId);
-  return captureSlots(() => runProofPageCapture(captureId, session)).finally(() => waitingForSlot.delete(captureId));
+  return captureSlots(() => runProofPageCapture(captureId, session, opts)).finally(() => waitingForSlot.delete(captureId));
 }
 
-export async function runProofPageCapture(captureId: string, session: Session = withBrowserSession): Promise<void> {
+/**
+ * `jev` (default true): whether a successful capture starts a Jev reading. The drift check passes
+ * false: its re-captures are not pages a customer is verifying, and a reading is paid (whole-branch
+ * review I1).
+ */
+export type CaptureRunOptions = { jev?: boolean };
+
+export async function runProofPageCapture(captureId: string, session: Session = withBrowserSession, opts: CaptureRunOptions = {}): Promise<void> {
   const row = await db.query.captures
     .findFirst({ where: eq(captures.id, captureId), columns: { id: true, sourceId: true, url: true, metadata: true } })
     .catch(() => null);
@@ -115,7 +122,7 @@ export async function runProofPageCapture(captureId: string, session: Session = 
     const done: ProofPageMeta = { kind: 'proof-page', status: 'captured', url: row.url, startedAt: meta.startedAt, capturedAt: new Date().toISOString(), tiles, boxes: visible, pageHeight, capturedHeight, contentHeight, ...(capture.title?.trim() ? { title: capture.title.trim().slice(0, 120) } : {}) };
     await db.update(captures).set({ html: capture.html, screenshotPath: tiles[0] ?? null, metadata: done }).where(eq(captures.id, captureId));
     // Jev at Verify, in shadow (spec 2026-10-16 §3): never awaited, never fails the capture.
-    void startJevReading({ sourceId: row.sourceId, captureId, url: row.url, title: done.title ?? '', capture, boxes: visible })
+    if (opts.jev ?? true) void startJevReading({ sourceId: row.sourceId, captureId, url: row.url, title: done.title ?? '', capture, boxes: visible })
       .catch((e) => console.error(`[jev] could not start for ${captureId}:`, e));
   } catch (err) {
     // The raw text is logged here only. A `CaptureProblemError` or
