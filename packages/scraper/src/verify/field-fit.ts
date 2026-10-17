@@ -10,7 +10,8 @@ export const CONCEPT_PATHS: Record<string, string[]> = {
   price: ['offers.price', 'price', 'product:price:amount', 'currentPrice', 'current_price', 'salePrice', 'sale_price'],
   description: ['description', 'og:description', 'productDescription', 'product_description'],
   image_url: ['image', 'images', 'og:image', 'image.url', 'thumbnailUrl', 'primary_image_url'],
-  brand: ['brand.name', 'brand', 'manufacturer', 'manufacturer.name', 'vendor', 'brandName', 'brand_name', 'product:brand', 'og:brand'],
+  // og:site_name and the offer's seller are the shop's own name (spec 2026-10-17 §4): last, so a product-level brand always ranks first.
+  brand: ['brand.name', 'brand', 'manufacturer', 'manufacturer.name', 'vendor', 'brandName', 'brand_name', 'product:brand', 'og:brand', 'seller.name', 'og:site_name'],
   sku: ['sku', 'productID', 'mpn', 'gtin', 'gtin13', 'code', 'item_id', 'product_id'],
   availability: ['offers.availability', 'availability', 'inStock', 'in_stock', 'isAvailable', 'is_available', 'stock', 'stockStatus', 'stock_status', 'available', 'buyable', 'purchasable', 'isInStock', 'is_in_stock', 'availableForSale', 'isBuyable', 'orderable', 'product:availability', 'og:availability'],
   rating: ['aggregateRating.ratingValue', 'ratingValue', 'rating'],

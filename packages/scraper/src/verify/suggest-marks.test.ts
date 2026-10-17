@@ -49,3 +49,16 @@ describe('suggestMarks', () => {
     expect(r.title).toMatchObject({ value: 'Widget A', via: { source: 'json-ld', path: 'name' } });
   });
 });
+
+describe('suggestMarks — the shop\'s name (spec 2026-10-17 §4)', () => {
+  const brand = { key: 'brand', name: 'Brand', type: 'text' as const, description: 'the maker', concept: 'brand' };
+  const cap = (ld: Record<string, unknown>, meta: Record<string, string>) => ({
+    url: 'https://s.example/p', html: '<html></html>', structuredData: { ldJson: [ld], nextData: null, initialState: null, meta }, interceptedRequests: [],
+  });
+  it('suggests og:site_name when the page data names no brand', () => {
+    expect(suggestMarks(cap({ name: 'Brow Kit' }, { 'og:site_name': 'Sigma Beauty' }), [], [brand]).brand).toMatchObject({ value: 'Sigma Beauty', via: { source: 'meta', path: 'og:site_name' } });
+  });
+  it('keeps brand.name first wherever it exists', () => {
+    expect(suggestMarks(cap({ brand: { name: 'Kith Women' } }, { 'og:site_name': 'Kith' }), [], [brand]).brand).toMatchObject({ value: 'Kith Women' });
+  });
+});
