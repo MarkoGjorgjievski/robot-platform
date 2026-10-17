@@ -401,12 +401,12 @@ describe('marks — a mark settles ambiguous (end to end)', () => {
     ? [{ key: 'price', xpath: SPAN2, raw: '$129.99' }, { key: 'price', xpath: PROMO, raw: '$129.99' }]
     : pageUrl === U[1] ? [{ key: 'price', xpath: SPAN2, raw: '$219.99' }] : [{ key: 'price', xpath: SPAN1, raw: '$149.00' }];
 
-  it('without a mark: nothing certifies and page 1 is ambiguous', async () => {
+  it('without a mark: nothing certifies, but page 1 still reads found through the promo price (spec 2026-10-17 §5)', async () => {
     const captures = bare();
     const { candidates } = await gatherCandidates(shopField, exp, captures, { runDomSearch: async (_h, _n, pageUrl) => hits(pageUrl) });
     const r = await certify({ field: shopField, expected: exp, captures, candidates }, { evalXPaths });
     expect(r.certified).toEqual([]);
-    expect(r.cells[U[0]!]).toMatchObject({ status: 'fail', reason: 'ambiguous' });
+    expect(r.cells[U[0]!]).toEqual({ status: 'pass', found: '$129.99', path: { source: 'xpath', path: PROMO, transform: 'identity' } });
   });
 
   it('with the mark: page 1 is not searched, the field certifies on the clicked path and every cell passes', async () => {
@@ -671,11 +671,13 @@ describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
     expect(r.certified).toEqual([]);
     expect(r.defaultOnly).toBeUndefined();
     expect(r.thinEvidence).toBeUndefined();
-    // On three proof pages no safe path is correct with a value on every page, so each cell reads ambiguous (the code's existing reason).
+    // brandName is safe (empty on both default cells, correct on page 2) but proven on one page only, so it
+    // does not certify as a layout (the two-page rule) — yet every page it is correct on still reads found
+    // (spec 2026-10-17 §5), default cells included.
     expect(r.cells).toEqual({
-      [G[0]!]: { status: 'fail', reason: 'ambiguous' },
-      [G[1]!]: { status: 'fail', reason: 'ambiguous', nearMisses: ['Gymshark x Whitney'] },
-      [G[2]!]: { status: 'fail', reason: 'ambiguous' },
+      [G[0]!]: { status: 'pass', found: '', path: brandName },
+      [G[1]!]: { status: 'pass', found: 'Gymshark x Whitney', path: brandName },
+      [G[2]!]: { status: 'pass', found: '', path: brandName },
     });
   });
 
@@ -828,5 +830,53 @@ describe('certify — the shop\'s name and rounded ratings (spec 2026-10-17 §4,
     const { candidates } = await gatherCandidates(rating, expected, caps, { runDomSearch: async () => [] });
     const r = await certify({ field: rating, expected, captures: caps, candidates }, deps);
     expect(r.certified[0]).toMatchObject({ source: 'json-ld', path: 'aggregateRating.ratingValue' });
+  });
+});
+
+describe('certify — found here, the problem elsewhere (spec 2026-10-17 §5)', () => {
+  const brand = { key: 'brand', name: 'Brand', type: 'text' as const, description: 'the maker', concept: 'brand' };
+  const S = ['https://k.example/1', 'https://k.example/2', 'https://k.example/3'];
+  const deps = { evalXPaths: async () => ({}) };
+  const brandName = { source: 'json-ld' as const, path: 'brand.name', transform: 'identity' as const };
+  const vendor = { source: 'json-ld' as const, path: 'vendor', transform: 'identity' as const };
+  const page = (url: string, ld: Record<string, unknown>): CaptureLike => ({
+    url, html: '<html></html>', structuredData: { ldJson: [ld], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
+  });
+
+  it('skullcandy shape: covered pages pass, the uncovered page carries the diagnosis', async () => {
+    const caps = {
+      [S[0]!]: page(S[0]!, { vendor: 'Skullcandy US' }),
+      [S[1]!]: page(S[1]!, { brand: { name: 'Skullcandy' }, vendor: 'Skullcandy US' }),
+      [S[2]!]: page(S[2]!, { brand: { name: 'Skullcandy' }, vendor: 'Skullcandy US' }),
+    };
+    const expected = Object.fromEntries(S.map((u) => [u, 'Skullcandy']));
+    const r = await certify({ field: brand, expected, captures: caps, candidates: [brandName, vendor] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells[S[1]!]).toEqual({ status: 'pass', found: 'Skullcandy', path: brandName });
+    expect(r.cells[S[2]!]).toEqual({ status: 'pass', found: 'Skullcandy', path: brandName });
+    expect(r.cells[S[0]!]).toMatchObject({ status: 'fail' });
+  });
+
+  it('a page whose only correct candidates read something else on another page stays ambiguous', async () => {
+    const title = { key: 'sku', name: 'SKU', type: 'text' as const, description: 'code', concept: 'sku' };
+    const a = { source: 'json-ld' as const, path: 'a', transform: 'identity' as const };
+    const b = { source: 'json-ld' as const, path: 'b', transform: 'identity' as const };
+    const caps = {
+      [S[0]!]: page(S[0]!, { a: 'X1', b: 'Q' }),
+      [S[1]!]: page(S[1]!, { a: 'Q', b: 'X2' }),
+      [S[2]!]: page(S[2]!, { a: 'Q', b: 'Q' }),
+    };
+    const expected = { [S[0]!]: 'X1', [S[1]!]: 'X2', [S[2]!]: 'X3' };
+    const r = await certify({ field: title, expected, captures: caps, candidates: [a, b] }, deps);
+    expect(r.cells[S[0]!]).toMatchObject({ status: 'fail', reason: 'ambiguous' });
+  });
+
+  it('no near miss equals the page\'s expected value', async () => {
+    const caps = Object.fromEntries(S.map((u) => [u, page(u, { brand: { name: u === S[0] ? 'Other' : 'Skullcandy' } })]));
+    const expected = Object.fromEntries(S.map((u) => [u, 'Skullcandy']));
+    const r = await certify({ field: brand, expected, captures: caps, candidates: [brandName] }, deps);
+    for (const cell of Object.values(r.cells)) {
+      if (cell.status === 'fail') expect(cell.nearMisses ?? []).not.toContain('Skullcandy');
+    }
   });
 });

@@ -58,7 +58,7 @@ export function hintFor(reason: FailReason, found?: string, type?: string, field
     case 'different_value':
       return `This page shows ${found ?? ''}. Is your value right, or does the page show it differently?`;
     case 'ambiguous':
-      return 'Several places match. Add what makes yours different to the description.';
+      return 'Found on this product, but not in the same place as on the others. Mark it on the screenshot.';
     case 'type_mismatch':
       return `Found ${found ?? ''}, which is not a valid ${type ?? 'value'}.`;
     case 'no_fitting_path':
