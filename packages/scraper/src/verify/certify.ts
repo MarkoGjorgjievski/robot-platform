@@ -1,5 +1,5 @@
 import type { PageCapture } from '@robot/browser';
-import { MAX_CERTIFIED_PATHS, VERIFY_URL_MIN } from './constants.js';
+import { MAX_CERTIFIED_PATHS } from './constants.js';
 import { normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
@@ -344,7 +344,7 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       continue;
     }
     const others = capturedUrls.filter((u) => u !== url);
-    const nearMisses = [...new Set(candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).map(displayValue).filter((r): r is string => r !== null && r !== ''))].slice(0, 3);
+    const nearMisses = [...new Set(candidates.map((c) => evals.get(pathId(c))?.[url]?.raw).map(displayValue).filter((r): r is string => r !== null && r !== '' && !valuesEqual(field.type, r, expected[url] ?? '', ctx)))].slice(0, 3);
     const twoOfThree = candidates.find((c) => others.length > 0 && others.every((u) => evals.get(pathId(c))?.[u]?.correct) && !evals.get(pathId(c))?.[url]?.correct);
     if (twoOfThree) {
       const here = evals.get(pathId(twoOfThree))![url]!.raw;
@@ -359,7 +359,9 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       continue;
     }
     const safeHere = rankedSafe.find((c) => isCorrect(c, url));
-    if (complete && urls.length > VERIFY_URL_MIN && safeHere) {
+    // Spec 2026-10-17 §5: on any number of proof pages, a page a safe path is right on reads as found;
+    // the page nothing covers carries the diagnosis. (Spec 2026-09-17 §9 property 4 limited this to more than three pages.)
+    if (complete && safeHere) {
       const raw = evals.get(pathId(safeHere))![url]!.raw;
       cells[url] = { status: 'pass', found: foundText(raw), path: safeHere };
       continue;

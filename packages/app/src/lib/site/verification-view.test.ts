@@ -21,7 +21,7 @@ describe('hintFor', () => {
 
   test('ambiguous', () => {
     expect(hintFor('ambiguous')).toBe(
-      'Several places match. Add what makes yours different to the description.',
+      'Found on this product, but not in the same place as on the others. Mark it on the screenshot.',
     );
   });
 
@@ -53,6 +53,10 @@ describe('hintFor', () => {
     expect(hintFor('type_mismatch', 'banana', 'a number')).toBe(
       'Found banana, which is not a valid a number.',
     );
+  });
+
+  it('the ambiguous hint says what happened and what to do (spec 2026-10-17 §5)', () => {
+    expect(hintFor('ambiguous')).toBe('Found on this product, but not in the same place as on the others. Mark it on the screenshot.');
   });
 });
 
