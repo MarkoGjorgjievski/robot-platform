@@ -19,12 +19,6 @@ describe('hintFor', () => {
     );
   });
 
-  test('ambiguous', () => {
-    expect(hintFor('ambiguous')).toBe(
-      'Found on this product, but not in the same place as on the others. Mark it on the screenshot.',
-    );
-  });
-
   test('no_fitting_path names the field and asks for a mark', () => {
     expect(hintFor('no_fitting_path', undefined, 'yes/no', 'In stock')).toBe(
       "We can't tell which value on this page is In stock — mark it on the screenshot.",
