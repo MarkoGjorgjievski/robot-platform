@@ -52,3 +52,14 @@ describe('isWeakField', () => {
     expect(isWeakField('money', ['129.99', '$129.99', '219.99'])).toBe(false);
   });
 });
+
+describe('the shop\'s name as a brand (spec 2026-10-17 §4)', () => {
+  it('brand fits og:site_name and the offer seller, last', () => {
+    expect(pathFitsConcept('brand', 'og:site_name')).toBe(true);
+    expect(pathFitsConcept('brand', 'offers.seller.name')).toBe(true);
+    expect(pathFitsConcept('brand', 'offers[0].seller.name')).toBe(true);
+  });
+  it('a product name still never fits og:site_name', () => {
+    expect(pathFitsConcept('product_name', 'og:site_name')).toBe(false);
+  });
+});

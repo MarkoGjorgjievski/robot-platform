@@ -108,3 +108,21 @@ describe('renderValue', () => {
     expect(renderValue('text', 'hello')).toBe('hello');
   });
 });
+
+describe('valuesEqual — rounded numbers (spec 2026-10-17 §7)', () => {
+  it('a shown number with decimals matches more precise page data within half its last unit', () => {
+    expect(valuesEqual('number', 4.7610064, '4.8')).toBe(true);
+    expect(valuesEqual('number', '4.8', '4.7610064')).toBe(true);
+    expect(valuesEqual('number', 4.75, '4.8')).toBe(true);    // the half-unit boundary rounds either way
+    expect(valuesEqual('number', '4.74', '4.8')).toBe(false);
+  });
+  it('never rounds a whole number, a further-off value or money', () => {
+    expect(valuesEqual('number', '4.9', 4.7610064)).toBe(false);
+    expect(valuesEqual('number', '5', 4.6)).toBe(false);
+    expect(valuesEqual('money', '4.8', 4.7610064)).toBe(false);
+  });
+  it('the same precision compares exactly, as today; trailing zeros are the same number', () => {
+    expect(valuesEqual('number', '4.7', '4.8')).toBe(false);
+    expect(valuesEqual('number', '4.80', 4.8)).toBe(true);
+  });
+});

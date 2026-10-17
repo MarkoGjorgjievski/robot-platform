@@ -707,8 +707,11 @@ describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
   });
 
   it('a weak field whose only matching path does not fit the concept passes by default only, never on that path', async () => {
-    const caps = { [G[0]!]: page(G[0]!, { name: 'a' }, 'Gymshark'), [G[1]!]: page(G[1]!, { name: 'b' }, 'Gymshark'), [G[2]!]: page(G[2]!, { name: 'c' }, 'Gymshark') };
-    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: caps, candidates: [siteName] }, deps);
+    // publisher.name reads 'Gymshark' everywhere but is not brand vocabulary (unlike og:site_name,
+    // which is, as of spec 2026-10-17 §4 — see the og:site_name cases above and in field-fit.test.ts).
+    const outsideConcept = { source: 'json-ld' as const, path: 'publisher.name', transform: 'identity' as const };
+    const caps = { [G[0]!]: page(G[0]!, { publisher: { name: 'Gymshark' } }), [G[1]!]: page(G[1]!, { publisher: { name: 'Gymshark' } }), [G[2]!]: page(G[2]!, { publisher: { name: 'Gymshark' } }) };
+    const r = await certify({ field: brand, expected: blank, defaultValue: 'Gymshark', captures: caps, candidates: [outsideConcept] }, deps);
     expect(r.certified).toEqual([]);
     expect(r.defaultOnly).toBe(true);
     expect(r.cells[G[0]!]).toEqual({ status: 'pass', found: '' });
@@ -789,5 +792,41 @@ describe('rankCertified — [page] twins (spec 2026-10-14 §4)', () => {
   it('paths without [page] keep today\'s order (source, then shorter first)', () => {
     const a = p('a[0].b'), b = p('a.bcd'), c = p('offers[1].price');
     expect(rankCertified([c, b, a])).toEqual([b, a, c]);
+  });
+});
+
+describe('certify — the shop\'s name and rounded ratings (spec 2026-10-17 §4, §7)', () => {
+  const brand = { key: 'brand', name: 'Brand', type: 'text' as const, description: 'the maker', concept: 'brand' };
+  const rating = { key: 'rating', name: 'Rating', type: 'number' as const, description: 'stars', concept: 'rating' };
+  const R = ['https://r.example/1', 'https://r.example/2', 'https://r.example/3'];
+  const page = (url: string, ld: Record<string, unknown>, meta: Record<string, string> = {}): CaptureLike => ({
+    url, html: '<html></html>', structuredData: { ldJson: [ld], nextData: null, initialState: null, meta }, interceptedRequests: [],
+  });
+  const deps = { evalXPaths: async () => ({}) };
+  const siteName = { source: 'meta' as const, path: 'og:site_name', transform: 'identity' as const };
+
+  it('a brand typed the same everywhere certifies through og:site_name when brand.name is the tagline', async () => {
+    const caps = Object.fromEntries(R.map((u) => [u, page(u, { brand: { name: 'Gymshark | We Do Gym' } }, { 'og:site_name': 'Gymshark' })]));
+    const expected = Object.fromEntries(R.map((u) => [u, 'Gymshark']));
+    const { candidates } = await gatherCandidates(brand, expected, caps, { runDomSearch: async () => [] });
+    const r = await certify({ field: brand, expected, captures: caps, candidates }, deps);
+    expect(r.certified).toEqual([siteName]);
+  });
+
+  it('og:site_name is unsafe when one page\'s brand differs', async () => {
+    const caps = Object.fromEntries(R.map((u) => [u, page(u, {}, { 'og:site_name': 'Thomann' })]));
+    const expected = { [R[0]!]: 'Thomann', [R[1]!]: 'Thomann', [R[2]!]: 'Harley Benton' };
+    const r = await certify({ field: brand, expected, captures: caps, candidates: [siteName] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells[R[2]!]).toMatchObject({ status: 'fail', reason: 'different_value', found: 'Thomann' });
+  });
+
+  it('typed ratings shown to one decimal certify the precise page data', async () => {
+    const data = ['4.7610064', '4.57', '4.93'];
+    const caps = Object.fromEntries(R.map((u, i) => [u, page(u, { aggregateRating: { ratingValue: Number(data[i]) } })]));
+    const expected = { [R[0]!]: '4.8', [R[1]!]: '4.6', [R[2]!]: '4.9' };
+    const { candidates } = await gatherCandidates(rating, expected, caps, { runDomSearch: async () => [] });
+    const r = await certify({ field: rating, expected, captures: caps, candidates }, deps);
+    expect(r.certified[0]).toMatchObject({ source: 'json-ld', path: 'aggregateRating.ratingValue' });
   });
 });

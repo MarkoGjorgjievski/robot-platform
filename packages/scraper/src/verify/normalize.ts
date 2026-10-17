@@ -124,12 +124,31 @@ export function normalize(type: CustomerFieldType, raw: unknown, ctx?: Normalize
   }
 }
 
+function decimals(s: string): number {
+  const i = s.indexOf('.');
+  return i < 0 ? 0 : s.length - i - 1;
+}
+
+/**
+ * Spec 2026-10-17 §7: a number shown with d ≥ 1 decimals equals a more precise one within half a
+ * unit of its last decimal (4.8 matches 4.7610064). Symmetric. A whole number never rounds.
+ * `a`, `b` are `normalize('number', …)` strings.
+ */
+function roundsTo(a: string, b: string): boolean {
+  const [shown, precise] = decimals(a) <= decimals(b) ? [a, b] : [b, a];
+  const d = decimals(shown);
+  if (d === 0 || decimals(precise) <= d) return false;
+  return Math.abs(Number(precise) - Number(shown)) <= 0.5 * 10 ** -d + 1e-9;
+}
+
 export function valuesEqual(type: CustomerFieldType, a: unknown, b: unknown, ctx?: NormalizeContext): boolean {
   const na = normalize(type, a, ctx);
   const nb = normalize(type, b, ctx);
   if (na === null || nb === null) return false;
   if (type === 'image') return imageKey(na) === imageKey(nb);
-  return type === 'text' ? na.toLowerCase() === nb.toLowerCase() : na === nb;
+  if (type === 'text') return na.toLowerCase() === nb.toLowerCase();
+  if (type === 'number') return na === nb || roundsTo(na, nb);
+  return na === nb;
 }
 
 const TYPE_LABEL: Record<CustomerFieldType, string> = {
