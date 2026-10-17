@@ -253,6 +253,48 @@ largest three-page call seen ($0.1521); a four-page one $0.24. The rest of `veri
 fields can reach AI, the free cases) is unchanged. `perFieldUsd` in its result becomes the per-field
 figure for the source's page count.
 
+**Only staff see it.** Marko, 2026-10-17: "once we have paying customers we don't want to show any
+price to the customer. We will have a different payment plan, to be decided later." The estimate stays
+honest for staff and is never shown to a customer (§8a). A customer reads `Verify 8 fields`; staff read
+`Verify 8 fields · up to $1.44`. The "up to" figure is a worst case, every field needing the AI.
+
+## 8a. Customers see no money (item 7, Marko's decision)
+
+**Rule.**
+- A customer sees no money amount anywhere in the app, and no "free" either: a word about price
+  promises something about a payment plan that is not decided.
+- Staff see every amount as today. Staff means an operator, or a staff session inside the customer's
+  org: `session.isOperator || !!session.staff`, the test the site route already uses for staff-only
+  readings.
+- One pure helper decides it: `showsMoney(session)` in `packages/app/src/lib/money-visibility.ts`.
+  Every customer-facing amount goes through it. Ops screens are staff-only already and stay as they
+  are.
+- The places, found by searching the app for dollar formatting, `Usd`/`cost`/`spend` values and the
+  word "free" in labels:
+
+| Place | Customer reads | Staff read |
+|---|---|---|
+| Verify button (`lib/site/verify-button.ts`) | `Verify 8 fields`, `Re-verify 2 fields`, `Verify variants` | today's label, with `· free` or `· up to $X` |
+| Address warning button (§8) | `Re-verify this field` | `Re-verify this field · free` |
+| Repair preview summary (`lib/site/backfill-preview.ts` `previewSummary`, in `components/runs/backfill-panel.tsx`) | `12 pages` | `12 pages — up to ~$0.36 if no cache answers` or `— free` |
+| Extract sample description (`components/extract/extract-sample.tsx`) | the sentence without `No AI. Free.` | today's sentence |
+| Usage page total (`components/usage/usage-total.tsx`, `routes/_app/usage.tsx`) | pages captured this month, no spend | spend and pages |
+| Usage table (`components/usage/usage-table.tsx`, `lib/usage-view.ts`) | no Spend column | the Spend column |
+| Usage page empty text (`routes/_app/usage.tsx`, "its spend will show here") | words about pages, not spend | today's text |
+| Robot staff activity in the customer's Settings (`lib/staff-view.ts` `formatStaffEntry`, `components/staff/staff-activity-list.tsx`) | no cost after an entry | `· $1.24` when the run spent something |
+
+- The org runs list (`lib/org-runs-view.ts`) carries `costUsd` on its rows but renders no amount
+  (`OrgRunView` has no cost). It stays that way; a test pins that the view has no cost.
+- The Extract strip (`components/extract/extract-strip.tsx`) and the run pages show no amount today.
+  The route smoke pins that.
+
+**Tests.**
+- `showsMoney`: a customer session false; an operator true; a staff session in a customer org true.
+- Each place above: its pure view function hides the amount for a customer and shows it for an
+  operator and a staff session.
+- The route smoke, signed in as a customer, finds no `$` followed by a digit on the Verification tab,
+  the Extract tab, a run page and Usage.
+
 **The address warning. Cause.** The 2026-10-14 warning ("reads the first variant, not the one the
 address names on product n") shows on a certified field whose proving path indexes a variant list.
 It offers no action, and the main Re-verify skips the field, because the field is current. Even a
@@ -261,8 +303,8 @@ from the cached paths first, and a path the customer accepted from a suggestion 
 (`rankConfirmedFirst`), so its `[page]` twin never wins.
 
 **Rule.**
-- The warning carries a button, `Re-verify this field · free`, which runs Verify for that field alone
-  (`onlyKeys: [key]`). The button is disabled while anything runs.
+- The warning carries a button, `Re-verify this field` (staff read `Re-verify this field · free`, §8a),
+  which runs Verify for that field alone (`onlyKeys: [key]`). The button is disabled while anything runs.
 - In `runVerification`, a cache-shortcut result is not kept when one of its certified paths has a
   fixed index on a variant list and a proof page's address names a variant. The field then searches
   like any other, and the search's `[page]` paths join the candidates.
@@ -271,10 +313,11 @@ from the cached paths first, and a path the customer accepted from a suggestion 
 - If no `[page]` path reads the right value, the old path certifies again and the warning stays.
   It is still free: the old path is among the candidates and still correct, so no AI is called.
 
-**Copy.** `Re-verify this field · free`.
+**Copy.** Customer `Re-verify this field`; staff `Re-verify this field · free`.
 
 **Tests.**
 - verifyEstimate: one AI-reachable field on three pages → `upperBoundUsd` 0.18; on four → 0.24.
+- The Verify button's label carries the amount for staff only (§8a).
 - A test pinning that the three-page figure covers the largest call seen (0.1521).
 - run-verification: cached `offers[0].price` on pages whose address names a variant → the shortcut
   is not kept, search finds `offers[page].price`, certified first.
@@ -290,9 +333,15 @@ from the cached paths first, and a path the customer accepted from a suggestion 
 | D3 problem, server | `{Field}: needs a value on at least two products, or "not on this product" on every one` |
 | Ops, field not on this website | `no path — not on this website, left empty` |
 | Cell hint, `ambiguous` | `Found on this product, but not in the same place as on the others. Mark it on the screenshot.` |
-| Address warning button | `Re-verify this field · free` |
+| Address warning button, customer | `Re-verify this field` |
+| Address warning button, staff | `Re-verify this field · free` |
+| Verify button, customer | `Verify {n} fields`, `Re-verify {n} fields`, `Verify variants` (no price word) |
+| Verify button, staff | today's label with `· free` or `· up to ${X}` |
+| Repair preview, customer | `{n} pages` |
+| Usage, customer | pages captured; no spend, no Spend column |
 
-No customer string names a tool, a model or a mechanism (memory rule `customer-copy-no-internals`).
+No customer string names a tool, a model or a mechanism, and none shows money (memory rule
+`customer-copy-no-internals`; Marko, 2026-10-17, on prices).
 "Page data" and "the screenshot" are already customer words on this tab.
 
 ## 10. Safety properties
@@ -313,6 +362,8 @@ No customer string names a tool, a model or a mechanism (memory rule `customer-c
    omitted, never written as `false` or `undefined`.
 9. The address warning's re-verify can only replace a fixed-index path with its `[page]` twin or
    certify the same path again. It never calls AI.
+10. A customer session never sees a money amount or a price word in the app. Every amount reaches
+    the screen through `showsMoney`; an operator and a staff session see them as today.
 
 ## 11. Not in this spec
 
@@ -324,14 +375,20 @@ No customer string names a tool, a model or a mechanism (memory rule `customer-c
   after §6.
 - Captures that open overlays over the place to mark (thomann). Captures are a separate group.
 - Storing a rating rounded to the precision the customer typed.
+- Removing amounts from the API's answers to a customer session. The app hides them, but
+  `verifyEstimate`, `usage` and `runs.listByOrg` still send them; a customer could read them in the
+  browser's developer tools. It belongs with the payment plan.
+- Customer copy that names "AI" without a price (`reExtractLabel`, "AI only where the cache can't
+  answer"). It is a `customer-copy-no-internals` matter, not money.
 - The UX polish Marko will describe. It is the plan's last code task and starts only once he has
   said what it covers.
 
 ## 12. Recommended decisions
 
-1. **Estimate per page at $0.06.** An eight-field first Verify on three pages will read "up to
-   $1.44"; most such runs cost $0.00–$0.33. An upper bound that is never exceeded beats one that is
-   exceeded 3×. Recommended.
+1. **Estimate per page at $0.06, staff only.** Decided by Marko 2026-10-17: customers see no price.
+   For staff, an eight-field first Verify on three pages reads "up to $1.44". That is a worst case,
+   every field needing the AI; real first Verifies in campaign 2 cost $0.00–$0.33. An upper bound
+   that is never exceeded beats one exceeded 3×.
 2. **The shop's name as a brand path**, ranked last. Recommended; the safety holds through the
    per-page check (§10 property 3).
 3. **Labels stripped for six concepts only.** Recommended. A wider rule would shorten titles with a

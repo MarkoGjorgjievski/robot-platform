@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** An honest customer can pass Verify on the seven dead ends of campaign 2, group 3. A field this website lacks passes as "not on this website". A default stops a suggestion on products 4–6 from blocking. The shop's name can be a brand. A page whose value was found reads green. A marked value is what the element shows, without a label, and survives a retype. A rounded number matches its precise page data. The cost label is an upper bound again, and the variant-address warning has a free "Re-verify this field".
+**Goal:** An honest customer can pass Verify on the seven dead ends of campaign 2, group 3. A field this website lacks passes as "not on this website". A default stops a suggestion on products 4–6 from blocking. The shop's name can be a brand. A page whose value was found reads green. A marked value is what the element shows, without a label, and survives a retype. A rounded number matches its precise page data. The cost label is an upper bound again and is shown to staff only, since customers see no money anywhere. The variant-address warning has a "Re-verify this field" that never calls the AI.
 
 **Architecture:** The rules live in `@robot/scraper` (`field-fit.ts`, `normalize.ts`, `transforms.ts`, `certify.ts`, `box-map.ts`, `run-verification.ts`, `page-variant-match.ts`, `constants.ts`). `@robot/api` carries them through the binding (`binding-input.ts`), field currency (`current-certification.ts`, `jev-agreement.ts`), ops (`routers/ops.ts`) and the estimate (`routers/sources.ts`). `@robot/app` mirrors the gate and the mark rules in `verification-model.ts`, shows the new copy (`verification-view.ts`, `ops-view.ts`), and adds the warning's button (`verification-table.tsx`, the site route). No migration: every new value is optional JSON on existing jsonb columns.
 
@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-17-verify-dead-ends-design.md`
 
-**Planner's notes:** nine tasks. Item 5 (marked values) splits into the engine (Task 3) and the app (Task 4): a reviewer can judge what certification reads apart from what the board stores. Item 1 splits the same way (Tasks 5 and 6); Task 6 also carries item 2, because both change `verifyGate`. Items 3 and 6 share Task 1: both are pure matching rules in two small files. Task 8 is a placeholder whose content Marko supplies; it is the one allowed placeholder and must not start until he has.
+**Planner's notes:** ten tasks. Task 8 makes money staff-only (Marko, 2026-10-17: customers see no price; spec §8a). Item 5 (marked values) splits into the engine (Task 3) and the app (Task 4): a reviewer can judge what certification reads apart from what the board stores. Item 1 splits the same way (Tasks 5 and 6); Task 6 also carries item 2, because both change `verifyGate`. Items 3 and 6 share Task 1: both are pure matching rules in two small files. Task 9 is a placeholder whose content Marko supplies; it is the one allowed placeholder and must not start until he has.
 
 ## Global Constraints
 
@@ -20,7 +20,8 @@
   - server problem `{Field}: needs a value on at least two products, or "not on this product" on every one`;
   - ops `no path — not on this website, left empty`;
   - `ambiguous` hint `Found on this product, but not in the same place as on the others. Mark it on the screenshot.`;
-  - address-warning button `Re-verify this field · free`.
+  - address-warning button `Re-verify this field` for a customer, `Re-verify this field · free` for staff (spec §8a);
+  - a customer sees no money amount and no price word anywhere; staff see them as today (spec §8a).
 - No customer string names a tool, a model or a mechanism (memory `customer-copy-no-internals`).
 - Spec §10 property 8: a set, result or estimate with none of the new fields behaves as today. `notOnWebsite` is omitted when false, never written as `false`, `undefined` or `null`.
 - The `after_label` transform is used for mark XPaths only. It is never added to `APPLICABLE`, to `inferTransform`, to the DOM search, or to the agent's transform lists (`packages/agent/src/propose-paths.ts`, `packages/agent/src/tools.ts`).
@@ -43,6 +44,7 @@
 6. The shop's name must not certify as the brand of a product whose page shows another brand. → Task 1 test "og:site_name is unsafe when one page's brand differs".
 7. The address warning's re-verify must replace a fixed-index path the customer confirmed with its `[page]` twin, and stay free. → Task 7 tests "the cache shortcut is not kept…" and "a [page] twin of a confirmed path ranks first".
 8. A pending suggestion on products 4–6 must still block a field without a default. → Task 6 test "a suggestion on product 4 still blocks a field with no default".
+9. A customer session must see no money amount or price word on any screen, while an operator and a staff session see them as today. → Task 8 `showsMoney` tests, each view's customer/staff pair, and the route smoke's `expectNoMoney` on four screens (Task 10).
 
 ---
 
@@ -1128,7 +1130,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `packages/scraper/src/verify/certify.ts` (`isConfirmedPath` and the `[page]` twin)
 - Modify: `packages/api/src/routers/sources.ts` (`verifyEstimate`)
 - Modify: `packages/app/src/components/verification/verification-table.tsx` (the button)
-- Modify: `packages/app/src/lib/site/verification-model.ts` (`REVERIFY_FIELD`)
+- Modify: `packages/app/src/lib/site/verification-model.ts` (`REVERIFY_FIELD`, `REVERIFY_FIELD_FREE`)
 - Modify: `packages/app/src/routes/_app/projects/$project/sites/$site/index.tsx` (`reverifyField`)
 - Test: `packages/scraper/src/verify/certify.test.ts`, `run-verification.test.ts`, `page-variant-match.test.ts`, `packages/api/src/routers/sources-verify.test.ts`, `packages/app/src/lib/site/verification-model.test.ts`
 
@@ -1142,7 +1144,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   // page-variant-match.ts
   export function readsFixedVariant(p: { source: string; path: string }): boolean;
   // verification-model.ts
-  export const REVERIFY_FIELD = 'Re-verify this field · free';
+  export const REVERIFY_FIELD = 'Re-verify this field';            // customer
+  export const REVERIFY_FIELD_FREE = 'Re-verify this field · free'; // staff (Task 8)
   // verification-table.tsx: TableRow.onReverifyField?: () => void
   ```
   `EST_AI_COST_PER_FIELD_USD` is removed; `grep -rn EST_AI_COST_PER_FIELD_USD packages` must come back empty.
@@ -1219,7 +1222,8 @@ Append to `verification-model.test.ts`:
 
 ```ts
 it('the address warning button copy (spec 2026-10-17 §8)', () => {
-  expect(REVERIFY_FIELD).toBe('Re-verify this field · free');
+  expect(REVERIFY_FIELD).toBe('Re-verify this field');
+  expect(REVERIFY_FIELD_FREE).toBe('Re-verify this field · free');
 });
 ```
 
@@ -1295,7 +1299,7 @@ function isConfirmedPath(c: CandidatePath, confirmed: ConfirmedPath[] | undefine
 }
 ```
 
-`verification-model.ts`, beside `ADDRESS_WARNING`: `export const REVERIFY_FIELD = 'Re-verify this field · free';`
+`verification-model.ts`, beside `ADDRESS_WARNING`: `export const REVERIFY_FIELD = 'Re-verify this field';` and `export const REVERIFY_FIELD_FREE = 'Re-verify this field · free';` (staff only; Task 8 chooses between them through `showsMoney`, and until then the table renders the customer label).
 
 `verification-table.tsx`: `TableRow` gains `onReverifyField?: () => void;` (doc: "Re-verifies this row's field alone, for the address warning (spec 2026-10-17 §8)"). `StatusCellProps` gains `onReverifyField?: () => void`. In `StatusCell`, the warning line becomes:
 
@@ -1361,7 +1365,236 @@ Add any index file or test Step 4 changed, by its path.
 
 ---
 
-### Task 8: UX polish — content from Marko
+### Task 8: Customers see no money (`@robot/app`) — item 7, Marko's decision
+
+Marko, 2026-10-17: "once we have paying customers we don't want to show any price to the customer. We will have a different payment plan, to be decided later." Spec §8a.
+
+**Files:**
+- Create: `packages/app/src/lib/money-visibility.ts` (`showsMoney`)
+- Modify: `packages/app/src/lib/site/verify-button.ts` (`showMoney` argument)
+- Modify: `packages/app/src/lib/site/backfill-preview.ts` (`previewSummary` takes `showMoney`)
+- Modify: `packages/app/src/lib/usage-view.ts` (`usageView` takes `showMoney`; `usageHeadline`)
+- Modify: `packages/app/src/lib/staff-view.ts` (`formatStaffEntry` takes `showMoney`)
+- Modify: `packages/app/src/components/extract/extract-sample.tsx` (the sentence)
+- Modify: `packages/app/src/components/usage/usage-total.tsx`, `packages/app/src/components/usage/usage-table.tsx`, `packages/app/src/routes/_app/usage.tsx`
+- Modify: `packages/app/src/components/runs/backfill-panel.tsx`, `packages/app/src/components/staff/staff-activity-list.tsx`
+- Modify: `packages/app/src/components/verification/verification-table.tsx` (`showMoney` prop for the address button)
+- Modify: `packages/app/src/routes/_app/projects/$project/sites/$site/index.tsx` (passes `showMoney` to the button label and the table)
+- Modify: `packages/app/src/routes-smoke.test.ts` (no `$` on four screens)
+- Test: `packages/app/src/lib/money-visibility.test.ts` (new), `lib/site/verify-button.test.ts`, `lib/site/backfill-preview.test.ts`, `lib/usage-view.test.ts` (create if missing), `lib/staff-view.test.ts` (create if missing), `lib/org-runs-view.test.ts` (create if missing)
+
+**Interfaces:**
+- Consumes: the `/_app` route context's `session` (`isOperator`, `staff`), as the site route reads it for staff-only readings; `REVERIFY_FIELD`, `REVERIFY_FIELD_FREE` (Task 7).
+- Produces:
+  ```ts
+  // lib/money-visibility.ts
+  export type MoneyViewer = { isOperator: boolean; staff?: unknown };
+  export function showsMoney(viewer: MoneyViewer): boolean;
+  // verify-button.ts: verifyButton(args & { showMoney: boolean })
+  // backfill-preview.ts: previewSummary(p, showMoney: boolean)
+  // usage-view.ts: usageView(rows, showMoney: boolean): UsageRowView[]  (spendLabel: string | null)
+  //                usageHeadline(total, month, showMoney): { label: string; figure: string; sub: string }
+  // staff-view.ts: formatStaffEntry(e, now, showMoney: boolean)  (cost: string | null)
+  ```
+
+- [ ] **Step 1: Failing tests.**
+
+`money-visibility.test.ts` (new):
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { showsMoney } from './money-visibility';
+
+describe('showsMoney (spec 2026-10-17 §8a)', () => {
+  it('a customer never sees money', () => expect(showsMoney({ isOperator: false, staff: null })).toBe(false));
+  it('an operator does', () => expect(showsMoney({ isOperator: true, staff: null })).toBe(true));
+  it('a staff session inside a customer org does', () => expect(showsMoney({ isOperator: false, staff: { orgId: 'o', expiresAt: '2026-10-17T20:00:00Z' } })).toBe(true));
+});
+```
+
+Append to `verify-button.test.ts` (reuse the file's base args; `base` here stands for them):
+
+```ts
+describe('money on the Verify button is staff-only (spec 2026-10-17 §8a)', () => {
+  const args = { ...base, firstRun: true, fieldCount: 8, aiAvailable: true, upperBoundUsd: 1.44, complete: true, busy: false };
+  it('a customer reads no amount and no price word', () => {
+    expect(verifyButton({ ...args, showMoney: false }).label).toBe('Verify 8 fields');
+    expect(verifyButton({ ...args, showMoney: false, upperBoundUsd: 0 }).label).toBe('Verify 8 fields');
+  });
+  it('staff read the worst case', () => {
+    expect(verifyButton({ ...args, showMoney: true }).label).toBe('Verify 8 fields · up to $1.44');
+    expect(verifyButton({ ...args, showMoney: true, upperBoundUsd: 0 }).label).toBe('Verify 8 fields · free');
+  });
+  it('the re-verify and variants forms follow the same rule', () => {
+    const re = { ...args, firstRun: false, reverifyCount: 2 };
+    expect(verifyButton({ ...re, showMoney: false }).label).toBe('Re-verify 2 fields');
+    expect(verifyButton({ ...re, showMoney: true }).label).toBe('Re-verify 2 fields · up to $1.44');
+  });
+});
+```
+
+(Match the function's real name and argument names in `verify-button.ts`; the variants-only form reads `Verify variants` for a customer and `Verify variants · free` for staff — add those two asserts with the args the file's variants tests use. Every existing test gains `showMoney: true` so its expectations stay as they are.)
+
+Append to `backfill-preview.test.ts`:
+
+```ts
+it('previewSummary shows a price to staff only (spec 2026-10-17 §8a)', () => {
+  expect(previewSummary({ pages: 12, estCostUsd: 0.36 }, false)).toBe('12 pages');
+  expect(previewSummary({ pages: 12, estCostUsd: 0.36 }, true)).toBe('12 pages — up to ~$0.36 if no cache answers');
+  expect(previewSummary({ pages: 1, estCostUsd: 0, certified: true }, false)).toBe('1 page');
+});
+```
+
+`usage-view.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { usageView, usageHeadline } from './usage-view';
+
+describe('usage without money for a customer (spec 2026-10-17 §8a)', () => {
+  const rows = [{ id: 'p', name: 'Prices', slug: 'prices', spendUsd: 1.24, pagesCaptured: 60 }];
+  it('rows carry no spend label for a customer, and one for staff', () => {
+    expect(usageView(rows, false)[0]!.spendLabel).toBeNull();
+    expect(usageView(rows, true)[0]!.spendLabel).toBe('$1.24');
+  });
+  it('the headline is pages for a customer, spend for staff', () => {
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', false)).toEqual({ label: 'Pages captured in Oct 2026', figure: '60 pages', sub: '' });
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', true)).toEqual({ label: 'Spend in Oct 2026', figure: '$1.24', sub: '60 pages captured' });
+  });
+});
+```
+
+(Use `monthLabel`'s real output for the month; check it before writing the literal.)
+
+`staff-view.test.ts` (append if it exists):
+
+```ts
+it('formatStaffEntry shows a run\'s cost to staff only (spec 2026-10-17 §8a)', () => {
+  const e = { id: 'a', at: '2026-10-17T10:00:00Z', actor: { name: 'Op', email: 'op@example.com' }, org: { id: 'o', name: 'Org' }, project: null, website: null, summary: 'Verified', run: { id: 'r', costUsd: 1.24 } };
+  const now = new Date('2026-10-17T11:00:00Z');
+  expect(formatStaffEntry(e as never, now, false).cost).toBeNull();
+  expect(formatStaffEntry(e as never, now, true).cost).toBe('$1.24');
+});
+```
+
+(Shape `e` after `StaffEntryView`; drop the casts once it matches.)
+
+`org-runs-view.test.ts` (append if it exists):
+
+```ts
+it('the org runs view carries no cost to render (spec 2026-10-17 §8a)', () => {
+  const views = orgRunsView([row]);   // `row`: the file's own OrgRunRow fixture, or one built from RunRow with costUsd 1.24
+  expect(Object.keys(views[0]!)).not.toContain('costUsd');
+  expect(JSON.stringify(views[0])).not.toMatch(/\$\d/);
+});
+```
+
+In `routes-smoke.test.ts`, after the step that opens each of the Verification tab, the Extract tab, a run page and Usage, assert on the page's main region (the smoke signs in as a customer):
+
+```ts
+    // Spec 2026-10-17 §8a: a customer sees no money.
+    expect(await page.locator('main').innerText()).not.toMatch(/\$\s?\d/);
+```
+
+Add it as one helper (`expectNoMoney(page)`) called on the four screens, in both themes where the smoke already loops.
+
+- [ ] **Step 2: Run and see them fail.**
+
+```
+pnpm --filter @robot/app exec vitest run src/lib/money-visibility.test.ts src/lib/site/verify-button.test.ts src/lib/site/backfill-preview.test.ts src/lib/usage-view.test.ts src/lib/staff-view.test.ts src/lib/org-runs-view.test.ts
+```
+
+(The route smoke is not run here; it runs after the merge, Task 10.)
+
+- [ ] **Step 3: Implement.**
+
+`lib/money-visibility.ts`:
+
+```ts
+// Who sees money (spec 2026-10-17 §8a). Marko, 2026-10-17: "once we have paying customers we don't
+// want to show any price to the customer." Staff — an operator, or a staff session inside the
+// customer's org — still do. Every amount on a customer screen goes through this.
+
+export type MoneyViewer = { isOperator: boolean; staff?: unknown };
+
+export function showsMoney(viewer: MoneyViewer): boolean {
+  return viewer.isOperator || !!viewer.staff;
+}
+```
+
+`verify-button.ts`: the args gain `showMoney: boolean`; the cost becomes a suffix:
+
+```ts
+  const price = !aiAvailable || upperBoundUsd === 0 ? 'free' : `up to $${upperBoundUsd.toFixed(2)}`;
+  // Spec 2026-10-17 §8a: staff read the price (a worst case, every field needing the AI); a customer reads none.
+  const cost = showMoney ? ` · ${price}` : '';
+```
+
+and every label that used `· ${cost}` now ends `${cost}` (so `Verify ${fieldsWord(fieldCount)}${cost}`); the two variants-only labels become `` `Verify variants${showMoney ? ' · free' : ''}` ``. Update the file's header comment to say the price is staff-only.
+
+`backfill-preview.ts`:
+
+```ts
+export function previewSummary(p: { pages: number; estCostUsd: number; certified?: boolean }, showMoney: boolean): string {
+  const pages = p.pages === 1 ? 'page' : 'pages';
+  if (!showMoney) return `${p.pages} ${pages}`; // spec 2026-10-17 §8a
+  const cost = p.certified ? 'free' : `up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
+  return `${p.pages} ${pages} — ${cost}`;
+}
+```
+
+(Keep the existing `pages` word logic if it differs.)
+
+`usage-view.ts`: `UsageRowView.spendLabel` becomes `string | null`; `usageView(rows, showMoney)` sets it to `showMoney ? usdLabel(r.spendUsd) : null`. Add:
+
+```ts
+/** The usage headline (spec 2026-10-17 §8a): spend for staff; pages captured for a customer. */
+export function usageHeadline(total: { spendUsd: number; pagesCaptured: number }, month: string, showMoney: boolean): { label: string; figure: string; sub: string } {
+  return showMoney
+    ? { label: `Spend in ${monthLabel(month)}`, figure: usdLabel(total.spendUsd), sub: `${pagesLabel(total.pagesCaptured)} captured` }
+    : { label: `Pages captured in ${monthLabel(month)}`, figure: pagesLabel(total.pagesCaptured), sub: '' };
+}
+```
+
+`usage-total.tsx` renders `usageHeadline(...)` from a new `showMoney` prop (label, figure in the 28 px slot, sub line when non-empty). `usage-table.tsx` takes `showMoney` and renders the Spend `<col>`, `<th>` and `<td>` only when it is true (the loading row's `colSpan` follows). `routes/_app/usage.tsx` reads `const { session } = useRouteContext({ from: '/_app' }); const showMoney = showsMoney(session);`, passes it down and to `usageView`, and the empty text becomes `and its pages will show here.` for a customer (`spend` for staff).
+
+`staff-view.ts`: `formatStaffEntry(e, now = new Date(), showMoney = false)` — the default is the customer's — and `cost: showMoney && e.run && e.run.costUsd > 0 ? … : null`. `staff-activity-list.tsx` reads the session the same way and passes `showsMoney(session)`. Check every other caller of `formatStaffEntry` (ops reuses it?) and pass `true` there.
+
+`extract-sample.tsx`: two sentences, chosen by `showsMoney(session)`:
+
+```ts
+const SAMPLE_SENTENCE = 'walks the first listing for up to 3 pages, extracts 3 products with the verified paths.';
+const SAMPLE_SENTENCE_STAFF = `${SAMPLE_SENTENCE} No AI. Free.`;
+```
+
+`backfill-panel.tsx`: `previewSummary(checkedPreview.data, showsMoney(session))`, the session read from the `/_app` context.
+
+`verification-table.tsx`: `TableRow` (or the table's props) gains `showMoney: boolean`; the address button renders `showMoney ? REVERIFY_FIELD_FREE : REVERIFY_FIELD`. The site route computes `const showMoney = showsMoney(viewer);` once (beside `showJev`, which can become `showJev = showsMoney(viewer)`'s twin — leave `showJev` as it is) and passes it to `verifyButton` and the table.
+
+- [ ] **Step 4: Run Step 2's files again, then the type check and a sweep for amounts that bypass the helper.**
+
+```
+pnpm --filter @robot/app exec vitest run src/lib/money-visibility.test.ts src/lib/site/verify-button.test.ts src/lib/site/backfill-preview.test.ts src/lib/usage-view.test.ts src/lib/staff-view.test.ts src/lib/org-runs-view.test.ts
+pnpm --filter @robot/app exec tsc --noEmit
+grep -rn '\$\${' packages/app/src --include=*.ts --include=*.tsx | grep -v '\.test\.' | grep -v '/ops/\|ops-view'
+```
+
+Expected: tests pass, no type errors. Every line the grep prints is behind `showMoney` or is not money (a template's `$` from a variable name); report any other.
+
+- [ ] **Step 5: Commit.**
+
+```
+git add packages/app/src/lib/money-visibility.ts packages/app/src/lib/money-visibility.test.ts packages/app/src/lib/site/verify-button.ts packages/app/src/lib/site/verify-button.test.ts packages/app/src/lib/site/backfill-preview.ts packages/app/src/lib/site/backfill-preview.test.ts packages/app/src/lib/usage-view.ts packages/app/src/lib/usage-view.test.ts packages/app/src/lib/staff-view.ts packages/app/src/lib/staff-view.test.ts packages/app/src/lib/org-runs-view.test.ts packages/app/src/components/extract/extract-sample.tsx packages/app/src/components/usage/usage-total.tsx packages/app/src/components/usage/usage-table.tsx packages/app/src/routes/_app/usage.tsx packages/app/src/components/runs/backfill-panel.tsx packages/app/src/components/staff/staff-activity-list.tsx packages/app/src/components/verification/verification-table.tsx "packages/app/src/routes/_app/projects/\$project/sites/\$site/index.tsx" packages/app/src/routes-smoke.test.ts
+git commit -m "feat(app): customers see no money — prices, spend and costs are staff-only
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+Leave out any listed test file that did not exist and was not created.
+
+---
+
+### Task 9: UX polish — content from Marko
 
 **Placeholder.** Marko said "UX needs little polishing, but about that later" (2026-10-16) and "UX changes at the end" (2026-10-17). He supplies this task's content before it runs. Do not start it, and do not guess its content.
 
@@ -1375,7 +1608,7 @@ If Marko wants the row-level "Not on this website" action (spec §12 decision 5)
 
 ---
 
-### Task 9: Docs and the route smoke
+### Task 10: Docs and the route smoke
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-10-17-verify-dead-ends-design.md` (Status: implemented, merge commit, deviations)
@@ -1388,7 +1621,7 @@ If Marko wants the row-level "Not on this website" action (spec §12 decision 5)
 - [ ] **Step 2: CLAUDE.md.** Add under Key Technical Decisions:
 
 ```
-- Verify dead ends (2026-10-17): a field marked "not on this product" on every proof page passes as not on this website (no path, left empty); the shop's name (og:site_name, the offer seller) can be a brand; a proof page whose value was found reads green on three pages too; a marked sku/brand/rating line stores its value without "Label:", and a mark reads an image's src; a number shown with decimals matches more precise page data; Verify's cost label is $0.06 per AI-reachable field per proof page.
+- Verify dead ends (2026-10-17): a field marked "not on this product" on every proof page passes as not on this website (no path, left empty); the shop's name (og:site_name, the offer seller) can be a brand; a proof page whose value was found reads green on three pages too; a marked sku/brand/rating line stores its value without "Label:", and a mark reads an image's src; a number shown with decimals matches more precise page data; Verify's cost label is $0.06 per AI-reachable field per proof page, staff only; a customer sees no money anywhere in the app (`showsMoney`, Marko 2026-10-17).
 ```
 
 - [ ] **Step 3: handoff.md and the campaign doc.** In `docs/handoff.md`, replace the Verify dead-ends entry in the open work with what is done, what was left out (spec §11), and the decisions Marko took on spec §12. In the campaign doc's group 3, add "fixed: spec 2026-10-17 §n" after each bullet this spec covers, and "open" after the silent-failures bullet.
@@ -1408,4 +1641,4 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 pnpm test:ui:app
 ```
 
-Expected: every screen passes and writes its screenshots in both themes. Commit any screenshot changes by explicit path under `docs/testing/screens/` with the trailer. A failure is reported with its output, not retried blindly.
+Expected: every screen passes and writes its screenshots in both themes, and `expectNoMoney` (Task 8) finds no amount on the Verification tab, the Extract tab, a run page and Usage. Commit any screenshot changes by explicit path under `docs/testing/screens/` with the trailer. A failure is reported with its output, not retried blindly.
