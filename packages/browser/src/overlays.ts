@@ -51,6 +51,78 @@ export const EXPAND_MAX_TABS = 10;
 /** "Show more" and friends, as a RegExp source (today's Phase 2 pattern, unchanged). */
 export const EXPAND_TEXT_PATTERN = '^(show more|see more|see all|view details|read more|expand|view all|load more|\\+ more|show all)$';
 
+/** One dismissal step: a CSS selector, or a whole accessible name (case-folded) of a button. */
+export type DismissStep = { css: string } | { name: string };
+
+/**
+ * Today's dismissal list, in today's order, with every `button:has-text("…")` turned into a whole
+ * name (§3.3.1). A name step matches `button, [role=button]` whose accessible name IS the text.
+ */
+export const DISMISS_STEPS: readonly DismissStep[] = [
+  // Cookie consent
+  { css: 'button[id*="cookie" i][id*="accept" i]' },
+  { css: 'button[id*="cookie" i][id*="close" i]' },
+  { css: 'button[id*="consent" i][id*="accept" i]' },
+  { css: 'button[class*="cookie" i][class*="accept" i]' },
+  { css: 'button[class*="consent" i][class*="accept" i]' },
+  { css: 'button[data-testid*="cookie" i]' },
+  { css: '#onetrust-accept-btn-handler' },
+  { css: '#accept-cookie-notification' },
+  { css: '.cookie-banner button' },
+  { css: '.cookie-notice button' },
+  { css: '[aria-label*="cookie" i][aria-label*="accept" i]' },
+  { css: '[aria-label*="cookie" i][aria-label*="close" i]' },
+  // Generic consent/privacy modals
+  { css: 'button[id*="consent" i][id*="close" i]' },
+  { css: 'button[class*="consent" i][class*="close" i]' },
+  { css: '[data-testid="close-consent"]' },
+  { css: 'button[class*="privacy" i][class*="accept" i]' },
+  // Health data consent (Target-style)
+  { css: 'button[class*="consent" i][class*="continue" i]' },
+  // Whole names (were substring `:has-text`)
+  { name: 'continue shopping' },
+  { name: 'accept all' },
+  { name: 'accept cookies' },
+  { name: 'accept all cookies' },
+  { name: 'i accept' },
+  { name: 'i agree' },
+  { name: 'got it' },
+  { name: 'ok, got it' },
+  { name: 'ok' },
+  { name: 'close' },
+  // Newsletter/email modals
+  { css: '[aria-label="Close dialog"]' },
+  { css: '[aria-label="Close modal"]' },
+  { css: '[aria-label="Close"]' },
+  { css: 'button[class*="modal" i][class*="close" i]' },
+  { css: '.modal-close' },
+  { css: '.popup-close' },
+  { css: '[data-dismiss="modal"]' },
+  // Generic overlay close buttons
+  { css: 'dialog button[aria-label*="close" i]' },
+  { css: '[role="dialog"] button[aria-label*="close" i]' },
+];
+
+/** Today's JavaScript removal selectors; still removed (not hidden), as today. */
+export const REMOVAL_SELECTORS: readonly string[] = [
+  '[class*="overlay" i][class*="modal" i]',
+  '[class*="overlay" i][class*="consent" i]',
+  '[class*="modal" i][class*="backdrop" i]',
+  '[id*="consent" i][role="dialog"]',
+  '[role="dialog"][aria-modal="true"]',
+];
+
+/**
+ * The layer a clicked control belongs to when it is not inside a §3.1 overlay (a small cookie bar):
+ * if that layer went away, the click worked (§3.3.3).
+ */
+export const DISMISS_HOST_SELECTOR = [
+  '[role="dialog"]', '[role="alertdialog"]', '[aria-modal="true"]', 'dialog',
+  '[id*="cookie" i]', '[class*="cookie" i]', '[id*="consent" i]', '[class*="consent" i]',
+  '[id*="banner" i]', '[class*="banner" i]', '[id*="popup" i]', '[class*="popup" i]',
+  '[id*="modal" i]', '[class*="modal" i]',
+].join(', ');
+
 /** An element that says it is a dialog. Page only (isShown, holdsPage, listOverlayEls). */
 const DIALOG_LIKE = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]';
 
@@ -529,6 +601,11 @@ function liftScrollLock(): void {
   }
 }
 
+/** Take an overlay off the screenshot but keep its text in the HTML (§3.3.5, plan departure 4). */
+function hideOverlay(el: Element): void {
+  (el as HTMLElement).style?.setProperty('display', 'none', 'important');
+}
+
 // ---- Page only: entries -------------------------------------------------------------------------
 
 function entryListOverlays(): OverlayDescription[] {
@@ -674,6 +751,83 @@ function entryTabs(): number {
   return picked.length;
 }
 
+/**
+ * The next control dismissal should click, or null (§3.3.1, §3.3.2, §3.3.4). First a close word
+ * inside the topmost overlay; then today's steps in order. Every element is offered once per
+ * capture: whether its click worked or not, it is never offered again.
+ */
+function entryNextDismissCandidate(): Element | null {
+  const st = robotState();
+  const usable = (el: Element): boolean => !st.tried.has(el) && isShown(el) && !neverDismiss(el);
+  const take = (el: Element): Element => {
+    st.tried.add(el);
+    st.last = el;
+    st.lastHost = outermostOverlay(el) ?? el.closest(DISMISS_HOST_SELECTOR);
+    return el;
+  };
+  const CONTROLS = 'button, a, [role="button"], [aria-label]';
+  const top = topmostOverlayEl();
+  if (top) {
+    const inside = [
+      ...Array.from(top.querySelectorAll(CONTROLS)),
+      ...(top.shadowRoot ? Array.from(top.shadowRoot.querySelectorAll(CONTROLS)) : []),
+    ];
+    for (const el of inside) {
+      if (!usable(el)) continue;
+      const names = [accessibleName(el), normName(el.getAttribute('aria-label')), normName((el as HTMLElement).innerText ?? el.textContent), normName(el.getAttribute('title'))];
+      if (names.some((n) => isCloseWord(n))) return take(el);
+    }
+  }
+  const roots = searchRoots();
+  let named: Array<[Element, string]> | null = null;
+  for (const step of DISMISS_STEPS) {
+    let els: Element[];
+    if ('css' in step) {
+      els = queryDeep(roots, step.css);
+    } else {
+      named ??= queryDeep(roots, 'button, [role="button"]').map((el): [Element, string] => [el, accessibleName(el)]);
+      els = named.filter(([, name]) => isDismissName(name, step.name)).map(([el]) => el);
+    }
+    for (const el of els) if (usable(el)) return take(el);
+  }
+  return null;
+}
+
+/** Did the last click work (§3.3.3)? The element, or the layer it sat in, is gone or hidden. */
+function entryLastDismissWorked(): boolean {
+  const st = robotState();
+  const gone = (el: Element | null): boolean => el !== null && (!el.isConnected || !isShown(el));
+  return gone(st.last) || gone(st.lastHost);
+}
+
+/**
+ * The removal pass, every round (§3.3.5): hide every §3.1 overlay, remove today's selectors and
+ * today's high z-index body children (never the page itself), lift the scroll lock → how many.
+ */
+function entryRemovalPass(): number {
+  let n = 0;
+  for (const el of listOverlayEls()) {
+    if (!isShown(el)) continue; // inside one hidden a moment ago
+    hideOverlay(el);
+    n++;
+  }
+  const remove = (el: Element): void => {
+    if (!el.isConnected || el === document.body || el === document.documentElement || holdsPage(el)) return;
+    el.remove();
+    n++;
+  };
+  for (const selector of REMOVAL_SELECTORS) document.querySelectorAll(selector).forEach((el) => remove(el));
+  document.querySelectorAll('body > div').forEach((el) => {
+    const s = getComputedStyle(el);
+    if ((s.position === 'fixed' || s.position === 'absolute') && parseFloat(s.zIndex) > 1000 && el.querySelector('button')) remove(el);
+  });
+  // Today's unconditional reset; the fuller lift only when something was taken away.
+  if (document.body) document.body.style.overflow = '';
+  if (document.documentElement) document.documentElement.style.overflow = '';
+  if (n > 0) liftScrollLock();
+  return n;
+}
+
 // ---- Script assembly. Keep at the end of the module: pageScript reads the constants above. -----
 
 /** esbuild's keepNames helper, as a no-op: see rule 3 at the top. `var`, so a real one is harmless. */
@@ -682,7 +836,7 @@ export const PAGE_PRELUDE = 'var __name = (fn) => fn;';
 /** Every constant page code reads, emitted as `const NAME = <json>;` under the same name. */
 const PAGE_CONSTANTS: Record<string, unknown> = {
   CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE, HASPOPUP_SKIP, EXPAND_SELECTORS, EXPAND_TEXT_PATTERN,
-  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS,
+  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS, DISMISS_STEPS, REMOVAL_SELECTORS, DISMISS_HOST_SELECTOR,
 };
 
 /** Every function page code calls, emitted from its own source. */
@@ -694,7 +848,7 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, isVariantChoice, variantFactsOf, neverDismiss, isDialogLike, expandSkip, liftScrollLock,
-  takeOverlayBaseline,
+  takeOverlayBaseline, hideOverlay,
 ];
 
 /**
@@ -727,3 +881,9 @@ export const NEW_OVERLAYS_SCRIPT = pageScript(entryNewOverlays);
 export const REMOVE_NEW_OVERLAYS_SCRIPT = pageScript(entryRemoveNewOverlays);
 /** Click the tabs (staggered) → how many will be clicked. */
 export const TABS_SCRIPT = pageScript(entryTabs);
+/** The next control to click → `Element | null`. Use with `page.evaluateHandle`. */
+export const NEXT_DISMISS_CANDIDATE_SCRIPT = pageScript(entryNextDismissCandidate);
+/** Did the last click work → boolean. */
+export const LAST_DISMISS_WORKED_SCRIPT = pageScript(entryLastDismissWorked);
+/** The removal pass → number of overlays hidden or elements removed. */
+export const REMOVAL_PASS_SCRIPT = pageScript(entryRemovalPass);

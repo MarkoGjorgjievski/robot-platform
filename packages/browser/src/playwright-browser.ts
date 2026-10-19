@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Locator, type Response } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page, type JSHandle, type Response } from 'playwright';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import type { IBrowser, BrowserOptions, CaptureOptions, CaptureTimings, CaptureVerdict, ReadyCheck, ReadySnapshot, PageCapture, StructuredData, InterceptedRequest, CrawlOptions, CrawlPage, PaginationConfig, ScrollOptions } from './types.js';
 import { CaptureError } from './types.js';
@@ -11,7 +11,8 @@ import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 import {
   hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
-  REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, type OverlayDescription,
+  REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
+  REMOVAL_PASS_SCRIPT, type OverlayDescription,
 } from './overlays.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
@@ -95,82 +96,15 @@ const isCrash = (err: unknown): boolean => /crashed/i.test(String((err as Error)
 // Moved to overlays.ts (the page needs it too); re-exported for existing importers.
 export { hrefNavigates };
 
-// Common popup/consent selectors to auto-dismiss before capture
-const POPUP_DISMISS_SELECTORS = [
-  // Cookie consent
-  'button[id*="cookie" i][id*="accept" i]',
-  'button[id*="cookie" i][id*="close" i]',
-  'button[id*="consent" i][id*="accept" i]',
-  'button[class*="cookie" i][class*="accept" i]',
-  'button[class*="consent" i][class*="accept" i]',
-  'button[data-testid*="cookie" i]',
-  '#onetrust-accept-btn-handler',
-  '#accept-cookie-notification',
-  '.cookie-banner button',
-  '.cookie-notice button',
-  '[aria-label*="cookie" i][aria-label*="accept" i]',
-  '[aria-label*="cookie" i][aria-label*="close" i]',
-
-  // Generic consent/privacy modals
-  'button[id*="consent" i][id*="close" i]',
-  'button[class*="consent" i][class*="close" i]',
-  '[data-testid="close-consent"]',
-  'button[class*="privacy" i][class*="accept" i]',
-
-  // Health data consent (Target-style)
-  'button[class*="consent" i][class*="continue" i]',
-  'button:has-text("Continue shopping")',
-  'button:has-text("Accept all")',
-  'button:has-text("Accept cookies")',
-  'button:has-text("Accept All Cookies")',
-  'button:has-text("I Accept")',
-  'button:has-text("I agree")',
-  'button:has-text("Got it")',
-  'button:has-text("OK")',
-  'button:has-text("Close")',
-
-  // Newsletter/email modals
-  '[aria-label="Close dialog"]',
-  '[aria-label="Close modal"]',
-  '[aria-label="Close"]',
-  'button[class*="modal" i][class*="close" i]',
-  '.modal-close',
-  '.popup-close',
-  '[data-dismiss="modal"]',
-
-  // Generic overlay close buttons (last resort — might close wrong thing)
-  'dialog button[aria-label*="close" i]',
-  '[role="dialog"] button[aria-label*="close" i]',
-];
-
-/**
- * Would clicking this element leave the page?
- *
- * A dismissal list broad enough to close real cookie banners is broad enough to
- * match a link. Rather than trying to enumerate safe selectors, check the element
- * itself at click time — that also covers selectors added later.
- *
- * An anchor is only dangerous if it actually goes somewhere: `<a href="#">` and
- * `href="javascript:void(0)"` are the standard way to build a close button, and
- * refusing to click those would break dismissal on many sites.
- */
-async function navigatesAway(el: Locator): Promise<boolean> {
-  try {
-    // The DOM lookup happens in the page; the decision itself is hrefNavigates,
-    // which is pure and unit-tested. Inlined rather than imported because this
-    // body is serialised into the browser context.
-    const link = await el.evaluate((node) => {
-      const anchor = (node as Element).closest('a');
-      return anchor ? { href: anchor.getAttribute('href'), target: anchor.getAttribute('target') } : null;
-    });
-    return hrefNavigates(link);
-  } catch {
-    // If it cannot be inspected, treat it as safe — the post-capture URL check
-    // still catches a navigation, and being over-cautious here means never
-    // dismissing anything on pages that resist evaluation.
-    return false;
-  }
-}
+// Dismissal (spec 2026-10-19 §3.3). The rules and the page code are in overlays.ts.
+/** Before the first pass, a moment for popups that arrive just after load (not before the final pass). */
+const DISMISS_SETTLE_MS = 1500;
+/** Rounds per pass; a round that closed and removed nothing ends the pass. */
+const DISMISS_MAX_ROUNDS = 4;
+/** Clicks per pass, worked or not: each waits DISMISS_CLICK_SETTLE_MS, and a dead one is never retried. */
+const DISMISS_MAX_CLICKS = 6;
+/** How long a click gets to take effect before it is judged. */
+const DISMISS_CLICK_SETTLE_MS = 800;
 
 export class PlaywrightBrowser implements IBrowser {
   private browser: Browser | null = null;
@@ -578,82 +512,43 @@ export class PlaywrightBrowser implements IBrowser {
   }
 
   /**
-   * Try to dismiss common popups, consent banners, and modals.
-   * Makes multiple passes — popups can appear with a delay.
+   * Close what the page put over the product, without touching the page (spec 2026-10-19 §3.3).
+   *
+   * Each round: first a close word inside the topmost overlay, then today's steps — whole names,
+   * never a variant, settings or navigating control (on Barnes & Noble a broad selector once
+   * clicked through to another product: wrong AND self-consistent data). A click counts only if
+   * the element or its layer went away; a dead one is never clicked again and the round tries the
+   * next. Then the removal pass, every round. A round that changed nothing ends the pass.
+   *
+   * `settleMs: 0` is the final pass before the screenshot (§3.4): no wait on a clean page.
    */
-  private async dismissPopups(page: Page): Promise<void> {
-    // Wait a moment for popups to appear (many load after page content)
-    await page.waitForTimeout(1500);
+  private async dismissPopups(page: Page, opts: { settleMs?: number } = {}): Promise<void> {
+    const settleMs = opts.settleMs ?? DISMISS_SETTLE_MS;
+    if (settleMs > 0) await page.waitForTimeout(settleMs);
 
-    // Try up to 3 rounds (some sites stack multiple popups)
-    for (let round = 0; round < 3; round++) {
-      let dismissed = false;
-
-      for (const selector of POPUP_DISMISS_SELECTORS) {
+    let clicksLeft = DISMISS_MAX_CLICKS;
+    for (let round = 0; round < DISMISS_MAX_ROUNDS; round++) {
+      let closedByClick = false;
+      while (!closedByClick && clicksLeft > 0) {
+        // A string script's handle is typed JSHandle<unknown>; asElement() needs to know it may be a Node.
+        const handle = await page.evaluateHandle(NEXT_DISMISS_CANDIDATE_SCRIPT)
+          .then((h) => (h as JSHandle<Node | null>).asElement())
+          .catch((err) => { if (isCrash(err)) throw err; return null; });
+        if (!handle) break;
+        clicksLeft--;
         try {
-          const el = page.locator(selector).first();
-          if (!(await el.isVisible({ timeout: 200 }))) continue;
-          if (await navigatesAway(el)) {
-            // On Barnes & Noble a dismissal selector matched an accessory tile's
-            // link and clicked through to a different product; three captures in
-            // four ended on the wrong page, and the data that came back was wrong
-            // AND self-consistent. Refusing to click navigating elements removes
-            // the whole class — returnIfNavigatedAway remains as the net.
-            continue;
-          }
-          await el.click({ timeout: 2000, force: true });
-          await page.waitForTimeout(800);
-          dismissed = true;
-          break; // One per round — check if more popups appeared
-        } catch {
-          // Selector not found or not clickable — try next
+          await handle.click({ timeout: 2000, force: true });
+        } catch (err) {
+          if (isCrash(err)) throw err; // a click that throws changed nothing; judged below
         }
+        await page.waitForTimeout(DISMISS_CLICK_SETTLE_MS);
+        closedByClick = await page.evaluate(LAST_DISMISS_WORKED_SCRIPT).then(Boolean).catch(() => false);
+        await handle.dispose().catch(() => {});
       }
 
-      // Also try using JavaScript to remove overlay/modal elements directly
-      if (!dismissed) {
-        const removed = await page.evaluate(() => {
-          let found = false;
-          // Remove common overlay elements
-          const overlaySelectors = [
-            '[class*="overlay" i][class*="modal" i]',
-            '[class*="overlay" i][class*="consent" i]',
-            '[class*="modal" i][class*="backdrop" i]',
-            '[id*="consent" i][role="dialog"]',
-            '[role="dialog"][aria-modal="true"]',
-          ];
-          for (const sel of overlaySelectors) {
-            const els = document.querySelectorAll(sel);
-            els.forEach(el => {
-              el.remove();
-              found = true;
-            });
-          }
-          // Also remove any fixed/sticky overlays blocking content
-          document.querySelectorAll('body > div').forEach(el => {
-            const style = window.getComputedStyle(el);
-            if (
-              (style.position === 'fixed' || style.position === 'absolute') &&
-              parseFloat(style.zIndex) > 1000 &&
-              el.querySelector('button')
-            ) {
-              el.remove();
-              found = true;
-            }
-          });
-          // Re-enable scrolling if body was locked.
-          // Body can be null on pages still loading or non-HTML responses.
-          if (document.body) document.body.style.overflow = '';
-          if (document.documentElement) document.documentElement.style.overflow = '';
-          return found;
-        });
-
-        if (removed) {
-          await page.waitForTimeout(500);
-        } else {
-          break; // No more popups found
-        }
-      }
+      const removed = Number(await page.evaluate(REMOVAL_PASS_SCRIPT).catch((err) => { if (isCrash(err)) throw err; return 0; }));
+      if (removed > 0) await page.waitForTimeout(500);
+      if (!closedByClick && removed === 0) break;
     }
   }
 
