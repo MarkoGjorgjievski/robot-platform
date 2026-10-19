@@ -76,6 +76,8 @@ export interface PageState {
   bodyOverflowY: string;
   detailsOpen: Record<string, boolean>;
   scrollY: number;
+  /** html or body paints a ::before/::after (a scrim drawn by a "modal open" class). */
+  pseudoPainted: boolean;
 }
 
 /** An `annotate` script: capture() runs it after its last pass, just before the screenshot. */
@@ -101,6 +103,10 @@ export function pageState(ids: string[]): string {
     bodyOverflowY: getComputedStyle(document.body).overflowY,
     detailsOpen: Object.fromEntries(Array.from(document.querySelectorAll('details[id]')).map((d) => [d.id, d.open])),
     scrollY: Math.round(window.scrollY),
+    pseudoPainted: [document.documentElement, document.body].some((el) => ['::before', '::after'].some((p) => {
+      const s = getComputedStyle(el, p);
+      return s.content !== 'none' && s.content !== 'normal' && s.display !== 'none' && s.visibility !== 'hidden' && parseFloat(s.opacity) > 0;
+    })),
   };
 })()`;
 }

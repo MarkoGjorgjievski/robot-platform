@@ -70,6 +70,27 @@ describe('the overlay definition in a real page (§3.1)', () => {
     }
   }, 30_000);
 
+  it('a smaller popup over the page with a close control and a heading is an overlay; a chat bubble, a closeless box and an edge bar are not (live check 2026-10-19)', async () => {
+    const html = `<!doctype html><html><body style="margin:0">
+      <main style="min-height:2400px"><h1>Widget</h1><div style="display:flex"><div style="flex:1;height:1200px">Gallery</div><div style="width:420px;height:1200px"><button>42</button></div></div></main>
+      <section id="geo" style="position:fixed;right:20px;bottom:20px;width:384px;height:374px;background:#fff"><h2>Standort wählen</h2><button aria-label="Schließen"><svg width="16" height="16"></svg></button></section>
+      <div id="flyout" class="cart-popup" style="position:fixed;right:20px;top:100px;width:384px;height:260px;background:#fff">Added <button>×</button></div>
+      <div id="chat" style="position:fixed;right:20px;bottom:420px;width:80px;height:80px;background:#00f"><h3>Chat</h3><button>Close</button></div>
+      <div id="box" style="position:fixed;left:20px;top:200px;width:384px;height:374px;background:#fff"><h2>Bestseller</h2><button>Add</button></div>
+      <div id="bar" style="position:fixed;left:0;right:0;bottom:0;height:120px;background:#eee"><h2>Free delivery</h2><button aria-label="Close">×</button></div>
+      </body></html>`;
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['flyout', 'geo']);
+    expect((await browser.setContentEvaluate<OverlayDescription | null>(html, CENTRE_OVERLAY_SCRIPT))).toBeNull();
+  }, 30_000);
+
+  it('a smaller box whose close is a link away is no overlay by this rule', async () => {
+    const html = `<!doctype html><html><body style="margin:0">
+      <main style="min-height:2400px"><h1>Widget</h1><div style="height:1200px;background:#eee">Gallery</div></main>
+      <section id="promo" style="position:fixed;right:20px;bottom:20px;width:384px;height:374px;background:#fff"><h2>Sale</h2><a href="/sale">Close</a></section>
+      </body></html>`;
+    expect(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT)).toEqual([]);
+  }, 30_000);
+
   it('finds an overlay inside an open shadow root', async () => {
     const html = `<!doctype html><html><body><main><h1>Widget</h1></main><div id="host"></div>
       <script>document.getElementById('host').attachShadow({ mode: 'open' }).innerHTML = '<div id="shadow-layer" style="position:fixed;inset:0;background:#000">Sign up</div>';</script></body></html>`;
