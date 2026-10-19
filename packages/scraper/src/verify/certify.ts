@@ -342,6 +342,8 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const foundText = (raw: unknown) => (raw === null || raw === undefined || raw === '' ? '' : displayValue(raw) ?? String(raw));
 
   const cells: Record<string, CellResult> = {};
+  // The pages that read green only because a safe path reads the value there (spec 2026-10-17 §5), with their near misses.
+  const foundHere = new Map<string, string[]>();
   for (const url of urls) {
     const capture = captures[url];
     if (!capture) { cells[url] = { status: 'not_captured' }; continue; }
@@ -402,12 +404,22 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
     if (complete && safeHere) {
       const raw = evals.get(pathId(safeHere))![url]!.raw;
       cells[url] = { status: 'pass', found: foundText(raw), path: safeHere };
+      if (isProven(safeHere, url)) foundHere.set(url, nearMisses);
       continue;
     }
     const correctHere = candidates.some((c) => evals.get(pathId(c))?.[url]?.correct);
     cells[url] = correctHere
       ? { status: 'fail', reason: 'ambiguous', ...(nearMisses.length ? { nearMisses } : {}) }
       : { status: 'fail', reason: 'not_found', ...(nearMisses.length ? { nearMisses } : {}) };
+  }
+
+  // Spec 2026-10-17 §10 property 4: a failing field always names a product. When nothing certified
+  // and no page fails on its own account, every green page was found by a path that works there
+  // only: the value is in a different place on each product. Those pages carry the diagnosis
+  // (ambiguous: mark it on the screenshot), whatever the number of proof pages. Where some other
+  // page fails (the skullcandy shape), the found pages stay green and that page names the problem.
+  if (certified.length === 0 && complete && !Object.values(cells).some((c) => c.status === 'fail')) {
+    for (const [url, misses] of foundHere) cells[url] = { status: 'fail', reason: 'ambiguous', ...(misses.length ? { nearMisses: misses } : {}) };
   }
 
   return {
