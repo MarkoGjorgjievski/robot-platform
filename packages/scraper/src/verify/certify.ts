@@ -1,6 +1,6 @@
 import type { PageCapture } from '@robot/browser';
 import { MAX_CERTIFIED_PATHS } from './constants.js';
-import { labelled, normalize, valuesEqual } from './normalize.js';
+import { afterLabel, labelled, normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
@@ -100,7 +100,8 @@ export async function gatherCandidates(
       hitsByUrl[url] = structured.length + xps.length;
       candidates.push(...xps.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'identity' as const })));
       // A labelled concept's mark may show "Style: 398846_01" for the value 398846_01 (spec 2026-10-17 §6).
-      if (labelled(field.concept)) candidates.push(...xps.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'after_label' as const })));
+      // Only when the marked text has a label: otherwise identity and after_label on one XPath would both certify.
+      if (labelled(field.concept) && afterLabel(mark.text) !== null) candidates.push(...xps.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'after_label' as const })));
       continue;
     }
     const dom = await deps.runDomSearch(capture.html, [{ key: field.key, type: field.type, expected: exp }], capture.url);

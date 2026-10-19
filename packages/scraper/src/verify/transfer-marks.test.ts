@@ -102,7 +102,7 @@ describe('transferMarks', () => {
   const image: SchemaDefinitionField = { key: 'image', name: 'Image', type: 'image', description: '', concept: 'image_url' };
   it('a JSON-LD image array carries the URL of its ImageObject, never [object Object], and matches the image box', async () => {
     const capOf = (url: string, imgUrl: string): CaptureLike => ({
-      url, html: `<html><body><img src="${imgUrl}"></body></html>`,
+      url, html: `<html><body><img src="${imgUrl}" width="200" height="200"></body></html>`, // sized: an aborted load without one can measure 0x0
       structuredData: { ldJson: [{ image: [{ '@type': 'ImageObject', url: imgUrl }] }], nextData: null, initialState: null, meta: {} },
       interceptedRequests: [],
     });
