@@ -1402,8 +1402,8 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(v[urlOf(3)]?.count).toBe(0);
     expect(v[urlOf(1)]?.spot?.expected, 'product 1 checked the wrong variant').toMatchObject({ sku: 'p1-red' });
 
-    // 7. Verify now names the variants. Read, never clicked.
-    await expect.poll(() => verifyButtonOf(page).innerText(), { timeout: 20_000 }).toMatch(/ and variants · /);
+    // 7. Verify now names the variants, with no price for a customer (spec 2026-10-17 §8a). Read, never clicked.
+    await expect.poll(() => verifyButtonOf(page).innerText(), { timeout: 20_000 }).toMatch(/ and variants$/);
     expect(await verifyButtonOf(page).isDisabled(), 'Verify is not live once the variants are checked').toBe(false);
 
     await page.getByRole('rowheader', { name: /^Variants/ }).scrollIntoViewIfNeeded();
@@ -1838,6 +1838,8 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await expect.poll(() => page.getByText(warning, { exact: true }).count(), { timeout: 30_000 }).toBe(1);
     expect(await rowStatusText('Price'), "the warning is not in Price's status column").toContain(warning);
     console.log(`address: Price's status reads "${await rowStatusText('Price')}"`);
+    // Spec 2026-10-17 §8: the warning offers its own re-verify, with no price word for a customer. Read, never clicked.
+    expect(await page.getByRole('button', { name: 'Re-verify this field', exact: true }).count(), 'the address warning has no Re-verify this field button').toBe(1);
     await page.getByText(warning, { exact: true }).scrollIntoViewIfNeeded();
     await shootViewportBothThemes(page, 'app-site-verification-address-warning');
     expect(problems, `the address-warning walk logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
