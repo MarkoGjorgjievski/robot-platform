@@ -69,16 +69,18 @@ export type StaffEntryView = {
  * name or, when the account is gone, the email (`whoDetail` is always the
  * email, for the line shown beneath it); `website` is "—" with no website;
  * `cost` is "$1.24" only when the linked run actually spent something, else
- * `null` — never shown for a free mutation or for no run at all.
+ * `null` — never shown for a free mutation or for no run at all. The cost is
+ * staff-only (spec 2026-10-17 §8a): `showMoney` defaults to the customer's
+ * view, so a caller that forgets it shows no money.
  */
-export function formatStaffEntry(e: StaffEntryView, now: Date = new Date()) {
+export function formatStaffEntry(e: StaffEntryView, now: Date = new Date(), showMoney = false) {
   return {
     when: relativeTime(new Date(e.at), now),
     who: e.actor.name ?? e.actor.email,
     whoDetail: e.actor.email,
     website: e.website?.name ?? '—',
     sentence: e.summary,
-    cost: e.run && e.run.costUsd > 0 ? `$${e.run.costUsd.toFixed(2)}` : null,
+    cost: showMoney && e.run && e.run.costUsd > 0 ? `$${e.run.costUsd.toFixed(2)}` : null,
   };
 }
 

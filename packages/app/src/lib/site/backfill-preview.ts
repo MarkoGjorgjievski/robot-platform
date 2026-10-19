@@ -25,9 +25,12 @@ export type FieldClassification = { name: string; fill: number; classification: 
  * certified paths only, which never call AI (`backfillPreview`'s own
  * `estCostUsd: 0` for a certified website, packages/api/src/routers/crawl.ts)
  * — so no dollar figure, "up to" or otherwise, belongs in this line at all.
+ *
+ * The cost is staff-only (spec 2026-10-17 §8a): a customer reads the page count alone.
  */
-export function previewSummary(p: { pages: number; estCostUsd: number; certified?: boolean }): string {
+export function previewSummary(p: { pages: number; estCostUsd: number; certified?: boolean }, showMoney: boolean): string {
   const pages = p.pages === 1 ? 'page' : 'pages';
+  if (!showMoney) return `${p.pages} ${pages}`; // spec 2026-10-17 §8a
   const cost = p.certified ? 'free' : `up to ~$${p.estCostUsd.toFixed(2)} if no cache answers`;
   return `${p.pages} ${pages} — ${cost}`;
 }

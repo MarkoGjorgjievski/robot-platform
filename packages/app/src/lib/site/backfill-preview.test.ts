@@ -6,24 +6,30 @@ import {
 
 describe('previewSummary', () => {
   it('names pages and an "up to" cost — never an exact figure', () => {
-    expect(previewSummary({ pages: 17, estCostUsd: 0.85 }))
+    expect(previewSummary({ pages: 17, estCostUsd: 0.85 }, true))
       .toBe('17 pages — up to ~$0.85 if no cache answers');
   });
 
   it('uses the singular where it should', () => {
-    expect(previewSummary({ pages: 1, estCostUsd: 0.05 }))
+    expect(previewSummary({ pages: 1, estCostUsd: 0.05 }, true))
       .toBe('1 page — up to ~$0.05 if no cache answers');
   });
 
   it('formats the cost to two decimal places even on a round number', () => {
-    expect(previewSummary({ pages: 4, estCostUsd: 0.2 }))
+    expect(previewSummary({ pages: 4, estCostUsd: 0.2 }, true))
       .toBe('4 pages — up to ~$0.20 if no cache answers');
   });
 
   it('a verified website\'s repair is free: certified paths never call AI', () => {
-    expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true })).toMatch(/38 .*free/);
-    expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true })).not.toMatch(/\$/);
+    expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true }, true)).toMatch(/38 .*free/);
+    expect(previewSummary({ pages: 38, estCostUsd: 0, certified: true }, true)).not.toMatch(/\$/);
   });
+});
+
+it('previewSummary shows a price to staff only (spec 2026-10-17 §8a)', () => {
+  expect(previewSummary({ pages: 12, estCostUsd: 0.36 }, false)).toBe('12 pages');
+  expect(previewSummary({ pages: 12, estCostUsd: 0.36 }, true)).toBe('12 pages — up to ~$0.36 if no cache answers');
+  expect(previewSummary({ pages: 1, estCostUsd: 0, certified: true }, false)).toBe('1 page');
 });
 
 describe('strategyCopy', () => {

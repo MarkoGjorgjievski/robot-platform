@@ -35,11 +35,19 @@ export function pagesLabel(n: number): string {
 }
 
 export type UsageRow = { id: string; name: string; slug: string; spendUsd: number; pagesCaptured: number };
-export type UsageRowView = UsageRow & { spendLabel: string; pagesLabel: string };
+/** `spendLabel` is null for a customer (spec 2026-10-17 §8a): spend is staff-only. */
+export type UsageRowView = UsageRow & { spendLabel: string | null; pagesLabel: string };
 
 /** Labels only; the API already orders by spend then name. Pure. */
-export function usageView(rows: readonly UsageRow[]): UsageRowView[] {
-  return rows.map((r) => ({ ...r, spendLabel: usdLabel(r.spendUsd), pagesLabel: pagesLabel(r.pagesCaptured) }));
+export function usageView(rows: readonly UsageRow[], showMoney: boolean): UsageRowView[] {
+  return rows.map((r) => ({ ...r, spendLabel: showMoney ? usdLabel(r.spendUsd) : null, pagesLabel: pagesLabel(r.pagesCaptured) }));
+}
+
+/** The usage headline (spec 2026-10-17 §8a): spend for staff; pages captured for a customer. */
+export function usageHeadline(total: { spendUsd: number; pagesCaptured: number }, month: string, showMoney: boolean): { label: string; figure: string; sub: string } {
+  return showMoney
+    ? { label: `Spend in ${monthLabel(month)}`, figure: usdLabel(total.spendUsd), sub: `${pagesLabel(total.pagesCaptured)} captured` }
+    : { label: `Pages captured in ${monthLabel(month)}`, figure: pagesLabel(total.pagesCaptured), sub: '' };
 }
 
 export type UsageScreenState = 'loading' | 'empty' | 'error' | 'table';

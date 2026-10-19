@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { monthKey, shiftMonth, monthLabel, usdLabel, pagesLabel, usageView, usageScreenState } from './usage-view';
+import { monthKey, shiftMonth, monthLabel, usdLabel, pagesLabel, usageView, usageHeadline, usageScreenState } from './usage-view';
 
 describe('months', () => {
   it('keys a date by its UTC month', () => {
@@ -41,7 +41,7 @@ describe('usageView', () => {
     const rows = usageView([
       { id: 'a', name: 'Busy', slug: 'busy', spendUsd: 0.05, pagesCaptured: 2 },
       { id: 'b', name: 'Quiet', slug: 'quiet', spendUsd: 0, pagesCaptured: 0 },
-    ]);
+    ], true);
     expect(rows.map((r) => [r.name, r.spendLabel, r.pagesLabel])).toEqual([['Busy', '$0.05', '2 pages'], ['Quiet', '$0.00', '0 pages']]);
   });
 });
@@ -60,5 +60,17 @@ describe('usageScreenState', () => {
   });
   it('is table once settled with rows', () => {
     expect(usageScreenState({ isPending: false, isError: false, rowCount: 1 })).toBe('table');
+  });
+});
+
+describe('usage without money for a customer (spec 2026-10-17 §8a)', () => {
+  const rows = [{ id: 'p', name: 'Prices', slug: 'prices', spendUsd: 1.24, pagesCaptured: 60 }];
+  it('rows carry no spend label for a customer, and one for staff', () => {
+    expect(usageView(rows, false)[0]!.spendLabel).toBeNull();
+    expect(usageView(rows, true)[0]!.spendLabel).toBe('$1.24');
+  });
+  it('the headline is pages for a customer, spend for staff', () => {
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', false)).toEqual({ label: 'Pages captured in October 2026', figure: '60 pages', sub: '' });
+    expect(usageHeadline({ spendUsd: 1.24, pagesCaptured: 60 }, '2026-10', true)).toEqual({ label: 'Spend in October 2026', figure: '$1.24', sub: '60 pages captured' });
   });
 });

@@ -1,4 +1,6 @@
+import { useRouteContext } from '@tanstack/react-router';
 import { Button } from '../ui/button';
+import { showsMoney } from '../../lib/money-visibility';
 import { formatStaffEntry, type StaffEntryView } from '../../lib/staff-view';
 
 /**
@@ -11,6 +13,8 @@ import { formatStaffEntry, type StaffEntryView } from '../../lib/staff-view';
  * customer column). None of them add an outer panel border here — the
  * caller supplies whatever heading and panel chrome fits its own screen, so
  * this is only ever the table plus, when `onPage` is given, its pager.
+ * A run's cost shows to staff only (spec 2026-10-17 §8a) — in ops always, in
+ * the customer's Settings only to a staff session.
  */
 export function StaffActivityList({
   entries,
@@ -30,6 +34,8 @@ export function StaffActivityList({
   empty: string;
 }) {
   const now = new Date();
+  const { session } = useRouteContext({ from: '/_app' });
+  const showMoney = showsMoney(session);
   const colSpan = showCustomer ? 5 : 4;
   const from = total === 0 ? 0 : page * pageSize + 1;
   const to = total === 0 ? 0 : Math.min(total, page * pageSize + entries.length);
@@ -63,7 +69,7 @@ export function StaffActivityList({
               </tr>
             ) : (
               entries.map((e) => {
-                const row = formatStaffEntry(e, now);
+                const row = formatStaffEntry(e, now, showMoney);
                 return (
                   <tr key={e.id} className="border-b border-line transition-colors last:border-0 hover:bg-raised">
                     <td className="px-4 py-2.5 whitespace-nowrap font-mono text-sm text-muted-foreground">{row.when}</td>

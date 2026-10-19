@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, createFileRoute } from '@tanstack/react-router';
+import { Link, createFileRoute, useRouteContext } from '@tanstack/react-router';
 import { Page } from '../../components/page';
 import { MonthStepper } from '../../components/usage/month-stepper';
 import { UsageTable } from '../../components/usage/usage-table';
 import { UsageTotal } from '../../components/usage/usage-total';
 import { monthKey, shiftMonth, usageScreenState, usageView } from '../../lib/usage-view';
+import { showsMoney } from '../../lib/money-visibility';
 import { trpc } from '../../lib/trpc';
 import { useUnauthorizedRedirect } from '../../lib/use-unauthorized-redirect';
 
@@ -16,7 +17,10 @@ function UsagePage() {
   const current = monthKey(new Date());
   const [month, setMonth] = useState(current);
   const usage = trpc.usage.byProject.useQuery({ month });
-  const rows = usageView(usage.data?.projects ?? []);
+  // Spec 2026-10-17 §8a: spend is staff-only; a customer's Usage is pages captured.
+  const { session } = useRouteContext({ from: '/_app' });
+  const showMoney = showsMoney(session);
+  const rows = usageView(usage.data?.projects ?? [], showMoney);
   const unauthorized = useUnauthorizedRedirect(usage);
 
   // One of the three states at a time (Global Constraints): a failed query
@@ -37,6 +41,7 @@ function UsagePage() {
             spendUsd={usage.data?.total.spendUsd ?? 0}
             pagesCaptured={usage.data?.total.pagesCaptured ?? 0}
             loading={state === 'loading'}
+            showMoney={showMoney}
           />
         ) : null}
 
@@ -47,12 +52,12 @@ function UsagePage() {
               <Link to="/projects" className="text-text underline-offset-4 hover:underline">
                 create one
               </Link>{' '}
-              and its spend will show here.
+              and its {showMoney ? 'spend' : 'pages'} will show here.
             </p>
           </div>
         ) : null}
 
-        {showTable ? <UsageTable rows={rows} loading={state === 'loading'} /> : null}
+        {showTable ? <UsageTable rows={rows} loading={state === 'loading'} showMoney={showMoney} /> : null}
 
         {state === 'error' && !unauthorized ? (
           <p role="alert" className="rise text-base text-fail">
