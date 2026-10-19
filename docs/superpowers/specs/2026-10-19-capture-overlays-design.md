@@ -5,6 +5,14 @@
 ways listed under "Where the plan departs from the spec"; the plan wins where they differ) and
 proven offline by the fixture tests in `packages/browser`. The live check
 (`docs/testing/capture-overlays-check.mts`) runs on `main` after merge. Not yet reviewed by Marko.
+After the final whole-branch review, four more deviations: **the tabs step is off by default**
+(`CaptureOptions.expandTabs`, default false; it never ran in a real capture before this branch, so
+turning it on would change the DOM every certified source reads — on only after a free replay shows
+no drift; §3.2.6, §5.3 and §6's tabs items hold when it is on); §3.1's last bullet counts a fixed box
+only when it sits on top of page content (it covers the window's centre, or page content lies under
+its own centre); outside an overlay dismissal never clicks what the expand pass opened, and the final
+pass (§3.4) offers today's page-wide steps only inside an overlay or a consent-like layer; the
+expand undo (§3.2.4) hides, rather than removes, a new overlay that is not `position: fixed`.
 The problem comes from campaign 2, group 2 (`docs/testing/2026-10-11-campaign-2.md`, "Captures keep or open
 overlays"). Every cause below was seen on the real pages on 2026-10-19, free and keyless
 (`docs/testing/results/2026-10-19-capture-overlays/findings.md`, screenshots and the probe script

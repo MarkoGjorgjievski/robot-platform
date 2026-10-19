@@ -115,13 +115,16 @@ Captures already stored are not redone; a re-capture gets the clean screenshot.
 
 1. **One overlay definition** (§3.1): a visible dialog (`role=dialog/alertdialog`, `aria-modal`,
    an open `<dialog>`), a fixed or absolute box named modal/drawer/lightbox/popup/dialog covering a
-   quarter of the window, or any fixed box covering a quarter that is not a header or footer —
-   never `<html>`, `<body>` or a box holding the page's `main` or first `h1`.
+   quarter of the window, or any fixed box covering a quarter that is not a header or footer and
+   sits on top of page content (it covers the window's centre, or page content lies under its own
+   centre — a buy box in a column the page reserves is not an overlay) — never `<html>`, `<body>`
+   or a box holding the page's `main` or first `h1`.
 2. **The expand pass never leaves an overlay** (§3.2): it skips `aria-haspopup` layer triggers,
    controls whose `aria-controls` target is dialog-like, and anything inside an overlay; it clicks
    each control once (one already expanded counts as clicked); an overlay that appears during a
-   round is closed (Escape, then removed, scroll lock lifted). The tabs step has the same rules and
-   never follows a link elsewhere or to a file.
+   round is closed (Escape, then removed — or hidden, when it is not fixed, so an inline dialog's
+   text stays in the HTML — scroll lock lifted). The tabs step has the same rules and never follows a
+   link elsewhere or to a file, and it is **off by default** (below).
 3. **Dismissal** (§3.3): whole names, not substrings ("Cookie settings", "look", "Rosy Outlook" are
    not "OK"); never a variant control, a settings/preferences/manage/options control or a link
    away; a click counts only if the element or its layer went away, and a dead one is never
@@ -130,20 +133,31 @@ Captures already stored are not redone; a re-capture gets the clean screenshot.
    selectors; at most four rounds and six clicks per pass. Consent banners in open shadow roots are
    still reached.
 4. **One more pass just before the screenshot** (§3.4), the navigated-away check again, then the
-   page scrolls to the top. An overlay still at the centre is one warning line:
+   page scrolls to the top. Outside an overlay, dismissal never clicks what the expand pass opened
+   (a control it clicked, anything `aria-expanded="true"`, anything inside a panel or `<details>`
+   it revealed), and the final pass offers today's page-wide steps only inside an overlay or a
+   consent-like layer — so a panel's own "Close" never shuts it again. An overlay still at the
+   centre is one warning line:
    `[browser] <url>: an overlay still covers the middle of the page after dismissal: div#x "…"`.
    No new field on the capture result.
 
 **Found on the way.** The old tabs step never ran under `pnpm dev:all`: tsx (esbuild `keepNames`)
 serialised its inner `function clickTab` with `__name(…)`, the page has no `__name`, and the
 step's `catch` hid the error — tabs were clicked only under vitest. All page code now goes through
-`pageScript()` with an `__name` shim, so real captures click tabs for the first time. Watch the
-live check for tabs that load something unexpected.
+`pageScript()` with an `__name` shim, so the tabs step now *can* run in a real capture.
+**The tabs step stays off by default** (final review I3, controller ruling): turning it on would
+change the DOM every certified source reads, with no drift measurement. `CaptureOptions.expandTabs`
+(default false) turns it on; nothing in the product does yet; `crawl()` never does. It stays off
+until a free replay of certified sources shows no drift.
 
 **Known limits** (accepted for this plan, not bugs): a close button in the page's normal flow
 below the fold is no longer clicked; a page with no `main`/`h1` outside its dialogs is not
 protected from being mistaken for one; a type-less button inside a form still submits it
-(`returnIfNavigatedAway` recovers — pre-existing, not new here).
+(`returnIfNavigatedAway` recovers — pre-existing, not new here); a role-less popup that contains
+an `h1` and comes before the product's `h1` in the document holds "the page's first h1", so it is
+not treated as an overlay (a role=dialog one is: dialogs use the most-of-the-text rule instead); a
+late consent banner in the final pass is reached only inside an overlay or a layer whose id/class
+says cookie/consent/banner/popup/modal (or a dialog role), not a bare page-level "Close".
 
 **Tests** (each file alone: `cd packages/browser && npx vitest run src/<file>`): `overlays.test.ts`
 (pure rules), `overlays-page.test.ts` (the definition in Chromium), `capture-expand-overlays.test.ts`,
@@ -152,14 +166,18 @@ protected from being mistaken for one; a type-less button inside a form still su
 
 **Live check — runs on `main` after merge.** Free, keyless, one browser:
 `cd packages/browser && npx tsx ../../docs/testing/capture-overlays-check.mts` (`--self-test` first:
-a local page, no network). It re-captures the findings' proof pages and writes
-`<site>-<n>-after.png` and `after.md` beside the before screenshots. Expected: no overlay at the
-centre on each page; the §5.3 accordions and tabs still open.
+a local page, no network). It re-captures the findings' proof pages with `captureProofPage`'s
+options (load, interception, the proof-page ready check, the selection script, six tiles, the box
+map) and writes `<site>-<n>-after.png` and `after.md` beside the before screenshots. Expected: no
+overlay at the centre on each page; the §5.3 accordions still open (tabs are off by default); the
+variant at load equals the variant after the capture; the h1 and the JSON-LD price in the box map.
 
 **Open.** Thomann's `waitUntil: 'load'` timing out at 45 s in the judge and Jev scripts (§7);
 choosing a shop's country (§7); a customer message for "the product is covered" if the live check
-shows it is still common (§8.3). A fixed buy box covering a quarter of the window is hidden from the
-screenshot (its text stays in the HTML) — watch for it in the live check.
+shows it is still common (§8.3). A fixed buy box covering a quarter of the window *over the page's
+content* is hidden from the screenshot (its text stays in the HTML; one in a reserved column is not
+hidden) — watch for it in the live check. Turning the tabs step on, after a free replay of certified
+sources shows no drift.
 
 **Review and merge.** Pending — not yet reviewed by Marko. The reviewer's outcome, the merge, and
 the live check's results (N of 8 sites with no overlay at the centre) land here and in the spec's
