@@ -431,6 +431,11 @@ function textLength(el: Element): number {
  */
 function holdsPage(el: Element): boolean {
   if (el.matches(DIALOG_LIKE)) return mostOfText(textLength(el), textLength(document.body));
+  return wrapsPage(el);
+}
+
+/** Does this element contain the page's `main` or `h1`, the first of each outside every dialog? */
+function wrapsPage(el: Element): boolean {
   const main = firstOutsideDialogs('main');
   const h1 = firstOutsideDialogs('h1');
   return (main !== null && el.contains(main)) || (h1 !== null && el.contains(h1));
@@ -447,7 +452,8 @@ function within(outer: Element, inner: Element): boolean {
 /**
  * Does this element sit on top of page content (OverlayFacts.overPage)? It covers the window's
  * centre, or the browser hit-tests, under its own centre (clipped to the window), an element that
- * is neither inside it nor one of its ancestors.
+ * is neither inside it nor one of its ancestors, nor a wrapper of the whole page (a `#page` or
+ * `#root` beside the box, or one whose padding reserves the box's column): only content counts.
  */
 function sitsOnPage(el: Element): boolean {
   const vw = window.innerWidth;
@@ -458,7 +464,7 @@ function sitsOnPage(el: Element): boolean {
   const y = Math.min(Math.max((Math.max(r.top, 0) + Math.min(r.bottom, vh)) / 2, 0), vh - 1);
   for (const hit of document.elementsFromPoint(x, y)) {
     if (hit === document.documentElement || hit === document.body) continue;
-    if (within(el, hit) || within(hit, el)) continue;
+    if (within(el, hit) || within(hit, el) || wrapsPage(hit)) continue;
     return true;
   }
   return false;
@@ -617,13 +623,14 @@ function markExpanded(el: Element): void {
 }
 
 /**
- * Is this part of what the expand pass opened (final review I1)? A control it clicked, any
- * control that says it is expanded, or anything inside a panel or <details> it revealed. A panel's
- * own "Close", or a toggle whose label turns into "Close" once open, would shut it again.
+ * Is this part of what the expand pass opened (final review I1)? A control it clicked (or found
+ * expanded in main/article), or anything inside a panel or <details> it revealed. Only what the
+ * pass touched: a header toggle open on load stays clickable. A panel's own "Close", or a
+ * toggle whose label turns into "Close" once open, would shut it again.
  */
 function openedByExpand(el: Element): boolean {
   const st = robotState();
-  if (st.clicked.has(el) || el.getAttribute('aria-expanded') === 'true') return true;
+  if (st.clicked.has(el)) return true;
   if (st.revealed.size === 0) return false;
   for (let a: Element | null = el; a; a = parentOf(a)) {
     if (st.revealed.has(a)) return true;
@@ -957,7 +964,7 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   normName, isDismissName, isCloseWord, isSettingsName, hasVariantClassWord, isVariantControlFacts,
   isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts, opensLayer, isDialogLikeFacts,
   // DOM
-  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, within, sitsOnPage, isOverlay,
+  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, wrapsPage, within, sitsOnPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, isVariantChoice, variantFactsOf, markExpanded, openedByExpand, neverDismiss, dismissHostOf, isDialogLike, expandSkip, liftScrollLock,
   takeOverlayBaseline, hideOverlay,

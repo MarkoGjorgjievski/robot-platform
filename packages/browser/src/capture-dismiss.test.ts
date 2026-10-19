@@ -67,7 +67,7 @@ const PAGES: Record<string, string> = {
     <div id="shell" style="position:fixed;inset:0;overflow:auto"><main id="product"><h1>Lamp</h1><p id="price">PRICE_40</p><div style="height:3000px"></div></main></div>
     <script>${TRACK_SCRIPT}</script></body></html>`,
   // Review Focus 2: a fixed buy box covering a third of the window, holding the price.
-  '/buy-box': fixturePage('',
+  '/buy-box': fixturePage('<div id="gallery" style="height:1600px;background:#eee">Gallery</div>',
     `<aside id="buybox" style="position:fixed;top:0;right:0;width:420px;height:800px;background:#fff"><p>PRICE_EUR_129</p><button id="add">Add to bag</button></aside>`),
   // Final review I2: a fixed buy box in a column whose space the page reserves, holding the title,
   // the price and a role=radio swatch, on a page whose first h1 is the header's logo. It sits on
