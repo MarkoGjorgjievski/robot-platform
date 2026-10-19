@@ -115,4 +115,31 @@ describe('transferMarks', () => {
     const box = to['https://s.example/p/2']!.boxes[r['https://s.example/p/2']!.boxes[0]!];
     expect(box).toMatchObject({ kind: 'image', src: 'https://x.example/to.jpg' });
   });
+
+  describe('a labelled concept carries the text after its label (spec 2026-10-17 §6)', () => {
+    const capOf = (url: string, line: string): CaptureLike => bare({
+      url, html: `<html><body><div id="d"><span class="style">${line}</span></div></body></html>`,
+      structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
+    });
+    const xp = '//*[@id="d"]/span';
+    const mark = (text: string) => ({ xpaths: [xp], text, rect: { x: 0, y: 0, w: 1, h: 1 } });
+
+    it('a sku marked on "Style: 398846_01" carries "312123_16", matched to the box that shows it', async () => {
+      const sku: SchemaDefinitionField = { key: 'sku', name: 'SKU', type: 'text', description: '', concept: 'sku' };
+      const toCapture = capOf('https://s.example/p/2', 'Style: 312123_16');
+      const to = { 'https://s.example/p/2': { capture: toCapture, boxes: await boxesOf(toCapture.html) } };
+      const r = await transferMarks({ field: sku, from: { url: 'https://s.example/p/1', capture: capOf('https://s.example/p/1', 'Style: 398846_01'), expected: '398846_01', mark: mark('Style: 398846_01') }, to }, deps);
+      expect(r['https://s.example/p/2']).toMatchObject({ value: '312123_16', via: { source: 'xpath', path: xp } });
+      const boxes = r['https://s.example/p/2']!.boxes;
+      expect(boxes).toHaveLength(1);
+      expect(to['https://s.example/p/2']!.boxes[boxes[0]!]!.text).toBe('Style: 312123_16');
+    });
+
+    it('a product name with a colon carries whole', async () => {
+      const toCapture = capOf('https://s.example/p/2', 'Gadget: Pro Model');
+      const to = { 'https://s.example/p/2': { capture: toCapture, boxes: await boxesOf(toCapture.html) } };
+      const r = await transferMarks({ field: title, from: { url: 'https://s.example/p/1', capture: capOf('https://s.example/p/1', 'Widget: Deluxe Edition'), expected: 'Widget: Deluxe Edition', mark: mark('Widget: Deluxe Edition') }, to }, deps);
+      expect(r['https://s.example/p/2']).toMatchObject({ value: 'Gadget: Pro Model', via: { source: 'xpath', path: xp }, boxes: [expect.any(Number)] });
+    });
+  });
 });
