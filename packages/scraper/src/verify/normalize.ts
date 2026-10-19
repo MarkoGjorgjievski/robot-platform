@@ -16,6 +16,14 @@ function text(raw: unknown): string | null {
 /** "1,299.50" | "1.299,50" | "1299" | 1299.5 → number. Currency symbols/codes stripped first. */
 function parseNumber(raw: unknown, mode: 'number' | 'money' = 'number'): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  const s = numberText(raw, mode);
+  if (s === null) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** A number's text with its separators resolved ("1.299,50" → "1299.50"), trailing zeros kept: what `parseNumber` reads. Null when it is not a number. */
+function numberText(raw: unknown, mode: 'number' | 'money'): string | null {
   if (raw === null || raw === undefined) return null;
   let s = String(raw).normalize('NFKC').trim();
   s = s.replace(/[A-Za-z$€£¥₹\s]/g, ''); // symbols, codes, whitespace
@@ -41,8 +49,7 @@ function parseNumber(raw: unknown, mode: 'number' | 'money' = 'number'): number 
     }
     // For number type, leave single dots as-is (they represent decimals)
   }
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  return s;
 }
 
 function bool(raw: unknown): string | null {
@@ -129,15 +136,20 @@ function decimals(s: string): number {
   return i < 0 ? 0 : s.length - i - 1;
 }
 
+/** The decimals a value is shown to: a typed "5.0" counts one, though it normalises to "5". A number value counts its own. */
+function shownDecimals(raw: unknown, normalized: string): number {
+  if (typeof raw !== 'string') return decimals(normalized);
+  return Math.max(decimals(normalized), decimals(numberText(raw, 'number') ?? ''));
+}
+
 /**
  * Spec 2026-10-17 §7: a number shown with d ≥ 1 decimals equals a more precise one within half a
- * unit of its last decimal (4.8 matches 4.7610064). Symmetric. A whole number never rounds.
- * `a`, `b` are `normalize('number', …)` strings.
+ * unit of its last decimal (4.8 matches 4.7610064; a typed 5.0 matches 4.96). Symmetric. A whole
+ * number never rounds. `a`, `b` are `normalize('number', …)` strings, `da`, `db` the decimals each is shown to.
  */
-function roundsTo(a: string, b: string): boolean {
-  const [shown, precise] = decimals(a) <= decimals(b) ? [a, b] : [b, a];
-  const d = decimals(shown);
-  if (d === 0 || decimals(precise) <= d) return false;
+function roundsTo(a: string, da: number, b: string, db: number): boolean {
+  const [shown, d, precise, dp] = da <= db ? [a, da, b, db] : [b, db, a, da];
+  if (d === 0 || dp <= d) return false;
   return Math.abs(Number(precise) - Number(shown)) <= 0.5 * 10 ** -d + 1e-9;
 }
 
@@ -147,7 +159,7 @@ export function valuesEqual(type: CustomerFieldType, a: unknown, b: unknown, ctx
   if (na === null || nb === null) return false;
   if (type === 'image') return imageKey(na) === imageKey(nb);
   if (type === 'text') return na.toLowerCase() === nb.toLowerCase();
-  if (type === 'number') return na === nb || roundsTo(na, nb);
+  if (type === 'number') return na === nb || roundsTo(na, shownDecimals(a, na), nb, shownDecimals(b, nb));
   return na === nb;
 }
 
