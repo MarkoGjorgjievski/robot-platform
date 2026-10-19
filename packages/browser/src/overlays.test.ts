@@ -2,7 +2,7 @@
 // Node here and, inside pageScript(), in the page.
 import { describe, it, expect } from 'vitest';
 import {
-  CLOSE_WORDS, PAGE_PRELUDE, coverage, hasVariantClassWord, isCloseWord, isDismissName, isFileLink,
+  CLOSE_WORDS, DISMISS_STEPS, PAGE_PRELUDE, coverage, hasVariantClassWord, isCloseWord, isDismissName, isFileLink,
   isSettingsName, isVariantControlFacts, mostOfText, normName, overlayByFacts, pageScript,
   isDialogLikeFacts, opensLayer, type ControlledFacts, type OverlayFacts, type VariantFacts,
 } from './overlays.js';
@@ -239,5 +239,24 @@ describe('isDialogLikeFacts — an aria-controls target that is a layer (§3.2.2
   });
   it('a fixed target is', () => {
     expect(isDialogLikeFacts({ ...panel, position: 'fixed' })).toBe(true);
+  });
+});
+
+describe('DISMISS_STEPS — today\'s list, whole names instead of substrings (§3.3.1)', () => {
+  it('has no substring text selector left', () => {
+    for (const s of DISMISS_STEPS) if ('css' in s) expect(s.css).not.toMatch(/:has-text|:text/);
+  });
+  it('stores names case-folded, and lists "OK, got it" by its whole name', () => {
+    for (const s of DISMISS_STEPS) if ('name' in s) expect(s.name).toBe(normName(s.name));
+    expect(DISMISS_STEPS).toContainEqual({ name: 'ok, got it' });
+    expect(DISMISS_STEPS).toContainEqual({ name: 'ok' });
+  });
+  it('keeps today\'s order: the consent managers before the generic close controls', () => {
+    const onetrust = DISMISS_STEPS.findIndex((s) => 'css' in s && s.css === '#onetrust-accept-btn-handler');
+    const close = DISMISS_STEPS.findIndex((s) => 'name' in s && s.name === 'close');
+    const ariaClose = DISMISS_STEPS.findIndex((s) => 'css' in s && s.css === '[aria-label="Close"]');
+    expect(onetrust).toBeGreaterThanOrEqual(0);
+    expect(onetrust).toBeLessThan(close);
+    expect(close).toBeLessThan(ariaClose);
   });
 });
