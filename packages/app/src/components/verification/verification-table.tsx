@@ -7,7 +7,7 @@ import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
 import { LOCKED_REASON } from './verify-bar';
 import { VariantsRow, type VariantsRowProps } from './variants-row';
-import { cellLabel, DEFAULT_CELL_TITLE, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
+import { cellLabel, DEFAULT_CELL_TITLE, REVERIFY_FIELD, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
 import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../../lib/site/table-selection';
 
 /**
@@ -70,6 +70,8 @@ export type TableRow = {
   /** `ADDRESS_WARNING`: a certified fixed-index path on a proof page whose address names a variant
    * (spec 2026-10-14 §6); shown under the status, never changes it or the badge. Null hides it. */
   addressWarning: string | null;
+  /** Re-verifies this row's field alone, for the address warning (spec 2026-10-17 §8). */
+  onReverifyField?: () => void;
   /** Jev's note for the row (spec 2026-10-16 §6, `jevNote`): shown muted under the status, never changes it. Null hides it. */
   jevNote: string | null;
 };
@@ -88,24 +90,33 @@ function productsText(ns: number[]): string {
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
-type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null };
+type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; onReverifyField?: () => void };
 
 /** The status column: the row's status, and under it the address warning (spec 2026-10-14 §6)
  * when the row is accepted or agreed, or whenever the badge reads verified; then Jev's note
  * (spec 2026-10-16 §6), muted, whatever the status — it never changes the status. */
-function StatusCell({ addressWarning, jevNote, ...props }: StatusCellProps) {
+function StatusCell({ addressWarning, jevNote, onReverifyField, ...props }: StatusCellProps) {
   const shows = !!addressWarning && (props.status.kind === 'accepted' || props.status.kind === 'agreed' || props.badge?.kind === 'verified');
   if (!shows && !jevNote) return <StatusBody {...props} />;
   return (
     <div className="flex flex-col gap-1">
       <StatusBody {...props} />
-      {shows ? <span className="text-sm text-warn">{addressWarning}</span> : null}
+      {shows ? (
+        <span className="flex flex-wrap items-center gap-2 text-sm text-warn">
+          {addressWarning}
+          {onReverifyField ? (
+            <Button size="sm" variant="outline" disabled={props.locked} onClick={onReverifyField}>
+              {REVERIFY_FIELD}
+            </Button>
+          ) : null}
+        </span>
+      ) : null}
       {jevNote ? <span className="text-sm text-muted-foreground" data-testid="jev-note">{jevNote}</span> : null}
     </div>
   );
 }
 
-function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote'>) {
+function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'onReverifyField'>) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -508,7 +519,7 @@ export function VerificationTable({
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
                 <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} />
+                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} onReverifyField={row.onReverifyField} />
                 </td>
               </tr>
 

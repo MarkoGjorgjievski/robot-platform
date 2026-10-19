@@ -318,6 +318,11 @@ export function notOnWebsiteWord(results: VerificationResultsLike | null, key: s
 
 export const ADDRESS_WARNING = (n: number) => `reads the first variant, not the one the address names on product ${n}`;
 
+/** The address warning's button (spec 2026-10-17 §8): the customer's words. */
+export const REVERIFY_FIELD = 'Re-verify this field';
+/** The same button for staff only: a customer never sees a price word (Task 8 chooses between the two). */
+export const REVERIFY_FIELD_FREE = 'Re-verify this field · free';
+
 /**
  * A numeric index directly on a variant-list key (`offers[0]`, `hasVariant[2]`, `….variants[1]`).
  * Never `@graph[n]`, `image[n]` or any other key: those index something other than variants.

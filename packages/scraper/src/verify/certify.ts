@@ -37,9 +37,12 @@ export function rankCertified(paths: CertifiedPath[]): CertifiedPath[] {
   return [...paths].sort((a, b) => SOURCE_RANK[a.source] - SOURCE_RANK[b.source] || rankLength(a.path) - rankLength(b.path) || hasPage(a.path) - hasPage(b.path));
 }
 
-/** Was this candidate confirmed by the customer? Source and path; the transform does not matter. */
+/** Index-free form of a structured path, so `offers[page].price` and `offers[0].price` compare equal. */
+const indexFree = (p: string) => p.replace(/\[(?:\d+|page)\]/g, '[]');
+
+/** Was this candidate confirmed by the customer? Source and path; the transform does not matter. A `[page]` path counts as confirmed when its fixed-index twin was (spec 2026-10-17 §8). */
 function isConfirmedPath(c: CandidatePath, confirmed: ConfirmedPath[] | undefined): boolean {
-  return c.source !== 'xpath' && (confirmed ?? []).some((p) => p.source === c.source && p.path === c.path);
+  return c.source !== 'xpath' && (confirmed ?? []).some((p) => p.source === c.source && (p.path === c.path || (c.path.includes('[page]') && indexFree(p.path) === indexFree(c.path))));
 }
 
 /**

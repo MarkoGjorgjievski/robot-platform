@@ -18,6 +18,14 @@ const KNOWN_AXES = new Set<string>(VARIANT_AXIS_KEYS);
 const NAME_VALUE_KEYS = ['selectedOptions', 'options', 'additionalProperty'] as const;
 const NAME_KEYS = ['name', 'title'] as const;
 const MIN_CONTAINED = 3;
+/** A numeric index directly on a variant-list key (`offers[0]`, `hasVariant[2]`); never `@graph[n]`, `image[n]` or any other key. The app's address warning uses the same words. */
+const INDEXED_STEP = /(^|[.\]])(offers|hasVariant|variants|variant|skus|items|products|options)\[\d+\]/i;
+
+/** Spec 2026-10-17 §8: does this structured path read a fixed entry of a variant list, with no `[page]` step? */
+export function readsFixedVariant(p: { source: string; path: string }): boolean {
+  return p.source !== 'xpath' && !p.path.includes('[page]') && INDEXED_STEP.test(p.path);
+}
+
 /** Keys that carry a price, a stock level or an availability: never read for matching (spec §11 property 3). */
 const NEVER_READ = /price|availab|stock|inventory|quantity|offers/i;
 
