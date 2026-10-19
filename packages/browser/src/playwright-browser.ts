@@ -194,7 +194,7 @@ export class PlaywrightBrowser implements IBrowser {
         if (ready) await stage(`ready: ${ready.state}`);
         await this.dismissPopups(page);
         await stage('after dismissPopups');
-        await this.expandHiddenContent(page);
+        await this.expandHiddenContent(page, { tabs: options.expandTabs ?? false });
         await stage('after expandHidden');
         await this.returnIfNavigatedAway(page, url, options);
         // 'after-expand': poll the page as it will be serialised, once the popup
@@ -577,11 +577,14 @@ export class PlaywrightBrowser implements IBrowser {
    * layer triggers are skipped, each control is clicked at most once (one already expanded counts),
    * and an overlay that appears during a round is closed — Escape, then removed — before the next.
    * Each round and the tabs step note the overlays already there right before their first click.
-   * Runs after popup dismissal, before the screenshot. crawl() runs it on listing page 1 with
-   * `tabs: false`: a listing's category tabs would leave the grid on the last tab (and until this
-   * rewrite the tabs step never ran under tsx at all, so listings never had it).
+   * Runs after popup dismissal, before the screenshot.
+   *
+   * The tabs step is OFF unless `tabs: true` (capture()'s `expandTabs`): until this rewrite it
+   * never ran under tsx at all, so turning it on changes the DOM for every certified source, and it
+   * stays off until a free replay of certified sources shows no drift (final review I3). crawl()
+   * never turns it on: a listing's category tabs would leave the grid on the last tab.
    */
-  private async expandHiddenContent(page: Page, { tabs: clickTabs = true }: { tabs?: boolean } = {}): Promise<void> {
+  private async expandHiddenContent(page: Page, { tabs: clickTabs = false }: { tabs?: boolean } = {}): Promise<void> {
     await page.evaluate(EXPAND_START_SCRIPT).catch(() => 0);
     for (let round = 0; round < 2; round++) {
       const expanded = Number(await page.evaluate(EXPAND_ROUND_SCRIPT).catch(() => 0));

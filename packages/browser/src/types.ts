@@ -170,6 +170,13 @@ export type CaptureOptions = {
    * page variant is read from the address and the page data alone.
    */
   selection?: string;
+  /**
+   * Click through the page's tabs in the expand pass (spec 2026-10-19 §3.2.6). Default false: off
+   * until a free replay of certified sources shows no drift. The tabs step never ran in a real
+   * capture before 2026-10-19 (the tsx `__name` bug), so turning it on changes the DOM every
+   * certified path reads (final review I3, controller ruling).
+   */
+  expandTabs?: boolean;
 };
 
 export interface IBrowser {
