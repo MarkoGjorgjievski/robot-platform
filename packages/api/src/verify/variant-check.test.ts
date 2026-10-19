@@ -127,12 +127,16 @@ describe('runVariantCheck — list', () => {
 });
 
 describe('runVariantCheck — links', () => {
-  const certifiedResults = (fields: SchemaDefinitionField[], keys: Record<string, string>, opts: { withoutPrice?: boolean } = {}): Record<string, FieldVerification> => {
+  type PriceAs = 'notOnWebsite' | 'defaultOnly';
+  const certifiedResults = (fields: SchemaDefinitionField[], keys: Record<string, string>, opts: { withoutPrice?: boolean; priceAs?: PriceAs } = {}): Record<string, FieldVerification> => {
     const paths: Record<string, FieldVerification['certified']> = {
       [keys.Title!]: [{ source: 'json-ld', path: 'name', transform: 'identity' }],
-      [keys.Price!]: opts.withoutPrice ? [] : [{ source: 'json-ld', path: 'hasVariant[0].offers.price', transform: 'identity' }],
+      [keys.Price!]: opts.withoutPrice || opts.priceAs ? [] : [{ source: 'json-ld', path: 'hasVariant[0].offers.price', transform: 'identity' }],
     };
-    return Object.fromEntries(fields.map((d) => [d.key, { key: d.key, cells: {}, certified: paths[d.key] ?? [], weakEvidence: false, aiCalled: false, incomplete: false } as unknown as FieldVerification]));
+    return Object.fromEntries(fields.map((d) => [d.key, {
+      key: d.key, cells: {}, certified: paths[d.key] ?? [], weakEvidence: false, aiCalled: false, incomplete: false,
+      ...(d.key === keys.Price && opts.priceAs ? { [opts.priceAs]: true } : {}),
+    } as unknown as FieldVerification]));
   };
 
   const P2_SPOT = 'https://variants.example/p/2-white';
@@ -151,7 +155,7 @@ describe('runVariantCheck — links', () => {
     return f;
   }
 
-  const check = async (f: { sourceId: string; keys: Record<string, string> }, opts: { withoutPrice?: boolean; edit?: (set: VerificationSet) => void } = {}) => {
+  const check = async (f: { sourceId: string; keys: Record<string, string> }, opts: { withoutPrice?: boolean; priceAs?: PriceAs; edit?: (set: VerificationSet) => void } = {}) => {
     const l = await load(f.sourceId);
     opts.edit?.(l.set);
     return runVariantCheck({ sourceId: f.sourceId, ...l, results: certifiedResults(l.fields, f.keys, opts) }, { browser });
@@ -279,6 +283,38 @@ describe('runVariantCheck — links', () => {
       expect(r.pages[URLS[1]!]).toEqual({ status: 'fail', message: 'Verify every field first' });
       expect(r.pages[URLS[2]!]).toEqual({ status: 'none' });
       expect(r.passed).toBe(false);
+    } finally { await f.cleanup(); }
+  });
+
+  it('links: a field not on this website passes with no path and its variant page is not read for it (spec 2026-10-17 §2)', async () => {
+    const f = await linksWebsite('variant-check-notonwebsite');
+    try {
+      // The Red page is the Belt page: a Price path would read nothing there — but Price has no path to read.
+      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p3');
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      const r = await check(f, {
+        priceAs: 'notOnWebsite',
+        edit: (set) => {
+          set.expected[f.keys.Price!] = {};
+          set.absent = { ...set.absent, [f.keys.Price!]: Object.fromEntries(set.urls.map((u) => [u, true as const])) };
+        },
+      });
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'pass', count: 2 });
+      expect(r.pages[URLS[1]!]).toEqual({ status: 'pass', count: 3 });
+      expect(r.passed).toBe(true);
+    } finally { await f.cleanup(); }
+  });
+
+  it('links: a field passed by default only passes with no path, even where its cells hold the default (spec 2026-10-13 §4)', async () => {
+    const f = await linksWebsite('variant-check-defaultonly');
+    try {
+      await seedProofPage(f.sourceId, VARIANT_SHOP_SPOT_URL, 'p3');
+      await seedProofPage(f.sourceId, P2_SPOT, 'p2');
+      // Price's cells stay filled (default-equal cells); the spot-check must not read Price on the Red page.
+      const r = await check(f, { priceAs: 'defaultOnly', edit: (set) => { set.defaults = { [f.keys.Price!]: '10.00' }; } });
+      expect(r.pages[URLS[0]!]).toEqual({ status: 'pass', count: 2 });
+      expect(r.pages[URLS[1]!]).toEqual({ status: 'pass', count: 3 });
+      expect(r.passed).toBe(true);
     } finally { await f.cleanup(); }
   });
 });

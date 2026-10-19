@@ -28,7 +28,7 @@ export type VariantsRequired = 'no' | 'setup-missing' | 'yes';
 
 /** The failure a throw inside the variant check turns into: never a pass, never a failed field run. */
 export const VARIANT_CHECK_FAILED = 'The variant check failed — try Verify again';
-/** Every product with variants reads this when some field has no certified path this run (links method). */
+/** Every product with variants reads this when some field has no certified path this run and did not pass without one (links method). */
 export const VERIFY_EVERY_FIELD_FIRST = 'Verify every field first';
 
 /**
@@ -101,8 +101,11 @@ export async function runVariantCheck(
   const pages: Record<string, VariantPageResult> = { ...r.pages };
 
   // The spot-check: one variant page per product, read with this run's certified paths.
-  const verified: VerifiedField[] = fields.map((f) => ({ key: f.key, type: f.type, concept: f.concept, paths: results[f.key]?.certified ?? [] }));
-  const everyFieldCertified = verified.length > 0 && verified.every((f) => f.paths.length > 0);
+  // A field that passed with no path — not on this website (spec 2026-10-17 §2) or by default only
+  // (spec 2026-10-13 §4) — counts as passed and is never read on a variant page: there is nothing to read it with.
+  const noPath = (key: string) => results[key]?.notOnWebsite === true || results[key]?.defaultOnly === true;
+  const verified: VerifiedField[] = fields.filter((f) => !noPath(f.key)).map((f) => ({ key: f.key, type: f.type, concept: f.concept, paths: results[f.key]?.certified ?? [] }));
+  const everyFieldCertified = fields.length > 0 && verified.every((f) => f.paths.length > 0);
   for (const [i, url] of set.urls.entries()) {
     const answer = answers[url];
     if (!answer || answer.count === 0 || pages[url]?.status !== 'pass') continue;
@@ -119,7 +122,7 @@ export async function runVariantCheck(
     if (!spotUrl || !spot) { pages[url] = { status: 'fail', message: `Take the ${label} page's screenshot again` }; continue; }
     const { data } = await runVerifiedExtraction({ url: spotUrl, fields: verified }, { browser: deps.browser, capture: spot.capture });
     // Only the fields this product is checked on: one left blank here is not required on its variant page either.
-    const checked = fields.filter((f) => (set.expected[f.key]?.[url] ?? '').trim() !== '');
+    const checked = fields.filter((f) => !noPath(f.key) && (set.expected[f.key]?.[url] ?? '').trim() !== '');
     const missing = checked.find((f) => normalize(f.type, data[f.key], { pageUrl: spotUrl }) === null);
     if (missing) pages[url] = { status: 'fail', message: `${missing.name} missing on the ${label} page of product ${i + 1}` };
   }
