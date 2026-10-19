@@ -1,0 +1,84 @@
+{
+ "url": "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold",
+ "finalUrl": "https://mejuri.com/my/en/products/stacker-ring?Material=Solid+Yellow+Gold+%2810k%29",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://mejuri.com/my/en/products/stacker-ring?Material=Solid+Yellow+Gold+%2810k%29",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 1,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "STACKER RING",
+   "hidden": false
+  }
+ },
+ "price": "620.00",
+ "boxCount": 116,
+ "row": {
+  "page": "mejuri-1",
+  "url": "https://mejuri.com/my/en/products/stacker-ring?Material=10k+Yellow+Gold",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "1 / 0 / –",
+  "variant": {
+   "before": {
+    "pairs": [
+     {
+      "name": "material options",
+      "value": "Solid Yellow Gold (10k)"
+     }
+    ],
+    "labels": [
+     "Solid Yellow Gold (10k)"
+    ]
+   },
+   "after": {
+    "pairs": [
+     {
+      "name": "material options",
+      "value": "Solid Yellow Gold (10k)"
+     }
+    ],
+    "labels": [
+     "Solid Yellow Gold (10k)"
+    ]
+   },
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "Material",
+      "value": "Solid Yellow Gold (10k)"
+     },
+     {
+      "name": "material options",
+      "value": "Solid Yellow Gold (10k)"
+     }
+    ],
+    "labels": [
+     "Solid Yellow Gold (10k)"
+    ],
+    "named": true,
+    "selected": true
+   }
+  },
+  "titleBoxes": 0,
+  "priceBoxes": 1,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

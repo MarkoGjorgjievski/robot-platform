@@ -1,0 +1,70 @@
+{
+ "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=001",
+ "finalUrl": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=001",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=001",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 5,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "Classic Fit L.12.12 Original Polo Shirt",
+   "hidden": false
+  }
+ },
+ "price": "95",
+ "boxCount": 136,
+ "row": {
+  "page": "lacoste-1",
+  "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/L1212-00.html?color=001",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "5 / 0 / –",
+  "variant": {
+   "before": {
+    "pairs": [
+     {
+      "name": "color",
+      "value": "Image 1 of 6"
+     }
+    ],
+    "labels": [
+     "Image 1 of 6"
+    ]
+   },
+   "after": null,
+   "same": false,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "color",
+      "value": "001"
+     }
+    ],
+    "labels": [
+     "001"
+    ],
+    "named": true,
+    "selected": false
+   }
+  },
+  "titleBoxes": 2,
+  "priceBoxes": 2,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

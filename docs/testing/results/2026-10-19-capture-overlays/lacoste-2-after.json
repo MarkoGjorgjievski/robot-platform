@@ -1,0 +1,60 @@
+{
+ "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH5522-00.html?color=031",
+ "finalUrl": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH5522-00.html?color=031",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH5522-00.html?color=031",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 5,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "Regular Fit Paris Stretch Piqué Polo Shirt",
+   "hidden": false
+  }
+ },
+ "price": "110",
+ "boxCount": 126,
+ "row": {
+  "page": "lacoste-2",
+  "url": "https://www.lacoste.com/gb/lacoste/men/clothing/polo-shirts/short-sleeves/PH5522-00.html?color=031",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "5 / 0 / –",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "color",
+      "value": "031"
+     }
+    ],
+    "labels": [
+     "031"
+    ],
+    "named": true,
+    "selected": false
+   }
+  },
+  "titleBoxes": 2,
+  "priceBoxes": 3,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

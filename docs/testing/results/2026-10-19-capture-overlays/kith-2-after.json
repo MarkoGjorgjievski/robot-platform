@@ -1,0 +1,57 @@
+{
+ "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+ "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 0,
+   "details": 0,
+   "tabs": [
+    "Womens",
+    "Loyalty",
+    "DESCRIPTION"
+   ]
+  },
+  "title": {
+   "text": "Kith Women Tye Pinstripe Zip Hoodie",
+   "hidden": false
+  }
+ },
+ "price": "975",
+ "boxCount": 137,
+ "row": {
+  "page": "kith-2",
+  "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030103-2017",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "0 / 0 / Womens, Loyalty, DESCRIPTION",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 1,
+  "priceBoxes": 1,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

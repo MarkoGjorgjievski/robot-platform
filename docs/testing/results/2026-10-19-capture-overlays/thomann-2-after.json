@@ -1,0 +1,55 @@
+{
+ "url": "https://www.thomann.de/de/taylor_112ce_n.htm?type=category",
+ "finalUrl": "https://www.thomann.de/de/taylor_112ce_n.htm",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.thomann.de/de/taylor_112ce_n.htm",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 0,
+   "details": 0,
+   "tabs": [
+    "Alle"
+   ]
+  },
+  "title": {
+   "text": "Taylor 112ce-N",
+   "hidden": false
+  }
+ },
+ "price": null,
+ "boxCount": 660,
+ "row": {
+  "page": "thomann-2",
+  "url": "https://www.thomann.de/de/taylor_112ce_n.htm?type=category",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "0 / 0 / Alle",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 4,
+  "priceBoxes": null,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

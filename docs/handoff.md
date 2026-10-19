@@ -180,9 +180,21 @@ content* is hidden from the screenshot (its text stays in the HTML; one in a res
 hidden) — watch for it in the live check. Turning the tabs step on, after a free replay of certified
 sources shows no drift.
 
-**Review and merge.** Pending — not yet reviewed by Marko. The reviewer's outcome, the merge, and
-the live check's results (N of 8 sites with no overlay at the centre) land here and in the spec's
-Status line once they happen.
+**Review and merge (2026-10-19).** Five tasks, each reviewed, with fix rounds on Tasks 1 (two), 2
+(three) and 3. The whole-branch review found three Important problems: the final pass closed panels
+the expand pass had opened; a fixed buy box was hidden from the box map and the variant read; and
+turning tabs on would change every certified source. All fixed (tabs stay off), re-reviewed, merged
+into `main` (fast-forward, `8b30c4d`).
+
+**Live check, first run (2026-10-19, `after.md` and `*-after.png` in the results folder).** The
+table says "no overlay at the centre" on all 16 pages captured, but the screenshots disagree on three
+sites. Clean: Skullcandy (the geo modal is gone), Mejuri, Ikea (no cookie centre), Thomann (no
+videos or drawer), Lacoste. Still covered: Puma DE's "Standort wählen" popup over the swatches (smaller
+than a quarter of the window, so not an overlay); a Colourpop cookie banner ("Preferences" / "Accept";
+bare "Accept" is not a listed name); a grey scrim over Kith's first screen. The check only looks at
+the centre, so it missed all three. A fix branch (`fix/capture-overlays-live`) is under way. Two
+variant reads changed during capture (Lacoste read a gallery label "Image 1 of 6" as a colour at load;
+Puma's picker had no selection at load), neither shown to be one of our clicks.
 
 ## Verify dead ends (2026-10-17)
 
