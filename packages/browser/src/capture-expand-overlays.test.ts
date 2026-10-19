@@ -90,13 +90,25 @@ const PAGES: Record<string, string> = {
     `window.__flags.selected = 'none';
      document.querySelectorAll('[role=radiogroup] button').forEach((b) => b.addEventListener('click', () => { window.__flags.selected = b.id; }));
      document.getElementById('accx').addEventListener('click', () => { document.getElementById('px').hidden = false; });`),
+  // A page-wide <form><fieldset> holding both the swatches and, five levels down, a specs
+  // accordion: only a group within three ancestors makes a control a variant choice.
+  '/fieldset-page': fixturePage(
+    `<form><fieldset>
+       <div role="radiogroup" aria-label="Size"><button type="button" id="fsw-s" aria-expanded="false">S</button><button type="button" id="fsw-m" aria-expanded="false">M</button></div>
+       <div><div><div><div><div>
+         <button type="button" id="spec-acc" aria-expanded="false" aria-controls="spec-p">Specifications</button><div id="spec-p" hidden>SPEC_TEXT</div>
+       </div></div></div></div></div>
+     </fieldset></form>`, '',
+    `window.__flags.selected = 'none';
+     document.querySelectorAll('[role=radiogroup] button').forEach((b) => b.addEventListener('click', () => { window.__flags.selected = b.id; }));
+     document.getElementById('spec-acc').addEventListener('click', () => { document.getElementById('spec-p').hidden = false; });`),
   // A listing with category tabs: crawl() expands page 1 but never clicks a tab (controller ruling).
   '/listing-tabs': fixturePage(
     `<button id="lacc" aria-expanded="false" aria-controls="lpanel">Filters</button><div id="lpanel" hidden>F</div>
      <div role="tablist"><button role="tab" id="cat1" aria-selected="true">All</button><button role="tab" id="cat2">Sale</button></div>`),
 };
 
-const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11', 'px'];
+const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11', 'px', 'spec-p'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -197,6 +209,15 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     expect(s.clicks).not.toContain('swx-more');
     expect(s.flags.selected).toBe('none');
     expect(s.shown.px).toBe(true);
+  }, 60_000);
+
+  it('an accordion deep inside a page-wide fieldset still opens; the swatches beside it are not clicked', async () => {
+    const { s } = await capture('/fieldset-page');
+    expect(s.shown['spec-p']).toBe(true);
+    expect(s.clicks).toContain('spec-acc');
+    expect(s.clicks).not.toContain('fsw-s');
+    expect(s.clicks).not.toContain('fsw-m');
+    expect(s.flags.selected).toBe('none');
   }, 60_000);
 });
 
