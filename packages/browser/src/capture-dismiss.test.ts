@@ -40,6 +40,28 @@ const PAGES: Record<string, string> = {
     `<section id="geo" style="position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.4)">
        <div style="margin:200px auto;width:500px;background:#fff;padding:20px">Standort wählen <button id="geo-close"><span>Schließen</span></button></div></section>`,
     `document.getElementById('geo-close').addEventListener('click', () => document.getElementById('geo').remove());`),
+  // skullcandy: the cookie bar's close sits under the modal's backdrop (a click lands on the
+  // backdrop and changes nothing); the modal's own close has no name, only a class. The dead click
+  // must not end the round: the modal is closed by its own button in the same round (the removal
+  // pass would only hide it, so its absence from the DOM proves the click).
+  '/backdrop-dead-close': fixturePage('',
+    `<div id="cookiebar" style="position:fixed;left:0;right:0;bottom:0;height:80px;background:#eee;z-index:10">Cookies <button id="cookieclose" aria-label="Close">×</button></div>
+     <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900"></div>
+     <div id="sk-modal" role="dialog" style="position:fixed;top:200px;left:390px;width:500px;height:300px;z-index:950;background:#fff">
+       We don't ship to Malaysia <button id="sk-close" class="modal-close" style="width:32px;height:32px"></button></div>`,
+    `document.getElementById('cookieclose').addEventListener('click', () => { window.__flags.cookieClosed = true; });
+     document.getElementById('sk-close').addEventListener('click', () => { document.getElementById('sk-modal').remove(); document.querySelector('[style*="rgba(0,0,0,.5)"]').remove(); });`),
+  // A wrapper whose text reads "Close" (it holds the button) is not the control: its button is.
+  '/close-wrapper': fixturePage('',
+    `<div id="wrap-modal" role="dialog" style="position:fixed;top:200px;left:340px;width:600px;height:300px;z-index:50;background:#fff">
+       <div id="close-wrap" aria-label="Close area" style="width:400px;height:60px"><button id="wrap-close">Close</button></div></div>`,
+    `document.getElementById('wrap-close').addEventListener('click', () => document.getElementById('wrap-modal').remove());`),
+  // A clean page, and the same page with seven off-canvas drawers (cart, menu, search, …) parked
+  // off the window by a transform, each with a Close button. Nothing is over the product: no
+  // click, and no time spent on dead clicks (§5.5).
+  '/clean': fixturePage(''),
+  '/drawers': fixturePage('', [1, 2, 3, 4, 5, 6, 7].map((i) =>
+    `<div id="drawer-${i}" style="position:fixed;top:0;right:0;width:400px;height:100%;transform:translateX(100%);background:#fff;z-index:60">Drawer ${i} <button id="drawer-close-${i}" aria-label="Close">×</button></div>`).join('')),
   // Review Focus 1: the whole page in a fixed full-window container.
   '/app-shell': `<!doctype html><html><head><meta charset="utf-8"><title>Lamp</title></head><body style="margin:0">
     <div id="shell" style="position:fixed;inset:0;overflow:auto"><main id="product"><h1>Lamp</h1><p id="price">PRICE_40</p><div style="height:3000px"></div></main></div>
@@ -54,7 +76,7 @@ const PAGES: Record<string, string> = {
      root.getElementById('accept').addEventListener('click', () => { window.__flags.accepted = true; document.getElementById('cmp-host').remove(); });`),
 };
 
-const IDS = ['cookie-banner', 'prefs', 'notice', 'promo', 'consent', 'consent-backdrop', 'geo', 'shell', 'buybox', 'cmp-host'];
+const IDS = ['cookie-banner', 'prefs', 'notice', 'promo', 'consent', 'consent-backdrop', 'geo', 'shell', 'buybox', 'cmp-host', 'sk-modal', 'wrap-modal'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -105,6 +127,35 @@ describe('dismissal closes overlays without touching the page (spec 2026-10-19 �
     expect(s.centre).toBe('product');
   }, 60_000);
 
+  it('a dead close under the backdrop does not end the round: the modal\'s own close follows (skullcandy)', async () => {
+    const { s } = await capture('/backdrop-dead-close');
+    expect(s.flags.cookieClosed).toBeUndefined();
+    expect(s.clicks).toEqual(['sk-close']);
+    expect(s.exists['sk-modal']).toBe(false);
+    expect(s.centre).toBe('product');
+  }, 60_000);
+
+  it('a wrapper whose text is "Close" is not clicked; its button is', async () => {
+    const { s } = await capture('/close-wrapper');
+    expect(s.clicks).toEqual(['wrap-close']);
+    expect(s.exists['wrap-modal']).toBe(false);
+  }, 60_000);
+
+  it('off-canvas drawers are not candidates: no click, and no time spent (§5.5)', async () => {
+    const timed = async (path: string) => {
+      const t = Date.now();
+      const r = await capture(path);
+      return { ms: Date.now() - t, s: r.s };
+    };
+    // The faster of two runs each, so one slow capture does not decide it.
+    const clean = Math.min((await timed('/clean')).ms, (await timed('/clean')).ms);
+    const a = await timed('/drawers');
+    const b = await timed('/drawers');
+    expect(a.s.clicks).toEqual([]);
+    expect(b.s.clicks).toEqual([]);
+    expect(Math.min(a.ms, b.ms) - clean).toBeLessThan(500);
+  }, 120_000);
+
   it('an app shell is the page, not an overlay: nothing is hidden (Review Focus 1)', async () => {
     const { c, s } = await capture('/app-shell');
     expect(s.shown.shell).toBe(true);
@@ -112,7 +163,8 @@ describe('dismissal closes overlays without touching the page (spec 2026-10-19 �
   }, 60_000);
 
   it('a fixed buy box is hidden from the screenshot but its price stays in the HTML (Review Focus 2)', async () => {
-    const { c } = await capture('/buy-box');
+    const { c, s } = await capture('/buy-box');
+    expect(s.shown.buybox).toBe(false);
     expect(c.html).toContain('PRICE_EUR_129');
   }, 60_000);
 

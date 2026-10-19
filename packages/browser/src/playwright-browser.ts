@@ -542,7 +542,7 @@ export class PlaywrightBrowser implements IBrowser {
           if (isCrash(err)) throw err; // a click that throws changed nothing; judged below
         }
         await page.waitForTimeout(DISMISS_CLICK_SETTLE_MS);
-        closedByClick = await page.evaluate(LAST_DISMISS_WORKED_SCRIPT).then(Boolean).catch(() => false);
+        closedByClick = await page.evaluate(LAST_DISMISS_WORKED_SCRIPT).then(Boolean).catch((err) => { if (isCrash(err)) throw err; return false; });
         await handle.dispose().catch(() => {});
       }
 
