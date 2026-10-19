@@ -114,7 +114,8 @@ function currencyOf(source: { schemaDefinition: unknown; verificationSet: unknow
   const currentKeys = unchangedKeys.filter((key) => {
     const r = results[key]!;
     // A field passed by its default alone (spec 2026-10-13 §4) is current with no path.
-    return (r.certified.length > 0 || r.defaultOnly === true) && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
+    // A field not on this website (spec 2026-10-17 §2) is current with no path.
+    return (r.certified.length > 0 || r.defaultOnly === true || r.notOnWebsite === true) && Object.values(r.cells).length > 0 && Object.values(r.cells).every((c) => c.status === 'pass');
   });
 
   const variantResults = (row.variantResults as VariantVerification | null | undefined) ?? null;

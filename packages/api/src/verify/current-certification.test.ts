@@ -348,6 +348,24 @@ describe('a field passed by default only (spec 2026-10-13 §4/§5)', () => {
       expect(cert?.defaults).toEqual({ price: '9.99' });
     } finally { await s.cleanup(); }
   });
+  it('a field not on this website whose cells all pass is current (spec 2026-10-17 §2)', async () => {
+    const s = await makeSchemaSource('not-on-website');
+    try {
+      const base = s.source.verificationSet as VerificationSet;
+      const set: VerificationSet = { ...base, expected: { ...base.expected, price: {} }, absent: { price: Object.fromEntries(s.urls.map((u) => [u, true as const])) } };
+      await db.update(sources).set({ verificationSet: set }).where(eq(sources.id, s.sourceId));
+      const fields = s.source.schemaDefinition as SchemaDefinitionField[];
+      const cells = Object.fromEntries(s.urls.map((u) => [u, { status: 'pass', found: '' }]));
+      await db.insert(sourceVerifications).values({
+        sourceId: s.sourceId, definitionHash: 'x', completedAt: new Date(), allPassed: true,
+        results: { price: { ...fieldVerification([], { fieldHash: fieldHash(fields[0]!, set), cells }), notOnWebsite: true } },
+      });
+      const currency = await loadFieldCurrency(db, s.sourceId);
+      expect(currency.currentKeys).toEqual(['price']);
+      const cert = await loadCurrentCertification(db, s.sourceId);
+      expect(cert?.paths).toEqual({ price: [] });
+    } finally { await s.cleanup(); }
+  });
   it('a failed result with no path and no defaultOnly is still not current', async () => {
     const s = await makeSchemaSource('no-path');
     try {

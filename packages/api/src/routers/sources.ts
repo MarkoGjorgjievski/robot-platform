@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, jevReadings, type Database } from '@robot/db';
 import {
-  VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash,
+  VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash, isNotOnWebsite,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf, visibleTextFromHtml,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
@@ -1058,6 +1058,7 @@ export const sourcesRouter = router({
       const definition = Array.isArray(source.schemaDefinition) ? (source.schemaDefinition as SchemaDefinitionField[]) : [];
       const set = source.verificationSet as VerificationSet | null;
       const aiFields = estimateKeys.filter((k) => {
+        if (set && isNotOnWebsite(set, k)) return false; // spec 2026-10-17 §2: never searched, never AI
         const r = lastResults[k];
         if ((r?.certified?.length ?? 0) === 0) return true;
         const f = definition.find((d) => d.key === k);

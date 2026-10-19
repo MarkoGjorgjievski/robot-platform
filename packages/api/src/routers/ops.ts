@@ -269,6 +269,7 @@ export const opsRouter = router({
           state,
           ...(def ? { defaultValue: def } : {}),
           ...(result?.defaultOnly ? { defaultOnly: true as const } : {}),
+          ...(result?.notOnWebsite ? { notOnWebsite: true as const } : {}),
           // "Jev agreed on 5 of 6 proof pages": absent when Jev was never asked about this field.
           ...((): { jevAgreement?: { agreed: number; asked: number } } => {
             if (!agreement) return {};

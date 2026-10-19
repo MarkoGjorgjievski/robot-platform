@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { pageVariantFrom } from '@robot/browser';
-import { certify, checkedPages, expectedWithDefault, gatherCandidates, markPaths, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, isNotOnWebsite, markPaths, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
 import type { DomHit } from './dom-scripts.js';
 import type { Mark, SchemaDefinitionField } from './types.js';
@@ -933,5 +933,43 @@ describe('marks read what the element shows (spec 2026-10-17 §6)', () => {
     const { candidates } = await gatherCandidates(image, expected, caps, { runDomSearch: async () => [], marks });
     const r = await certify({ field: image, expected, captures: caps, candidates }, { evalXPaths });
     expect(r.certified[0]).toMatchObject({ source: 'xpath', path: '//*[@id="d"]/img/@src' });
+  });
+});
+
+describe('certify — not on this website (spec 2026-10-17 §2)', () => {
+  const rating = { key: 'rating', name: 'Rating', type: 'number' as const, description: 'stars', concept: 'rating' };
+  const K = ['https://kith.example/1', 'https://kith.example/2', 'https://kith.example/3'];
+  const page = (url: string, ld: Record<string, unknown> = {}): CaptureLike => ({
+    url, html: '<html></html>', structuredData: { ldJson: [ld], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
+  });
+  const cached = { source: 'json-ld' as const, path: 'aggregateRating.ratingValue', transform: 'identity' as const };
+  const deps = { evalXPaths: async () => ({}) };
+
+  it('a field absent on every page certifies nothing, even with a cached path', async () => {
+    const caps = Object.fromEntries(K.map((u) => [u, page(u)]));
+    const r = await certify({ field: rating, expected: {}, absent: K, captures: caps, candidates: [cached] }, deps);
+    expect(r).toEqual({ key: 'rating', cells: Object.fromEntries(K.map((u) => [u, { status: 'pass', found: '' }])), certified: [], weakEvidence: false, aiCalled: false, incomplete: false, notOnWebsite: true });
+  });
+
+  it('the same when the cached path reads a value on one page', async () => {
+    const caps = { ...Object.fromEntries(K.map((u) => [u, page(u)])), [K[1]!]: page(K[1]!, { aggregateRating: { ratingValue: 0 } }) };
+    const r = await certify({ field: rating, expected: {}, absent: K, captures: caps, candidates: [cached] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.notOnWebsite).toBe(true);
+  });
+
+  it('absent on two and a value on one is today\'s result, with no notOnWebsite', async () => {
+    const caps = { ...Object.fromEntries(K.map((u) => [u, page(u)])), [K[0]!]: page(K[0]!, { aggregateRating: { ratingValue: 4.5 } }) };
+    const r = await certify({ field: rating, expected: { [K[0]!]: '4.5' }, absent: [K[1]!, K[2]!], captures: caps, candidates: [cached] }, deps);
+    expect(r.notOnWebsite).toBeUndefined();
+  });
+
+  it('isNotOnWebsite: absent on 1–3 and blank on 4 yes; a value or a default anywhere no', () => {
+    const urls = [...K, 'https://kith.example/4'];
+    const absent = { rating: Object.fromEntries(K.map((u) => [u, true as const])) };
+    expect(isNotOnWebsite({ urls, expected: { rating: {} }, absent }, 'rating')).toBe(true);
+    expect(isNotOnWebsite({ urls, expected: { rating: { [urls[3]!]: '4.1' } }, absent }, 'rating')).toBe(false);
+    expect(isNotOnWebsite({ urls, expected: { rating: {} }, absent, defaults: { rating: '5' } }, 'rating')).toBe(false);
+    expect(isNotOnWebsite({ urls, expected: { rating: {} } }, 'rating')).toBe(false);
   });
 });

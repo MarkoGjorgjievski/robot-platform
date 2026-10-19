@@ -6,7 +6,7 @@ import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { isWeakField, normalizeForWeak, pathFitsConcept } from './field-fit.js';
 import { displayValue } from './structured-value.js';
-import type { CellResult, CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField } from './types.js';
+import type { CellResult, CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField, VerificationSet } from './types.js';
 
 export type CandidatePath = CertifiedPath;
 export type CaptureLike = Pick<PageCapture, 'url' | 'html' | 'structuredData' | 'interceptedRequests' | 'pageVariant'>;
@@ -118,6 +118,14 @@ export function checkedPages(urls: string[], expected: Record<string, string>, a
   return urls.filter((u) => (expected[u] ?? '').trim() !== '' || absent[u] === true);
 }
 
+/** Spec 2026-10-17 §2: is this field marked "not on this product" on every page it is checked on, with no value anywhere and no default? */
+export function isNotOnWebsite(set: Pick<VerificationSet, 'urls' | 'expected' | 'absent' | 'defaults'>, key: string): boolean {
+  if ((set.defaults?.[key] ?? '').trim()) return false;
+  const absent = set.absent?.[key] ?? {};
+  const pages = checkedPages(set.urls, set.expected[key] ?? {}, absent);
+  return pages.length > 0 && pages.every((u) => absent[u] === true);
+}
+
 /** A field's expected values with its default filled into every blank, non-absent cell (spec 2026-10-13 §3): what candidate search and certification compare against. Without a default (or a blank one), the map as given. */
 export function expectedWithDefault(urls: string[], expected: Record<string, string>, defaultValue: string | undefined, absent: Record<string, true> = {}): Record<string, string> {
   const def = defaultValue?.trim();
@@ -210,6 +218,15 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const allUrls = Object.keys(captures);
   // With a default every captured page is checked (spec 2026-10-13 §3); otherwise only the pages with a value or an absent mark.
   const urls = defaultValue !== undefined ? allUrls : checkedPages(allUrls, input.expected, absentMap);
+  // Spec 2026-10-17 §2: every checked page absent, no default — not on this website. Nothing is
+  // evaluated: with no page holding a value, any path (a cached one included) would be "correct".
+  if (defaultValue === undefined && urls.length > 0 && urls.every((u) => absentSet.has(u))) {
+    return {
+      key: field.key,
+      cells: Object.fromEntries(urls.map((u): [string, CellResult] => [u, captures[u] ? { status: 'pass', found: '' } : { status: 'not_captured' }])),
+      certified: [], weakEvidence: false, aiCalled: false, incomplete: urls.some((u) => !captures[u]), notOnWebsite: true,
+    };
+  }
   const filled = expectedWithDefault(allUrls, input.expected, defaultValue, absentMap);
   const expected = Object.fromEntries(urls.filter((u) => !absentSet.has(u)).map((u) => [u, filled[u] ?? input.expected[u] ?? '']));
   // A default cell: blank or equal to the default (spec 2026-10-13 §4). A candidate reading the default or nothing is correct there.

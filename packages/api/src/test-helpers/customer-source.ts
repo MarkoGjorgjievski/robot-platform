@@ -29,6 +29,7 @@ type Caller = {
       descriptions: Record<string, string>;
       expected: Record<string, Record<string, string>>;
       marks?: Record<string, Record<string, { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } }>>;
+      absent?: Record<string, Record<string, true>>;
     }): Promise<unknown>;
   };
 };
@@ -40,6 +41,8 @@ export async function createProjectWithSource(caller: Caller, opts: {
   listingUrl?: string;
   expected?: Record<string, Record<string, string>>;
   marks?: Record<string, Record<string, { xpaths: string[]; text: string; rect: { x: number; y: number; w: number; h: number } }>>;
+  /** field name → url → true: "not on this product" (spec 2026-10-10 §B1). */
+  absent?: Record<string, Record<string, true>>;
 }) {
   const host = `test-${opts.tag}.example.com`;
   const urls = opts.urls ?? [`https://${host}/p/1`, `https://${host}/p/2`, `https://${host}/p/3`];
@@ -60,6 +63,7 @@ export async function createProjectWithSource(caller: Caller, opts: {
       descriptions: Object.fromEntries(opts.fields.map((f) => [keys[f.name]!, f.description ?? `where ${f.name} is`])),
       expected: Object.fromEntries(Object.entries(opts.expected).map(([name, cells]) => [keys[name] ?? name, cells])),
       ...(opts.marks ? { marks: Object.fromEntries(Object.entries(opts.marks).map(([name, cells]) => [keys[name] ?? name, cells])) } : {}),
+      ...(opts.absent ? { absent: Object.fromEntries(Object.entries(opts.absent).map(([name, cells]) => [keys[name] ?? name, cells])) } : {}),
     });
   }
   return {
