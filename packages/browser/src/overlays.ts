@@ -321,6 +321,11 @@ export function overlayWarning(url: string, d: OverlayDescription): string {
 interface RobotState {
   /** Expand pass: every control clicked (or already expanded when the pass began). */
   clicked: WeakSet<Element>;
+  /**
+   * Expand pass: what it revealed — the aria-controls targets of the controls it clicked (or found
+   * expanded) and the <details> it opened. Dismissal never clicks inside one (final review I1).
+   */
+  revealed: Set<Element>;
   /** Dismissal: every element clicked once; never clicked again in this capture. */
   tried: WeakSet<Element>;
   /** Expand pass: the overlays present before the current round. */
@@ -337,7 +342,7 @@ function robotState(): RobotState {
   const w = window as unknown as Record<string, RobotState | undefined>;
   let s = w[ROBOT_STATE_KEY];
   if (!s) {
-    s = { clicked: new WeakSet(), tried: new WeakSet(), baseline: new Set(), pending: [], last: null, lastHost: null };
+    s = { clicked: new WeakSet(), revealed: new Set(), tried: new WeakSet(), baseline: new Set(), pending: [], last: null, lastHost: null };
     Object.defineProperty(window, ROBOT_STATE_KEY, { value: s, enumerable: false, configurable: true, writable: true });
   }
   return s;
@@ -559,14 +564,54 @@ function variantFactsOf(el: Element): VariantFacts {
 }
 
 /**
- * Dismissal never clicks this (§3.3.2): a variant control outside an overlay (a consent dialog's
- * own toggles are not the product's), anything named like settings, or a link that leaves the page.
+ * The expand pass clicked this control (or found it expanded): remember it, and the panels it
+ * names with aria-controls, so dismissal leaves both alone.
+ */
+function markExpanded(el: Element): void {
+  const st = robotState();
+  st.clicked.add(el);
+  for (const id of (el.getAttribute('aria-controls') ?? '').split(/\s+/)) {
+    const target = id ? document.getElementById(id) : null;
+    if (target) st.revealed.add(target);
+  }
+  const details = el.tagName === 'SUMMARY' ? el.parentElement : null;
+  if (details && details.tagName === 'DETAILS') st.revealed.add(details);
+}
+
+/**
+ * Is this part of what the expand pass opened (final review I1)? A control it clicked, any
+ * control that says it is expanded, or anything inside a panel or <details> it revealed. A panel's
+ * own "Close", or a toggle whose label turns into "Close" once open, would shut it again.
+ */
+function openedByExpand(el: Element): boolean {
+  const st = robotState();
+  if (st.clicked.has(el) || el.getAttribute('aria-expanded') === 'true') return true;
+  if (st.revealed.size === 0) return false;
+  for (let a: Element | null = el; a; a = parentOf(a)) {
+    if (st.revealed.has(a)) return true;
+  }
+  return false;
+}
+
+/**
+ * Dismissal never clicks this (§3.3.2): a variant control or anything the expand pass opened,
+ * outside an overlay (a consent dialog's own toggles are not the product's), anything named like
+ * settings, or a link that leaves the page.
  */
 function neverDismiss(el: Element): boolean {
-  if (isVariantControl(el) && outermostOverlay(el) === null) return true;
   if (isSettingsName(accessibleName(el))) return true;
   const a = el.closest('a');
-  return hrefNavigates(a ? { href: a.getAttribute('href'), target: a.getAttribute('target') } : null);
+  if (hrefNavigates(a ? { href: a.getAttribute('href'), target: a.getAttribute('target') } : null)) return true;
+  if (!isVariantControl(el) && !openedByExpand(el)) return false;
+  return outermostOverlay(el) === null;
+}
+
+/** The consent-like layer (DISMISS_HOST_SELECTOR) an element sits in, crossing shadow roots, or null. */
+function dismissHostOf(el: Element): Element | null {
+  for (let a: Element | null = el; a; a = parentOf(a)) {
+    if (a.matches(DISMISS_HOST_SELECTOR)) return a;
+  }
+  return null;
 }
 
 /** §3.2.2 on a live element. */
@@ -632,10 +677,9 @@ function entryCentreOverlay(): OverlayDescription | null {
  * 2), so a single-open accordion is not toggled back to the panel the page opened.
  */
 function entryExpandStart(): number {
-  const st = robotState();
   let n = 0;
   for (const el of Array.from(document.querySelectorAll('main [aria-expanded="true"], article [aria-expanded="true"]'))) {
-    st.clicked.add(el);
+    markExpanded(el);
     n++;
   }
   return n;
@@ -674,7 +718,7 @@ function entryExpandRound(): number {
     (el as HTMLElement).offsetParent !== null && !st.clicked.has(el) && !expandSkip(el) && !isVariantChoice(el);
   const click = (el: Element): void => {
     act();
-    st.clicked.add(el);
+    markExpanded(el);
     try { (el as HTMLElement).click(); } catch { /* not clickable */ }
   };
   for (const selector of EXPAND_SELECTORS) {
@@ -694,6 +738,7 @@ function entryExpandRound(): number {
   for (const el of Array.from(main.querySelectorAll('details:not([open])'))) {
     if (outermostOverlay(el) !== null) continue;
     act();
+    st.revealed.add(el);
     el.setAttribute('open', '');
   }
   return n;
@@ -742,6 +787,7 @@ function entryTabs(): number {
     }
     if (expandSkip(el) || isVariantChoice(el)) return;
     picked.push(el as HTMLElement);
+    markExpanded(el);
   };
   main.querySelectorAll('[role="tab"]').forEach((el) => consider(el));
   main.querySelectorAll('[data-tab]').forEach((el) => consider(el));
@@ -762,8 +808,14 @@ function entryTabs(): number {
  * capture: whether its click worked or not, it is never offered again. Only an element on the
  * window is offered: an off-canvas cart, menu or search drawer (translateX(100%)) has a "Close"
  * that closes nothing, and seven of them cost a clean page five seconds of dead clicks (§5.5).
+ *
+ * `final`: the pass just before the screenshot, after the expand pass (§3.4). There today's steps
+ * are offered only to an element inside an overlay or a consent-like layer (DISMISS_HOST_SELECTOR):
+ * a bare page-level "Close" or [aria-label="Close"] is far likelier to belong to a panel the
+ * expand pass just opened than to a late banner (final review I1).
  */
-function entryNextDismissCandidate(): Element | null {
+function entryNextDismissCandidate(opts?: { final?: boolean }): Element | null {
+  const final = opts?.final === true;
   const st = robotState();
   const onWindow = (el: Element): boolean => {
     const r = el.getBoundingClientRect();
@@ -801,7 +853,11 @@ function entryNextDismissCandidate(): Element | null {
       named ??= queryDeep(roots, 'button, [role="button"]').map((el): [Element, string] => [el, accessibleName(el)]);
       els = named.filter(([, name]) => isDismissName(name, step.name)).map(([el]) => el);
     }
-    for (const el of els) if (usable(el)) return take(el);
+    for (const el of els) {
+      if (!usable(el)) continue;
+      if (final && outermostOverlay(el) === null && dismissHostOf(el) === null) continue;
+      return take(el);
+    }
   }
   return null;
 }
@@ -860,7 +916,7 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   // DOM
   robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
-  isVariantControl, isVariantChoice, variantFactsOf, neverDismiss, isDialogLike, expandSkip, liftScrollLock,
+  isVariantControl, isVariantChoice, variantFactsOf, markExpanded, openedByExpand, neverDismiss, dismissHostOf, isDialogLike, expandSkip, liftScrollLock,
   takeOverlayBaseline, hideOverlay,
 ];
 
@@ -896,6 +952,8 @@ export const REMOVE_NEW_OVERLAYS_SCRIPT = pageScript(entryRemoveNewOverlays);
 export const TABS_SCRIPT = pageScript(entryTabs);
 /** The next control to click → `Element | null`. Use with `page.evaluateHandle`. */
 export const NEXT_DISMISS_CANDIDATE_SCRIPT = pageScript(entryNextDismissCandidate);
+/** The same for the final pass (§3.4): today's steps only inside an overlay or a consent-like layer. */
+export const NEXT_DISMISS_CANDIDATE_FINAL_SCRIPT = pageScript(entryNextDismissCandidate, { final: true });
 /** Did the last click work → boolean. */
 export const LAST_DISMISS_WORKED_SCRIPT = pageScript(entryLastDismissWorked);
 /** The removal pass → number of overlays hidden or elements removed. */

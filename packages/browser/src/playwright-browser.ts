@@ -11,7 +11,7 @@ import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 import {
   hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
-  REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
+  REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, NEXT_DISMISS_CANDIDATE_FINAL_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
   REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, overlayWarning, type OverlayDescription,
 } from './overlays.js';
 
@@ -208,7 +208,7 @@ export class PlaywrightBrowser implements IBrowser {
         // that renders after the first pass), with no settle wait — a page with nothing over it
         // costs no time. A close button can navigate by script, so the check runs again. Then
         // back to the top: a dismissal click scrolls its element into view.
-        await this.dismissPopups(page, { settleMs: 0 });
+        await this.dismissPopups(page, { settleMs: 0, final: true });
         await this.returnIfNavigatedAway(page, url, options);
         await page.evaluate('window.scrollTo(0, 0)').catch((err) => { if (isCrash(err)) throw err; });
         const covering = (await page.evaluate(CENTRE_OVERLAY_SCRIPT).catch((err) => {
@@ -536,9 +536,13 @@ export class PlaywrightBrowser implements IBrowser {
    * next. Then the removal pass, every round. A round that changed nothing ends the pass.
    *
    * `settleMs: 0` is the final pass before the screenshot (§3.4): no wait on a clean page.
+   * `final: true` marks that pass. It runs after the expand pass, so today's page-wide steps are
+   * offered only inside an overlay or a consent-like layer, never to a panel the expand pass
+   * opened (final review I1).
    */
-  private async dismissPopups(page: Page, opts: { settleMs?: number } = {}): Promise<void> {
+  private async dismissPopups(page: Page, opts: { settleMs?: number; final?: boolean } = {}): Promise<void> {
     const settleMs = opts.settleMs ?? DISMISS_SETTLE_MS;
+    const candidateScript = opts.final ? NEXT_DISMISS_CANDIDATE_FINAL_SCRIPT : NEXT_DISMISS_CANDIDATE_SCRIPT;
     if (settleMs > 0) await page.waitForTimeout(settleMs);
 
     let clicksLeft = DISMISS_MAX_CLICKS;
@@ -546,7 +550,7 @@ export class PlaywrightBrowser implements IBrowser {
       let closedByClick = false;
       while (!closedByClick && clicksLeft > 0) {
         // A string script's handle is typed JSHandle<unknown>; asElement() needs to know it may be a Node.
-        const handle = await page.evaluateHandle(NEXT_DISMISS_CANDIDATE_SCRIPT)
+        const handle = await page.evaluateHandle(candidateScript)
           .then((h) => (h as JSHandle<Node | null>).asElement())
           .catch((err) => { if (isCrash(err)) throw err; return null; });
         if (!handle) break;
