@@ -51,6 +51,17 @@ describe('auditField', () => {
     expect(auditField({ website: 'ikea', field: { key: 'currency', name: 'Currency', type: 'text', concept: 'currency' }, set: withChoices, certified: [{ source: 'xpath', path: '//span[1]' }] }).ok).toBe(true);
   });
 
+  it('passes a weak image field certified on a marked image\'s src: the mark is read through /@src (spec 2026-10-17 §6)', () => {
+    const logo = 'https://www.ikea.com/logo.png';
+    const withLogo: VerificationSet = {
+      ...set,
+      expected: { ...set.expected, logo: every(logo) },
+      marks: { logo: { [urls[0]!]: { xpaths: ['//header/img'], text: '', rect: { x: 0, y: 0, w: 1, h: 1 } } } },
+    };
+    const field = { key: 'logo', name: 'Logo', type: 'image' as const, concept: 'image_url' };
+    expect(auditField({ website: 'ikea', field, set: withLogo, certified: [{ source: 'xpath', path: '//header/img/@src' }] }).ok).toBe(true);
+  });
+
   it('flags when any one of several certified paths does not qualify', () => {
     const row = auditField({ website: 'ikea', field: inStock, set, certified: [{ source: 'json-ld', path: 'offers.availability' }, { source: 'api', path: 'isNew' }] });
     expect(row.ok).toBe(false);

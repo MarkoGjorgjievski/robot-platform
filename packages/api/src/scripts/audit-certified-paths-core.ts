@@ -3,7 +3,7 @@
 // path the customer confirmed, an element they marked, or a structured path
 // whose name fits the field. Read-only: the customer re-verifies a flagged
 // field; nothing is re-certified automatically.
-import { isWeakField, qualifiesForWeak, type CertifiedPath, type CustomerFieldType, type VerificationSet } from '@robot/scraper';
+import { isWeakField, markPaths, qualifiesForWeak, type CertifiedPath, type CustomerFieldType, type VerificationSet } from '@robot/scraper';
 
 export type AuditRow = { website: string; field: string; paths: string[]; ok: boolean; why?: string };
 
@@ -22,7 +22,7 @@ export function auditField(args: {
   if (!isWeakField(field.type, checked)) return { website, field: field.name, paths, ok: true };
 
   const confirmed = Object.values(set.paths?.[field.key] ?? {});
-  const markXPaths = Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => m.xpaths);
+  const markXPaths = Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => markPaths(field, m));
   const def = { ...field, description: '' };
   const bad = certified.filter((c) => !qualifiesForWeak(def, { ...c, transform: 'identity' }, { confirmed, markXPaths }));
   if (bad.length === 0) return { website, field: field.name, paths, ok: true };

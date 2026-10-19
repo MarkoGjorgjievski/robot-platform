@@ -18,7 +18,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db, captures as captureRows, driftChecks, runs, sources } from '@robot/db';
 import {
-  buildDomSearchScript, buildXPathProbeScript, classifyDrift,
+  buildDomSearchScript, buildXPathProbeScript, classifyDrift, markPaths,
   type ConfirmedPath, type DomHit, type DomNeedle, type DriftCapture, type DriftCheckResults, type DriftFieldResult,
   type SchemaDefinitionField, type VerificationSet, type XPathProbeResult,
 } from '@robot/scraper';
@@ -184,7 +184,7 @@ export async function runDriftCheck(checkId: string, deps: { capture?: CapturePr
             captures,
             notChecked,
             confirmed: confirmedPathsOf(set, field.key),
-            markXPaths: Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => m.xpaths),
+            markXPaths: Object.values(set.marks?.[field.key] ?? {}).flatMap((m) => markPaths(field, m)),
           }, classifyDeps);
         }
       });
