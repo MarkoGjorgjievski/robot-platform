@@ -44,6 +44,16 @@ describe('the overlay definition in a real page (§3.1)', () => {
     expect(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT)).toEqual([]);
   }, 30_000);
 
+  it('a fixed column whose space the page reserves is not an overlay; the same box over the page is (final review I2)', async () => {
+    const page = (reserve: string) => `<!doctype html><html><body style="margin:0">
+      <header style="height:80px;${reserve}"><h1>ShopLogo</h1></header>
+      <main style="min-height:2400px;${reserve}"><p>Gallery</p></main>
+      <aside id="bb" style="position:fixed;top:0;right:0;width:420px;height:100vh;background:#fff"><p>Price</p></aside>
+      </body></html>`;
+    expect(await browser.setContentEvaluate<OverlayDescription[]>(page('margin-right:420px'), LIST_OVERLAYS_SCRIPT)).toEqual([]);
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(page(''), LIST_OVERLAYS_SCRIPT))).toEqual(['bb']);
+  }, 30_000);
+
   it('finds an overlay inside an open shadow root', async () => {
     const html = `<!doctype html><html><body><main><h1>Widget</h1></main><div id="host"></div>
       <script>document.getElementById('host').attachShadow({ mode: 'open' }).innerHTML = '<div id="shadow-layer" style="position:fixed;inset:0;background:#000">Sign up</div>';</script></body></html>`;

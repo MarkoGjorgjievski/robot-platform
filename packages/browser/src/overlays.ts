@@ -252,6 +252,12 @@ export interface OverlayFacts {
    * outside every dialog.
    */
   holdsPage: boolean;
+  /**
+   * It sits on top of page content (final review I2): it covers the window's centre, or something
+   * of the page that is neither inside it nor around it lies under its own centre. Read only for
+   * the unnamed fixed-box bullet: a buy box in a column the page reserves overlaps nothing.
+   */
+  overPage: boolean;
 }
 
 /**
@@ -275,7 +281,8 @@ export function overlayByFacts(f: OverlayFacts): boolean {
   const tag = f.tag.toLowerCase();
   if (tag === 'header' || tag === 'footer' || tag === 'nav' || role === 'banner' || role === 'navigation') return false;
   const atEdge = f.rect.top <= 0 || f.rect.top + f.rect.height >= f.vh;
-  return !(f.rect.height < 200 && atEdge);
+  if (f.rect.height < 200 && atEdge) return false;
+  return f.overPage;
 }
 
 // ---- Pure: what the expand pass must not click (§3.2) -------------------------------------------
@@ -429,6 +436,34 @@ function holdsPage(el: Element): boolean {
   return (main !== null && el.contains(main)) || (h1 !== null && el.contains(h1));
 }
 
+/** Does `inner` sit inside `outer` (itself included), crossing shadow roots? */
+function within(outer: Element, inner: Element): boolean {
+  for (let e: Element | null = inner; e; e = parentOf(e)) {
+    if (e === outer) return true;
+  }
+  return false;
+}
+
+/**
+ * Does this element sit on top of page content (OverlayFacts.overPage)? It covers the window's
+ * centre, or the browser hit-tests, under its own centre (clipped to the window), an element that
+ * is neither inside it nor one of its ancestors.
+ */
+function sitsOnPage(el: Element): boolean {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const r = el.getBoundingClientRect();
+  if (r.left <= vw / 2 && vw / 2 < r.right && r.top <= vh / 2 && vh / 2 < r.bottom) return true;
+  const x = Math.min(Math.max((Math.max(r.left, 0) + Math.min(r.right, vw)) / 2, 0), vw - 1);
+  const y = Math.min(Math.max((Math.max(r.top, 0) + Math.min(r.bottom, vh)) / 2, 0), vh - 1);
+  for (const hit of document.elementsFromPoint(x, y)) {
+    if (hit === document.documentElement || hit === document.body) continue;
+    if (within(el, hit) || within(hit, el)) continue;
+    return true;
+  }
+  return false;
+}
+
 /** The §3.1 definition, applied to a live element. */
 function isOverlay(el: Element): boolean {
   if (el === document.documentElement || el === document.body || !isShown(el)) return false;
@@ -446,6 +481,8 @@ function isOverlay(el: Element): boolean {
     vw: window.innerWidth,
     vh: window.innerHeight,
     holdsPage: holdsPage(el),
+    // A getter: only the unnamed fixed-box bullet reads it, and a hit test is not free.
+    get overPage() { return sitsOnPage(el); },
   });
 }
 
@@ -914,7 +951,7 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   normName, isDismissName, isCloseWord, isSettingsName, hasVariantClassWord, isVariantControlFacts,
   isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts, opensLayer, isDialogLikeFacts,
   // DOM
-  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, isOverlay,
+  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, within, sitsOnPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, isVariantChoice, variantFactsOf, markExpanded, openedByExpand, neverDismiss, dismissHostOf, isDialogLike, expandSkip, liftScrollLock,
   takeOverlayBaseline, hideOverlay,
