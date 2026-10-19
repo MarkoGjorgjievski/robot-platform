@@ -128,7 +128,7 @@ describe('coverage', () => {
 describe('overlayByFacts — the one definition (§3.1)', () => {
   const base: OverlayFacts = {
     tag: 'div', id: '', className: '', role: null, ariaModal: null, openDialog: false, position: 'static',
-    rect: { top: 0, left: 0, width: 1280, height: 800 }, vw: 1280, vh: 800, holdsPage: false,
+    rect: { top: 0, left: 0, width: 1280, height: 800 }, vw: 1280, vh: 800, holdsPage: false, overPage: true,
   };
   const small = { top: 600, left: 20, width: 300, height: 120 };
   it('a dialog by role, aria-modal or an open <dialog> is an overlay at any size', () => {
@@ -157,6 +157,15 @@ describe('overlayByFacts — the one definition (§3.1)', () => {
     expect(overlayByFacts({ ...base, position: 'fixed', vh: 600, rect: { top: 0, left: 0, width: 1280, height: 180 } })).toBe(false);
     expect(overlayByFacts({ ...base, position: 'fixed', vh: 600, rect: { top: 420, left: 0, width: 1280, height: 180 } })).toBe(false);
     expect(overlayByFacts({ ...base, position: 'fixed', vh: 600, rect: { top: 200, left: 0, width: 1280, height: 180 } })).toBe(true);
+  });
+  it('an unnamed fixed box counts only when it sits on top of page content (final review I2)', () => {
+    // A buy box in a column the page reserves overlaps nothing: the page's own, not an overlay.
+    const column = { top: 0, left: 860, width: 420, height: 800 };
+    expect(overlayByFacts({ ...base, tag: 'aside', position: 'fixed', rect: column, overPage: false })).toBe(false);
+    expect(overlayByFacts({ ...base, tag: 'aside', position: 'fixed', rect: column, overPage: true })).toBe(true);
+    // A named layer or a dialog does not need it.
+    expect(overlayByFacts({ ...base, id: 'size-drawer', position: 'fixed', rect: column, overPage: false })).toBe(true);
+    expect(overlayByFacts({ ...base, role: 'dialog', position: 'fixed', rect: column, overPage: false })).toBe(true);
   });
   it('a fixed box off the window covers nothing', () => {
     expect(overlayByFacts({ ...base, position: 'fixed', rect: { top: 0, left: 1280, width: 480, height: 800 } })).toBe(false);

@@ -69,6 +69,17 @@ const PAGES: Record<string, string> = {
   // Review Focus 2: a fixed buy box covering a third of the window, holding the price.
   '/buy-box': fixturePage('',
     `<aside id="buybox" style="position:fixed;top:0;right:0;width:420px;height:800px;background:#fff"><p>PRICE_EUR_129</p><button id="add">Add to bag</button></aside>`),
+  // Final review I2: a fixed buy box in a column whose space the page reserves, holding the title,
+  // the price and a role=radio swatch, on a page whose first h1 is the header's logo. It sits on
+  // top of nothing, so it is the page's own column, not an overlay: nothing hides it.
+  '/buybox-logo-h1': `<!doctype html><html><head><meta charset="utf-8"><title>Lamp</title></head><body style="margin:0;font:16px sans-serif">
+    <header style="height:80px;margin-right:420px"><h1 id="logo">ShopLogo</h1></header>
+    <main id="product" style="margin-right:420px;min-height:2400px"><p>Gallery</p></main>
+    <aside id="bb" style="position:fixed;top:0;right:0;width:420px;height:100vh;background:#fff">
+      <div id="bb-title">BB_TITLE_LAMP</div><p id="bb-price">BB_PRICE_129</p>
+      <div role="radiogroup" aria-label="Colour"><span id="bb-swatch" role="radio" aria-checked="true" style="display:inline-block;width:30px;height:30px;background:#c33">Red</span></div>
+    </aside>
+    <script>${TRACK_SCRIPT}</script></body></html>`,
   // Review Focus 3: a consent banner inside an open shadow root.
   '/shadow-consent': fixturePage('', `<div id="cmp-host"></div>`,
     `const root = document.getElementById('cmp-host').attachShadow({ mode: 'open' });
@@ -76,7 +87,7 @@ const PAGES: Record<string, string> = {
      root.getElementById('accept').addEventListener('click', () => { window.__flags.accepted = true; document.getElementById('cmp-host').remove(); });`),
 };
 
-const IDS = ['cookie-banner', 'prefs', 'notice', 'promo', 'consent', 'consent-backdrop', 'geo', 'shell', 'buybox', 'cmp-host', 'sk-modal', 'wrap-modal'];
+const IDS = ['cookie-banner', 'prefs', 'notice', 'promo', 'consent', 'consent-backdrop', 'geo', 'shell', 'buybox', 'cmp-host', 'sk-modal', 'wrap-modal', 'bb', 'bb-swatch'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -166,6 +177,13 @@ describe('dismissal closes overlays without touching the page (spec 2026-10-19 Â
     const { c, s } = await capture('/buy-box');
     expect(s.shown.buybox).toBe(false);
     expect(c.html).toContain('PRICE_EUR_129');
+  }, 60_000);
+
+  it('a fixed buy box in a column the page reserves is not an overlay, even when the first h1 is the logo (final review I2)', async () => {
+    const { s } = await capture('/buybox-logo-h1');
+    expect(s.shown.bb).toBe(true);
+    expect(s.shown['bb-swatch']).toBe(true); // the box map and the variant read still see it
+    expect(s.clicks).toEqual([]);
   }, 60_000);
 
   it('a consent banner inside an open shadow root is still accepted (Review Focus 3)', async () => {
