@@ -10,6 +10,7 @@ import { TRPCError } from '@trpc/server';
 import { and, eq } from 'drizzle-orm';
 import { type Database, runs, runItems } from '@robot/db';
 import { effectiveSchema } from './effective-schema.js';
+import { loadFieldCurrency, notOnWebsiteKeys } from '../verify/current-certification.js';
 import { computeCoverage, type RunCoverage } from './coverage.js';
 import { computeMisses, type FieldMisses } from './misses.js';
 
@@ -42,13 +43,17 @@ async function loadRunAndItems(db: Database, runId: string) {
     with: { extraction: { columns: { data: true, validationResult: true } } },
   });
 
-  return { run, source, items };
+  // Spec 2026-10-17 §2: a field not on this website is left empty on every product and never
+  // blocks or flags one, so it takes no part in coverage, misses, dead-field classification or
+  // backfill targets. Left out here, once, for every report that reads a run this way.
+  const quiet = new Set(notOnWebsiteKeys(await loadFieldCurrency(db, source.id)));
+  const fields = effectiveSchema(source).filter((f) => !quiet.has(f.name));
+
+  return { run, source, items, fields };
 }
 
 export async function loadRunCoverage(db: Database, runId: string): Promise<RunCoverage> {
-  const { source, items } = await loadRunAndItems(db, runId);
-
-  const fields = effectiveSchema(source);
+  const { items, fields } = await loadRunAndItems(db, runId);
   return computeCoverage(fields, items.map((i) => ({
     id: i.id,
     url: i.url,
@@ -67,8 +72,7 @@ function listingUrlOf(inputValues: unknown): string | null {
 }
 
 export async function loadRunMisses(db: Database, runId: string): Promise<{ sourceId: string; fields: FieldMisses[] }> {
-  const { source, items } = await loadRunAndItems(db, runId);
-  const fields = effectiveSchema(source);
+  const { source, items, fields } = await loadRunAndItems(db, runId);
   return {
     sourceId: source.id,
     fields: computeMisses(fields, items.map((i) => ({

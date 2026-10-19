@@ -472,6 +472,7 @@ function ExtractTab() {
             sampling={probeMutation.isPending}
             onSample={() => void handleSample()}
             columns={columns}
+            notOnWebsite={status?.notOnWebsiteKeys}
             stale={sampleStale}
             disabledReason={sampleGate({ green, pagesSaved })}
           />

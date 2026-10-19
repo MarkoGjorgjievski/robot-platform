@@ -337,3 +337,81 @@ describe('crawl.misses and crawl.backfillPreview on a certified website', () => 
     }
   });
 });
+
+/**
+ * Spec 2026-10-17 §2: a field not on this website is left empty on every product and never blocks or
+ * flags one. A certified website with Price (a path) and Rating (marked "not on this product" on every
+ * proof page, current with `notOnWebsite`): a run leaves Rating empty on both products and Price empty
+ * on one. Rating takes no part in coverage, misses, dead-field classification or backfill targets.
+ */
+async function seedRunWithNotOnWebsiteField() {
+  const urls = [
+    'https://test-cert-notonsite.example.com/p/1',
+    'https://test-cert-notonsite.example.com/p/2',
+    'https://test-cert-notonsite.example.com/p/3',
+  ];
+  const f = await createProjectWithSource(caller, {
+    tag: 'cert-notonsite',
+    urls,
+    fields: [{ name: 'Price', type: 'money', description: 'x' }, { name: 'Rating', type: 'number', description: 'stars' }],
+    expected: { Price: { [urls[0]!]: '1.00', [urls[1]!]: '2.00', [urls[2]!]: '3.00' } },
+    absent: { Rating: Object.fromEntries(urls.map((u) => [u, true as const])) },
+  });
+  const source = await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId) });
+  const fields = source!.schemaDefinition as SchemaDefinitionField[];
+  const set = source!.verificationSet as VerificationSet;
+  const priceKey = f.keys.Price!;
+  const ratingKey = f.keys.Rating!;
+  const priceField = fields.find((x) => x.key === priceKey)!;
+  const ratingField = fields.find((x) => x.key === ratingKey)!;
+  const certifiedPaths: CertifiedPath[] = [{ source: 'api', path: 'item.price', transform: 'identity' }];
+  await db.insert(sourceVerifications).values({
+    sourceId: f.sourceId,
+    definitionHash: sourceDefinitionHash(source!)!,
+    completedAt: new Date(),
+    allPassed: true,
+    results: {
+      [priceKey]: {
+        key: priceKey, cells: Object.fromEntries(urls.map((u) => [u, { status: 'pass', found: '1', path: certifiedPaths[0] }])),
+        certified: certifiedPaths, weakEvidence: false, aiCalled: false, incomplete: false, fieldHash: fieldHash(priceField, set),
+      },
+      [ratingKey]: {
+        key: ratingKey, cells: Object.fromEntries(urls.map((u) => [u, { status: 'pass', found: '' }])),
+        certified: [], weakEvidence: false, aiCalled: false, incomplete: false, notOnWebsite: true, fieldHash: fieldHash(ratingField, set),
+      },
+    },
+  });
+
+  const [run] = await db.insert(runs).values({ sourceId: f.sourceId, status: 'completed' }).returning();
+  for (const [i, price] of [['1.00'], [null]].entries()) {
+    const [capture] = await db.insert(captures).values({ sourceId: f.sourceId, runId: run!.id, url: urls[i]! }).returning();
+    const [extraction] = await db.insert(extractions).values({
+      sourceId: f.sourceId, captureId: capture!.id, runId: run!.id,
+      data: [{ [priceKey]: price[0], [ratingKey]: null, _url: urls[i], _page_number: 1 }],
+    }).returning();
+    await db.insert(runItems).values({ runId: run!.id, kind: 'detail', url: urls[i]!, inputIndex: 0, status: 'done', extractionId: extraction!.id });
+  }
+  return { runId: run!.id, priceKey, ratingKey, cleanup: f.cleanup };
+}
+
+describe('a field not on this website takes no part in a run\'s reports (spec 2026-10-17 §2)', () => {
+  it('coverage, misses and backfillPreview leave it out', async () => {
+    const { runId, priceKey, ratingKey, cleanup } = await seedRunWithNotOnWebsiteField();
+    try {
+      const cov = await caller.crawl.coverage({ runId });
+      expect(cov.fields.map((x) => x.name)).toEqual([priceKey]);
+      expect(cov.gapItems.flatMap((g) => g.missingFields)).toEqual([priceKey]);
+
+      const misses = await caller.crawl.misses({ runId });
+      expect(misses.certified).toBe(true);
+      expect(misses.fields.map((x) => x.name)).toEqual([priceKey]);
+
+      const preview = await caller.crawl.backfillPreview({ runId });
+      expect(preview.pages).toBe(1);
+      expect(preview.fields.map((x) => x.name)).toEqual([priceKey]);
+      expect(preview.fields.some((x) => x.name === ratingKey)).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+});
