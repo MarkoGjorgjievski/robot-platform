@@ -36,12 +36,20 @@ describe('staff-view (spec 2026-10-07 §2.2-2.3)', () => {
   it('formats an entry, with cost only when spent and the email when the name is gone', () => {
     const now = new Date('2026-10-07T12:00:00Z');
     const base = { id: '1', at: new Date('2026-10-07T11:00:00Z'), org: { id: 'o', name: 'Acme' }, project: null, website: { id: 's', name: 'Nike' }, summary: 'Ran an extraction on Nike' };
-    const a = formatStaffEntry({ ...base, actor: { name: 'Sam', email: 'sam@robot.dev' }, run: { id: 'r', costUsd: 1.24 } }, now);
+    const a = formatStaffEntry({ ...base, actor: { name: 'Sam', email: 'sam@robot.dev' }, run: { id: 'r', costUsd: 1.24 } }, now, true);
     expect(a).toMatchObject({ who: 'Sam', whoDetail: 'sam@robot.dev', website: 'Nike', sentence: 'Ran an extraction on Nike', cost: '$1.24' });
-    const b = formatStaffEntry({ ...base, actor: { name: null, email: 'gone@robot.dev' }, run: { id: 'r', costUsd: 0 } }, now);
+    const b = formatStaffEntry({ ...base, actor: { name: null, email: 'gone@robot.dev' }, run: { id: 'r', costUsd: 0 } }, now, true);
     expect(b).toMatchObject({ who: 'gone@robot.dev', cost: null });
     const c = formatStaffEntry({ ...base, website: null, actor: { name: 'Sam', email: 's@x' }, run: null }, now);
     expect(c.website).toBe('—');
+  });
+
+  it("formatStaffEntry shows a run's cost to staff only (spec 2026-10-17 §8a)", () => {
+    const e = { id: 'a', at: new Date('2026-10-17T10:00:00Z'), actor: { name: 'Op', email: 'op@example.com' }, org: { id: 'o', name: 'Org' }, project: null, website: null, summary: 'Verified', run: { id: 'r', costUsd: 1.24 } };
+    const now = new Date('2026-10-17T11:00:00Z');
+    expect(formatStaffEntry(e, now, false).cost).toBeNull();
+    expect(formatStaffEntry(e, now).cost).toBeNull();
+    expect(formatStaffEntry(e, now, true).cost).toBe('$1.24');
   });
 
   it('dedupes the staff filter by email, preferring the entry that still has a userId', () => {

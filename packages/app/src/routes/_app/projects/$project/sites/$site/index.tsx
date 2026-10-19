@@ -76,6 +76,7 @@ import { createSaver, saveErrorReason } from '../../../../../../lib/site/saver';
 import { boardStore, seedDecision } from '../../../../../../lib/site/board-store';
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
+import { showsMoney } from '../../../../../../lib/money-visibility';
 import { cellStatusFor, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
@@ -560,6 +561,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   // Shadow is staff-only (Marko, 2026-10-16): a customer never sees, or asks for, a reading.
   const { session: viewer } = useRouteContext({ from: '/_app' });
   const showJev = viewer.isOperator || !!viewer.staff;
+  // Spec 2026-10-17 §8a: amounts and price words are staff-only.
+  const showMoney = showsMoney(viewer);
   const jevQuery = trpc.sources.jevReadings.useQuery(
     { sourceId, captureIds: jevCaptureIds },
     {
@@ -1046,6 +1049,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     upperBoundUsd: estimate?.upperBoundUsd ?? 0,
     complete: gate.ok,
     busy: verifying,
+    showMoney,
     variants: need,
   });
   const verifyMutation = trpc.sources.verify.useMutation();
@@ -1552,6 +1556,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
               if (panelOpen) closePanel();
               else setRawSelection(null);
             }}
+            showMoney={showMoney}
           />
           <p className="px-1 text-sm text-muted-foreground">
             Field names and types come from the project.{' '}

@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
+import { useRouteContext } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { showsMoney } from '../../lib/money-visibility';
 import { trpc } from '../../lib/trpc';
 import { probeEvidence } from '../../lib/site/probe-evidence';
 import { emptyCellNote, sampleFacts, type ExtractMode } from '../../lib/site/extract-view';
@@ -31,9 +33,12 @@ import {
  * section says exactly that and asks for nothing.
  */
 
-/** The one line the sample's own button promises, verbatim from spec §5.7. */
-const SAMPLE_SENTENCE =
-  'walks the first listing for up to 3 pages, extracts 3 products with the verified paths. No AI. Free.';
+/**
+ * The one line the sample's own button promises, from spec §5.7. "No AI. Free." is staff-only
+ * (spec 2026-10-17 §8a): a customer never reads a price word or the mechanism.
+ */
+const SAMPLE_SENTENCE = 'walks the first listing for up to 3 pages, extracts 3 products with the verified paths.';
+const SAMPLE_SENTENCE_STAFF = `${SAMPLE_SENTENCE} No AI. Free.`;
 
 const EMPTY_COUNTS = { listing: 0, detail: 0, pending: 0, running: 0, done: 0, failed: 0 };
 
@@ -56,6 +61,8 @@ export function ExtractSample({
   /** Why sampling is not possible yet, shown beside the button. `null` when it is. */
   disabledReason: string | null;
 }) {
+  const { session } = useRouteContext({ from: '/_app' });
+  const showMoney = showsMoney(session);
   const statusQuery = trpc.crawl.status.useQuery(
     { runId: runId ?? '' },
     {
@@ -104,7 +111,7 @@ export function ExtractSample({
           {sampling ? <Loader2 className="animate-spin" /> : null}
           Sample 3 products
         </Button>
-        <span className="text-base text-muted-foreground">{disabledReason ?? SAMPLE_SENTENCE}</span>
+        <span className="text-base text-muted-foreground">{disabledReason ?? (showMoney ? SAMPLE_SENTENCE_STAFF : SAMPLE_SENTENCE)}</span>
       </div>
     );
   }

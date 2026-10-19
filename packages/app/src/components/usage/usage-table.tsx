@@ -2,21 +2,24 @@ import { Link } from '@tanstack/react-router';
 import { Skeleton } from '../ui/skeleton';
 import type { UsageRowView } from '../../lib/usage-view';
 
-/** Per project: what it cost and how many pages it took. Every project is a row, a quiet one at $0.00. */
-export function UsageTable({ rows, loading }: { rows: UsageRowView[]; loading: boolean }) {
+/**
+ * Per project: what it cost and how many pages it took. Every project is a row, a quiet one at $0.00.
+ * The Spend column is staff-only (spec 2026-10-17 §8a): a customer's table is projects and pages.
+ */
+export function UsageTable({ rows, loading, showMoney }: { rows: UsageRowView[]; loading: boolean; showMoney: boolean }) {
   return (
     <div className="rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]">
       <div className="overflow-x-auto rounded-[6px] md:overflow-x-visible">
         <table className="w-full min-w-[480px] border-collapse text-base md:min-w-0">
           <colgroup>
             <col />
-            <col className="w-[116px]" />
+            {showMoney ? <col className="w-[116px]" /> : null}
             <col className="w-[132px]" />
           </colgroup>
           <thead>
             <tr className="[&>th]:z-10 [&>th]:border-b [&>th]:border-line [&>th]:bg-panel [&>th]:py-2 [&>th]:font-normal [&>th]:whitespace-nowrap [&>th]:text-muted-foreground md:[&>th]:sticky md:[&>th]:top-12">
               <th className="px-4 text-left text-sm">Project</th>
-              <th className="px-3 text-right text-sm">Spend</th>
+              {showMoney ? <th className="px-3 text-right text-sm">Spend</th> : null}
               <th className="px-4 text-right text-sm">Pages captured</th>
             </tr>
           </thead>
@@ -25,7 +28,7 @@ export function UsageTable({ rows, loading }: { rows: UsageRowView[]; loading: b
               ? [0, 1].map((i) => (
                   <tr key={i} className="border-b border-line last:border-0">
                     <td className="px-4 py-2.5"><Skeleton className="h-3.5 w-32 bg-raised" /></td>
-                    <td colSpan={2} />
+                    <td colSpan={showMoney ? 2 : 1} />
                   </tr>
                 ))
               : rows.map((r) => (
@@ -35,7 +38,7 @@ export function UsageTable({ rows, loading }: { rows: UsageRowView[]; loading: b
                         {r.name}
                       </Link>
                     </td>
-                    <td className="px-3 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{r.spendLabel}</td>
+                    {showMoney ? <td className="px-3 py-2.5 text-right font-mono tabular-nums whitespace-nowrap">{r.spendLabel}</td> : null}
                     <td className="px-4 py-2.5 text-right font-mono tabular-nums whitespace-nowrap text-muted-foreground">{r.pagesLabel}</td>
                   </tr>
                 ))}

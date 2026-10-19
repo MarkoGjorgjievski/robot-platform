@@ -7,7 +7,7 @@ import { TYPE_LABELS } from '../../lib/fields-view';
 import { BadgeView, FieldDetails } from './field-details';
 import { LOCKED_REASON } from './verify-bar';
 import { VariantsRow, type VariantsRowProps } from './variants-row';
-import { cellLabel, DEFAULT_CELL_TITLE, REVERIFY_FIELD, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
+import { cellLabel, DEFAULT_CELL_TITLE, REVERIFY_FIELD, REVERIFY_FIELD_FREE, type Badge, type Field, type RowStatus, type Segment } from '../../lib/site/verification-model';
 import { fixLabel, moveSelection, type CellSelection, type MoveKey } from '../../lib/site/table-selection';
 
 /**
@@ -90,12 +90,12 @@ function productsText(ns: number[]): string {
   return `products ${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`;
 }
 
-type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; onReverifyField?: () => void };
+type StatusCellProps = { field: Field; status: RowStatus; badge: Badge; count: { passed: number; checked: number } | null; locked: boolean; onAccept: () => void; onMakeDefault: () => void; defaultOnlyWord: string | null; addressWarning: string | null; jevNote: string | null; onReverifyField?: () => void; showMoney: boolean };
 
 /** The status column: the row's status, and under it the address warning (spec 2026-10-14 §6)
  * when the row is accepted or agreed, or whenever the badge reads verified; then Jev's note
  * (spec 2026-10-16 §6), muted, whatever the status — it never changes the status. */
-function StatusCell({ addressWarning, jevNote, onReverifyField, ...props }: StatusCellProps) {
+function StatusCell({ addressWarning, jevNote, onReverifyField, showMoney, ...props }: StatusCellProps) {
   const shows = !!addressWarning && (props.status.kind === 'accepted' || props.status.kind === 'agreed' || props.badge?.kind === 'verified');
   if (!shows && !jevNote) return <StatusBody {...props} />;
   return (
@@ -106,7 +106,7 @@ function StatusCell({ addressWarning, jevNote, onReverifyField, ...props }: Stat
           {addressWarning}
           {onReverifyField ? (
             <Button size="sm" variant="outline" disabled={props.locked} onClick={onReverifyField}>
-              {REVERIFY_FIELD}
+              {showMoney ? REVERIFY_FIELD_FREE : REVERIFY_FIELD}
             </Button>
           ) : null}
         </span>
@@ -116,7 +116,7 @@ function StatusCell({ addressWarning, jevNote, onReverifyField, ...props }: Stat
   );
 }
 
-function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'onReverifyField'>) {
+function StatusBody({ field, status, badge, count, locked, onAccept, onMakeDefault, defaultOnlyWord }: Omit<StatusCellProps, 'addressWarning' | 'jevNote' | 'onReverifyField' | 'showMoney'>) {
   switch (status.kind) {
     case 'agreed':
       return (
@@ -277,6 +277,7 @@ export function VerificationTable({
   onTypeIt,
   onAbsent,
   onEscape,
+  showMoney,
 }: {
   /** One per product column, rendered by the route (`ProductCard` compact, or a blank slot). */
   heads: ReactNode[];
@@ -302,6 +303,8 @@ export function VerificationTable({
   onAbsent?: (sel: CellSelection) => void;
   /** Escape with nothing else to close: the route clears the selection or closes the panel. */
   onEscape: () => void;
+  /** `showsMoney(session)` (spec 2026-10-17 §8a): the re-verify button says "free" to staff only. */
+  showMoney: boolean;
 }) {
   const totalCols = 1 + heads.length + (addHead ? 1 : 0) + 1;
   const fieldKeys = rows.map((r) => r.field.key);
@@ -519,7 +522,7 @@ export function VerificationTable({
                 {addHead ? <td className="w-[190px] border-t border-line" /> : null}
 
                 <td className="sticky right-0 z-10 w-[220px] border-t border-l border-line bg-panel px-2 py-2 align-top">
-                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} onReverifyField={row.onReverifyField} />
+                  <StatusCell field={row.field} status={row.status} badge={row.badge} count={row.count} locked={locked} onAccept={row.onAccept} onMakeDefault={row.onMakeDefault} defaultOnlyWord={row.defaultOnlyWord} addressWarning={row.addressWarning} jevNote={row.jevNote} onReverifyField={row.onReverifyField} showMoney={showMoney} />
                 </td>
               </tr>
 

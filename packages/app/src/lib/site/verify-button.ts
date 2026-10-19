@@ -35,7 +35,10 @@ const fieldsWord = (n: number) => `${n} field${n === 1 ? '' : 's'}`;
 /**
  * Verify/Re-verify button label + enabled flag (spec 2026-09-25 §2.4):
  * `Verify 8 fields · free` / `Verify 8 fields · up to $X`, and the re-verify
- * form `Re-verify n fields · free | up to $X`. "Free" is about money: with no
+ * form `Re-verify n fields · free | up to $X`. The price is staff-only (spec
+ * 2026-10-17 §8a, `showMoney` from `showsMoney`): a customer reads
+ * `Verify 8 fields` / `Re-verify n fields` / `Verify variants` with no amount
+ * and no price word. "Free" is about money: with no
  * AI, or no field that could reach it, a run spends nothing. Stale captures
  * cost time (see `roughTime`), never money, so they do not make it priced.
  * `capturesFresh` stays in the arguments for callers that pass the estimate whole.
@@ -52,12 +55,15 @@ const fieldsWord = (n: number) => `${n} field${n === 1 ? '' : 's'}`;
  */
 export function verifyButton(args: {
   state: StripState; firstRun: boolean; fieldCount: number; reverifyCount: number; capturesFresh: boolean;
-  aiAvailable: boolean; upperBoundUsd: number; complete: boolean; busy: boolean;
+  aiAvailable: boolean; upperBoundUsd: number; complete: boolean; busy: boolean; showMoney: boolean;
   variants?: ReturnType<typeof variantsNeed>;
 }): { label: string; disabled: boolean; reason?: string } {
-  const { state, firstRun, fieldCount, reverifyCount, aiAvailable, upperBoundUsd, complete, busy, variants = { kind: 'none' } } = args;
-  const cost = !aiAvailable || upperBoundUsd === 0 ? 'free' : `up to $${upperBoundUsd.toFixed(2)}`;
-  const first = `Verify ${fieldsWord(fieldCount)} · ${cost}`;
+  const { state, firstRun, fieldCount, reverifyCount, aiAvailable, upperBoundUsd, complete, busy, showMoney, variants = { kind: 'none' } } = args;
+  const price = !aiAvailable || upperBoundUsd === 0 ? 'free' : `up to $${upperBoundUsd.toFixed(2)}`;
+  // Spec 2026-10-17 §8a: staff read the price (a worst case, every field needing the AI); a customer reads none.
+  const cost = showMoney ? ` · ${price}` : '';
+  const variantsOnly = `Verify variants${showMoney ? ' · free' : ''}`;
+  const first = `Verify ${fieldsWord(fieldCount)}${cost}`;
   if (state === 'active') return { label: firstRun ? 'Verify' : 'Re-verify', disabled: true, reason: 'Verifying' };
   // M7: "Fix the problems listed above first" would only be honest if the problems
   // list were always on screen at this point, but it is gated on `touched`
@@ -69,18 +75,18 @@ export function verifyButton(args: {
   if (!complete) return { label: firstRun ? first : 'Re-verify', disabled: true, reason: 'Fill in pages one to three, and at least one value on each extra page' };
 
   if (firstRun) {
-    if (variants.kind === 'pending') return { label: `Verify ${fieldsWord(fieldCount)} and variants · ${cost}`, disabled: busy };
+    if (variants.kind === 'pending') return { label: `Verify ${fieldsWord(fieldCount)} and variants${cost}`, disabled: busy };
     if (variants.kind === 'blocked') return { label: first, disabled: busy, reason: variants.reason };
     return { label: first, disabled: busy };
   }
 
   if (reverifyCount === 0) {
-    if (variants.kind === 'pending') return { label: 'Verify variants · free', disabled: busy };
-    if (variants.kind === 'blocked') return { label: 'Verify variants · free', disabled: true, reason: variants.reason };
+    if (variants.kind === 'pending') return { label: variantsOnly, disabled: busy };
+    if (variants.kind === 'blocked') return { label: variantsOnly, disabled: true, reason: variants.reason };
     return { label: 'Everything is verified', disabled: true, reason: 'Nothing has changed since the last verification' };
   }
 
-  if (variants.kind === 'pending') return { label: `Re-verify ${fieldsWord(reverifyCount)} and variants · ${cost}`, disabled: busy };
-  if (variants.kind === 'blocked') return { label: `Re-verify ${fieldsWord(reverifyCount)} · ${cost}`, disabled: busy, reason: variants.reason };
-  return { label: `Re-verify ${fieldsWord(reverifyCount)} · ${cost}`, disabled: busy };
+  if (variants.kind === 'pending') return { label: `Re-verify ${fieldsWord(reverifyCount)} and variants${cost}`, disabled: busy };
+  if (variants.kind === 'blocked') return { label: `Re-verify ${fieldsWord(reverifyCount)}${cost}`, disabled: busy, reason: variants.reason };
+  return { label: `Re-verify ${fieldsWord(reverifyCount)}${cost}`, disabled: busy };
 }

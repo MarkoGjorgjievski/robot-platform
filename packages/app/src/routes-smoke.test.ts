@@ -366,6 +366,7 @@ const SITE_SCREENS = [
       // Read, never pressed — a verification is the one thing on this screen
       // that can cost money.
       expect(await verifyButtonOf(page).count(), 'the Verify button is missing').toBe(1);
+      await expectNoMoney(page);
     },
   },
   {
@@ -377,6 +378,7 @@ const SITE_SCREENS = [
       expect(main, 'the Extract tab is not locked on an unverified website').toContain('Extraction is locked');
       expect(main, 'the locked strip offers no way back to the Schema tab').toContain('Go to the Verification tab');
       expect(await page.locator('main [inert]').count(), 'the locked sections are still reachable').toBeGreaterThan(0);
+      await expectNoMoney(page);
     },
   },
   {
@@ -404,9 +406,10 @@ const SITE_SCREENS = [
 /**
  * Plan 4's four organisation screens, each with the one thing that proves it
  * is the real screen: the runs empty state (nothing has run, and running
- * costs money), the Usage total at $0.00 with the throwaway's project in the
- * table, the personal organisation's name in the Settings field with the
- * delete refused for the right reason, and the account's own email.
+ * costs money), the Usage total at 0 pages (a customer sees no spend, spec
+ * 2026-10-17 §8a) with the throwaway's project in the table, the personal
+ * organisation's name in the Settings field with the delete refused for the
+ * right reason, and the account's own email.
  */
 const ORG_SCREENS = [
   {
@@ -418,8 +421,10 @@ const ORG_SCREENS = [
   {
     route: '/usage',
     assert: async () => {
-      expect(await page.getByTestId('usage-total').innerText(), 'the Usage total is not $0.00').toBe('$0.00');
+      // Spec 2026-10-17 §8a: a customer's headline is pages captured, never spend.
+      expect(await page.getByTestId('usage-total').innerText(), 'the Usage total is not 0 pages').toBe('0 pages');
       expect(await page.locator('tbody tr').filter({ hasText: PROJECT_NAME }).count(), 'Usage has no row for this run’s project').toBe(1);
+      await expectNoMoney(page);
     },
   },
   {
@@ -648,6 +653,11 @@ async function rowStatusText(name: string): Promise<string> {
 
 /** The one button on the Verification tab that can spend. Found to be read, never clicked. */
 const verifyButtonOf = (p: Page) => p.getByRole('button', { name: /^Verify/ });
+
+/** Spec 2026-10-17 §8a: a customer sees no money. This smoke signs in as a customer. */
+async function expectNoMoney(p: Page) {
+  expect(await p.locator('main').innerText(), 'a customer screen shows a money amount').not.toMatch(/\$\s?\d/);
+}
 
 beforeAll(async () => {
   if (!ENABLED) return;
@@ -1169,10 +1179,10 @@ describe.skipIf(!ENABLED)('app shell', () => {
           .toBe('accepted');
       }
     }
-    // Ready to verify, and priced before the click — which this run never makes.
+    // Ready to verify — which this run never does. A customer reads no price on it (spec 2026-10-17 §8a).
     const verify = verifyButtonOf(page);
     await expect.poll(() => verify.isEnabled(), { timeout: 20_000 }).toBe(true);
-    expect(await verify.innerText(), 'the Verify button does not say what it costs').toMatch(/^Verify \d+ fields? · (free|up to \$\d)/);
+    expect(await verify.innerText(), 'the Verify button shows a customer a price').toMatch(/^Verify \d+ fields?$/);
     await expect.poll(() => page.getByText('ready', { exact: true }).count(), { timeout: 60_000 }).toBe(3);
 
     // 10. What the server stored: Rating's mark on product 1, and the cards
@@ -1429,6 +1439,7 @@ describe.skipIf(!ENABLED)('app shell', () => {
     expect(text, 'the "without variants" count is missing').toContain('1 product without variants');
     expect(text, 'the "partial variants" count is missing').toContain('0 products with partial variants');
     expect(text, 'the skipped-for-budget count is missing').toContain('2 variant pages skipped for the budget');
+    await expectNoMoney(page);
 
     // The results sheet: the axis column and the variant key, after the
     // product fields — not merely present somewhere, but real table columns.

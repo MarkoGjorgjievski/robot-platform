@@ -27,6 +27,14 @@ describe('orgRunsView', () => {
   });
 });
 
+describe('orgRunsView and money (spec 2026-10-17 §8a)', () => {
+  it('the org runs view carries no cost to render', () => {
+    const views = orgRunsView([row({ costUsd: 1.24 })], now);
+    expect(Object.keys(views[0]!)).not.toContain('costUsd');
+    expect(JSON.stringify(views[0])).not.toMatch(/$d/);
+  });
+});
+
 describe('anyRunning', () => {
   it('is true only while some dot is running', () => {
     expect(anyRunning([{ state: 'done' }, { state: 'running' }])).toBe(true);

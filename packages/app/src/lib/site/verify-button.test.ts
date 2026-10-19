@@ -33,7 +33,7 @@ describe('roughTime', () => {
 });
 
 describe('verifyButton', () => {
-  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false };
+  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false, showMoney: true };
   it('first run names the field count and the price: free, or the upper bound (spec §2.4)', () => {
     expect(verifyButton(base)).toEqual({ label: 'Verify 8 fields · up to $0.25', disabled: false });
     expect(verifyButton({ ...base, aiAvailable: false })).toEqual({ label: 'Verify 8 fields · free', disabled: false });
@@ -61,7 +61,7 @@ describe('verifyButton', () => {
 });
 
 describe('verifyButton with variants', () => {
-  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false };
+  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 0.25, complete: true, busy: false, showMoney: true };
 
   it('no fields pending, variants pending: the variants-only label, free, enabled', () => {
     expect(verifyButton({ ...base, state: 'results', firstRun: false, reverifyCount: 0, variants: { kind: 'pending' } })).toEqual({
@@ -102,6 +102,31 @@ describe('verifyButton with variants', () => {
   it('done or none: unchanged from the no-variants behaviour', () => {
     expect(verifyButton({ ...base, variants: { kind: 'done' } })).toEqual({ label: 'Verify 8 fields · up to $0.25', disabled: false });
     expect(verifyButton({ ...base, variants: { kind: 'none' } })).toEqual({ label: 'Verify 8 fields · up to $0.25', disabled: false });
+  });
+});
+
+describe('money on the Verify button is staff-only (spec 2026-10-17 §8a)', () => {
+  const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 1.44, complete: true, busy: false };
+  const args = { ...base, firstRun: true, fieldCount: 8, aiAvailable: true, upperBoundUsd: 1.44, complete: true, busy: false };
+  it('a customer reads no amount and no price word', () => {
+    expect(verifyButton({ ...args, showMoney: false }).label).toBe('Verify 8 fields');
+    expect(verifyButton({ ...args, showMoney: false, upperBoundUsd: 0 }).label).toBe('Verify 8 fields');
+  });
+  it('staff read the worst case', () => {
+    expect(verifyButton({ ...args, showMoney: true }).label).toBe('Verify 8 fields · up to $1.44');
+    expect(verifyButton({ ...args, showMoney: true, upperBoundUsd: 0 }).label).toBe('Verify 8 fields · free');
+  });
+  it('the re-verify and variants forms follow the same rule', () => {
+    const re = { ...args, state: 'results' as const, firstRun: false, reverifyCount: 2 };
+    expect(verifyButton({ ...re, showMoney: false }).label).toBe('Re-verify 2 fields');
+    expect(verifyButton({ ...re, showMoney: true }).label).toBe('Re-verify 2 fields · up to $1.44');
+    expect(verifyButton({ ...re, showMoney: false, variants: { kind: 'pending' } }).label).toBe('Re-verify 2 fields and variants');
+    const variantsOnly = { ...args, state: 'results' as const, firstRun: false, reverifyCount: 0, variants: { kind: 'pending' as const } };
+    expect(verifyButton({ ...variantsOnly, showMoney: false }).label).toBe('Verify variants');
+    expect(verifyButton({ ...variantsOnly, showMoney: true }).label).toBe('Verify variants · free');
+    const blocked = { ...variantsOnly, variants: { kind: 'blocked' as const, reason: 'Confirm the variants of every product' } };
+    expect(verifyButton({ ...blocked, showMoney: false }).label).toBe('Verify variants');
+    expect(verifyButton({ ...blocked, showMoney: true }).label).toBe('Verify variants · free');
   });
 });
 

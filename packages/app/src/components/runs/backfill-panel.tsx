@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, useRouteContext } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Skeleton } from '../ui/skeleton';
+import { showsMoney } from '../../lib/money-visibility';
 import { trpc } from '../../lib/trpc';
 import {
   backfillMutationInput,
@@ -75,6 +76,9 @@ export function BackfillPanel({
   columns: readonly ResultColumn[];
 }) {
   const [open, setOpen] = useState(false);
+  // Spec 2026-10-17 §8a: the preview's cost is staff-only.
+  const { session } = useRouteContext({ from: '/_app' });
+  const showMoney = showsMoney(session);
   const [checked, setChecked] = useState<Set<string> | null>(null);
   const [strategy, setStrategy] = useState<'repair_sweep' | 'full_focus'>('repair_sweep');
 
@@ -214,7 +218,7 @@ export function BackfillPanel({
 
             {/* What it costs, said before the button, every time. */}
             {checkedPreview.data ? (
-              <p className="font-mono text-base">{previewSummary(checkedPreview.data)}</p>
+              <p className="font-mono text-base">{previewSummary(checkedPreview.data, showMoney)}</p>
             ) : null}
 
             <div className="flex flex-wrap items-center gap-3">
