@@ -60,7 +60,7 @@ describe("isSettingsName — never the page's settings (§3.3.2)", () => {
 });
 
 describe('isVariantControlFacts — never a variant control (§3.3.2)', () => {
-  const none: VariantFacts = { tag: 'BUTTON', role: null, ariaPressed: false, ariaChecked: false, inChoiceGroup: false, choiceInput: false, className: '' };
+  const none: VariantFacts = { tag: 'BUTTON', inputType: null, role: null, ariaPressed: false, ariaChecked: false, inChoiceGroup: false, choiceInput: false, className: '' };
   it('a plain button is not a variant control', () => {
     expect(isVariantControlFacts(none)).toBe(false);
     expect(isVariantControlFacts({ ...none, className: 'btn btn--primary' })).toBe(false);
@@ -82,6 +82,22 @@ describe('isVariantControlFacts — never a variant control (§3.3.2)', () => {
     expect(isVariantControlFacts({ ...none, className: 'pill VariantPill' })).toBe(true);
     expect(hasVariantClassWord('ProductSwatch')).toBe(true);
     expect(hasVariantClassWord('')).toBe(false);
+  });
+  it('a submit, button, reset or image input is a button, not a variant control', () => {
+    for (const t of ['submit', 'button', 'reset', 'image', 'SUBMIT']) {
+      expect(isVariantControlFacts({ ...none, tag: 'INPUT', inputType: t }), t).toBe(false);
+    }
+    for (const t of ['text', 'number', 'radio', 'checkbox']) {
+      expect(isVariantControlFacts({ ...none, tag: 'INPUT', inputType: t }), t).toBe(true);
+    }
+  });
+  it('a button modifier class that merely mentions variant is not a variant word', () => {
+    for (const c of ['btn btn--variant-primary', 'button-variant-secondary', 'c-btn--variant', 'btn_variant']) {
+      expect(hasVariantClassWord(c), c).toBe(false);
+    }
+    for (const c of ['variant-pill', 'variants', 'product-form__variant', 'color-swatch', 'swatch']) {
+      expect(hasVariantClassWord(c), c).toBe(true);
+    }
   });
 });
 
@@ -145,9 +161,22 @@ describe('overlayByFacts — the one definition (§3.1)', () => {
   it('a fixed box off the window covers nothing', () => {
     expect(overlayByFacts({ ...base, position: 'fixed', rect: { top: 0, left: 1280, width: 480, height: 800 } })).toBe(false);
   });
+  it('a dialog off the window is no overlay — a closed drawer slid out by a transform', () => {
+    const off = { top: 0, left: 1280, width: 480, height: 800 };
+    expect(overlayByFacts({ ...base, role: 'dialog', position: 'fixed', rect: off })).toBe(false);
+    expect(overlayByFacts({ ...base, ariaModal: 'true', position: 'fixed', rect: off })).toBe(false);
+    expect(overlayByFacts({ ...base, openDialog: true, position: 'fixed', rect: off })).toBe(false);
+    // One pixel on the window is enough for a dialog.
+    expect(overlayByFacts({ ...base, role: 'dialog', position: 'fixed', rect: { ...off, left: 1279 } })).toBe(true);
+  });
   it('the page itself is never an overlay — an app shell (plan departure 1)', () => {
     expect(overlayByFacts({ ...base, position: 'fixed', holdsPage: true })).toBe(false);
-    expect(overlayByFacts({ ...base, role: 'dialog', holdsPage: true })).toBe(false);
+    expect(overlayByFacts({ ...base, className: 'modal', position: 'fixed', holdsPage: true })).toBe(false);
+  });
+  it('a dialog is always an overlay: the page is what lies outside every dialog', () => {
+    // In the page holdsPage looks for the first main/h1 outside any dialog, so a dialog never holds
+    // the page; a dialog that holds an h1 ("10% off") is a promo, not the product.
+    expect(overlayByFacts({ ...base, role: 'dialog', holdsPage: true })).toBe(true);
   });
 });
 
