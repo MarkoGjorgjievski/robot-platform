@@ -7,6 +7,7 @@ import {
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
+  typedAnswer, type Answer,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -858,5 +859,33 @@ describe('addressWarning (spec 2026-10-14 §6)', () => {
   it('no results, or a failed field: no warning', () => {
     expect(addressWarning('price', null, cards, pv)).toBeNull();
     expect(addressWarning('price', { price: { certified: [], cells: {} } }, cards, pv)).toBeNull();
+  });
+});
+
+describe('marked values without their label; a retype keeps the mark (spec 2026-10-17 §6)', () => {
+  const U = 'https://p.example/1';
+  const sku: Field = { key: 'sku', name: 'SKU', type: 'text', description: '', concept: 'sku' };
+  const title: Field = { key: 'title', name: 'Title', type: 'text', description: '', concept: 'product_name' };
+  const box = (text: string): Box => ({ xpaths: ['//span'], text, rect: { x: 1, y: 1, w: 10, h: 10 }, tag: 'span', kind: 'text' });
+
+  it('valueFromBox stores a sku without its label and keeps the whole text in the mark', () => {
+    expect(valueFromBox(box('Style: 398846_01'), 'text', 'sku')).toEqual({ value: '398846_01', mark: { xpaths: ['//span'], text: 'Style: 398846_01', rect: { x: 1, y: 1, w: 10, h: 10 } } });
+  });
+  it('valueFromBox keeps a title\'s colon', () => {
+    expect(valueFromBox(box('Star Wars: The Mandalorian Tee'), 'text', 'product_name')).toMatchObject({ value: 'Star Wars: The Mandalorian Tee' });
+    expect(valueFromBox(box('Style: 398846_01'), 'text')).toMatchObject({ value: 'Style: 398846_01' });
+  });
+  it('typedAnswer keeps the mark when the marked element shows the typed value after its label', () => {
+    const prev: Answer = { value: 'Style: 398846_01', mark: { xpaths: ['//span'], text: 'Style: 398846_01', rect: { x: 1, y: 1, w: 10, h: 10 } } };
+    expect(typedAnswer(prev, sku, '398846_01', U)).toEqual({ value: '398846_01', mark: prev.mark });
+  });
+  it('typedAnswer drops it on another value, and on a field whose concept has no label', () => {
+    const prev: Answer = { value: '398846_01', mark: { xpaths: ['//span'], text: 'Style: 398846_01', rect: { x: 1, y: 1, w: 10, h: 10 } } };
+    expect(typedAnswer(prev, sku, '123', U)).toEqual({ value: '123', mark: null });
+    expect(typedAnswer({ ...prev, value: 'x' }, title, '398846_01', U)).toEqual({ value: '398846_01', mark: null });
+  });
+  it('typedAnswer: blank clears the cell; no mark stays typed', () => {
+    expect(typedAnswer(undefined, sku, '  ', U)).toBeNull();
+    expect(typedAnswer(undefined, sku, 'A1', U)).toEqual({ value: 'A1', mark: null });
   });
 });

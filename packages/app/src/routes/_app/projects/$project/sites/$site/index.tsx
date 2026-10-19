@@ -55,6 +55,7 @@ import {
   suggestionAnswer,
   titleFromCapture,
   toBindingInput,
+  typedAnswer,
   validateValue,
   verifyGate,
   verifyReason,
@@ -1332,7 +1333,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         hint: rowHint(f),
         onType: (text: string) => {
           if (!detailUrl) return;
-          setBoard((b) => answer(b, f.key, detailUrl, text.trim() ? { value: text, mark: null } : null));
+          setBoard((b) => answer(b, f.key, detailUrl, typedAnswer(b.answers[f.key]?.[detailUrl], f, text, detailUrl)));
         },
         onDescription: (text: string) => setBoard((b) => setDescription(b, f.key, text)),
         // Spec 2026-10-13 §6: validated as a typed value is; warns, never blocks, when no captured proof page shows it.
