@@ -1,0 +1,55 @@
+{
+ "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+ "finalUrl": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 3,
+   "details": 0,
+   "tabs": [
+    "Overview"
+   ]
+  },
+  "title": {
+   "text": "GLOSTAD 2-seat sofa, Knisa dark grey",
+   "hidden": false
+  }
+ },
+ "price": "349",
+ "boxCount": 241,
+ "row": {
+  "page": "ikea-1",
+  "url": "https://www.ikea.com/my/en/p/glostad-2-seat-sofa-knisa-dark-grey-10489009/",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "3 / 0 / Overview",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 1,
+  "priceBoxes": 2,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

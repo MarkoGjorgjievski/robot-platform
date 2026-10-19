@@ -1,0 +1,85 @@
+{
+ "url": "https://eu.puma.com/de/de/pd/palermo-sneakers-unisex/396463?swatch=98",
+ "finalUrl": "https://eu.puma.com/de/de/pd/palermo-sneakers-unisex/396463?swatch=98",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://eu.puma.com/de/de/pd/palermo-sneakers-unisex/396463?swatch=98",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 2,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "Palermo Sneakers Unisex",
+   "hidden": false
+  }
+ },
+ "price": "89.95",
+ "boxCount": 281,
+ "row": {
+  "page": "pumade-2",
+  "url": "https://eu.puma.com/de/de/pd/palermo-sneakers-unisex/396463?swatch=98",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "2 / 0 / –",
+  "variant": {
+   "before": {
+    "pairs": [
+     {
+      "name": "styles",
+      "value": "Matte Bronze-Silver Fog"
+     }
+    ],
+    "labels": [
+     "Matte Bronze-Silver Fog"
+    ]
+   },
+   "after": {
+    "pairs": [
+     {
+      "name": "styles",
+      "value": "Matte Bronze-Silver Fog"
+     }
+    ],
+    "labels": [
+     "Matte Bronze-Silver Fog"
+    ]
+   },
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "swatch",
+      "value": "98"
+     },
+     {
+      "name": "styles",
+      "value": "Matte Bronze-Silver Fog"
+     }
+    ],
+    "labels": [
+     "98",
+     "Matte Bronze-Silver Fog"
+    ],
+    "named": true,
+    "selected": true
+   }
+  },
+  "titleBoxes": 14,
+  "priceBoxes": 21,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

@@ -1,0 +1,65 @@
+{
+ "url": "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond",
+ "finalUrl": "https://mejuri.com/my/en/products/diamonds-band?Material=Solid+Yellow+Gold+%2814k%29&Stone=Natural+Diamond",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://mejuri.com/my/en/products/diamonds-band?Material=Solid+Yellow+Gold+%2814k%29&Stone=Natural+Diamond",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 1,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "DIAMONDS BAND",
+   "hidden": false
+  }
+ },
+ "price": "3250.00",
+ "boxCount": 122,
+ "row": {
+  "page": "mejuri-2",
+  "url": "https://mejuri.com/my/en/products/diamonds-band?Material=14k+Yellow+Gold&Stone=Natural+Diamond",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "1 / 0 / –",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "Material",
+      "value": "Solid Yellow Gold (14k)"
+     },
+     {
+      "name": "Stone",
+      "value": "Natural Diamond"
+     }
+    ],
+    "labels": [
+     "Solid Yellow Gold (14k)",
+     "Natural Diamond"
+    ],
+    "named": true,
+    "selected": false
+   }
+  },
+  "titleBoxes": 0,
+  "priceBoxes": 1,
+  "titleHidden": false,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}

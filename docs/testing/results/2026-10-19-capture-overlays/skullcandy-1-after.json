@@ -1,0 +1,80 @@
+{
+ "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+ "finalUrl": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 10,
+   "details": 9,
+   "tabs": []
+  },
+  "title": {
+   "text": "Crusher® Evo",
+   "hidden": true
+  }
+ },
+ "price": "209.99",
+ "boxCount": 373,
+ "row": {
+  "page": "skullcandy-1",
+  "url": "https://www.skullcandy.com/products/crusher-evo-sensory-bass-headphones-with-personal-sound",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "10 / 9 / –",
+  "variant": {
+   "before": {
+    "pairs": [
+     {
+      "name": "color: true black – only [num] left in stock",
+      "value": "True Black"
+     }
+    ],
+    "labels": [
+     "True Black"
+    ]
+   },
+   "after": {
+    "pairs": [
+     {
+      "name": "color: true black – only [num] left in stock",
+      "value": "True Black"
+     }
+    ],
+    "labels": [
+     "True Black"
+    ]
+   },
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "color: true black – only [num] left in stock",
+      "value": "True Black"
+     }
+    ],
+    "labels": [
+     "True Black"
+    ],
+    "named": false,
+    "selected": true
+   }
+  },
+  "titleBoxes": 3,
+  "priceBoxes": 6,
+  "titleHidden": true,
+  "problem": null,
+  "warnings": []
+ },
+ "warnings": []
+}
