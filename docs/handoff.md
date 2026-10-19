@@ -99,6 +99,72 @@ non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/spec
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
 
+## Captures without overlays (2026-10-19)
+
+Spec `docs/superpowers/specs/2026-10-19-capture-overlays-design.md`, plan
+`docs/superpowers/plans/2026-10-19-capture-overlays.md`, evidence
+`docs/testing/results/2026-10-19-capture-overlays/findings.md`. Branch `feat/capture-overlays`
+from `main` at `ed3cf41`. Campaign 2, group 2 (`docs/testing/2026-10-11-campaign-2.md`).
+
+**What a customer gets.** Nothing new on any screen. A proof page's screenshot shows the product
+where it used to show a zoom lightbox, a size-guide drawer, a video modal, a cookie preference
+centre or a geo popup, so marking works where it did not, and the judge and Jev read the product.
+Captures already stored are not redone; a re-capture gets the clean screenshot.
+
+**What changed** (all in `packages/browser`; the rules and the page code are in `src/overlays.ts`):
+
+1. **One overlay definition** (§3.1): a visible dialog (`role=dialog/alertdialog`, `aria-modal`,
+   an open `<dialog>`), a fixed or absolute box named modal/drawer/lightbox/popup/dialog covering a
+   quarter of the window, or any fixed box covering a quarter that is not a header or footer —
+   never `<html>`, `<body>` or a box holding the page's `main` or first `h1`.
+2. **The expand pass never leaves an overlay** (§3.2): it skips `aria-haspopup` layer triggers,
+   controls whose `aria-controls` target is dialog-like, and anything inside an overlay; it clicks
+   each control once (one already expanded counts as clicked); an overlay that appears during a
+   round is closed (Escape, then removed, scroll lock lifted). The tabs step has the same rules and
+   never follows a link elsewhere or to a file.
+3. **Dismissal** (§3.3): whole names, not substrings ("Cookie settings", "look", "Rosy Outlook" are
+   not "OK"); never a variant control, a settings/preferences/manage/options control or a link
+   away; a click counts only if the element or its layer went away, and a dead one is never
+   retried; each round first closes the topmost layer by its own close word (Close, Schließen, ×,
+   …); then a removal pass hides every overlay (its text stays in the HTML) and removes today's
+   selectors; at most four rounds and six clicks per pass. Consent banners in open shadow roots are
+   still reached.
+4. **One more pass just before the screenshot** (§3.4), the navigated-away check again, then the
+   page scrolls to the top. An overlay still at the centre is one warning line:
+   `[browser] <url>: an overlay still covers the middle of the page after dismissal: div#x "…"`.
+   No new field on the capture result.
+
+**Found on the way.** The old tabs step never ran under `pnpm dev:all`: tsx (esbuild `keepNames`)
+serialised its inner `function clickTab` with `__name(…)`, the page has no `__name`, and the
+step's `catch` hid the error — tabs were clicked only under vitest. All page code now goes through
+`pageScript()` with an `__name` shim, so real captures click tabs for the first time. Watch the
+live check for tabs that load something unexpected.
+
+**Known limits** (accepted for this plan, not bugs): a close button in the page's normal flow
+below the fold is no longer clicked; a page with no `main`/`h1` outside its dialogs is not
+protected from being mistaken for one; a type-less button inside a form still submits it
+(`returnIfNavigatedAway` recovers — pre-existing, not new here).
+
+**Tests** (each file alone: `cd packages/browser && npx vitest run src/<file>`): `overlays.test.ts`
+(pure rules), `overlays-page.test.ts` (the definition in Chromium), `capture-expand-overlays.test.ts`,
+`capture-dismiss.test.ts`, `capture-final-pass.test.ts`; `dismiss-navigation.test.ts` unchanged;
+`packages/scraper/src/__fixtures__/capture-no-scroll.test.ts` still green.
+
+**Live check — runs on `main` after merge.** Free, keyless, one browser:
+`cd packages/browser && npx tsx ../../docs/testing/capture-overlays-check.mts` (`--self-test` first:
+a local page, no network). It re-captures the findings' proof pages and writes
+`<site>-<n>-after.png` and `after.md` beside the before screenshots. Expected: no overlay at the
+centre on each page; the §5.3 accordions and tabs still open.
+
+**Open.** Thomann's `waitUntil: 'load'` timing out at 45 s in the judge and Jev scripts (§7);
+choosing a shop's country (§7); a customer message for "the product is covered" if the live check
+shows it is still common (§8.3). A fixed buy box covering a quarter of the window is hidden from the
+screenshot (its text stays in the HTML) — watch for it in the live check.
+
+**Review and merge.** Pending — not yet reviewed by Marko. The reviewer's outcome, the merge, and
+the live check's results (N of 8 sites with no overlay at the centre) land here and in the spec's
+Status line once they happen.
+
 ## Verify dead ends (2026-10-17)
 
 Spec `docs/superpowers/specs/2026-10-17-verify-dead-ends-design.md`, plan

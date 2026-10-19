@@ -1,10 +1,11 @@
 # Captures without overlays — design
 
-**Status:** written 2026-10-19 at Marko's request ("start with captures"), together with its plan
-(`docs/superpowers/plans/2026-10-19-capture-overlays.md`), which departs from §3.1–§3.4 in eight
-small ways, each argued under its "Where the plan departs from the spec"; the plan wins where they
-differ. Not yet reviewed by Marko. The problem
-comes from campaign 2, group 2 (`docs/testing/2026-10-11-campaign-2.md`, "Captures keep or open
+**Status:** built on `feat/capture-overlays` per its plan
+(`docs/superpowers/plans/2026-10-19-capture-overlays.md`, which departs from §3.1–§3.4 in eight small
+ways listed under "Where the plan departs from the spec"; the plan wins where they differ) and
+proven offline by the fixture tests in `packages/browser`. The live check
+(`docs/testing/capture-overlays-check.mts`) runs on `main` after merge. Not yet reviewed by Marko.
+The problem comes from campaign 2, group 2 (`docs/testing/2026-10-11-campaign-2.md`, "Captures keep or open
 overlays"). Every cause below was seen on the real pages on 2026-10-19, free and keyless
 (`docs/testing/results/2026-10-19-capture-overlays/findings.md`, screenshots and the probe script
 beside it), and read in `packages/browser/src/playwright-browser.ts` on `main` @ `ed3cf41`.
