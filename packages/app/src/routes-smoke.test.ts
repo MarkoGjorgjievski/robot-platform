@@ -675,9 +675,11 @@ async function expectNoMoney(p: Page) {
     clone.remove();
     return text;
   });
-  expect(chrome, 'a customer screen shows a money amount or a price word').not.toMatch(/\$\s?\d|·\s*free\b|\bup to ~?\$/);
+  // "free" in any case, anywhere in our chrome ("No AI. Free.", "· free", "for free"): every such word
+  // in the app's customer copy is staff-only (spec 2026-10-17 §8a), so no customer screen carries one.
+  expect(chrome, 'a customer screen shows a money amount or a price word').not.toMatch(/\$\s?\d|\bfree\b|\bup to ~?\$/i);
   for (const label of await p.locator('main button:not([data-cell])').allInnerTexts()) {
-    expect(label, 'a button shows a customer a price').not.toMatch(/\$\d|·\s*free/);
+    expect(label, 'a button shows a customer a price').not.toMatch(/\$\d|\bfree\b/i);
   }
 }
 
