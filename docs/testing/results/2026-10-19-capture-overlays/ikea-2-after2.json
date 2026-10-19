@@ -1,0 +1,59 @@
+{
+ "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+ "finalUrl": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 3,
+   "details": 0,
+   "tabs": [
+    "Overview"
+   ]
+  },
+  "title": {
+   "text": "KIVIK 2-seat sofa, Tibbleby beige/grey",
+   "hidden": false
+  },
+  "layers": [],
+  "scrims": []
+ },
+ "price": "1195",
+ "boxCount": 263,
+ "row": {
+  "page": "ikea-2",
+  "url": "https://www.ikea.com/my/en/p/kivik-2-seat-sofa-tibbleby-beige-grey-s19440594/",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "3 / 0 / Overview",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 0,
+  "priceBoxes": 2,
+  "titleHidden": false,
+  "problem": null,
+  "layers": [],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}

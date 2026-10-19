@@ -1,0 +1,61 @@
+{
+ "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+ "finalUrl": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 0,
+   "details": 0,
+   "tabs": [
+    "Womens",
+    "Loyalty",
+    "DESCRIPTION"
+   ]
+  },
+  "title": {
+   "text": "Kith Women Toyo Zip Hoodie",
+   "hidden": false
+  },
+  "layers": [],
+  "scrims": []
+ },
+ "price": "810",
+ "boxCount": 149,
+ "row": {
+  "page": "kith-1",
+  "url": "https://kith.com/collections/kith-women-sweatshirts/products/khwa030083-338",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "0 / 0 / Womens, Loyalty, DESCRIPTION",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 1,
+  "priceBoxes": 2,
+  "titleHidden": false,
+  "problem": null,
+  "layers": [],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}
