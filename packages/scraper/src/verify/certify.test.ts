@@ -903,6 +903,12 @@ describe('marks read what the element shows (spec 2026-10-17 §6)', () => {
     expect(markPaths({ type: 'text' }, { xpaths: ['//span'] })).toEqual(['//span']);
   });
 
+  it('a sku mark whose text has no label yields one candidate for its XPath, not two (no duplicate certified path)', async () => {
+    const marks = { [P[0]!]: mark('//*[@id="d"]/span', '398846_01') };
+    const { candidates } = await gatherCandidates(sku, { [P[0]!]: '398846_01' }, { [P[0]!]: caps[P[0]!]! }, { runDomSearch: async () => [], marks });
+    expect(candidates.filter((c) => c.path === '//*[@id="d"]/span')).toEqual([{ source: 'xpath', path: '//*[@id="d"]/span', transform: 'identity' }]);
+  });
+
   it('a sku mark yields an after_label candidate beside the identity one', async () => {
     const marks = { [P[0]!]: mark('//*[@id="d"]/span', 'Style: 398846_01') };
     const { candidates } = await gatherCandidates(sku, { [P[0]!]: '398846_01' }, { [P[0]!]: caps[P[0]!]! }, { runDomSearch: async () => [], marks });
