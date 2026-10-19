@@ -754,11 +754,17 @@ function entryTabs(): number {
 /**
  * The next control dismissal should click, or null (§3.3.1, §3.3.2, §3.3.4). First a close word
  * inside the topmost overlay; then today's steps in order. Every element is offered once per
- * capture: whether its click worked or not, it is never offered again.
+ * capture: whether its click worked or not, it is never offered again. Only an element on the
+ * window is offered: an off-canvas cart, menu or search drawer (translateX(100%)) has a "Close"
+ * that closes nothing, and seven of them cost a clean page five seconds of dead clicks (§5.5).
  */
 function entryNextDismissCandidate(): Element | null {
   const st = robotState();
-  const usable = (el: Element): boolean => !st.tried.has(el) && isShown(el) && !neverDismiss(el);
+  const onWindow = (el: Element): boolean => {
+    const r = el.getBoundingClientRect();
+    return coverage({ top: r.top, left: r.left, width: r.width, height: r.height }, window.innerWidth, window.innerHeight) > 0;
+  };
+  const usable = (el: Element): boolean => !st.tried.has(el) && isShown(el) && onWindow(el) && !neverDismiss(el);
   const take = (el: Element): Element => {
     st.tried.add(el);
     st.last = el;
@@ -766,6 +772,7 @@ function entryNextDismissCandidate(): Element | null {
     return el;
   };
   const CONTROLS = 'button, a, [role="button"], [aria-label]';
+  const BUTTONS = 'button, a, [role="button"]';
   const top = topmostOverlayEl();
   if (top) {
     const inside = [
@@ -773,7 +780,8 @@ function entryNextDismissCandidate(): Element | null {
       ...(top.shadowRoot ? Array.from(top.shadowRoot.querySelectorAll(CONTROLS)) : []),
     ];
     for (const el of inside) {
-      if (!usable(el)) continue;
+      // A wrapper holding a button reads that button's text: the button is the control, not it.
+      if (!usable(el) || (!el.matches(BUTTONS) && el.querySelector(BUTTONS) !== null)) continue;
       const names = [accessibleName(el), normName(el.getAttribute('aria-label')), normName((el as HTMLElement).innerText ?? el.textContent), normName(el.getAttribute('title'))];
       if (names.some((n) => isCloseWord(n))) return take(el);
     }
