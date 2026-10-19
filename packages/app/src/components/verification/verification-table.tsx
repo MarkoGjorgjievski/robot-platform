@@ -103,7 +103,7 @@ function StatusCell({ addressWarning, jevNote, onReverifyField, showMoney, ...pr
       <StatusBody {...props} />
       {shows ? (
         <span className="flex flex-wrap items-center gap-2 text-sm text-warn">
-          {addressWarning}
+          <span>{addressWarning}</span>
           {onReverifyField ? (
             <Button size="sm" variant="outline" disabled={props.locked} onClick={onReverifyField}>
               {showMoney ? REVERIFY_FIELD_FREE : REVERIFY_FIELD}
