@@ -2,9 +2,15 @@
 // Re-captures campaign 2's group 2 proof pages with the real PlaywrightBrowser and writes, beside the
 // before screenshots (`<site>-<n>-A.png`, probe.mts mode A, 2026-10-19):
 //   <site>-<n>-after.png    the first tile, as a proof page gets it
-//   <site>-<n>-after.json   what covers the centre, the visible dialogs, what stayed expanded
+//   <site>-<n>-after.json   what covers the centre, the visible dialogs, what stayed expanded, the
+//                           variant before and after, whether the box map sees the title and price
 //   after.md                one table, every page
-// Free and keyless: no API, no server, one browser at a time. Never run two of these at once.
+// Each page is captured as a proof page is (packages/scraper/src/verify/proof-page-capture.ts):
+// waitUntil load, network interception, the proof-page ready check (after the expand pass), the
+// variant-dom selection script, six tiles, and the box map, composed here with this check's probe.
+// The picker's selection is also read once at the document's load event, before any dismissal or
+// expand click, so the table says whether the capture left the variant as navigation found it (§5.1).
+// Free and keyless: no API, no server, no database query, one browser at a time. Never run two at once.
 //
 // Run from packages/browser, so `playwright` resolves:
 //   npx tsx ../../docs/testing/capture-overlays-check.mts                  every site
@@ -17,8 +23,14 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { BrowserContext, Page } from 'playwright';
 import { PlaywrightBrowser } from '../../packages/browser/src/playwright-browser.ts';
 import { CENTRE_OVERLAY_SCRIPT, type OverlayDescription } from '../../packages/browser/src/overlays.ts';
+import { boxesFromAnnotation, buildBoxMapScript } from '../../packages/scraper/src/verify/box-map.ts';
+import { buildSelectionScript } from '../../packages/scraper/src/verify/variant-dom.ts';
+import { buildProofPageReadyCheck } from '../../packages/scraper/src/verify/proof-page-ready.ts';
+import { captureProblem } from '../../packages/scraper/src/verify/capture-check.ts';
+import { PROOF_PAGE_MAX_TILES } from '../../packages/scraper/src/verify/constants.ts';
 
 const SITES: Array<[string, string[]]> = [
   ['colourpop', ['https://colourpop.com/products/aurora-stuck-shadow-palette', 'https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette']],
@@ -38,6 +50,8 @@ interface Probe {
   centre: OverlayDescription | null;
   dialogs: string[];
   expanded: { aria: number; details: number; tabs: string[] };
+  /** The first h1 outside a dialog: its text, and whether it (or an ancestor) is display:none. */
+  title: { text: string; hidden: boolean } | null;
 }
 
 // Read after the capture's last pass (annotate runs after it, just before the screenshot).
@@ -56,8 +70,32 @@ const PROBE = `(() => {
       details: document.querySelectorAll('details[open]').length,
       tabs: [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) => txt(t).slice(0, 30)),
     },
+    title: (() => {
+      const h1 = [...document.querySelectorAll('h1')].find((h) => !h.closest('[role=dialog],[role=alertdialog],[aria-modal=true],dialog'));
+      if (!h1) return null;
+      let hidden = false;
+      for (let a = h1; a && a !== document.documentElement; a = a.parentElement) if (getComputedStyle(a).display === 'none') hidden = true;
+      return { text: txt(h1), hidden };
+    })(),
   };
 })()`;
+
+const SELECTION = buildSelectionScript();
+/** The proof page's box map and this check's probe, read at the same moment (annotate runs once). */
+const ANNOTATE = `(() => ({ probe: ${PROBE}, boxes: ${buildBoxMapScript()}, selection: ${SELECTION} }))()`;
+
+/** The first `price` in the page's JSON-LD, as text, or null. */
+function ldPrice(ld: unknown[], depth = 0): string | null {
+  for (const v of ld) {
+    if (!v || typeof v !== 'object' || depth > 6) continue;
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (k === 'price' && (typeof x === 'string' || typeof x === 'number')) return String(x);
+      const inner = ldPrice(Array.isArray(x) ? x : [x], depth + 1);
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
 
 interface Row {
   page: string;
@@ -67,6 +105,14 @@ interface Row {
   dialogs: number;
   scrollY: number;
   expanded: string;
+  /** The picker's selection at load and after the capture; same = the capture left the variant alone. */
+  variant: { before: unknown; after: unknown; same: boolean; pageVariant: unknown };
+  /** Boxes in the proof page's box map holding the h1's text / the JSON-LD price's digits (rough). */
+  titleBoxes: number;
+  priceBoxes: number | null;
+  titleHidden: boolean | null;
+  /** What captureProofPage would refuse the page for, or null. */
+  problem: string | null;
   warnings: string[];
   error?: string;
 }
@@ -77,22 +123,62 @@ async function checkPage(b: PlaywrightBrowser, page: string, url: string, outDir
   const warnings: string[] = [];
   const warn = console.warn;
   console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); warn(...args); };
+  // The selection at the document's load event: before the first dismissal pass (which waits
+  // 1.5 s after navigation) and before any expand click. The browser's context is private; a check
+  // script may reach it.
+  const ctx = (b as unknown as { context: BrowserContext | null }).context;
+  let before: unknown;
+  const onPage = (p: Page) => {
+    p.on('load', () => {
+      if (before !== undefined || p.url() === 'about:blank') return; // the new tab's blank page loads first
+      p.evaluate(SELECTION).then((v) => { if (before === undefined) before = v ?? null; }).catch(() => {});
+    });
+  };
+  ctx?.on('page', onPage);
   try {
-    const c = await b.capture(url, { interceptNetworkRequests: false, maxTiles: 1, timeout: 60_000, annotate: PROBE });
+    const c = await b.capture(url, {
+      waitUntil: 'load',
+      interceptNetworkRequests: true,
+      ready: buildProofPageReadyCheck(url),
+      annotate: ANNOTATE,
+      maxTiles: PROOF_PAGE_MAX_TILES,
+      selection: SELECTION,
+      timeout: 60_000,
+    });
+    const ann = c.annotation as { probe?: Probe; boxes?: unknown; selection?: unknown } | undefined;
+    const p = ann?.probe;
+    const boxes = boxesFromAnnotation(ann?.boxes);
+    const title = p?.title?.text.slice(0, 40) ?? '';
+    const price = ldPrice(c.structuredData.ldJson);
+    const priceDigits = price ? price.split(/[.,]/)[0].replace(/\D/g, '') : '';
+    const after = ann?.selection ?? null;
+    const variant = { before: before ?? null, after, same: JSON.stringify(before ?? null) === JSON.stringify(after), pageVariant: c.pageVariant ?? null };
+    const problem = captureProblem(c, url)?.reason ?? null;
     writeFileSync(join(outDir, `${page}-after.png`), c.screenshotTiles[0] ?? c.screenshot);
-    writeFileSync(join(outDir, `${page}-after.json`), JSON.stringify({ url, finalUrl: c.url, verdict: c.verdict, probe: c.annotation, warnings }, null, 1));
-    const p = c.annotation as Probe | undefined;
-    return {
+    const row: Row = {
       page, url, verdict: c.verdict.kind,
       centre: p?.centre ? `${p.centre.tag}${p.centre.id ? '#' + p.centre.id : ''} «${p.centre.text}»` : (p ? 'none' : '?'),
       dialogs: p?.dialogs.length ?? -1,
       scrollY: p?.scrollY ?? -1,
       expanded: p ? `${p.expanded.aria} / ${p.expanded.details} / ${p.expanded.tabs.join(', ') || '–'}` : '?',
+      variant,
+      titleBoxes: title ? boxes.filter((x) => x.text.includes(title)).length : 0,
+      priceBoxes: priceDigits ? boxes.filter((x) => x.text.replace(/\D/g, '').includes(priceDigits)).length : null,
+      titleHidden: p?.title ? p.title.hidden : null,
+      problem,
       warnings,
     };
+    writeFileSync(join(outDir, `${page}-after.json`), JSON.stringify({ url, finalUrl: c.url, verdict: c.verdict, probe: p, price, boxCount: boxes.length, row, warnings }, null, 1));
+    return row;
   } catch (err) {
-    return { page, url, verdict: 'failed', centre: '?', dialogs: -1, scrollY: -1, expanded: '?', warnings, error: (err as Error).message.split('\n')[0].slice(0, 160) };
+    return {
+      page, url, verdict: 'failed', centre: '?', dialogs: -1, scrollY: -1, expanded: '?',
+      variant: { before: before ?? null, after: null, same: false, pageVariant: null },
+      titleBoxes: 0, priceBoxes: null, titleHidden: null, problem: null,
+      warnings, error: (err as Error).message.split('\n')[0].slice(0, 160),
+    };
   } finally {
+    ctx?.off('page', onPage);
     console.warn = warn;
   }
 }
@@ -105,11 +191,12 @@ function table(rows: Row[]): string {
     '',
     `Run on ${new Date().toISOString().slice(0, 10)} at \`${commit}\` with \`docs/testing/capture-overlays-check.mts\` (free, keyless, one browser; the browser is wherever this machine is).`,
     'Before: `<site>-<n>-A.png` (probe.mts mode A, 2026-10-19). After: `<site>-<n>-after.png`.',
-    'Expected per page (spec §6): no overlay at the window\'s centre, and the §5.3 accordions and tabs still open.',
+    'Expected per page (spec §6): no overlay at the window\'s centre, the §5.3 accordions still open (the tabs step is off by default), the variant as navigation found it (§5.1), and the title and price in the box map.',
+    'Captured as a proof page is (`captureProofPage`\'s options). "Variant kept": the picker\'s selection at load equals the one after the capture. Title / price boxes: box-map entries holding the h1\'s text / the JSON-LD price\'s digits (rough).',
     '',
-    '| Page | Verdict | Overlay at the centre | Visible dialogs | scrollY | Expanded (aria / details / selected tabs) | Overlay warnings | Before | After |',
-    '|---|---|---|---|---|---|---|---|---|',
-    ...rows.map((r) => `| ${r.page} | ${cell(r.verdict)}${r.error ? ` (${cell(r.error)})` : ''} | ${cell(r.centre)} | ${r.dialogs} | ${r.scrollY} | ${cell(r.expanded)} | ${r.warnings.filter((w) => w.includes('overlay still covers')).length} | [before](${r.page}-A.png) | [after](${r.page}-after.png) |`),
+    '| Page | Verdict | Problem | Overlay at the centre | Visible dialogs | scrollY | Expanded (aria / details / selected tabs) | Variant kept | Title boxes (h1 hidden?) | Price boxes | Overlay warnings | Before | After |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+    ...rows.map((r) => `| ${r.page} | ${cell(r.verdict)}${r.error ? ` (${cell(r.error)})` : ''} | ${cell(r.problem ?? '–')} | ${cell(r.centre)} | ${r.dialogs} | ${r.scrollY} | ${cell(r.expanded)} | ${r.variant.same ? 'yes' : `no: ${cell(JSON.stringify(r.variant.before))} → ${cell(JSON.stringify(r.variant.after))}`} | ${r.titleBoxes}${r.titleHidden ? ' (hidden!)' : ''} | ${r.priceBoxes ?? '–'} | ${r.warnings.filter((w) => w.includes('overlay still covers')).length} | [before](${r.page}-A.png) | [after](${r.page}-after.png) |`),
     '',
     '## Reading',
     '',
@@ -117,9 +204,13 @@ function table(rows: Row[]): string {
 }
 
 async function selfTest(): Promise<void> {
-  // A lightbox behind a Zoom button, an accordion, and a banner with "Cookie settings" before "OK".
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Widget</title></head><body style="margin:0">
+  // A lightbox behind a Zoom button, an accordion, a colour swatch, JSON-LD with the price, and a
+  // banner with "Cookie settings" before "OK".
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Widget</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Widget","offers":{"@type":"Offer","price":"12.50","priceCurrency":"USD"}}</script></head><body style="margin:0">
 <main style="min-height:2400px"><h1>Widget</h1><p>$12.50</p>
+<p>A small brass widget for the kitchen drawer: solid, polished, made to last, with a two-year warranty and free returns.</p>
+<div role="radiogroup" aria-label="Colour"><button role="radio" aria-checked="true" aria-label="Red">Red</button><button role="radio" aria-checked="false" aria-label="Blue">Blue</button></div>
 <button id="zoom" aria-expanded="false">Zoom</button>
 <button id="acc" aria-expanded="false" aria-controls="panel">Materials</button><div id="panel" hidden>Cotton</div></main>
 <modal-dialog id="zoom-modal" style="display:none;position:fixed;inset:0;background:#000"></modal-dialog>
@@ -139,7 +230,8 @@ document.getElementById('ok').onclick = () => document.querySelector('.cookie-ba
   try {
     const row = await checkPage(b, 'self-1', url, out);
     console.log(JSON.stringify(row, null, 1));
-    const ok = row.verdict !== 'failed' && row.centre === 'none' && row.expanded.startsWith('1 ');
+    const ok = row.verdict !== 'failed' && row.problem === null && row.centre === 'none' && row.expanded.startsWith('1 ')
+      && row.variant.same && row.variant.before !== null && row.titleBoxes > 0 && (row.priceBoxes ?? 0) > 0 && row.titleHidden === false;
     console.log(ok ? `self-test passed; files in ${out}` : 'self-test FAILED');
     process.exitCode = ok ? 0 : 1;
   } finally {
