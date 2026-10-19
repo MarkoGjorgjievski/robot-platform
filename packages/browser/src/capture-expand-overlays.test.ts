@@ -79,13 +79,24 @@ const PAGES: Record<string, string> = {
     `${Array.from({ length: 10 }, (_, i) => `<button id="d${i + 1}" aria-haspopup="dialog" aria-expanded="false">Guide ${i + 1}</button>`).join('')}
      <button id="acc11" aria-expanded="false" aria-controls="p11">Materials</button><div id="p11" hidden>P11_TEXT</div>`, '',
     `document.getElementById('acc11').addEventListener('click', () => { document.getElementById('p11').hidden = false; });`),
+  // A swatch that is also a disclosure (aria-expanded) in a radiogroup: the expand rounds must not
+  // pick it either (§5.1 applies to the whole capture); the accordion beside it is still opened.
+  '/swatch-expand': fixturePage(
+    `<div role="radiogroup" aria-label="Colour">
+       <button id="swx-red" aria-expanded="false">Red</button>
+       <button id="swx-more" aria-expanded="false">Show more</button>
+     </div>
+     <button id="accx" aria-expanded="false" aria-controls="px">Materials</button><div id="px" hidden>PX_TEXT</div>`, '',
+    `window.__flags.selected = 'none';
+     document.querySelectorAll('[role=radiogroup] button').forEach((b) => b.addEventListener('click', () => { window.__flags.selected = b.id; }));
+     document.getElementById('accx').addEventListener('click', () => { document.getElementById('px').hidden = false; });`),
   // A listing with category tabs: crawl() expands page 1 but never clicks a tab (controller ruling).
   '/listing-tabs': fixturePage(
     `<button id="lacc" aria-expanded="false" aria-controls="lpanel">Filters</button><div id="lpanel" hidden>F</div>
      <div role="tablist"><button role="tab" id="cat1" aria-selected="true">All</button><button role="tab" id="cat2">Sale</button></div>`),
 };
 
-const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11'];
+const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11', 'px'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -178,6 +189,14 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     const { s } = await capture('/eleventh');
     for (let i = 1; i <= 10; i++) expect(s.clicks).not.toContain(`d${i}`);
     expect(s.shown.p11).toBe(true);
+  }, 60_000);
+
+  it('the expand rounds never click a variant choice either — a disclosure swatch in a radiogroup (§5.1)', async () => {
+    const { s } = await capture('/swatch-expand');
+    expect(s.clicks).not.toContain('swx-red');
+    expect(s.clicks).not.toContain('swx-more');
+    expect(s.flags.selected).toBe('none');
+    expect(s.shown.px).toBe(true);
   }, 60_000);
 });
 

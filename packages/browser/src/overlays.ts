@@ -564,7 +564,8 @@ function takeOverlayBaseline(): void {
 
 /**
  * One expand round: today's structural controls and "show more" buttons, each clicked at most once
- * per capture, skipping layer triggers and anything inside an overlay; closed <details> are opened.
+ * per capture, skipping layer triggers, variant choices (§5.1) and anything inside an overlay; closed
+ * <details> are opened.
  * The ten-per-selector cap counts controls that would be clicked, so a skipped or already-clicked
  * one never hides a real accordion further down.
  *
@@ -580,9 +581,10 @@ function entryExpandRound(): number {
     if (n === 0) takeOverlayBaseline();
     n++;
   };
-  // offsetParent is null for display:none. Outside the viewport is fine and expected.
+  // offsetParent is null for display:none. Outside the viewport is fine and expected. Never a
+  // variant choice (§5.1 holds for the whole capture): a swatch that is also a disclosure.
   const clickable = (el: Element): boolean =>
-    (el as HTMLElement).offsetParent !== null && !st.clicked.has(el) && !expandSkip(el);
+    (el as HTMLElement).offsetParent !== null && !st.clicked.has(el) && !expandSkip(el) && !isVariantChoice(el);
   const click = (el: Element): void => {
     act();
     st.clicked.add(el);
