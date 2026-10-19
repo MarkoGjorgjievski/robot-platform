@@ -360,24 +360,30 @@ function isEmptyCell(value: unknown): boolean {
  * many. `key` looks the cell up; the note says the field's plain-language
  * `name`, because that is what the customer chose and what the table header two
  * elements up already reads.
+ *
+ * `notOnWebsite`: the keys of fields passed as not on this website (spec 2026-10-17 §2). Such a field
+ * is left empty on every product by design, so it gets no note.
  */
 export function emptyCellCounts(
   rows: Array<Record<string, unknown>>,
   columns: Array<{ key: string; name: string }>,
+  notOnWebsite: string[] = [],
 ): Array<{ name: string; emptyOn: number; sampled: number }> {
   if (rows.length === 0) return [];
   const out: Array<{ name: string; emptyOn: number; sampled: number }> = [];
   for (const column of columns) {
+    if (notOnWebsite.includes(column.key)) continue;
     const emptyOn = rows.filter((row) => isEmptyCell(row[column.key])).length;
     if (emptyOn > 0) out.push({ name: column.name, emptyOn, sampled: rows.length });
   }
   return out;
 }
 
-/** A sample row counts as complete when every contract column on it is filled. */
+/** A sample row counts as complete when every contract column on it is filled, a field not on this website (spec 2026-10-17 §2) aside. */
 export function completeRowCount(
   rows: Array<Record<string, unknown>>,
   columns: Array<{ key: string }>,
+  notOnWebsite: string[] = [],
 ): number {
-  return rows.filter((row) => columns.every((c) => !isEmptyCell(row[c.key]))).length;
+  return rows.filter((row) => columns.every((c) => notOnWebsite.includes(c.key) || !isEmptyCell(row[c.key]))).length;
 }

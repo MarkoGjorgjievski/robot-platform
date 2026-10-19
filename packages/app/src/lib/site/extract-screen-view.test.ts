@@ -457,3 +457,15 @@ describe('completeRowCount', () => {
     expect(completeRowCount(rows, columns)).toBe(1);
   });
 });
+
+// Spec 2026-10-17 §2: a field not on this website is left empty on every product and never flags one.
+describe('a field not on this website in the sample', () => {
+  const columns = [{ key: 'title', name: 'Title' }, { key: 'rating', name: 'Rating' }];
+  const rows = [{ title: 'A', rating: null }, { title: 'B', rating: '' }];
+  it('has no empty-cell note', () => {
+    expect(emptyCellCounts(rows, columns, ['rating'])).toEqual([]);
+  });
+  it('does not keep a row from counting as complete', () => {
+    expect(completeRowCount(rows, columns, ['rating'])).toBe(2);
+  });
+});

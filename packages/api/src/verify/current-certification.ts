@@ -57,11 +57,21 @@ export function sourceDefinitionHash(source: { schemaDefinition: unknown; verifi
   return definitionHash(source.schemaDefinition as SchemaDefinitionField[], source.verificationSet as VerificationSet);
 }
 
-type FieldCurrency = {
+export type FieldCurrency = {
   latest: { id: string; completedAt: Date; results: Record<string, FieldVerification>; variantResults: VariantVerification | null } | null;
   currentKeys: string[];
   unchangedKeys: string[];
 };
+
+/**
+ * Spec 2026-10-17 §2: the fields whose current result says they are not on this website. Such a
+ * field is left empty on every product and never blocks or flags one, so a run's coverage, misses,
+ * dead-field classification, backfill targets and the Extract sample's empty-cell note leave it out.
+ * Current only: once a cell gets a value the field's hash moves and it counts again.
+ */
+export function notOnWebsiteKeys(currency: Pick<FieldCurrency, 'latest' | 'currentKeys'>): string[] {
+  return currency.currentKeys.filter((k) => currency.latest?.results[k]?.notOnWebsite === true);
+}
 
 /**
  * The latest completed, error-free run: the one row both field and variant

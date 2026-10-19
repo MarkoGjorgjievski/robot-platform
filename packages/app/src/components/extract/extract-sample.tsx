@@ -48,6 +48,7 @@ export function ExtractSample({
   sampling,
   onSample,
   columns,
+  notOnWebsite = [],
   stale,
   disabledReason,
 }: {
@@ -57,6 +58,8 @@ export function ExtractSample({
   onSample: () => void;
   /** The project's contract columns: `key` is what a result row is keyed by, `name` is the plain-language label. */
   columns: Array<{ key: string; name: string }>;
+  /** Keys of the fields passed as not on this website (spec 2026-10-17 §2): left empty by design, so no empty-cell note and no incomplete row. */
+  notOnWebsite?: string[];
   stale: boolean;
   /** Why sampling is not possible yet, shown beside the button. `null` when it is. */
   disabledReason: string | null;
@@ -98,7 +101,7 @@ export function ExtractSample({
     [rawRows],
   );
 
-  const notes = useMemo(() => emptyCellCounts(rows, columns), [rows, columns]);
+  const notes = useMemo(() => emptyCellCounts(rows, columns, notOnWebsite), [rows, columns, notOnWebsite]);
 
   if (mode === 'detail') {
     return <p className="text-base text-muted-foreground">No sample needed, the pages are known.</p>;
@@ -133,7 +136,7 @@ export function ExtractSample({
   const defaulted = defaultedCount > 0
     ? { count: defaultedCount, fields: defaultedFields.map((f) => columns.find((c) => c.key === f.name)?.name ?? f.name) }
     : undefined;
-  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns), total: rows.length }, counts.done, notShown, defaulted);
+  const facts = sampleFacts(evidence, { complete: completeRowCount(rows, columns, notOnWebsite), total: rows.length }, counts.done, notShown, defaulted);
 
   return (
     <div className="space-y-3">

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
 import { fieldHash, type CertifiedPath, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
-import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, sourceDefinitionHash } from './current-certification.js';
+import { loadCurrentCertification, loadFieldCurrency, loadFieldCurrencyBatch, notOnWebsiteKeys, sourceDefinitionHash } from './current-certification.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
 // A throwaway signed-in identity: every customer procedure needs a session
@@ -364,7 +364,17 @@ describe('a field passed by default only (spec 2026-10-13 §4/§5)', () => {
       expect(currency.currentKeys).toEqual(['price']);
       const cert = await loadCurrentCertification(db, s.sourceId);
       expect(cert?.paths).toEqual({ price: [] });
+      // The shared predicate the run reports and the Extract sample's note read.
+      expect(notOnWebsiteKeys(currency)).toEqual(['price']);
+      expect((await caller.sources.verificationStatus({ sourceId: s.sourceId }))?.notOnWebsiteKeys).toEqual(['price']);
     } finally { await s.cleanup(); }
+  });
+  it('notOnWebsiteKeys: a stale notOnWebsite result (the field has a value now) counts again', () => {
+    const results = { price: { key: 'price', cells: {}, certified: [], weakEvidence: false, aiCalled: false, incomplete: false, notOnWebsite: true as const } };
+    const latest = { id: 'v', completedAt: new Date(), results, variantResults: null };
+    expect(notOnWebsiteKeys({ latest, currentKeys: [] })).toEqual([]);
+    expect(notOnWebsiteKeys({ latest, currentKeys: ['price'] })).toEqual(['price']);
+    expect(notOnWebsiteKeys({ latest: null, currentKeys: ['price'] })).toEqual([]);
   });
   it('a failed result with no path and no defaultOnly is still not current', async () => {
     const s = await makeSchemaSource('no-path');

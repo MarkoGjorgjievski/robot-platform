@@ -24,7 +24,7 @@ import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../
 import { entryFieldsFor } from '../verify/variant-fields.js';
 import { describeListingPage, unreadListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor, type ListingPageCheck } from '../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../verify/reachability.js';
-import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency } from '../verify/current-certification.js';
+import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebsiteKeys } from '../verify/current-certification.js';
 import { variantsRequired } from '../verify/variant-check.js';
 import { runSourceVerification } from '../verify/run-source-verification.js';
 import { startProofPageCapture, loadProofPageCaptures, latestProofPageCaptures, resolveStalledProofPage, type ProofPageMeta } from '../verify/proof-page-capture.js';
@@ -1186,7 +1186,8 @@ export const sourcesRouter = router({
         columns: { schemaDefinition: true, verificationSet: true },
       });
 
-      const { currentKeys, unchangedKeys } = await loadFieldCurrency(ctx.db, input.sourceId);
+      const currency = await loadFieldCurrency(ctx.db, input.sourceId);
+      const { currentKeys, unchangedKeys } = currency;
       const fieldCount = source && Array.isArray(source.schemaDefinition) ? source.schemaDefinition.length : 0;
       const v = await loadVariantCurrency(ctx.db, input.sourceId);
       const variants: null | { required: 'setup-missing' | 'yes'; current: boolean; passed: boolean; result: VariantVerification | null } =
@@ -1210,6 +1211,8 @@ export const sourcesRouter = router({
         currentKeys,
         // Fields whose latest result still matches them, passed or failed: a failure there is real, not stale.
         unchangedKeys,
+        // Spec 2026-10-17 §2: fields currently passed as not on this website — the Extract sample's empty-cell note leaves them out.
+        notOnWebsiteKeys: notOnWebsiteKeys(currency),
         current: fieldCount > 0 && currentKeys.length === fieldCount,
         // Variants (spec 2026-10-01): null when this website needs none; `current`/`passed` as `loadVariantCurrency` decides them.
         variants,
