@@ -1082,7 +1082,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
   }
 
-  // Spec 2026-10-17 §8: the address warning's own re-verify — this field alone, free (its old path is still a candidate, so no AI).
+  // Spec 2026-10-17 §8, §10 property 9: the address warning's own re-verify — this field alone, and `free`, so the server runs it with no agent: it never calls the AI.
   async function reverifyField(key: string) {
     setError(null);
     setNotice(null);
@@ -1090,7 +1090,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     try {
       await saverRef.current?.flush();
       await variantAnswers.flush();
-      await verifyMutation.mutateAsync({ sourceId, onlyKeys: [key] });
+      await verifyMutation.mutateAsync({ sourceId, onlyKeys: [key], free: true });
       await invalidate();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -1095,7 +1095,8 @@ export const sourcesRouter = router({
    * Source, and a fresh verification starts in its place.
    */
   verify: protectedProcedure
-    .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional() }))
+    // `free` (spec 2026-10-17 §8, §10 property 9): the address warning's re-verify never calls the AI, for any field in the run.
+    .input(z.object({ sourceId: z.string().uuid(), onlyKeys: z.array(z.string()).optional(), free: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
       await sourceInOrg(ctx, input.sourceId);
       const source = await ctx.db.query.sources.findFirst({
@@ -1147,7 +1148,7 @@ export const sourcesRouter = router({
         .values({ sourceId: input.sourceId, definitionHash: hash })
         .returning({ id: sourceVerifications.id });
 
-      void runSourceVerification(input.sourceId, row!.id, { onlyKeys: input.onlyKeys }).catch((err) => {
+      void runSourceVerification(input.sourceId, row!.id, { onlyKeys: input.onlyKeys, ...(input.free ? { free: true } : {}) }).catch((err) => {
         console.error(`[sources.verify] verification ${row!.id} failed:`, err);
       });
 
