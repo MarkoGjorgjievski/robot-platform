@@ -46,6 +46,34 @@ describe('the overlay definition in a real page (§3.1)', () => {
       <script>document.getElementById('host').attachShadow({ mode: 'open' }).innerHTML = '<div id="shadow-layer" style="position:fixed;inset:0;background:#000">Sign up</div>';</script></body></html>`;
     expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['shadow-layer']);
   }, 30_000);
+
+  it('a closed drawer slid off the window is no overlay and never the topmost', async () => {
+    const html = `<!doctype html><html><body style="margin:0"><main style="min-height:2400px"><h1>Widget</h1></main>
+      <div id="consent" role="dialog" style="position:fixed;left:20px;bottom:20px;width:300px;height:120px;z-index:5;background:#fff">Cookies</div>
+      <div id="cart-drawer" role="dialog" aria-modal="true" style="position:fixed;top:0;right:0;width:420px;height:100vh;z-index:999;transform:translateX(100%);background:#fff">Your bag</div>
+      </body></html>`;
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['consent']);
+    expect((await browser.setContentEvaluate<OverlayDescription | null>(html, TOPMOST_OVERLAY_SCRIPT))?.id).toBe('consent');
+  }, 30_000);
+
+  it('a full-window dialog before the product holding its own h1 is an overlay; the product still protects its shell', async () => {
+    const html = `<!doctype html><html><body style="margin:0">
+      <div id="promo" role="dialog" style="position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.5)"><h1>10% off</h1><button>Close</button></div>
+      <div id="shell" style="position:fixed;inset:0;overflow:auto"><main><h1>Lamp</h1><div style="height:3000px"></div></main></div>
+      </body></html>`;
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['promo']);
+    const only = `<!doctype html><html><body style="margin:0"><div style="height:3000px">Lamp</div>
+      <div id="promo" role="dialog" style="position:fixed;inset:0;background:#fff"><h1>10% off</h1></div></body></html>`;
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(only, LIST_OVERLAYS_SCRIPT))).toEqual(['promo']);
+  }, 30_000);
+
+  it('a dialog inside a faded-out ancestor is hidden', async () => {
+    const html = `<!doctype html><html><body style="margin:0"><main><h1>Widget</h1></main>
+      <div style="opacity:0"><div id="faded" role="dialog" style="position:fixed;inset:0;background:#fff">Sign up</div></div>
+      <div id="shown" role="dialog" style="position:fixed;left:20px;bottom:20px;width:300px;height:120px;background:#fff">Cookies</div>
+      </body></html>`;
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['shown']);
+  }, 30_000);
 });
 
 describe('the topmost and the centre overlay', () => {
@@ -106,6 +134,40 @@ describe('the never-click rules on live elements (§3.3.2)', () => {
       "Array.from(document.querySelectorAll('[id]')).filter((el) => neverDismiss(el)).map((el) => el.id)",
     ));
     expect(found.sort()).toEqual(['away', 'consent-more', 'manage', 'settings', 'swatch']);
+  }, 30_000);
+
+  it('a submit/button/reset/image input and a button-modifier class are not variant controls', async () => {
+    const html = `<!doctype html><html><body><main><h1>Shoe</h1>
+      <input id="submit" type="submit" value="OK">
+      <input id="button" type="button" value="Close">
+      <input id="reset" type="reset">
+      <input id="image" type="image" alt="Close">
+      <input id="text" type="text">
+      <button id="modifier" class="btn btn--variant-primary">Accept</button>
+      </main></body></html>`;
+    const found = await browser.setContentEvaluate<string[]>(html, pageScript(
+      "Array.from(document.querySelectorAll('main [id]')).filter((el) => isVariantControl(el)).map((el) => el.id)",
+    ));
+    expect(found).toEqual(['text']);
+  }, 30_000);
+
+  it('a button within three levels of a swatch container is a variant control, unless in an overlay', async () => {
+    const html = `<!doctype html><html><body><main><h1>Shoe</h1>
+      <div class="color-swatches"><ul><li><button id="in-swatch">Red</button></li></ul></div>
+      <div class="Swatch-list"><button id="direct">Blue</button></div>
+      <div class="swatches"><div><div><div><button id="too-deep">Green</button></div></div></div></div>
+      </main>
+      <div role="dialog" style="position:fixed;bottom:0;left:0;width:400px;height:200px;background:#fff">
+        <div class="swatch-row"><button id="dialog-swatch">Accept</button></div>
+      </div></body></html>`;
+    const variant = await browser.setContentEvaluate<string[]>(html, pageScript(
+      "Array.from(document.querySelectorAll('button[id]')).filter((el) => isVariantControl(el)).map((el) => el.id)",
+    ));
+    expect(variant.sort()).toEqual(['dialog-swatch', 'direct', 'in-swatch']);
+    const never = await browser.setContentEvaluate<string[]>(html, pageScript(
+      "Array.from(document.querySelectorAll('button[id]')).filter((el) => neverDismiss(el)).map((el) => el.id)",
+    ));
+    expect(never.sort()).toEqual(['direct', 'in-swatch']);
   }, 30_000);
 });
 

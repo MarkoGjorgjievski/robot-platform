@@ -26,6 +26,9 @@ export const CLOSE_WORDS: readonly string[] = [
 /** The window property holding the capture's in-page memory. Not enumerable; never in the HTML. */
 export const ROBOT_STATE_KEY = '__robotCapture';
 
+/** An element that says it is a dialog. Page only (isShown, holdsPage, listOverlayEls). */
+const DIALOG_LIKE = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog';
+
 // ---- Pure: names --------------------------------------------------------------------------------
 
 /** Trimmed, whitespace-collapsed, case-folded — the form every name comparison uses. */
@@ -54,17 +57,30 @@ export function isSettingsName(name: string | null | undefined): boolean {
   return /(^|[^\p{L}])(settings|preferences|manage|customi[sz]e|options|more info)(?=$|[^\p{L}])/u.test(normName(name));
 }
 
-/** Does a class attribute have a word containing "swatch" or "variant"? */
+/**
+ * Does a class attribute have a variant word: a token containing "swatch", or containing "variant"
+ * that is not a button's modifier (`btn--variant-primary`, `button-variant-secondary`)?
+ */
 export function hasVariantClassWord(className: string | null | undefined): boolean {
-  return (className ?? '').split(/\s+/).some((w) => /swatch|variant/i.test(w));
+  return (className ?? '').split(/\s+/).some((w) =>
+    /swatch/i.test(w)
+    || (/variant/i.test(w) && !/^(btn|button)([-_]|$)/i.test(w) && !/--variant/i.test(w)));
 }
+
+/** Input types that are buttons, not choices. */
+const BUTTON_INPUT_TYPES = ['submit', 'button', 'reset', 'image'];
 
 export interface VariantFacts {
   tag: string;
+  /** An `<input>`'s type attribute (null when absent or not an input). */
+  inputType: string | null;
   role: string | null;
   ariaPressed: boolean;
   ariaChecked: boolean;
-  /** Inside a fieldset, `[role=radiogroup]` or `[role=listbox]`. */
+  /**
+   * Inside a fieldset, `[role=radiogroup]` or `[role=listbox]`, or within three ancestors of an
+   * element whose class contains "swatch".
+   */
   inChoiceGroup: boolean;
   /** Wraps a radio/checkbox input, or is a `<label>` for one. */
   choiceInput: boolean;
@@ -76,7 +92,7 @@ export function isVariantControlFacts(f: VariantFacts): boolean {
   if (f.ariaPressed || f.ariaChecked) return true;
   const role = normName(f.role);
   if (role === 'radio' || role === 'option' || role === 'tab') return true;
-  if (f.tag.toLowerCase() === 'input') return true;
+  if (f.tag.toLowerCase() === 'input' && !BUTTON_INPUT_TYPES.includes(normName(f.inputType))) return true;
   if (f.inChoiceGroup || f.choiceInput) return true;
   return hasVariantClassWord(f.className);
 }
@@ -133,7 +149,10 @@ export interface OverlayFacts {
   rect: Box;
   vw: number;
   vh: number;
-  /** Contains the page's `main` or its first `h1`: the element IS the page (plan departure 1). */
+  /**
+   * Contains the page's `main` or its `h1` — the first one outside every dialog-like element:
+   * the element IS the page (plan departure 1). A dialog never holds the page by that rule.
+   */
   holdsPage: boolean;
 }
 
@@ -141,12 +160,16 @@ export interface OverlayFacts {
  * Is a VISIBLE element an overlay (§3.1)? Visibility is the caller's check (isShown in the page).
  * One definition, used by the expand pass's skips and undo, by dismissal's topmost layer and
  * removal pass, and by the final warning.
+ *
+ * A dialog (role, aria-modal, open `<dialog>`) counts at any size, but only while some of it is on
+ * the window: a closed drawer slid off-screen by a transform is still `role=dialog aria-modal`.
  */
 export function overlayByFacts(f: OverlayFacts): boolean {
-  if (f.holdsPage) return false;
   const role = normName(f.role);
-  if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.openDialog) return true;
-  const quarter = coverage(f.rect, f.vw, f.vh) >= 0.25;
+  const cover = coverage(f.rect, f.vw, f.vh);
+  if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.openDialog) return cover > 0;
+  if (f.holdsPage) return false;
+  const quarter = cover >= 0.25;
   if (!quarter) return false;
   const named = /modal|drawer|lightbox|popup|dialog/i.test(`${f.tag} ${f.id} ${f.className}`);
   if (named && (f.position === 'fixed' || f.position === 'absolute')) return true;
@@ -224,18 +247,39 @@ function queryDeep(roots: Array<Document | ShadowRoot>, selector: string): Eleme
   return out;
 }
 
-/** Has a box, not display:none, not visibility:hidden, opacity above 0 (§3.1). */
+/**
+ * Has a box, not display:none, not visibility:hidden, opacity above 0 (§3.1). Opacity does not
+ * inherit, so a dialog-like element also checks its ancestors (only those: it is the case that
+ * matters — a dialog parked in a faded wrapper — and the walk is not free).
+ */
 function isShown(el: Element): boolean {
   const s = getComputedStyle(el);
   if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) <= 0) return false;
   const r = el.getBoundingClientRect();
-  return r.width > 0 && r.height > 0;
+  if (!(r.width > 0 && r.height > 0)) return false;
+  if (el.matches(DIALOG_LIKE)) {
+    for (let a = parentOf(el); a && a !== document.documentElement; a = parentOf(a)) {
+      if (parseFloat(getComputedStyle(a).opacity) <= 0) return false;
+    }
+  }
+  return true;
 }
 
-/** Does this element contain the page itself — its `main` or its first `h1`? */
+/** The first element matching the selector that is not inside a dialog-like element, or null. */
+function firstOutsideDialogs(selector: string): Element | null {
+  for (const el of Array.from(document.querySelectorAll(selector))) {
+    if (el.closest(DIALOG_LIKE) === null) return el;
+  }
+  return null;
+}
+
+/**
+ * Does this element contain the page itself — its `main` or its `h1`, the first of each outside
+ * every dialog? A promo dialog placed before the product holding `<h1>10% off</h1>` is not the page.
+ */
 function holdsPage(el: Element): boolean {
-  const main = document.querySelector('main');
-  const h1 = document.querySelector('h1');
+  const main = firstOutsideDialogs('main');
+  const h1 = firstOutsideDialogs('h1');
   return (main !== null && el.contains(main)) || (h1 !== null && el.contains(h1));
 }
 
@@ -270,17 +314,18 @@ function outermostOverlay(el: Element): Element | null {
 
 /**
  * Every overlay on the page, in document order, shadow roots included. Cheap first: an element
- * that is not dialog-like and covers less than a quarter of the window never gets a computed style.
+ * off the window, or not dialog-like and covering less than a quarter of it, never gets a
+ * computed style.
  */
 function listOverlayEls(): Element[] {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const out: Element[] = [];
   for (const el of queryDeep(searchRoots(), '*')) {
-    if (!el.matches('[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]')) {
-      const r = el.getBoundingClientRect();
-      if (coverage({ top: r.top, left: r.left, width: r.width, height: r.height }, vw, vh) < 0.25) continue;
-    }
+    const r = el.getBoundingClientRect();
+    const cover = coverage({ top: r.top, left: r.left, width: r.width, height: r.height }, vw, vh);
+    if (cover <= 0) continue;
+    if (cover < 0.25 && !el.matches(DIALOG_LIKE)) continue;
     if (isOverlay(el)) out.push(el);
   }
   return out;
@@ -336,12 +381,17 @@ function accessibleName(el: Element): string {
 /** §3.3.2's variant control, read off a live element. */
 function isVariantControl(el: Element): boolean {
   const control = el.tagName === 'LABEL' ? (el as HTMLLabelElement).control : null;
+  let inSwatch = false;
+  for (let a = parentOf(el), i = 0; a && i < 3; a = parentOf(a), i++) {
+    if (/swatch/i.test(classOf(a))) { inSwatch = true; break; }
+  }
   return isVariantControlFacts({
     tag: el.tagName,
+    inputType: el.tagName === 'INPUT' ? el.getAttribute('type') : null,
     role: el.getAttribute('role'),
     ariaPressed: el.hasAttribute('aria-pressed'),
     ariaChecked: el.hasAttribute('aria-checked'),
-    inChoiceGroup: el.closest('fieldset, [role="radiogroup"], [role="listbox"]') !== null,
+    inChoiceGroup: inSwatch || el.closest('fieldset, [role="radiogroup"], [role="listbox"]') !== null,
     choiceInput: el.querySelector('input[type="radio"], input[type="checkbox"]') !== null
       || (control instanceof HTMLInputElement && (control.type === 'radio' || control.type === 'checkbox')),
     className: classOf(el),
@@ -381,7 +431,7 @@ function entryCentreOverlay(): OverlayDescription | null {
 export const PAGE_PRELUDE = 'var __name = (fn) => fn;';
 
 /** Every constant page code reads, emitted as `const NAME = <json>;` under the same name. */
-const PAGE_CONSTANTS: Record<string, unknown> = { CLOSE_WORDS, ROBOT_STATE_KEY };
+const PAGE_CONSTANTS: Record<string, unknown> = { CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE };
 
 /** Every function page code calls, emitted from its own source. */
 const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
@@ -389,7 +439,7 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   normName, isDismissName, isCloseWord, isSettingsName, hasVariantClassWord, isVariantControlFacts,
   isFileLink, hrefNavigates, coverage, overlayByFacts,
   // DOM
-  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, holdsPage, isOverlay,
+  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, holdsPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, neverDismiss,
 ];
