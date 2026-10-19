@@ -8,7 +8,7 @@ import { gatherCandidates, isVolatilePath, markPaths, qualifiesForWeak, rankCert
 import type { Box } from './box-map.js';
 import type { DomHit, DomNeedle, XPathProbeResult } from './dom-scripts.js';
 import { isWeakField } from './field-fit.js';
-import { normalize, valuesEqual } from './normalize.js';
+import { afterLabel, labelled, normalize, valuesEqual } from './normalize.js';
 import { resolveStructured } from './search-structured.js';
 import { displayValue } from './structured-value.js';
 import { applyTransform } from './transforms.js';
@@ -66,9 +66,15 @@ export async function transferMarks(input: TransferInput, deps: TransferDeps): P
       // spec 2026-09-29 C4: a structured object is read (its url/contentUrl/@id), never
       // stringified into "[object Object]" — displayValue is the one place that does this.
       // A candidate whose object has none of those is not a fit reading; try the next one.
-      const value = displayValue(raw);
-      if (value === null) continue;
-      const boxes = target.boxes.map((b, i) => (valuesEqual(field.type, boxValue(b), value, ctx) ? i : -1)).filter((i) => i >= 0);
+      const shown = displayValue(raw);
+      if (shown === null) continue;
+      // A labelled concept carries the text after its label (spec 2026-10-17 §6): a sku read as
+      // "Style: 312123_16" carries "312123_16", and the box that shows "Style: 312123_16" is its box.
+      // Any other concept (a title with a colon) carries whole.
+      const lab = labelled(field.concept);
+      const value = lab ? afterLabel(shown) ?? shown : shown;
+      const boxText = (b: Box): string => { const t = boxValue(b); return lab ? afterLabel(t) ?? t : t; };
+      const boxes = target.boxes.map((b, i) => (valuesEqual(field.type, boxText(b), value, ctx) ? i : -1)).filter((i) => i >= 0);
       hit = { value, via: { source: c.source, path: c.path }, boxes };
       break;
     }
