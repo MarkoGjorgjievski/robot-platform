@@ -4,11 +4,20 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PlaywrightBrowser } from './playwright-browser.js';
 import type { ReadySnapshot } from './types.js';
-import { fixturePage, pageState, serveHtml, type HtmlSite, type PageState } from './__fixtures__/overlay-pages.js';
+import { TRACK_SCRIPT, fixturePage, pageState, serveHtml, type HtmlSite, type PageState } from './__fixtures__/overlay-pages.js';
 
 // The spec's fixture says "two seconds after load"; three keeps it clear of the first pass's
 // 1.5 s settle wait on a slow machine, so only the final pass can be the one that closes it.
 const LATE_MS = 3000;
+
+/** Final review M3: four small visible dialogs, none at the centre and none with a close button. */
+const DIALOGS = [['top:10px;left:10px'], ['top:10px;right:10px'], ['bottom:10px;left:10px'], ['bottom:10px;right:10px']]
+  .map(([at], i) => `<div id="dlg-${i}" role="dialog" style="position:fixed;${at};width:220px;height:90px;background:#fff;z-index:20">Offer ${i}</div>`).join('');
+/**
+ * As deep as this machine's Chromium renders: 200 nested divs crash its renderer on load, before any
+ * script of ours runs (checked with a bare setContent, 2026-10-19).
+ */
+const DEPTH = 150;
 
 const PAGES: Record<string, string> = {
   '/late-banner': fixturePage('', '',
@@ -51,6 +60,16 @@ const PAGES: Record<string, string> = {
      }, ${LATE_MS});`),
   // Review Focus 5: a heavy page with nothing over it.
   '/heavy': fixturePage(`<div id="heavy">${'<span>x </span>'.repeat(15_000)}</div>`),
+  '/clean': fixturePage(''),
+  // Final review M3: the expensive path. Every one of 150 nested full-width wrappers covers the
+  // window (a candidate for §3.1), the hit at the centre sits 300 deep, and four dialogs inside
+  // the innermost one make every ancestor walk the whole depth. Compared with the same dialogs
+  // on a flat page, so only the nesting is measured.
+  '/dialogs': fixturePage('', DIALOGS),
+  '/nested': `<!doctype html><html><head><meta charset="utf-8"><title>Widget</title></head>
+<body style="margin:0;font:16px sans-serif">${'<div class="wrap" style="width:100%">'.repeat(DEPTH)}
+<main id="product" style="min-height:2400px"><h1>Widget</h1><p id="price">$12.50</p></main>${DIALOGS}${'</div>'.repeat(DEPTH)}
+<script>${TRACK_SCRIPT}</script></body></html>`,
   // Final review I1: the expand pass opens a panel holding its own "Close" button. The final
   // pass's global `{ name: 'close' }` step must not click it shut again.
   '/close-in-panel': fixturePage(
@@ -167,16 +186,34 @@ describe('the final pass never closes what the expand pass opened (final review 
 });
 
 describe('a page with no overlay is captured as today (spec §5.5)', () => {
+  /** The faster of two captures, after navigation: what the passes cost, minus scheduling noise. */
+  const fastest = async (path: string): Promise<number> => {
+    const one = async () => {
+      const c = await browser.capture(`${site.baseUrl}${path}`, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1 });
+      return c.timings!.totalMs - c.timings!.navigateMs;
+    };
+    return Math.min(await one(), await one());
+  };
+  // A second settle wait (1.5 s) or a loop that does not stop on a clean page lands above this.
+  const SCAN_BUDGET_MS = 1_000;
+
   it('adds no wait: a heavy page with nothing over it, no warning (Review Focus 5)', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      const c = await browser.capture(`${site.baseUrl}/heavy`, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1 });
-      // Today's floor is the 1.5 s settle wait before the first pass plus one screenshot. A second
-      // settle wait, or a loop that does not stop on a clean page, lands well above this bound.
-      expect(c.timings!.totalMs - c.timings!.navigateMs).toBeLessThan(2_500);
+      const clean = await fastest('/clean');
+      const heavy = await fastest('/heavy');
+      console.log(`[timing] clean ${clean} ms, heavy ${heavy} ms`);
+      expect(heavy - clean).toBeLessThan(SCAN_BUDGET_MS);
       expect(warn.mock.calls.some((args) => String(args[0]).includes('overlay still covers'))).toBe(false);
     } finally {
       warn.mockRestore();
     }
-  }, 60_000);
+  }, 120_000);
+
+  it('150 nested full-width wrappers around the page and its dialogs cost scan time only (final review M3)', async () => {
+    const flat = await fastest('/dialogs');
+    const nested = await fastest('/nested');
+    console.log(`[timing] dialogs flat ${flat} ms, nested ${nested} ms`);
+    expect(nested - flat).toBeLessThan(SCAN_BUDGET_MS);
+  }, 120_000);
 });
