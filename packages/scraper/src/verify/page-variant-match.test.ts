@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { pageVariantFrom, wrongVariant, type PageVariant } from '@robot/browser';
-import { matchesPageVariant, pickPageEntry } from './page-variant-match.js';
+import { matchesPageVariant, pickPageEntry, readsFixedVariant } from './page-variant-match.js';
 import { getByDotPath } from '../domain-cache.js';
 import { resolveStructured } from './search-structured.js';
 
@@ -152,5 +152,15 @@ describe('resolveStructured with a page variant', () => {
     expect(resolveStructured(captureOf(fx), 'json-ld', 'hasVariant[page].offers.price', { pageVariant: pvOf(fx) })).toBe('1306.0');
     const camel = { ...fx, url: 'https://burrow.com/products/range-plus-4-piece?Fabric=Camel+-+Top+Grain+Leather&Leg+Finish=Black+-+Metal' };
     expect(resolveStructured(captureOf(camel), 'json-ld', 'hasVariant[page].offers.price', { pageVariant: pvOf(camel) })).toBe('2801.0');
+  });
+});
+
+describe('readsFixedVariant (spec 2026-10-17 §8)', () => {
+  it('a structured path with a numeric index on a variant list, never [page] or an xpath', () => {
+    expect(readsFixedVariant({ source: 'json-ld', path: 'offers[0].price' })).toBe(true);
+    expect(readsFixedVariant({ source: 'json-ld', path: 'hasVariant[1].offers.price' })).toBe(true);
+    expect(readsFixedVariant({ source: 'json-ld', path: 'hasVariant[page].offers.price' })).toBe(false);
+    expect(readsFixedVariant({ source: 'json-ld', path: 'image[0]' })).toBe(false);
+    expect(readsFixedVariant({ source: 'xpath', path: '(//span)[1]' })).toBe(false);
   });
 });

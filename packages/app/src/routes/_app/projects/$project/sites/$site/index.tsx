@@ -1082,6 +1082,23 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
     }
   }
 
+  // Spec 2026-10-17 §8: the address warning's own re-verify — this field alone, free (its old path is still a candidate, so no AI).
+  async function reverifyField(key: string) {
+    setError(null);
+    setNotice(null);
+    setVerifying(true);
+    try {
+      await saverRef.current?.flush();
+      await variantAnswers.flush();
+      await verifyMutation.mutateAsync({ sourceId, onlyKeys: [key] });
+      await invalidate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   // --- The table.
   function rejectSuggestion(key: string, url: string) {
     setSuggestions((s) => {
@@ -1318,6 +1335,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       hasDefault: defaultOf(board, f.key) !== undefined,
       defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
+      onReverifyField: () => void reverifyField(f.key),
       // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.
       jevNote: jevNote(f, board, live, jevByUrl, board.cards.some((c) => {
         const cell = results?.[f.key]?.cells[c.url];

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db, sources, sourceVerifications } from '@robot/db';
-import { VERIFY_STALL_MS, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { VERIFY_STALL_MS, estAiCostPerFieldUsd, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
 
@@ -254,7 +254,7 @@ describe('sources.verificationStatus', () => {
 });
 
 describe('sources.verifyEstimate', () => {
-  it('returns fields, perFieldUsd 0.05, and upperBoundUsd 0 when aiAvailable is false', async () => {
+  it('returns fields, perFieldUsd 0.18, and upperBoundUsd 0 when aiAvailable is false', async () => {
     const urls = urlsFor('estimate');
     const f = await createProjectWithSource(caller, {
       tag: 'verify-estimate',
@@ -281,7 +281,7 @@ describe('sources.verifyEstimate', () => {
       // server's own stall window to tell a live verification from a crash leftover.
       // No prior clean run at all, so both fields are un-certified and would
       // reach AI (aiFields === fields) — priced at 0 only because aiAvailable is false.
-      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.05, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS });
+      expect(est).toEqual({ fields: 2, aiFields: 2, perFieldUsd: 0.18, upperBoundUsd: 0, aiAvailable: false, capturesFresh: false, stallMs: VERIFY_STALL_MS });
     } finally {
       if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
       await f.cleanup();
@@ -463,5 +463,12 @@ describe('sources.verifyEstimate re-verify pricing', () => {
     } finally {
       await f.cleanup();
     }
+  });
+
+  it('the per-field figure is per checked proof page and covers the largest three-page call seen (spec 2026-10-17 §8)', () => {
+    expect(estAiCostPerFieldUsd(3)).toBe(0.18);
+    expect(estAiCostPerFieldUsd(4)).toBe(0.24);
+    expect(estAiCostPerFieldUsd(2)).toBe(0.18);
+    expect(estAiCostPerFieldUsd(3)).toBeGreaterThanOrEqual(0.1521); // skims, campaign 2: one AI call on three pages
   });
 });

@@ -7,6 +7,7 @@ import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
 import { buildSelectionScript } from './variant-dom.js';
+import { readsFixedVariant } from './page-variant-match.js';
 import type { CertifiedPath, ConfirmedPath, FieldVerification, Mark, SchemaDefinitionField, VerificationOutcome, VerificationSet } from './types.js';
 
 export type VerificationRequest = { fields: SchemaDefinitionField[]; verificationSet: VerificationSet };
@@ -177,7 +178,10 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       // The shortcut is for a certification worth keeping. One that rests on a
       // volatile XPath (only possible as certify's last resort) is searched
       // again, so the stable paths the generator now finds can replace it.
-      if (r.certified.length > 0 && !r.certified.some(isVolatilePath)) result = r;
+      // Spec 2026-10-17 §8: a fixed variant index on a proof page whose address names a variant reads
+      // the first variant whatever the address says; search again, so the [page] path can replace it.
+      const namedVariant = Object.values(caps).some((c) => c?.pageVariant?.named === true);
+      if (r.certified.length > 0 && !r.certified.some(isVolatilePath) && !(namedVariant && r.certified.some(readsFixedVariant))) result = r;
     }
     let candidates: CandidatePath[] = [];
     if (!result) {

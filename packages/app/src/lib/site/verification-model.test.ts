@@ -7,7 +7,7 @@ import {
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
-  typedAnswer, type Answer, notOnWebsiteWord,
+  typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -937,4 +937,9 @@ describe('a field not on this website after Verify (spec 2026-10-17 §2)', () =>
     expect(notOnWebsiteWord(results, 'rating', ['rating'])).toBe('not on this website · left empty on every product');
     expect(notOnWebsiteWord(results, 'rating', [])).toBeNull();
   });
+});
+
+it('the address warning button copy (spec 2026-10-17 §8)', () => {
+  expect(REVERIFY_FIELD).toBe('Re-verify this field');
+  expect(REVERIFY_FIELD_FREE).toBe('Re-verify this field · free');
 });

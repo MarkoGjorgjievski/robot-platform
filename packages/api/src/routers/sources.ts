@@ -3,7 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { eq, and, desc, sql, isNotNull, isNull, inArray } from 'drizzle-orm';
 import { sources, datasets, projects, inputSets, sourceVerifications, captures, jevReadings, type Database } from '@robot/db';
 import {
-  VERIFY_STALL_MS, EST_AI_COST_PER_FIELD_USD, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash, isNotOnWebsite,
+  VERIFY_STALL_MS, estAiCostPerFieldUsd, CAPTURE_REUSE_MAX_AGE_MS, VERIFY_URL_MAX, fieldHash, isNotOnWebsite,
   suggestMarks, transferMarks, buildDomSearchScript, buildXPathProbeScript, pageTextOf, visibleTextFromHtml,
   detectVariantLists, buildVariantLinksScript, buildVariantPickerScript,
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
@@ -1065,11 +1065,12 @@ export const sourcesRouter = router({
         return !!f && !!set && r!.fieldHash !== fieldHash(f, set);
       }).length;
 
+      const perFieldUsd = estAiCostPerFieldUsd(urls.length);
       return {
         fields,
         aiFields,
-        perFieldUsd: EST_AI_COST_PER_FIELD_USD,
-        upperBoundUsd: aiAvailable ? aiFields * EST_AI_COST_PER_FIELD_USD : 0,
+        perFieldUsd,
+        upperBoundUsd: aiAvailable ? Math.round(aiFields * perFieldUsd * 100) / 100 : 0,
         aiAvailable,
         capturesFresh,
         // The dashboard must not hardcode the stall window (C1): it decides

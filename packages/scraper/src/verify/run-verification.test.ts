@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PlaywrightBrowser, verdictSentence } from '@robot/browser';
+import { PlaywrightBrowser, verdictSentence, pageVariantFrom } from '@robot/browser';
 import type { IBrowser } from '@robot/browser';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
 import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
@@ -564,5 +565,21 @@ describe('runVerification — not on this website (spec 2026-10-17 §2)', () => 
     expect(run.outcome.fields.rating).toMatchObject({ notOnWebsite: true, certified: [], aiCalled: false });
     expect(run.outcome.aiCalls).toBe(0);
     expect(run.outcome.allPassed).toBe(true);
+  });
+});
+
+describe('runVerification — a cached fixed-variant path on a named-variant page (spec 2026-10-17 §8)', () => {
+  const rug = JSON.parse(readFileSync(new URL('./__fixtures__/page-variant/ruggable.json', import.meta.url), 'utf8'));
+  const price: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'price', concept: 'price' };
+  const capture = { ...emptyCapture(rug.url), url: rug.url, structuredData: { ldJson: rug.ldJson, nextData: null, initialState: null, meta: {} }, pageVariant: pageVariantFrom(rug.url, null, {}) } as unknown as import('@robot/browser').PageCapture;
+  const caps = Object.fromEntries(U.map((u) => [u, capture]));
+  const set: VerificationSet = { urls: U, expected: { price: Object.fromEntries(U.map((u) => [u, '569.00'])) } };
+  it('the cache shortcut is not kept; the search\'s [page] path certifies first', async () => {
+    const run = await runVerification({ fields: [price], verificationSet: set }, {
+      browser: { setContentEvaluate: async () => [] } as unknown as IBrowser, agent: null, captures: caps,
+      cachedPaths: async () => [{ source: 'json-ld', path: 'hasVariant[1].offers.price', transform: 'identity' }],
+    });
+    expect(run.outcome.fields.price!.certified[0]).toMatchObject({ path: 'hasVariant[page].offers.price' });
+    expect(run.outcome.aiCalls).toBe(0);
   });
 });

@@ -973,3 +973,14 @@ describe('certify — not on this website (spec 2026-10-17 §2)', () => {
     expect(isNotOnWebsite({ urls, expected: { rating: {} } }, 'rating')).toBe(false);
   });
 });
+
+it('a [page] twin of a confirmed path ranks first (spec 2026-10-17 §8)', async () => {
+  const price = { key: 'price', name: 'Price', type: 'money' as const, description: 'p', concept: 'price' };
+  const urls = ['https://v.example/1', 'https://v.example/2', 'https://v.example/3'];
+  const ld = { offers: [{ price: 10, url: '/p?variant=1' }] };
+  const caps = Object.fromEntries(urls.map((u) => [u, { url: u, html: '<html></html>', structuredData: { ldJson: [ld], nextData: null, initialState: null, meta: {} }, interceptedRequests: [], pageVariant: pageVariantFrom(u + '?variant=1', null, {}) } as CaptureLike]));
+  const fixed = { source: 'json-ld' as const, path: 'offers[0].price', transform: 'identity' as const };
+  const twin = { source: 'json-ld' as const, path: 'offers[page].price', transform: 'identity' as const };
+  const r = await certify({ field: price, expected: Object.fromEntries(urls.map((u) => [u, '10.00'])), captures: caps, candidates: [fixed, twin], confirmed: [{ source: 'json-ld', path: 'offers[0].price' }] }, { evalXPaths: async () => ({}) });
+  expect(r.certified[0]).toMatchObject({ path: 'offers[page].price' });
+});
