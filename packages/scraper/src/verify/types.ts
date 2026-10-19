@@ -71,6 +71,8 @@ export type FieldVerification = {
   thinEvidence?: boolean;
   /** Set (true) only when the field passed by default only (spec 2026-10-13 §4): every checked page is a default cell and no candidate certified, so `certified` is empty and every product gets the default. Absent otherwise. */
   defaultOnly?: true;
+  /** Set (true) only when every checked page is marked "not on this product" and there is no default (spec 2026-10-17 §2): no path, every product left empty. Absent otherwise. */
+  notOnWebsite?: true;
   aiCalled: boolean;
   incomplete: boolean;                 // true when any capture is null
   /** sha256 over this field's definition + the pages + its expected values; a result is current only while it matches (spec 4.4). Absent on rows written before phase 2. */

@@ -73,7 +73,9 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
       // products (spec 2026-10-10 §B1) — otherwise there is nothing to cross-validate against.
       const withValue = input.urls.filter((url) => (cells[url] ?? '').trim() !== '').length;
       const absentCount = input.urls.filter((url) => absent[url]).length;
-      if (absentCount > 0 && withValue < 2) problems.push(`${f.name}: needs a value on at least two products`);
+      // Spec 2026-10-17 §2: absent on products one to three with no value anywhere is "not on this website".
+      const notOnWebsite = withValue === 0 && input.urls.slice(0, VERIFY_URL_MIN).every((url) => absent[url]);
+      if (absentCount > 0 && withValue < 2 && !notOnWebsite) problems.push(`${f.name}: needs a value on at least two products, or "not on this product" on every one`);
     }
   }
   if (!draft) {

@@ -129,7 +129,7 @@ describe('absent — "not on this product" (spec 2026-10-10 §B1, D3)', () => {
   it('a field absent on one page with values on two others saves', () => expect(bindingProblems(base, contract)).toEqual([]));
   it('absent on all but one page is refused with the field\'s name', () => {
     const one = { ...base, absent: { price: { [U[1]!]: true as const, [U[2]!]: true as const } }, expected: { ...base.expected, price: { [U[0]!]: '1.00', [U[1]!]: '', [U[2]!]: '' } } };
-    expect(bindingProblems(one, contract)).toEqual(['Price: needs a value on at least two products']);
+    expect(bindingProblems(one, contract)).toEqual(['Price: needs a value on at least two products, or "not on this product" on every one']);
   });
   it('a cell cannot be both a value and absent', () => {
     const both = { ...base, expected: { ...base.expected, price: { ...base.expected.price, [U[2]!]: '3.00' } } };
@@ -165,5 +165,20 @@ describe('bindingProblems — a website\'s default (spec 2026-10-13 §3, propert
     expect(prepareBinding({ ...ok, defaults: { title: '  Widgetco ', price: '  ' } }, contract).verificationSet.defaults).toEqual({ title: 'Widgetco' });
     expect(prepareBinding(ok, contract).verificationSet).not.toHaveProperty('defaults');
     expect(bindingInput.safeParse({ ...ok, defaults: { title: 'Widgetco' } }).success).toBe(true);
+  });
+});
+
+describe('D3 and a field not on this website (spec 2026-10-17 §2)', () => {
+  const key = contract[0]!.key;
+  const name = contract[0]!.name;
+  const allAbsent = Object.fromEntries(ok.urls.slice(0, 3).map((u) => [u, true as const]));
+  it('absent on products 1–3 with no value is no problem', () => {
+    const input = { ...ok, expected: { ...ok.expected, [key]: {} }, absent: { [key]: allAbsent } };
+    expect(bindingProblems(input, contract).filter((p) => p.startsWith(name))).toEqual([]);
+  });
+  it('absent on two with a value on one is refused with the new words', () => {
+    const [a, b, c] = ok.urls;
+    const input = { ...ok, expected: { ...ok.expected, [key]: { [a!]: (ok.expected as Record<string, Record<string, string>>)[key]![a!]!, [b!]: '', [c!]: '' } }, absent: { [key]: { [b!]: true as const, [c!]: true as const } } };
+    expect(bindingProblems(input, contract)).toContain(`${name}: needs a value on at least two products, or "not on this product" on every one`);
   });
 });

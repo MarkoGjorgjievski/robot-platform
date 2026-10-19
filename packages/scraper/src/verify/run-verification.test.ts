@@ -554,3 +554,15 @@ describe('a website\'s default (spec 2026-10-13 §3/§4)', () => {
     expect(run.outcome.allPassed).toBe(false);
   }, 60_000);
 });
+
+describe('runVerification — not on this website (spec 2026-10-17 §2)', () => {
+  const rating: SchemaDefinitionField = { key: 'rating', name: 'Rating', type: 'number', description: 'stars', concept: 'rating' };
+  it('an all-absent field makes no AI call and counts as passed', async () => {
+    const set: VerificationSet = { urls: U, expected: { rating: {} }, absent: { rating: Object.fromEntries(U.map((u) => [u, true as const])) } };
+    const agent = { proposePaths: async () => { throw new Error('asked AI for a field that is not on this website'); } };
+    const run = await runVerification({ fields: [rating], verificationSet: set }, { ...fakeDeps(set), agent: agent as never });
+    expect(run.outcome.fields.rating).toMatchObject({ notOnWebsite: true, certified: [], aiCalled: false });
+    expect(run.outcome.aiCalls).toBe(0);
+    expect(run.outcome.allPassed).toBe(true);
+  });
+});

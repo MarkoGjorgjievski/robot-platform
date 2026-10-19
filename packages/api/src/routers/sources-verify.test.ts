@@ -334,6 +334,24 @@ describe('sources.verifyEstimate re-verify pricing', () => {
     }
   });
 
+  it('a field marked not on this product everywhere never reaches AI (spec 2026-10-17 §2)', async () => {
+    const tag = `est-absent-${Date.now()}`;
+    const urls = urlsFor(tag);
+    const f = await createProjectWithSource(caller, {
+      tag, urls,
+      fields: [{ name: 'Rating', type: 'number' }, { name: 'Title', type: 'text' }],
+      expected: { Rating: {}, Title: { [urls[0]!]: 'a', [urls[1]!]: 'b', [urls[2]!]: 'c' } },
+      absent: { Rating: Object.fromEntries(urls.map((u) => [u, true as const])) },
+    });
+    try {
+      const est = await caller.sources.verifyEstimate({ sourceId: f.sourceId });
+      expect(est.fields).toBe(2);
+      expect(est.aiFields).toBe(1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
   it('prices only the keys that would actually reach AI: a certified key replays for free', async () => {
     const tag = `est3-${Date.now()}`;
     const urls = urlsFor(tag);

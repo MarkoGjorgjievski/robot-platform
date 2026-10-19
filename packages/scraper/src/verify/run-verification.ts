@@ -185,7 +185,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       candidates = [...cached, ...gathered.candidates];
       result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
     }
-    if (result.certified.length === 0 && !result.defaultOnly && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
+    if (result.certified.length === 0 && !result.defaultOnly && !result.notOnWebsite && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
       deps.onProgress?.(`asking AI for ${field.key}`);
       const nearMisses = Object.fromEntries(Object.entries(result.cells).map(([u, c]) => [u, c.status === 'fail' ? c.nearMisses ?? [] : []]));
       // I1: only the pages this field is actually checked on go to the model
@@ -203,6 +203,6 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     fields[field.key] = { ...result, fieldHash: fh };
   }
 
-  const allPassed = req.fields.length > 0 && Object.values(fields).every((f) => (f.certified.length > 0 || f.defaultOnly === true) && Object.values(f.cells).every((c) => c.status === 'pass'));
+  const allPassed = req.fields.length > 0 && Object.values(fields).every((f) => (f.certified.length > 0 || f.defaultOnly === true || f.notOnWebsite === true) && Object.values(f.cells).every((c) => c.status === 'pass'));
   return { outcome: { fields, allPassed, aiCalls }, captures, captureErrors };
 }

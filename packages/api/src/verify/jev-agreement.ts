@@ -50,9 +50,9 @@ export function agreementOf(
   return out;
 }
 
-/** A field certified when it has certified paths (empty when it failed) or passed by default only. */
+/** A field certified when it has certified paths (empty when it failed) or passed by default only. A field not on this website (spec 2026-10-17 §2) is current with no path. */
 function certifiedOf(results: Record<string, FieldVerification>): Record<string, boolean> {
-  return Object.fromEntries(Object.entries(results).map(([key, r]) => [key, r.certified.length > 0 || r.defaultOnly === true]));
+  return Object.fromEntries(Object.entries(results).map(([key, r]) => [key, r.certified.length > 0 || r.defaultOnly === true || r.notOnWebsite === true]));
 }
 
 /**
