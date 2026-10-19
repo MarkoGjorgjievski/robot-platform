@@ -84,6 +84,38 @@ export const DISMISS_STEPS: readonly DismissStep[] = [
   { name: 'accept all' },
   { name: 'accept cookies' },
   { name: 'accept all cookies' },
+  // Common consent accept names (live check 2026-10-19: colourpop's bare "Accept", labelled
+  // "allow cookies"). Still whole names; never a settings or preferences name.
+  { name: 'accept' },
+  { name: 'accept and close' },
+  { name: 'accept & close' },
+  { name: 'allow all' },
+  { name: 'allow all cookies' },
+  { name: 'allow cookies' },
+  { name: 'allow' },
+  { name: 'agree' },
+  { name: 'agree and close' },
+  { name: 'agree and continue' },
+  { name: 'akzeptieren' },
+  { name: 'alle akzeptieren' },
+  { name: 'alle cookies akzeptieren' },
+  { name: 'alle zulassen' },
+  { name: 'zustimmen' },
+  { name: 'tout accepter' },
+  { name: 'accepter' },
+  { name: 'accepter et fermer' },
+  { name: 'aceptar' },
+  { name: 'aceptar todo' },
+  { name: 'aceptar todas' },
+  { name: 'accetta' },
+  { name: 'accetta tutto' },
+  { name: 'accetta tutti' },
+  { name: 'accepteren' },
+  { name: 'alles accepteren' },
+  { name: 'aceitar' },
+  { name: 'aceitar todos' },
+  { name: 'acceptera' },
+  { name: 'acceptera alla' },
   { name: 'i accept' },
   { name: 'i agree' },
   { name: 'got it' },
@@ -258,7 +290,18 @@ export interface OverlayFacts {
    * the unnamed fixed-box bullet: a buy box in a column the page reserves overlaps nothing.
    */
   overPage: boolean;
+  /** It holds a shown close control: a button or link named by a close word that leaves nothing (isCloseControl). */
+  hasClose: boolean;
+  /** It holds its own heading (h1–h6 or role=heading). */
+  hasHeading: boolean;
 }
+
+/**
+ * A positioned box smaller than a quarter of the window is still an overlay from this share up
+ * when it is a popup (overlayByFacts): puma DE's location popup is 384×374, 14 % of 1280×800.
+ * Chat bubbles and floating buttons stay well under it.
+ */
+export const SMALL_POPUP_MIN = 0.08;
 
 /**
  * Is a VISIBLE element an overlay (§3.1)? Visibility is the caller's check (isShown in the page).
@@ -272,17 +315,74 @@ export function overlayByFacts(f: OverlayFacts): boolean {
   const role = normName(f.role);
   const cover = coverage(f.rect, f.vw, f.vh);
   if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.openDialog) return cover > 0 && !f.holdsPage;
-  // The cheap checks first; holdsPage and overPage last (the page passes them as getters, and on a
-  // page of nested full-width wrappers every wrapper reaches this function — final review M3).
-  if (cover < 0.25) return false;
+  // The cheap checks first; holdsPage, overPage, hasClose and hasHeading last (the page passes them
+  // as getters, and on a page of nested full-width wrappers every wrapper reaches this function —
+  // final review M3).
   const named = /modal|drawer|lightbox|popup|dialog/i.test(`${f.tag} ${f.id} ${f.className}`);
-  if (named && (f.position === 'fixed' || f.position === 'absolute')) return !f.holdsPage;
-  if (f.position !== 'fixed') return false;
   const tag = f.tag.toLowerCase();
-  if (tag === 'header' || tag === 'footer' || tag === 'nav' || role === 'banner' || role === 'navigation') return false;
-  const atEdge = f.rect.top <= 0 || f.rect.top + f.rect.height >= f.vh;
-  if (f.rect.height < 200 && atEdge) return false;
+  const chrome = tag === 'header' || tag === 'footer' || tag === 'nav' || role === 'banner' || role === 'navigation'
+    || (f.rect.height < 200 && (f.rect.top <= 0 || f.rect.top + f.rect.height >= f.vh));
+  if (cover < 0.25) {
+    // A smaller popup (live check 2026-10-19, puma DE's location popup over the sizes): a fixed or
+    // absolute box over page content, not the page's header, footer or a bar along an edge, with
+    // its own heading or a layer's name, and a close control. All four, so a chat bubble (tiny), a
+    // sticky add-to-cart bar (in the flow, or at the edge), a promo bar (at the edge) and a buy box
+    // (no close) stay page.
+    if (cover < SMALL_POPUP_MIN || (f.position !== 'fixed' && f.position !== 'absolute') || chrome) return false;
+    return (named || f.hasHeading) && f.hasClose && !f.holdsPage && f.overPage;
+  }
+  if (named && (f.position === 'fixed' || f.position === 'absolute')) return !f.holdsPage;
+  if (f.position !== 'fixed' || chrome) return false;
   return !f.holdsPage && f.overPage;
+}
+
+// ---- Pure: a scrim drawn by html/body (live check 2026-10-19, kith) ---------------------------
+
+export interface ScrimFacts {
+  /** Computed `content` of the pseudo-element ('none' / 'normal' when there is none). */
+  content: string;
+  display: string;
+  visibility: string;
+  opacity: number;
+  position: string;
+  /** Its box from the computed top/left/width/height (a fixed pseudo-element's are the window's). */
+  rect: Box;
+  vw: number;
+  vh: number;
+  /** The background's alpha: the colour's, or 1 for a background image (a gradient). */
+  backgroundAlpha: number;
+  backdropFilter: string;
+  zIndex: string;
+}
+
+/**
+ * Is a `::before`/`::after` of `<html>` or `<body>` a scrim? A page that opens a modal often adds a
+ * class to body whose pseudo-element dims the whole window (kith: `body.modal-background::before`,
+ * fixed, inset 0, rgba(0,0,0,.6)). Hiding the modal leaves that class, and the scrim, behind. A
+ * scrim is drawn (content, shown, opacity above 0), fixed, over a quarter of the window, painted (a
+ * background or a backdrop filter), and not behind the page (a negative z-index is a decorative
+ * background).
+ */
+export function isScrimFacts(f: ScrimFacts): boolean {
+  if (f.content === 'none' || f.content === 'normal') return false;
+  if (f.display === 'none' || f.visibility === 'hidden' || !(f.opacity > 0)) return false;
+  if (f.position !== 'fixed') return false;
+  const z = parseInt(f.zIndex, 10);
+  if (!Number.isNaN(z) && z < 0) return false;
+  if (!(f.backgroundAlpha > 0) && (f.backdropFilter === 'none' || f.backdropFilter === '')) return false;
+  return coverage(f.rect, f.vw, f.vh) >= 0.25;
+}
+
+/** The alpha of a computed colour (`rgb(…)` 1, `rgba(…, a)` a, `transparent` 0). */
+export function colourAlpha(colour: string): number {
+  const c = colour.trim().toLowerCase();
+  if (c === '' || c === 'transparent') return 0;
+  const m = /^rgba?\(([^)]*)\)$/.exec(c);
+  if (!m) return 1;
+  const parts = m[1].split(/[,/ ]+/).filter((p) => p !== '');
+  if (parts.length < 4) return 1;
+  const a = parts[3].endsWith('%') ? parseFloat(parts[3]) / 100 : parseFloat(parts[3]);
+  return Number.isNaN(a) ? 1 : a;
 }
 
 // ---- Pure: what the expand pass must not click (§3.2) -------------------------------------------
@@ -487,10 +587,39 @@ function isOverlay(el: Element): boolean {
     vw: window.innerWidth,
     vh: window.innerHeight,
     // Getters: overlayByFacts reads them only once the cheap checks pass (final review M3), and
-    // only the unnamed fixed-box bullet reads overPage (a hit test is not free).
+    // only the unnamed fixed-box and smaller-popup bullets read overPage (a hit test is not free).
     get holdsPage() { return holdsPage(el); },
     get overPage() { return sitsOnPage(el); },
+    get hasClose() { return controlsIn(el).some((c) => isCloseControl(c) && isShown(c)); },
+    get hasHeading() { return queryIn(el, 'h1, h2, h3, h4, h5, h6, [role="heading"]').length > 0; },
   });
+}
+
+/** Elements under `el` matching the selector, its open shadow root included. */
+function queryIn(el: Element, selector: string): Element[] {
+  return [
+    ...Array.from(el.querySelectorAll(selector)),
+    ...(el.shadowRoot ? Array.from(el.shadowRoot.querySelectorAll(selector)) : []),
+  ];
+}
+
+/** The controls under `el` a close word can name. */
+function controlsIn(el: Element): Element[] {
+  return queryIn(el, 'button, a, [role="button"], [aria-label]');
+}
+
+/**
+ * A close control (§3.3.4): a button, link or labelled element whose name, aria-label, text or
+ * title is a close word, that is not a wrapper of a button (a wrapper reads its button's text: the
+ * button is the control) and not a link that leaves the page.
+ */
+function isCloseControl(el: Element): boolean {
+  const BUTTONS = 'button, a, [role="button"]';
+  if (!el.matches(BUTTONS) && el.querySelector(BUTTONS) !== null) return false;
+  const a = el.closest('a');
+  if (hrefNavigates(a ? { href: a.getAttribute('href'), target: a.getAttribute('target') } : null)) return false;
+  const names = [accessibleName(el), normName(el.getAttribute('aria-label')), normName((el as HTMLElement).innerText ?? el.textContent), normName(el.getAttribute('title'))];
+  return names.some((n) => isCloseWord(n));
 }
 
 /** The outermost overlay this element sits in (itself included), or null. */
@@ -504,7 +633,7 @@ function outermostOverlay(el: Element): Element | null {
 
 /**
  * Every overlay on the page, in document order, shadow roots included. Cheap first: an element
- * off the window, or not dialog-like and covering less than a quarter of it, never gets a
+ * off the window, or not dialog-like and covering less than SMALL_POPUP_MIN of it, never gets a
  * computed style.
  */
 function listOverlayEls(): Element[] {
@@ -515,7 +644,7 @@ function listOverlayEls(): Element[] {
     const r = el.getBoundingClientRect();
     const cover = coverage({ top: r.top, left: r.left, width: r.width, height: r.height }, vw, vh);
     if (cover <= 0) continue;
-    if (cover < 0.25 && !el.matches(DIALOG_LIKE)) continue;
+    if (cover < SMALL_POPUP_MIN && !el.matches(DIALOG_LIKE)) continue;
     if (isOverlay(el)) out.push(el);
   }
   return out;
@@ -644,7 +773,7 @@ function openedByExpand(el: Element): boolean {
  * settings, or a link that leaves the page.
  */
 function neverDismiss(el: Element): boolean {
-  if (isSettingsName(accessibleName(el))) return true;
+  if (isSettingsName(accessibleName(el)) || isSettingsName((el as HTMLElement).innerText ?? el.textContent)) return true;
   const a = el.closest('a');
   if (hrefNavigates(a ? { href: a.getAttribute('href'), target: a.getAttribute('target') } : null)) return true;
   if (!isVariantControl(el) && !openedByExpand(el)) return false;
@@ -696,6 +825,44 @@ function liftScrollLock(): void {
   }
 }
 
+/**
+ * Stop painting a scrim html or body draws with ::before/::after (isScrimFacts) → how many. The page
+ * normally takes it away when its modal closes; this is the net for when the modal was hidden
+ * instead (no close control, Escape ignored). An adopted stylesheet, so the captured HTML is the
+ * page's own; a `<style>` element where adopted sheets are not supported.
+ */
+function hideScrims(): number {
+  const rules: string[] = [];
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    for (const p of ['::before', '::after']) {
+      const s = getComputedStyle(el, p);
+      const px = (v: string): number => { const x = parseFloat(v); return Number.isNaN(x) ? 0 : x; };
+      const facts: ScrimFacts = {
+        content: s.content, display: s.display, visibility: s.visibility, opacity: parseFloat(s.opacity), position: s.position,
+        rect: { top: px(s.top), left: px(s.left), width: px(s.width), height: px(s.height) },
+        vw: window.innerWidth, vh: window.innerHeight,
+        backgroundAlpha: s.backgroundImage && s.backgroundImage !== 'none' ? 1 : colourAlpha(s.backgroundColor),
+        backdropFilter: s.backdropFilter ?? 'none',
+        zIndex: s.zIndex,
+      };
+      if (isScrimFacts(facts)) rules.push(`${el === document.body ? 'body' : 'html'}${p}{display:none !important}`);
+    }
+  }
+  if (rules.length === 0) return 0;
+  const css = rules.join('\n');
+  try {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(css);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  } catch {
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head?.appendChild(style);
+  }
+  return rules.length;
+}
+
 /** Take an overlay off the screenshot but keep its text in the HTML (§3.3.5, plan departure 4). */
 function hideOverlay(el: Element): void {
   (el as HTMLElement).style?.setProperty('display', 'none', 'important');
@@ -710,6 +877,18 @@ function entryListOverlays(): OverlayDescription[] {
 function entryTopmostOverlay(): OverlayDescription | null {
   const el = topmostOverlayEl();
   return el ? describeEl(el) : null;
+}
+
+/**
+ * Is there a topmost overlay that offers no close control not yet tried? Then a click elsewhere
+ * would land on its backdrop or scrim (a page-wide "OK" under kith-like `body::before`), so
+ * dismissal presses Escape first.
+ */
+function entryTopmostWithoutClose(): boolean {
+  const top = topmostOverlayEl();
+  if (!top) return false;
+  const tried = robotState().tried;
+  return !controlsIn(top).some((c) => !tried.has(c) && isCloseControl(c) && isShown(c));
 }
 
 function entryCentreOverlay(): OverlayDescription | null {
@@ -878,30 +1057,22 @@ function entryNextDismissCandidate(opts?: { final?: boolean }): Element | null {
     st.lastHost = outermostOverlay(el) ?? el.closest(DISMISS_HOST_SELECTOR);
     return el;
   };
-  const CONTROLS = 'button, a, [role="button"], [aria-label]';
-  const BUTTONS = 'button, a, [role="button"]';
   const top = topmostOverlayEl();
   if (top) {
-    const inside = [
-      ...Array.from(top.querySelectorAll(CONTROLS)),
-      ...(top.shadowRoot ? Array.from(top.shadowRoot.querySelectorAll(CONTROLS)) : []),
-    ];
-    for (const el of inside) {
-      // A wrapper holding a button reads that button's text: the button is the control, not it.
-      if (!usable(el) || (!el.matches(BUTTONS) && el.querySelector(BUTTONS) !== null)) continue;
-      const names = [accessibleName(el), normName(el.getAttribute('aria-label')), normName((el as HTMLElement).innerText ?? el.textContent), normName(el.getAttribute('title'))];
-      if (names.some((n) => isCloseWord(n))) return take(el);
+    for (const el of controlsIn(top)) {
+      if (usable(el) && isCloseControl(el)) return take(el);
     }
   }
   const roots = searchRoots();
-  let named: Array<[Element, string]> | null = null;
+  // A button's accessible name and its visible text: colourpop's "Accept" is labelled "allow cookies".
+  let named: Array<[Element, string[]]> | null = null;
   for (const step of DISMISS_STEPS) {
     let els: Element[];
     if ('css' in step) {
       els = queryDeep(roots, step.css);
     } else {
-      named ??= queryDeep(roots, 'button, [role="button"]').map((el): [Element, string] => [el, accessibleName(el)]);
-      els = named.filter(([, name]) => isDismissName(name, step.name)).map(([el]) => el);
+      named ??= queryDeep(roots, 'button, [role="button"]').map((el): [Element, string[]] => [el, [accessibleName(el), normName((el as HTMLElement).innerText ?? el.textContent)]]);
+      els = named.filter(([, names]) => names.some((n) => isDismissName(n, step.name))).map(([el]) => el);
     }
     for (const el of els) {
       if (!usable(el)) continue;
@@ -940,6 +1111,7 @@ function entryRemovalPass(): number {
     const s = getComputedStyle(el);
     if ((s.position === 'fixed' || s.position === 'absolute') && parseFloat(s.zIndex) > 1000 && el.querySelector('button')) remove(el);
   });
+  n += hideScrims();
   // Today's unconditional reset; the fuller lift only when something was taken away.
   if (document.body) document.body.style.overflow = '';
   if (document.documentElement) document.documentElement.style.overflow = '';
@@ -955,19 +1127,19 @@ export const PAGE_PRELUDE = 'var __name = (fn) => fn;';
 /** Every constant page code reads, emitted as `const NAME = <json>;` under the same name. */
 const PAGE_CONSTANTS: Record<string, unknown> = {
   CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE, HASPOPUP_SKIP, EXPAND_SELECTORS, EXPAND_TEXT_PATTERN,
-  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS, DISMISS_STEPS, REMOVAL_SELECTORS, DISMISS_HOST_SELECTOR,
+  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS, DISMISS_STEPS, REMOVAL_SELECTORS, DISMISS_HOST_SELECTOR, SMALL_POPUP_MIN,
 };
 
 /** Every function page code calls, emitted from its own source. */
 const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   // pure
   normName, isDismissName, isCloseWord, isSettingsName, hasVariantClassWord, isVariantControlFacts,
-  isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts, opensLayer, isDialogLikeFacts,
+  isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts, isScrimFacts, colourAlpha, opensLayer, isDialogLikeFacts,
   // DOM
   robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, wrapsPage, within, sitsOnPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, isVariantChoice, variantFactsOf, markExpanded, openedByExpand, neverDismiss, dismissHostOf, isDialogLike, expandSkip, liftScrollLock,
-  takeOverlayBaseline, hideOverlay,
+  takeOverlayBaseline, hideOverlay, queryIn, controlsIn, isCloseControl, hideScrims,
 ];
 
 /**
@@ -988,6 +1160,8 @@ export function pageScript(entry: ((...args: never[]) => unknown) | string, arg?
 export const LIST_OVERLAYS_SCRIPT = pageScript(entryListOverlays);
 /** §3.1's topmost overlay → `OverlayDescription | null`. */
 export const TOPMOST_OVERLAY_SCRIPT = pageScript(entryTopmostOverlay);
+/** A topmost overlay with no close control left to try → boolean (dismissal presses Escape first). */
+export const TOPMOST_WITHOUT_CLOSE_SCRIPT = pageScript(entryTopmostWithoutClose);
 /** The overlay at the window's centre, if any → `OverlayDescription | null` (§3.4's warning). */
 export const CENTRE_OVERLAY_SCRIPT = pageScript(entryCentreOverlay);
 /** Start of the expand pass → number of controls already expanded. */

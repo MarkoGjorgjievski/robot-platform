@@ -12,6 +12,9 @@ const SWATCH_SCRIPT = `document.querySelectorAll('.swatch').forEach((b) => b.add
   b.setAttribute('aria-pressed', 'true');
 }));`;
 
+/** A product page has text; a dialog holding most of a page's text is the page, not an overlay. */
+const PRODUCT_COPY = '<p>A brass table lamp with a linen shade, 45 cm tall, E27 bulb, dimmable, two-year warranty, free returns within 30 days.</p>';
+
 const PAGES: Record<string, string> = {
   // ikea: "Cookie settings" sits first in the banner; only "OK" closes it.
   '/cookie-settings': fixturePage(SWATCHES,
@@ -80,6 +83,63 @@ const PAGES: Record<string, string> = {
       <div role="radiogroup" aria-label="Colour"><span id="bb-swatch" role="radio" aria-checked="true" style="display:inline-block;width:30px;height:30px;background:#c33">Red</span></div>
     </aside>
     <script>${TRACK_SCRIPT}</script></body></html>`,
+  // Live check 2026-10-19, puma DE: the location popup is a fixed <section> of 384×374 at the
+  // bottom right (14 % of the window, under §3.1's quarter), over the sizes. No role; an h1, a ×
+  // button whose label "Schließen" is a span, a link-wrapped "switch shop" and two more buttons.
+  '/small-geo': fixturePage(
+    `<div style="display:flex"><div style="flex:1;height:1200px;background:#eee">Gallery</div>
+       <div id="sizes" style="width:420px;height:1200px"><button id="size-42">42</button><button id="size-43">43</button></div></div>`,
+    `<section id="small-geo" style="position:fixed;right:20px;bottom:20px;width:384px;height:374px;z-index:60;background:#fff;border:1px solid #ccc">
+       <div><h1>Standort wählen</h1><button id="small-geo-close" type="button"><svg width="16" height="16" aria-hidden="true"><path d="M0 0L16 16"/></svg><span>Schließen</span></button></div>
+       <p>Du befindest dich scheinbar in Malaysia.</p>
+       <a href="/other-shop"><button id="small-geo-switch" type="button">Wechseln zu Malaysia</button></a>
+       <button id="small-geo-stay" type="button">Bleiben Germany</button>
+       <button id="small-geo-choose" type="button">Standort wählen</button></section>`,
+    `document.getElementById('small-geo-close').addEventListener('click', () => document.getElementById('small-geo').remove());`),
+  // Live check 2026-10-19, colourpop: a floating cookie banner of 384×144 (5 % of the window) in a
+  // zero-height role=dialog wrapper; "Preferences" opens the preference centre, "Accept" (its
+  // aria-label "allow cookies") closes it. Neither name was on the whole-name list.
+  '/cookie-accept': fixturePage(SWATCHES,
+    `<div id="cc-wrap" role="dialog" aria-label="cookieconsent" style="height:0">
+       <div id="cc-window" class="cc-window cc-floating" style="position:fixed;left:441px;top:640px;width:384px;height:144px;z-index:2147483647;background:#fff">
+         <span>This website uses cookies to ensure you get the best experience.</span>
+         <button id="cc-prefs" aria-label="settings cookies">Preferences</button> <button id="cc-accept" aria-label="allow cookies">Accept</button></div></div>
+     <div id="prefs" role="dialog" style="display:none;position:fixed;inset:10%;background:#fff;z-index:20">Preference centre</div>`,
+    `${SWATCH_SCRIPT}
+     document.getElementById('cc-prefs').addEventListener('click', () => openLayer('prefs'));
+     document.getElementById('cc-accept').addEventListener('click', () => document.getElementById('cc-wrap').remove());`),
+  // The same banner with no aria-label: the bare visible name "Accept".
+  '/cookie-accept-bare': fixturePage('',
+    `<div id="cc-window" class="cc-window" style="position:fixed;left:441px;top:640px;width:384px;height:144px;z-index:99;background:#fff">
+       <span>We use cookies.</span> <button id="cc-prefs">Preferences</button> <button id="cc-accept">Accept</button></div>
+     <div id="prefs" role="dialog" style="display:none;position:fixed;inset:10%;background:#fff;z-index:20">Preference centre</div>`,
+    `document.getElementById('cc-prefs').addEventListener('click', () => openLayer('prefs'));
+     document.getElementById('cc-accept').addEventListener('click', () => document.getElementById('cc-window').remove());`),
+  // Live check 2026-10-19, kith: a welcome modal open on load (role=dialog, no close word, one
+  // "Shop now" button) whose page adds body.modal-open, and the scrim is body::before. Hiding the
+  // modal left the scrim over the whole first window; Escape closes it the page's own way.
+  '/scrim-escape': fixturePage(PRODUCT_COPY,
+    `<style>body.modal-open::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3}</style>
+     <div id="mat" role="dialog" style="position:fixed;top:250px;left:350px;width:580px;height:300px;z-index:10;background:#fff">Welcome. We ship to you. <button id="mat-shop" type="button" aria-expanded="true" aria-controls="mat">Shop now</button></div>`,
+    `document.body.classList.add('modal-open');
+     document.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; window.__flags.escaped = true; const m = document.getElementById('mat'); if (m) m.remove(); document.body.classList.remove('modal-open'); });`),
+  // The same with no Escape handler: hiding the modal leaves the scrim, which is then not painted.
+  '/scrim-stuck': fixturePage(PRODUCT_COPY,
+    `<style>body.modal-open::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3}</style>
+     <div id="mat" role="dialog" style="position:fixed;top:250px;left:350px;width:580px;height:300px;z-index:10;background:#fff">Welcome. We ship to you. <button id="mat-shop" type="button">Shop now</button></div>`,
+    `document.body.classList.add('modal-open');`),
+  // The welcome modal and its scrim over a cookie bar: the bar's OK sits under the scrim, so a click
+  // on it lands on body until Escape has closed the modal (found by the live check's self-test).
+  '/scrim-over-banner': fixturePage(PRODUCT_COPY,
+    `<style>body.modal-open::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3}</style>
+     <div id="notice" style="position:fixed;left:0;right:0;bottom:0;height:100px;background:#fff">We use cookies. <button id="notice-ok">OK</button></div>
+     <div id="mat" role="dialog" style="position:fixed;top:250px;left:350px;width:580px;height:300px;z-index:10;background:#fff">Welcome. We ship to you. <button id="mat-shop" type="button">Shop now</button></div>`,
+    `document.body.classList.add('modal-open');
+     document.getElementById('notice-ok').addEventListener('click', () => document.getElementById('notice').remove());
+     document.addEventListener('keydown', (e) => { if (e.key !== 'Escape') return; window.__flags.escaped = true; const m = document.getElementById('mat'); if (m) m.remove(); document.body.classList.remove('modal-open'); });`),
+  // A page-wide decorative background drawn by body::before, behind the page: not a scrim.
+  '/body-backdrop': fixturePage('',
+    `<style>body::before{content:'';position:fixed;inset:0;background:rgba(240,230,220,.8);z-index:-1}</style>`),
   // Review Focus 3: a consent banner inside an open shadow root.
   '/shadow-consent': fixturePage('', `<div id="cmp-host"></div>`,
     `const root = document.getElementById('cmp-host').attachShadow({ mode: 'open' });
@@ -87,7 +147,8 @@ const PAGES: Record<string, string> = {
      root.getElementById('accept').addEventListener('click', () => { window.__flags.accepted = true; document.getElementById('cmp-host').remove(); });`),
 };
 
-const IDS = ['cookie-banner', 'prefs', 'notice', 'promo', 'consent', 'consent-backdrop', 'geo', 'shell', 'buybox', 'cmp-host', 'sk-modal', 'wrap-modal', 'bb', 'bb-swatch'];
+const IDS = ['cookie-banner', 'prefs', 'notice', 'promo', 'consent', 'consent-backdrop', 'geo', 'shell', 'buybox', 'cmp-host', 'sk-modal', 'wrap-modal', 'bb', 'bb-swatch',
+  'small-geo', 'cc-window', 'mat'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -183,6 +244,57 @@ describe('dismissal closes overlays without touching the page (spec 2026-10-19 �
     const { s } = await capture('/buybox-logo-h1');
     expect(s.shown.bb).toBe(true);
     expect(s.shown['bb-swatch']).toBe(true); // the box map and the variant read still see it
+    expect(s.clicks).toEqual([]);
+  }, 60_000);
+
+  it('a location popup smaller than a quarter of the window is closed by its own × — nothing else in it is clicked (puma DE, live check)', async () => {
+    const { s } = await capture('/small-geo');
+    expect(s.clicks).toEqual(['small-geo-close']);
+    expect(s.exists['small-geo']).toBe(false);
+    expect(site.requested).not.toContain('/other-shop');
+  }, 60_000);
+
+  it('a floating cookie banner\'s "Accept" is clicked, its "Preferences" never (colourpop, live check)', async () => {
+    const { s } = await capture('/cookie-accept');
+    expect(s.clicks).toEqual(['cc-accept']);
+    expect(s.opened).toEqual({});
+    expect(s.exists['cc-window']).toBe(false);
+    expect(s.pressed).toEqual({ 'swatch-black': 'true', 'swatch-rosy': 'false' });
+  }, 60_000);
+
+  it('a bare visible "Accept" is a whole accept name too', async () => {
+    const { s } = await capture('/cookie-accept-bare');
+    expect(s.clicks).toEqual(['cc-accept']);
+    expect(s.opened).toEqual({});
+    expect(s.exists['cc-window']).toBe(false);
+  }, 60_000);
+
+  it('a modal with no close word is closed with Escape, so the page takes its scrim away too (kith, live check)', async () => {
+    const { s } = await capture('/scrim-escape');
+    expect(s.flags.escaped).toBe(true);
+    expect(s.exists.mat).toBe(false);
+    expect(s.pseudoPainted).toBe(false);
+    expect(s.centre).toBe('product');
+  }, 60_000);
+
+  it('when Escape does not close it, the modal is hidden and the scrim its page drew on body is not painted', async () => {
+    const { s } = await capture('/scrim-stuck');
+    expect(s.shown.mat).toBe(false);
+    expect(s.pseudoPainted).toBe(false);
+    expect(s.centre).toBe('product');
+  }, 60_000);
+
+  it('Escape comes before a page-wide click when the topmost overlay has no close: the banner under its scrim is then accepted', async () => {
+    const { s } = await capture('/scrim-over-banner');
+    expect(s.flags.escaped).toBe(true);
+    expect(s.clicks).toEqual(['notice-ok']);
+    expect(s.exists.notice).toBe(false);
+    expect(s.pseudoPainted).toBe(false);
+  }, 60_000);
+
+  it('a decorative body::before behind the page is left alone', async () => {
+    const { s } = await capture('/body-backdrop');
+    expect(s.pseudoPainted).toBe(true);
     expect(s.clicks).toEqual([]);
   }, 60_000);
 

@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CLOSE_WORDS, DISMISS_STEPS, PAGE_PRELUDE, coverage, hasVariantClassWord, isCloseWord, isDismissName, isFileLink,
   isSettingsName, isVariantControlFacts, mostOfText, normName, overlayByFacts, pageScript,
-  isDialogLikeFacts, opensLayer, overlayWarning, type ControlledFacts, type OverlayFacts, type VariantFacts,
+  colourAlpha, isDialogLikeFacts, isScrimFacts, opensLayer, overlayWarning, type ControlledFacts, type OverlayFacts, type ScrimFacts, type VariantFacts,
 } from './overlays.js';
 
 describe('normName', () => {
@@ -129,6 +129,7 @@ describe('overlayByFacts — the one definition (§3.1)', () => {
   const base: OverlayFacts = {
     tag: 'div', id: '', className: '', role: null, ariaModal: null, openDialog: false, position: 'static',
     rect: { top: 0, left: 0, width: 1280, height: 800 }, vw: 1280, vh: 800, holdsPage: false, overPage: true,
+    hasClose: false, hasHeading: false,
   };
   const small = { top: 600, left: 20, width: 300, height: 120 };
   it('a dialog by role, aria-modal or an open <dialog> is an overlay at any size', () => {
@@ -189,11 +190,88 @@ describe('overlayByFacts — the one definition (§3.1)', () => {
     expect(overlayByFacts({ ...base, ariaModal: 'true', holdsPage: true })).toBe(false);
     expect(overlayByFacts({ ...base, role: 'dialog', holdsPage: false })).toBe(true);
   });
+  it('a smaller popup counts when it holds a close control and a heading or a layer name — the puma location popup (live check 2026-10-19)', () => {
+    // "Standort wählen": a fixed <section> of 384×374 over the sizes, an h1 and a "Schließen" button.
+    const geo = { top: 406, left: 876, width: 384, height: 374 };
+    const popup: OverlayFacts = { ...base, tag: 'section', position: 'fixed', rect: geo, hasClose: true, hasHeading: true };
+    expect(overlayByFacts(popup)).toBe(true);
+    expect(overlayByFacts({ ...popup, position: 'absolute' })).toBe(true);
+    expect(overlayByFacts({ ...popup, hasHeading: false, className: 'geo-popup' })).toBe(true);
+    // Without a close control, a heading or a layer name, or over nothing: the page's own box.
+    expect(overlayByFacts({ ...popup, hasClose: false })).toBe(false);
+    expect(overlayByFacts({ ...popup, hasHeading: false })).toBe(false);
+    expect(overlayByFacts({ ...popup, overPage: false })).toBe(false);
+    // In the flow, or the page itself.
+    expect(overlayByFacts({ ...popup, position: 'sticky' })).toBe(false);
+    expect(overlayByFacts({ ...popup, position: 'static' })).toBe(false);
+    expect(overlayByFacts({ ...popup, holdsPage: true })).toBe(false);
+  });
+  it('but not a chat bubble, a promo or add-to-cart bar at the edge, or the header', () => {
+    const closeable = { ...base, position: 'fixed', hasClose: true, hasHeading: true };
+    // A chat bubble: well under 8 % of the window.
+    expect(overlayByFacts({ ...closeable, rect: { top: 700, left: 1180, width: 80, height: 80 } })).toBe(false);
+    expect(overlayByFacts({ ...closeable, rect: { top: 560, left: 1000, width: 260, height: 220 } })).toBe(false); // 5.6 %
+    // A bar along the bottom or top edge (lacoste's promo bar has a close that never closes it).
+    expect(overlayByFacts({ ...closeable, rect: { top: 680, left: 0, width: 1280, height: 120 } })).toBe(false);
+    expect(overlayByFacts({ ...closeable, rect: { top: 0, left: 0, width: 1280, height: 120 } })).toBe(false);
+    expect(overlayByFacts({ ...closeable, tag: 'header', rect: { top: 100, left: 0, width: 1280, height: 120 } })).toBe(false);
+    expect(overlayByFacts({ ...closeable, role: 'navigation', rect: { top: 100, left: 0, width: 400, height: 300 } })).toBe(false);
+  });
   it('mostOfText is 60 % or more of a non-empty page', () => {
     expect(mostOfText(60, 100)).toBe(true);
     expect(mostOfText(100, 100)).toBe(true);
     expect(mostOfText(59, 100)).toBe(false);
     expect(mostOfText(0, 0)).toBe(false);
+  });
+});
+
+describe('isScrimFacts — a page-wide backdrop drawn by html/body ::before/::after (kith, live check 2026-10-19)', () => {
+  // kith: body.modal-background::before, fixed, inset 0, rgba(0,0,0,.6), z-index 3.
+  const scrim: ScrimFacts = {
+    content: '""', display: 'block', visibility: 'visible', opacity: 1, position: 'fixed',
+    rect: { top: 0, left: 0, width: 1280, height: 800 }, vw: 1280, vh: 800,
+    backgroundAlpha: 0.6, backdropFilter: 'none', zIndex: '3',
+  };
+  it('a fixed, painted pseudo-element over a quarter of the window is a scrim', () => {
+    expect(isScrimFacts(scrim)).toBe(true);
+    expect(isScrimFacts({ ...scrim, zIndex: 'auto' })).toBe(true);
+    expect(isScrimFacts({ ...scrim, backgroundAlpha: 0, backdropFilter: 'blur(4px)' })).toBe(true);
+    expect(isScrimFacts({ ...scrim, rect: { top: 0, left: 0, width: 640, height: 400 } })).toBe(true);
+  });
+  it('not one that is closed, transparent, small, behind the page or in the flow', () => {
+    expect(isScrimFacts({ ...scrim, content: 'none' })).toBe(false);
+    expect(isScrimFacts({ ...scrim, content: 'normal' })).toBe(false);
+    expect(isScrimFacts({ ...scrim, display: 'none' })).toBe(false);
+    expect(isScrimFacts({ ...scrim, visibility: 'hidden' })).toBe(false);
+    expect(isScrimFacts({ ...scrim, opacity: 0 })).toBe(false); // kith once the modal is closed
+    expect(isScrimFacts({ ...scrim, backgroundAlpha: 0 })).toBe(false);
+    expect(isScrimFacts({ ...scrim, rect: { top: 0, left: 0, width: 1280, height: 60 } })).toBe(false);
+    expect(isScrimFacts({ ...scrim, zIndex: '-1' })).toBe(false); // a decorative page background
+    expect(isScrimFacts({ ...scrim, position: 'static' })).toBe(false);
+    expect(isScrimFacts({ ...scrim, position: 'absolute' })).toBe(false);
+  });
+});
+
+describe('colourAlpha', () => {
+  it('reads the alpha of a computed colour', () => {
+    expect(colourAlpha('rgba(0, 0, 0, 0.6)')).toBe(0.6);
+    expect(colourAlpha('rgb(0 0 0 / 40%)')).toBe(0.4);
+    expect(colourAlpha('rgb(255, 255, 255)')).toBe(1);
+    expect(colourAlpha('rgba(0, 0, 0, 0)')).toBe(0);
+    expect(colourAlpha('transparent')).toBe(0);
+  });
+});
+
+describe('consent accept names (live check 2026-10-19: colourpop\'s bare "Accept")', () => {
+  const names = DISMISS_STEPS.flatMap((s) => ('name' in s ? [s.name] : []));
+  it('include the common whole accept names, in several languages', () => {
+    for (const n of ['accept', 'allow all', 'allow cookies', 'agree', 'i agree', 'accept and close', 'akzeptieren', 'alle akzeptieren', 'tout accepter', 'aceptar', 'accetta', 'accepteren']) {
+      expect(names).toContain(n);
+    }
+  });
+  it('none is a settings name, and none matches "Preferences" or "Cookie settings"', () => {
+    expect(names.filter((n) => isSettingsName(n))).toEqual([]);
+    expect(names.some((n) => isDismissName('Preferences', n) || isDismissName('Cookie settings', n))).toBe(false);
   });
 });
 

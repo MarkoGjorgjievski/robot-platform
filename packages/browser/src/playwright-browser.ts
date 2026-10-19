@@ -12,7 +12,7 @@ import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pag
 import {
   hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
   REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, NEXT_DISMISS_CANDIDATE_FINAL_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
-  REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, overlayWarning, type OverlayDescription,
+  REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, TOPMOST_OVERLAY_SCRIPT, TOPMOST_WITHOUT_CLOSE_SCRIPT, overlayWarning, type OverlayDescription,
 } from './overlays.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
@@ -105,6 +105,8 @@ const DISMISS_MAX_ROUNDS = 4;
 const DISMISS_MAX_CLICKS = 6;
 /** How long a click gets to take effect before it is judged. */
 const DISMISS_CLICK_SETTLE_MS = 800;
+/** How long an Escape gets to close the topmost overlay (and its page to take the scrim away). */
+const DISMISS_ESCAPE_SETTLE_MS = 500;
 
 export class PlaywrightBrowser implements IBrowser {
   private browser: Browser | null = null;
@@ -548,6 +550,17 @@ export class PlaywrightBrowser implements IBrowser {
     let clicksLeft = DISMISS_MAX_CLICKS;
     for (let round = 0; round < DISMISS_MAX_ROUNDS; round++) {
       let closedByClick = false;
+      const escape = async (): Promise<void> => {
+        await page.keyboard.press('Escape').catch((err) => { if (isCrash(err)) throw err; });
+        await page.waitForTimeout(DISMISS_ESCAPE_SETTLE_MS);
+      };
+      // An overlay that offers no close control: Escape before any click, so the page closes it its
+      // own way and takes away what it put with it — a "modal open" class on body whose ::before is
+      // the scrim (kith's welcome mat, live check 2026-10-19) — and so a click on a banner beneath
+      // does not land on that scrim instead. Only when an overlay is there: a clean page gets no
+      // key press and no wait.
+      let escaped = await page.evaluate(TOPMOST_WITHOUT_CLOSE_SCRIPT).then(Boolean).catch((err) => { if (isCrash(err)) throw err; return false; });
+      if (escaped) await escape();
       while (!closedByClick && clicksLeft > 0) {
         // A string script's handle is typed JSHandle<unknown>; asElement() needs to know it may be a Node.
         const handle = await page.evaluateHandle(candidateScript)
@@ -563,6 +576,13 @@ export class PlaywrightBrowser implements IBrowser {
         await page.waitForTimeout(DISMISS_CLICK_SETTLE_MS);
         closedByClick = await page.evaluate(LAST_DISMISS_WORKED_SCRIPT).then(Boolean).catch((err) => { if (isCrash(err)) throw err; return false; });
         await handle.dispose().catch(() => {});
+      }
+
+      // An overlay its close controls did not close: Escape, once a round, before the removal pass
+      // hides what is left (hiding leaves the page's scrim behind).
+      if (!closedByClick && !escaped) {
+        const top = await page.evaluate(TOPMOST_OVERLAY_SCRIPT).catch((err) => { if (isCrash(err)) throw err; return null; });
+        if (top) { escaped = true; await escape(); }
       }
 
       const removed = Number(await page.evaluate(REMOVAL_PASS_SCRIPT).catch((err) => { if (isCrash(err)) throw err; return 0; }));
