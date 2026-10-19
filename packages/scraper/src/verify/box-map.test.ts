@@ -26,15 +26,15 @@ async function boxMap(html: string): Promise<Box[]> {
 }
 
 describe('buildBoxMapScript', () => {
-  it('records every visible element with its own text, plus images and links', async () => {
+  it('records every visible element with text of its own (its whole text), plus images and links', async () => {
     const boxes = await boxMap(HTML);
     const byText = Object.fromEntries(boxes.map((b) => [b.text, b]));
     expect(byText['Widget A']).toMatchObject({ tag: 'h1', kind: 'text' });
     expect(byText['Widget A']!.xpaths[0]).toBe('//*[@id="main"]/h1[@class="title"]');            // nearest anchor first
     expect(byText['Widget A']!.xpaths.at(-1)).toMatch(/^\/\/body\//);                             // body-rooted last
     expect(byText['$129.99']!.xpaths[0]).toBe('//*[@id="main"]/div[@class="price-box"]/span[@class="now"]');
-    // Own text only: the <p> holds "In", the <b> holds "stock".
-    expect(byText['In']).toMatchObject({ tag: 'p' });
+    // Whole text: the <p> holds "In stock", the <b> holds "stock".
+    expect(byText['In stock']).toMatchObject({ tag: 'p' });
     expect(byText['stock']).toMatchObject({ tag: 'b' });
     expect(boxes.find((b) => b.kind === 'image')).toMatchObject({ tag: 'img', src: expect.stringMatching(/\/img\/a\.jpg$/) });
     expect(boxes.find((b) => b.kind === 'link')).toMatchObject({ tag: 'a', text: 'Buy', href: expect.stringMatching(/\/checkout\?p=1$/) });
@@ -80,5 +80,16 @@ describe('suggestMarks over a real box map', () => {
     expect(r.price!.boxes.map((i) => boxes[i]!.text)).toEqual(['$129.99']);
     expect(r.title!.boxes.map((i) => boxes[i]!.text)).toEqual(['Widget A']);
     expect(boxes[r.price!.boxes[0]!]!.xpaths[0]).toBe('//*[@id="main"]/div[@class="price-box"]/span[@class="now"]');
+  });
+});
+
+describe('box map text and images (spec 2026-10-17 §6)', () => {
+  it('a paragraph with a link keeps the link\'s words; an image with a srcset reports its src', async () => {
+    const boxes = await boxMap(`<html><body>
+      <p class="d">Soft cotton, <a href="/care">machine washable</a>, made to last.</p>
+      <img class="h" src="https://shop.example/img/a.jpg" srcset="https://shop.example/img/a-916.jpg?w=916 916w" sizes="916px" width="200" height="200">
+    </body></html>`);
+    expect(boxes.find((b) => b.tag === 'p')!.text).toBe('Soft cotton, machine washable, made to last.');
+    expect(boxes.find((b) => b.kind === 'image')!.src).toMatch(/\/img\/a\.jpg$/);
   });
 });

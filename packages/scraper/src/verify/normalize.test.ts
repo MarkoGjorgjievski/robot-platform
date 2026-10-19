@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalize, valuesEqual, validateExpected, renderValue } from './normalize.js';
+import { normalize, valuesEqual, validateExpected, renderValue, afterLabel, labelled } from './normalize.js';
 
 describe('normalize', () => {
   it('text: trims, collapses whitespace, NFKC; keeps case (comparison folds it)', () => {
@@ -124,5 +124,25 @@ describe('valuesEqual — rounded numbers (spec 2026-10-17 §7)', () => {
   it('the same precision compares exactly, as today; trailing zeros are the same number', () => {
     expect(valuesEqual('number', '4.7', '4.8')).toBe(false);
     expect(valuesEqual('number', '4.80', 4.8)).toBe(true);
+  });
+});
+
+describe('afterLabel (spec 2026-10-17 §6)', () => {
+  it('takes the text after a short digit-free label', () => {
+    expect(afterLabel('Style: 398846_01')).toBe('398846_01');
+    expect(afterLabel('Art.-Nr.: 12345')).toBe('12345');
+    expect(afterLabel('  SKU:ABC-1 ')).toBe('ABC-1');
+  });
+  it('none when the label has digits, is too long, or there is no colon', () => {
+    expect(afterLabel('Top 5: great')).toBeNull();
+    expect(afterLabel('A label that is far too long to be one: x')).toBeNull();
+    expect(afterLabel('398846_01')).toBeNull();
+    expect(afterLabel('Style:')).toBeNull();
+  });
+  it('afterLabel leaves a product name with a colon whole: product_name is not labelled', () => {
+    expect(labelled('product_name')).toBe(false);
+    expect(labelled('description')).toBe(false);
+    expect(labelled(undefined)).toBe(false);
+    for (const c of ['sku', 'brand', 'availability', 'rating', 'review_count', 'currency']) expect(labelled(c)).toBe(true);
   });
 });

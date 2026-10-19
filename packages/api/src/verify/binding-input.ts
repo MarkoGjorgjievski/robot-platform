@@ -3,7 +3,7 @@
 // type are never accepted here; they come from the contract.
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { VERIFY_URL_MIN, VERIFY_URL_MAX, normalize, validateExpected, valuesEqual, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
+import { VERIFY_URL_MIN, VERIFY_URL_MAX, afterLabel, labelled, normalize, validateExpected, valuesEqual, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { httpUrl } from './http-url.js';
 import { bindingFor, type ContractField } from '../contract.js';
 
@@ -100,7 +100,10 @@ export function prepareBinding(input: Omit<BindingInput, 'sourceId'> & { sourceI
       const mark = input.marks?.[f.key]?.[u];
       if (!mark) return false;
       if (input.absent?.[f.key]?.[u]) return false; // "not on this product" drops the mark (spec 2026-10-10 §B1), even an image/link mark with no text to compare
-      return mark.text.trim() === '' || valuesEqual(f.type, mark.text, expected[f.key]![u] ?? '', { pageUrl: u });
+      const value = expected[f.key]![u] ?? '';
+      // A labelled concept's mark may read "Style: 398846_01" for the value 398846_01 (spec 2026-10-17 §6); a title never.
+      const after = labelled(f.concept) ? afterLabel(mark.text) : null;
+      return mark.text.trim() === '' || valuesEqual(f.type, mark.text, value, { pageUrl: u }) || (after !== null && valuesEqual(f.type, after, value, { pageUrl: u }));
     };
     const perUrl = Object.fromEntries(input.urls.filter(current).map((u) => [u, input.marks![f.key]![u]!]));
     if (Object.keys(perUrl).length) marks[f.key] = perUrl;

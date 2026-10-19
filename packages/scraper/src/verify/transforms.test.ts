@@ -18,3 +18,14 @@ describe('inferTransform', () => {
   });
   it('returns null when nothing matches', () => expect(inferTransform('number', '5', '6')).toBeNull());
 });
+
+describe('after_label (spec 2026-10-17 §6)', () => {
+  it('after_label strips a leading label and leaves anything else (spec 2026-10-17 §6)', () => {
+    expect(applyTransform('Style: 398846_01', 'after_label')).toBe('398846_01');
+    expect(applyTransform('398846_01', 'after_label')).toBe('398846_01');
+    expect(applyTransform(null, 'after_label')).toBeNull();
+  });
+  it('after_label is never inferred', () => {
+    expect(inferTransform('text', 'Style: 398846_01', '398846_01')).toBeNull();
+  });
+});

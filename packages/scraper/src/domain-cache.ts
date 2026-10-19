@@ -24,7 +24,7 @@ export type FieldPath = {
   /** URL of the page this path last resolved on; conflict detection compares only same-page observations. */
   lastUrl?: string;
   /** How the raw captured value is converted before it is served. `'identity'` when absent. */
-  transform?: 'identity' | 'cents_to_units' | 'first_of_list';
+  transform?: 'identity' | 'cents_to_units' | 'first_of_list' | 'after_label';
   /** For `source === 'verified'` only: the structured source the customer-schema
    *  verification pass certified this path against, so `lookupVerifiedPaths` can
    *  rebuild a `CertifiedPath` from the stored `FieldPath`. */
@@ -1119,7 +1119,7 @@ export async function saveDomainCache(outcome: ExtractionOutcome): Promise<void>
 /** Structurally identical to `@robot/scraper`'s `verify/types.js` `CertifiedPath` —
  *  kept as a local alias rather than a runtime import so this module carries no
  *  dependency on `./verify/`. */
-type VerifiedPathLite = { source: 'api' | 'json-ld' | 'meta' | 'xpath'; path: string; transform: 'identity' | 'cents_to_units' | 'first_of_list' };
+type VerifiedPathLite = { source: 'api' | 'json-ld' | 'meta' | 'xpath'; path: string; transform: 'identity' | 'cents_to_units' | 'first_of_list' | 'after_label' };
 
 function sameVerified(p: FieldPath, c: VerifiedPathLite): boolean {
   return p.source === 'verified' && p.origin === c.source && p.path === c.path && (p.transform ?? 'identity') === c.transform;

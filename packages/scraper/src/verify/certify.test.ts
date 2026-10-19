@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { pageVariantFrom } from '@robot/browser';
-import { certify, checkedPages, expectedWithDefault, gatherCandidates, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, markPaths, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
 import type { DomHit } from './dom-scripts.js';
 import type { Mark, SchemaDefinitionField } from './types.js';
@@ -878,5 +878,54 @@ describe('certify — found here, the problem elsewhere (spec 2026-10-17 §5)', 
     for (const cell of Object.values(r.cells)) {
       if (cell.status === 'fail') expect(cell.nearMisses ?? []).not.toContain('Skullcandy');
     }
+  });
+});
+
+describe('marks read what the element shows (spec 2026-10-17 §6)', () => {
+  const sku = { key: 'sku', name: 'SKU', type: 'text' as const, description: 'code', concept: 'sku' };
+  const image = { key: 'image', name: 'Main image', type: 'image' as const, description: 'hero', concept: 'image_url' };
+  const P = ['https://p.example/1', 'https://p.example/2', 'https://p.example/3'];
+  const html = (code: string) => `<html><body><div id="d"><span class="style">Style: ${code}</span><img class="hero" src="/i/${code}.jpg"></div></body></html>`;
+  const codes = ['398846_01', '312123_16', '109135_03'];
+  const caps = Object.fromEntries(P.map((u, i) => [u, { url: u, html: html(codes[i]!), structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [] } as CaptureLike]));
+  const mark = (xp: string, text: string) => ({ xpaths: [xp], text, rect: { x: 1, y: 1, w: 10, h: 10 } });
+  // A stand-in for the browser probe: reads the span's text or the img's src attribute off the fixture HTML.
+  const evalXPaths = async (h: string, xps: string[]) => Object.fromEntries(xps.map((xp) => {
+    if (xp.endsWith('/@src')) return [xp, /src="([^"]+)"/.exec(h)?.[1] ?? null];
+    if (xp.includes('span')) return [xp, /<span class="style">([^<]+)</.exec(h)?.[1] ?? null];
+    return [xp, null];
+  }));
+
+  it('markPaths gives an image mark /@src, a link mark /@href, and leaves a suffixed or text mark alone', () => {
+    expect(markPaths({ type: 'image' }, { xpaths: ['//*[@id="d"]/img'] })).toEqual(['//*[@id="d"]/img/@src']);
+    expect(markPaths({ type: 'url' }, { xpaths: ['//a'] })).toEqual(['//a/@href']);
+    expect(markPaths({ type: 'image' }, { xpaths: ['//img/@src'] })).toEqual(['//img/@src']);
+    expect(markPaths({ type: 'text' }, { xpaths: ['//span'] })).toEqual(['//span']);
+  });
+
+  it('a sku mark yields an after_label candidate beside the identity one', async () => {
+    const marks = { [P[0]!]: mark('//*[@id="d"]/span', 'Style: 398846_01') };
+    const { candidates } = await gatherCandidates(sku, { [P[0]!]: '398846_01' }, { [P[0]!]: caps[P[0]!]! }, { runDomSearch: async () => [], marks });
+    expect(candidates).toEqual(expect.arrayContaining([
+      { source: 'xpath', path: '//*[@id="d"]/span', transform: 'identity' },
+      { source: 'xpath', path: '//*[@id="d"]/span', transform: 'after_label' },
+    ]));
+  });
+
+  it('three marked "Style: …" lines with clean typed codes certify through after_label', async () => {
+    const marks = Object.fromEntries(P.map((u, i) => [u, mark('//*[@id="d"]/span', `Style: ${codes[i]}`)]));
+    const expected = Object.fromEntries(P.map((u, i) => [u, codes[i]!]));
+    const { candidates } = await gatherCandidates(sku, expected, caps, { runDomSearch: async () => [], marks });
+    const r = await certify({ field: sku, expected, captures: caps, candidates, markXPaths: ['//*[@id="d"]/span'] }, { evalXPaths });
+    expect(r.certified[0]).toEqual({ source: 'xpath', path: '//*[@id="d"]/span', transform: 'after_label' });
+    expect(r.cells[P[0]!]).toMatchObject({ status: 'pass', found: '398846_01' });
+  });
+
+  it('a marked image, stored without /@src, certifies through its src attribute', async () => {
+    const marks = Object.fromEntries(P.map((u) => [u, mark('//*[@id="d"]/img', '')]));
+    const expected = Object.fromEntries(P.map((u, i) => [u, `${u.replace(/\/\d$/, '')}/i/${codes[i]}.jpg`]));
+    const { candidates } = await gatherCandidates(image, expected, caps, { runDomSearch: async () => [], marks });
+    const r = await certify({ field: image, expected, captures: caps, candidates }, { evalXPaths });
+    expect(r.certified[0]).toMatchObject({ source: 'xpath', path: '//*[@id="d"]/img/@src' });
   });
 });
