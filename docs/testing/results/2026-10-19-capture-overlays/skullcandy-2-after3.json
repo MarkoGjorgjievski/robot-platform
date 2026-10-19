@@ -1,0 +1,57 @@
+{
+ "url": "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids",
+ "finalUrl": "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 5,
+   "details": 4,
+   "tabs": []
+  },
+  "title": {
+   "text": "Grom® Wireless",
+   "hidden": true
+  },
+  "layers": [],
+  "scrims": []
+ },
+ "price": "36.99",
+ "boxCount": 338,
+ "row": {
+  "page": "skullcandy-2",
+  "url": "https://www.skullcandy.com/products/grom-wireless-headphones-for-kids",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "5 / 4 / –",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 3,
+  "priceBoxes": 3,
+  "titleHidden": true,
+  "problem": null,
+  "layers": [],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}
