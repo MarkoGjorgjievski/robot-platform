@@ -1,0 +1,123 @@
+{
+ "url": "https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette",
+ "finalUrl": "https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette?",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette?",
+  "scrollY": 0,
+  "width": 1265,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 1,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "Mega Palette",
+   "hidden": false
+  },
+  "layers": [
+   "div fixed 20% «20% off Halloween. Applied in cart. 👻 s»"
+  ],
+  "scrims": []
+ },
+ "price": "35.00",
+ "boxCount": 182,
+ "row": {
+  "page": "colourpop-2",
+  "url": "https://colourpop.com/products/fade-to-hue-pressed-powder-makeup-palette",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "1 / 0 / –",
+  "variant": {
+   "before": {
+    "pairs": [
+     {
+      "name": "select a shade",
+      "value": "Fade Into Hue"
+     },
+     {
+      "name": "sort",
+      "value": "Most Recent"
+     }
+    ],
+    "labels": [
+     "Fade Into Hue",
+     "Most Recent"
+    ],
+    "alternates": [
+     {
+      "name": "select a shade",
+      "value": "33109930246226"
+     },
+     {
+      "name": "sort",
+      "value": "date desc"
+     }
+    ]
+   },
+   "after": {
+    "pairs": [
+     {
+      "name": "select a shade",
+      "value": "Fade Into Hue"
+     },
+     {
+      "name": "sort",
+      "value": "Most Recent"
+     }
+    ],
+    "labels": [
+     "Fade Into Hue",
+     "Most Recent"
+    ],
+    "alternates": [
+     {
+      "name": "select a shade",
+      "value": "33109930246226"
+     },
+     {
+      "name": "sort",
+      "value": "date desc"
+     }
+    ]
+   },
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "select a shade",
+      "value": "Fade Into Hue"
+     },
+     {
+      "name": "sort",
+      "value": "Most Recent"
+     }
+    ],
+    "labels": [
+     "Fade Into Hue",
+     "Most Recent"
+    ],
+    "named": false,
+    "selected": true
+   }
+  },
+  "titleBoxes": 1,
+  "priceBoxes": 3,
+  "titleHidden": false,
+  "problem": null,
+  "layers": [
+   "div fixed 20% «20% off Halloween. Applied in cart. 👻 s»"
+  ],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}

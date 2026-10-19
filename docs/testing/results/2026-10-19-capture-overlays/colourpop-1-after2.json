@@ -1,0 +1,123 @@
+{
+ "url": "https://colourpop.com/products/aurora-stuck-shadow-palette",
+ "finalUrl": "https://colourpop.com/products/aurora-stuck-shadow-palette?",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://colourpop.com/products/aurora-stuck-shadow-palette?",
+  "scrollY": 0,
+  "width": 1265,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 1,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "Mega Palette",
+   "hidden": false
+  },
+  "layers": [
+   "div fixed 20% «20% off Halloween. Applied in cart. 👻 s»"
+  ],
+  "scrims": []
+ },
+ "price": "35.00",
+ "boxCount": 173,
+ "row": {
+  "page": "colourpop-1",
+  "url": "https://colourpop.com/products/aurora-stuck-shadow-palette",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "1 / 0 / –",
+  "variant": {
+   "before": {
+    "pairs": [
+     {
+      "name": "select a shade",
+      "value": "Aurora Struck"
+     },
+     {
+      "name": "sort",
+      "value": "Most Recent"
+     }
+    ],
+    "labels": [
+     "Aurora Struck",
+     "Most Recent"
+    ],
+    "alternates": [
+     {
+      "name": "select a shade",
+      "value": "40231741063250"
+     },
+     {
+      "name": "sort",
+      "value": "date desc"
+     }
+    ]
+   },
+   "after": {
+    "pairs": [
+     {
+      "name": "select a shade",
+      "value": "Aurora Struck"
+     },
+     {
+      "name": "sort",
+      "value": "Most Recent"
+     }
+    ],
+    "labels": [
+     "Aurora Struck",
+     "Most Recent"
+    ],
+    "alternates": [
+     {
+      "name": "select a shade",
+      "value": "40231741063250"
+     },
+     {
+      "name": "sort",
+      "value": "date desc"
+     }
+    ]
+   },
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "select a shade",
+      "value": "Aurora Struck"
+     },
+     {
+      "name": "sort",
+      "value": "Most Recent"
+     }
+    ],
+    "labels": [
+     "Aurora Struck",
+     "Most Recent"
+    ],
+    "named": false,
+    "selected": true
+   }
+  },
+  "titleBoxes": 1,
+  "priceBoxes": 3,
+  "titleHidden": false,
+  "problem": null,
+  "layers": [
+   "div fixed 20% «20% off Halloween. Applied in cart. 👻 s»"
+  ],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}

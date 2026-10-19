@@ -1,0 +1,63 @@
+{
+ "url": "https://www.thomann.de/de/taylor_314ce_n.htm?type=category",
+ "finalUrl": "https://www.thomann.de/de/taylor_314ce_n.htm",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://www.thomann.de/de/taylor_314ce_n.htm",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 0,
+   "details": 0,
+   "tabs": [
+    "Alle"
+   ]
+  },
+  "title": {
+   "text": "Taylor 314ce-N",
+   "hidden": false
+  },
+  "layers": [
+   "div absolute 36% «»"
+  ],
+  "scrims": []
+ },
+ "price": null,
+ "boxCount": 659,
+ "row": {
+  "page": "thomann-3",
+  "url": "https://www.thomann.de/de/taylor_314ce_n.htm?type=category",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "0 / 0 / Alle",
+  "variant": {
+   "before": null,
+   "after": null,
+   "same": true,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [],
+    "labels": [],
+    "named": false,
+    "selected": false
+   }
+  },
+  "titleBoxes": 3,
+  "priceBoxes": null,
+  "titleHidden": false,
+  "problem": null,
+  "layers": [
+   "div absolute 36% «»"
+  ],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}

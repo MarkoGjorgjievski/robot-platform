@@ -1,0 +1,79 @@
+{
+ "url": "https://eu.puma.com/de/de/pd/suede-classic-sneakers-unisex/399781?swatch=07",
+ "finalUrl": "https://eu.puma.com/de/de/pd/suede-classic-sneakers-unisex/399781?swatch=07",
+ "verdict": {
+  "kind": "ok",
+  "status": 200
+ },
+ "probe": {
+  "url": "https://eu.puma.com/de/de/pd/suede-classic-sneakers-unisex/399781?swatch=07",
+  "scrollY": 0,
+  "width": 1280,
+  "centre": null,
+  "dialogs": [],
+  "expanded": {
+   "aria": 3,
+   "details": 0,
+   "tabs": []
+  },
+  "title": {
+   "text": "Suede Classic Sneakers Unisex",
+   "hidden": false
+  },
+  "layers": [],
+  "scrims": []
+ },
+ "price": "89.95",
+ "boxCount": 297,
+ "row": {
+  "page": "pumade-1",
+  "url": "https://eu.puma.com/de/de/pd/suede-classic-sneakers-unisex/399781?swatch=07",
+  "verdict": "ok",
+  "centre": "none",
+  "dialogs": 0,
+  "scrollY": 0,
+  "expanded": "3 / 0 / –",
+  "variant": {
+   "before": null,
+   "after": {
+    "pairs": [
+     {
+      "name": "styles",
+      "value": "PUMA Black-PUMA Black"
+     }
+    ],
+    "labels": [
+     "PUMA Black-PUMA Black"
+    ]
+   },
+   "same": false,
+   "pageVariant": {
+    "ids": [],
+    "pairs": [
+     {
+      "name": "swatch",
+      "value": "07"
+     },
+     {
+      "name": "styles",
+      "value": "PUMA Black-PUMA Black"
+     }
+    ],
+    "labels": [
+     "07",
+     "PUMA Black-PUMA Black"
+    ],
+    "named": true,
+    "selected": true
+   }
+  },
+  "titleBoxes": 18,
+  "priceBoxes": 17,
+  "titleHidden": false,
+  "problem": null,
+  "layers": [],
+  "scrims": [],
+  "warnings": []
+ },
+ "warnings": []
+}
