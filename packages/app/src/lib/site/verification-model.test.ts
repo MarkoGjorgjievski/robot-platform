@@ -937,6 +937,11 @@ describe('a field not on this website after Verify (spec 2026-10-17 §2)', () =>
     expect(notOnWebsiteWord(results, 'rating', ['rating'])).toBe('not on this website · left empty on every product');
     expect(notOnWebsiteWord(results, 'rating', [])).toBeNull();
   });
+  it('a stored flag with a proof page not captured does not read verified, and has no row word', () => {
+    const partial = { rating: { certified: [], notOnWebsite: true as const, cells: { 'https://g.example/1': { status: 'pass' as const }, 'https://g.example/2': { status: 'not_captured' as const } } } };
+    expect(badge({ key: 'rating', results: partial, unchangedKeys: ['rating'], running: false, cards: [] })).not.toEqual({ kind: 'verified' });
+    expect(notOnWebsiteWord(partial, 'rating', ['rating'])).toBeNull();
+  });
 });
 
 it('the address warning button copy (spec 2026-10-17 §8)', () => {

@@ -985,6 +985,16 @@ describe('certify — not on this website (spec 2026-10-17 §2)', () => {
     expect(r.notOnWebsite).toBe(true);
   });
 
+  it('with a proof page not captured: no flag, the page reads not captured, incomplete, nothing certified', async () => {
+    const caps = { ...Object.fromEntries(K.map((u) => [u, page(u)])), [K[2]!]: null };
+    const r = await certify({ field: rating, expected: {}, absent: K, captures: caps, candidates: [cached] }, deps);
+    expect(r).toEqual({
+      key: 'rating',
+      cells: { [K[0]!]: { status: 'pass', found: '' }, [K[1]!]: { status: 'pass', found: '' }, [K[2]!]: { status: 'not_captured' } },
+      certified: [], weakEvidence: false, aiCalled: false, incomplete: true,
+    });
+  });
+
   it('absent on two and a value on one is today\'s result, with no notOnWebsite', async () => {
     const caps = { ...Object.fromEntries(K.map((u) => [u, page(u)])), [K[0]!]: page(K[0]!, { aggregateRating: { ratingValue: 4.5 } }) };
     const r = await certify({ field: rating, expected: { [K[0]!]: '4.5' }, absent: [K[1]!, K[2]!], captures: caps, candidates: [cached] }, deps);
