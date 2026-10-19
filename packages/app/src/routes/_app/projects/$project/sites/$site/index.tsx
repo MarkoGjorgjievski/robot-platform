@@ -31,6 +31,7 @@ import {
   cellText,
   defaultOf,
   defaultOnlyWord,
+  notOnWebsiteWord,
   displayValue,
   dropCard,
   fieldsFor,
@@ -1315,7 +1316,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         isDefault: isDefaultCell(board, f, live, c.url),
       })),
       hasDefault: defaultOf(board, f.key) !== undefined,
-      defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys),
+      defaultOnlyWord: defaultOnlyWord(results, f.key, unchangedKeys) ?? notOnWebsiteWord(results, f.key, unchangedKeys),
       addressWarning: addressWarning(f.key, results, board.cards, pageVariants),
       // Spec 2026-10-16 §6: a variant note only under a field whose certified or suggested path reads a variant list.
       jevNote: jevNote(f, board, live, jevByUrl, board.cards.some((c) => {

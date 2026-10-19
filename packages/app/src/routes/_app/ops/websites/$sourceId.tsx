@@ -12,6 +12,7 @@ import type { StaffEntryView } from '../../../../lib/staff-view';
 import { runDotState } from '../../../../lib/run-dot-view';
 import {
   DEFAULT_ONLY_PATHS,
+  NOT_ON_WEBSITE_PATHS,
   backupsSummary,
   defaultLine,
   jevAgreementLine,
@@ -431,7 +432,7 @@ function FieldRow({
           <span className="font-medium">{field.name}</span> <span className="text-sm text-muted-foreground">{typeLabel}</span>
         </span>
         <span className="hidden text-sm text-muted-foreground sm:inline">
-          {hasPaths ? backupsSummary(field.paths) : field.defaultOnly ? DEFAULT_ONLY_PATHS : field.state === 'none' ? '' : 'No working path'}
+          {hasPaths ? backupsSummary(field.paths) : field.defaultOnly ? DEFAULT_ONLY_PATHS : field.notOnWebsite ? NOT_ON_WEBSITE_PATHS : field.state === 'none' ? '' : 'No working path'}
         </span>
         <span className="text-sm whitespace-nowrap">
           {field.state === 'none' ? (
@@ -464,7 +465,7 @@ function FieldRow({
           </>
         ) : (
           <p className="py-2 text-sm text-muted-foreground">
-            {field.defaultOnly ? DEFAULT_ONLY_PATHS : field.state === 'none' ? 'Not verified yet.' : 'No path currently works.'}
+            {field.defaultOnly ? DEFAULT_ONLY_PATHS : field.notOnWebsite ? NOT_ON_WEBSITE_PATHS : field.state === 'none' ? 'Not verified yet.' : 'No path currently works.'}
           </p>
         )}
       </div>
