@@ -47,11 +47,27 @@ describe('the overlay definition in a real page (§3.1)', () => {
   it('a fixed column whose space the page reserves is not an overlay; the same box over the page is (final review I2)', async () => {
     const page = (reserve: string) => `<!doctype html><html><body style="margin:0">
       <header style="height:80px;${reserve}"><h1>ShopLogo</h1></header>
-      <main style="min-height:2400px;${reserve}"><p>Gallery</p></main>
+      <main style="min-height:2400px;${reserve}"><div style="height:2000px;background:#eee">Gallery</div></main>
       <aside id="bb" style="position:fixed;top:0;right:0;width:420px;height:100vh;background:#fff"><p>Price</p></aside>
       </body></html>`;
     expect(await browser.setContentEvaluate<OverlayDescription[]>(page('margin-right:420px'), LIST_OVERLAYS_SCRIPT)).toEqual([]);
     expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(page(''), LIST_OVERLAYS_SCRIPT))).toEqual(['bb']);
+  }, 30_000);
+
+  it('a buy box beside a full-width page wrapper is not an overlay — a sibling of #page, or #page reserving the column (round 2)', async () => {
+    const aside = '<aside id="bb" style="position:fixed;top:0;right:0;width:420px;height:100vh;background:#fff"><p>Price</p></aside>';
+    const sibling = `<!doctype html><html><body style="margin:0">
+      <div id="page"><header style="height:80px;margin-right:420px"><h1>ShopLogo</h1></header>
+      <main style="min-height:2400px;margin-right:420px"><p>Gallery</p></main></div>${aside}</body></html>`;
+    const padded = `<!doctype html><html><body style="margin:0">
+      <div id="page" style="padding-right:420px"><header style="height:80px"><h1>ShopLogo</h1></header>
+      <main style="min-height:2400px"><p>Gallery</p></main></div>${aside}</body></html>`;
+    const portal = `<!doctype html><html><body style="margin:0">
+      <div id="root" style="padding-right:420px"><main style="min-height:2400px"><h1>Lamp</h1></main></div>
+      <div id="portal">${aside}</div></body></html>`;
+    for (const html of [sibling, padded, portal]) {
+      expect(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT)).toEqual([]);
+    }
   }, 30_000);
 
   it('finds an overlay inside an open shadow root', async () => {
@@ -189,6 +205,17 @@ describe('the never-click rules on live elements (§3.3.2)', () => {
       "Array.from(document.querySelectorAll('button[id]')).filter((el) => neverDismiss(el)).map((el) => el.id)",
     ));
     expect(never.sort()).toEqual(['direct', 'in-swatch']);
+  }, 30_000);
+});
+
+describe('what the expand pass opened (round 2)', () => {
+  it('a header toggle open on load and named "Close" is not refused when the expand pass never touched it', async () => {
+    const html = `<!doctype html><html><body><header><button id="menu" aria-expanded="true" aria-label="Close">×</button></header>
+      <main><h1>Shoe</h1></main></body></html>`;
+    const found = await browser.setContentEvaluate<string[]>(html, pageScript(
+      "Array.from(document.querySelectorAll('[id]')).filter((el) => neverDismiss(el)).map((el) => el.id)",
+    ));
+    expect(found).toEqual([]);
   }, 30_000);
 });
 

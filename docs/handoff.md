@@ -117,7 +117,8 @@ Captures already stored are not redone; a re-capture gets the clean screenshot.
    an open `<dialog>`), a fixed or absolute box named modal/drawer/lightbox/popup/dialog covering a
    quarter of the window, or any fixed box covering a quarter that is not a header or footer and
    sits on top of page content (it covers the window's centre, or page content lies under its own
-   centre — a buy box in a column the page reserves is not an overlay) — never `<html>`, `<body>`
+   centre, a wrapper of the whole page such as `#page`/`#root` not counting — a buy box in a
+   column the page reserves is not an overlay) — never `<html>`, `<body>`
    or a box holding the page's `main` or first `h1`.
 2. **The expand pass never leaves an overlay** (§3.2): it skips `aria-haspopup` layer triggers,
    controls whose `aria-controls` target is dialog-like, and anything inside an overlay; it clicks
@@ -134,7 +135,7 @@ Captures already stored are not redone; a re-capture gets the clean screenshot.
    still reached.
 4. **One more pass just before the screenshot** (§3.4), the navigated-away check again, then the
    page scrolls to the top. Outside an overlay, dismissal never clicks what the expand pass opened
-   (a control it clicked, anything `aria-expanded="true"`, anything inside a panel or `<details>`
+   (a control it clicked or found expanded in main/article, anything inside a panel or `<details>`
    it revealed), and the final pass offers today's page-wide steps only inside an overlay or a
    consent-like layer — so a panel's own "Close" never shuts it again. An overlay still at the
    centre is one warning line:
