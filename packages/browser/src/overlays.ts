@@ -103,8 +103,8 @@ export interface VariantFacts {
   ariaPressed: boolean;
   ariaChecked: boolean;
   /**
-   * Inside a fieldset, `[role=radiogroup]` or `[role=listbox]`, or within three ancestors of an
-   * element whose class contains "swatch".
+   * A fieldset, `[role=radiogroup]` or `[role=listbox]`, or an element whose class contains
+   * "swatch", within three ancestors (a page-wide form's fieldset does not make every button a choice).
    */
   inChoiceGroup: boolean;
   /** Wraps a radio/checkbox input, or is a `<label>` for one. */
@@ -459,9 +459,14 @@ function isVariantChoice(el: Element): boolean {
 /** The facts §3.3.2 reads off a live element. */
 function variantFactsOf(el: Element): VariantFacts {
   const control = el.tagName === 'LABEL' ? (el as HTMLLabelElement).control : null;
+  // Both checks stop at three ancestors: a page-wide <form><fieldset> holds the swatches and the
+  // specs accordion alike, and only the swatches are choices.
+  const GROUP = 'fieldset, [role="radiogroup"], [role="listbox"]';
   let inSwatch = false;
-  for (let a = parentOf(el), i = 0; a && i < 3; a = parentOf(a), i++) {
-    if (/swatch/i.test(classOf(a))) { inSwatch = true; break; }
+  let inGroupEl = el.matches(GROUP);
+  for (let a = parentOf(el), i = 0; a && i < 3 && !(inSwatch && inGroupEl); a = parentOf(a), i++) {
+    if (/swatch/i.test(classOf(a))) inSwatch = true;
+    if (a.matches(GROUP)) inGroupEl = true;
   }
   return {
     tag: el.tagName,
@@ -469,7 +474,7 @@ function variantFactsOf(el: Element): VariantFacts {
     role: el.getAttribute('role'),
     ariaPressed: el.hasAttribute('aria-pressed'),
     ariaChecked: el.hasAttribute('aria-checked'),
-    inChoiceGroup: inSwatch || el.closest('fieldset, [role="radiogroup"], [role="listbox"]') !== null,
+    inChoiceGroup: inSwatch || inGroupEl,
     choiceInput: el.querySelector('input[type="radio"], input[type="checkbox"]') !== null
       || (control instanceof HTMLInputElement && (control.type === 'radio' || control.type === 'checkbox')),
     className: classOf(el),
