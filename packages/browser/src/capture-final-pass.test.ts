@@ -51,9 +51,36 @@ const PAGES: Record<string, string> = {
      }, ${LATE_MS});`),
   // Review Focus 5: a heavy page with nothing over it.
   '/heavy': fixturePage(`<div id="heavy">${'<span>x </span>'.repeat(15_000)}</div>`),
+  // Final review I1: the expand pass opens a panel holding its own "Close" button. The final
+  // pass's global `{ name: 'close' }` step must not click it shut again.
+  '/close-in-panel': fixturePage(
+    `<button id="cp-acc" aria-expanded="false" aria-controls="cp-panel">Delivery</button>
+     <div id="cp-panel" hidden>CP_PANEL_TEXT <button id="cp-close">Close</button></div>`, '',
+    `const acc = document.getElementById('cp-acc');
+     const set = (open) => { acc.setAttribute('aria-expanded', String(open)); document.getElementById('cp-panel').hidden = !open; };
+     acc.addEventListener('click', () => set(acc.getAttribute('aria-expanded') !== 'true'));
+     document.getElementById('cp-close').addEventListener('click', () => set(false));`),
+  // The same behind a "Show more" that names no panel (no aria-controls): only the final pass's
+  // rule — global steps only inside an overlay or a consent-like layer — protects it.
+  '/close-after-show-more': fixturePage(
+    `<button id="sm-more">Show more</button>
+     <div id="sm-panel" hidden>SM_PANEL_TEXT <button id="sm-close">Close</button></div>`, '',
+    `document.getElementById('sm-more').addEventListener('click', () => { document.getElementById('sm-panel').hidden = false; });
+     document.getElementById('sm-close').addEventListener('click', () => { document.getElementById('sm-panel').hidden = true; });`),
+  // A toggle whose aria-label becomes "Close" while its panel is open (the [aria-label="Close"] step).
+  '/toggle-named-close': fixturePage(
+    `<button id="tg" aria-expanded="false" aria-controls="tg-panel">Specifications</button>
+     <div id="tg-panel" hidden>TG_PANEL_TEXT</div>`, '',
+    `const tg = document.getElementById('tg');
+     tg.addEventListener('click', () => {
+       const open = tg.getAttribute('aria-expanded') !== 'true';
+       tg.setAttribute('aria-expanded', String(open));
+       if (open) tg.setAttribute('aria-label', 'Close'); else tg.removeAttribute('aria-label');
+       document.getElementById('tg-panel').hidden = !open;
+     });`),
 };
 
-const IDS = ['onetrust-banner-sdk', 'consent-notice', 'nag', 'leave'];
+const IDS = ['onetrust-banner-sdk', 'consent-notice', 'nag', 'leave', 'cp-panel', 'sm-panel', 'tg-panel'];
 const present = (id: string) => `(() => !!document.getElementById(${JSON.stringify(id)}))()`;
 const isTrue = (s: ReadySnapshot) => s.probe === true;
 
@@ -109,6 +136,33 @@ describe('the final pass before the screenshot (spec 2026-10-19 §3.4)', () => {
     });
     expect(site.requested).toContain('/elsewhere');
     expect(new URL(c.url).pathname).toBe('/navigating-close');
+  }, 60_000);
+});
+
+describe('the final pass never closes what the expand pass opened (final review I1)', () => {
+  const plain = async (path: string) => {
+    const c = await browser.capture(`${site.baseUrl}${path}`, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, annotate: pageState(IDS) });
+    return c.annotation as PageState;
+  };
+
+  it('a "Close" button inside a panel the expand pass opened is never clicked', async () => {
+    const s = await plain('/close-in-panel');
+    expect(s.clicks).toContain('cp-acc');
+    expect(s.clicks).not.toContain('cp-close');
+    expect(s.shown['cp-panel']).toBe(true);
+  }, 60_000);
+
+  it('nor one inside a panel a "Show more" revealed (no aria-controls)', async () => {
+    const s = await plain('/close-after-show-more');
+    expect(s.clicks).toContain('sm-more');
+    expect(s.clicks).not.toContain('sm-close');
+    expect(s.shown['sm-panel']).toBe(true);
+  }, 60_000);
+
+  it('a toggle whose aria-label became "Close" when it opened is not clicked shut', async () => {
+    const s = await plain('/toggle-named-close');
+    expect(s.clicks.filter((id) => id === 'tg')).toHaveLength(1);
+    expect(s.shown['tg-panel']).toBe(true);
   }, 60_000);
 });
 
