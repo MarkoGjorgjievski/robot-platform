@@ -27,7 +27,7 @@ export const CLOSE_WORDS: readonly string[] = [
 export const ROBOT_STATE_KEY = '__robotCapture';
 
 /** An element that says it is a dialog. Page only (isShown, holdsPage, listOverlayEls). */
-const DIALOG_LIKE = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog';
+const DIALOG_LIKE = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]';
 
 // ---- Pure: names --------------------------------------------------------------------------------
 
@@ -150,8 +150,9 @@ export interface OverlayFacts {
   vw: number;
   vh: number;
   /**
-   * Contains the page's `main` or its `h1` — the first one outside every dialog-like element:
-   * the element IS the page (plan departure 1). A dialog never holds the page by that rule.
+   * The element IS the page (plan departure 1). For a dialog: it holds most of the page's text
+   * (mostOfText). For anything else: it contains the page's `main` or `h1`, the first of each
+   * outside every dialog.
    */
   holdsPage: boolean;
 }
@@ -167,7 +168,7 @@ export interface OverlayFacts {
 export function overlayByFacts(f: OverlayFacts): boolean {
   const role = normName(f.role);
   const cover = coverage(f.rect, f.vw, f.vh);
-  if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.openDialog) return cover > 0;
+  if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.openDialog) return cover > 0 && !f.holdsPage;
   if (f.holdsPage) return false;
   const quarter = cover >= 0.25;
   if (!quarter) return false;
@@ -178,6 +179,11 @@ export function overlayByFacts(f: OverlayFacts): boolean {
   if (tag === 'header' || tag === 'footer' || tag === 'nav' || role === 'banner' || role === 'navigation') return false;
   const atEdge = f.rect.top <= 0 || f.rect.top + f.rect.height >= f.vh;
   return !(f.rect.height < 200 && atEdge);
+}
+
+/** Does an element holding `elLen` characters of text hold most (60 %+) of the page's `bodyLen`? */
+export function mostOfText(elLen: number, bodyLen: number): boolean {
+  return bodyLen > 0 && elLen / bodyLen >= 0.6;
 }
 
 /** What a log line or a test needs to name an overlay. */
@@ -273,11 +279,19 @@ function firstOutsideDialogs(selector: string): Element | null {
   return null;
 }
 
+/** An element's rendered text, whitespace removed, as a length. */
+function textLength(el: Element): number {
+  return ((el as HTMLElement).innerText ?? el.textContent ?? '').replace(/\s+/g, '').length;
+}
+
 /**
- * Does this element contain the page itself — its `main` or its `h1`, the first of each outside
- * every dialog? A promo dialog placed before the product holding `<h1>10% off</h1>` is not the page.
+ * Is this element the page itself? A dialog is when it holds most of the page's text (a whole app
+ * rendered inside `role=dialog aria-modal`). Anything else is when it contains the page's `main` or
+ * `h1`, the first of each outside every dialog: a promo dialog placed before the product holding
+ * `<h1>10% off</h1>` is not the page.
  */
 function holdsPage(el: Element): boolean {
+  if (el.matches(DIALOG_LIKE)) return mostOfText(textLength(el), textLength(document.body));
   const main = firstOutsideDialogs('main');
   const h1 = firstOutsideDialogs('h1');
   return (main !== null && el.contains(main)) || (h1 !== null && el.contains(h1));
@@ -437,9 +451,9 @@ const PAGE_CONSTANTS: Record<string, unknown> = { CLOSE_WORDS, ROBOT_STATE_KEY, 
 const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   // pure
   normName, isDismissName, isCloseWord, isSettingsName, hasVariantClassWord, isVariantControlFacts,
-  isFileLink, hrefNavigates, coverage, overlayByFacts,
+  isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts,
   // DOM
-  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, holdsPage, isOverlay,
+  robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, neverDismiss,
 ];

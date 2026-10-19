@@ -15,6 +15,9 @@ afterAll(async () => {
 
 const ids = (list: OverlayDescription[]) => list.map((d) => d.id).sort();
 
+/** A product page has text; a dialog holding most of a page's text is the page (round 2). */
+const PRODUCT_TEXT = 'A brass table lamp with a linen shade, 45 cm tall, E27 bulb, dimmable, two-year warranty, free returns within 30 days.';
+
 const MIXED = `<!doctype html><html><body style="margin:0">
 <header id="site-header" style="position:fixed;top:0;left:0;right:0;height:80px;background:#fff">Shop</header>
 <div id="promo" style="position:fixed;left:0;right:0;bottom:0;height:150px;background:#eee">Free delivery</div>
@@ -59,12 +62,20 @@ describe('the overlay definition in a real page (§3.1)', () => {
   it('a full-window dialog before the product holding its own h1 is an overlay; the product still protects its shell', async () => {
     const html = `<!doctype html><html><body style="margin:0">
       <div id="promo" role="dialog" style="position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.5)"><h1>10% off</h1><button>Close</button></div>
-      <div id="shell" style="position:fixed;inset:0;overflow:auto"><main><h1>Lamp</h1><div style="height:3000px"></div></main></div>
+      <div id="shell" style="position:fixed;inset:0;overflow:auto"><main><h1>Lamp</h1><p>${PRODUCT_TEXT}</p><div style="height:3000px"></div></main></div>
       </body></html>`;
     expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['promo']);
-    const only = `<!doctype html><html><body style="margin:0"><div style="height:3000px">Lamp</div>
+    const only = `<!doctype html><html><body style="margin:0"><div style="height:3000px">Lamp. ${PRODUCT_TEXT}</div>
       <div id="promo" role="dialog" style="position:fixed;inset:0;background:#fff"><h1>10% off</h1></div></body></html>`;
     expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(only, LIST_OVERLAYS_SCRIPT))).toEqual(['promo']);
+  }, 30_000);
+
+  it('a dialog wrapping the whole page is the page, not an overlay', async () => {
+    const html = `<!doctype html><html><body style="margin:0">
+      <div id="app" role="dialog" aria-modal="true" style="position:fixed;inset:0;overflow:auto"><main><h1>Lamp</h1><p>${PRODUCT_TEXT}</p><div style="height:3000px"></div></main></div>
+      <div id="consent" role="dialog" style="position:fixed;left:20px;bottom:20px;width:300px;height:120px;z-index:5;background:#fff">Cookies</div>
+      </body></html>`;
+    expect(ids(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT))).toEqual(['consent']);
   }, 30_000);
 
   it('a dialog inside a faded-out ancestor is hidden', async () => {
