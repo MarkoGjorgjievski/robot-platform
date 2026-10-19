@@ -5,6 +5,13 @@
 //   <site>-<n>-after.json   what covers the centre, the visible dialogs, what stayed expanded, the
 //                           variant before and after, whether the box map sees the title and price
 //   after.md                one table, every page
+// With `--tag=after2` the files are `<site>-<n>-after2.png/.json` and the table `after-2.md`.
+// "Overlay at the centre" alone missed three covered pages (live check 2026-10-19: a 14 % location
+// popup at the right, a 5 % cookie banner left of centre, a body::before scrim over the whole first
+// window), so the probe also lists every visible fixed layer of 5 % or more of the window (absolute
+// ones stacked at z-index 10 or above) that is not the header, nav, footer or the page itself, and
+// every translucent layer over half the window — elements with pointer-events:none included, and
+// html/body ::before/::after, which elementsFromPoint never names.
 // Each page is captured as a proof page is (packages/scraper/src/verify/proof-page-capture.ts):
 // waitUntil load, network interception, the proof-page ready check (after the expand pass), the
 // variant-dom selection script, six tiles, and the box map, composed here with this check's probe.
@@ -52,6 +59,10 @@ interface Probe {
   expanded: { aria: number; details: number; tabs: string[] };
   /** The first h1 outside a dialog: its text, and whether it (or an ancestor) is display:none. */
   title: { text: string; hidden: boolean } | null;
+  /** Visible fixed (or absolute, z-index ≥ 10) layers of ≥ 5 % of the window, outermost only, not page chrome. */
+  layers: string[];
+  /** Translucent layers over half the window: elements (pointer-events:none too) and html/body pseudo-elements. */
+  scrims: string[];
 }
 
 // Read after the capture's last pass (annotate runs after it, just before the screenshot).
@@ -76,6 +87,47 @@ const PROBE = `(() => {
       let hidden = false;
       for (let a = h1; a && a !== document.documentElement; a = a.parentElement) if (getComputedStyle(a).display === 'none') hidden = true;
       return { text: txt(h1), hidden };
+    })(),
+    ...(() => {
+      const vw = innerWidth, vh = innerHeight;
+      const cover = (r) => Math.max(0, Math.min(r.right, vw) - Math.max(r.left, 0)) * Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0)) / (vw * vh);
+      const alpha = (c) => { const m = /rgba?\\(([^)]*)\\)/.exec(c || ''); if (!m) return c === 'transparent' ? 0 : 1; const p = m[1].split(/[ ,\\/]+/).filter(Boolean); return p.length < 4 ? 1 : (p[3].endsWith('%') ? parseFloat(p[3]) / 100 : parseFloat(p[3])); };
+      const shown = (s) => s.display !== 'none' && s.visibility !== 'hidden' && parseFloat(s.opacity) > 0;
+      const main = document.querySelector('main');
+      const h1 = document.querySelector('h1');
+      const chrome = (el) => /^(HEADER|FOOTER|NAV)$/.test(el.tagName) || /^(banner|navigation|contentinfo)$/.test(el.getAttribute('role') || '');
+      const pct = (c) => Math.round(c * 100) + '%';
+      const layers = [];
+      const scrims = [];
+      const all = [...document.querySelectorAll('body *')];
+      for (const el of all) {
+        const s = getComputedStyle(el);
+        if (s.position !== 'fixed' && s.position !== 'absolute') continue;
+        const r = el.getBoundingClientRect();
+        const c = cover(r);
+        if (c < 0.05 || !shown(s)) continue;
+        let hidden = false;
+        for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) { const t = getComputedStyle(a); if (!shown(t)) { hidden = true; break; } }
+        if (hidden) continue;
+        const translucent = alpha(s.backgroundColor) > 0 && alpha(s.backgroundColor) < 1 || (s.backdropFilter && s.backdropFilter !== 'none');
+        if (c >= 0.5 && translucent) scrims.push(desc(el) + ' ' + s.position + ' ' + s.backgroundColor + ' ' + pct(c) + (s.pointerEvents === 'none' ? ' pointer-events:none' : ''));
+        const z = parseInt(s.zIndex, 10);
+        if (s.position === 'absolute' && !(z >= 10)) continue;
+        if (chrome(el) || (main && el.contains(main)) || (h1 && el.contains(h1))) continue;
+        if (layers.some((l) => l.el.contains(el))) continue;
+        layers.push({ el, text: desc(el) + ' ' + s.position + ' ' + pct(c) + ' «' + txt(el).slice(0, 40) + '»' });
+      }
+      for (const el of [document.documentElement, document.body]) {
+        for (const p of ['::before', '::after']) {
+          const s = getComputedStyle(el, p);
+          if (s.content === 'none' || s.content === 'normal' || !shown(s)) continue;
+          if (s.position !== 'fixed' && s.position !== 'absolute') continue;
+          const w = parseFloat(s.width) || 0, h = parseFloat(s.height) || 0, t = parseFloat(s.top) || 0, l = parseFloat(s.left) || 0;
+          const c = cover({ left: l, top: t, right: l + w, bottom: t + h });
+          if (c >= 0.5 && (alpha(s.backgroundColor) > 0 || (s.backdropFilter && s.backdropFilter !== 'none'))) scrims.push(el.tagName.toLowerCase() + p + ' ' + s.position + ' ' + s.backgroundColor + ' ' + pct(c) + ' z' + s.zIndex);
+        }
+      }
+      return { layers: layers.map((l) => l.text), scrims };
     })(),
   };
 })()`;
@@ -113,11 +165,17 @@ interface Row {
   titleHidden: boolean | null;
   /** What captureProofPage would refuse the page for, or null. */
   problem: string | null;
+  /** Probe.layers and Probe.scrims, at the screenshot. */
+  layers: string[];
+  scrims: string[];
   warnings: string[];
   error?: string;
 }
 
 const cell = (s: string) => s.replace(/\|/g, '/').replace(/\n/g, ' ');
+
+/** File tag: `<site>-<n>-<TAG>.png/.json`; `--tag=after2` keeps a first run's `after` files. */
+const TAG = process.argv.find((a) => a.startsWith('--tag='))?.slice('--tag='.length) || 'after';
 
 async function checkPage(b: PlaywrightBrowser, page: string, url: string, outDir: string): Promise<Row> {
   const warnings: string[] = [];
@@ -154,7 +212,7 @@ async function checkPage(b: PlaywrightBrowser, page: string, url: string, outDir
     const after = ann?.selection ?? null;
     const variant = { before: before ?? null, after, same: JSON.stringify(before ?? null) === JSON.stringify(after), pageVariant: c.pageVariant ?? null };
     const problem = captureProblem(c, url)?.reason ?? null;
-    writeFileSync(join(outDir, `${page}-after.png`), c.screenshotTiles[0] ?? c.screenshot);
+    writeFileSync(join(outDir, `${page}-${TAG}.png`), c.screenshotTiles[0] ?? c.screenshot);
     const row: Row = {
       page, url, verdict: c.verdict.kind,
       centre: p?.centre ? `${p.centre.tag}${p.centre.id ? '#' + p.centre.id : ''} «${p.centre.text}»` : (p ? 'none' : '?'),
@@ -166,15 +224,17 @@ async function checkPage(b: PlaywrightBrowser, page: string, url: string, outDir
       priceBoxes: priceDigits ? boxes.filter((x) => x.text.replace(/\D/g, '').includes(priceDigits)).length : null,
       titleHidden: p?.title ? p.title.hidden : null,
       problem,
+      layers: p?.layers ?? [],
+      scrims: p?.scrims ?? [],
       warnings,
     };
-    writeFileSync(join(outDir, `${page}-after.json`), JSON.stringify({ url, finalUrl: c.url, verdict: c.verdict, probe: p, price, boxCount: boxes.length, row, warnings }, null, 1));
+    writeFileSync(join(outDir, `${page}-${TAG}.json`), JSON.stringify({ url, finalUrl: c.url, verdict: c.verdict, probe: p, price, boxCount: boxes.length, row, warnings }, null, 1));
     return row;
   } catch (err) {
     return {
       page, url, verdict: 'failed', centre: '?', dialogs: -1, scrollY: -1, expanded: '?',
       variant: { before: before ?? null, after: null, same: false, pageVariant: null },
-      titleBoxes: 0, priceBoxes: null, titleHidden: null, problem: null,
+      titleBoxes: 0, priceBoxes: null, titleHidden: null, problem: null, layers: [], scrims: [],
       warnings, error: (err as Error).message.split('\n')[0].slice(0, 160),
     };
   } finally {
@@ -190,13 +250,14 @@ function table(rows: Row[]): string {
     '# Capture overlays — after (live check)',
     '',
     `Run on ${new Date().toISOString().slice(0, 10)} at \`${commit}\` with \`docs/testing/capture-overlays-check.mts\` (free, keyless, one browser; the browser is wherever this machine is).`,
-    'Before: `<site>-<n>-A.png` (probe.mts mode A, 2026-10-19). After: `<site>-<n>-after.png`.',
+    `Before: \`<site>-<n>-A.png\` (probe.mts mode A, 2026-10-19). After: \`<site>-<n>-${TAG}.png\`.`,
     'Expected per page (spec §6): no overlay at the window\'s centre, the §5.3 accordions still open (the tabs step is off by default), the variant as navigation found it (§5.1), and the title and price in the box map.',
+    'Layers: visible fixed layers of 5 % or more of the window (absolute ones at z-index 10 or above), outermost only, not the header, nav, footer or the page itself. Scrims: translucent layers over half the window, pointer-events:none included, and html/body ::before/::after.',
     'Captured as a proof page is (`captureProofPage`\'s options). "Variant kept": the picker\'s selection at load equals the one after the capture. Title / price boxes: box-map entries holding the h1\'s text / the JSON-LD price\'s digits (rough).',
     '',
-    '| Page | Verdict | Problem | Overlay at the centre | Visible dialogs | scrollY | Expanded (aria / details / selected tabs) | Variant kept | Title boxes (h1 hidden?) | Price boxes | Overlay warnings | Before | After |',
-    '|---|---|---|---|---|---|---|---|---|---|---|---|---|',
-    ...rows.map((r) => `| ${r.page} | ${cell(r.verdict)}${r.error ? ` (${cell(r.error)})` : ''} | ${cell(r.problem ?? '–')} | ${cell(r.centre)} | ${r.dialogs} | ${r.scrollY} | ${cell(r.expanded)} | ${r.variant.same ? 'yes' : `no: ${cell(JSON.stringify(r.variant.before))} → ${cell(JSON.stringify(r.variant.after))}`} | ${r.titleBoxes}${r.titleHidden ? ' (hidden!)' : ''} | ${r.priceBoxes ?? '–'} | ${r.warnings.filter((w) => w.includes('overlay still covers')).length} | [before](${r.page}-A.png) | [after](${r.page}-after.png) |`),
+    '| Page | Verdict | Problem | Overlay at the centre | Visible dialogs | scrollY | Expanded (aria / details / selected tabs) | Variant kept | Title boxes (h1 hidden?) | Price boxes | Overlay warnings | Layers ≥ 5 % | Scrims | Before | After |',
+    '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|',
+    ...rows.map((r) => `| ${r.page} | ${cell(r.verdict)}${r.error ? ` (${cell(r.error)})` : ''} | ${cell(r.problem ?? '–')} | ${cell(r.centre)} | ${r.dialogs} | ${r.scrollY} | ${cell(r.expanded)} | ${r.variant.same ? 'yes' : `no: ${cell(JSON.stringify(r.variant.before))} → ${cell(JSON.stringify(r.variant.after))}`} | ${r.titleBoxes}${r.titleHidden ? ' (hidden!)' : ''} | ${r.priceBoxes ?? '–'} | ${r.warnings.filter((w) => w.includes('overlay still covers')).length} | ${cell(r.layers.join('; ') || '–')} | ${cell(r.scrims.join('; ') || '–')} | [before](${r.page}-A.png) | [after](${r.page}-${TAG}.png) |`),
     '',
     '## Reading',
     '',
@@ -215,7 +276,11 @@ async function selfTest(): Promise<void> {
 <button id="acc" aria-expanded="false" aria-controls="panel">Materials</button><div id="panel" hidden>Cotton</div></main>
 <modal-dialog id="zoom-modal" style="display:none;position:fixed;inset:0;background:#000"></modal-dialog>
 <div class="cookie-banner" style="position:fixed;left:0;right:0;bottom:0;height:120px;background:#fff"><button id="s">Cookie settings</button><button id="ok">OK</button></div>
+<style>body.mat-open::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3}</style>
+<div id="mat" role="dialog" style="position:fixed;top:250px;left:350px;width:580px;height:300px;z-index:10;background:#fff">Welcome <button>Shop now</button></div>
 <script>
+document.body.classList.add('mat-open');
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { document.getElementById('mat')?.remove(); document.body.classList.remove('mat-open'); } });
 document.getElementById('zoom').onclick = () => { document.getElementById('zoom-modal').style.display = 'block'; };
 document.getElementById('acc').onclick = function () { this.setAttribute('aria-expanded', 'true'); document.getElementById('panel').hidden = false; };
 document.getElementById('ok').onclick = () => document.querySelector('.cookie-banner').remove();
@@ -231,7 +296,8 @@ document.getElementById('ok').onclick = () => document.querySelector('.cookie-ba
     const row = await checkPage(b, 'self-1', url, out);
     console.log(JSON.stringify(row, null, 1));
     const ok = row.verdict !== 'failed' && row.problem === null && row.centre === 'none' && row.expanded.startsWith('1 ')
-      && row.variant.same && row.variant.before !== null && row.titleBoxes > 0 && (row.priceBoxes ?? 0) > 0 && row.titleHidden === false;
+      && row.variant.same && row.variant.before !== null && row.titleBoxes > 0 && (row.priceBoxes ?? 0) > 0 && row.titleHidden === false
+      && row.layers.length === 0 && row.scrims.length === 0;
     console.log(ok ? `self-test passed; files in ${out}` : 'self-test FAILED');
     process.exitCode = ok ? 0 : 1;
   } finally {
@@ -245,7 +311,7 @@ if (process.argv[2] === '--self-test') {
 } else {
   const outDir = fileURLToPath(new URL('./results/2026-10-19-capture-overlays/', import.meta.url));
   mkdirSync(outDir, { recursive: true });
-  const only = process.argv[2]?.split(',');
+  const only = process.argv.slice(2).find((a) => !a.startsWith('--'))?.split(',');
   const rows: Row[] = [];
   for (const [site, urls] of SITES) {
     if (only && !only.includes(site)) continue;
@@ -261,7 +327,8 @@ if (process.argv[2] === '--self-test') {
       await b.close();
     }
   }
-  const name = only ? `after-${only.join('-')}.md` : 'after.md';
+  const base = TAG.replace(/(\d+)$/, '-$1');
+  const name = only ? `${base}-${only.join('-')}.md` : `${base}.md`;
   writeFileSync(join(outDir, name), table(rows));
   console.log(`wrote ${join(outDir, name)}`);
 }
