@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useRouteContext } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { showsMoney } from '../../lib/money-visibility';
 import { trpc } from '../../lib/trpc';
 import {
   emptyFilterNote,
@@ -26,7 +28,8 @@ import type { ResultColumn } from './results-table';
  * deliberate: the one spender on this bar is armed by an explicit act, and the
  * number of pages it will fetch is written on both the tick and the button
  * (`reExtractLabel`, the one place the cost shape is said out loud before the
- * click: cached paths first, AI only where the cache cannot answer).
+ * click: cached paths first, AI only where the cache cannot answer — said to
+ * staff only, spec 2026-10-17 §8a; a customer reads the page count).
  *
  * `crawl.coverage` is not read here — the route owns it, because the repair
  * panel below needs the same answer — and the route only asks for it on a
@@ -54,6 +57,9 @@ export function CoverageBar({
   columns: readonly ResultColumn[];
 }) {
   const [field, setField] = useState<string | null>(null);
+  // Spec 2026-10-17 §8a: the Re-extract button's cost shape is staff-only.
+  const { session } = useRouteContext({ from: '/_app' });
+  const showMoney = showsMoney(session);
   const [selected, setSelected] = useState(false);
   const backfill = useBackfillMutation(project, site);
 
@@ -130,7 +136,7 @@ export function CoverageBar({
             onClick={() => backfill.mutate({ runId, itemIds, targetFields: [field] })}
           >
             {backfill.isPending ? <Loader2 className="animate-spin" /> : null}
-            {reExtractLabel(itemIds.length)}
+            {reExtractLabel(itemIds.length, showMoney)}
           </Button>
 
           {/* Every disabled control says why, within a line of it. */}

@@ -52,12 +52,24 @@ export function previewSummary(p: { pages: number; estCostUsd: number; certified
  * verified website's repair runs certified paths only, never AI. The panel
  * still sends `deadFieldStrategy: 'full_focus'` to satisfy the server's guard
  * (`backfillMutationInput`), just without ever showing this choice.
+ *
+ * `opts.showMoney` (staff, `showsMoney`): staff read what each strategy costs
+ * and how; a customer's copy names no price word and no mechanism (spec
+ * 2026-10-17 §8a). Left out, it is the customer's copy.
  */
-export function strategyCopy(f: FieldClassification, opts?: { certified?: boolean }): { title: string; recommended: string; alternative: string } | null {
+export function strategyCopy(f: FieldClassification, opts?: { certified?: boolean; showMoney?: boolean }): { title: string; recommended: string; alternative: string } | null {
   if (f.classification === 'healthy' || opts?.certified) return null;
   const pct = Math.round(f.fill * 100);
+  const title = `${f.name} — ${pct}% filled, its extraction path looks broken`;
+  if (!opts?.showMoney) {
+    return {
+      title,
+      recommended: 'Repair-then-sweep (recommended): re-discover the path on 3 sample pages, then sweep the rest with the repaired path.',
+      alternative: 'Full focus: re-fetch every page with gaps, focused on this field — simpler, occasionally right when no one path generalizes.',
+    };
+  }
   return {
-    title: `${f.name} — ${pct}% filled, its extraction path looks broken`,
+    title,
     recommended: 'Repair-then-sweep (recommended): re-discover the path on 3 sample pages, then sweep the rest for free with the repaired cache.',
     alternative: 'Full focus: re-fetch every gappy page with AI focused on this field — costlier, simpler, occasionally right when no one path generalizes.',
   };
