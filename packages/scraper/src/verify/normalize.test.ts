@@ -125,6 +125,14 @@ describe('valuesEqual — rounded numbers (spec 2026-10-17 §7)', () => {
     expect(valuesEqual('number', '4.7', '4.8')).toBe(false);
     expect(valuesEqual('number', '4.80', 4.8)).toBe(true);
   });
+  it('a typed trailing zero counts as a decimal: "5.0" is shown to one decimal', () => {
+    expect(normalize('number', '5.0')).toBe('5');            // the stored value is the number
+    expect(valuesEqual('number', '5.0', 4.96)).toBe(true);
+    expect(valuesEqual('number', 4.96, '5.0')).toBe(true);
+    expect(valuesEqual('number', '5.0', 4.94)).toBe(false);
+    expect(valuesEqual('number', '5,0', 4.96)).toBe(true);     // a decimal comma reads the same
+    expect(valuesEqual('number', '5', 4.96)).toBe(false);      // a whole number still never rounds
+  });
 });
 
 describe('afterLabel (spec 2026-10-17 §6)', () => {
