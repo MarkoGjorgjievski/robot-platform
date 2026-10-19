@@ -26,6 +26,22 @@ export const CLOSE_WORDS: readonly string[] = [
 /** The window property holding the capture's in-page memory. Not enumerable; never in the HTML. */
 export const ROBOT_STATE_KEY = '__robotCapture';
 
+/** aria-haspopup values that mean "this opens a layer", not "this reveals a panel" (§3.2.1). */
+export const HASPOPUP_SKIP: readonly string[] = ['dialog', 'true', 'menu', 'listbox', 'grid', 'tree'];
+
+/** The structural controls the expand pass clicks (today's Phase 1 list, unchanged). */
+export const EXPAND_SELECTORS: readonly string[] = [
+  'main details:not([open]) summary',
+  'article details:not([open]) summary',
+  'main [aria-expanded="false"]',
+  'article [aria-expanded="false"]',
+  'main [data-toggle="collapse"]',
+  'article [data-toggle="collapse"]',
+];
+
+/** "Show more" and friends, as a RegExp source (today's Phase 2 pattern, unchanged). */
+export const EXPAND_TEXT_PATTERN = '^(show more|see more|see all|view details|read more|expand|view all|load more|\\+ more|show all)$';
+
 /** An element that says it is a dialog. Page only (isShown, holdsPage, listOverlayEls). */
 const DIALOG_LIKE = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]';
 
@@ -179,6 +195,31 @@ export function overlayByFacts(f: OverlayFacts): boolean {
   if (tag === 'header' || tag === 'footer' || tag === 'nav' || role === 'banner' || role === 'navigation') return false;
   const atEdge = f.rect.top <= 0 || f.rect.top + f.rect.height >= f.vh;
   return !(f.rect.height < 200 && atEdge);
+}
+
+// ---- Pure: what the expand pass must not click (§3.2) -------------------------------------------
+
+/** Does this aria-haspopup value say the control opens a layer? */
+export function opensLayer(ariaHaspopup: string | null): boolean {
+  return HASPOPUP_SKIP.includes(normName(ariaHaspopup));
+}
+
+export interface ControlledFacts {
+  tag: string;
+  id: string;
+  className: string;
+  role: string | null;
+  ariaModal: string | null;
+  /** Computed `position` (it is computed even while the target is display:none). */
+  position: string;
+}
+
+/** Is an aria-controls target a layer rather than a panel (§3.2.2)? */
+export function isDialogLikeFacts(f: ControlledFacts): boolean {
+  const role = normName(f.role);
+  if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.tag.toLowerCase() === 'dialog') return true;
+  if (/modal|drawer|lightbox|popup/i.test(`${f.tag} ${f.id} ${f.className}`)) return true;
+  return f.position === 'fixed';
 }
 
 /** Does an element holding `elLen` characters of text hold most (60 %+) of the page's `bodyLen`? */
@@ -423,6 +464,43 @@ function neverDismiss(el: Element): boolean {
   return hrefNavigates(a ? { href: a.getAttribute('href'), target: a.getAttribute('target') } : null);
 }
 
+/** §3.2.2 on a live element. */
+function isDialogLike(el: Element): boolean {
+  return isDialogLikeFacts({
+    tag: el.tagName,
+    id: el.id || '',
+    className: classOf(el),
+    role: el.getAttribute('role'),
+    ariaModal: el.getAttribute('aria-modal'),
+    position: getComputedStyle(el).position,
+  });
+}
+
+/** The expand pass skips this control (§3.2.1–3): it opens a layer, controls one, or sits in one. */
+function expandSkip(el: Element): boolean {
+  if (opensLayer(el.getAttribute('aria-haspopup'))) return true;
+  for (const id of (el.getAttribute('aria-controls') ?? '').split(/\s+/)) {
+    const target = id ? document.getElementById(id) : null;
+    if (target && isDialogLike(target)) return true;
+  }
+  return outermostOverlay(el) !== null;
+}
+
+/** Undo a scroll lock (overflow hidden on html/body, or a body pinned with position:fixed). */
+function liftScrollLock(): void {
+  for (const el of [document.documentElement, document.body]) {
+    if (!el) continue;
+    el.style.removeProperty('overflow');
+    el.style.removeProperty('overflow-y');
+    if (getComputedStyle(el).overflowY === 'hidden') el.style.setProperty('overflow-y', 'visible', 'important');
+  }
+  const body = document.body;
+  if (body && body.style.position === 'fixed') {
+    body.style.removeProperty('position');
+    body.style.removeProperty('top');
+  }
+}
+
 // ---- Page only: entries -------------------------------------------------------------------------
 
 function entryListOverlays(): OverlayDescription[] {
@@ -439,23 +517,138 @@ function entryCentreOverlay(): OverlayDescription | null {
   return el ? describeEl(el) : null;
 }
 
+/**
+ * Start of the expand pass: a control already expanded counts as clicked (§3.2.5, plan departure
+ * 2), so a single-open accordion is not toggled back to the panel the page opened.
+ */
+function entryExpandStart(): number {
+  const st = robotState();
+  let n = 0;
+  for (const el of Array.from(document.querySelectorAll('main [aria-expanded="true"], article [aria-expanded="true"]'))) {
+    st.clicked.add(el);
+    n++;
+  }
+  return n;
+}
+
+/** Remember which overlays are there before a round, so the round's own can be told apart. */
+function entryOverlayBaseline(): number {
+  const st = robotState();
+  st.baseline = new Set(listOverlayEls());
+  return st.baseline.size;
+}
+
+/**
+ * One expand round: today's structural controls and "show more" buttons, each clicked at most once
+ * per capture, skipping layer triggers and anything inside an overlay; closed <details> are opened.
+ *
+ * Clicks happen IN THE PAGE (`element.click()`), not through a Playwright locator: a locator click
+ * scrolls its element into view first, and on a listing that loads lazily that appends products —
+ * one real listing captured 144, 144, 72 and 108 rows across four runs. Revealing DOM that already
+ * exists is this pass's job; loading more of a list is pagination's.
+ */
+function entryExpandRound(): number {
+  const st = robotState();
+  let n = 0;
+  const click = (el: Element): void => {
+    if (st.clicked.has(el) || expandSkip(el)) return;
+    st.clicked.add(el);
+    try { (el as HTMLElement).click(); n++; } catch { /* not clickable */ }
+  };
+  for (const selector of EXPAND_SELECTORS) {
+    const els = Array.prototype.slice.call(document.querySelectorAll(selector), 0, 10) as Element[];
+    for (const el of els) {
+      // offsetParent is null for display:none. Outside the viewport is fine and expected.
+      if ((el as HTMLElement).offsetParent === null) continue;
+      click(el);
+    }
+  }
+  const re = new RegExp(EXPAND_TEXT_PATTERN, 'i');
+  const main = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
+  for (const el of Array.from(main.querySelectorAll('button, a[role="button"], [class*="expand"], [class*="show-more"], [class*="read-more"]'))) {
+    if (re.test(el.textContent?.trim() ?? '') && (el as HTMLElement).offsetParent !== null) click(el);
+  }
+  for (const el of Array.from(main.querySelectorAll('details:not([open])'))) {
+    if (outermostOverlay(el) !== null) continue;
+    el.setAttribute('open', '');
+    n++;
+  }
+  return n;
+}
+
+/** The overlays that appeared since the baseline (§3.2.4). */
+function entryNewOverlays(): number {
+  const st = robotState();
+  st.pending = listOverlayEls().filter((el) => !st.baseline.has(el));
+  return st.pending.length;
+}
+
+/** After Escape: remove what the round opened and is still there, and lift the scroll lock. */
+function entryRemoveNewOverlays(): OverlayDescription[] {
+  const st = robotState();
+  const removed: OverlayDescription[] = [];
+  const any = st.pending.length > 0;
+  for (const el of st.pending) {
+    if (!el.isConnected || !isShown(el)) continue;
+    removed.push(describeEl(el));
+    el.remove();
+  }
+  st.pending = [];
+  if (any) liftScrollLock();
+  return removed;
+}
+
+/**
+ * Click through tabs so every panel's content is in the DOM. Never a tab that is a link elsewhere
+ * (new tab or not) or to a file (§3.2.6, plan departure 3), and the same skips as the rounds.
+ * Clicks are staggered 300 ms apart; the caller waits for them.
+ */
+function entryTabs(): number {
+  const main = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
+  const picked: HTMLElement[] = [];
+  const seen = new Set<Element>();
+  const consider = (el: Element): void => {
+    if (seen.has(el) || (el as HTMLElement).offsetParent === null) return;
+    seen.add(el);
+    const a = el.closest('a');
+    if (a) {
+      const href = a.getAttribute('href');
+      if (hrefNavigates({ href, target: null }) || isFileLink(href)) return;
+    }
+    if (expandSkip(el)) return;
+    picked.push(el as HTMLElement);
+  };
+  main.querySelectorAll('[role="tab"]').forEach((el) => consider(el));
+  main.querySelectorAll('[data-tab]').forEach((el) => consider(el));
+  main.querySelectorAll('[class*="tab" i]').forEach((el) => {
+    const classes = classOf(el).toLowerCase();
+    if ((classes.includes('tab__') || classes.includes('tab-') || classes.includes('tabs__'))
+        && !classes.includes('panel') && !classes.includes('content') && !classes.includes('body')
+        && el.matches('button, a, [role="tab"]')) consider(el);
+  });
+  picked.forEach((el, i) => { setTimeout(() => el.click(), i * 300); });
+  return picked.length;
+}
+
 // ---- Script assembly. Keep at the end of the module: pageScript reads the constants above. -----
 
 /** esbuild's keepNames helper, as a no-op: see rule 3 at the top. `var`, so a real one is harmless. */
 export const PAGE_PRELUDE = 'var __name = (fn) => fn;';
 
 /** Every constant page code reads, emitted as `const NAME = <json>;` under the same name. */
-const PAGE_CONSTANTS: Record<string, unknown> = { CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE };
+const PAGE_CONSTANTS: Record<string, unknown> = {
+  CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE, HASPOPUP_SKIP, EXPAND_SELECTORS, EXPAND_TEXT_PATTERN,
+};
 
 /** Every function page code calls, emitted from its own source. */
 const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   // pure
   normName, isDismissName, isCloseWord, isSettingsName, hasVariantClassWord, isVariantControlFacts,
-  isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts,
+  isFileLink, hrefNavigates, coverage, mostOfText, overlayByFacts, opensLayer, isDialogLikeFacts,
   // DOM
   robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
-  isVariantControl, neverDismiss,
+  isVariantControl, neverDismiss, isDialogLike, expandSkip, liftScrollLock,
 ];
 
 /**
@@ -478,3 +671,15 @@ export const LIST_OVERLAYS_SCRIPT = pageScript(entryListOverlays);
 export const TOPMOST_OVERLAY_SCRIPT = pageScript(entryTopmostOverlay);
 /** The overlay at the window's centre, if any → `OverlayDescription | null` (§3.4's warning). */
 export const CENTRE_OVERLAY_SCRIPT = pageScript(entryCentreOverlay);
+/** Start of the expand pass → number of controls already expanded. */
+export const EXPAND_START_SCRIPT = pageScript(entryExpandStart);
+/** Remember the overlays present now → their count. */
+export const OVERLAY_BASELINE_SCRIPT = pageScript(entryOverlayBaseline);
+/** One expand round → number of controls clicked or <details> opened. */
+export const EXPAND_ROUND_SCRIPT = pageScript(entryExpandRound);
+/** Overlays that appeared since the baseline → their count. */
+export const NEW_OVERLAYS_SCRIPT = pageScript(entryNewOverlays);
+/** Remove what appeared and is still there → `OverlayDescription[]`. */
+export const REMOVE_NEW_OVERLAYS_SCRIPT = pageScript(entryRemoveNewOverlays);
+/** Click the tabs (staggered) → how many will be clicked. */
+export const TABS_SCRIPT = pageScript(entryTabs);

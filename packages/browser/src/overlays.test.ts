@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CLOSE_WORDS, PAGE_PRELUDE, coverage, hasVariantClassWord, isCloseWord, isDismissName, isFileLink,
   isSettingsName, isVariantControlFacts, mostOfText, normName, overlayByFacts, pageScript,
-  type OverlayFacts, type VariantFacts,
+  isDialogLikeFacts, opensLayer, type ControlledFacts, type OverlayFacts, type VariantFacts,
 } from './overlays.js';
 
 describe('normName', () => {
@@ -207,5 +207,37 @@ describe('pageScript', () => {
     expect(pageScript('2 + 2').trimEnd().endsWith('return (2 + 2);\n})()')).toBe(true);
     const s = pageScript(function entryEcho(x: { a: string }) { return x.a; } as (...args: never[]) => unknown, { a: "it's" });
     expect(s).toContain('({"a":"it\'s"})');
+  });
+});
+
+describe('opensLayer — aria-haspopup that means a layer (§3.2.1)', () => {
+  it('dialog, true, menu, listbox, grid and tree open a layer', () => {
+    for (const v of ['dialog', 'true', 'menu', 'listbox', 'grid', 'tree', ' Dialog ']) expect(opensLayer(v), v).toBe(true);
+  });
+  it('false, empty or absent does not', () => {
+    for (const v of ['false', '', null]) expect(opensLayer(v), String(v)).toBe(false);
+  });
+});
+
+describe('isDialogLikeFacts — an aria-controls target that is a layer (§3.2.2)', () => {
+  const panel: ControlledFacts = { tag: 'DIV', id: 'acc-panel', className: 'accordion__panel', role: 'region', ariaModal: null, position: 'static' };
+  it('a plain panel is not', () => {
+    expect(isDialogLikeFacts(panel)).toBe(false);
+  });
+  it('a dialog role, aria-modal or <dialog> is — kith\'s size drawer', () => {
+    expect(isDialogLikeFacts({ ...panel, role: 'dialog' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, role: 'alertdialog' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, ariaModal: 'true' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, tag: 'DIALOG' })).toBe(true);
+  });
+  it('a tag, id or class naming a modal, drawer, lightbox or popup is', () => {
+    expect(isDialogLikeFacts({ ...panel, tag: 'S-DRAWER' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, id: 'ProductSizeDrawer' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, className: 'fit-modal' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, className: 'zoom-lightbox' })).toBe(true);
+    expect(isDialogLikeFacts({ ...panel, id: 'popup-1' })).toBe(true);
+  });
+  it('a fixed target is', () => {
+    expect(isDialogLikeFacts({ ...panel, position: 'fixed' })).toBe(true);
   });
 });
