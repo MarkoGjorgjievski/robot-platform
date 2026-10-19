@@ -13,6 +13,19 @@ only when it sits on top of page content (it covers the window's centre, or page
 its own centre); outside an overlay dismissal never clicks what the expand pass opened, and the final
 pass (§3.4) offers today's page-wide steps only inside an overlay or a consent-like layer; the
 expand undo (§3.2.4) hides, rather than removes, a new overlay that is not `position: fixed`.
+After the live check (2026-10-19, branch `fix/capture-overlays-live`; the screenshots showed three
+pages still covered where "overlay at the centre" said none), three more: **§3.1 gains a smaller
+popup** — a fixed or absolute box of 8 % to a quarter of the window, over page content, not the
+header, footer or a bar along an edge, holding a close control (§3.3.4's words) and its own heading
+or a layer's name (puma DE's 14 % location popup over the sizes); **§3.3's whole names gain the
+common consent accept names** (`Accept`, `Allow cookies`, `Agree`, `Akzeptieren`, `Tout accepter`, …),
+matched on a button's accessible name or its visible text (colourpop's "Accept" is labelled "allow
+cookies"); and **a round whose clicks closed nothing presses Escape before the removal pass hides
+what is left**, so a page closes its modal its own way and takes its scrim with it (kith's welcome
+mat leaves `body.modal-background::before` dimming the window when it is merely hidden), with a
+net: the removal pass stops painting a scrim `<html>` or `<body>` draws with `::before`/`::after`
+(fixed, painted, over a quarter of the window, not behind the page). The live check now also lists
+every fixed layer of 5 % or more and every translucent layer over half the window.
 The problem comes from campaign 2, group 2 (`docs/testing/2026-10-11-campaign-2.md`, "Captures keep or open
 overlays"). Every cause below was seen on the real pages on 2026-10-19, free and keyless
 (`docs/testing/results/2026-10-19-capture-overlays/findings.md`, screenshots and the probe script
