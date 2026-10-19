@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { IBrowser, PageCapture, ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
-import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, type CandidatePath, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, markPaths, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
@@ -168,7 +168,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
     // What the customer said about this field (spec 2026-09-29 C1/C2) goes to every certification
     // below, the domain-cache shortcut included: that is where a cached `priority` would slip in.
     const confirmed = confirmedPathsOf(req.verificationSet, field.key);
-    const markXPaths = Object.values(req.verificationSet.marks?.[field.key] ?? {}).flatMap((m) => m.xpaths);
+    const markXPaths = Object.values(req.verificationSet.marks?.[field.key] ?? {}).flatMap((m) => markPaths(field, m));
 
     let result: FieldVerification | null = null;
     const cached = deps.cachedPaths ? await deps.cachedPaths(field.concept) : [];

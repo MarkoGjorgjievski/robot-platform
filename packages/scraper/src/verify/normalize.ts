@@ -171,3 +171,19 @@ export function renderValue(type: CustomerFieldType, normalized: string): unknow
     default: return normalized;
   }
 }
+
+/** Spec 2026-10-17 §6: the concepts whose marked text may carry a leading label ("Style: 398846_01"). Never a name or a description. */
+export const LABELLED_CONCEPTS: readonly string[] = ['sku', 'brand', 'availability', 'rating', 'review_count', 'currency'];
+
+export function labelled(concept: string | undefined): boolean {
+  return !!concept && LABELLED_CONCEPTS.includes(concept);
+}
+
+const LABEL = /^\s*([^\d:\n]{1,30}):\s*(\S[\s\S]*?)\s*$/u;
+
+/** The text after a leading "Label:" — at most 30 characters, no digits, at least one letter — or null when there is none. */
+export function afterLabel(text: string): string | null {
+  const m = LABEL.exec(text);
+  if (!m || !/\p{L}/u.test(m[1]!)) return null;
+  return m[2]!;
+}

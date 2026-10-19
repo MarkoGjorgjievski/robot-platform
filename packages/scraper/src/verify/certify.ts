@@ -1,6 +1,6 @@
 import type { PageCapture } from '@robot/browser';
 import { MAX_CERTIFIED_PATHS } from './constants.js';
-import { normalize, valuesEqual } from './normalize.js';
+import { labelled, normalize, valuesEqual } from './normalize.js';
 import { applyTransform } from './transforms.js';
 import { resolveStructured, searchStructured } from './search-structured.js';
 import { isVolatileXPath, xpathContainsValue, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
@@ -71,6 +71,12 @@ function dedupe(candidates: CandidatePath[]): CandidatePath[] {
   return candidates.filter((c) => { const id = pathId(c); if (seen.has(id)) return false; seen.add(id); return true; });
 }
 
+/** Spec 2026-10-17 §6: the XPaths a mark is read through. An image mark reads its src, a link mark its href; a mark stored before this change gets the suffix here. */
+export function markPaths(field: Pick<SchemaDefinitionField, 'type'>, mark: Pick<Mark, 'xpaths'>): string[] {
+  const attr = field.type === 'image' ? '/@src' : field.type === 'url' ? '/@href' : '';
+  return mark.xpaths.map((xp) => (attr && !/\/@[\w:-]+$/.test(xp) ? xp + attr : xp));
+}
+
 export async function gatherCandidates(
   field: SchemaDefinitionField,
   expected: Record<string, string>,
@@ -90,8 +96,11 @@ export async function gatherCandidates(
       // The customer said which element it is: the mark's XPaths stand in for the DOM search's hits on
       // this page, which is what settles `ambiguous` (spec 2026-09-18 §3.5). The mark still has to be
       // correct or empty on every other checked page, like any candidate.
-      hitsByUrl[url] = structured.length + mark.xpaths.length;
-      candidates.push(...mark.xpaths.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'identity' as const })));
+      const xps = markPaths(field, mark);
+      hitsByUrl[url] = structured.length + xps.length;
+      candidates.push(...xps.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'identity' as const })));
+      // A labelled concept's mark may show "Style: 398846_01" for the value 398846_01 (spec 2026-10-17 §6).
+      if (labelled(field.concept)) candidates.push(...xps.map((xp) => ({ source: 'xpath' as const, path: xp, transform: 'after_label' as const })));
       continue;
     }
     const dom = await deps.runDomSearch(capture.html, [{ key: field.key, type: field.type, expected: exp }], capture.url);

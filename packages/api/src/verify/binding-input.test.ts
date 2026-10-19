@@ -33,6 +33,20 @@ describe('prepareBinding', () => {
     ]);
     expect(r.verificationSet).toEqual({ urls: U, expected: ok.expected, listing_url: 'https://shop.example/all' });
   });
+  it('keeps a mark whose text after its label equals the value (spec 2026-10-17 §6)', () => {
+    // The shared contract has no labelled concept: add a SKU field (concept 'sku').
+    const withSku: ContractField[] = [...contract, { key: 'sku', name: 'SKU', type: 'text', concept: 'sku' }];
+    const u = ok.urls[0]!;
+    const input = { ...ok, descriptions: { ...ok.descriptions, sku: 'under the title' },
+      expected: { ...ok.expected, sku: { [U[0]!]: '398846_01', [U[1]!]: '312123_16', [U[2]!]: '109135_03' } },
+      marks: { sku: { [u]: { xpaths: ['//span'], text: 'Style: 398846_01', rect: { x: 1, y: 1, w: 5, h: 5 } } } } };
+    expect(prepareBinding(input, withSku).verificationSet.marks?.sku?.[u]?.text).toBe('Style: 398846_01');
+  });
+  it('a title is never read after a label: a "Title: a" mark on the cell "a" is dropped', () => {
+    const u = ok.urls[0]!;
+    const input = { ...ok, marks: { title: { [u]: { xpaths: ['//h1'], text: 'Title: a', rect: { x: 1, y: 1, w: 5, h: 5 } } } } };
+    expect('marks' in prepareBinding(input, contract).verificationSet).toBe(false);
+  });
 });
 
 const U2 = ['https://s.example/1', 'https://s.example/2', 'https://s.example/3'];

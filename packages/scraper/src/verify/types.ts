@@ -50,7 +50,7 @@ export type VerificationSet = {
   defaults?: Record<string, string>;
 };
 
-export type Transform = 'identity' | 'cents_to_units' | 'first_of_list';
+export type Transform = 'identity' | 'cents_to_units' | 'first_of_list' | 'after_label';
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 /** `provenOn` is set only when a field needed more than one layout (spec 2026-09-17 §3): the proof pages this path was correct on. Absent on a one-layout result, so those stay byte-for-byte what they were. Ignored by extraction and by path identity. */
 export type CertifiedPath = { source: CertifiedSource; path: string; transform: Transform; provenOn?: string[] };

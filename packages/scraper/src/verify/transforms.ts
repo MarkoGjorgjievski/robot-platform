@@ -1,7 +1,8 @@
 import type { CustomerFieldType, Transform } from './types.js';
-import { normalize, valuesEqual, type NormalizeContext } from './normalize.js';
+import { afterLabel, normalize, valuesEqual, type NormalizeContext } from './normalize.js';
 
-export const TRANSFORMS: readonly Transform[] = ['identity', 'cents_to_units', 'first_of_list'];
+/** Every transform a stored path may carry. `after_label` is a mark's only (spec 2026-10-17 §6): it is not in APPLICABLE, so it is never inferred. */
+export const TRANSFORMS: readonly Transform[] = ['identity', 'cents_to_units', 'first_of_list', 'after_label'];
 
 const APPLICABLE: Record<CustomerFieldType, readonly Transform[]> = {
   text: ['identity', 'first_of_list'],
@@ -22,6 +23,8 @@ export function applyTransform(raw: unknown, t: Transform): unknown {
       return n === null ? raw : Math.round(n) / 100;
     }
     case 'first_of_list': return Array.isArray(raw) ? raw[0] : raw;
+    // Spec 2026-10-17 §6: only ever a mark's transform; a value with no label passes through.
+    case 'after_label': return typeof raw === 'string' ? (afterLabel(raw) ?? raw) : raw;
   }
 }
 
