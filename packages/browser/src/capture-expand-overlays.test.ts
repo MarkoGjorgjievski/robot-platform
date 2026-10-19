@@ -103,13 +103,19 @@ const PAGES: Record<string, string> = {
     `window.__flags.selected = 'none';
      document.querySelectorAll('[role=radiogroup] button').forEach((b) => b.addEventListener('click', () => { window.__flags.selected = b.id; }));
      document.getElementById('spec-acc').addEventListener('click', () => { document.getElementById('spec-p').hidden = false; });`),
+  // Final review M1: an accordion panel holding an inline role=dialog (not fixed: a size table
+  // marked up as a dialog). The undo net may take it off the screenshot, never out of the HTML.
+  '/inline-dialog': fixturePage(
+    `<button id="ia" aria-expanded="false" aria-controls="ia-panel">Size table</button>
+     <div id="ia-panel" hidden><div id="inline-dlg" role="dialog">INLINE_DLG_TEXT</div></div>`, '',
+    `document.getElementById('ia').addEventListener('click', () => { document.getElementById('ia-panel').hidden = false; });`),
   // A listing with category tabs: crawl() expands page 1 but never clicks a tab (controller ruling).
   '/listing-tabs': fixturePage(
     `<button id="lacc" aria-expanded="false" aria-controls="lpanel">Filters</button><div id="lpanel" hidden>F</div>
      <div role="tablist"><button role="tab" id="cat1" aria-selected="true">All</button><button role="tab" id="cat2">Sale</button></div>`),
 };
 
-const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11', 'px', 'spec-p'];
+const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11', 'px', 'spec-p', 'inline-dlg'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -147,6 +153,13 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     expect(s.exists['zoom-modal']).toBe(false);
     expect(s.bodyOverflowY).not.toBe('hidden');
     expect(s.centre).toBe('product');
+  }, 60_000);
+
+  it('an inline dialog the round revealed is hidden, not removed: its text stays in the HTML (final review M1)', async () => {
+    const { c, s } = await capture('/inline-dialog');
+    expect(s.clicks).toContain('ia');
+    expect(s.exists['inline-dlg']).toBe(true);
+    expect(c.html).toContain('INLINE_DLG_TEXT');
   }, 60_000);
 
   it('controls that declare a layer are never clicked (mejuri, thomann, kith)', async () => {
