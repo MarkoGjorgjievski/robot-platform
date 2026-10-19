@@ -60,12 +60,15 @@ const PAGES: Record<string, string> = {
        document.querySelectorAll('.acc').forEach((o) => { o.setAttribute('aria-expanded', 'false'); document.getElementById(o.getAttribute('aria-controls')).hidden = true; });
        if (opening) { b.setAttribute('aria-expanded', 'true'); document.getElementById(b.getAttribute('aria-controls')).hidden = false; }
      }));`),
-  // Twelve tabs; the twelfth opens a layer. Only ten are clicked, so every click lands before the
-  // undo check (review fix: staggered clicks after the wait escaped the undo).
+  // Twelve tabs; the tenth and the twelfth open a layer. Only ten are clicked, and the tenth click
+  // lands before the undo check, so the undo removes its layer (review fix: staggered clicks after
+  // the wait escaped the undo).
   '/many-tabs': fixturePage(
     `<div role="tablist">${Array.from({ length: 12 }, (_, i) => `<button role="tab" id="mt${i + 1}">Tab ${i + 1}</button>`).join('')}</div>`,
-    `<div id="tab12-layer" style="display:none;position:fixed;inset:0;z-index:100;background:#000"></div>`,
-    `document.getElementById('mt12').addEventListener('click', () => openLayer('tab12-layer'));`),
+    `<div id="tab10-layer" style="display:none;position:fixed;inset:0;z-index:100;background:#000"></div>
+     <div id="tab12-layer" style="display:none;position:fixed;inset:0;z-index:100;background:#000"></div>`,
+    `document.getElementById('mt10').addEventListener('click', () => openLayer('tab10-layer'));
+     document.getElementById('mt12').addEventListener('click', () => openLayer('tab12-layer'));`),
   // Swatches built as [data-tab] buttons in a radiogroup: the tabs step must not pick a variant (§5.1).
   '/swatch-tabs': fixturePage(
     `<div role="radiogroup" aria-label="Colour">
@@ -115,7 +118,7 @@ const PAGES: Record<string, string> = {
      <div role="tablist"><button role="tab" id="cat1" aria-selected="true">All</button><button role="tab" id="cat2">Sale</button></div>`),
 };
 
-const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11', 'px', 'spec-p', 'inline-dlg'];
+const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab10-layer', 'tab12-layer', 'p11', 'px', 'spec-p', 'inline-dlg'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -186,7 +189,9 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     const { s } = await capture('/tab-video', TABS);
     expect(s.clicks).toContain('tv2');
     expect(s.opened['video-modal']).toBe(1);
-    expect(s.shown['video-modal']).toBe(false);
+    // Removed, not merely hidden: the expand undo removes a fixed layer, while the dismissal
+    // passes after it would only hide it (final review M2: proves the undo ran on the tab).
+    expect(s.exists['video-modal']).toBe(false);
     expect(s.centre).toBe('product');
   }, 60_000);
 
@@ -202,6 +207,10 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     expect(s.clicks.filter((id) => /^mt\d+$/.test(id))).toHaveLength(10);
     expect(s.clicks).not.toContain('mt12');
     expect(s.opened['tab12-layer']).toBeUndefined();
+    // The tenth click landed before the undo check: its layer was removed by the undo (the
+    // dismissal passes would only have hidden it).
+    expect(s.opened['tab10-layer']).toBe(1);
+    expect(s.exists['tab10-layer']).toBe(false);
     expect(s.shown['tab12-layer']).toBe(false);
     expect(s.centre).toBe('product');
   }, 60_000);
