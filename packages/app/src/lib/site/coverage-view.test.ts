@@ -103,14 +103,19 @@ describe('selectionToItemIds', () => {
 });
 
 describe('reExtractLabel', () => {
-  it('names the action and its cost honestly', () => {
-    expect(reExtractLabel(4))
+  it('names the action and its cost shape to staff', () => {
+    expect(reExtractLabel(4, true))
       .toBe("Re-extract selected (4 pages — cached paths first, AI only where the cache can't answer)");
   });
 
   it('uses the singular where it should', () => {
-    expect(reExtractLabel(1))
+    expect(reExtractLabel(1, true))
       .toBe("Re-extract selected (1 page — cached paths first, AI only where the cache can't answer)");
+  });
+
+  it('a customer reads the page count alone: no mechanism, no cost (spec 2026-10-17 §8a)', () => {
+    expect(reExtractLabel(4, false)).toBe('Re-extract selected (4 pages)');
+    expect(reExtractLabel(1, false)).toBe('Re-extract selected (1 page)');
   });
 });
 

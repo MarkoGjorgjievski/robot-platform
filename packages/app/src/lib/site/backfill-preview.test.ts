@@ -54,6 +54,18 @@ describe('strategyCopy', () => {
     expect(copy.alternative.toLowerCase()).toContain('every');
   });
 
+  it('staff read the strategies as today; a customer reads neither AI nor cost (spec 2026-10-17 §8a)', () => {
+    const dead: FieldClassification = { name: 'title', fill: 0.1, classification: 'dead' };
+    const staff = strategyCopy(dead, { showMoney: true })!;
+    expect(staff.recommended).toBe('Repair-then-sweep (recommended): re-discover the path on 3 sample pages, then sweep the rest for free with the repaired cache.');
+    expect(staff.alternative).toBe('Full focus: re-fetch every gappy page with AI focused on this field — costlier, simpler, occasionally right when no one path generalizes.');
+    for (const customer of [strategyCopy(dead, { showMoney: false })!, strategyCopy(dead)!]) {
+      expect(customer.alternative).toBe('Full focus: re-fetch every page with gaps, focused on this field — simpler, occasionally right when no one path generalizes.');
+      expect(customer.recommended).toBe('Repair-then-sweep (recommended): re-discover the path on 3 sample pages, then sweep the rest with the repaired path.');
+      expect(`${customer.title} ${customer.recommended} ${customer.alternative}`).not.toMatch(/\bAI\b|free|cost|\$/i);
+    }
+  });
+
   it('offers no dead-field strategy on a verified website', () => {
     expect(strategyCopy({ name: 'price', fill: 0.1, classification: 'dead' }, { certified: true })).toBeNull();
   });

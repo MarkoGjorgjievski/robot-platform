@@ -108,9 +108,13 @@ export function selectionToItemIds(selectedUrls: string[], gapByUrl: Map<string,
  * loud, every time, before the click: cached paths are tried first, and AI
  * only runs where the cache can't answer (spec: extraction-chain priority
  * order, mechanical/cache tiers before the paid AI tiers).
+ *
+ * That cost shape is staff-only (spec 2026-10-17 §8a, and customer copy never
+ * names a mechanism): a customer reads the page count alone.
  */
-export function reExtractLabel(count: number): string {
+export function reExtractLabel(count: number, showMoney: boolean): string {
   const noun = count === 1 ? 'page' : 'pages';
+  if (!showMoney) return `Re-extract selected (${count} ${noun})`;
   return `Re-extract selected (${count} ${noun} — cached paths first, AI only where the cache can't answer)`;
 }
 

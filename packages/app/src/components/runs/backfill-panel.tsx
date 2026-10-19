@@ -180,7 +180,7 @@ export function BackfillPanel({
                   // field, not the engine's key — the module only reads `name`
                   // and `fill` to write it, so the rename is safe and the
                   // mutation below still sends the real keys.
-                  const copy = strategyCopy({ ...field, name: nameOf(field.name) }, { certified });
+                  const copy = strategyCopy({ ...field, name: nameOf(field.name) }, { certified, showMoney });
                   if (!copy) return null;
                   return (
                     <div key={field.name} className="border-l-2 border-warn pl-3">
