@@ -177,6 +177,19 @@ describe('sources.verify', () => {
       await cleanup();
     }
   });
+
+  it('passes free through to the run, and leaves it off when not asked (spec 2026-10-17 §10 property 9)', async () => {
+    const { sourceId, keys, cleanup } = await makeSchemaSource('free');
+    try {
+      await caller.sources.verify({ sourceId, onlyKeys: [keys.Price!], free: true });
+      expect(runSourceVerificationMock).toHaveBeenLastCalledWith(sourceId, expect.any(String), { onlyKeys: [keys.Price!], free: true });
+      await db.update(sourceVerifications).set({ completedAt: new Date() }).where(eq(sourceVerifications.sourceId, sourceId));
+      await caller.sources.verify({ sourceId });
+      expect(runSourceVerificationMock.mock.lastCall![2]).not.toMatchObject({ free: true });
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe('sources.verificationStatus', () => {

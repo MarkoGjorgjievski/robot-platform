@@ -21,6 +21,8 @@ export type VerificationDeps = {
   /** `ready` is the check built from this page's expected values (verification-ready.ts); a fake may ignore it. */
   captureOne?: (browser: IBrowser, url: string, ready?: ReadyCheck) => Promise<PageCapture>;
   onProgress?: (stage: string) => void;
+  /** Spec 2026-10-17 §8/§10.9: never call the agent in this run, whatever `agent` is; a field nothing certifies fails. */
+  free?: boolean;
 };
 export type VerificationRun = { outcome: VerificationOutcome; captures: Record<string, PageCapture | null>; captureErrors: Record<string, string> };
 
@@ -151,6 +153,8 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
   const evalXPaths = (html: string, xpaths: string[]) => deps.browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xpaths));
   const runDomSearch = (html: string, needles: DomNeedle[], pageUrl: string) => deps.browser.setContentEvaluate<DomHit[]>(html, buildDomSearchScript(needles, pageUrl));
 
+  // Spec 2026-10-17 §10 property 9: a free run (the address warning's re-verify) never reaches the AI, for any field.
+  const agent = deps.free ? null : deps.agent;
   const fields: Record<string, FieldVerification> = {};
   let aiCalls = 0;
   deps.onProgress?.('searching');
@@ -189,7 +193,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       candidates = [...cached, ...gathered.candidates];
       result = await certify({ field, expected, captures: caps, candidates, confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
     }
-    if (result.certified.length === 0 && !result.defaultOnly && !result.notOnWebsite && !result.incomplete && deps.agent && !everyCellNoFittingPath(result)) {
+    if (result.certified.length === 0 && !result.defaultOnly && !result.notOnWebsite && !result.incomplete && agent && !everyCellNoFittingPath(result)) {
       deps.onProgress?.(`asking AI for ${field.key}`);
       const nearMisses = Object.fromEntries(Object.entries(result.cells).map(([u, c]) => [u, c.status === 'fail' ? c.nearMisses ?? [] : []]));
       // I1: only the pages this field is actually checked on go to the model
@@ -199,7 +203,7 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const pages = checkedPages(req.verificationSet.urls, expected);
       const checkedExpected = Object.fromEntries(pages.map((u) => [u, expected[u]!]));
       const checkedCaps: Record<string, CaptureLike | null> = Object.fromEntries(pages.map((u) => [u, caps[u] ?? null]));
-      const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, deps.agent);
+      const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, agent);
       aiCalls++;
       result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
       result.aiCalled = true;

@@ -334,6 +334,27 @@ describe('runSourceVerification', () => {
       await cleanup();
     }
   });
+
+  it('a free run (the address warning re-verify) hands runVerification no agent and free: true, even with a key set (spec 2026-10-17 §10 property 9)', async () => {
+    const { sourceId, urls, cleanup } = await makeSchemaSource('free');
+    const savedKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'test-key-never-sent';
+    try {
+      const verificationId = await startVerificationRow(sourceId);
+      runVerificationMock.mockResolvedValueOnce({
+        outcome: { fields: {}, allPassed: false, aiCalls: 0 },
+        captures: Object.fromEntries(urls.map((u) => [u, fakeCapture(u, '<html></html>')])),
+        captureErrors: {},
+      });
+      await runSourceVerification(sourceId, verificationId, { onlyKeys: ['price'], free: true, startCoverage });
+      const deps = runVerificationMock.mock.calls[0]![1] as { agent: unknown; free?: boolean };
+      expect(deps.agent).toBeNull();
+      expect(deps.free).toBe(true);
+    } finally {
+      if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = savedKey;
+      await cleanup();
+    }
+  });
 });
 
 describe('writeStage', () => {

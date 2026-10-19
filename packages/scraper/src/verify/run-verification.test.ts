@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PlaywrightBrowser, verdictSentence, pageVariantFrom } from '@robot/browser';
 import type { IBrowser } from '@robot/browser';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
@@ -581,5 +581,43 @@ describe('runVerification — a cached fixed-variant path on a named-variant pag
     });
     expect(run.outcome.fields.price!.certified[0]).toMatchObject({ path: 'hasVariant[page].offers.price' });
     expect(run.outcome.aiCalls).toBe(0);
+  });
+});
+
+describe('runVerification — the address warning re-verify is free (spec 2026-10-17 §8, §10 property 9)', () => {
+  const rug = JSON.parse(readFileSync(new URL('./__fixtures__/page-variant/ruggable.json', import.meta.url), 'utf8'));
+  const price: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'price', concept: 'price' };
+  const ld = (p1: string) => [{ ...rug.ldJson[0], hasVariant: rug.ldJson[0].hasVariant.map((v: { offers: object }, i: number) => (i === 1 ? { ...v, offers: { ...v.offers, price: p1 } } : v)) }];
+  const capture = (u: string, p1: string) => ({ ...emptyCapture(u), url: u, structuredData: { ldJson: ld(p1), nextData: null, initialState: null, meta: {} }, pageVariant: pageVariantFrom(rug.url, null, {}) }) as unknown as import('@robot/browser').PageCapture;
+  const fixed = { source: 'json-ld' as const, path: 'hasVariant[1].offers.price', transform: 'identity' as const };
+  const set: VerificationSet = {
+    urls: U,
+    expected: { price: Object.fromEntries(U.map((u) => [u, '569.00'])) },
+    paths: { price: { [U[0]!]: { source: 'json-ld', path: fixed.path } } },
+  };
+  const throwingAgent = () => ({ proposePaths: vi.fn(async () => { throw new Error('the AI must not be called'); }) });
+
+  it('a confirmed fixed-index path: its [page] twin certifies first, with no AI call', async () => {
+    const agent = throwingAgent();
+    const run = await runVerification({ fields: [price], verificationSet: set }, {
+      browser: { setContentEvaluate: async () => [] } as unknown as IBrowser, agent, free: true, onlyKeys: ['price'],
+      captures: Object.fromEntries(U.map((u) => [u, capture(u, '569.00')])),
+      cachedPaths: async () => [fixed],
+    });
+    expect(run.outcome.fields.price!.certified[0]).toMatchObject({ path: 'hasVariant[page].offers.price' });
+    expect(run.outcome.aiCalls).toBe(0);
+    expect(agent.proposePaths).not.toHaveBeenCalled();
+  });
+
+  it('the old path now wrong on a proof page: the field fails, and still no AI call', async () => {
+    const agent = throwingAgent();
+    const run = await runVerification({ fields: [price], verificationSet: set }, {
+      browser: { setContentEvaluate: async () => [] } as unknown as IBrowser, agent, free: true, onlyKeys: ['price'],
+      captures: Object.fromEntries(U.map((u, i) => [u, capture(u, i === 2 ? '600.00' : '569.00')])),
+      cachedPaths: async () => [fixed],
+    });
+    expect(run.outcome.fields.price!.certified).toEqual([]);
+    expect(run.outcome.aiCalls).toBe(0);
+    expect(agent.proposePaths).not.toHaveBeenCalled();
   });
 });

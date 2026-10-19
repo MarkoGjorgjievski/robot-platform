@@ -984,3 +984,11 @@ it('a [page] twin of a confirmed path ranks first (spec 2026-10-17 §8)', async 
   const r = await certify({ field: price, expected: Object.fromEntries(urls.map((u) => [u, '10.00'])), captures: caps, candidates: [fixed, twin], confirmed: [{ source: 'json-ld', path: 'offers[0].price' }] }, { evalXPaths: async () => ({}) });
   expect(r.certified[0]).toMatchObject({ path: 'offers[page].price' });
 });
+
+it('a [page] path is the twin of a confirmed path only where it has [page] and the confirmed path a number (spec 2026-10-17 §8)', () => {
+  const stock = { key: 'stock', name: 'In stock', type: 'boolean' as const, description: 's', concept: 'availability' };
+  const cand = { source: 'json-ld' as const, path: '@graph[0].offers[page].price', transform: 'identity' as const };
+  expect(qualifiesForWeak(stock, cand, { confirmed: [{ source: 'json-ld', path: '@graph[0].offers[0].price' }] })).toBe(true);
+  expect(qualifiesForWeak(stock, cand, { confirmed: [{ source: 'json-ld', path: '@graph[1].offers[0].price' }] })).toBe(false);
+  expect(qualifiesForWeak(stock, cand, { confirmed: [{ source: 'json-ld', path: '@graph[0].offers[0].priceCurrency' }] })).toBe(false);
+});

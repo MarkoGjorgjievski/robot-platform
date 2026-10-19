@@ -76,7 +76,7 @@ export async function writeStage(dbOrTx: Database, verificationId: string, stage
 export async function runSourceVerification(
   sourceId: string,
   verificationId: string,
-  opts: { onlyKeys?: string[]; startCoverage?: typeof startCoverageCheck } = {},
+  opts: { onlyKeys?: string[]; free?: boolean; startCoverage?: typeof startCoverageCheck } = {},
 ): Promise<void> {
   const startCoverage = opts.startCoverage ?? startCoverageCheck;
   try {
@@ -126,7 +126,8 @@ export async function runSourceVerification(
     for (const [url, p] of Object.entries(proofPages)) { reuse[url] = p.capture; reusedRefs.set(url, p.ref); }
 
     const before = snapshotUsage();
-    const agent = process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;
+    // A free run (spec 2026-10-17 §10 property 9) has no agent at all, so no field in it can reach the AI.
+    const agent = !opts.free && process.env.ANTHROPIC_API_KEY ? new SchemaAgent() : null;
     const onProgress = (stage: string) =>
       void writeStage(db, verificationId, stage).catch((err) => console.error(`[verify] failed to record stage for ${verificationId}:`, err));
     const { run, variantResults } = await withBrowserSession(async (browser) => {
@@ -135,6 +136,7 @@ export async function runSourceVerification(
         agent,
         captures: reuse,
         onlyKeys: opts.onlyKeys,
+        ...(opts.free ? { free: true } : {}),
         previous,
         cachedPaths: (concept) => lookupVerifiedPaths(hostname, 'detail', concept),
         onProgress,
