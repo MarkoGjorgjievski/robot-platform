@@ -306,6 +306,29 @@ describe('certify — a cover is not made of one-page paths', () => {
     const r = await certify({ field: textField, expected: exp, captures: caps, candidates: specific }, { evalXPaths });
     expect(r.certified).toEqual([]);
   });
+  // Spec 2026-10-17 §10 property 4: a failing field always names a product. Each page is found by a
+  // path that works there only, so no page fails on its own account; the value is in a different
+  // place on each product, and every such page says so rather than reading green.
+  it('three one-page paths: nothing certified and every page reads ambiguous, none green', async () => {
+    const r = await certify({ field: textField, expected: exp, captures: caps, candidates: specific }, { evalXPaths });
+    expect(r.certified).toEqual([]);
+    for (const u of pages) expect(r.cells[u]).toMatchObject({ status: 'fail', reason: 'ambiguous' });
+  });
+  it('the same on four pages: one-page paths on four valued pages all read ambiguous', async () => {
+    const p4 = 'https://s.example/4';
+    const four = [...names, 'EKTORP'];
+    const pages4 = [...pages, p4];
+    const caps4 = { ...caps, [p4]: blank(p4) };
+    const exp4 = { ...exp, [p4]: value(p4) };
+    const specific4 = four.map((n) => ({ source: 'xpath' as const, path: `//div[@data-product-name="${n}"]/h2[@class="sub"]`, transform: 'identity' as const }));
+    const eval4 = async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => {
+      const i = four.findIndex((n) => x.includes(`"${n}"`));
+      return [x, html.includes(`"${pages4[i]!}"`) ? onPage(html) : null];
+    }));
+    const r = await certify({ field: textField, expected: exp4, captures: caps4, candidates: specific4 }, { evalXPaths: eval4 });
+    expect(r.certified).toEqual([]);
+    for (const u of pages4) expect(r.cells[u]).toMatchObject({ status: 'fail', reason: 'ambiguous' });
+  });
   it('with the shared anchor offered as well, that one certifies, alone', async () => {
     const r = await certify({ field: textField, expected: exp, captures: caps, candidates: [...specific, SHARED] }, { evalXPaths });
     expect(r.certified).toEqual([SHARED]);
@@ -326,6 +349,9 @@ describe('certify — a cover is not made of one-page paths', () => {
     const r = await certify({ field: textField, expected: exp, absent: [p4], captures: { ...caps, [p4]: blank(p4) }, candidates: specific }, { evalXPaths });
     expect(r.certified).toEqual([]);
     expect(r.thinEvidence).toBeUndefined();
+    // The valued pages name the problem; the absent page reads as the customer said.
+    for (const u of pages) expect(r.cells[u]).toMatchObject({ status: 'fail', reason: 'ambiguous' });
+    expect(r.cells[p4]).toMatchObject({ status: 'pass', found: '' });
   });
   it('a real second layout with an absent page: provenOn lists the pages with a value only', async () => {
     const p4 = 'https://s.example/4';
@@ -672,11 +698,12 @@ describe('certify — a website\'s default (spec 2026-10-13 §4)', () => {
     expect(r.defaultOnly).toBeUndefined();
     expect(r.thinEvidence).toBeUndefined();
     // brandName is safe (empty on both default cells, correct on page 2) but proven on one page only, so it
-    // does not certify as a layout (the two-page rule) — yet every page it is correct on still reads found
-    // (spec 2026-10-17 §5), default cells included.
+    // does not certify as a layout (the two-page rule). The default cells read as found, but with no page
+    // failing on its own account the page it reads a value on carries the diagnosis (spec 2026-10-17
+    // §10 property 4: a failing field names a product), never an all-green row that does not certify.
     expect(r.cells).toEqual({
       [G[0]!]: { status: 'pass', found: '', path: brandName },
-      [G[1]!]: { status: 'pass', found: 'Gymshark x Whitney', path: brandName },
+      [G[1]!]: { status: 'fail', reason: 'ambiguous' },
       [G[2]!]: { status: 'pass', found: '', path: brandName },
     });
   });
