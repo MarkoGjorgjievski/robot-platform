@@ -788,7 +788,11 @@ function entryNewOverlays(): number {
   return st.pending.length;
 }
 
-/** After Escape: remove what the round opened and is still there, and lift the scroll lock. */
+/**
+ * After Escape: take away what the round opened and is still there, and lift the scroll lock. A
+ * fixed layer (a lightbox, a video modal) is removed. Anything else — an inline `role=dialog` a
+ * panel revealed — is hidden instead, so its text stays in the HTML (final review M1).
+ */
 function entryRemoveNewOverlays(): OverlayDescription[] {
   const st = robotState();
   const removed: OverlayDescription[] = [];
@@ -796,7 +800,8 @@ function entryRemoveNewOverlays(): OverlayDescription[] {
   for (const el of st.pending) {
     if (!el.isConnected || !isShown(el)) continue;
     removed.push(describeEl(el));
-    el.remove();
+    if (getComputedStyle(el).position === 'fixed') el.remove();
+    else hideOverlay(el);
   }
   st.pending = [];
   if (any) liftScrollLock();
