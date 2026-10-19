@@ -424,6 +424,8 @@ const ORG_SCREENS = [
       // Spec 2026-10-17 §8a: a customer's headline is pages captured, never spend.
       expect(await page.getByTestId('usage-total').innerText(), 'the Usage total is not 0 pages').toBe('0 pages');
       expect(await page.locator('tbody tr').filter({ hasText: PROJECT_NAME }).count(), 'Usage has no row for this run’s project').toBe(1);
+      // `expectNoMoney` skips table cells, so the Spend column is checked by its header.
+      expect(await page.getByRole('columnheader', { name: 'Spend' }).count(), 'Usage shows a customer the Spend column').toBe(0);
       await expectNoMoney(page);
     },
   },
@@ -654,9 +656,29 @@ async function rowStatusText(name: string): Promise<string> {
 /** The one button on the Verification tab that can spend. Found to be read, never clicked. */
 const verifyButtonOf = (p: Page) => p.getByRole('button', { name: /^Verify/ });
 
-/** Spec 2026-10-17 §8a: a customer sees no money. This smoke signs in as a customer. */
+/**
+ * Spec 2026-10-17 §8a: a customer sees no money. This smoke signs in as a customer.
+ * Reads our own chrome, not the customer's data: a clone of `main` with every
+ * table cell and every element showing a scraped value removed (a product's
+ * own "$129.99" is the customer's data, not a price we show). Buttons other
+ * than the table's value cells are checked whole: their labels are ours.
+ */
 async function expectNoMoney(p: Page) {
-  expect(await p.locator('main').innerText(), 'a customer screen shows a money amount').not.toMatch(/\$\s?\d/);
+  const chrome = await p.locator('main').evaluate((el) => {
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('td, [role="gridcell"], [data-value], [data-cell], [data-testid="selected-value"]').forEach((n) => n.remove());
+    // innerText needs layout: a detached clone has none, so it is attached off-screen for the read.
+    clone.style.position = 'absolute';
+    clone.style.left = '-99999px';
+    document.body.appendChild(clone);
+    const text = clone.innerText;
+    clone.remove();
+    return text;
+  });
+  expect(chrome, 'a customer screen shows a money amount or a price word').not.toMatch(/\$\s?\d|·\s*free\b|\bup to ~?\$/);
+  for (const label of await p.locator('main button:not([data-cell])').allInnerTexts()) {
+    expect(label, 'a button shows a customer a price').not.toMatch(/\$\d|·\s*free/);
+  }
 }
 
 beforeAll(async () => {

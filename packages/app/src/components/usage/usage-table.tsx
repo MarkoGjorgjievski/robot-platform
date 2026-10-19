@@ -3,8 +3,9 @@ import { Skeleton } from '../ui/skeleton';
 import type { UsageRowView } from '../../lib/usage-view';
 
 /**
- * Per project: what it cost and how many pages it took. Every project is a row, a quiet one at $0.00.
- * The Spend column is staff-only (spec 2026-10-17 §8a): a customer's table is projects and pages.
+ * Per project: how many pages it took and, for staff, what it cost. Every project is a row.
+ * Amounts are staff-only (spec 2026-10-17 §8a): the Spend column, a quiet project's $0.00
+ * included, is drawn only when `showMoney`; a customer's table is projects and pages.
  */
 export function UsageTable({ rows, loading, showMoney }: { rows: UsageRowView[]; loading: boolean; showMoney: boolean }) {
   return (

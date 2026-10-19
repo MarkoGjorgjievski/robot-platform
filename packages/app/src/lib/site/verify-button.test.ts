@@ -107,7 +107,7 @@ describe('verifyButton with variants', () => {
 
 describe('money on the Verify button is staff-only (spec 2026-10-17 §8a)', () => {
   const base = { state: 'editing' as const, firstRun: true, fieldCount: 8, reverifyCount: 0, capturesFresh: false, aiAvailable: true, upperBoundUsd: 1.44, complete: true, busy: false };
-  const args = { ...base, firstRun: true, fieldCount: 8, aiAvailable: true, upperBoundUsd: 1.44, complete: true, busy: false };
+  const args = base;
   it('a customer reads no amount and no price word', () => {
     expect(verifyButton({ ...args, showMoney: false }).label).toBe('Verify 8 fields');
     expect(verifyButton({ ...args, showMoney: false, upperBoundUsd: 0 }).label).toBe('Verify 8 fields');
