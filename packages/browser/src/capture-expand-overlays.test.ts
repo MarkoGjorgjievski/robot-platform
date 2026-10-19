@@ -3,6 +3,7 @@
 // mejuri's single-open accordion and the tabs that followed links (thomann, ikea), as fixtures.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from './playwright-browser.js';
+import type { CaptureOptions } from './types.js';
 import { fixturePage, pageState, serveHtml, type HtmlSite, type PageState } from './__fixtures__/overlay-pages.js';
 
 const ZOOM_MODAL = `<modal-dialog id="zoom-modal" style="display:none;position:fixed;inset:0;z-index:100;background:#000;color:#fff">Zoomed image</modal-dialog>`;
@@ -122,8 +123,11 @@ afterAll(async () => {
   await site?.close();
 });
 
-async function capture(path: string) {
-  const c = await browser.capture(`${site.baseUrl}${path}`, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, annotate: pageState(IDS) });
+/** The tabs step is off by default (final review I3); its own tests turn it on. */
+const TABS: CaptureOptions = { expandTabs: true };
+
+async function capture(path: string, options: CaptureOptions = {}) {
+  const c = await browser.capture(`${site.baseUrl}${path}`, { waitUntil: 'load', interceptNetworkRequests: false, maxTiles: 1, annotate: pageState(IDS), ...options });
   return { c, s: c.annotation as PageState };
 }
 
@@ -153,7 +157,7 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
   }, 60_000);
 
   it('an accordion panel, a <details> and the tabs are still expanded; no tab that is a link is followed', async () => {
-    const { c, s } = await capture('/accordion');
+    const { c, s } = await capture('/accordion', TABS);
     expect(s.shown['acc-panel']).toBe(true);
     expect(c.html).toContain('MATERIALS_TEXT');
     expect(s.detailsOpen.det).toBe(true);
@@ -166,7 +170,7 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
   }, 60_000);
 
   it('a tab that opened a layer is undone', async () => {
-    const { s } = await capture('/tab-video');
+    const { s } = await capture('/tab-video', TABS);
     expect(s.clicks).toContain('tv2');
     expect(s.opened['video-modal']).toBe(1);
     expect(s.shown['video-modal']).toBe(false);
@@ -181,7 +185,7 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
   }, 60_000);
 
   it('at most ten tabs are clicked, so a late tab cannot open a layer after the undo check', async () => {
-    const { s } = await capture('/many-tabs');
+    const { s } = await capture('/many-tabs', TABS);
     expect(s.clicks.filter((id) => /^mt\d+$/.test(id))).toHaveLength(10);
     expect(s.clicks).not.toContain('mt12');
     expect(s.opened['tab12-layer']).toBeUndefined();
@@ -190,7 +194,7 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
   }, 60_000);
 
   it('the tabs step never clicks a variant choice — a [data-tab] swatch in a radiogroup (§5.1)', async () => {
-    const { s } = await capture('/swatch-tabs');
+    const { s } = await capture('/swatch-tabs', TABS);
     expect(s.clicks).not.toContain('sw-red');
     expect(s.clicks).not.toContain('sw-blue');
     expect(s.flags.selected).toBe('sw-red');
@@ -218,6 +222,16 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     expect(s.clicks).not.toContain('fsw-s');
     expect(s.clicks).not.toContain('fsw-m');
     expect(s.flags.selected).toBe('none');
+  }, 60_000);
+});
+
+describe('the tabs step is off unless asked for (final review I3, controller ruling)', () => {
+  it('a plain capture opens the accordion and the <details> but clicks no tab', async () => {
+    const { s } = await capture('/accordion');
+    expect(s.shown['acc-panel']).toBe(true);
+    expect(s.detailsOpen.det).toBe(true);
+    expect(s.clicks).not.toContain('t1');
+    expect(s.clicks).not.toContain('t2');
   }, 60_000);
 });
 
