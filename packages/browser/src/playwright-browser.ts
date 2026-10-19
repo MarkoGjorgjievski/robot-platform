@@ -10,7 +10,7 @@ import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
 import {
-  hrefNavigates, EXPAND_START_SCRIPT, OVERLAY_BASELINE_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
+  hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
   REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, type OverlayDescription,
 } from './overlays.js';
 
@@ -662,20 +662,22 @@ export class PlaywrightBrowser implements IBrowser {
    * an overlay over it (spec 2026-10-19 §3.2). The rules and the page code are in overlays.ts:
    * layer triggers are skipped, each control is clicked at most once (one already expanded counts),
    * and an overlay that appears during a round is closed — Escape, then removed — before the next.
-   * Runs after popup dismissal, before the screenshot; crawl() runs it on listing page 1 too.
+   * Each round and the tabs step note the overlays already there right before their first click.
+   * Runs after popup dismissal, before the screenshot. crawl() runs it on listing page 1 with
+   * `tabs: false`: a listing's category tabs would leave the grid on the last tab (and until this
+   * rewrite the tabs step never ran under tsx at all, so listings never had it).
    */
-  private async expandHiddenContent(page: Page): Promise<void> {
+  private async expandHiddenContent(page: Page, { tabs: clickTabs = true }: { tabs?: boolean } = {}): Promise<void> {
     await page.evaluate(EXPAND_START_SCRIPT).catch(() => 0);
     for (let round = 0; round < 2; round++) {
-      await page.evaluate(OVERLAY_BASELINE_SCRIPT).catch(() => 0);
       const expanded = Number(await page.evaluate(EXPAND_ROUND_SCRIPT).catch(() => 0));
       if (!expanded) break;
       await page.waitForTimeout(500);
       await this.undoNewOverlays(page);
     }
+    if (!clickTabs) return;
 
     // Tabs: load every panel's content into the DOM. Same skips, same undo.
-    await page.evaluate(OVERLAY_BASELINE_SCRIPT).catch(() => 0);
     const tabs = Number(await page.evaluate(TABS_SCRIPT).catch(() => 0));
     if (tabs > 0) {
       await page.waitForTimeout(Math.min(tabs * 300 + 500, 3000));
@@ -861,7 +863,7 @@ export class PlaywrightBrowser implements IBrowser {
       // already captured it and only wants the pages after it.
       await this.navigateWithFallback(page, startUrl);
       await this.dismissPopups(page);
-      await this.expandHiddenContent(page);
+      await this.expandHiddenContent(page, { tabs: false });
 
       const page1Html = await page.content();
 

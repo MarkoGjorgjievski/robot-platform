@@ -39,6 +39,15 @@ export const EXPAND_SELECTORS: readonly string[] = [
   'article [data-toggle="collapse"]',
 ];
 
+/** The expand round clicks at most this many controls per structural selector (today's cap). */
+export const EXPAND_PER_SELECTOR = 10;
+
+/**
+ * The tabs step clicks at most this many tabs: clicks are 300 ms apart and the caller waits at most
+ * 3 s, so the tenth lands at 2.7 s, before the undo check. An eleventh would escape it.
+ */
+export const EXPAND_MAX_TABS = 10;
+
 /** "Show more" and friends, as a RegExp source (today's Phase 2 pattern, unchanged). */
 export const EXPAND_TEXT_PATTERN = '^(show more|see more|see all|view details|read more|expand|view all|load more|\\+ more|show all)$';
 
@@ -435,12 +444,26 @@ function accessibleName(el: Element): string {
 
 /** §3.3.2's variant control, read off a live element. */
 function isVariantControl(el: Element): boolean {
+  return isVariantControlFacts(variantFactsOf(el));
+}
+
+/**
+ * A variant choice for any reason other than `role=tab` (§5.1): what the tabs step must not click.
+ * A real tab is the step's whole point; a `[data-tab]` or `tab-` swatch in a radiogroup is not.
+ */
+function isVariantChoice(el: Element): boolean {
+  const f = variantFactsOf(el);
+  return isVariantControlFacts(normName(f.role) === 'tab' ? { ...f, role: null } : f);
+}
+
+/** The facts §3.3.2 reads off a live element. */
+function variantFactsOf(el: Element): VariantFacts {
   const control = el.tagName === 'LABEL' ? (el as HTMLLabelElement).control : null;
   let inSwatch = false;
   for (let a = parentOf(el), i = 0; a && i < 3; a = parentOf(a), i++) {
     if (/swatch/i.test(classOf(a))) { inSwatch = true; break; }
   }
-  return isVariantControlFacts({
+  return {
     tag: el.tagName,
     inputType: el.tagName === 'INPUT' ? el.getAttribute('type') : null,
     role: el.getAttribute('role'),
@@ -450,7 +473,7 @@ function isVariantControl(el: Element): boolean {
     choiceInput: el.querySelector('input[type="radio"], input[type="checkbox"]') !== null
       || (control instanceof HTMLInputElement && (control.type === 'radio' || control.type === 'checkbox')),
     className: classOf(el),
-  });
+  };
 }
 
 /**
@@ -531,16 +554,19 @@ function entryExpandStart(): number {
   return n;
 }
 
-/** Remember which overlays are there before a round, so the round's own can be told apart. */
-function entryOverlayBaseline(): number {
-  const st = robotState();
-  st.baseline = new Set(listOverlayEls());
-  return st.baseline.size;
+/**
+ * Remember which overlays are there, so the ones a round or the tabs step opens can be told apart.
+ * Called right before the first click, so a page with nothing to expand pays no full-DOM scan.
+ */
+function takeOverlayBaseline(): void {
+  robotState().baseline = new Set(listOverlayEls());
 }
 
 /**
  * One expand round: today's structural controls and "show more" buttons, each clicked at most once
  * per capture, skipping layer triggers and anything inside an overlay; closed <details> are opened.
+ * The ten-per-selector cap counts controls that would be clicked, so a skipped or already-clicked
+ * one never hides a real accordion further down.
  *
  * Clicks happen IN THE PAGE (`element.click()`), not through a Playwright locator: a locator click
  * scrolls its element into view first, and on a listing that loads lazily that appends products —
@@ -550,28 +576,36 @@ function entryOverlayBaseline(): number {
 function entryExpandRound(): number {
   const st = robotState();
   let n = 0;
+  const act = (): void => {
+    if (n === 0) takeOverlayBaseline();
+    n++;
+  };
+  // offsetParent is null for display:none. Outside the viewport is fine and expected.
+  const clickable = (el: Element): boolean =>
+    (el as HTMLElement).offsetParent !== null && !st.clicked.has(el) && !expandSkip(el);
   const click = (el: Element): void => {
-    if (st.clicked.has(el) || expandSkip(el)) return;
+    act();
     st.clicked.add(el);
-    try { (el as HTMLElement).click(); n++; } catch { /* not clickable */ }
+    try { (el as HTMLElement).click(); } catch { /* not clickable */ }
   };
   for (const selector of EXPAND_SELECTORS) {
-    const els = Array.prototype.slice.call(document.querySelectorAll(selector), 0, 10) as Element[];
-    for (const el of els) {
-      // offsetParent is null for display:none. Outside the viewport is fine and expected.
-      if ((el as HTMLElement).offsetParent === null) continue;
+    let taken = 0;
+    for (const el of Array.from(document.querySelectorAll(selector))) {
+      if (taken >= EXPAND_PER_SELECTOR) break;
+      if (!clickable(el)) continue;
       click(el);
+      taken++;
     }
   }
   const re = new RegExp(EXPAND_TEXT_PATTERN, 'i');
   const main = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
   for (const el of Array.from(main.querySelectorAll('button, a[role="button"], [class*="expand"], [class*="show-more"], [class*="read-more"]'))) {
-    if (re.test(el.textContent?.trim() ?? '') && (el as HTMLElement).offsetParent !== null) click(el);
+    if (re.test(el.textContent?.trim() ?? '') && clickable(el)) click(el);
   }
   for (const el of Array.from(main.querySelectorAll('details:not([open])'))) {
     if (outermostOverlay(el) !== null) continue;
+    act();
     el.setAttribute('open', '');
-    n++;
   }
   return n;
 }
@@ -600,14 +634,16 @@ function entryRemoveNewOverlays(): OverlayDescription[] {
 
 /**
  * Click through tabs so every panel's content is in the DOM. Never a tab that is a link elsewhere
- * (new tab or not) or to a file (§3.2.6, plan departure 3), and the same skips as the rounds.
- * Clicks are staggered 300 ms apart; the caller waits for them.
+ * (new tab or not) or to a file (§3.2.6, plan departure 3), never a variant choice (§5.1: a
+ * `[data-tab]` swatch), and the same skips as the rounds. At most EXPAND_MAX_TABS, staggered
+ * 300 ms apart, so the last click lands inside the caller's 3 s wait and before its undo check.
  */
 function entryTabs(): number {
   const main = document.querySelector('main') ?? document.querySelector('article') ?? document.body;
   const picked: HTMLElement[] = [];
   const seen = new Set<Element>();
   const consider = (el: Element): void => {
+    if (picked.length >= EXPAND_MAX_TABS) return;
     if (seen.has(el) || (el as HTMLElement).offsetParent === null) return;
     seen.add(el);
     const a = el.closest('a');
@@ -615,7 +651,7 @@ function entryTabs(): number {
       const href = a.getAttribute('href');
       if (hrefNavigates({ href, target: null }) || isFileLink(href)) return;
     }
-    if (expandSkip(el)) return;
+    if (expandSkip(el) || isVariantChoice(el)) return;
     picked.push(el as HTMLElement);
   };
   main.querySelectorAll('[role="tab"]').forEach((el) => consider(el));
@@ -626,6 +662,7 @@ function entryTabs(): number {
         && !classes.includes('panel') && !classes.includes('content') && !classes.includes('body')
         && el.matches('button, a, [role="tab"]')) consider(el);
   });
+  if (picked.length > 0) takeOverlayBaseline();
   picked.forEach((el, i) => { setTimeout(() => el.click(), i * 300); });
   return picked.length;
 }
@@ -638,6 +675,7 @@ export const PAGE_PRELUDE = 'var __name = (fn) => fn;';
 /** Every constant page code reads, emitted as `const NAME = <json>;` under the same name. */
 const PAGE_CONSTANTS: Record<string, unknown> = {
   CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE, HASPOPUP_SKIP, EXPAND_SELECTORS, EXPAND_TEXT_PATTERN,
+  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS,
 };
 
 /** Every function page code calls, emitted from its own source. */
@@ -648,7 +686,8 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   // DOM
   robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
-  isVariantControl, neverDismiss, isDialogLike, expandSkip, liftScrollLock,
+  isVariantControl, isVariantChoice, variantFactsOf, neverDismiss, isDialogLike, expandSkip, liftScrollLock,
+  takeOverlayBaseline,
 ];
 
 /**
@@ -673,8 +712,6 @@ export const TOPMOST_OVERLAY_SCRIPT = pageScript(entryTopmostOverlay);
 export const CENTRE_OVERLAY_SCRIPT = pageScript(entryCentreOverlay);
 /** Start of the expand pass → number of controls already expanded. */
 export const EXPAND_START_SCRIPT = pageScript(entryExpandStart);
-/** Remember the overlays present now → their count. */
-export const OVERLAY_BASELINE_SCRIPT = pageScript(entryOverlayBaseline);
 /** One expand round → number of controls clicked or <details> opened. */
 export const EXPAND_ROUND_SCRIPT = pageScript(entryExpandRound);
 /** Overlays that appeared since the baseline → their count. */
