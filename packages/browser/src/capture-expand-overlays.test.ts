@@ -59,9 +59,33 @@ const PAGES: Record<string, string> = {
        document.querySelectorAll('.acc').forEach((o) => { o.setAttribute('aria-expanded', 'false'); document.getElementById(o.getAttribute('aria-controls')).hidden = true; });
        if (opening) { b.setAttribute('aria-expanded', 'true'); document.getElementById(b.getAttribute('aria-controls')).hidden = false; }
      }));`),
+  // Twelve tabs; the twelfth opens a layer. Only ten are clicked, so every click lands before the
+  // undo check (review fix: staggered clicks after the wait escaped the undo).
+  '/many-tabs': fixturePage(
+    `<div role="tablist">${Array.from({ length: 12 }, (_, i) => `<button role="tab" id="mt${i + 1}">Tab ${i + 1}</button>`).join('')}</div>`,
+    `<div id="tab12-layer" style="display:none;position:fixed;inset:0;z-index:100;background:#000"></div>`,
+    `document.getElementById('mt12').addEventListener('click', () => openLayer('tab12-layer'));`),
+  // Swatches built as [data-tab] buttons in a radiogroup: the tabs step must not pick a variant (§5.1).
+  '/swatch-tabs': fixturePage(
+    `<div role="radiogroup" aria-label="Colour">
+       <button data-tab="red" id="sw-red" aria-checked="true">Red</button>
+       <button data-tab="blue" id="sw-blue" aria-checked="false">Blue</button>
+     </div>
+     <div role="tablist"><button role="tab" id="real-tab">Specs</button></div>`, '',
+    `window.__flags.selected = 'sw-red';
+     document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { window.__flags.selected = b.id; }));`),
+  // Ten layer triggers before a real accordion: the eleventh control is still reached.
+  '/eleventh': fixturePage(
+    `${Array.from({ length: 10 }, (_, i) => `<button id="d${i + 1}" aria-haspopup="dialog" aria-expanded="false">Guide ${i + 1}</button>`).join('')}
+     <button id="acc11" aria-expanded="false" aria-controls="p11">Materials</button><div id="p11" hidden>P11_TEXT</div>`, '',
+    `document.getElementById('acc11').addEventListener('click', () => { document.getElementById('p11').hidden = false; });`),
+  // A listing with category tabs: crawl() expands page 1 but never clicks a tab (controller ruling).
+  '/listing-tabs': fixturePage(
+    `<button id="lacc" aria-expanded="false" aria-controls="lpanel">Filters</button><div id="lpanel" hidden>F</div>
+     <div role="tablist"><button role="tab" id="cat1" aria-selected="true">All</button><button role="tab" id="cat2">Sale</button></div>`),
 };
 
-const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc'];
+const IDS = ['zoom-modal', 'sg-dialog', 'size-drawer', 'fit-modal', 'acc-panel', 'video-modal', 'mat', 'desc', 'tab12-layer', 'p11'];
 
 let browser: PlaywrightBrowser;
 let site: HtmlSite;
@@ -131,5 +155,43 @@ describe('the expand pass never leaves an overlay over the product (spec 2026-10
     expect(s.shown.mat).toBe(true);
     expect(s.clicks.filter((id) => id === 'mat-btn')).toHaveLength(1);
     expect(s.clicks).not.toContain('desc-btn');
+  }, 60_000);
+
+  it('at most ten tabs are clicked, so a late tab cannot open a layer after the undo check', async () => {
+    const { s } = await capture('/many-tabs');
+    expect(s.clicks.filter((id) => /^mt\d+$/.test(id))).toHaveLength(10);
+    expect(s.clicks).not.toContain('mt12');
+    expect(s.opened['tab12-layer']).toBeUndefined();
+    expect(s.shown['tab12-layer']).toBe(false);
+    expect(s.centre).toBe('product');
+  }, 60_000);
+
+  it('the tabs step never clicks a variant choice — a [data-tab] swatch in a radiogroup (§5.1)', async () => {
+    const { s } = await capture('/swatch-tabs');
+    expect(s.clicks).not.toContain('sw-red');
+    expect(s.clicks).not.toContain('sw-blue');
+    expect(s.flags.selected).toBe('sw-red');
+    expect(s.clicks).toContain('real-tab');
+  }, 60_000);
+
+  it('a real accordion after ten skipped controls is still reached', async () => {
+    const { s } = await capture('/eleventh');
+    for (let i = 1; i <= 10; i++) expect(s.clicks).not.toContain(`d${i}`);
+    expect(s.shown.p11).toBe(true);
+  }, 60_000);
+});
+
+describe('crawl() expands listing page 1 but never clicks its tabs (controller ruling)', () => {
+  it('the accordion is clicked, the category tab is not', async () => {
+    const pages = [];
+    for await (const p of browser.crawl(`${site.baseUrl}/listing-tabs`, {
+      maxPages: 1,
+      extractionScript: '({ data: [{ clicks: (window.__clicks || []).join(",") }], totalRows: 1 })',
+    })) pages.push(p);
+    expect(pages).toHaveLength(1);
+    const clicks = String(pages[0].data[0].clicks).split(',');
+    expect(clicks).toContain('lacc');
+    expect(clicks).not.toContain('cat2');
+    expect(clicks).not.toContain('cat1');
   }, 60_000);
 });
