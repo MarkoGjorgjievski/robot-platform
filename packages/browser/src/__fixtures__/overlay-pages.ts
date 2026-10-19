@@ -42,7 +42,8 @@ export async function serveHtml(pages: Record<string, string>): Promise<HtmlSite
  * The page's own bookkeeping: every click on an element with an id (capture phase, so a click the
  * page swallows still counts), every layer it opens, and free-form flags.
  */
-export const TRACK_SCRIPT = `window.__clicks = []; window.__opened = {}; window.__flags = {};
+export const TRACK_SCRIPT = `window.__clicks = []; window.__opened = {}; window.__flags = {}; window.__mouse = null;
+document.addEventListener('mousemove', (e) => { window.__mouse = [e.clientX, e.clientY]; }, true);
 document.addEventListener('click', (e) => {
   const t = e.target && e.target.closest ? e.target.closest('[id]') : null;
   if (t && t.id !== 'product') window.__clicks.push(t.id);
@@ -78,6 +79,10 @@ export interface PageState {
   scrollY: number;
   /** html or body paints a ::before/::after (a scrim drawn by a "modal open" class). */
   pseudoPainted: boolean;
+  /** Each of html::before, html::after, body::before, body::after: painted? */
+  pseudo: Record<string, boolean>;
+  /** The mouse's last position the page saw (null: it never moved). */
+  mouse: [number, number] | null;
 }
 
 /** An `annotate` script: capture() runs it after its last pass, just before the screenshot. */
@@ -107,6 +112,11 @@ export function pageState(ids: string[]): string {
       const s = getComputedStyle(el, p);
       return s.content !== 'none' && s.content !== 'normal' && s.display !== 'none' && s.visibility !== 'hidden' && parseFloat(s.opacity) > 0;
     })),
+    pseudo: Object.fromEntries([['html', document.documentElement], ['body', document.body]].flatMap(([name, el]) => ['::before', '::after'].map((p) => {
+      const s = getComputedStyle(el, p);
+      return [name + p, s.content !== 'none' && s.content !== 'normal' && s.display !== 'none' && s.visibility !== 'hidden' && parseFloat(s.opacity) > 0];
+    }))),
+    mouse: window.__mouse || null,
   };
 })()`;
 }

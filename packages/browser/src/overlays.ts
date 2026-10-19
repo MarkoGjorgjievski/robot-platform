@@ -52,11 +52,13 @@ export const EXPAND_MAX_TABS = 10;
 export const EXPAND_TEXT_PATTERN = '^(show more|see more|see all|view details|read more|expand|view all|load more|\\+ more|show all)$';
 
 /** One dismissal step: a CSS selector, or a whole accessible name (case-folded) of a button. */
-export type DismissStep = { css: string } | { name: string };
+export type DismissStep = { css: string } | { name: string; scoped?: boolean };
 
 /**
  * Today's dismissal list, in today's order, with every `button:has-text("…")` turned into a whole
- * name (§3.3.1). A name step matches `button, [role=button]` whose accessible name IS the text.
+ * name (§3.3.1). A name step matches `button, [role=button]` whose accessible name or visible text
+ * IS the text. A `scoped` name — one word, or generic ("ok", "close", "got it") — counts only for a
+ * button inside a layer (inLayer): a product page has its own "Accept" and "Close" buttons.
  */
 export const DISMISS_STEPS: readonly DismissStep[] = [
   // Cookie consent
@@ -86,42 +88,42 @@ export const DISMISS_STEPS: readonly DismissStep[] = [
   { name: 'accept all cookies' },
   // Common consent accept names (live check 2026-10-19: colourpop's bare "Accept", labelled
   // "allow cookies"). Still whole names; never a settings or preferences name.
-  { name: 'accept' },
+  { name: 'accept', scoped: true },
   { name: 'accept and close' },
   { name: 'accept & close' },
   { name: 'allow all' },
   { name: 'allow all cookies' },
   { name: 'allow cookies' },
-  { name: 'allow' },
-  { name: 'agree' },
+  { name: 'allow', scoped: true },
+  { name: 'agree', scoped: true },
   { name: 'agree and close' },
   { name: 'agree and continue' },
-  { name: 'akzeptieren' },
+  { name: 'akzeptieren', scoped: true },
   { name: 'alle akzeptieren' },
   { name: 'alle cookies akzeptieren' },
   { name: 'alle zulassen' },
-  { name: 'zustimmen' },
+  { name: 'zustimmen', scoped: true },
   { name: 'tout accepter' },
-  { name: 'accepter' },
+  { name: 'accepter', scoped: true },
   { name: 'accepter et fermer' },
-  { name: 'aceptar' },
+  { name: 'aceptar', scoped: true },
   { name: 'aceptar todo' },
   { name: 'aceptar todas' },
-  { name: 'accetta' },
+  { name: 'accetta', scoped: true },
   { name: 'accetta tutto' },
   { name: 'accetta tutti' },
-  { name: 'accepteren' },
+  { name: 'accepteren', scoped: true },
   { name: 'alles accepteren' },
-  { name: 'aceitar' },
+  { name: 'aceitar', scoped: true },
   { name: 'aceitar todos' },
-  { name: 'acceptera' },
+  { name: 'acceptera', scoped: true },
   { name: 'acceptera alla' },
   { name: 'i accept' },
   { name: 'i agree' },
-  { name: 'got it' },
-  { name: 'ok, got it' },
-  { name: 'ok' },
-  { name: 'close' },
+  { name: 'got it', scoped: true },
+  { name: 'ok, got it', scoped: true },
+  { name: 'ok', scoped: true },
+  { name: 'close', scoped: true },
   // Newsletter/email modals
   { css: '[aria-label="Close dialog"]' },
   { css: '[aria-label="Close modal"]' },
@@ -153,6 +155,18 @@ export const DISMISS_HOST_SELECTOR = [
   '[id*="cookie" i]', '[class*="cookie" i]', '[id*="consent" i]', '[class*="consent" i]',
   '[id*="banner" i]', '[class*="banner" i]', '[id*="popup" i]', '[class*="popup" i]',
   '[id*="modal" i]', '[class*="modal" i]',
+].join(', ');
+
+/**
+ * A consent manager's layer (review round 1): dialog semantics, a consent vendor's or a cookie/
+ * consent/privacy name, or a cookie/consent label. Not DISMISS_HOST_SELECTOR: its banner, popup and
+ * modal words also match a hero banner on the page.
+ */
+export const CONSENT_HOST_SELECTOR = [
+  '[role="dialog"]', '[role="alertdialog"]', '[aria-modal="true"]', 'dialog',
+  ...['cookie', 'consent', 'privacy', 'gdpr', 'cmp', 'onetrust', 'didomi', 'usercentrics', 'cookiebot', 'truste']
+    .flatMap((w) => [`[id*="${w}" i]`, `[class*="${w}" i]`]),
+  '[aria-label*="cookie" i]', '[aria-label*="consent" i]',
 ].join(', ');
 
 /** An element that says it is a dialog. Page only (isShown, holdsPage, listOverlayEls). */
@@ -349,19 +363,23 @@ export interface ScrimFacts {
   rect: Box;
   vw: number;
   vh: number;
-  /** The background's alpha: the colour's, or 1 for a background image (a gradient). */
+  /** The background colour's alpha (a background image is not a scrim: a texture or a picture). */
   backgroundAlpha: number;
   backdropFilter: string;
   zIndex: string;
 }
 
+/** Below this effective alpha a full-window pseudo-element dims nothing (a grain texture at .05). */
+export const SCRIM_MIN_ALPHA = 0.1;
+
 /**
  * Is a `::before`/`::after` of `<html>` or `<body>` a scrim? A page that opens a modal often adds a
  * class to body whose pseudo-element dims the whole window (kith: `body.modal-background::before`,
  * fixed, inset 0, rgba(0,0,0,.6)). Hiding the modal leaves that class, and the scrim, behind. A
- * scrim is drawn (content, shown, opacity above 0), fixed, over a quarter of the window, painted (a
- * background or a backdrop filter), and not behind the page (a negative z-index is a decorative
- * background).
+ * scrim is drawn (content, shown), fixed, over a quarter of the window, translucent — its colour
+ * times its opacity between SCRIM_MIN_ALPHA and 1, or a backdrop filter: an opaque fill is the page's
+ * background and a faint grain dims nothing (review round 1) — and not behind the page (a negative
+ * z-index is a decorative background).
  */
 export function isScrimFacts(f: ScrimFacts): boolean {
   if (f.content === 'none' || f.content === 'normal') return false;
@@ -369,7 +387,9 @@ export function isScrimFacts(f: ScrimFacts): boolean {
   if (f.position !== 'fixed') return false;
   const z = parseInt(f.zIndex, 10);
   if (!Number.isNaN(z) && z < 0) return false;
-  if (!(f.backgroundAlpha > 0) && (f.backdropFilter === 'none' || f.backdropFilter === '')) return false;
+  const dim = f.backgroundAlpha * f.opacity;
+  const blurs = f.backdropFilter !== 'none' && f.backdropFilter !== '';
+  if (!blurs && !(dim >= SCRIM_MIN_ALPHA && dim < 1)) return false;
   return coverage(f.rect, f.vw, f.vh) >= 0.25;
 }
 
@@ -442,6 +462,11 @@ interface RobotState {
   /** Dismissal: the element last clicked, and the layer it sits in. */
   last: Element | null;
   lastHost: Element | null;
+  /**
+   * A layer was closed or hidden in this capture, or Escape was pressed: only then may the page
+   * have left a scrim behind (hideScrims; review round 1).
+   */
+  layerClosed: boolean;
 }
 
 /** The capture's memory inside this document. A navigation starts it fresh. */
@@ -449,7 +474,7 @@ function robotState(): RobotState {
   const w = window as unknown as Record<string, RobotState | undefined>;
   let s = w[ROBOT_STATE_KEY];
   if (!s) {
-    s = { clicked: new WeakSet(), revealed: new Set(), tried: new WeakSet(), baseline: new Set(), pending: [], last: null, lastHost: null };
+    s = { clicked: new WeakSet(), revealed: new Set(), tried: new WeakSet(), baseline: new Set(), pending: [], last: null, lastHost: null, layerClosed: false };
     Object.defineProperty(window, ROBOT_STATE_KEY, { value: s, enumerable: false, configurable: true, writable: true });
   }
   return s;
@@ -510,10 +535,13 @@ function isShown(el: Element): boolean {
   return true;
 }
 
-/** The first element matching the selector that is not inside a dialog-like element, or null. */
-function firstOutsideDialogs(selector: string): Element | null {
+/**
+ * The first element matching the selector that is not inside a dialog-like element (and, with
+ * `visible`, is shown), or null.
+ */
+function firstOutsideDialogs(selector: string, visible = false): Element | null {
   for (const el of Array.from(document.querySelectorAll(selector))) {
-    if (el.closest(DIALOG_LIKE) === null) return el;
+    if (el.closest(DIALOG_LIKE) === null && (!visible || isShown(el))) return el;
   }
   return null;
 }
@@ -534,10 +562,13 @@ function holdsPage(el: Element): boolean {
   return wrapsPage(el);
 }
 
-/** Does this element contain the page's `main` or `h1`, the first of each outside every dialog? */
+/**
+ * Does this element contain the page's `main` or `h1`, the first of each outside every dialog?
+ * The first VISIBLE h1 (review round 1): a hidden brand h1 is not where the page is.
+ */
 function wrapsPage(el: Element): boolean {
   const main = firstOutsideDialogs('main');
-  const h1 = firstOutsideDialogs('h1');
+  const h1 = firstOutsideDialogs('h1', true);
   return (main !== null && el.contains(main)) || (h1 !== null && el.contains(h1));
 }
 
@@ -776,8 +807,51 @@ function neverDismiss(el: Element): boolean {
   if (isSettingsName(accessibleName(el)) || isSettingsName((el as HTMLElement).innerText ?? el.textContent)) return true;
   const a = el.closest('a');
   if (hrefNavigates(a ? { href: a.getAttribute('href'), target: a.getAttribute('target') } : null)) return true;
+  // A button that sends a form (review round 1): the page's own, unless a layer or a consent host holds it.
+  if (submitsForm(el) && outermostOverlay(el) === null && consentHostOf(el) === null) return true;
   if (!isVariantControl(el) && !openedByExpand(el)) return false;
   return outermostOverlay(el) === null;
+}
+
+/** Would clicking this send a form? A submit button (a `<button>`'s default type) or input in a form. */
+function submitsForm(el: Element): boolean {
+  if (el instanceof HTMLButtonElement) return el.form !== null && el.type === 'submit';
+  if (el instanceof HTMLInputElement) return el.form !== null && (el.type === 'submit' || el.type === 'image');
+  return false;
+}
+
+/** The consent host (CONSENT_HOST_SELECTOR) an element sits in, crossing shadow roots, or null. */
+function consentHostOf(el: Element): Element | null {
+  for (let a: Element | null = el; a && a !== document.body && a !== document.documentElement; a = parentOf(a)) {
+    if (a.matches(CONSENT_HOST_SELECTOR)) return a;
+  }
+  return null;
+}
+
+/**
+ * Is this button in a layer, where a bare or generic name ("Accept", "OK", "Close") may be clicked
+ * (review round 1)? Inside an overlay, a consent host, or a fixed or sticky box below body.
+ */
+function inLayer(el: Element): boolean {
+  if (outermostOverlay(el) !== null || consentHostOf(el) !== null) return true;
+  for (let a: Element | null = el; a && a !== document.body && a !== document.documentElement; a = parentOf(a)) {
+    const p = getComputedStyle(a).position;
+    if (p === 'fixed' || p === 'sticky') return true;
+  }
+  return false;
+}
+
+/** Does this button carry one of the name steps' names (a scoped one only in a layer)? */
+function hasConsentName(el: Element): boolean {
+  const names = [accessibleName(el), normName((el as HTMLElement).innerText ?? el.textContent)];
+  let layer: boolean | null = null;
+  for (const step of DISMISS_STEPS) {
+    if (!('name' in step) || !names.some((n) => isDismissName(n, step.name))) continue;
+    if (!step.scoped) return true;
+    layer ??= inLayer(el);
+    if (layer) return true;
+  }
+  return false;
 }
 
 /** The consent-like layer (DISMISS_HOST_SELECTOR) an element sits in, crossing shadow roots, or null. */
@@ -842,7 +916,7 @@ function hideScrims(): number {
         content: s.content, display: s.display, visibility: s.visibility, opacity: parseFloat(s.opacity), position: s.position,
         rect: { top: px(s.top), left: px(s.left), width: px(s.width), height: px(s.height) },
         vw: window.innerWidth, vh: window.innerHeight,
-        backgroundAlpha: s.backgroundImage && s.backgroundImage !== 'none' ? 1 : colourAlpha(s.backgroundColor),
+        backgroundAlpha: colourAlpha(s.backgroundColor),
         backdropFilter: s.backdropFilter ?? 'none',
         zIndex: s.zIndex,
       };
@@ -887,8 +961,21 @@ function entryTopmostOverlay(): OverlayDescription | null {
 function entryTopmostWithoutClose(): boolean {
   const top = topmostOverlayEl();
   if (!top) return false;
-  const tried = robotState().tried;
-  return !controlsIn(top).some((c) => !tried.has(c) && isCloseControl(c) && isShown(c));
+  // The candidate search's own filter, and its two ways to close a layer: a close word, or a
+  // consent name (a page may read Escape on its consent dialog as "reject" — review minor 4).
+  return !controlsIn(top).some((c) => dismissUsable(c) && (isCloseControl(c) || (c.matches('button, [role="button"]') && hasConsentName(c))));
+}
+
+/** Dismissal may offer this element: not tried, shown, on the window, and not never-click (§3.3.2). */
+function dismissUsable(el: Element): boolean {
+  const r = el.getBoundingClientRect();
+  const onWindow = coverage({ top: r.top, left: r.left, width: r.width, height: r.height }, window.innerWidth, window.innerHeight) > 0;
+  return !robotState().tried.has(el) && isShown(el) && onWindow && !neverDismiss(el);
+}
+
+/** Dismissal pressed Escape: the page may have closed a layer, so its scrim may be left (hideScrims). */
+function entryNoteEscape(): void {
+  robotState().layerClosed = true;
 }
 
 function entryCentreOverlay(): OverlayDescription | null {
@@ -991,6 +1078,7 @@ function entryRemoveNewOverlays(): OverlayDescription[] {
     else hideOverlay(el);
   }
   st.pending = [];
+  if (removed.length > 0) st.layerClosed = true;
   if (any) liftScrollLock();
   return removed;
 }
@@ -1046,11 +1134,7 @@ function entryTabs(): number {
 function entryNextDismissCandidate(opts?: { final?: boolean }): Element | null {
   const final = opts?.final === true;
   const st = robotState();
-  const onWindow = (el: Element): boolean => {
-    const r = el.getBoundingClientRect();
-    return coverage({ top: r.top, left: r.left, width: r.width, height: r.height }, window.innerWidth, window.innerHeight) > 0;
-  };
-  const usable = (el: Element): boolean => !st.tried.has(el) && isShown(el) && onWindow(el) && !neverDismiss(el);
+  const usable = dismissUsable;
   const take = (el: Element): Element => {
     st.tried.add(el);
     st.last = el;
@@ -1074,8 +1158,10 @@ function entryNextDismissCandidate(opts?: { final?: boolean }): Element | null {
       named ??= queryDeep(roots, 'button, [role="button"]').map((el): [Element, string[]] => [el, [accessibleName(el), normName((el as HTMLElement).innerText ?? el.textContent)]]);
       els = named.filter(([, names]) => names.some((n) => isDismissName(n, step.name))).map(([el]) => el);
     }
+    const scoped = 'name' in step && step.scoped === true;
     for (const el of els) {
       if (!usable(el)) continue;
+      if (scoped && !inLayer(el)) continue;
       if (final && outermostOverlay(el) === null && dismissHostOf(el) === null) continue;
       return take(el);
     }
@@ -1087,7 +1173,9 @@ function entryNextDismissCandidate(opts?: { final?: boolean }): Element | null {
 function entryLastDismissWorked(): boolean {
   const st = robotState();
   const gone = (el: Element | null): boolean => el !== null && (!el.isConnected || !isShown(el));
-  return gone(st.last) || gone(st.lastHost);
+  const worked = gone(st.last) || gone(st.lastHost);
+  if (worked) st.layerClosed = true;
+  return worked;
 }
 
 /**
@@ -1111,7 +1199,9 @@ function entryRemovalPass(): number {
     const s = getComputedStyle(el);
     if ((s.position === 'fixed' || s.position === 'absolute') && parseFloat(s.zIndex) > 1000 && el.querySelector('button')) remove(el);
   });
-  n += hideScrims();
+  if (n > 0) robotState().layerClosed = true;
+  // Not counted: a scrim no longer painted is no reason for another round.
+  if (robotState().layerClosed) hideScrims();
   // Today's unconditional reset; the fuller lift only when something was taken away.
   if (document.body) document.body.style.overflow = '';
   if (document.documentElement) document.documentElement.style.overflow = '';
@@ -1127,7 +1217,7 @@ export const PAGE_PRELUDE = 'var __name = (fn) => fn;';
 /** Every constant page code reads, emitted as `const NAME = <json>;` under the same name. */
 const PAGE_CONSTANTS: Record<string, unknown> = {
   CLOSE_WORDS, ROBOT_STATE_KEY, BUTTON_INPUT_TYPES, DIALOG_LIKE, HASPOPUP_SKIP, EXPAND_SELECTORS, EXPAND_TEXT_PATTERN,
-  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS, DISMISS_STEPS, REMOVAL_SELECTORS, DISMISS_HOST_SELECTOR, SMALL_POPUP_MIN,
+  EXPAND_PER_SELECTOR, EXPAND_MAX_TABS, DISMISS_STEPS, REMOVAL_SELECTORS, DISMISS_HOST_SELECTOR, SMALL_POPUP_MIN, CONSENT_HOST_SELECTOR, SCRIM_MIN_ALPHA,
 };
 
 /** Every function page code calls, emitted from its own source. */
@@ -1139,7 +1229,7 @@ const PAGE_FUNCTIONS: ReadonlyArray<(...args: never[]) => unknown> = [
   robotState, classOf, parentOf, searchRoots, queryDeep, isShown, firstOutsideDialogs, textLength, holdsPage, wrapsPage, within, sitsOnPage, isOverlay,
   outermostOverlay, listOverlayEls, centreOverlayEl, topmostOverlayEl, describeEl, accessibleName,
   isVariantControl, isVariantChoice, variantFactsOf, markExpanded, openedByExpand, neverDismiss, dismissHostOf, isDialogLike, expandSkip, liftScrollLock,
-  takeOverlayBaseline, hideOverlay, queryIn, controlsIn, isCloseControl, hideScrims,
+  takeOverlayBaseline, hideOverlay, queryIn, controlsIn, isCloseControl, hideScrims, submitsForm, consentHostOf, inLayer, hasConsentName, dismissUsable,
 ];
 
 /**
@@ -1162,6 +1252,8 @@ export const LIST_OVERLAYS_SCRIPT = pageScript(entryListOverlays);
 export const TOPMOST_OVERLAY_SCRIPT = pageScript(entryTopmostOverlay);
 /** A topmost overlay with no close control left to try → boolean (dismissal presses Escape first). */
 export const TOPMOST_WITHOUT_CLOSE_SCRIPT = pageScript(entryTopmostWithoutClose);
+/** Note that dismissal pressed Escape (hideScrims may then run). */
+export const NOTE_ESCAPE_SCRIPT = pageScript(entryNoteEscape);
 /** The overlay at the window's centre, if any → `OverlayDescription | null` (§3.4's warning). */
 export const CENTRE_OVERLAY_SCRIPT = pageScript(entryCentreOverlay);
 /** Start of the expand pass → number of controls already expanded. */

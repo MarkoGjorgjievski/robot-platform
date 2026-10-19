@@ -140,6 +140,29 @@ const PAGES: Record<string, string> = {
   // A page-wide decorative background drawn by body::before, behind the page: not a scrim.
   '/body-backdrop': fixturePage('',
     `<style>body::before{content:'';position:fixed;inset:0;background:rgba(240,230,220,.8);z-index:-1}</style>`),
+  // Review round 1 (I1): the page's own "Accept" buttons are not consent. A bare "Accept" in the
+  // flow, and form-submitting "Accept" / "Accept all" in the buy box: none is clicked, no form is sent.
+  '/page-accept': fixturePage(
+    `<div id="buy"><button id="terms-accept" type="button">Accept</button>
+       <form action="/accepted" method="get"><input type="hidden" name="q" value="1"><button id="form-accept">Accept</button></form>
+       <form action="/accepted-all" method="get"><button id="form-accept-all">Accept all</button></form></div>`),
+  // Review round 1 (I2): after a consent modal is closed, an opaque body::before (a page background
+  // at z-index 0) and a faint grain body::after are the page's own: both stay painted.
+  '/opaque-pseudo': fixturePage(PRODUCT_COPY,
+    `<style>body::before{content:'';position:fixed;inset:0;background:#fafafa;z-index:0;pointer-events:none}
+       body::after{content:'';position:fixed;inset:0;opacity:.05;background-color:rgba(0,0,0,.5);background-image:linear-gradient(45deg,#000 25%,transparent 25%);pointer-events:none;z-index:1}</style>
+     <div id="consent" role="dialog" style="position:fixed;top:200px;left:340px;width:600px;height:300px;z-index:50;background:#fff">We use cookies <button id="consent-accept">Accept all cookies</button></div>`,
+    `document.getElementById('consent-accept').addEventListener('click', () => document.getElementById('consent').remove());`),
+  // Review round 1 (I2): a translucent body::before with nothing closed in this capture is the
+  // page's own look: left painted.
+  '/scrim-alone': fixturePage(PRODUCT_COPY,
+    `<style>body::before{content:'';position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:3;pointer-events:none}</style>`),
+  // Review round 1 (Minor 4): a consent dialog whose accept button has a consent name: clicked,
+  // with no Escape first (the page may treat Escape as "reject").
+  '/consent-no-escape': fixturePage(PRODUCT_COPY,
+    `<div id="consent" role="dialog" style="position:fixed;top:200px;left:340px;width:600px;height:300px;z-index:50;background:#fff">We use cookies <button id="consent-accept">Accept all cookies</button></div>`,
+    `document.getElementById('consent-accept').addEventListener('click', () => document.getElementById('consent').remove());
+     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') window.__flags.escaped = true; });`),
   // Review Focus 3: a consent banner inside an open shadow root.
   '/shadow-consent': fixturePage('', `<div id="cmp-host"></div>`,
     `const root = document.getElementById('cmp-host').attachShadow({ mode: 'open' });
@@ -296,6 +319,36 @@ describe('dismissal closes overlays without touching the page (spec 2026-10-19 Â
     const { s } = await capture('/body-backdrop');
     expect(s.pseudoPainted).toBe(true);
     expect(s.clicks).toEqual([]);
+  }, 60_000);
+
+  it('the page\'s own "Accept" buttons are never clicked and no form is sent (review I1)', async () => {
+    const { s } = await capture('/page-accept');
+    expect(s.clicks).toEqual([]);
+    expect(site.requested).not.toContain('/accepted');
+    expect(site.requested).not.toContain('/accepted-all');
+  }, 60_000);
+
+  it('an opaque body::before and a faint grain body::after stay painted after a consent closes (review I2)', async () => {
+    const { s } = await capture('/opaque-pseudo');
+    expect(s.clicks).toEqual(['consent-accept']);
+    expect(s.pseudo['body::before']).toBe(true);
+    expect(s.pseudo['body::after']).toBe(true);
+  }, 60_000);
+
+  it('a translucent body::before is left alone when nothing was closed (review I2)', async () => {
+    const { s } = await capture('/scrim-alone');
+    expect(s.pseudo['body::before']).toBe(true);
+  }, 60_000);
+
+  it('a consent dialog with an accept name is clicked without an Escape first (review minor 4)', async () => {
+    const { s } = await capture('/consent-no-escape');
+    expect(s.clicks).toEqual(['consent-accept']);
+    expect(s.flags.escaped).toBeUndefined();
+  }, 60_000);
+
+  it('the mouse rests at the window\'s corner for the screenshot, not on what dismissal clicked (review minor 1)', async () => {
+    const { s } = await capture('/consent-no-escape');
+    expect(s.mouse).toEqual([0, 0]);
   }, 60_000);
 
   it('a consent banner inside an open shadow root is still accepted (Review Focus 3)', async () => {

@@ -12,7 +12,7 @@ import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pag
 import {
   hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
   REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, NEXT_DISMISS_CANDIDATE_FINAL_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
-  REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, TOPMOST_OVERLAY_SCRIPT, TOPMOST_WITHOUT_CLOSE_SCRIPT, overlayWarning, type OverlayDescription,
+  REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, TOPMOST_OVERLAY_SCRIPT, TOPMOST_WITHOUT_CLOSE_SCRIPT, NOTE_ESCAPE_SCRIPT, overlayWarning, type OverlayDescription,
 } from './overlays.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
@@ -211,6 +211,9 @@ export class PlaywrightBrowser implements IBrowser {
         // costs no time. A close button can navigate by script, so the check runs again. Then
         // back to the top: a dismissal click scrolls its element into view.
         await this.dismissPopups(page, { settleMs: 0, final: true });
+        // The mouse rests where dismissal last clicked; its hover state (a size button's border) would
+        // be on the screenshot. Park it in the corner (review round 1).
+        await page.mouse.move(0, 0).catch((err) => { if (isCrash(err)) throw err; });
         await this.returnIfNavigatedAway(page, url, options);
         await page.evaluate('window.scrollTo(0, 0)').catch((err) => { if (isCrash(err)) throw err; });
         const covering = (await page.evaluate(CENTRE_OVERLAY_SCRIPT).catch((err) => {
@@ -552,6 +555,7 @@ export class PlaywrightBrowser implements IBrowser {
       let closedByClick = false;
       const escape = async (): Promise<void> => {
         await page.keyboard.press('Escape').catch((err) => { if (isCrash(err)) throw err; });
+        await page.evaluate(NOTE_ESCAPE_SCRIPT).catch((err) => { if (isCrash(err)) throw err; });
         await page.waitForTimeout(DISMISS_ESCAPE_SETTLE_MS);
       };
       // An overlay that offers no close control: Escape before any click, so the page closes it its
@@ -631,6 +635,7 @@ export class PlaywrightBrowser implements IBrowser {
     const fresh = Number(await page.evaluate(NEW_OVERLAYS_SCRIPT).catch(() => 0));
     if (!fresh) return;
     await page.keyboard.press('Escape').catch(() => {});
+    await page.evaluate(NOTE_ESCAPE_SCRIPT).catch(() => {});
     await page.waitForTimeout(300);
     const removed = (await page.evaluate(REMOVE_NEW_OVERLAYS_SCRIPT).catch(() => [])) as OverlayDescription[];
     if (process.env.CAPTURE_DEBUG) {

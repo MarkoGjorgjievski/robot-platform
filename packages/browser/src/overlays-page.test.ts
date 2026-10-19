@@ -91,6 +91,12 @@ describe('the overlay definition in a real page (§3.1)', () => {
     expect(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT)).toEqual([]);
   }, 30_000);
 
+  it('the page is found by its first VISIBLE h1: a hidden brand h1 before an app shell does not make the shell an overlay (review minor 2)', async () => {
+    const html = `<!doctype html><html><body style="margin:0"><h1 style="display:none">Brand</h1>
+      <div id="shell" style="position:fixed;inset:0;overflow:auto"><h1>Lamp</h1><div style="height:3000px">${PRODUCT_TEXT}</div></div></body></html>`;
+    expect(await browser.setContentEvaluate<OverlayDescription[]>(html, LIST_OVERLAYS_SCRIPT)).toEqual([]);
+  }, 30_000);
+
   it('finds an overlay inside an open shadow root', async () => {
     const html = `<!doctype html><html><body><main><h1>Widget</h1></main><div id="host"></div>
       <script>document.getElementById('host').attachShadow({ mode: 'open' }).innerHTML = '<div id="shadow-layer" style="position:fixed;inset:0;background:#000">Sign up</div>';</script></body></html>`;

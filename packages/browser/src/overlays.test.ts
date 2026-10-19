@@ -247,6 +247,11 @@ describe('isScrimFacts — a page-wide backdrop drawn by html/body ::before/::af
     expect(isScrimFacts({ ...scrim, backgroundAlpha: 0 })).toBe(false);
     expect(isScrimFacts({ ...scrim, rect: { top: 0, left: 0, width: 1280, height: 60 } })).toBe(false);
     expect(isScrimFacts({ ...scrim, zIndex: '-1' })).toBe(false); // a decorative page background
+    // Review round 1 (I2): a scrim is translucent. An opaque fill is the page's background, and a
+    // faint grain (opacity .05) dims nothing.
+    expect(isScrimFacts({ ...scrim, backgroundAlpha: 1 })).toBe(false);
+    expect(isScrimFacts({ ...scrim, backgroundAlpha: 0.5, opacity: 0.05 })).toBe(false);
+    expect(isScrimFacts({ ...scrim, backgroundAlpha: 1, opacity: 0.5 })).toBe(true); // opaque fill at half opacity dims
     expect(isScrimFacts({ ...scrim, position: 'static' })).toBe(false);
     expect(isScrimFacts({ ...scrim, position: 'absolute' })).toBe(false);
   });
@@ -267,6 +272,15 @@ describe('consent accept names (live check 2026-10-19: colourpop\'s bare "Accept
   it('include the common whole accept names, in several languages', () => {
     for (const n of ['accept', 'allow all', 'allow cookies', 'agree', 'i agree', 'accept and close', 'akzeptieren', 'alle akzeptieren', 'tout accepter', 'aceptar', 'accetta', 'accepteren']) {
       expect(names).toContain(n);
+    }
+  });
+  it('a bare or generic name counts only inside a layer; a multi-word consent name page-wide (review I1)', () => {
+    const scoped = (n: string) => DISMISS_STEPS.some((s) => 'name' in s && s.name === n && s.scoped === true);
+    for (const n of ['accept', 'allow', 'agree', 'ok', 'close', 'got it', 'ok, got it', 'akzeptieren', 'zustimmen', 'accepter', 'aceptar', 'accetta', 'accepteren', 'aceitar', 'acceptera']) {
+      expect(scoped(n), n).toBe(true);
+    }
+    for (const n of ['accept all', 'accept all cookies', 'allow cookies', 'alle akzeptieren', 'tout accepter', 'i agree']) {
+      expect(scoped(n), n).toBe(false);
     }
   });
   it('none is a settings name, and none matches "Preferences" or "Cookie settings"', () => {
@@ -335,8 +349,8 @@ describe('DISMISS_STEPS — today\'s list, whole names instead of substrings (§
   });
   it('stores names case-folded, and lists "OK, got it" by its whole name', () => {
     for (const s of DISMISS_STEPS) if ('name' in s) expect(s.name).toBe(normName(s.name));
-    expect(DISMISS_STEPS).toContainEqual({ name: 'ok, got it' });
-    expect(DISMISS_STEPS).toContainEqual({ name: 'ok' });
+    expect(DISMISS_STEPS).toContainEqual({ name: 'ok, got it', scoped: true });
+    expect(DISMISS_STEPS).toContainEqual({ name: 'ok', scoped: true });
   });
   it('keeps today\'s order: the consent managers before the generic close controls', () => {
     const onetrust = DISMISS_STEPS.findIndex((s) => 'css' in s && s.css === '#onetrust-accept-btn-handler');
