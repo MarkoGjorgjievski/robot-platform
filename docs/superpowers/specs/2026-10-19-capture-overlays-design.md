@@ -20,11 +20,21 @@ header, footer or a bar along an edge, holding a close control (§3.3.4's words)
 or a layer's name (puma DE's 14 % location popup over the sizes); **§3.3's whole names gain the
 common consent accept names** (`Accept`, `Allow cookies`, `Agree`, `Akzeptieren`, `Tout accepter`, …),
 matched on a button's accessible name or its visible text (colourpop's "Accept" is labelled "allow
-cookies"); and **a round whose clicks closed nothing presses Escape before the removal pass hides
-what is left**, so a page closes its modal its own way and takes its scrim with it (kith's welcome
-mat leaves `body.modal-background::before` dimming the window when it is merely hidden), with a
-net: the removal pass stops painting a scrim `<html>` or `<body>` draws with `::before`/`::after`
-(fixed, painted, over a quarter of the window, not behind the page). The live check now also lists
+cookies"). A one-word or generic name (`Accept`, `Agree`, `OK`, `Close`, `Got it`, …) counts only for
+a button inside an overlay, a consent host (dialog semantics, a cookie/consent/privacy/CMP-vendor id,
+class or label) or a fixed or sticky box, and a button that sends a form is never clicked outside an
+overlay or a consent host. **Escape** comes in two places. In each round, when the topmost overlay
+offers neither a close word nor a consent name among the controls dismissal may click, Escape is
+pressed **before any click**, because a page-wide click would land on its scrim. And when a round's
+clicks closed nothing and an overlay is still there, Escape is pressed once more before the removal
+pass hides what is left. Either way a page closes its modal its own way and takes its scrim with it
+(kith's welcome mat leaves `body.modal-background::before` dimming the window when it is merely
+hidden). A net: once a layer has been closed or hidden, or Escape pressed, in the capture, the
+removal pass stops painting a scrim `<html>` or `<body>` draws with `::before`/`::after`. A scrim is
+fixed, over a quarter of the window, translucent (colour alpha times opacity from 0.1 up to but not
+1, or a backdrop filter) and not behind the page. A scrim taken away does not start another round.
+After the final pass the mouse is parked at the window's corner, so no hover state is on the
+screenshot. The live check now also lists
 every fixed layer of 5 % or more and every translucent layer over half the window.
 The problem comes from campaign 2, group 2 (`docs/testing/2026-10-11-campaign-2.md`, "Captures keep or open
 overlays"). Every cause below was seen on the real pages on 2026-10-19, free and keyless
@@ -166,7 +176,8 @@ overlays that our own clicks used to open (which held no product field).
    the tabs step).
 3. Every expansion a product page needs survives: on the eight sites, the mejuri, puma and ikea
    accordions, skullcandy's `<details>`, and the kith, ikea and thomann tabs stay expanded.
-4. No rule depends on a site's name, domain or language beyond the close words of §3.3.4.
+4. No rule depends on a site's name, domain or language beyond the close words of §3.3.4 and the
+   consent accept names of §3.3.1.
 5. A page with no overlay is captured as today: no extra wait longer than the existing ones, no
    extra screenshot.
 
