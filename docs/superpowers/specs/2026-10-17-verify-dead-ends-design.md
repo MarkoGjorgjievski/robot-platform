@@ -8,6 +8,35 @@ an honest customer cannot pass") and the per-site notes under
 `docs/testing/results/campaign-2026-10-11/`. Every cause below was read in the code on `main` @
 `8860875`; none of the seven was already fixed, so none is dropped.
 
+**Status:** implemented on `feat/verify-dead-ends`; merged into `main` 2026-10-19 (fast-forward,
+no merge commit). Tasks 1–8 built the seven items plus §8a; Task 9 (UX polish) deferred until
+Marko describes it; Task 10 is the docs you are reading. Every task was reviewed, with a fix
+round on Tasks 3 (two rounds), 6, 7 and 8. The whole-branch review (the most capable model)
+found one Critical and two Important problems, plus three Minors, all fixed in one wave and
+re-reviewed clean; one further Minor (the box map can store up to 2,000 characters per box) was
+watched, not fixed. The route smoke runs after this merge; its result is not part of this status.
+
+**Deviations.**
+- **Task 2 (§5).** The brief's fix let a page pass when a safe path read the right value there,
+  whatever the number of proof pages. The whole-branch review found a case it still left silently
+  wrong: a field whose every proof page is covered only by a path that reads just that one page —
+  nothing certified, yet every cell read `pass`. The final fix wave turned those cells
+  `ambiguous` instead; a page a safe path covers while another page fails elsewhere still reads
+  green, as Task 2 first wrote it.
+- **Task 3 (§6).** The brief said a mark on a labelled line keeps its label when carried to
+  another product by a suggestion. The review read the rule the other way — a transferred
+  suggestion should read the same as a typed value — so round 2 made transfer-marks strip the
+  label through `after_label` for the six labelled concepts, the same as certification already
+  does for a typed cell.
+- **Task 7 (§8).** The brief's free re-verify button could still reach AI, through another
+  field's own live suggestion carried into the same run. Round 1 gave `sources.verify` a new
+  `free` flag; set, it forces the whole run's agent to `null`, so nothing on that click can call
+  AI.
+- Two interfaces moved for the whole branch, not just these three tasks: `sources.verify` gained
+  the `free` flag above, and `current-certification.ts` now exports `notOnWebsiteKeys(currency)`,
+  read by the run's coverage, misses, backfill and sample reports so a field not on this website
+  is left out of them instead of counted missing.
+
 ## 1. Why
 
 An honest customer, typing or marking what the product page shows, still gets stuck at Verify on

@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Jev at Verify, in shadow (2026-10-16)](#jev-at-verify-in-shadow-2026-10-16).** After a proof-page capture, a background Jev reading now picks among our own candidates for each ambiguous text/money/number field and reads which variant the page shows — stored, shown where it differs, never applied. Six tasks implemented and reviewed on `feat/jev-at-verify`, fix rounds on Tasks 1, 3 and 5; the whole-branch review, the merge, the route smoke and the live check are still to come — see the plan's status.
+**Newest: [Verify dead ends (2026-10-17)](#verify-dead-ends-2026-10-17).** Seven dead ends from campaign 2 that stopped an honest customer at Verify are fixed: a field the website lacks entirely now passes as "not on this website"; a default stops a products-four-to-six suggestion from blocking; a shop's name can certify as the brand; a page found in a different place on each product reads green, not "Several places match"; a mark reads the way the page shows it, label stripped; a rounded number matches more precise page data; the cost estimate is per proof page and staff-only, and a customer sees no money anywhere in the app. Eight tasks implemented and reviewed on `feat/verify-dead-ends`, fix rounds on Tasks 3, 6, 7 and 8; the whole-branch review found one Critical and two Important problems, fixed in one wave; merged into `main` 2026-10-19 (fast-forward). The route smoke is still to come — see the section.
+
+**Before it: [Jev at Verify, in shadow (2026-10-16)](#jev-at-verify-in-shadow-2026-10-16).** After a proof-page capture, a background Jev reading now picks among our own candidates for each ambiguous text/money/number field and reads which variant the page shows — stored, shown where it differs, never applied. Six tasks implemented and reviewed on `feat/jev-at-verify`, fix rounds on Tasks 1, 3 and 5; the whole-branch review, the merge, the route smoke and the live check are still to come — see the plan's status.
 
 **Before it: [The variant the address names (2026-10-14)](#the-variant-the-address-names-2026-10-14).** A row's values now follow the variant the page's own address names, through a new `[page]` form a certified path can use instead of a fixed index, and a page that does not show the variant its address names fails its capture instead of silently extracting the wrong one. Six tasks implemented and reviewed on `feat/variant-from-address`, one fix round each on Tasks 1 and 2; the whole-branch review, the merge, the route smoke on `main` and the live check are still to come — see the section.
 
@@ -96,6 +98,97 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Verify dead ends (2026-10-17)
+
+Spec `docs/superpowers/specs/2026-10-17-verify-dead-ends-design.md`, plan
+`docs/superpowers/plans/2026-10-17-verify-dead-ends.md`. Branch `feat/verify-dead-ends` from
+`main` at `8860875`. Eight tasks (subagent-driven); Task 9 (UX polish) deferred until Marko
+describes it; Task 10 is this entry. Fix rounds on Tasks 3 (two rounds), 6, 7 and 8. Whole-branch
+review (the most capable model): one Critical, two Important, three Minor, fixed in one wave
+(six commits) and re-reviewed clean; one further Minor (the box map can store up to 2,000
+characters per box) watched, not fixed. Merged into `main` 2026-10-19 (fast-forward, no merge
+commit). The route smoke is still to come.
+
+**What a customer gets.** The seven dead ends campaign 2 found at Verify (group 3,
+`docs/testing/2026-10-11-campaign-2.md`) are fixed:
+
+1. **A project field the website does not have** (kith Rating, glossier SKU, puma DE Rating) now
+   passes. Marking every proof page "not on this product" certifies the field **not on this
+   website** — no path, no AI, left empty on every product (§2).
+2. **A suggestion on products four to six** on a field with a default no longer blocks Verify. A
+   blank cell there is a default cell too, the same as on products one to three (§3).
+3. **A shop's name** (`og:site_name`, the offer's seller) can now certify as the brand, ranked
+   after every product-level path — Gymshark's and Sigmabeauty's honest brand is a candidate now
+   (§4).
+4. **A page where the value was found reads green**, even while another page fails elsewhere.
+   Only a page covered solely by a path that reads just that one page reads **ambiguous**
+   instead, with new copy: "Found on this product, but not in the same place as on the others.
+   Mark it on the screenshot." (§5).
+5. **A mark now reads the way the page shows it:** whole text up to 2,000 characters (not 500),
+   an image's `src` attribute (not its rendered `currentSrc`), a link's `href`. A marked
+   sku/brand/availability/rating/review_count/currency line stores its value with the label
+   stripped ("Style: 398846_01" stores "398846_01"); retyping the same value keeps the mark (§6).
+6. **A number shown rounded** (4.8) now matches more precise page data (4.7610064), symmetric,
+   never for a whole number or for money; the run still stores the page's precise value (§7).
+7. **Verify's cost estimate** is now per AI-reachable field per proof page ($0.06), which covers
+   the campaign's largest real call. **The address warning** (a certified path reading a fixed
+   variant index, not the one the page's own address names) now carries a **Re-verify this
+   field** button, free, no AI call (§8).
+
+**A customer sees no money anywhere in the app** (§8a, Marko's decision 2026-10-17: "once we
+have paying customers we don't want to show any price to the customer. We will have a different
+payment plan, to be decided later."). One pure helper, `showsMoney(session)`, decides it —
+`session.isOperator || !!session.staff`. It gates the Verify button's price, the address
+warning's "· free", the repair preview's dollar estimate, Extract's sample sentence ("No AI.
+Free." is staff-only), the Usage page's spend and Spend column, and the robot-staff activity
+log's cost. Staff see every amount exactly as before.
+
+**The whole-branch review's own fixes**, beyond the plan: a field covered only by one-page paths
+used to read every cell green although nothing certified — those cells now read `ambiguous`
+too; a run's coverage, misses, dead fields, backfill preview and the Sample panel's empty-cell
+note now leave out a field that is not on this website, instead of counting it missing
+(`notOnWebsiteKeys`, exported from `current-certification.ts`); "not on this website" with one
+proof page not captured now reads incomplete, not verified; `afterLabel` collapses whitespace
+and line breaks before matching a label; a typed "5.0" now counts as one decimal, so it
+rounds-matches 4.96 but not 4.94 (a typed "4.80" counts two decimals, so it no longer
+rounds-matches 4.76); the route smoke's no-money check now catches a bare, case-insensitive
+"free".
+
+**Deviations** (also on the spec's status line): a suggestion carried to another product used to
+keep its label ("Style: 398846_01"); Task 3's second fix round made transfer-marks strip it, the
+same as a typed value, through `after_label`. The address warning's re-verify could still reach
+AI through another field's own live suggestion carried into the same run; Task 7's fix round
+gave `sources.verify` a new `free` flag that forces the whole run's agent to `null`. Task 2's
+plan-mandated duplicate `ambiguous`-hint test was dropped as redundant with Task 1's.
+
+**What was left out** (§11, for later): running the AI fallback when every cell is
+`no_fitting_path` — the gymshark case is removed by item 3 above, since its brand is now a
+candidate; the rule against guessing a weak field otherwise stays. The silent failures: skims'
+HTTP 412, skullcandy's time-out, ridge's typed description with no reason. Typed style codes the
+DOM search finds behind a label (marking works now; typing still does not). Captures that open
+overlays over the place to mark. Storing a rating rounded to the customer's own typed precision.
+Removing money from the API's own answers to a customer session — the app hides it, but
+`verifyEstimate`, `usage` and `runs.listByOrg` still send it, so a customer could read it in
+their browser's developer tools; it belongs with the payment plan. Customer copy that names "AI"
+with no price (`reExtractLabel`) — a `customer-copy-no-internals` matter, not a money one. The
+UX polish Marko has not yet described.
+
+**Found during review, not planned exclusions:** whether "budget" (a page limit, in the run page
+and Settings) reads as a money word to a customer — for Marko to decide. The `ambiguous` hint's
+copy still says "mark it" for a field with a default and exactly one valued page, where the
+honest fix is a second product, not a mark. Pre-existing: `numberText` drops letters, so a typed
+"5.0 out of 5" reads as "5.05". The box map stores up to 2,000 characters per box — worth
+watching on payload size.
+
+**Decisions Marko took** (§12, 2026-10-17): the per-page cost estimate ($0.06, staff only) over a
+flat per-field one, even though an eight-field, three-page first Verify reads "up to $1.44"
+worst case (real first Verifies in the campaign cost $0.00–$0.33) — an upper bound never
+exceeded beats one exceeded three times over. The shop's name ranks last among brand candidates.
+A label is stripped for six concepts only, not more widely, so a title or a description is never
+shortened. A rounded rating stores the page's precise value. "Not on this website" needs three
+matching cell answers, with no row-level "mark every product" button in this spec — left for the
+UX polish task if he wants one.
 
 ## Jev at Verify, in shadow (2026-10-16)
 
@@ -301,7 +394,7 @@ after the merge, same as the branch's live check.
 
 **Deviations from the spec** (recorded on the spec's status line, repeated here): `Certification.defaults` normalises at fill time (`applyDefaults`/`renderDefault`), not at load; a default cell whose path read the default is not drawn differently from one whose path read nothing (the table draws no cell's `found` today); an unaccepted suggestion on products 1–3 no longer blocks Verify once the field has a default; an invalid default names its field at the Verify gate (`{Field} default: {error}`, added in review); `FieldCoverage.defaulted` is a required count, not optional; the Verify gate (`sources.verify`) now passes the absent marks (and the defaults) to `bindingProblems` — on `main` it passed neither, so a "Not on this product" cell on products 1–3 was refused as "Expected value is required". That is the likely fix for campaign defect 9 (next-work item 9), to be confirmed on the campaign website after the merge.
 
-**Known gaps / next:** a path readable on one proof page only, with the other pages default cells, does not certify (the two-page rule, review fix 2026-10-13): the customer adds a second product that shows the value; until then the cells may read pass (on four or more proof pages; on three they read "ambiguous", whose hint "Several places match…" misstates the cause — a dedicated reason, "proven on one product only — add a second product that shows it", is the follow-up; final re-review 2026-10-13). A product whose every field is default-only reads 0% confidence (nothing for the paths to produce; "n/a" would read better). With a default, an unconfirmed page-data suggestion on products four to six still blocks Verify ("Brand has a suggestion to confirm on product 4"; Marko hit it on Gymshark 2026-10-14 — the deviation exempted products one to three only): the person rejects the suggestion (× in the row's page-data hint) or drops the card; the gate should treat a field with a default the same on every product. Marko: "UX needs little polishing" around this flow — to pick up with the Verify dead ends. **Live check (2026-10-13, `docs/testing/results/2026-10-13-website-defaults-live-check.md`, 10 screenshots, $0):** on the campaign's Gymshark website the default saved as `Gymshark`; typing `Gymshark` showed no warning and typing the tagline showed "not on any proof page"; the cleared Brand cells read `Gymshark` in muted text with the right title. It stopped at Re-verify, whose button read "Re-verify 1 field · up to $0.05" — never clicked under the no-dollar rule — so no run and no `default on` count was seen, and no website with no brand in its data was found for default only (Colourpop and Oliver Bonas both read a JSON-LD `brand.name`). Two findings: (1) Gymshark's JSON-LD `brand.name` IS the tagline, so its real defect is a wrong brand in the data, not a missing one; by the spec's rules a Re-verify would reject that path (it reads the tagline on every default cell, which is wrong there) and certify Brand by default only, free — the button's estimate is a worst case computed before Verify runs, so the expected cost is $0, but confirming that needs Marko's say-so on the click; (2) on reload, the cleared cells come back as page-data suggestions of the tagline, so a person must leave them unaccepted — the parked deviation (an unaccepted suggestion on products 1–3 does not block Verify) is what makes that possible. **Second half, 2026-10-14:** Marko rejected the page-data suggestion on product 4 (the gate gap below) and clicked Re-verify: all passed, Brand certified by **default only**, 0 AI calls, $0.0000 (`source_verifications` 07:22Z). Then an Extract of 10 products across 1 page (button read plain "Extract"): run `2a5f215d` completed, 10 rows, `cost_usd` 0.0000; the Brand column head reads **default on 10** with no "not shown" badge, the summary line reads "10 rows · 100% confidence · 10 values from the website's defaults", `validation_result->'defaulted' = ["brand"]` and `shown.brand = null` on all 10 rows, every row's Brand is `Gymshark`. The tagline never reached a row: the path that reads it contradicts the default on every default cell, so certification rejected it. (The checking script timed out before the plan phase ended and the run sat at `planned`; the run page's own "Extract 10 pending" resume control finished it — a script-timing slip, not a product defect.) Out of scope by design
+**Known gaps / next:** a path readable on one proof page only, with the other pages default cells, used to not certify and read "ambiguous" with a misleading hint on three proof pages — fixed 2026-10-17, see "Verify dead ends (2026-10-17)" §5 below: such a page now reads "Found on this product, but not in the same place as on the others. Mark it on the screenshot." A product whose every field is default-only reads 0% confidence (nothing for the paths to produce; "n/a" would read better) — still open. With a default, an unconfirmed page-data suggestion on products four to six used to still block Verify ("Brand has a suggestion to confirm on product 4"; Marko hit it on Gymshark 2026-10-14 — the deviation exempted products one to three only) — fixed 2026-10-17, see that section's §3: a suggestion there is a default cell too, same as on products one to three. **Live check (2026-10-13, `docs/testing/results/2026-10-13-website-defaults-live-check.md`, 10 screenshots, $0):** on the campaign's Gymshark website the default saved as `Gymshark`; typing `Gymshark` showed no warning and typing the tagline showed "not on any proof page"; the cleared Brand cells read `Gymshark` in muted text with the right title. It stopped at Re-verify, whose button read "Re-verify 1 field · up to $0.05" — never clicked under the no-dollar rule — so no run and no `default on` count was seen, and no website with no brand in its data was found for default only (Colourpop and Oliver Bonas both read a JSON-LD `brand.name`). Two findings: (1) Gymshark's JSON-LD `brand.name` IS the tagline, so its real defect is a wrong brand in the data, not a missing one; by the spec's rules a Re-verify would reject that path (it reads the tagline on every default cell, which is wrong there) and certify Brand by default only, free — the button's estimate is a worst case computed before Verify runs, so the expected cost is $0, but confirming that needs Marko's say-so on the click; (2) on reload, the cleared cells come back as page-data suggestions of the tagline, so a person must leave them unaccepted — the parked deviation (an unaccepted suggestion on products 1–3 does not block Verify) is what makes that possible. **Second half, 2026-10-14:** Marko rejected the page-data suggestion on product 4 (the gate gap below) and clicked Re-verify: all passed, Brand certified by **default only**, 0 AI calls, $0.0000 (`source_verifications` 07:22Z). Then an Extract of 10 products across 1 page (button read plain "Extract"): run `2a5f215d` completed, 10 rows, `cost_usd` 0.0000; the Brand column head reads **default on 10** with no "not shown" badge, the summary line reads "10 rows · 100% confidence · 10 values from the website's defaults", `validation_result->'defaulted' = ["brand"]` and `shown.brand = null` on all 10 rows, every row's Brand is `Gymshark`. The tagline never reached a row: the path that reads it contradicts the default on every default cell, so certification rejected it. (The checking script timed out before the plan phase ended and the run sat at `planned`; the run page's own "Extract 10 pending" resume control finished it — a script-timing slip, not a product defect.) Out of scope by design
 (§11): computed values ("true unless an out-of-stock trigger is seen", "this element's presence
 means No"); a project-level default every website inherits; a per-product override; a default on
 a variant axis column; a default and "not on this product" on the same field; showing a default in
