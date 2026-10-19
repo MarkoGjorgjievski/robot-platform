@@ -272,17 +272,17 @@ export function overlayByFacts(f: OverlayFacts): boolean {
   const role = normName(f.role);
   const cover = coverage(f.rect, f.vw, f.vh);
   if (role === 'dialog' || role === 'alertdialog' || normName(f.ariaModal) === 'true' || f.openDialog) return cover > 0 && !f.holdsPage;
-  if (f.holdsPage) return false;
-  const quarter = cover >= 0.25;
-  if (!quarter) return false;
+  // The cheap checks first; holdsPage and overPage last (the page passes them as getters, and on a
+  // page of nested full-width wrappers every wrapper reaches this function — final review M3).
+  if (cover < 0.25) return false;
   const named = /modal|drawer|lightbox|popup|dialog/i.test(`${f.tag} ${f.id} ${f.className}`);
-  if (named && (f.position === 'fixed' || f.position === 'absolute')) return true;
+  if (named && (f.position === 'fixed' || f.position === 'absolute')) return !f.holdsPage;
   if (f.position !== 'fixed') return false;
   const tag = f.tag.toLowerCase();
   if (tag === 'header' || tag === 'footer' || tag === 'nav' || role === 'banner' || role === 'navigation') return false;
   const atEdge = f.rect.top <= 0 || f.rect.top + f.rect.height >= f.vh;
   if (f.rect.height < 200 && atEdge) return false;
-  return f.overPage;
+  return !f.holdsPage && f.overPage;
 }
 
 // ---- Pure: what the expand pass must not click (§3.2) -------------------------------------------
@@ -480,8 +480,9 @@ function isOverlay(el: Element): boolean {
     rect: { top: r.top, left: r.left, width: r.width, height: r.height },
     vw: window.innerWidth,
     vh: window.innerHeight,
-    holdsPage: holdsPage(el),
-    // A getter: only the unnamed fixed-box bullet reads it, and a hit test is not free.
+    // Getters: overlayByFacts reads them only once the cheap checks pass (final review M3), and
+    // only the unnamed fixed-box bullet reads overPage (a hit test is not free).
+    get holdsPage() { return holdsPage(el); },
     get overPage() { return sitsOnPage(el); },
   });
 }
