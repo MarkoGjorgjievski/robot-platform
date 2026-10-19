@@ -9,6 +9,7 @@ import { computeTileClips } from './screenshot-tiles.js';
 import { isThirdPartyNoise } from './intercept-noise.js';
 import { rankInterceptedRequests } from './rank-requests.js';
 import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pages.js';
+import { hrefNavigates } from './overlays.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
 // default. Raised deliberately: a slow screenshot costs seconds, a failed one costs
@@ -88,6 +89,9 @@ const nhm = new NodeHtmlMarkdown();
 /** Playwright reports a dead renderer as "Target crashed" / "Page crashed". */
 const isCrash = (err: unknown): boolean => /crashed/i.test(String((err as Error)?.message ?? err));
 
+// Moved to overlays.ts (the page needs it too); re-exported for existing importers.
+export { hrefNavigates };
+
 // Common popup/consent selectors to auto-dismiss before capture
 const POPUP_DISMISS_SELECTORS = [
   // Cookie consent
@@ -135,24 +139,6 @@ const POPUP_DISMISS_SELECTORS = [
   'dialog button[aria-label*="close" i]',
   '[role="dialog"] button[aria-label*="close" i]',
 ];
-
-/**
- * Given the nearest enclosing anchor (or null), would clicking it leave the page?
- *
- * An anchor is only dangerous if it actually goes somewhere. `<a href="#">` and
- * `href="javascript:void(0)"` are the standard way to build a close button, and a
- * blanket "never click an anchor" rule would break dismissal on many real sites —
- * so the guard has to be about the destination, not the tag.
- */
-export function hrefNavigates(link: { href: string | null; target: string | null } | null): boolean {
-  if (!link?.href) return false;
-  const href = link.href.trim().toLowerCase();
-  if (href === '' || href === '#' || href.startsWith('#')) return false;
-  if (href.startsWith('javascript:')) return false;
-  // Opens a new tab; the page we are capturing stays put.
-  if (link.target === '_blank') return false;
-  return true;
-}
 
 /**
  * Would clicking this element leave the page?
