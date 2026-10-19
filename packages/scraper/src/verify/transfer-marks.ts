@@ -4,7 +4,7 @@
 // first. Whatever resolves is shown with the element that displays it; the
 // customer confirms or corrects. Nothing is certified here.
 import type { CaptureLike } from './certify.js';
-import { gatherCandidates, isVolatilePath, qualifiesForWeak, rankCertified, type CandidatePath } from './certify.js';
+import { gatherCandidates, isVolatilePath, markPaths, qualifiesForWeak, rankCertified, type CandidatePath } from './certify.js';
 import type { Box } from './box-map.js';
 import type { DomHit, DomNeedle, XPathProbeResult } from './dom-scripts.js';
 import { isWeakField } from './field-fit.js';
@@ -50,7 +50,7 @@ export async function transferMarks(input: TransferInput, deps: TransferDeps): P
   // field's concept may carry — the same rule certification uses, so a tick on a yes/no field
   // never carries an unrelated field that happens to agree.
   const weak = isWeakField(field.type, [from.expected]);
-  const eligible = weak ? ranked.filter((c) => qualifiesForWeak(field, c, { confirmed, markXPaths: from.mark?.xpaths })) : ranked;
+  const eligible = weak ? ranked.filter((c) => qualifiesForWeak(field, c, { confirmed, markXPaths: from.mark ? markPaths(field, from.mark) : undefined })) : ranked;
 
   const out: Record<string, Transferred | null> = {};
   for (const [url, target] of Object.entries(input.to)) {
