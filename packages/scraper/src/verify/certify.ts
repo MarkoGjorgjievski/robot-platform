@@ -231,11 +231,15 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const urls = defaultValue !== undefined ? allUrls : checkedPages(allUrls, input.expected, absentMap);
   // Spec 2026-10-17 §2: every checked page absent, no default — not on this website. Nothing is
   // evaluated: with no page holding a value, any path (a cached one included) would be "correct".
+  // The flag only once every checked page was captured: with one missing, the field is incomplete
+  // (its page reads not captured) and must not read verified.
   if (defaultValue === undefined && urls.length > 0 && urls.every((u) => absentSet.has(u))) {
+    const incomplete = urls.some((u) => !captures[u]);
     return {
       key: field.key,
       cells: Object.fromEntries(urls.map((u): [string, CellResult] => [u, captures[u] ? { status: 'pass', found: '' } : { status: 'not_captured' }])),
-      certified: [], weakEvidence: false, aiCalled: false, incomplete: urls.some((u) => !captures[u]), notOnWebsite: true,
+      certified: [], weakEvidence: false, aiCalled: false, incomplete,
+      ...(incomplete ? {} : { notOnWebsite: true as const }),
     };
   }
   const filled = expectedWithDefault(allUrls, input.expected, defaultValue, absentMap);

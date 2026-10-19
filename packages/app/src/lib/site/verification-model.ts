@@ -311,9 +311,14 @@ export function defaultOnlyWord(results: VerificationResultsLike | null, key: st
 
 export const NOT_ON_WEBSITE_WORD = 'not on this website · left empty on every product';
 
+/** A field passed as not on this website (spec 2026-10-17 §2): the flag, and every proof page captured. A page not captured leaves it unverified. */
+function passedNotOnWebsite(fv: VerificationResultsLike[string] | undefined): boolean {
+  return fv?.notOnWebsite === true && !Object.values(fv.cells).some((c) => c.status === 'not_captured');
+}
+
 /** The row word beside a verified badge for a field not on this website (spec 2026-10-17 §2); null otherwise or once the field changed since. */
 export function notOnWebsiteWord(results: VerificationResultsLike | null, key: string, unchangedKeys: string[]): string | null {
-  return results?.[key]?.notOnWebsite === true && unchangedKeys.includes(key) ? NOT_ON_WEBSITE_WORD : null;
+  return passedNotOnWebsite(results?.[key]) && unchangedKeys.includes(key) ? NOT_ON_WEBSITE_WORD : null;
 }
 
 export const ADDRESS_WARNING = (n: number) => `reads the first variant, not the one the address names on product ${n}`;
@@ -769,7 +774,7 @@ export function badge(args: { key: string; results: VerificationResultsLike | nu
   const fv = args.results?.[args.key];
   if (!fv) return null;
   if (!args.unchangedKeys.includes(args.key)) return { kind: 'changed' };
-  if (fv.certified.length > 0 || fv.defaultOnly === true || fv.notOnWebsite === true) return { kind: 'verified' };
+  if (fv.certified.length > 0 || fv.defaultOnly === true || passedNotOnWebsite(fv)) return { kind: 'verified' };
   const products = args.cards.flatMap((c, i) => (fv.cells[c.url]?.status === 'fail' ? [i + 1] : []));
   return products.length > 0 ? { kind: 'fails', products } : null;
 }
