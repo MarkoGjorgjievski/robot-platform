@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CLOSE_WORDS, DISMISS_STEPS, PAGE_PRELUDE, coverage, hasVariantClassWord, isCloseWord, isDismissName, isFileLink,
   isSettingsName, isVariantControlFacts, mostOfText, normName, overlayByFacts, pageScript,
-  isDialogLikeFacts, opensLayer, type ControlledFacts, type OverlayFacts, type VariantFacts,
+  isDialogLikeFacts, opensLayer, overlayWarning, type ControlledFacts, type OverlayFacts, type VariantFacts,
 } from './overlays.js';
 
 describe('normName', () => {
@@ -258,5 +258,14 @@ describe('DISMISS_STEPS — today\'s list, whole names instead of substrings (§
     expect(onetrust).toBeGreaterThanOrEqual(0);
     expect(onetrust).toBeLessThan(close);
     expect(close).toBeLessThan(ariaClose);
+  });
+});
+
+describe('overlayWarning (§3.4)', () => {
+  it('names the overlay by tag, id and the first 60 characters of its text', () => {
+    expect(overlayWarning('https://x.test/p/1', { tag: 'div', id: 'nag', text: 'Subscribe' }))
+      .toBe('[browser] https://x.test/p/1: an overlay still covers the middle of the page after dismissal: div#nag "Subscribe"');
+    expect(overlayWarning('https://x.test/p/1', { tag: 'section', id: '', text: 'Standort wählen' }))
+      .toBe('[browser] https://x.test/p/1: an overlay still covers the middle of the page after dismissal: section "Standort wählen"');
   });
 });
