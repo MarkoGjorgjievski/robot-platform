@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ONLY_PATHS,
+  NOT_ON_WEBSITE_PATHS,
   ONE_SOURCE_WARNING,
   OPS_REASONS,
   backupsSummary,
@@ -472,6 +473,7 @@ describe('a website\'s default in ops (spec 2026-10-13 §7)', () => {
     expect(defaultLine({ defaultValue: 'Gymshark' })).toBe('Default: Gymshark');
     expect(defaultLine({})).toBeNull();
     expect(DEFAULT_ONLY_PATHS).toBe('no path — every product gets the default');
+    expect(NOT_ON_WEBSITE_PATHS).toBe('no path — not on this website, left empty');
   });
 });
 
