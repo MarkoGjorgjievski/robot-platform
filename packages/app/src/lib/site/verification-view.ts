@@ -28,6 +28,8 @@ export type FieldVerification = {
   certified: unknown[]; // ranked paths; empty when the field never passed
   /** Passed on the website's default alone: no path certified (spec 2026-10-13 §4). */
   defaultOnly?: true;
+  /** Not on this website at all — absent on every product (spec 2026-10-17 §2). */
+  notOnWebsite?: true;
   weakEvidence: boolean;
   thinEvidence?: boolean;
   aiCalled: boolean;

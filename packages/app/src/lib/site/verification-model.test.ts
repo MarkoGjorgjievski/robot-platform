@@ -7,7 +7,7 @@ import {
   failsText, displayValue, pickAnswer, cellAcceptable, carryFrom, type Suggestion,
   markAbsent, isAbsent, titleFromCapture,
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
-  typedAnswer, type Answer,
+  typedAnswer, type Answer, notOnWebsiteWord,
 } from './verification-model';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
@@ -532,7 +532,7 @@ describe('the Verify gate and absent cells (spec 2026-10-10 §D3)', () => {
   it('refuses a field absent on all but one product: it needs a value on at least two', () => {
     let b = markAbsent(full(), 'price', U[0]!);
     b = markAbsent(b, 'price', U[1]!);
-    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: false, reason: 'Price needs a value on at least two products', field: 'price' });
+    expect(verifyGate(b, FIELDS, {})).toEqual({ ok: false, reason: 'Price needs a value on at least two products, or "not on this product" on every one', field: 'price' });
   });
 });
 
@@ -887,5 +887,54 @@ describe('marked values without their label; a retype keeps the mark (spec 2026-
   it('typedAnswer: blank clears the cell; no mark stays typed', () => {
     expect(typedAnswer(undefined, sku, '  ', U)).toBeNull();
     expect(typedAnswer(undefined, sku, 'A1', U)).toEqual({ value: 'A1', mark: null });
+  });
+});
+
+describe('verifyGate — not on this website, and a default on products 4–6 (spec 2026-10-17 §2, §3)', () => {
+  const cards = [1, 2, 3, 4].map((i) => ({ url: `https://g.example/${i}`, title: `P${i}` }));
+  const brand: Field = { key: 'brand', name: 'Brand', type: 'text', description: 'logo', concept: 'brand' };
+  const rating: Field = { key: 'rating', name: 'Rating', type: 'number', description: 'stars', concept: 'rating' };
+  const base = () => {
+    let b = setCards(emptyBoard(), cards);
+    for (const c of cards.slice(0, 3)) b = answer(b, 'brand', c.url, { value: 'Gymshark', mark: null });
+    return b;
+  };
+  const suggestion = { captureId: 'c', value: 'Gymshark', boxes: [], origin: 'page-data' as const, via: { source: 'json-ld', path: 'brand.name' } };
+
+  it('a field absent on products 1–3 with no value passes the gate', () => {
+    let b = base();
+    for (const c of cards.slice(0, 3)) b = markAbsent(b, 'rating', c.url);
+    b = answer(b, 'brand', cards[3]!.url, { value: 'Gymshark', mark: null });
+    expect(verifyGate(b, [brand, rating], {})).toEqual({ ok: true });
+  });
+
+  it('absent on two and a value on one names the new rule', () => {
+    let b = base();
+    b = answer(b, 'rating', cards[0]!.url, { value: '4.5', mark: null });
+    b = markAbsent(markAbsent(b, 'rating', cards[1]!.url), 'rating', cards[2]!.url);
+    b = answer(b, 'brand', cards[3]!.url, { value: 'Gymshark', mark: null });
+    expect(verifyGate(b, [brand, rating], {})).toMatchObject({ ok: false, reason: 'Rating needs a value on at least two products, or "not on this product" on every one', field: 'rating' });
+  });
+
+  it('a suggestion on product 4 does not block a field with a default', () => {
+    let b = setDefault(base(), 'brand', 'Gymshark');
+    b = answer(b, 'rating', cards[3]!.url, { value: '4.1', mark: null });
+    for (const c of cards.slice(0, 3)) b = answer(b, 'rating', c.url, { value: '4.2', mark: null });
+    expect(verifyGate(b, [brand, rating], { brand: { [cards[3]!.url]: suggestion } })).toEqual({ ok: true });
+  });
+
+  it('a suggestion on product 4 still blocks a field with no default', () => {
+    let b = base();
+    for (const c of cards) b = answer(b, 'rating', c.url, { value: '4.2', mark: null });
+    expect(verifyGate(b, [brand, rating], { brand: { [cards[3]!.url]: suggestion } })).toMatchObject({ ok: false, reason: 'Brand has a suggestion to confirm on product 4' });
+  });
+});
+
+describe('a field not on this website after Verify (spec 2026-10-17 §2)', () => {
+  const results = { rating: { certified: [], notOnWebsite: true as const, cells: { 'https://g.example/1': { status: 'pass' as const } } } };
+  it('reads verified and carries its row word while unchanged', () => {
+    expect(badge({ key: 'rating', results, unchangedKeys: ['rating'], running: false, cards: [] })).toEqual({ kind: 'verified' });
+    expect(notOnWebsiteWord(results, 'rating', ['rating'])).toBe('not on this website · left empty on every product');
+    expect(notOnWebsiteWord(results, 'rating', [])).toBeNull();
   });
 });

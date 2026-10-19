@@ -41,8 +41,11 @@ function structuredVia(via: Via | undefined): StructuredVia | undefined {
 }
 const sameVia = (a: Via | undefined, b: Via | undefined) => !!a && !!b && a.source === b.source && a.path === b.path;
 
-/** `defaultOnly`: the field passed on its default alone, no path certified (spec 2026-10-13 §4). */
-type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured'; path?: { source?: string; path: string } }> }>;
+/**
+ * `defaultOnly`: the field passed on its default alone, no path certified (spec 2026-10-13 §4).
+ * `notOnWebsite`: the field is not on this website at all — absent on every product (spec 2026-10-17 §2).
+ */
+type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; notOnWebsite?: true; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured'; path?: { source?: string; path: string } }> }>;
 
 /** What `boardFrom` reads back — mirrors `@robot/scraper`'s `VerificationSet`
  * (not imported: that module graph reaches Playwright/the database/the
@@ -304,6 +307,13 @@ export const DEFAULT_CELL_TITLE = "This website's default; a path that reads a v
 /** The row word beside a verified badge for a field that passed by default only (spec 2026-10-13 §6); null otherwise or once the field changed since. */
 export function defaultOnlyWord(results: VerificationResultsLike | null, key: string, unchangedKeys: string[]): string | null {
   return results?.[key]?.defaultOnly === true && unchangedKeys.includes(key) ? DEFAULT_ONLY_WORD : null;
+}
+
+export const NOT_ON_WEBSITE_WORD = 'not on this website · left empty on every product';
+
+/** The row word beside a verified badge for a field not on this website (spec 2026-10-17 §2); null otherwise or once the field changed since. */
+export function notOnWebsiteWord(results: VerificationResultsLike | null, key: string, unchangedKeys: string[]): string | null {
+  return results?.[key]?.notOnWebsite === true && unchangedKeys.includes(key) ? NOT_ON_WEBSITE_WORD : null;
 }
 
 export const ADDRESS_WARNING = (n: number) => `reads the first variant, not the one the address names on product ${n}`;
@@ -754,7 +764,7 @@ export function badge(args: { key: string; results: VerificationResultsLike | nu
   const fv = args.results?.[args.key];
   if (!fv) return null;
   if (!args.unchangedKeys.includes(args.key)) return { kind: 'changed' };
-  if (fv.certified.length > 0 || fv.defaultOnly === true) return { kind: 'verified' };
+  if (fv.certified.length > 0 || fv.defaultOnly === true || fv.notOnWebsite === true) return { kind: 'verified' };
   const products = args.cards.flatMap((c, i) => (fv.cells[c.url]?.status === 'fail' ? [i + 1] : []));
   return products.length > 0 ? { kind: 'fails', products } : null;
 }
@@ -800,7 +810,8 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
       for (const f of fields) {
         const a = board.answers[f.key]?.[url];
         if (!a) {
-          if (s[f.key]?.[url]) return { ok: false, reason: `${f.name} has a suggestion to confirm on product ${n}`, gap: f.key };
+          // A blank cell of a field with a default is a default cell on every product (spec 2026-10-17 §3), so its suggestion never blocks.
+          if (s[f.key]?.[url] && defaultOf(board, f.key) === undefined) return { ok: false, reason: `${f.name} has a suggestion to confirm on product ${n}`, gap: f.key };
           continue;
         }
         if (a.absent) continue;
@@ -809,12 +820,14 @@ export function verifyGate(board: Board, fields: Field[], s: Suggestions): { ok:
       }
     }
   }
-  // Spec D3: a field absent anywhere must still carry a value on at least two
-  // products — the server's own rule, surfaced before the save is refused.
+  // Spec D3: a field absent anywhere must still carry a value on at least two products, unless it
+  // is absent on products one to three and valued nowhere: not on this website (spec 2026-10-17 §2).
   for (const f of fields) {
     const answered = board.cards.map((c) => board.answers[f.key]?.[c.url]).filter((a): a is Answer => !!a);
     if (!answered.some((a) => a.absent)) continue;
-    if (answered.filter((a) => !a.absent).length < 2) return { ok: false, reason: `${f.name} needs a value on at least two products`, field: f.key };
+    const valued = answered.filter((a) => !a.absent).length;
+    const notOnWebsite = valued === 0 && board.cards.slice(0, PRODUCTS_MIN).every((c) => isAbsent(board, f.key, c.url));
+    if (valued < 2 && !notOnWebsite) return { ok: false, reason: `${f.name} needs a value on at least two products, or "not on this product" on every one`, field: f.key };
   }
   return { ok: true };
 }
@@ -837,7 +850,7 @@ export function verifyReason(gate: ReturnType<typeof verifyGate>, fields: Field[
 /** Fields not current, or everything on a first run (no results yet). */
 export function reverifyScope(fields: Field[], results: VerificationResultsLike | null, currentKeys: string[]): string[] | undefined {
   if (!results || Object.keys(results).length === 0) return undefined;
-  return fields.filter((f) => !currentKeys.includes(f.key) || (results[f.key]?.certified.length ?? 0) === 0).map((f) => f.key);
+  return fields.filter((f) => !currentKeys.includes(f.key) || ((results[f.key]?.certified.length ?? 0) === 0 && results[f.key]?.notOnWebsite !== true)).map((f) => f.key);
 }
 
 // validateValue/shortUrl below were copied (unchanged) from the deleted

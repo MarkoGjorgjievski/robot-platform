@@ -178,6 +178,8 @@ export type OpsField = {
   defaultValue?: string;
   /** This field is certified default-only — every product gets the default, no path (spec 2026-10-13 §7). */
   defaultOnly?: boolean;
+  /** This field is not on this website at all — absent on every product (spec 2026-10-17 §2). */
+  notOnWebsite?: boolean;
   /** How often Jev's reading agreed with the verified value on this field's proof pages (spec 2026-10-16 §8); absent when never asked. */
   jevAgreement?: { agreed: number; asked: number };
 };
@@ -196,6 +198,9 @@ export function defaultLine(field: Pick<OpsField, 'defaultValue'>): string | nul
 
 /** The default-only field row's summary and no-paths text (spec 2026-10-13 §7). */
 export const DEFAULT_ONLY_PATHS = 'no path — every product gets the default';
+
+/** The not-on-this-website field row's summary and no-paths text (spec 2026-10-17 §2). */
+export const NOT_ON_WEBSITE_PATHS = 'no path — not on this website, left empty';
 
 /** Kind, in the customer's own words (Global Constraints) — never the internal `CertifiedSource` vocabulary. */
 const PATH_KIND: Record<OpsPathSource, string> = { api: 'API', 'json-ld': 'Page data', meta: 'Meta', xpath: 'Page element' };
