@@ -35,7 +35,7 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Verify dead ends (2026-10-17)](#verify-dead-ends-2026-10-17).** Seven dead ends from campaign 2 that stopped an honest customer at Verify are fixed: a field the website lacks entirely now passes as "not on this website"; a default stops a products-four-to-six suggestion from blocking; a shop's name can certify as the brand; a page found in a different place on each product reads green, not "Several places match"; a mark reads the way the page shows it, label stripped; a rounded number matches more precise page data; the cost estimate is per proof page and staff-only, and a customer sees no money anywhere in the app. Eight tasks implemented and reviewed on `feat/verify-dead-ends`, fix rounds on Tasks 3, 6, 7 and 8; the whole-branch review found one Critical and two Important problems, fixed in one wave; merged into `main` 2026-10-19 (fast-forward). The route smoke is still to come — see the section.
+**Newest: [Verify dead ends (2026-10-17)](#verify-dead-ends-2026-10-17).** Seven dead ends from campaign 2 that stopped an honest customer at Verify are fixed: a field the website lacks entirely now passes as "not on this website"; a default stops a products-four-to-six suggestion from blocking; a shop's name can certify as the brand; a page found in a different place on each product reads green, not "Several places match"; a mark reads the way the page shows it, label stripped; a rounded number matches more precise page data; the cost estimate is per proof page and staff-only, and a customer sees no money anywhere in the app. Eight tasks implemented and reviewed on `feat/verify-dead-ends`, fix rounds on Tasks 3, 6, 7 and 8; the whole-branch review found one Critical and two Important problems, fixed in one wave; merged into `main` 2026-10-19 (fast-forward). Route smoke on `main`: 26 of 26 (`762a763`), run against an isolated keyless pair with Jev off, since shadow is on in `.env`.
 
 **Before it: [Jev at Verify, in shadow (2026-10-16)](#jev-at-verify-in-shadow-2026-10-16).** After a proof-page capture, a background Jev reading now picks among our own candidates for each ambiguous text/money/number field and reads which variant the page shows — stored, shown where it differs, never applied. Six tasks implemented and reviewed on `feat/jev-at-verify`, fix rounds on Tasks 1, 3 and 5; the whole-branch review, the merge, the route smoke and the live check are still to come — see the plan's status.
 
@@ -108,7 +108,15 @@ describes it; Task 10 is this entry. Fix rounds on Tasks 3 (two rounds), 6, 7 an
 review (the most capable model): one Critical, two Important, three Minor, fixed in one wave
 (six commits) and re-reviewed clean; one further Minor (the box map can store up to 2,000
 characters per box) watched, not fixed. Merged into `main` 2026-10-19 (fast-forward, no merge
-commit). The route smoke is still to come.
+commit).
+
+**Route smoke on `main` (2026-10-19): 26 of 26** (`762a763`). It ran against an isolated pair, a
+keyless api-server on :4100 with `JEV_SHADOW` empty and the app on :3100, because shadow is on in
+`.env` and the dev servers would have made paid readings. Its first run found two things the
+branch had broken: the address warning's text and its new button shared one element, so the warning
+no longer read as its own text; and an old check still expected a price on the variants Verify
+label. Both fixed in `77f5f3f`. A later run failed early because that api-server's browser
+wedged; a restart fixed it. The customer screens show no amount and no price word.
 
 **What a customer gets.** The seven dead ends campaign 2 found at Verify (group 3,
 `docs/testing/2026-10-11-campaign-2.md`) are fixed:
@@ -158,8 +166,10 @@ rounds-matches 4.76); the route smoke's no-money check now catches a bare, case-
 **Deviations** (also on the spec's status line): a suggestion carried to another product used to
 keep its label ("Style: 398846_01"); Task 3's second fix round made transfer-marks strip it, the
 same as a typed value, through `after_label`. The address warning's re-verify could still reach
-AI through another field's own live suggestion carried into the same run; Task 7's fix round
-gave `sources.verify` a new `free` flag that forces the whole run's agent to `null`. Task 2's
+AI when a proof page had changed since its capture, or when another field had an unsaved edit;
+Task 7's fix round gave `sources.verify` a new `free` flag that forces the whole run's agent to
+`null`. Beyond the plan: the re-extract label and the repair strategies name no AI and no cost to
+a customer (`reExtractLabel`, `backfill-preview`); staff copy is unchanged. Task 2's
 plan-mandated duplicate `ambiguous`-hint test was dropped as redundant with Task 1's.
 
 **What was left out** (§11, for later): running the AI fallback when every cell is
@@ -170,9 +180,13 @@ DOM search finds behind a label (marking works now; typing still does not). Capt
 overlays over the place to mark. Storing a rating rounded to the customer's own typed precision.
 Removing money from the API's own answers to a customer session — the app hides it, but
 `verifyEstimate`, `usage` and `runs.listByOrg` still send it, so a customer could read it in
-their browser's developer tools; it belongs with the payment plan. Customer copy that names "AI"
-with no price (`reExtractLabel`) — a `customer-copy-no-internals` matter, not a money one. The
-UX polish Marko has not yet described.
+their browser's developer tools; it belongs with the payment plan. The UX polish Marko has not yet described.
+
+**Open from the reviews:** "budget" on the run page and in Settings means a page limit, but a
+customer may read it as money (Marko to decide the word). With a default and one valued product,
+the `ambiguous` hint says "Mark it on the screenshot", but a mark cannot help: the field needs a
+value on a second product. Older than this branch: the number reader drops letters, so a rating
+shown as "5.0 out of 5" reads 5.05.
 
 **Found during review, not planned exclusions:** whether "budget" (a page limit, in the run page
 and Settings) reads as a money word to a customer — for Marko to decide. The `ambiguous` hint's
