@@ -31,7 +31,7 @@ describe('orgRunsView and money (spec 2026-10-17 §8a)', () => {
   it('the org runs view carries no cost to render', () => {
     const views = orgRunsView([row({ costUsd: 1.24 })], now);
     expect(Object.keys(views[0]!)).not.toContain('costUsd');
-    expect(JSON.stringify(views[0])).not.toMatch(/$d/);
+    expect(JSON.stringify(views[0])).not.toMatch(/\$\d/);
   });
 });
 
