@@ -12,7 +12,7 @@ import { rowCountScript, stampScript, scopeExtractionScript } from './scroll-pag
 import {
   hrefNavigates, EXPAND_START_SCRIPT, EXPAND_ROUND_SCRIPT, NEW_OVERLAYS_SCRIPT,
   REMOVE_NEW_OVERLAYS_SCRIPT, TABS_SCRIPT, NEXT_DISMISS_CANDIDATE_SCRIPT, LAST_DISMISS_WORKED_SCRIPT,
-  REMOVAL_PASS_SCRIPT, type OverlayDescription,
+  REMOVAL_PASS_SCRIPT, CENTRE_OVERLAY_SCRIPT, overlayWarning, type OverlayDescription,
 } from './overlays.js';
 
 // A fullPage render on a heavy commercial page routinely exceeds Playwright's 30s
@@ -203,6 +203,20 @@ export class PlaywrightBrowser implements IBrowser {
           ready = await this.waitUntilReady(page, url, intercepted, options.ready);
           await stage(`ready (after expand): ${ready.state}`);
         }
+
+        // Spec 2026-10-19 §3.4: one more dismissal pass for what arrived late (a consent manager
+        // that renders after the first pass), with no settle wait — a page with nothing over it
+        // costs no time. A close button can navigate by script, so the check runs again. Then
+        // back to the top: a dismissal click scrolls its element into view.
+        await this.dismissPopups(page, { settleMs: 0 });
+        await this.returnIfNavigatedAway(page, url, options);
+        await page.evaluate('window.scrollTo(0, 0)').catch((err) => { if (isCrash(err)) throw err; });
+        const covering = (await page.evaluate(CENTRE_OVERLAY_SCRIPT).catch((err) => {
+          if (isCrash(err)) throw err;
+          return null;
+        })) as OverlayDescription | null;
+        if (covering) console.warn(overlayWarning(url, covering));
+        await stage('after final pass');
 
         let annotation: unknown = undefined;
         if (options.annotate) {
@@ -428,8 +442,9 @@ export class PlaywrightBrowser implements IBrowser {
       `[browser] popup dismissal navigated away from ${requestedPath} to ${currentPath} — returning.`
       + ' Capturing the wrong page yields data that is wrong and self-consistent.',
     );
-    // Deliberately no second dismissal pass: it is what moved us, and a popup
-    // left standing costs far less than silently capturing another product.
+    // No dismissal here. capture() runs one final pass after the first return and
+    // then calls this once more; after that second return nothing clicks again —
+    // a popup left standing costs far less than silently capturing another product.
     await this.navigateWithFallback(page, requestedUrl, options);
   }
 

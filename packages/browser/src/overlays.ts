@@ -311,6 +311,11 @@ export function mostOfText(elLen: number, bodyLen: number): boolean {
 /** What a log line or a test needs to name an overlay. */
 export interface OverlayDescription { tag: string; id: string; text: string }
 
+/** The one line a capture logs when an overlay still covers the window's centre (§3.4, §8.3). */
+export function overlayWarning(url: string, d: OverlayDescription): string {
+  return `[browser] ${url}: an overlay still covers the middle of the page after dismissal: ${d.tag}${d.id ? `#${d.id}` : ''} "${d.text}"`;
+}
+
 // ---- Page only: DOM helpers -----------------------------------------------------------------------
 
 interface RobotState {
