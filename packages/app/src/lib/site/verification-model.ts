@@ -6,7 +6,7 @@
 import { FIELD_TYPES, type FieldType } from '../fields-view';
 // The engine's own comparison. `@robot/scraper/normalize` is the one module of
 // that package safe for a browser bundle (it imports nothing but a type).
-import { normalize, valuesEqual } from '@robot/scraper/normalize';
+import { afterLabel, labelled, normalize, valuesEqual } from '@robot/scraper/normalize';
 import type { PageVariantLike } from './verification-view';
 
 export { FIELD_TYPES };
@@ -233,6 +233,20 @@ export function answer(board: Board, key: string, url: string, a: Answer | null)
   return { ...board, answers };
 }
 
+/**
+ * The answer a typed cell stores (spec 2026-10-17 §6): blank clears the cell; a mark stays only
+ * while the marked element still shows the typed value, whole or after its label. A typed value
+ * never carries a suggestion's path.
+ */
+export function typedAnswer(prev: Answer | undefined, field: Field, text: string, url: string): Answer | null {
+  if (!text.trim()) return null;
+  const mark = prev?.mark;
+  if (!mark) return { value: text, mark: null };
+  const shows = (t: string) => valuesEqual(field.type, t, text, { pageUrl: url });
+  const after = labelled(field.concept) ? afterLabel(mark.text) : null;
+  return shows(mark.text) || (after !== null && shows(after)) ? { value: text, mark } : { value: text, mark: null };
+}
+
 /** What an absent cell shows in place of a value (spec 2026-10-10 §B3). */
 export const ABSENT_TEXT = 'not on this product';
 
@@ -336,7 +350,7 @@ function onScreenshot(box: Box): boolean {
   return box.rect.x >= 0 && box.rect.y >= 0;
 }
 
-export function valueFromBox(box: Box, type: FieldType): { value: string; mark: Mark | null } | { error: string } {
+export function valueFromBox(box: Box, type: FieldType, concept?: string): { value: string; mark: Mark | null } | { error: string } {
   let value: string;
   if (type === 'image') {
     if (box.kind !== 'image' || !box.src) return { error: 'This element is not an image' };
@@ -347,7 +361,8 @@ export function valueFromBox(box: Box, type: FieldType): { value: string; mark: 
   } else {
     const t = box.text.trim();
     if (t === '') return { error: 'This element has no text' };
-    value = t;
+    // Spec 2026-10-17 §6: "Style: 398846_01" on a labelled concept stores 398846_01; the mark keeps the element's whole text.
+    value = (labelled(concept) ? afterLabel(t) : null) ?? t;
   }
   // An element that starts above or left of the screenshot has a negative
   // rect, which the server refuses in a mark — and one refused mark fails
@@ -366,7 +381,7 @@ export function valueFromBox(box: Box, type: FieldType): { value: string; mark: 
  */
 export function fieldsFor(box: Box, fields: Field[], board: Board, url: string, suggestion?: { key: string; value: string }): Array<{ field: Field; fits: boolean; answered: boolean }> {
   const rows = fields.map((field) => {
-    const r = valueFromBox(box, field.type);
+    const r = valueFromBox(box, field.type, field.concept);
     const fits =
       suggestion && suggestion.key === field.key
         ? validateValue(field.type, suggestion.value) === null
@@ -390,7 +405,7 @@ export function fieldsFor(box: Box, fields: Field[], board: Board, url: string, 
  * wrong element must never reach certification's candidates anyway.
  */
 export function answerFromSuggestion(box: Box, field: Field, value: string, url: string): Answer {
-  const read = valueFromBox(box, field.type);
+  const read = valueFromBox(box, field.type, field.concept);
   if ('error' in read || !read.mark) return { value, mark: null };
   return valuesEqual(field.type, read.value, value, { pageUrl: url }) ? { value, mark: read.mark } : { value, mark: null };
 }
@@ -420,7 +435,7 @@ export function pickAnswer(boxes: Box[], boxIndex: number, field: Field, url: st
   }
   const box = boxes[boxIndex];
   if (!box) return { error: 'This element is not on the page' };
-  return valueFromBox(box, field.type);
+  return valueFromBox(box, field.type, field.concept);
 }
 
 /**
@@ -431,7 +446,7 @@ export function pickAnswer(boxes: Box[], boxIndex: number, field: Field, url: st
 export function placesOf(boxes: Box[], s: Suggestion, field: Field, url: string): number {
   const at = pointable(boxes, s.boxes);
   if (at.length > 1 && structuredVia(s.via) && at.every((i) => {
-    const read = valueFromBox(boxes[i]!, field.type);
+    const read = valueFromBox(boxes[i]!, field.type, field.concept);
     return !('error' in read) && valuesEqual(field.type, read.value, s.value, { pageUrl: url });
   })) return 1;
   return at.length;
