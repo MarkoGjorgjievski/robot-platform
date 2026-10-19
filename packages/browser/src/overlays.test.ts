@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   CLOSE_WORDS, PAGE_PRELUDE, coverage, hasVariantClassWord, isCloseWord, isDismissName, isFileLink,
-  isSettingsName, isVariantControlFacts, normName, overlayByFacts, pageScript,
+  isSettingsName, isVariantControlFacts, mostOfText, normName, overlayByFacts, pageScript,
   type OverlayFacts, type VariantFacts,
 } from './overlays.js';
 
@@ -173,10 +173,18 @@ describe('overlayByFacts — the one definition (§3.1)', () => {
     expect(overlayByFacts({ ...base, position: 'fixed', holdsPage: true })).toBe(false);
     expect(overlayByFacts({ ...base, className: 'modal', position: 'fixed', holdsPage: true })).toBe(false);
   });
-  it('a dialog is always an overlay: the page is what lies outside every dialog', () => {
-    // In the page holdsPage looks for the first main/h1 outside any dialog, so a dialog never holds
-    // the page; a dialog that holds an h1 ("10% off") is a promo, not the product.
-    expect(overlayByFacts({ ...base, role: 'dialog', holdsPage: true })).toBe(true);
+  it('a dialog is the page only when it holds most of the page\'s text', () => {
+    // For a dialog the page sets holdsPage from mostOfText, not from the main/h1 rule: a dialog
+    // holding an h1 ("10% off") is a promo; one wrapping the whole app is the page.
+    expect(overlayByFacts({ ...base, role: 'dialog', holdsPage: true })).toBe(false);
+    expect(overlayByFacts({ ...base, ariaModal: 'true', holdsPage: true })).toBe(false);
+    expect(overlayByFacts({ ...base, role: 'dialog', holdsPage: false })).toBe(true);
+  });
+  it('mostOfText is 60 % or more of a non-empty page', () => {
+    expect(mostOfText(60, 100)).toBe(true);
+    expect(mostOfText(100, 100)).toBe(true);
+    expect(mostOfText(59, 100)).toBe(false);
+    expect(mostOfText(0, 0)).toBe(false);
   });
 });
 
@@ -189,6 +197,8 @@ describe('pageScript', () => {
     const s = pageScript('1');
     expect(s).toContain('const CLOSE_WORDS = [');
     expect(s).toContain('const ROBOT_STATE_KEY = "__robotCapture";');
+    // Only an open <dialog> is dialog-like; a closed one is not a layer.
+    expect(s).toContain('const DIALOG_LIKE = "[role=\\"dialog\\"], [role=\\"alertdialog\\"], [aria-modal=\\"true\\"], dialog[open]";');
     for (const name of ['normName', 'overlayByFacts', 'hrefNavigates', 'isOverlay', 'outermostOverlay', 'listOverlayEls', 'topmostOverlayEl', 'accessibleName', 'neverDismiss', 'robotState', 'queryDeep']) {
       expect(s).toContain(`function ${name}(`);
     }
