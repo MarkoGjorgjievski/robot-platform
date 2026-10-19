@@ -181,9 +181,12 @@ export function labelled(concept: string | undefined): boolean {
 
 const LABEL = /^\s*([^\d:\n]{1,30}):\s*(\S[\s\S]*?)\s*$/u;
 
-/** The text after a leading "Label:" — at most 30 characters, no digits, at least one letter — or null when there is none. */
+/**
+ * The text after a leading "Label:" — at most 30 characters, no digits, at least one letter — or null when there is none.
+ * Whitespace runs (line breaks included) read as one space first, as the element shows them: "Product\n code: 123" is "123".
+ */
 export function afterLabel(text: string): string | null {
-  const m = LABEL.exec(text);
+  const m = LABEL.exec(text.replace(/\s+/gu, ' ').trim());
   if (!m || !/\p{L}/u.test(m[1]!)) return null;
   return m[2]!;
 }

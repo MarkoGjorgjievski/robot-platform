@@ -133,6 +133,11 @@ describe('afterLabel (spec 2026-10-17 §6)', () => {
     expect(afterLabel('Art.-Nr.: 12345')).toBe('12345');
     expect(afterLabel('  SKU:ABC-1 ')).toBe('ABC-1');
   });
+  it('reads through whitespace and line breaks inside the text, as the element shows it', () => {
+    expect(afterLabel('Product\n code: 123')).toBe('123');
+    expect(afterLabel('Style:\n  398846_01\n')).toBe('398846_01');
+    expect(afterLabel('Model\tnumber:  AB  12')).toBe('AB 12');
+  });
   it('none when the label has digits, is too long, or there is no colon', () => {
     expect(afterLabel('Top 5: great')).toBeNull();
     expect(afterLabel('A label that is far too long to be one: x')).toBeNull();
