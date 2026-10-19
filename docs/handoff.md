@@ -192,9 +192,27 @@ sites. Clean: Skullcandy (the geo modal is gone), Mejuri, Ikea (no cookie centre
 videos or drawer), Lacoste. Still covered: Puma DE's "Standort wählen" popup over the swatches (smaller
 than a quarter of the window, so not an overlay); a Colourpop cookie banner ("Preferences" / "Accept";
 bare "Accept" is not a listed name); a grey scrim over Kith's first screen. The check only looks at
-the centre, so it missed all three. A fix branch (`fix/capture-overlays-live`) is under way. Two
+the centre, so it missed all three. Fixed the same day, below. Two
 variant reads changed during capture (Lacoste read a gallery label "Image 1 of 6" as a colour at load;
 Puma's picker had no selection at load), neither shown to be one of our clicks.
+
+**Live fixes, merged (2026-10-19, `fix/capture-overlays-live`, head `b5dfe7b`).** Three general
+rules, no site names: a smaller popup (8–25 % of the window) counts as an overlay when it sits over
+page content, has a close control and a heading or layer name (Puma's "Standort wählen"); consent
+accept names grew (bare "Accept", "Allow cookies", and the same in German, French, Spanish, Italian,
+Dutch, Portuguese and Swedish), but single-word names count only inside an overlay, a consent host
+or a fixed box, and a form-submitting button outside one is never clicked; when a modal has no close
+control Escape is pressed first (Kith's welcome modal and its `body::before` scrim close the page's
+own way), and a translucent full-window html/body scrim is hidden only in a capture that closed
+something. The mouse is parked at the top-left before the screenshot (Puma's size 41 showed a hover
+border where a cookie click had landed — no size was selected). The live check now lists every
+fixed layer and scrim, not just the centre. Reviewed (two Important, fixed, re-checked live).
+
+**Live check, final (`after-2.md`, `after-3.md`).** Every page captured is free of modals, drawers,
+cookie banners and scrims: Puma DE, Colourpop, Kith, Skullcandy, Mejuri, Ikea, Thomann, Lacoste. Left
+on purpose: small promo teasers under 8 % of the window (Skullcandy's "GET 15% OFF ×", Puma's "NEU
+HIER? -15% ×") and sticky add-to-bag bars along the window's edge (Lacoste) — spec §7. Mejuri's
+single-open accordion still ends on "Shipping", not "Materials", as before this work.
 
 ## Verify dead ends (2026-10-17)
 
