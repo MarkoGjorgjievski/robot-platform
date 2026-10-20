@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { BROWSER_UNAVAILABLE, CaptureError, type IBrowser, type PageCapture, type ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
-import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, markPaths, type CandidatePath, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, markPaths, readsOneSource, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
 import { captureProblem, CaptureProblemError } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
@@ -193,7 +193,11 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       // Spec 2026-10-17 §8: a fixed variant index on a proof page whose address names a variant reads
       // the first variant whatever the address says; search again, so the [page] path can replace it.
       const namedVariant = Object.values(caps).some((c) => c?.pageVariant?.named === true);
-      if (r.certified.length > 0 && !r.certified.some(isVolatilePath) && !(namedVariant && r.certified.some(readsFixedVariant))) result = r;
+      // Spec 2026-10-20 one-source §3.4: nor one that reads one source with two or more paths (Ikea's API
+      // siblings): search again — free, the AI is asked only when nothing certifies — so another source can
+      // join as a backup. Where the pages offer no other source the result is the same pair. An all-XPath
+      // certification is kept as today (controller ruling: the page's HTML is not a capped source).
+      if (r.certified.length > 0 && !r.certified.some(isVolatilePath) && !(namedVariant && r.certified.some(readsFixedVariant)) && !readsOneSource(r.certified)) result = r;
     }
     let candidates: CandidatePath[] = [];
     if (!result) {
