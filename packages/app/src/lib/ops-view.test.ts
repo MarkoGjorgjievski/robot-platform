@@ -320,6 +320,24 @@ describe('oneSourceWarning', () => {
     const a = 'https://x.example/api/a';
     expect(oneSourceWarning([path({ source: 'api', container: a }), path({ source: 'api', container: 'https://x.example/api/b' }), path({ source: 'api', container: a })])).toBeNull();
   });
+
+  // Final review Minor 4: the same table in the scraper (readsOneSource) and the app (oneSourceWarning).
+  const R = 'https://x.example/api/a';
+  const S = 'https://x.example/api/b';
+  const cases: Array<[string, Array<{ source: 'api' | 'json-ld' | 'meta' | 'xpath'; container?: string }>, boolean]> = [
+    ['all API, one response', [{ source: 'api', container: R }, { source: 'api', container: R }], true],
+    ['all API, two responses', [{ source: 'api', container: R }, { source: 'api', container: S }], false],
+    ['API and JSON-LD', [{ source: 'api', container: R }, { source: 'json-ld' }], false],
+    ['all meta', [{ source: 'meta' }, { source: 'meta' }], true],
+    ['all XPath', [{ source: 'xpath' }, { source: 'xpath' }, { source: 'xpath' }], false],
+    ['one response and XPaths', [{ source: 'api', container: R }, { source: 'api', container: R }, { source: 'xpath' }], false],
+    ['old rows: API paths with no container', [{ source: 'api' }, { source: 'api' }], true],
+  ];
+  for (const [name, paths, one] of cases) {
+    it(`${name}: ${one ? 'one source' : 'not one source'}`, () => {
+      expect(oneSourceWarning(paths.map((p) => path(p)))).toBe(one ? ONE_SOURCE_WARNING : null);
+    });
+  }
 });
 
 describe('responseText', () => {
