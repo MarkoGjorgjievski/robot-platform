@@ -9,7 +9,7 @@ import {
   resolveVariantList, suggestEntryValues, buildLinksNearScript, normalizeVariantLink, normalizeVariantLinks,
   type SchemaDefinitionField, type VerificationSet, type Transferred, type DomHit, type DomNeedle, type XPathProbeResult, type Box,
   type VariantList, type VariantLinks, type VariantPicker, type VariantVerification,
-  reportVerdict, backoffAnswer, CaptureProblemError,
+  reportVerdict, backoffAnswer, CaptureProblemError, readListingPage,
 } from '@robot/scraper';
 import { CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import { router, protectedProcedure } from '../trpc';
@@ -23,7 +23,7 @@ import { bindingInput, prepareBinding, bindingProblemList, host, markInput, conf
 import { refuseVerify, refusalProblems } from '../verify/verify-refusal.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
-import { describeListingPage, unreadListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor, type ListingPageCheck } from '../verify/find-product-pages.js';
+import { describeListingPage, unreadListingPage, type ListingPageCheck } from '../verify/find-product-pages.js';
 import { reachabilityResult, type Reachability } from '../verify/reachability.js';
 import { sourceDefinitionHash, loadFieldCurrency, loadVariantCurrency, notOnWebsiteKeys } from '../verify/current-certification.js';
 import { variantsRequired } from '../verify/variant-check.js';
@@ -678,11 +678,11 @@ export const sourcesRouter = router({
 
   /**
    * The Extract tab's per-row listing check — no AI, nothing saved, one page
-   * load. Captures the page with `withBrowserSession` exactly as
-   * `findProductPages` does, but also keeps the html around to feed
-   * `describeListingPage` (find-product-pages.ts): the largest same-path-
-   * template group's full size (not just the capped ranking), a sample of
-   * it, and whether a pager was detected on the page.
+   * load. Reads the page with `readListingPage` (@robot/scraper: loaded
+   * more, at most three rounds; its links read in the live page) and hands
+   * them to `describeListingPage` (find-product-pages.ts): the product
+   * group's full size, a sample of it, and whether a pager was detected on
+   * the page.
    *
    * Carries the capture's verdict (spec 2026-10-09 §A1): a block page,
    * CAPTCHA or 404 counts no links and says why in `message` (null when ok);
@@ -700,18 +700,17 @@ export const sourcesRouter = router({
       const waiting = backoffAnswer(input.listingUrl);
       if (waiting) return { ...unreadListingPage(waiting.verdict, input.listingUrl), message: waiting.message };
       try {
-        const { anchors, html, verdict } = await withBrowserSession(async (browser) => {
+        const { links, html, verdict } = await withBrowserSession(async (browser) => {
           // 20 s, not the browser's default 60 s: Brooklinen never goes idle
           // and the finder sat at a blank "Find products" for 90 s waiting
           // out two 60 s networkidle timeouts (campaign 2, 2026-10-11). The
-          // `load` fallback inside navigateWithFallback still applies.
-          const capture = await browser.capture(input.listingUrl, { waitUntil: 'networkidle', interceptNetworkRequests: false, timeout: 20_000 });
+          // `load` fallback inside navigateWithFallback still applies. Then at
+          // most three rounds of loading more (spec 2026-10-20 §3.7).
+          const { capture, links } = await readListingPage(browser, input.listingUrl, { load: true, timeout: 20_000 });
           reportVerdict(hostname, capture.verdict);
-          if (capture.verdict.kind !== 'ok') return { anchors: [] as ListingAnchor[], html: capture.html, verdict: capture.verdict };
-          const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
-          return { anchors, html: capture.html, verdict: capture.verdict };
+          return { links, html: capture.html, verdict: capture.verdict };
         });
-        return describeListingPage(anchors, input.listingUrl, html, verdict);
+        return describeListingPage(links, input.listingUrl, html, verdict);
       } catch (err) {
         if (err instanceof CaptureError) {
           reportVerdict(hostname, err.kind);
