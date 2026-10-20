@@ -6,10 +6,12 @@
 // directly since the dashboard has no dependency on `@robot/scraper`) and
 // hands them to these functions.
 
+import { aiUnavailableHint, notCheckedText } from './verify-messages';
+
 /** The status of one (field, url) verification cell, for cellStatusFor's callers. */
 export type CellStatus = { status: 'pass' | 'fail' | 'not_captured' | 'stale'; found?: string; reason?: string; hint?: string; weak?: boolean; pathSource?: string; layout?: number };
 
-export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path' | 'found_unexpected';
+export type FailReason = 'not_found' | 'different_value' | 'ambiguous' | 'type_mismatch' | 'no_fitting_path' | 'found_unexpected' | 'elsewhere';
 
 export type CertifiedSource = 'api' | 'json-ld' | 'meta' | 'xpath';
 
@@ -30,6 +32,8 @@ export type FieldVerification = {
   defaultOnly?: true;
   /** Not on this website at all — absent on every product (spec 2026-10-17 §2). */
   notOnWebsite?: true;
+  /** The field's AI step failed this run (spec 2026-10-20 §3.3); its other results stand. Absent otherwise. */
+  failReason?: 'ai_unavailable';
   weakEvidence: boolean;
   thinEvidence?: boolean;
   aiCalled: boolean;
@@ -66,7 +70,9 @@ export function hintFor(reason: FailReason, found?: string, type?: string, field
     case 'no_fitting_path':
       return `We can't tell which value on this page is ${field || 'this field'} — mark it on the screenshot.`;
     case 'found_unexpected':
-      return `found ${found ?? 'a value'} on product ${product ?? ''}, but you said it isn't there`.trim();
+      return `Found ${found ?? 'a value'}${product !== undefined ? ` on product ${product}` : ''}, but you said it isn't there. Is it there after all?`;
+    case 'elsewhere':
+      return `Found on this product, but not where your other products show it. If this product really has no ${field || 'value'} of its own, choose "Not on this product".`;
   }
 }
 
@@ -165,4 +171,41 @@ export function verificationState(
     if (age !== null && age > stallMs) return 'stalled';
   }
   return 'active';
+}
+
+/**
+ * What a cell says under its state (spec 2026-10-20 §3.3, §3.5.1, §3.5.2): the field's AI failure on
+ * any of its cells, a fail cell's hint, or why a page was not checked. Undefined for a pass, for a
+ * field that changed since its result, and before any result.
+ */
+export function cellHint(args: {
+  results: VerificationResults | null | undefined;
+  key: string;
+  url: string;
+  unchanged: boolean;
+  fieldType?: string;
+  fieldName: string;
+  product: number;
+  blockedReason?: string;
+}): string | undefined {
+  if (!args.unchanged) return undefined;
+  const fv = args.results?.[args.key];
+  if (!fv) return undefined;
+  if (fv.failReason === 'ai_unavailable' && fv.certified.length === 0) return aiUnavailableHint(args.fieldName);
+  const cell = fv.cells[args.url];
+  if (!cell) return undefined;
+  if (cell.status === 'fail') return hintFor(cell.reason, cell.found, args.fieldType, args.fieldName, args.product);
+  if (cell.status === 'not_captured') return notCheckedText(args.product, args.blockedReason);
+  return undefined;
+}
+
+/** url → the reason the run could not capture that page, from a status answer's `captures` (a ref with no capture id). */
+export function blockedReasons(captures: unknown): Record<string, string> {
+  if (!captures || typeof captures !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [url, ref] of Object.entries(captures as Record<string, unknown>)) {
+    const r = ref && typeof ref === 'object' ? (ref as { captureId?: unknown; blockedReason?: unknown }) : null;
+    if (r && !r.captureId && typeof r.blockedReason === 'string') out[url] = r.blockedReason;
+  }
+  return out;
 }

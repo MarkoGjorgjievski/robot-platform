@@ -3,6 +3,8 @@ import {
   hintFor,
   cellStatusFor,
   verificationState,
+  cellHint,
+  blockedReasons,
   type VerificationResults,
 } from './verification-view';
 
@@ -28,10 +30,13 @@ describe('hintFor', () => {
     );
   });
 
-  test('found_unexpected names the product the customer said has no value (spec 2026-10-10 §B3)', () => {
-    expect(hintFor('found_unexpected', '0', undefined, undefined, 4)).toBe(
-      "found 0 on product 4, but you said it isn't there",
-    );
+  test('found_unexpected is a sentence and a question (spec 2026-10-20 §3.5.4)', () => {
+    expect(hintFor('found_unexpected', '0', undefined, undefined, 4)).toBe("Found 0 on product 4, but you said it isn't there. Is it there after all?");
+    expect(hintFor('found_unexpected', undefined, undefined, undefined, 4)).toBe("Found a value on product 4, but you said it isn't there. Is it there after all?");
+  });
+
+  test('elsewhere names the field and the way out (spec 2026-10-20 §3.4)', () => {
+    expect(hintFor('elsewhere', undefined, 'text', 'Description', 4)).toBe('Found on this product, but not where your other products show it. If this product really has no Description of its own, choose "Not on this product".');
   });
 
   test('a fail cell passes the field name to the no_fitting_path hint', () => {
@@ -177,5 +182,40 @@ describe('cellStatusFor — which layout proved a cell', () => {
     expect(cellStatusFor(results, 'price', 'u4', false)).toMatchObject({ status: 'pass', layout: 2 });
     const one = { price: { key: 'price', weakEvidence: false, certified: [A], cells: { u1: { status: 'pass', found: '1', path: A } } } } as never;
     expect(cellStatusFor(one, 'price', 'u1', false)!.layout).toBeUndefined();
+  });
+});
+
+describe('cellHint (spec 2026-10-20 §3.3, §3.5.1, §3.5.2)', () => {
+  const U1 = 'https://x/1', U2 = 'https://x/2';
+  const results: VerificationResults = {
+    desc: { key: 'desc', cells: { [U1]: { status: 'pass', found: 'a' }, [U2]: { status: 'fail', reason: 'elsewhere' } }, certified: [], weakEvidence: false, aiCalled: false, incomplete: false },
+    sku: { key: 'sku', cells: { [U1]: { status: 'fail', reason: 'not_found' } }, certified: [], weakEvidence: false, aiCalled: true, incomplete: false, failReason: 'ai_unavailable' },
+    price: { key: 'price', cells: { [U1]: { status: 'pass', found: '1' }, [U2]: { status: 'not_captured' } }, certified: [], weakEvidence: false, aiCalled: false, incomplete: true },
+  };
+  const base = { results, unchanged: true, fieldType: 'text', product: 2 };
+  it("a fail cell's hint", () => {
+    expect(cellHint({ ...base, key: 'desc', url: U2, fieldName: 'Description' })).toBe(hintFor('elsewhere', undefined, 'text', 'Description', 2));
+  });
+  it('an ai_unavailable field says so on any of its cells', () => {
+    expect(cellHint({ ...base, key: 'sku', url: U1, fieldName: 'SKU', product: 1 })).toBe("We couldn't finish checking SKU this time. Verify again — nothing else changed.");
+  });
+  it('a page the run could not capture says why', () => {
+    expect(cellHint({ ...base, key: 'price', url: U2, fieldName: 'Price', blockedReason: 'x.example did not answer in time.' })).toBe('Not checked on product 2 — x.example did not answer in time.');
+  });
+  it('nothing for a pass, a changed field, or no result', () => {
+    expect(cellHint({ ...base, key: 'desc', url: U1, fieldName: 'Description', product: 1 })).toBeUndefined();
+    expect(cellHint({ ...base, key: 'desc', url: U2, fieldName: 'Description', unchanged: false })).toBeUndefined();
+    expect(cellHint({ ...base, results: null, key: 'desc', url: U2, fieldName: 'Description' })).toBeUndefined();
+  });
+});
+
+describe('blockedReasons', () => {
+  it('reads the reason of each page the run could not capture, and nothing else', () => {
+    expect(blockedReasons({
+      'https://x/1': { captureId: 'c1', capturedAt: 't' },
+      'https://x/2': { captureId: '', capturedAt: 't', blockedReason: 'x.example did not answer in time.' },
+      _stage: 'searching',
+    })).toEqual({ 'https://x/2': 'x.example did not answer in time.' });
+    expect(blockedReasons(null)).toEqual({});
   });
 });

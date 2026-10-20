@@ -9,6 +9,7 @@ import {
   setDefault, defaultOf, isDefaultCell, rowValue, defaultOnlyWord, DEFAULT_ONLY_WORD, cellText, type Suggestions,
   typedAnswer, type Answer, notOnWebsiteWord, REVERIFY_FIELD, REVERIFY_FIELD_FREE,
 } from './verification-model';
+import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE } from './verify-messages';
 
 const U = ['https://s.example/p/1', 'https://s.example/p/2', 'https://s.example/p/3'];
 const FIELDS: Field[] = [
@@ -185,6 +186,22 @@ describe('the battery and the badge', () => {
     expect(badge({ key: 'price', results: two, unchangedKeys: ['price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', products: [1, 3] });
     expect(badge({ key: 'price', results, unchangedKeys: ['price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', products: [2] });
     expect(badge({ key: 'price', results, unchangedKeys: [], running: false, cards: board().cards })).toEqual({ kind: 'changed' });
+  });
+
+  it('a failed field never shows a blank status (spec 2026-10-20 §3.5.3)', () => {
+    const cards = board().cards;
+    const run = (price: Record<string, unknown>) => badge({ key: 'price', results: { price } as never, unchangedKeys: ['price'], running: false, cards, blocked: { [U[1]!]: 'shop.example did not answer in time.' } });
+    expect(run({ certified: [], failReason: 'ai_unavailable', cells: { [U[0]!]: { status: 'pass' } } })).toEqual({ kind: 'unverified', text: AI_UNAVAILABLE_BADGE });
+    expect(run({ certified: [], cells: { [U[0]!]: { status: 'pass' }, [U[1]!]: { status: 'not_captured' } } })).toEqual({ kind: 'unverified', text: 'Not checked on product 2 — shop.example did not answer in time.' });
+    expect(run({ certified: [], cells: { [U[0]!]: { status: 'pass' } } })).toEqual({ kind: 'unverified', text: NOT_VERIFIED_BADGE });
+    // With a fail cell, an AI failure names its products like any failure.
+    expect(run({ certified: [], failReason: 'ai_unavailable', cells: { [U[1]!]: { status: 'fail' } } })).toEqual({ kind: 'fails', products: [2] });
+  });
+
+  it('an ai_unavailable field is re-verified next time and never reads verified', () => {
+    const results = { title: { certified: [{}], cells: {} }, price: { certified: [], failReason: 'ai_unavailable' as const, cells: { [U[0]!]: { status: 'fail' as const } } } };
+    expect(reverifyScope(FIELDS, results, ['title'])).toEqual(['price']);
+    expect(badge({ key: 'price', results, unchangedKeys: ['title', 'price'], running: false, cards: board().cards })).toEqual({ kind: 'fails', products: [1] });
   });
 });
 
