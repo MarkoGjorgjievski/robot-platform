@@ -1229,4 +1229,63 @@ describe('certify — backups from more than one source (spec 2026-10-20 one-sou
     expect(r.certified[0]!.container).toBe(PIP1);
     expect('container' in r.certified[1]!).toBe(false);
   });
+
+  it("a cell's path names its response too, where nothing certified (final review Minor 2)", async () => {
+    const caps: Record<string, CaptureLike | null> = { ...pages(), [I[2]!]: null };
+    const r = await certify({ field: price, expected: exp, captures: caps, candidates: [{ ...api('price'), container: 'https://stale.example/x' }] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells[I[0]!]).toMatchObject({ status: 'pass', path: { source: 'api', path: 'price', container: PIP1 } });
+    expect(r.cells[I[1]!]).toMatchObject({ status: 'pass', path: { source: 'api', path: 'price', container: PIP1 } });
+  });
+
+  it("a complete field nothing certifies: a page a safe path is right on names that path's response (final review Minor 2)", async () => {
+    // `a` reads the price on page 1 only and nothing elsewhere; page 2 and 3 have no path at all.
+    const caps = Object.fromEntries(I.map((u, i) => [u, page(i, { ld: [], requests: [req(`https://s.example/api/${i}`, i === 0 ? { a: P[0] } : {})] })]));
+    const r = await certify({ field: price, expected: exp, captures: caps, candidates: [{ ...api('a'), container: 'https://stale.example/x' }] }, deps);
+    expect(r.certified).toEqual([]);
+    expect(r.cells[I[0]!]).toMatchObject({ path: { source: 'api', path: 'a', container: 'https://s.example/api/0' } });
+  });
+});
+
+describe('certify — which API paths are one source (final review Minor 1, spec 2026-10-20 one-source §3.1)', () => {
+  const price = { key: 'price', name: 'Price', type: 'money' as const, description: 'the price', concept: 'price' };
+  const api = (path: string) => ({ source: 'api' as const, path, transform: 'identity' as const });
+  const req = (url: string, parsedJson: unknown) => ({ url, method: 'GET', status: 200, isJson: true, parsedJson });
+  const deps = { evalXPaths: async () => ({}) };
+  const ids = (ps: ReadonlyArray<{ source: string; path: string }>) => ps.map((p) => `${p.source} ${p.path}`);
+  const capOf = (url: string, requests: unknown[]): CaptureLike => ({
+    url, html: '<html></html>',
+    structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} },
+    interceptedRequests: requests as CaptureLike['interceptedRequests'],
+  });
+
+  it('two paths that read one address but never on a common page are two sources, though both are named by it', async () => {
+    // With a default, `a.price`, `b.price`, `c.price` read the default on pages 1-2 only and `dd.price` on
+    // pages 3-4 only, all through /api/product (the query differs). They never read a common page: two
+    // sources. (Every page is a default cell, so the field is weak: the paths' names fit the concept.)
+    const Q = ['https://q.example/1', 'https://q.example/2', 'https://q.example/3', 'https://q.example/4'];
+    const caps = Object.fromEntries(Q.map((u, i) => [u, capOf(u, [req(`https://q.example/api/product?id=${i}`, i < 2 ? { a: { price: 10 }, b: { price: 10 }, c: { price: 10 } } : { dd: { price: 10 } })])]));
+    const r = await certify({ field: price, expected: {}, defaultValue: '10', captures: caps, candidates: [api('a.price'), api('b.price'), api('c.price'), api('dd.price')] }, deps);
+    expect(ids(r.certified)).toEqual(['api a.price', 'api dd.price', 'api b.price']);
+    expect(r.certified.map((p) => p.container)).toEqual(['https://q.example/api/product', 'https://q.example/api/product', 'https://q.example/api/product']);
+  });
+
+  // `a` reads R1 on every page; `c` reads R2 on every page; `b` reads R1 on page 1 and R2 on pages 2-3 —
+  // it shares a response on a page with each, so all three are one source, whatever their rank order.
+  const B = ['https://b.example/1', 'https://b.example/2', 'https://b.example/3'];
+  const V = [11, 22, 33];
+  const bridged = (bKey: string, cKey: string) => Object.fromEntries(B.map((u, i) => [u, capOf(u, [
+    req('https://b.example/r1', i === 0 ? { a: V[i], [bKey]: V[i] } : { a: V[i] }),
+    req('https://b.example/r2', i === 0 ? { [cKey]: V[i] } : { [cKey]: V[i], [bKey]: V[i] }),
+  ])]));
+  const bExp = Object.fromEntries(B.map((u, i) => [u, String(V[i])]));
+  for (const [bKey, cKey] of [['bbb', 'cc'], ['bb', 'ccc']] as const) {
+    it(`a path that bridges two responses joins them into one source (rank a, ${bKey.length < cKey.length ? 'b, c' : 'c, b'})`, async () => {
+      const r = await certify({ field: price, expected: bExp, captures: bridged(bKey, cKey), candidates: [api('a'), api(bKey), api(cKey)] }, deps);
+      expect(r.certified).toHaveLength(2);
+      expect(r.certified[0]).toMatchObject({ path: 'a', container: 'https://b.example/r1' });
+      expect(r.certified.every((p) => p.container === 'https://b.example/r1')).toBe(true);
+      expect(readsOneSource(r.certified)).toBe(true);
+    });
+  }
 });
