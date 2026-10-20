@@ -469,7 +469,8 @@ export class PlaywrightBrowser implements IBrowser {
    * `CaptureOptions.loadMore` (spec 2026-10-20 §3.7): grow a listing that loads on scroll or on a
    * "load more" click, bounded by rounds (`LOAD_MORE_MAX_ROUNDS`), quiet rounds
    * (`LOAD_MORE_QUIET_ROUNDS`) and wall time (`LOAD_MORE_BUDGET_MS`, controller ruling §5.3) — the
-   * time budget is checked only between rounds, so a round already under way finishes. A probe or
+   * time budget is checked before each round, each settle and each click, so once it is spent
+   * only the step under way and the closing measure still run. A probe or
    * a count that throws reads as 0 (a quiet round); a dead renderer still rethrows. The found
    * control is never clicked when it is a link that would navigate away or a variant control (a
    * swatch or similar — §3.3.2's `isVariantChoice`, via `loadMoreTargetScript`). A round that left
@@ -491,24 +492,27 @@ export class PlaywrightBrowser implements IBrowser {
     };
 
     const start = Date.now();
+    const spent = () => Date.now() - start >= LOAD_MORE_BUDGET_MS;
     let have = await measure();
     let quiet = 0;
     await page.evaluate(MARK_DOCUMENT_SCRIPT).catch(rethrowCrash);
     for (
       let round = 0;
-      round < rounds && have < lm.enough && quiet < LOAD_MORE_QUIET_ROUNDS && Date.now() - start < LOAD_MORE_BUDGET_MS;
+      round < rounds && have < lm.enough && quiet < LOAD_MORE_QUIET_ROUNDS && !spent();
       round++
     ) {
       await page.evaluate(STEP_SCROLL_SCRIPT).catch(rethrowCrash);
-      await page.waitForTimeout(LOAD_MORE_SETTLE_MS);
-      const html = await page.content().catch((err) => { rethrowCrash(err); return ''; });
-      const selector = findLoadMore(html);
+      // The budget is checked before every settle and click too: a slow scroll that spent it is
+      // the round's last step (what it loaded is still measured below).
+      if (!spent()) await page.waitForTimeout(LOAD_MORE_SETTLE_MS);
+      const html = spent() ? '' : await page.content().catch((err) => { rethrowCrash(err); return ''; });
+      const selector = html ? findLoadMore(html) : null;
       if (selector) {
         const target = (await page.evaluate(loadMoreTargetScript(selector)).catch((err) => { rethrowCrash(err); return null; })) as
           { visible: boolean; href: string | null; target: string | null; variant: boolean } | null;
-        if (target?.visible && !target.variant && !hrefNavigates(target)) {
+        if (target?.visible && !target.variant && !hrefNavigates(target) && !spent()) {
           await page.locator(selector).first().click({ timeout: 3_000 }).catch(rethrowCrash);
-          await page.waitForTimeout(LOAD_MORE_SETTLE_MS);
+          if (!spent()) await page.waitForTimeout(LOAD_MORE_SETTLE_MS);
         }
       }
       const same = await page.evaluate(SAME_DOCUMENT_SCRIPT).catch((err) => { rethrowCrash(err); return false; });

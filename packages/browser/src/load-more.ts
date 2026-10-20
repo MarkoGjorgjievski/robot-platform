@@ -77,8 +77,9 @@ export const LOAD_MORE_QUIET_ROUNDS = 2;
 export const LOAD_MORE_SETTLE_MS = 1_000;
 /**
  * Spec 2026-10-20 §5.3 (controller ruling): the whole loading step stops within about this long,
- * wall time. Checked only between rounds — a round already under way finishes — so no further
- * round starts once the budget is spent, whatever `rounds` and `LOAD_MORE_MAX_ROUNDS` still allow.
+ * wall time. Checked before each round, each settle and each click — only the step under way
+ * finishes — so nothing more starts once the budget is spent, whatever `rounds` and
+ * `LOAD_MORE_MAX_ROUNDS` still allow.
  */
 export const LOAD_MORE_BUDGET_MS = 10_000;
 
