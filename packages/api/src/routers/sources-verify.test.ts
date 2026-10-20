@@ -4,6 +4,7 @@ import { db, sources, sourceVerifications } from '@robot/db';
 import { VERIFY_STALL_MS, estAiCostPerFieldUsd, fieldHash, type SchemaDefinitionField, type VerificationSet } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
+import { VerifyRefusal } from '../verify/verify-refusal.js';
 
 // `sources.verify` fires `runSourceVerification` (verify/run-source-verification.ts)
 // without awaiting it — stubbed here so this file exercises ONLY sources.ts's
@@ -51,11 +52,16 @@ async function makeSchemaSource(tag: string) {
   return { sourceId: f.sourceId, urls, keys: f.keys, datasetId: f.datasetId, cleanup: f.cleanup };
 }
 
+/** The rejection of a call, or null when it resolved. */
+const rejectionOf = (p: Promise<unknown>) => p.then(() => null, (e: unknown) => e as Error & { code?: string; cause?: unknown });
+
 describe('sources.verify', () => {
   it('refuses a Source without a schema definition (PRECONDITION_FAILED)', async () => {
     const f = await createProjectWithSource(caller, { tag: 'verify-noschema', fields: [] });
     try {
       await expect(caller.sources.verify({ sourceId: f.sourceId })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+      const err = await rejectionOf(caller.sources.verify({ sourceId: f.sourceId }));
+      expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'no_fields' }]);
       expect(runSourceVerificationMock).not.toHaveBeenCalled();
     } finally {
       await f.cleanup();
@@ -88,7 +94,13 @@ describe('sources.verify', () => {
     const f = await createProjectWithSource(caller, { tag: 'verify-draft', fields: [{ name: 'Price', type: 'money' }] });
     try {
       await caller.sources.updateBinding({ sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [f.keys.Price!]: 'price' }, expected: { [f.keys.Price!]: { [f.urls[0]!]: '129.99' } } });
-      await expect(caller.sources.verify({ sourceId: f.sourceId })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: expect.stringContaining('Price @') });
+      const err = await rejectionOf(caller.sources.verify({ sourceId: f.sourceId }));
+      expect(err).toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Verify could not start' });
+      expect(err!.cause).toBeInstanceOf(VerifyRefusal);
+      expect((err!.cause as VerifyRefusal).problems).toEqual([
+        { reason: 'blank', field: 'Price', product: 2 },
+        { reason: 'blank', field: 'Price', product: 3 },
+      ]);
       const rows = await db.query.sourceVerifications.findMany({ where: eq(sourceVerifications.sourceId, f.sourceId) });
       expect(rows).toHaveLength(0);
     } finally { await f.cleanup(); }
@@ -158,6 +170,8 @@ describe('sources.verify', () => {
       await caller.sources.saveVariantAnswer({ sourceId, url: urls[0]!, answer: { count: 2, labels: ['Black', 'Red'] } });
       await caller.sources.saveVariantAnswer({ sourceId, url: urls[1]!, answer: { count: 0, labels: [] } });
       await expect(caller.sources.verify({ sourceId, onlyKeys: [] })).rejects.toMatchObject({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
+      const err = await rejectionOf(caller.sources.verify({ sourceId, onlyKeys: [] }));
+      expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'variants' }]);
       expect(runSourceVerificationMock).not.toHaveBeenCalled();
 
       // A run that also verifies fields starts: the unanswered product fails inside the variant result.
@@ -189,6 +203,36 @@ describe('sources.verify', () => {
     } finally {
       await cleanup();
     }
+  });
+
+  it("refuses a blank required cell with the field's name and the product number, never an address (spec 2026-10-20 §3.2)", async () => {
+    const f = await createProjectWithSource(caller, { tag: 'verify-blank', fields: [{ name: 'Price', type: 'money' }, { name: 'Rating', type: 'number' }] });
+    try {
+      const [p, r] = [f.keys.Price!, f.keys.Rating!];
+      await caller.sources.updateBinding({
+        sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [p]: 'price', [r]: 'stars' },
+        expected: { [p]: { [f.urls[0]!]: '1.00', [f.urls[1]!]: '2.00', [f.urls[2]!]: '3.00' }, [r]: { [f.urls[0]!]: '4.5', [f.urls[1]!]: '3.8' } },
+      });
+      const err = await rejectionOf(caller.sources.verify({ sourceId: f.sourceId }));
+      expect(err).toMatchObject({ code: 'PRECONDITION_FAILED' });
+      expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'blank', field: 'Rating', product: 3 }]);
+      expect(err!.message).not.toMatch(/https?:|@/);
+      expect(runSourceVerificationMock).not.toHaveBeenCalled();
+      expect(await db.query.sourceVerifications.findMany({ where: eq(sourceVerifications.sourceId, f.sourceId) })).toHaveLength(0);
+    } finally { await f.cleanup(); }
+  });
+
+  it('refuses too few values with the field name only', async () => {
+    const f = await createProjectWithSource(caller, { tag: 'verify-toofew', fields: [{ name: 'Price', type: 'money' }] });
+    try {
+      const k = f.keys.Price!;
+      await caller.sources.updateBinding({
+        sourceId: f.sourceId, urls: f.urls, draft: true, descriptions: { [k]: 'price' },
+        expected: { [k]: { [f.urls[0]!]: '1.00' } }, absent: { [k]: { [f.urls[1]!]: true, [f.urls[2]!]: true } },
+      });
+      const err = await rejectionOf(caller.sources.verify({ sourceId: f.sourceId }));
+      expect((err!.cause as VerifyRefusal).problems).toEqual([{ reason: 'too_few_values', field: 'Price' }]);
+    } finally { await f.cleanup(); }
   });
 });
 
