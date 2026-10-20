@@ -683,13 +683,16 @@ describe('runVerification — a cached certification that reads one source (spec
 
   it('two cached paths from one response: the pages are searched again, free, and JSON-LD joins as a backup', async () => {
     const search = vi.fn(async () => []);
+    // A real agent that throws if asked: the search again is free, so "no AI call" is proven, not assumed.
+    const agent = { proposePaths: vi.fn(async () => { throw new Error('the AI must not be called'); }) };
     const run = await runVerification({ fields: [price], verificationSet: priceSet }, {
-      browser: { setContentEvaluate: search } as unknown as IBrowser, agent: null, captures: caps,
+      browser: { setContentEvaluate: search } as unknown as IBrowser, agent, captures: caps,
       cachedPaths: async () => [apiPrice, apiNumeral],
     });
     expect(search).toHaveBeenCalled();
     expect(ids(run.outcome.fields.price!.certified)).toEqual(['api price', 'json-ld offers.price', 'api priceNumeral']);
     expect(run.outcome.aiCalls).toBe(0);
+    expect(agent.proposePaths).not.toHaveBeenCalled();
   });
 
   it('a cached pair from two sources is kept without a search', async () => {
