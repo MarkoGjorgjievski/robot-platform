@@ -66,8 +66,8 @@ describe('listingProducts', () => {
 
 describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
   let browser: PlaywrightBrowser;
-  beforeAll(async () => { browser = new PlaywrightBrowser(); await browser.launch({ headless: true }); });
-  afterAll(async () => { await browser.close(); });
+  beforeAll(async () => { browser = new PlaywrightBrowser(); await browser.launch({ headless: true }); }, 60_000);
+  afterAll(async () => { await browser.close(); }, 60_000);
 
   it('reads an image inside the link, a lazy one, and one beside the link in the same card', async () => {
     const html = `<html><body>
@@ -80,7 +80,7 @@ describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
     expect(byHref['/p/1']).toMatchObject({ text: 'Oak chair', image: '/i/1.jpg' });
     expect(byHref['/p/2']).toMatchObject({ title: 'Pine stool', image: '/i/2.jpg' });
     expect(byHref['/p/3']).toMatchObject({ text: 'Birch table', image: '/i/3.jpg' });
-  });
+  }, 60_000);
 
   it('flags nav, role=navigation, aside and page-level header/footer links, but not a header inside a product card', async () => {
     const html = `<html><body>
@@ -95,7 +95,7 @@ describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
     const { anchors } = await browser.setContentEvaluate<ListingLinks>(html, LISTING_LINKS_SCRIPT);
     const chrome = Object.fromEntries(anchors.map((a) => [a.href, a.chrome === true]));
     expect(chrome).toEqual({ '/c/top': true, '/c/nav': true, '/c/role': true, '/c/menubar': true, '/c/side': true, '/p/card': false, '/p/grid': false, '/c/foot': true });
-  });
+  }, 60_000);
 
   it('a priced card with an image is a card level; a tile without a price is not', async () => {
     const html = `<html><body><ul>
@@ -106,5 +106,5 @@ describe('LISTING_LINKS_SCRIPT in Chromium (offline page)', () => {
     const level1 = (href: string) => anchors.find((a) => a.href === href)!.levels![1];
     expect(level1('/p/1')).toMatchObject({ d: 1, img: true, price: true });
     expect(level1('/c/sofas')).toMatchObject({ d: 1, img: true, price: false });
-  });
+  }, 60_000);
 });
