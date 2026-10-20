@@ -4,9 +4,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PlaywrightBrowser } from '@robot/browser';
 import { serveFixturePages, type ServedSite } from '../__fixtures__/serve.js';
-import { LISTING_FIXTURES } from './__fixtures__/listing-pages.js';
+import { LISTING_FIXTURES, productCard } from './__fixtures__/listing-pages.js';
 import { readListingPage } from './read-listing.js';
-import { findProductGroup } from './product-link-group.js';
+import { asListingLinks, findProductGroup, LISTING_LINKS_SCRIPT } from './product-link-group.js';
 
 let browser: PlaywrightBrowser;
 let site: ServedSite;
@@ -113,4 +113,20 @@ describe('the finder on served listings (spec 2026-10-20 §6)', () => {
     const first = links.anchors.find((a) => a.href === '/product_info.php?products_id=1')!;
     expect(first.levels!.some((l) => l.d > 3)).toBe(true);
   }, 60_000);
+
+  it('2,000 cards in a wrapper whose class names swatches read in under 3 s, swatches still found (final review I2)', async () => {
+    // Each card: its product link, then two colour links in a swatch list; the grid's own class says "has-swatches".
+    const cards = Array.from({ length: 2000 }, (_, i) => productCard(`/products/oak-chair-${i + 1}`, `Oak chair ${i + 1}`, `$${100 + i}.00`,
+      `<ul class="swatch-list"><li><a href="/products/oak-chair-${i + 1}-blue">blue</a></li><li><a href="/products/oak-chair-${i + 1}-green">green</a></li></ul>`));
+    const html = `<!doctype html><html><body><ul class="grid has-swatches">${cards.join('')}</ul></body></html>`;
+    const timed = `(() => { const t = performance.now(); const r = ${LISTING_LINKS_SCRIPT}; return { ms: performance.now() - t, r }; })()`;
+    const runs: Array<{ ms: number; r: unknown }> = [];
+    for (let i = 0; i < 2; i++) runs.push(await browser.setContentEvaluate<{ ms: number; r: unknown }>(html, timed));
+    const fastest = Math.min(...runs.map((x) => x.ms));
+    expect(fastest).toBeLessThan(3000);
+    const links = asListingLinks(runs[0]!.r);
+    expect(links.anchors).toHaveLength(6000);
+    expect(links.anchors.filter((a) => a.swatch)).toHaveLength(4000);
+    expect(links.anchors.filter((a) => !a.swatch).every((a) => /^\/products\/oak-chair-\d+$/.test(a.href))).toBe(true);
+  }, 120_000);
 });

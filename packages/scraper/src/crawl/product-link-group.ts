@@ -393,11 +393,23 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
     const hf = a.closest('header, footer');
     return !!hf && !(hf.parentElement && hf.parentElement.closest('article, section, main, aside, nav'));
   };
-  const swatch = (a, text) => {
+  // An element whose class names a swatch and whose own text shows no price — read once per element
+  // (as level() is): a grid named "has-swatches" around 2,000 cards is read once, not once per link.
+  const swatchMemo = new Map();
+  const swatchEl = (el) => {
+    let v = swatchMemo.get(el);
+    if (v === undefined) { v = /swatch/i.test(el.getAttribute('class') || '') && !PRICE.test(el.innerText || ''); swatchMemo.set(el, v); }
+    return v;
+  };
+  // levels[i] is the element i levels up from the link. The walk stops at the first level that shows
+  // a price (a card): every element above it holds that price too, so none is a swatch-without-price.
+  const swatch = (a, text, levels) => {
     if (/^\+\s?\d+$/.test(text)) return true;
     if (a.closest('[role=radio], [role=radiogroup], [aria-checked], [data-swatch]')) return true;
-    for (let el = a; el && el !== document.body; el = el.parentElement) {
-      if (/swatch/i.test(el.getAttribute('class') || '') && !PRICE.test(el.innerText || '')) return true;
+    let i = 0;
+    for (let el = a; el && el !== document.body; el = el.parentElement, i++) {
+      if (levels[i] && levels[i].price) return false;
+      if (swatchEl(el)) return true;
     }
     return false;
   };
@@ -415,7 +427,7 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
       title: a.getAttribute('title') || a.getAttribute('aria-label') || (inner && inner.getAttribute('alt')) || undefined,
       image: imgUrl(inner || near(a)) || undefined,
       chrome: chrome(a) || undefined,
-      swatch: swatch(a, text) || undefined,
+      swatch: swatch(a, text, levels) || undefined,
       levels,
     });
   }
