@@ -6,8 +6,11 @@
 import { urlShape, type Shape } from '@robot/scraper';
 
 export type SampledPage = { url: string; empty: string[]; shape: Shape } | { url: string; unread: string };
-/** `noProducts`: the listing had no products at all (spec 2026-10-20 §3.6), so nothing was sampled. */
-export type CoverageResults = { listingUrl: string; sampled: SampledPage[]; proofShapes: Record<string, Shape>; planned?: number; noProducts?: true };
+/**
+ * `noProducts`: the listing had no products at all (spec 2026-10-20 §3.6), so nothing was sampled.
+ * `allProofPages`: it had products, every one of them already a proof page (final review M5), so nothing was sampled.
+ */
+export type CoverageResults = { listingUrl: string; sampled: SampledPage[]; proofShapes: Record<string, Shape>; planned?: number; noProducts?: true; allProofPages?: true };
 /** `answered`: every empty page's address shape has a proof page marked "Not on this product" for this field (spec 2026-10-20 §3.8) — nothing to offer, `representative` is null. */
 export type FieldCoverage = { key: string; empty: string[]; sampled: number; unread: number; explanation: string | null; representative: string | null; answered?: true };
 
@@ -85,6 +88,9 @@ export const COVERAGE_STALLED = 'The check took too long and stopped. It runs ag
 /** A listing with no products (spec 2026-10-20 §3.6): the check samples nothing and says so. */
 export const NO_PRODUCTS_ON_LISTING = 'No products found on the listing page, so no more products were checked.';
 
+/** A listing whose every product is already a proof page: nothing is left to sample, and the check says so rather than nothing. */
+export const ALL_PROOF_PAGES = 'Every product on the listing page is already a proof page, so no more products were checked.';
+
 /** The done line when every field with empties is answered "Not on this product" by a proof page of that shape (spec 2026-10-20 §3.8). */
 export const ALL_ANSWERED = 'every field was found, except where a proof page says "Not on this product".';
 
@@ -102,6 +108,7 @@ export function stageLine(status: 'running' | 'done' | 'failed', results: Covera
     return n === 0 ? null : `Checking ${n} more products from the listing…`;
   }
   if (results?.noProducts) return NO_PRODUCTS_ON_LISTING;
+  if (results?.allProofPages) return ALL_PROOF_PAGES;
   const n = results?.sampled.length ?? 0;
   if (n === 0) return null;
   const read = results!.sampled.filter(isRead).length;

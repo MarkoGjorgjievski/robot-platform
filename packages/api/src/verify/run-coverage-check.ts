@@ -157,6 +157,8 @@ export async function runCoverageCheck(checkId: string, deps: CoverageDeps = {})
     // Spec 2026-10-20 §3.6: a listing with no products is an answer — nothing is sampled, and the tab says so.
     if (productUrls.length === 0) { await done({ listingUrl, sampled: [], proofShapes: {}, planned: 0, noProducts: true }); return; }
     const urls = sampleListing(productUrls, set.urls);
+    // Products, every one a proof page: nothing left to sample, and the tab says so (never silent).
+    if (urls.length === 0) { await done({ listingUrl, sampled: [], proofShapes: {}, planned: 0, allProofPages: true }); return; }
     // The planned size, so the tab's running line can count before any page is read.
     await db.update(coverageChecks).set({ results: { listingUrl, sampled: [], proofShapes: {}, planned: urls.length } satisfies CoverageResults })
       .where(and(eq(coverageChecks.id, checkId), eq(coverageChecks.status, 'running')));

@@ -9,7 +9,7 @@ import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifi
 import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
+import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
 // No agent, ever: constructing one fails the file.
 const { agentCtor } = vi.hoisted(() => ({ agentCtor: vi.fn() }));
@@ -239,6 +239,22 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       expect(row.results).toEqual({ listingUrl: f.listingUrl, sampled: [], proofShapes: {}, planned: 0, noProducts: true });
       expect(extract).not.toHaveBeenCalled();
       expect((await latestCoverageCheck(f.sourceId))!).toMatchObject({ status: 'done', fields: [], stage: NO_PRODUCTS_ON_LISTING });
+    } finally { await f.cleanup(); }
+  });
+
+  it('a listing whose every product is a proof page ends done, samples nothing and says so (final review M5)', async () => {
+    const f = await certifiedWebsite('cov-allproof');
+    try {
+      const extract = vi.fn();
+      const { checkId } = await startCoverageCheck(f.sourceId, null, { fire: false });
+      // The proof pages as the listing links them: with a query, with a trailing slash, as typed.
+      const listed = f.proofUrls.map((u, i) => (i === 0 ? `${u}?color=red` : i === 1 ? `${u}/` : u));
+      await runCoverageCheck(checkId, { listing: vi.fn(async () => ({ productUrls: listed, verdictMessage: null })), extract, proofShapes });
+      const row = await checkRow(checkId);
+      expect(row.status).toBe('done');
+      expect(row.results).toEqual({ listingUrl: f.listingUrl, sampled: [], proofShapes: {}, planned: 0, allProofPages: true });
+      expect(extract).not.toHaveBeenCalled();
+      expect((await latestCoverageCheck(f.sourceId))!).toMatchObject({ status: 'done', fields: [], stage: ALL_PROOF_PAGES });
     } finally { await f.cleanup(); }
   });
 
