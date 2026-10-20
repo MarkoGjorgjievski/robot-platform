@@ -22,7 +22,7 @@ import { enumerateDetailUrls, DETAIL_URL_FIELD, type StopReason } from './enumer
 import { detectPagination, type PaginationAgent, type PaginationDetection } from './detect-pagination.js';
 import { fetchInPage } from './api-param-fetch.js';
 import { page1Shape, rowUrls } from './api-row-urls.js';
-import { largestProductGroup, reconcileWithProductGroup, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './product-link-group.js';
+import { asListingLinks, findProductGroup, reconcileWithProductGroup, LISTING_LINKS_SCRIPT } from './product-link-group.js';
 
 export type PlannedItem = {
   kind: 'listing' | 'detail';
@@ -370,6 +370,9 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
         capture = await deps.browser.capture(start.url, {
           waitUntil: 'networkidle',
           interceptNetworkRequests: true,
+          // The page's product links, read in the live page (spec 2026-10-20): the cross-check
+          // below groups them with the finder's own rule.
+          annotate: LISTING_LINKS_SCRIPT,
         });
         // Feed the verdict back to the host's pacing (a challenge or refusal
         // backs the next acquire off; an ok clears it).
@@ -525,36 +528,35 @@ export async function planRun(request: PlanRunRequest, deps: PlanRunDeps): Promi
       // input, whose empty result page must stay empty. A page below budget
       // may also gain product-shaped links outside the grid (a promo tile,
       // "recently viewed"), in page order — links the finder counts too.
+      // The links are read in the live page by the capture's `annotate` script (spec 2026-10-20).
       const extractedUrls = new Set(
         listingRows.map((row) => row[DETAIL_URL_FIELD]).filter((u): u is string => typeof u === 'string' && u !== ''),
       );
       const directListing = source.inputStrategy === 'direct';
       if (
-        capture?.html
+        capture
         && (extractedUrls.size > 0 || (directListing && (request.knownDetailUrls?.length ?? 0) > 0))
         && extractedUrls.size < cap - (detailCount() - detailsBefore)
       ) {
         try {
-          const anchors = await deps.browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
-          if (Array.isArray(anchors)) {
-            const group = largestProductGroup(anchors, start.url);
-            const reconciled = reconcileWithProductGroup({
-              rows: listingRows, urlField: DETAIL_URL_FIELD, group, listingUrl: start.url, directListing,
-              ...(request.knownDetailUrls ? { knownDetailUrls: request.knownDetailUrls } : {}),
-            });
-            if (reconciled) {
-              // A row added from the page's links carries only its URL: any
-              // listing-origin field (a price read off the card) stays empty
-              // for it, and the log says so.
-              const listingGap = partitions.listing.length > 0
-                ? `; listing fields not available for ${reconciled.added} links added from the page`
-                : '';
-              warnings.push(
-                `${start.url}: the listing extraction found ${extractedUrls.size} product link(s) but the page has `
-                + `${group.length} product link(s) of the same kind — planned from the page's product links${listingGap}`,
-              );
-              listingRows = reconciled.rows;
-            }
+          // A missing or malformed harvest reads as no products: the extraction's rows stand.
+          const group = findProductGroup(asListingLinks(capture.annotation), start.url);
+          const reconciled = reconcileWithProductGroup({
+            rows: listingRows, urlField: DETAIL_URL_FIELD, group, listingUrl: start.url, directListing,
+            ...(request.knownDetailUrls ? { knownDetailUrls: request.knownDetailUrls } : {}),
+          });
+          if (reconciled && group) {
+            // A row added from the page's links carries only its URL: any
+            // listing-origin field (a price read off the card) stays empty
+            // for it, and the log says so.
+            const listingGap = partitions.listing.length > 0
+              ? `; listing fields not available for ${reconciled.added} links added from the page`
+              : '';
+            warnings.push(
+              `${start.url}: the listing extraction found ${extractedUrls.size} product link(s) but the page has `
+              + `${group.urls.length} product link(s) of the same kind — planned from the page's product links${listingGap}`,
+            );
+            listingRows = reconciled.rows;
           }
         } catch (err) {
           // Advisory: the extraction's own rows still stand.
