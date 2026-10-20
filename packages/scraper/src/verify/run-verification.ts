@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import type { IBrowser, PageCapture, ReadyCheck } from '@robot/browser';
+import { BROWSER_UNAVAILABLE, CaptureError, type IBrowser, type PageCapture, type ReadyCheck } from '@robot/browser';
 import type { ProposePathsAgent } from '@robot/agent';
 import { certify, checkedPages, expectedWithDefault, gatherCandidates, isVolatilePath, markPaths, type CandidatePath, type CaptureLike } from './certify.js';
 import { buildVerificationReadyCheck } from './verification-ready.js';
-import { captureProblem } from './capture-check.js';
+import { captureProblem, CaptureProblemError } from './capture-check.js';
 import { buildDomSearchScript, buildXPathProbeScript, type DomHit, type DomNeedle, type XPathProbeResult } from './dom-scripts.js';
 import { proposeWithAi } from './ai-fallback.js';
 import { buildSelectionScript } from './variant-dom.js';
@@ -147,7 +147,15 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const problem = captureProblem(c, url);
       if (problem) { captures[url] = null; captureErrors[url] = problem.reason; continue; }
       captures[url] = c;
-    } catch (err) { captures[url] = null; captureErrors[url] = err instanceof Error ? err.message : String(err); }
+    } catch (err) {
+      captures[url] = null;
+      // Spec 2026-10-20 §3.5.2: what is stored is what the customer reads. A CaptureError or a
+      // CaptureProblemError already carries the verdict's sentence; anything else is library text,
+      // which goes to the log only.
+      const sentence = err instanceof CaptureError || err instanceof CaptureProblemError;
+      if (!sentence) console.error(`[verify] capturing ${url} failed:`, err);
+      captureErrors[url] = sentence ? err.message : BROWSER_UNAVAILABLE;
+    }
   }
 
   const evalXPaths = (html: string, xpaths: string[]) => deps.browser.setContentEvaluate<XPathProbeResult>(html, buildXPathProbeScript(xpaths));
@@ -203,7 +211,18 @@ export async function runVerification(req: VerificationRequest, deps: Verificati
       const pages = checkedPages(req.verificationSet.urls, expected);
       const checkedExpected = Object.fromEntries(pages.map((u) => [u, expected[u]!]));
       const checkedCaps: Record<string, CaptureLike | null> = Object.fromEntries(pages.map((u) => [u, caps[u] ?? null]));
-      const proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, agent);
+      let proposals: CandidatePath[];
+      try {
+        proposals = await proposeWithAi({ field, expected: checkedExpected, captures: checkedCaps, nearMisses }, agent);
+      } catch (err) {
+        // Spec 2026-10-20 §3.3: one field's AI failure is that field's result, never the run's. Its
+        // result without the AI stands, the call is counted (it may have been billed), and every
+        // other field, every capture and the cost record are kept.
+        console.error(`[verify] the AI proposal for ${field.key} failed:`, err);
+        aiCalls++;
+        fields[field.key] = { ...result, aiCalled: true, failReason: 'ai_unavailable', fieldHash: fh };
+        continue;
+      }
       aiCalls++;
       result = await certify({ field, expected, captures: caps, candidates: [...candidates, ...proposals], confirmed, markXPaths, absent, defaultValue }, { evalXPaths });
       result.aiCalled = true;

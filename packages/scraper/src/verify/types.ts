@@ -74,6 +74,8 @@ export type FieldVerification = {
   defaultOnly?: true;
   /** Set (true) only when every checked page is marked "not on this product" and there is no default (spec 2026-10-17 §2): no path, every product left empty. Absent otherwise. */
   notOnWebsite?: true;
+  /** Set only when this field's AI proposal threw (spec 2026-10-20 §3.3: a time-out, a malformed answer, no credit, the provider down). The field failed this run; `cells` are its result without the AI, every other field's result stands, and the next Verify is the retry. Absent otherwise. */
+  failReason?: 'ai_unavailable';
   aiCalled: boolean;
   incomplete: boolean;                 // true when any capture is null
   /** sha256 over this field's definition + the pages + its expected values; a result is current only while it matches (spec 4.4). Absent on rows written before phase 2. */

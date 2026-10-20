@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { PlaywrightBrowser, verdictSentence, pageVariantFrom } from '@robot/browser';
+import { PlaywrightBrowser, verdictSentence, pageVariantFrom, CaptureError, BROWSER_UNAVAILABLE } from '@robot/browser';
 import type { IBrowser } from '@robot/browser';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
 import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
@@ -123,7 +123,8 @@ describe('runVerification (shop-example, offline)', () => {
     const caps = loadShopExample();
     delete caps[U[2]!];
     const run = await runVerification({ fields: [fields[0]!], verificationSet: set }, { browser, agent: null, captures: caps, captureOne: async () => { throw new Error('blocked'); } });
-    expect(run.captureErrors[U[2]!]).toBe('blocked');
+    // Spec 2026-10-20 §3.5.2: a throw that is not a capture verdict is library text; the customer reads the browser sentence.
+    expect(run.captureErrors[U[2]!]).toBe(BROWSER_UNAVAILABLE);
     expect(run.outcome.fields.product_name!.cells[U[2]!]).toEqual({ status: 'not_captured' });
     expect(run.outcome.allPassed).toBe(false);
   }, 60_000);
@@ -620,4 +621,45 @@ describe('runVerification — the address warning re-verify is free (spec 2026-1
     expect(run.outcome.aiCalls).toBe(0);
     expect(agent.proposePaths).not.toHaveBeenCalled();
   });
+});
+
+describe('runVerification — capture failures are customer sentences (spec 2026-10-20 §3.5.2)', () => {
+  it("a CaptureError stores its verdict sentence, never Playwright's text", async () => {
+    const caps = loadShopExample();
+    delete caps[U[2]!];
+    const run = await runVerification({ fields: [fields[0]!], verificationSet: set }, {
+      browser, agent: null, captures: caps,
+      captureOne: async (_b, url) => { throw new CaptureError('timeout', url, 'page.goto: Timeout 60000ms exceeded.'); },
+    });
+    expect(run.captureErrors[U[2]!]).toBe(verdictSentence({ kind: 'timeout' }, U[2]!));
+    expect(run.captureErrors[U[2]!]).not.toContain('page.goto');
+  }, 60_000);
+});
+
+describe("runVerification — one field's AI failure is that field's result (spec 2026-10-20 §3.3)", () => {
+  const sku = { key: 'sku', name: 'SKU', type: 'text' as const, description: 'item number', concept: 'sku' };
+  const code = { key: 'code', name: 'Code', type: 'text' as const, description: 'item number again', concept: 'sku' };
+  const typed = { [U[0]!]: 'A1', [U[1]!]: 'B2', [U[2]!]: 'C3' };
+  const skuSet: VerificationSet = { urls: U, expected: { product_name: set.expected.product_name, sku: typed, code: typed } };
+  const GOOD = { source: 'xpath' as const, path: '//*[@id="main"]/span[@class="sku"]/@data-sku', transform: 'identity' as const };
+
+  it('a throw for one field fails that field with ai_unavailable; every other result stands and both calls count', async () => {
+    const agent = { proposePaths: vi.fn(async (prompt: string) => {
+      if (prompt.includes('(key sku,')) throw new Error('Request timed out.');
+      return [GOOD];
+    }) };
+    const run = await runVerification({ fields: [fields[0]!, sku, code], verificationSet: skuSet }, { browser, agent, captures: loadShopExample() });
+
+    expect(agent.proposePaths).toHaveBeenCalledTimes(2);
+    expect(run.outcome.aiCalls).toBe(2);
+    expect(run.outcome.fields.sku).toMatchObject({ certified: [], aiCalled: true, failReason: 'ai_unavailable' });
+    for (const url of U) expect(run.outcome.fields.sku!.cells[url]).toMatchObject({ status: 'fail', reason: 'not_found' });
+    expect(run.outcome.fields.code!.certified).toEqual([GOOD]);
+    expect('failReason' in run.outcome.fields.code!).toBe(false);
+    expect(run.outcome.fields.product_name!.certified.length).toBeGreaterThan(0);
+    expect('failReason' in run.outcome.fields.product_name!).toBe(false);
+    expect(run.outcome.allPassed).toBe(false);
+    // The captures the run took are all there.
+    for (const url of U) expect(run.captures[url]).not.toBeNull();
+  }, 60_000);
 });
