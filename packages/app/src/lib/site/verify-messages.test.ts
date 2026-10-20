@@ -123,3 +123,15 @@ describe('a refusal as the browser receives it (spec 2026-10-20 §3.2, the route
     expect(refusalFromError(err)).toBe('Rating on product 3 needs a value, or "Not on this product". Nothing was checked.');
   });
 });
+
+describe('a redirect or an address never reaches a customer (final review, spec §5.4)', () => {
+  const redirect = 'redirected to https://shop.example/collections/all';
+  it('notCheckedText words a redirect and hides any other address', () => {
+    expect(notCheckedText(2, redirect)).toBe('Not checked on product 2 — the address opened a different page.');
+    expect(notCheckedText(3, 'could not open https://shop.example/p/1')).not.toMatch(/https?:/);
+  });
+  it('captureErrorText words a redirect and hides any other address', () => {
+    expect(captureErrorText(redirect)).toBe('The address opened a different page. Check the link, or use another product.');
+    expect(captureErrorText('blocked at https://x.example/a')).not.toMatch(/https?:/);
+  });
+});
