@@ -281,15 +281,16 @@ export const opsRouter = router({
             // domain-cache.ts, matched here by source + path alone (Review
             // Focus 3: a pruned or never-run path just has no match, never an error).
             const stat = stats.find((s) => s.source === 'verified' && s.origin === p.source && s.path === p.path);
-            // Final review I2: `stat.lastUrl` is the product *page* the path
-            // last hit on, not the intercepted API request's URL — nothing
-            // today records that reliably, so `container` stays unset and
-            // `oneSourceWarning`'s documented fallback applies (every `api`
-            // path of a field counts as one response).
+            // Spec 2026-10-20 one-source §3.5: certify names the response each
+            // API path reads (`container`). `stat.lastUrl` is the product
+            // *page* the path last hit on and is never used for it (final
+            // review I2). A result certified before the change has none, and
+            // `oneSourceWarning` reads that as one shared response.
             return {
               source: p.source,
               path: p.path,
               ...(p.provenOn ? { provenOn: p.provenOn } : {}),
+              ...(p.container ? { container: p.container } : {}),
               uses: (stat?.hits ?? 0) + (stat?.misses ?? 0),
               hits: stat?.hits ?? 0,
             };
