@@ -77,7 +77,8 @@ import { boardStore, seedDecision } from '../../../../../../lib/site/board-store
 import { tileHref, useProofCaptures } from '../../../../../../lib/site/use-proof-captures';
 import { stripState, verifyButton } from '../../../../../../lib/site/verify-button';
 import { showsMoney } from '../../../../../../lib/money-visibility';
-import { cellStatusFor, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
+import { blockedReasons, cellHint, verificationState, type PageVariantLike, type VerificationResults } from '../../../../../../lib/site/verification-view';
+import { notCheckedText, refusalFromError, stageText, verifyMessage } from '../../../../../../lib/site/verify-messages';
 import { driftRows, acceptMoved, acceptChanged, canAcceptMoved, storedExpected, type DriftCheckView, type DriftCheckResultsLike } from '../../../../../../lib/site/drift-view';
 import { columnNames, extractEnabled, variantNoun, variantsNeed, type VariantAnswer, type VariantResultView } from '../../../../../../lib/site/variants-row-view';
 import { coverageLine, coverageStage, EVERY_PRODUCT_DEFAULT, type ProofCoverageView } from '../../../../../../lib/site/proof-coverage-view';
@@ -251,7 +252,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
    * caught up with the click, so it scrolls to the element the click meant.
    */
   const [reveal, setReveal] = useState<{ n: number; product: number; field: string | undefined }>({ n: 0, product: 0, field: undefined });
-  const [error, setError] = useState<string | null>(null);
+  // Spec 2026-10-20 §3.1, §3.2: a refused Verify in customer words; cleared when a new Verify starts.
+  const [refusal, setRefusal] = useState<string | null>(null);
   const [transferNote, setTransferNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -369,6 +371,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const currentKeys = useMemo(() => status?.currentKeys ?? [], [status?.currentKeys]);
   // A failure is shown only while the field still reads as it did when it failed.
   const unchangedKeys = useMemo(() => status?.unchangedKeys ?? [], [status?.unchangedKeys]);
+  // Spec 2026-10-20 §3.5.2: why the last Verify could not capture a page, by url.
+  const blocked = useMemo(() => blockedReasons(status?.captures), [status?.captures]);
 
   // --- Drift (plan 2026-10-05 Task 3): the website's latest free check,
   // polled only while it is still running — the same "only while active" rule
@@ -1055,7 +1059,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
   const verifyMutation = trpc.sources.verify.useMutation();
 
   async function handleVerify() {
-    setError(null);
+    setRefusal(null);
     setNotice(null);
     setVerifying(true);
     try {
@@ -1080,7 +1084,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       await verifyMutation.mutateAsync({ sourceId, ...(onlyKeys ? { onlyKeys } : {}) });
       await invalidate();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // Spec 2026-10-20 §3.2: the server's structured problems in customer words, never the error's text.
+      setRefusal(refusalFromError(err));
     } finally {
       setVerifying(false);
     }
@@ -1088,7 +1093,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
 
   // Spec 2026-10-17 §8, §10 property 9: the address warning's own re-verify — this field alone, and `free`, so the server runs it with no agent: it never calls the AI.
   async function reverifyField(key: string) {
-    setError(null);
+    setRefusal(null);
     setNotice(null);
     setVerifying(true);
     try {
@@ -1097,7 +1102,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       await verifyMutation.mutateAsync({ sourceId, onlyKeys: [key], free: true });
       await invalidate();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      // Spec 2026-10-20 §3.2: the server's structured problems in customer words, never the error's text.
+      setRefusal(refusalFromError(err));
     } finally {
       setVerifying(false);
     }
@@ -1118,9 +1124,10 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
    * typed answer, or ×), or a suggestion outlined in several places.
    */
   function rowHint(f: Field): FieldHint | undefined {
-    // A failed cell says why on its row, "Mark it on the screenshot" included (spec C2's no_fitting_path).
-    if (detailUrl && failedCell(f.key, detailUrl)) {
-      const hint = cellStatusFor(results, f.key, detailUrl, false, f.type, f.name, detailIndex + 1)?.hint;
+    // A cell's verdict says why on its row (spec C2's no_fitting_path), as do an AI failure and a page
+    // the last Verify could not capture (spec 2026-10-20 §3.3, §3.5.2).
+    if (detailUrl) {
+      const hint = cellHint({ results, key: f.key, url: detailUrl, unchanged: unchangedKeys.includes(f.key), fieldType: f.type, fieldName: f.name, product: detailIndex + 1, blockedReason: blocked[detailUrl] });
       if (hint) return { text: hint };
     }
     const s = detailUrl ? live[f.key]?.[detailUrl] : undefined;
@@ -1345,7 +1352,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
         const cell = results?.[f.key]?.cells[c.url];
         return readsVariantList(cell && cell.status === 'pass' ? cell.path?.path : undefined) || readsVariantList(live[f.key]?.[c.url]?.via?.path);
       })),
-      badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards }),
+      badge: badge({ key: f.key, results, unchangedKeys, running: locked, cards: board.cards, blocked }),
       count: headerCount(results, f.key, unchangedKeys, board.cards),
       expanded: !!expanded[f.key],
       details: {
@@ -1436,6 +1443,8 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
             absent: url !== '' && isAbsent(board, detailField.key, url),
             // Only for a finished reading (spec §10.5): Jev off, running or failed shows nothing; "Jev: not read" is a done reading that did not ask about this field.
             jevText: jevTextFor(url ? jevByUrl[url] : undefined, detailField.key),
+            // Spec 2026-10-20 §3.5.1: the hint where the customer looks, not only in the expanded row.
+            hint: url ? cellHint({ results, key: detailField.key, url, unchanged: unchangedKeys.includes(detailField.key), fieldType: detailField.type, fieldName: detailField.name, product: selection.product + 1, blockedReason: blocked[url] }) : undefined,
             // A card with no URL has no screenshot to take.
             preview: panelOpen || !url ? null : (
               <ScreenshotCrop
@@ -1472,13 +1481,14 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       onReplace={(url) => onReplace(i, url)}
       onRetry={() => captures.retry(card.url)}
       hostProblem={hostProblem}
+      notChecked={!active && blocked[card.url] !== undefined ? notCheckedText(i + 1, blocked[card.url]) : null}
     />
   ));
 
-  // Non-null locks the tab: from the click, not only once the server says the run is active.
-  const stage = active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null;
-  const runNote =
-    strip === 'stalled' ? 'The last verification stalled. Run it again.' : strip === 'failed' ? 'The last verification failed.' : null;
+  // Non-null locks the tab: from the click, not only once the server says the run is active. In customer words (spec 2026-10-20 §5.4).
+  const stage = stageText(active ? (status?.stage ?? 'starting') : verifying ? 'starting' : null, fieldNames);
+  // Spec 2026-10-20 §3.1: one message slot, in the Verify bar — the refusal, or the run that failed or stalled.
+  const message = verifyMessage({ refusal, failedRun: status?.failedRun ?? null, hasResults: !!results && Object.keys(results).length > 0, running: active || verifying });
   const unsaved = board !== seededBoard.current && !canSave(board);
   const panel = 'rise rounded-[6px] border border-line bg-panel [box-shadow:var(--shadow)]';
   const selectedCard = board.cards[selected];
@@ -1518,6 +1528,7 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
           reason: verifyReason(gate, fields, statuses, button.reason),
           busy: verifying || verifyMutation.isPending,
           onClick: () => void handleVerify(),
+          message,
         }}
         saveState={saveState}
         saveError={saveError}
@@ -1572,16 +1583,6 @@ function VerificationBody({ source, serverUpdatedAt }: { source: SiteData; serve
       {/* Only while the project wants variants; never holds Verify or Extract back (plan 2 gates on it). */}
       <VariantsStep sourceId={sourceId} datasetId={source.datasetId} setup={source.variantSetup} cards={urls.length} failedCards={urls.filter((u) => captures.byUrl[u]?.status === 'failed').length} capturedKey={variantsKey} />
 
-      {runNote ? (
-        <p role="alert" className={`border-l-2 pl-3 text-sm ${strip === 'failed' ? 'border-fail text-fail' : 'border-warn text-warn'}`}>
-          {runNote}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="text-sm whitespace-pre-line text-fail">
-          {error}
-        </p>
-      ) : null}
       {arrival?.note ? <p className="text-sm text-muted-foreground">{arrival.note}</p> : null}
       {transferNote ? <p className="text-sm text-warn">{transferNote}</p> : null}
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
