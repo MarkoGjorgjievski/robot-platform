@@ -330,3 +330,11 @@ describe('findProductGroup (§3.2–§3.6)', () => {
     expect(findProductGroup(links([carded('/p/a-1')]), 'not a url')).toBeNull();
   });
 });
+
+describe('ID_PARAM never takes a word that merely ends in "id" (controller, fix round)', () => {
+  it('keeps id-like names and drops paid / grid / valid', async () => {
+    const { ID_PARAM } = await import('./product-link-group.js');
+    for (const n of ['id', 'pid', 'sku', 'product_id', 'item-id', 'itemId', 'productID']) expect(ID_PARAM.test(n), n).toBe(true);
+    for (const n of ['paid', 'grid', 'valid', 'Id2', 'color']) expect(ID_PARAM.test(n), n).toBe(false);
+  });
+});
