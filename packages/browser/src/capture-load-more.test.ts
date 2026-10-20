@@ -135,14 +135,13 @@ describe('capture loadMore (spec 2026-10-20 §3.7)', () => {
   }, 60_000);
 
   it('stops within about ten seconds, whatever rounds and LOAD_MORE_MAX_ROUNDS would allow', async () => {
-    const started = Date.now();
     const r = await read('/budget', { rounds: 10, enough: 1_000_000 });
-    const elapsedMs = Date.now() - started;
-    // Each round that does run costs ~5.7s (a full 30-step scroll plus two 1s settles); the
-    // budget lets at most two of the three rounds `rounds`/LOAD_MORE_MAX_ROUNDS would allow run
-    // to completion, so no more than 3 probes (initial + 2 rounds), not 4.
+    // Each round that does run costs ~5.7s at best (a full 30-step scroll plus two 1s settles) —
+    // more under load, never less — so the budget lets at most two of the three rounds
+    // `rounds`/LOAD_MORE_MAX_ROUNDS would allow start: no more than 3 probes (initial + 2 rounds),
+    // not 4. Asserted on rounds, not wall time, so a busy machine cannot fail it (final review M3);
+    // the budget's own timing is pinned with a fake clock in load-more-budget.test.ts.
     expect(r.probes).toBeGreaterThanOrEqual(2);
     expect(r.probes).toBeLessThan(1 + LOAD_MORE_MAX_ROUNDS);
-    expect(elapsedMs).toBeLessThan(16_000);
-  }, 30_000);
+  }, 60_000);
 });
