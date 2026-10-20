@@ -142,7 +142,8 @@ export const SCRIPT_SEGMENT = /\.(?:php|aspx?|jsp|cfm|cgi|pl)$/i;
  */
 function keyOf(u: URL): string {
   const host = bareHost(u.hostname);
-  const path = trimSlash(u.pathname);
+  // Percent-escapes in one case (`%C3%A9` and `%c3%a9` are one path); other letters keep theirs.
+  const path = trimSlash(u.pathname).replace(/%[0-9a-f]{2}/gi, (m) => m.toLowerCase());
   const last = path.slice(path.lastIndexOf('/') + 1);
   if (path !== '' && segmentShape(last).includes('*') && !SCRIPT_SEGMENT.test(last)) return host + path;
   const ids = [...u.searchParams].filter(([n]) => isIdParam(n)).map(([n, v]) => `${n}=${v}`).sort();
@@ -355,7 +356,7 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
   const pathOf = (href) => {
     try {
       const u = new URL(href, location.href);
-      const p = u.pathname.replace(/\/+$/, '');
+      const p = u.pathname.replace(/\/+$/, '').replace(/%[0-9a-f]{2}/gi, (m) => m.toLowerCase());
       if (p !== '' && slug(p.slice(p.lastIndexOf('/') + 1))) return u.host + p;
       const ids = [];
       u.searchParams.forEach((v, n) => { if (ID_NAME.test(n) || ID_CAMEL.test(n)) ids.push(n + '=' + v); });

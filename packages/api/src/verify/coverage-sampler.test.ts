@@ -37,6 +37,12 @@ describe('sampleListing (spec 2026-10-10 §A2, D1)', () => {
   it('two addresses of one product are one sample, the first kept', () => {
     expect(sampleListing(['https://s.example/p/1?color=red', 'https://s.example/p/1?color=blue', 'https://s.example/p/2'], [])).toEqual(['https://s.example/p/1?color=red', 'https://s.example/p/2']);
   });
+  it('a proof page is skipped whatever the case of its path or its escapes (final review M1)', () => {
+    const listed = ['https://s.example/p/Caf%C3%A9-Chair', 'https://s.example/p/OAK-STOOL', 'https://s.example/p/pine-table'];
+    expect(sampleListing(listed, ['https://s.example/p/caf%c3%a9-chair', 'https://s.example/p/oak-stool'])).toEqual(['https://s.example/p/pine-table']);
+    // Only the proof-page skip ignores case: two listed addresses that differ in case stay two samples.
+    expect(sampleListing(['https://s.example/p/Oak', 'https://s.example/p/oak'], [])).toHaveLength(2);
+  });
   describe('products named by a query id on a script named like a slug, or an upper-case id (final review I1)', () => {
     const SHAPES: Array<[string, (i: number) => string]> = [
       ['/product_info.php?products_id=N', (i) => `https://s.example/product_info.php?products_id=${i}`],
