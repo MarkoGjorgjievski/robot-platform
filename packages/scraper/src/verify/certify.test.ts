@@ -1029,3 +1029,43 @@ it('a [page] path is the twin of a confirmed path only where it has [page] and t
   expect(qualifiesForWeak(stock, cand, { confirmed: [{ source: 'json-ld', path: '@graph[1].offers[0].price' }] })).toBe(false);
   expect(qualifiesForWeak(stock, cand, { confirmed: [{ source: 'json-ld', path: '@graph[0].offers[0].priceCurrency' }] })).toBe(false);
 });
+
+describe('certify — found here, in another place (spec 2026-10-20 §3.4, the ridge shape)', () => {
+  const desc = { key: 'description', name: 'Description', type: 'text' as const, description: 'under the photos', concept: 'description' };
+  const R = ['https://ridge.example/p/1', 'https://ridge.example/p/2', 'https://ridge.example/p/3', 'https://ridge.example/p/4'];
+  const D = ['Slim aluminium wallet, holds twelve cards.', 'Carbon fibre wallet with a cash strap.', 'Titanium wallet with an RFID shield.', 'Leather card case for six cards.'];
+  const TAGLINE = 'Ridge — wallets for life';
+  const page = (url: string, ld: Record<string, unknown>, og: string): CaptureLike => ({
+    url, html: '<html></html>',
+    structuredData: { ldJson: [ld], nextData: null, initialState: null, meta: { 'og:description': og } },
+    interceptedRequests: [],
+  });
+  // Products 1–3 carry the description in JSON-LD and the shop's tagline in og:description;
+  // product 4 has no JSON-LD description and carries its description in og:description.
+  const ridge: Record<string, CaptureLike> = {
+    [R[0]!]: page(R[0]!, { description: D[0] }, TAGLINE),
+    [R[1]!]: page(R[1]!, { description: D[1] }, TAGLINE),
+    [R[2]!]: page(R[2]!, { description: D[2] }, TAGLINE),
+    [R[3]!]: page(R[3]!, { name: 'Card case' }, D[3]!),
+  };
+  const expected = Object.fromEntries(R.map((u, i) => [u, D[i]!]));
+  const jsonLd = { source: 'json-ld' as const, path: 'description', transform: 'identity' as const };
+  const og = { source: 'meta' as const, path: 'og:description', transform: 'identity' as const };
+
+  it('fails product 4 with elsewhere when another candidate reads the right value there', async () => {
+    const r = await certify({ field: desc, expected, captures: ridge, candidates: [jsonLd, og] }, xpathDeps);
+    expect(r.cells[R[3]!]).toMatchObject({ status: 'fail', reason: 'elsewhere' });
+    for (const u of R.slice(0, 3)) expect(r.cells[u]).toMatchObject({ status: 'pass' });
+  });
+
+  it('never certifies on that evidence (spec §5.5): nothing certifies, as before', async () => {
+    const r = await certify({ field: desc, expected, captures: ridge, candidates: [jsonLd, og] }, xpathDeps);
+    expect(r.certified).toEqual([]);
+    expect(r.incomplete).toBe(false);
+  });
+
+  it('stays not_found when no candidate reads the value on that page', async () => {
+    const r = await certify({ field: desc, expected, captures: ridge, candidates: [jsonLd] }, xpathDeps);
+    expect(r.cells[R[3]!]).toMatchObject({ status: 'fail', reason: 'not_found' });
+  });
+});
