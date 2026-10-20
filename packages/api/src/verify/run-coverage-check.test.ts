@@ -9,7 +9,7 @@ import { db, captures, coverageChecks, domainIntelligence, sources, sourceVerifi
 import { _resetBackoffForTests, fieldHash, reportVerdict, type CertifiedPath, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField } from '@robot/scraper';
 import { createProjectWithSource } from '../test-helpers/customer-source.js';
 import { signedInCaller } from '../test-helpers/identity.js';
-import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, type CoverageResults } from './coverage-summary.js';
+import { COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
 // No agent, ever: constructing one fails the file.
 const { agentCtor } = vi.hoisted(() => ({ agentCtor: vi.fn() }));
@@ -252,6 +252,7 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       const before = (await latestCoverageCheck(f.sourceId))!.fields.find((x) => x.key === f.keyOf.price)!;
       expect(before.representative).toBe(listed[0]);
       expect(before.answered).toBeUndefined();
+      expect((await latestCoverageCheck(f.sourceId))!.stage).toBe('1 field was empty on some of the 4 sampled products — see the row.');
 
       const src = (await db.query.sources.findFirst({ where: eq(sources.id, f.sourceId), columns: { verificationSet: true } }))!;
       const set = src.verificationSet as VerificationSet;
@@ -261,6 +262,8 @@ describe('runCoverageCheck (spec 2026-10-10 §A)', () => {
       expect(after).toMatchObject({ representative: null, answered: true, empty: listed });
       const title = (await latestCoverageCheck(f.sourceId))!.fields.find((x) => x.key === f.keyOf.title);
       expect(title).toBeUndefined(); // Title was never empty
+      // Price, the only field with empties, is answered: the stage line no longer counts it.
+      expect((await latestCoverageCheck(f.sourceId))!.stage).toBe(`Checked 4 more products from the listing: ${ALL_ANSWERED}`);
     } finally { await f.cleanup(); }
   });
 

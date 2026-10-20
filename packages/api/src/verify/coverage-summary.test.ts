@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Shape } from '@robot/scraper';
-import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, type CoverageResults } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
 const single: Shape = { jsonLdTypes: ['Product'], offers: 'top-level', rating: true, address: '/p/n' };
 const multi: Shape = { jsonLdTypes: ['ProductGroup'], offers: 'in-variants', rating: true, address: '/p/n' };
@@ -83,6 +83,15 @@ describe('stageLine (spec §5)', () => {
   });
   it('empties', () => expect(stageLine('done', twenty, 2, null)).toBe('2 fields were empty on some of the 20 sampled products — see the rows.'));
   it('one field, one product', () => expect(stageLine('done', results([page(10, ['price'])]), 1, null)).toBe('1 field was empty on some of the 1 sampled product — see the row.'));
+  it('an answered field is not counted as empty (spec 2026-10-20 §3.8)', () => {
+    expect(ALL_ANSWERED).toBe('every field was found, except where a proof page says "Not on this product".');
+    // The only field with empties is answered: the line never sends the customer to "see the row".
+    expect(stageLine('done', results([page(10, ['price'])]), 0, null, 1)).toBe('Checked 1 more product from the listing: every field was found, except where a proof page says "Not on this product".');
+    const r = results([...twenty.sampled.slice(0, 17), ...[1, 2, 3].map((i) => ({ url: `https://s.example/u/${i}`, unread: 'wall' }))]);
+    expect(stageLine('done', r, 0, null, 2)).toBe('Checked 20 more products from the listing: every field was found, except where a proof page says "Not on this product". (3 could not be read)');
+    // An open field beside an answered one: only the open one is counted.
+    expect(stageLine('done', twenty, 1, null, 1)).toBe('1 field was empty on some of the 20 sampled products — see the row.');
+  });
   it('failed reads the error', () => expect(stageLine('failed', null, 0, 'shop.example refused the browser (HTTP 403).')).toBe('shop.example refused the browser (HTTP 403).'));
   it('nothing sampled says nothing', () => expect(stageLine('done', results([]), 0, null)).toBeNull());
   it('a listing with no products says so (spec 2026-10-20 §3.6)', () => {
