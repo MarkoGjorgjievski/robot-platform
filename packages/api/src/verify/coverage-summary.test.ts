@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Shape } from '@robot/scraper';
-import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
+import { summariseCoverage, stageLine, COVERAGE_STALLED, NO_PRODUCTS_ON_LISTING, ALL_PROOF_PAGES, ALL_ANSWERED, type CoverageResults } from './coverage-summary.js';
 
 const single: Shape = { jsonLdTypes: ['Product'], offers: 'top-level', rating: true, address: '/p/n' };
 const multi: Shape = { jsonLdTypes: ['ProductGroup'], offers: 'in-variants', rating: true, address: '/p/n' };
@@ -97,6 +97,10 @@ describe('stageLine (spec §5)', () => {
   it('a listing with no products says so (spec 2026-10-20 §3.6)', () => {
     expect(NO_PRODUCTS_ON_LISTING).toBe('No products found on the listing page, so no more products were checked.');
     expect(stageLine('done', { listingUrl: 'x', sampled: [], proofShapes: {}, planned: 0, noProducts: true }, 0, null)).toBe(NO_PRODUCTS_ON_LISTING);
+  });
+  it('a listing whose every product is a proof page says so, never nothing (final review M5)', () => {
+    expect(ALL_PROOF_PAGES).toBe('Every product on the listing page is already a proof page, so no more products were checked.');
+    expect(stageLine('done', { listingUrl: 'x', sampled: [], proofShapes: {}, planned: 0, allProofPages: true }, 0, null)).toBe(ALL_PROOF_PAGES);
   });
 });
 
