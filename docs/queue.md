@@ -7,12 +7,13 @@ reason and goes on to the next.
 
 ## Next
 
-1. **Backups that all come from one source** *(in progress 2026-10-20)* — a field's certified paths must not all read one
-   API response (Ikea's price: five paths, one response); at most one or two paths per source.
-   *Done when:* certification spreads backups across sources, ops shows it, tests pass.
+*(Empty — add the next items here.)*
 
 ## Needs Marko
 
+- **Two fields change their first path at their next Verify** — Competitor prices / Ikea "In stock"
+  (API → HTML) and Lookfantastic SKU (see `docs/testing/results/2026-10-20-one-source/recertify.md`).
+  Fine as is, or check them after re-verifying?
 - **Re-verify the one-source websites?** Both Ikea websites (Acne / Ikea, Competitor prices / Ikea)
   keep their five same-response Price paths until their next Verify. Re-verifying changes customer
   data: staff do it, or prompt the customer? (2026-10-20, one-source backups.)
@@ -32,6 +33,7 @@ reason and goes on to the next.
 
 ## Done
 
+- 2026-10-20 — Backups from more than one source (`357b202`).
 - 2026-10-20 — The finder reads product links (`b577561`).
 - 2026-10-20 — Verify never fails silently (`f6c97de`).
 - 2026-10-19 — Captures without overlays (`91a56f3`).
