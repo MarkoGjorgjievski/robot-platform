@@ -19,6 +19,8 @@ export type DetailBarSelection = {
   preview: ReactNode | null;
   /** Jev's pick for this cell (spec 2026-10-16 §6), read-only; unset when the product has no reading. */
   jevText?: string;
+  /** What the cell's verdict means and what to do (spec 2026-10-20 §3.5.1): the hint the expanded row shows. */
+  hint?: string;
 };
 
 const STATE_TEXT: Record<Segment, string> = {
@@ -106,6 +108,7 @@ export function CellDetailBar({ selection, locked }: { selection: DetailBarSelec
         <div className="max-h-[8.5rem] overflow-auto font-mono text-base break-words whitespace-pre-wrap" data-testid="selected-value">
           {empty ? <span className="text-muted-foreground">—</span> : s.value}
         </div>
+        {s.hint ? <p className="text-sm text-muted-foreground" data-testid="cell-hint">{s.hint}</p> : null}
         {s.jevText ? <p className="text-sm text-muted-foreground" data-testid="jev-text">{s.jevText}</p> : null}
       </div>
       {s.preview ? <div className="hidden sm:block">{s.preview}</div> : null}

@@ -23,6 +23,7 @@ export function ProductCard({
   onRetry,
   hostProblem,
   compact,
+  notChecked,
 }: {
   card: Card;
   index: number;
@@ -36,6 +37,8 @@ export function ProductCard({
   hostProblem: (url: string) => string | null;
   /** As a verification table's column head (spec 2026-09-28 A1): a shorter photo, one-line title. */
   compact?: boolean;
+  /** Why the last Verify could not check this product (spec 2026-10-20 §3.5.2); null when it did. */
+  notChecked?: string | null;
 }) {
   if (card.url.trim() === '') {
     return <BlankProductCard index={index} disabled={disabled} onCommit={onReplace} onDrop={onDrop} hostProblem={hostProblem} />;
@@ -72,6 +75,10 @@ export function ProductCard({
               Try again
             </Button>
           </>
+        ) : notChecked ? (
+          <span className="min-w-0 line-clamp-2 text-sm text-warn" title={notChecked}>
+            {notChecked}
+          </span>
         ) : (
           <span className="text-sm text-muted-foreground">{status === 'captured' ? 'ready' : 'taking screenshot…'}</span>
         )}

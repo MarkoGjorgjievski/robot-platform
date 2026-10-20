@@ -73,6 +73,14 @@
 // product 1" (spec 2026-10-14 §6). The one after that adds Description and opens a seeded run whose
 // extractions flag it not shown (`seedUnshownRun`, spec 2026-10-12 §5/§7).
 //
+// Verify never fails silently (spec 2026-10-20 §6): the step before the wall writes products 1–3
+// with a value for every field, seeds a completed Verify whose Price fails on product 3 with
+// `elsewhere` and a newer run that failed with a raw error (`seedFailedAfterElsewhere`), and reads
+// the failed run's sentence in the Verify bar, the kept verdicts, and the `elsewhere` hint in the
+// detail bar. Then it clicks Re-verify with `sources.verify` answered INSIDE the browser
+// (`page.route`) by a refusal shaped as the api-server sends one, and reads the refusal's
+// sentence: that request never reaches the api-server, so it cannot spend.
+//
 // Needs the api-server and the app up, so it is opt-in:
 //   pnpm dev:all          (in another terminal)
 //   pnpm test:ui:app
@@ -100,6 +108,7 @@ import { seedUnshownRun } from '../../api/src/test-helpers/seed-unshown-run';
 import { seedDriftCheck } from '../../api/src/test-helpers/seed-drift-check';
 import { seedPassingVerification } from '../../api/src/test-helpers/seed-coverage-check';
 import { seedJevReading } from '../../api/src/test-helpers/seed-jev-reading';
+import { seedFailedAfterElsewhere, SEEDED_RAW_ERROR } from '../../api/src/test-helpers/seed-silent-failures';
 import { startCoverageCheck, runCoverageCheck } from '../../api/src/verify/run-coverage-check';
 import type { CertifiedPath } from '@robot/scraper';
 
@@ -1969,6 +1978,84 @@ describe.skipIf(!ENABLED)('app shell', () => {
     await shoot(page, 'app-site-run-defaults.png');
     expect(problems, `the defaults run page logged errors:\n  ${problems.join('\n  ')}`).toEqual([]);
   }, 60_000);
+
+  it('a failed run, an elsewhere cell and a refusal each say one sentence, and the table keeps its verdicts', async () => {
+    expect(projectSlug, 'there is no project').not.toBeNull();
+    expect(websiteSlug, 'there is no website').not.toBeNull();
+    problems.length = 0;
+    // Leave the tab first and let its flush-on-unmount autosave settle, as the address-warning step does.
+    await page.goto(`${APP}/projects`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    const api = apiAs(await sessionCookie(context));
+    const site = await api.sources.get.query({ projectSlug: projectSlug!, sourceSlug: websiteSlug! });
+    const priceKey = site.fields.find((f) => f.name === 'Price')?.key;
+    expect(priceKey, 'no key for Price').toBeTruthy();
+    expect(site.fields.some((f) => f.name === 'Rating'), 'no Rating field').toBe(true);
+
+    // Products 1–3, a valid value for every field of the contract, nothing absent, no default: the
+    // Verify gate is open, so Re-verify can be clicked.
+    const urls = PRODUCTS.map((p) => `${SHOP}${p.path}`);
+    const valueFor = (type: string, i: number): string => {
+      switch (type) {
+        case 'money': return ['129.99', '219.99', '149.00'][i]!;
+        case 'number': return ['4.5', '3.8', '4.9'][i]!;
+        case 'boolean': return 'yes';
+        case 'url': case 'image': return urls[i]!;
+        case 'date': return `2026-01-0${i + 1}`;
+        default: return PRODUCTS[i]!.title;
+      }
+    };
+    const defs = (site.schemaDefinition ?? []) as Array<{ key: string; description?: string }>;
+    await api.sources.updateBinding.mutate({
+      sourceId: site.id,
+      urls,
+      descriptions: Object.fromEntries(site.fields.map((f) => [f.key, defs.find((d) => d.key === f.key)?.description || 'on the page'])),
+      expected: Object.fromEntries(site.fields.map((f) => [f.key, Object.fromEntries(urls.map((u, i) => [u, valueFor(f.type, i)]))])),
+      cards: PRODUCTS.map((p, i) => ({ url: urls[i]!, title: p.title })),
+      draft: true,
+    });
+    await seedFailedAfterElsewhere(site.id, { elsewhereKey: priceKey!, elsewhereUrl: urls[2]! });
+
+    await page.goto(`${APP}/projects/${projectSlug}/sites/${websiteSlug}`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await waitForHydration(page, 'input[aria-label="Listing page"]');
+    const message = page.getByTestId('verify-message');
+    await expect.poll(() => message.innerText(), { timeout: 20_000 }).toBe('Verify stopped before it finished. Your last results are kept — try again.');
+    expect(await rowStatusText('Price'), 'the failed run blanked Price').toContain('fails on product 3');
+    expect(await rowStatusText('Title'), 'the failed run blanked Title').toContain('verified');
+    expect(await page.getByText(SEEDED_RAW_ERROR).count(), 'the raw error reached the page').toBe(0);
+    await shootViewportBothThemes(page, 'app-site-verification-failed-run');
+
+    await page.locator('button[aria-label^="Price on product 3: "]').click();
+    await expect.poll(() => page.getByTestId('cell-hint').innerText(), { timeout: 10_000 })
+      .toBe('Found on this product, but not where your other products show it. If this product really has no Price of its own, choose "Not on this product".');
+    await shootViewportBothThemes(page, 'app-site-verification-elsewhere');
+
+    // The refusal, answered in the browser as the api-server would send it (superjson, batched).
+    const VERIFY = /\/trpc\/sources\.verify\?batch=1$/;
+    let answered = 0;
+    await page.route(VERIFY, async (route) => {
+      answered++;
+      await route.fulfill({
+        status: 412,
+        contentType: 'application/json',
+        body: JSON.stringify([{ error: { json: { message: 'Verify could not start', code: -32012, data: { code: 'PRECONDITION_FAILED', httpStatus: 412, path: 'sources.verify', verifyProblems: [{ reason: 'blank', field: 'Rating', product: 3 }] } } } }]),
+      });
+    });
+    try {
+      const reverify = page.getByRole('button', { name: /^Re-verify/ });
+      await expect.poll(() => reverify.isEnabled(), { timeout: 20_000 }).toBe(true);
+      await reverify.click();
+      await expect.poll(() => message.innerText(), { timeout: 20_000 }).toBe('Rating on product 3 needs a value, or "Not on this product". Nothing was checked.');
+      expect(answered, 'the Verify request was not the one answered in the browser').toBe(1);
+      expect(await rowStatusText('Price'), 'the refusal blanked the table').toContain('fails on product 3');
+      await shootViewportBothThemes(page, 'app-site-verification-refusal');
+    } finally {
+      await page.unroute(VERIFY);
+    }
+    // The refused request's 412 is the browser's own console line, not a defect.
+    const real = problems.filter((p) => !/status of 412/.test(p));
+    expect(real, `the silent-failures walk logged errors:\n  ${real.join('\n  ')}`).toEqual([]);
+  }, 120_000);
 
   // Honest page verdicts (2026-10-09): a wall is named as a wall, never as "no
   // product links". LAST on purpose: each wall puts the shop's host on

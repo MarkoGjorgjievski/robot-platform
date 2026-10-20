@@ -106,3 +106,20 @@ describe('no customer sentence names an internal (spec 2026-10-20 §5.4)', () =>
     for (const re of INTERNAL) expect(s).not.toMatch(re);
   });
 });
+
+describe('a refusal as the browser receives it (spec 2026-10-20 §3.2, the route smoke)', () => {
+  it('the batched superjson 412 the api-server sends reads as its sentence through a real tRPC client', async () => {
+    const { createTRPCClient, httpBatchLink } = await import('@trpc/client');
+    const superjson = (await import('superjson')).default;
+    // The body the route smoke answers `sources.verify` with, byte for byte.
+    const body = JSON.stringify([{ error: { json: { message: 'Verify could not start', code: -32012, data: { code: 'PRECONDITION_FAILED', httpStatus: 412, path: 'sources.verify', verifyProblems: [{ reason: 'blank', field: 'Rating', product: 3 }] } } } }]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = createTRPCClient<any>({
+      links: [httpBatchLink({ url: 'http://api.test/trpc', transformer: superjson, fetch: async () => new Response(body, { status: 412, headers: { 'content-type': 'application/json' } }) })],
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = await (client as any).sources.verify.mutate({ sourceId: 'x' }).then(() => null, (e: unknown) => e);
+    expect(err).not.toBeNull();
+    expect(refusalFromError(err)).toBe('Rating on product 3 needs a value, or "Not on this product". Nothing was checked.');
+  });
+});

@@ -34,7 +34,8 @@ export function VerifyBar({
 }: {
   /** `locked`: a Verify is running — the reason shown beside the disabled button (final review M8). */
   acceptAll: { count: number; disabled: boolean; locked?: boolean; onClick: () => void };
-  verify: { label: string; disabled: boolean; reason?: string; busy: boolean; onClick: () => void };
+  /** `message` (spec 2026-10-20 §3.1): the one sentence about the last Verify — a refusal, a failed or a stalled run. */
+  verify: { label: string; disabled: boolean; reason?: string; busy: boolean; onClick: () => void; message?: string | null };
   saveState: 'idle' | 'pending' | 'saving' | 'error';
   /** The server's reason the last save was refused, in one line; shown with the error state. */
   saveError?: string | null;
@@ -72,6 +73,11 @@ export function VerifyBar({
             <span className="min-w-0 truncate text-sm text-muted-foreground" title={verify.reason}>
               {verify.reason}
             </span>
+          ) : null}
+          {verify.message ? (
+            <p role="alert" data-testid="verify-message" className="basis-full text-sm text-fail">
+              {verify.message}
+            </p>
           ) : null}
         </div>
       </div>
