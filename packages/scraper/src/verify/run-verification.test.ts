@@ -4,6 +4,7 @@ import { PlaywrightBrowser, verdictSentence, pageVariantFrom, CaptureError, BROW
 import type { IBrowser } from '@robot/browser';
 import { runVerification, definitionHash, fieldHash } from './run-verification.js';
 import type { FieldVerification, SchemaDefinitionField, VerificationSet } from './types.js';
+import { buildXPathProbeScript } from './dom-scripts.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U, loadVerifyFixture, SHOP_EXAMPLE_P4 as P4 } from '../__fixtures__/verify/load.js';
 
 /** A capture with no signal: empty html, nothing intercepted or embedded. */
@@ -60,7 +61,7 @@ describe('runVerification (shop-example, offline)', () => {
     const run = await runVerification({ fields, verificationSet: set }, { browser, agent: null, captures: loadShopExample() });
     expect(run.outcome.allPassed).toBe(true);
     expect(run.outcome.aiCalls).toBe(0);
-    expect(run.outcome.fields.price!.certified[0]).toEqual({ source: 'api', path: 'item.priceCents', transform: 'cents_to_units' });
+    expect(run.outcome.fields.price!.certified[0]).toEqual({ source: 'api', path: 'item.priceCents', transform: 'cents_to_units', container: 'https://shop.example/api/product/1' });
     expect(run.outcome.fields.price!.certified.some((p) => p.source === 'xpath' && p.path.endsWith('span[@class="now"]'))).toBe(true);
     expect(run.outcome.fields.price!.certified.some((p) => p.path.includes("'129.99'"))).toBe(false);
   }, 60_000);
@@ -361,7 +362,7 @@ describe('runVerification — a cached certification that rests on a volatile XP
       agent: null, captures: loadShopExample(),
       cachedPaths: async () => [stable],
     });
-    expect(run.outcome.fields.rating!.certified).toEqual([stable]);
+    expect(run.outcome.fields.rating!.certified).toEqual([{ ...stable, container: 'https://shop.example/api/product/1' }]);
   }, 60_000);
 });
 
@@ -662,4 +663,59 @@ describe("runVerification — one field's AI failure is that field's result (spe
     // The captures the run took are all there.
     for (const url of U) expect(run.captures[url]).not.toBeNull();
   }, 60_000);
+});
+
+describe('runVerification — a cached certification that reads one source (spec 2026-10-20 one-source §3.4)', () => {
+  const price: SchemaDefinitionField = { key: 'price', name: 'Price', type: 'money', description: 'price', concept: 'price' };
+  const P = [1295, 349, 59];
+  const capture = (url: string, i: number) => ({
+    ...emptyCapture(url),
+    structuredData: { ldJson: [{ '@type': 'Product', offers: { price: `${P[i]}.00` } }], nextData: null, initialState: null, meta: {} },
+    interceptedRequests: [{ url: `https://www.ikea.com/my/en/products/${i + 1}.json`, method: 'GET', status: 200, isJson: true, parsedJson: { price: P[i], priceNumeral: P[i] } }],
+  }) as unknown as import('@robot/browser').PageCapture;
+  const caps = Object.fromEntries(U.map((u, i) => [u, capture(u, i)]));
+  const priceSet: VerificationSet = { urls: U, expected: { price: Object.fromEntries(U.map((u, i) => [u, String(P[i])])) } };
+  const apiPrice = { source: 'api' as const, path: 'price', transform: 'identity' as const };
+  const apiNumeral = { source: 'api' as const, path: 'priceNumeral', transform: 'identity' as const };
+  const ldPrice = { source: 'json-ld' as const, path: 'offers.price', transform: 'identity' as const };
+  const noSearch = { setContentEvaluate: async () => { throw new Error('searched the pages although the cached certification reads two sources'); } } as unknown as IBrowser;
+  const ids = (ps: ReadonlyArray<{ source: string; path: string }>) => ps.map((p) => `${p.source} ${p.path}`);
+
+  it('two cached paths from one response: the pages are searched again, free, and JSON-LD joins as a backup', async () => {
+    const search = vi.fn(async () => []);
+    const run = await runVerification({ fields: [price], verificationSet: priceSet }, {
+      browser: { setContentEvaluate: search } as unknown as IBrowser, agent: null, captures: caps,
+      cachedPaths: async () => [apiPrice, apiNumeral],
+    });
+    expect(search).toHaveBeenCalled();
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['api price', 'json-ld offers.price', 'api priceNumeral']);
+    expect(run.outcome.aiCalls).toBe(0);
+  });
+
+  it('a cached pair from two sources is kept without a search', async () => {
+    const run = await runVerification({ fields: [price], verificationSet: priceSet }, { browser: noSearch, agent: null, captures: caps, cachedPaths: async () => [apiPrice, ldPrice] });
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['api price', 'json-ld offers.price']);
+  });
+
+  it('a single cached path is still kept without a search', async () => {
+    const run = await runVerification({ fields: [price], verificationSet: priceSet }, { browser: noSearch, agent: null, captures: caps, cachedPaths: async () => [apiPrice] });
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['api price']);
+  });
+
+  it('cached XPaths alone are kept without a search (controller ruling: the page\'s HTML is not one capped source)', async () => {
+    const XPS = ['//h1', '//h2', '//div/h1'];
+    const htmlOnly = Object.fromEntries(U.map((u, i) => [u, { ...emptyCapture(u), html: `${P[i]}.00` }])) as unknown as Record<string, import('@robot/browser').PageCapture>;
+    // The XPath probe reads the page's html as every cached XPath's value; any other script (the DOM search) fails the test.
+    const probeOnly = {
+      setContentEvaluate: async (html: string, script: string) => {
+        if (script === buildXPathProbeScript(XPS)) return Object.fromEntries(XPS.map((x) => [x, html]));
+        throw new Error('searched the pages although the cached certification is all XPath');
+      },
+    } as unknown as IBrowser;
+    const run = await runVerification({ fields: [price], verificationSet: priceSet }, {
+      browser: probeOnly, agent: null, captures: htmlOnly,
+      cachedPaths: async () => XPS.map((path) => ({ source: 'xpath' as const, path, transform: 'identity' as const })),
+    });
+    expect(ids(run.outcome.fields.price!.certified)).toEqual(['xpath //h1', 'xpath //h2', 'xpath //div/h1']);
+  });
 });
