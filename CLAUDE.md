@@ -96,6 +96,30 @@ Variables already set in the shell take precedence over `.env`.
 - Field name and type live on the project's dataset (the contract); a website owns only its location hints, proof pages, expected values and certification, which is current per field (2026-09-09, spec section 4).
 - `@robot/app`'s actual stack: shadcn/ui + Base UI on Tailwind v4, Geist/Geist Mono, dark and light themes (dark default)
 
+## Autonomous runs
+
+Standing approval (Marko, 2026-10-20). Claude works `docs/queue.md` from the top: for each item it
+writes the spec and plan, executes them (subagent-driven, reviewed per task), and merges to `main`
+and pushes — no approval needed between items.
+
+Nothing merges until, on the branch:
+1. every task's tests passed and its review (and fix rounds) are clean;
+2. the full test run and type-check of every touched package pass;
+3. a whole-branch review on the most capable model has no open Critical or Important finding;
+4. if `@robot/app` or `@robot/api` changed: the route smoke passes against an isolated pair (keyless
+   api-server on :4100 with `JEV_SHADOW` empty, the app on :3100), run from the branch;
+5. if capture or extraction changed: a free live check, and Claude has looked at the screenshots.
+Then fast-forward `main` and push.
+
+Hard stops — write the item under "Needs Marko" in `docs/queue.md` with the reason and move on:
+- paid AI spend over $2 for one feature (estimate before; free checks are fine);
+- changing or deleting Marko's projects or any customer data; creating users or organisations;
+- starting, stopping or restarting Marko's dev servers;
+- a product decision the spec cannot settle (wording, pricing, what a customer sees);
+- a gate above that fails and cannot be fixed.
+
+At the end of a run, a short digest (Claude Docs page): what shipped, what failed, what needs Marko.
+
 ## Conventions
 
 - Commits are fine when the work is done — use focused, single-purpose commits
