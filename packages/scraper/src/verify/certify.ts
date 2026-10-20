@@ -126,14 +126,19 @@ export function spreadAcrossSources<T>(ranked: T[], keyOf: (c: T) => string, pin
   return out.slice(0, MAX_CERTIFIED_PATHS);
 }
 
+/** An API path's source (spec 2026-10-20 one-source §3.1): `group` tells sources apart, `container` names one. */
+type ResponseSource = { group: string; container: string };
+
 /**
- * Spec 2026-10-20 one-source §3.1: each API path's source name. On every page a path reads, the
- * response it reads (`apiResponseOf`); two paths reading the same response on the same page are one
- * source — so siblings group even when a product id sits in the response's path — and a source is
- * named by the response its best-ranked member reads on the first page it reads. A path that reads
- * nothing anywhere gets no name.
+ * Spec 2026-10-20 one-source §3.1: each API path's source. On every page a path reads, the response
+ * it reads (`apiResponseOf`); two paths reading the same response on the same page are one source —
+ * so siblings group even when a product id sits in the response's path. Grouping is the closure of
+ * that (union-find over (page, response) pairs), so it does not depend on rank order: a path reading
+ * R1 on one page and R2 on another joins both. A source is named (`container`) by the response its
+ * best-ranked member reads on the first page it reads; two sources that never share a page stay two
+ * even when that name is the same (final review Minor 1). A path that reads nothing anywhere gets none.
  */
-function responseLabels(ranked: CandidatePath[], urls: string[], captures: Record<string, CaptureLike | null>): Map<string, string> {
+function responseLabels(ranked: CandidatePath[], urls: string[], captures: Record<string, CaptureLike | null>): Map<string, ResponseSource> {
   const reads = new Map<string, Array<[string, string]>>(); // pathId → [page url, response] per page it reads
   for (const c of ranked) {
     if (c.source !== 'api' || reads.has(pathId(c))) continue;
@@ -143,11 +148,21 @@ function responseLabels(ranked: CandidatePath[], urls: string[], captures: Recor
       return r ? [[u, r]] : [];
     }));
   }
-  const labels = new Map<string, string>();
-  for (const [id, mine] of reads) {
-    const peer = [...labels.keys()].find((q) => reads.get(q)!.some(([u, r]) => mine.some(([u2, r2]) => u === u2 && r === r2)));
-    const label = peer !== undefined ? labels.get(peer) : mine[0]?.[1];
-    if (label !== undefined) labels.set(id, label);
+  const parent = new Map<string, string>();
+  const find = (x: string): string => { let r = x; while (parent.get(r) !== r) r = parent.get(r)!; parent.set(x, r); return r; };
+  const node = ([u, r]: [string, string]) => `${u}
+${r}`;
+  for (const mine of reads.values()) {
+    for (const pair of mine) if (!parent.has(node(pair))) parent.set(node(pair), node(pair));
+    for (const pair of mine.slice(1)) parent.set(find(node(pair)), find(node(mine[0]!)));
+  }
+  const names = new Map<string, string>(); // group → the response its best-ranked member reads first
+  const labels = new Map<string, ResponseSource>();
+  for (const [id, mine] of reads) { // `reads` is in rank order
+    if (mine.length === 0) continue;
+    const group = find(node(mine[0]!));
+    if (!names.has(group)) names.set(group, mine[0]![1]);
+    labels.set(id, { group, container: names.get(group)! });
   }
   return labels;
 }
@@ -388,7 +403,8 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   const safe = candidates.filter((c) => readsSomething(c) && capturedUrls.length > 0 && capturedUrls.every((u) => { const e = evals.get(pathId(c))?.[u]; return !!e && (e.correct || e.empty); }));
   // Spec 2026-10-20 one-source §3.1: which source each safe path reads — API paths by the response they share on a page.
   const labels = responseLabels(rank(safe), capturedUrls, captures);
-  const keyOf = (c: CandidatePath) => sourceKey({ source: c.source, container: labels.get(pathId(c)) });
+  // Grouped by the source's group, not its name: two sources may share a name (final review Minor 1).
+  const keyOf = (c: CandidatePath) => (c.source === 'api' && labels.has(pathId(c)) ? `api#${labels.get(pathId(c))!.group}` : sourceKey({ source: c.source }));
   const pinned = (c: CandidatePath) => isConfirmedPath(c, input.confirmed);
   const correctOnAllCaptured = safe.filter((c) => capturedUrls.every((u) => isCorrect(c, u)));
   // With a default an empty read is correct on a default cell, so a path that reads a value on
@@ -405,7 +421,7 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
   // Spec 2026-10-20 one-source §3.5: every certified API path names its source; a container a candidate brought along is replaced or dropped.
   const stamp = (p: CandidatePath): CertifiedPath => {
     const base: CertifiedPath = { source: p.source, path: p.path, transform: p.transform, ...(p.provenOn ? { provenOn: p.provenOn } : {}) };
-    const label = p.source === 'api' ? labels.get(pathId(p)) : undefined;
+    const label = p.source === 'api' ? labels.get(pathId(p))?.container : undefined;
     return label !== undefined ? { ...base, container: label } : base;
   };
   const certified: CertifiedPath[] = (oneLayout.length > 0
@@ -444,7 +460,7 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
     if (!complete && rankedCorrectOnAllCaptured.length > 0) {
       const top = rankedCorrectOnAllCaptured[0]!;
       const raw = evals.get(pathId(top))![url]!.raw;
-      cells[url] = { status: 'pass', found: foundText(raw), path: top };
+      cells[url] = { status: 'pass', found: foundText(raw), path: stamp(top) };
       continue;
     }
     if (absentSet.has(url)) {
@@ -465,7 +481,7 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
         // No path that is right elsewhere produced a value here: this page reads as the customer
         // said, whatever kept the OTHER pages from certifying (spec 2026-10-10 §B2).
         const p = rankedSafe.find((c) => isCorrect(c, url)) ?? rankedCorrectOnAllCaptured[0];
-        cells[url] = { status: 'pass', found: '', ...(p ? { path: p } : {}) };
+        cells[url] = { status: 'pass', found: '', ...(p ? { path: stamp(p) } : {}) };
       }
       continue;
     }
@@ -495,7 +511,7 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
     // the page nothing covers carries the diagnosis. (Spec 2026-09-17 §9 property 4 limited this to more than three pages.)
     if (complete && safeHere) {
       const raw = evals.get(pathId(safeHere))![url]!.raw;
-      cells[url] = { status: 'pass', found: foundText(raw), path: safeHere };
+      cells[url] = { status: 'pass', found: foundText(raw), path: stamp(safeHere) };
       if (isProven(safeHere, url)) foundHere.set(url, nearMisses);
       continue;
     }
