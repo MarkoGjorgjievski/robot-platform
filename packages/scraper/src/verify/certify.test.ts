@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { pageVariantFrom } from '@robot/browser';
-import { certify, checkedPages, expectedWithDefault, gatherCandidates, isNotOnWebsite, markPaths, qualifiesForWeak, rankCertified, type CaptureLike } from './certify.js';
+import { certify, checkedPages, expectedWithDefault, gatherCandidates, isNotOnWebsite, markPaths, qualifiesForWeak, rankCertified, readsOneSource, sourceKey, spreadAcrossSources, type CaptureLike } from './certify.js';
 import { loadShopExample, SHOP_EXAMPLE_URLS as U } from '../__fixtures__/verify/load.js';
 import type { DomHit } from './dom-scripts.js';
 import type { Mark, SchemaDefinitionField } from './types.js';
@@ -211,7 +211,7 @@ describe('confirmed extras dedupe on the full path id', () => {
       confirmed: [{ source: 'api', path: 'price' }],
       candidates: [{ source: 'api', path: 'price', transform: 'cents_to_units' }],
     }, { evalXPaths: async () => ({}) });
-    expect(r.certified).toEqual([{ source: 'api', path: 'price', transform: 'identity' }]);
+    expect(r.certified).toEqual([{ source: 'api', path: 'price', transform: 'identity', container: 'https://s.example/1/api' }]);
   });
 });
 
@@ -1067,5 +1067,166 @@ describe('certify — found here, in another place (spec 2026-10-20 §3.4, the r
   it('stays not_found when no candidate reads the value on that page', async () => {
     const r = await certify({ field: desc, expected, captures: ridge, candidates: [jsonLd] }, xpathDeps);
     expect(r.cells[R[3]!]).toMatchObject({ status: 'fail', reason: 'not_found' });
+  });
+});
+
+describe('spreadAcrossSources (spec 2026-10-20 one-source §3.2)', () => {
+  const key = (s: string) => s[0]!;
+  it('the best first, then each other source\'s best, then each source\'s second; five at most', () => {
+    expect(spreadAcrossSources(['a1', 'a2', 'a3', 'b1', 'c1', 'c2', 'c3', 'd1'], key, () => false)).toEqual(['a1', 'b1', 'c1', 'd1', 'a2']);
+  });
+  it('one source: its two best', () => {
+    expect(spreadAcrossSources(['a1', 'a2', 'a3', 'a4', 'a5'], key, () => false)).toEqual(['a1', 'a2']);
+  });
+  it('pinned paths first, never capped, and counted toward their source', () => {
+    expect(spreadAcrossSources(['a1', 'a2', 'a3', 'b1', 'b2'], key, (c) => c === 'a2' || c === 'a3')).toEqual(['a2', 'a3', 'b1', 'b2']);
+    expect(spreadAcrossSources(['a3', 'a1', 'a2', 'b1', 'c1', 'c2', 'd1'], key, (c) => c === 'a3')).toEqual(['a3', 'b1', 'c1', 'd1', 'a1']);
+  });
+  it('an uncapped source keeps every path, after the rounds, in rank order; five at most', () => {
+    const x = (k: string) => k === 'x';
+    expect(spreadAcrossSources(['x1', 'x2', 'x3', 'x4', 'x5', 'x6'], key, () => false, x)).toEqual(['x1', 'x2', 'x3', 'x4', 'x5']);
+    expect(spreadAcrossSources(['a1', 'a2', 'a3', 'x1', 'x2', 'x3'], key, () => false, x)).toEqual(['a1', 'x1', 'a2', 'x2', 'x3']);
+    expect(spreadAcrossSources(['a1', 'b1', 'b2', 'b3', 'x1', 'x2', 'x3'], key, () => false, x)).toEqual(['a1', 'b1', 'x1', 'b2', 'x2']);
+  });
+});
+
+describe('sourceKey / readsOneSource (spec 2026-10-20 one-source §3.1)', () => {
+  const p = (source: 'api' | 'json-ld' | 'meta' | 'xpath', container?: string) => ({ source, ...(container ? { container } : {}) });
+  it('one API response per container; JSON-LD, meta and the page are one source each', () => {
+    expect(sourceKey(p('api', 'https://a.example/x'))).toBe('api https://a.example/x');
+    expect(sourceKey(p('api'))).toBe('api ');
+    expect(sourceKey(p('json-ld'))).toBe('json-ld');
+    expect(sourceKey(p('xpath'))).toBe('xpath');
+  });
+  it('two or more paths, all one source; the page\'s HTML never counts (controller ruling: XPaths are not capped)', () => {
+    expect(readsOneSource([p('api', 'https://a.example/x')])).toBe(false);
+    expect(readsOneSource([p('api', 'https://a.example/x'), p('api', 'https://a.example/x')])).toBe(true);
+    expect(readsOneSource([p('api', 'https://a.example/x'), p('api', 'https://a.example/y')])).toBe(false);
+    expect(readsOneSource([p('json-ld'), p('json-ld')])).toBe(true);
+    expect(readsOneSource([p('meta'), p('meta')])).toBe(true);
+    expect(readsOneSource([p('xpath'), p('xpath')])).toBe(false);
+    expect(readsOneSource([p('api', 'https://a.example/x'), p('json-ld')])).toBe(false);
+  });
+});
+
+describe('certify — backups from more than one source (spec 2026-10-20 one-source)', () => {
+  const price = { key: 'price', name: 'Price', type: 'money' as const, description: 'the price', concept: 'price' };
+  const I = ['https://www.ikea.com/my/en/p/kivik-1/', 'https://www.ikea.com/my/en/p/glostad-2/', 'https://www.ikea.com/my/en/p/hemlingby-3/'];
+  const P = [1295, 349, 59];
+  const req = (url: string, parsedJson: unknown) => ({ url, method: 'GET', resourceType: 'xhr', responseStatus: 200, responseHeaders: {}, contentType: 'application/json', bodySize: 1, timestamp: 0, isJson: true, responseBody: '{}', parsedJson });
+  // Ikea's price response (2026-09-29 audit): five sibling keys hold the price; the product id is in the address's path.
+  const pip = (i: number) => req(`https://www.ikea.com/my/en/products/${i + 1}.json?c=7`, { price: P[i], priceExclTax: P[i], priceNumeral: P[i], priceExclTaxNumeral: P[i], revampPrice: { integer: P[i] } });
+  const page = (i: number, extra: { requests?: unknown[]; ld?: Record<string, unknown>[]; meta?: Record<string, string>; html?: string; url?: string } = {}): CaptureLike => ({
+    url: extra.url ?? I[i]!, html: extra.html ?? '<html></html>',
+    structuredData: { ldJson: extra.ld ?? [{ '@type': 'Product', offers: { price: `${P[i]}.00` } }], nextData: null, initialState: null, meta: extra.meta ?? {} },
+    interceptedRequests: (extra.requests ?? [pip(i)]) as unknown as CaptureLike['interceptedRequests'],
+    ...(extra.url ? { pageVariant: pageVariantFrom(extra.url, null, {}) } : {}),
+  });
+  const pages = (extra: (i: number) => Parameters<typeof page>[1] = () => ({})) => Object.fromEntries(I.map((u, i) => [u, page(i, extra(i))]));
+  const exp = Object.fromEntries(I.map((u, i) => [u, String(P[i])]));
+  const api = (path: string) => ({ source: 'api' as const, path, transform: 'identity' as const });
+  const ld = (path: string) => ({ source: 'json-ld' as const, path, transform: 'identity' as const });
+  const meta = (path: string) => ({ source: 'meta' as const, path, transform: 'identity' as const });
+  const xp = (path: string) => ({ source: 'xpath' as const, path, transform: 'identity' as const });
+  const SIBLINGS = ['price', 'priceExclTax', 'priceNumeral', 'priceExclTaxNumeral', 'revampPrice.integer'].map(api);
+  const PIP1 = 'https://www.ikea.com/my/en/products/1.json';
+  const deps = { evalXPaths: async () => ({}) };
+  const ids = (ps: ReadonlyArray<{ source: string; path: string }>) => ps.map((p) => `${p.source} ${p.path}`);
+  // evalXPaths reads the page's html as every XPath's value, so each XPath reads the price on its page.
+  const htmlXPaths = { evalXPaths: async (html: string, xps: string[]) => Object.fromEntries(xps.map((x) => [x, html])) };
+
+  it('Ikea\'s price: five API siblings and JSON-LD → the best API path, JSON-LD, the second API sibling; every cell as before', async () => {
+    const r = await certify({ field: price, expected: exp, captures: pages(), candidates: [...SIBLINGS, ld('offers.price')] }, deps);
+    expect(ids(r.certified)).toEqual(['api price', 'json-ld offers.price', 'api priceExclTax']);
+    // Review Focus 5: a product id in the response's path does not split the siblings.
+    expect(r.certified[0]!.container).toBe(PIP1);
+    expect(r.certified[2]!.container).toBe(PIP1);
+    expect('container' in r.certified[1]!).toBe(false);
+    for (const u of I) expect(r.cells[u]).toMatchObject({ status: 'pass', path: { source: 'api', path: 'price' } });
+    expect(readsOneSource(r.certified)).toBe(false);
+  });
+
+  it('five API siblings from one response, JSON-LD and meta → two siblings plus the best JSON-LD and meta paths', async () => {
+    const r = await certify({
+      field: price, expected: exp,
+      captures: pages((i) => ({ meta: { 'product:price:amount': String(P[i]) } })),
+      candidates: [...SIBLINGS, ld('offers.price'), meta('product:price:amount')],
+    }, deps);
+    expect(ids(r.certified)).toEqual(['api price', 'json-ld offers.price', 'meta product:price:amount', 'api priceExclTax']);
+  });
+
+  it('two API responses, JSON-LD and meta → one from each, then the first source\'s second; five at most', async () => {
+    const r = await certify({
+      field: price, expected: exp,
+      captures: pages((i) => ({
+        requests: [pip(i), req(`https://www.ikea.com/my/en/offers?item=${i + 1}`, { offer: { amount: P[i], value: P[i] } })],
+        ld: [{ '@type': 'Product', offers: { price: `${P[i]}.00`, lowPrice: `${P[i]}.00` } }],
+        meta: { 'og:price:amount': String(P[i]), 'product:price:amount': String(P[i]) },
+      })),
+      candidates: [...SIBLINGS, api('offer.amount'), api('offer.value'), ld('offers.price'), ld('offers.lowPrice'), meta('og:price:amount'), meta('product:price:amount')],
+    }, deps);
+    expect(ids(r.certified)).toEqual(['api price', 'api offer.value', 'json-ld offers.price', 'meta og:price:amount', 'api priceExclTax']);
+    expect(r.certified.map((p) => p.container)).toEqual([PIP1, 'https://www.ikea.com/my/en/offers', undefined, undefined, PIP1]);
+  });
+
+  it('JSON-LD and meta are capped at two each', async () => {
+    const r = await certify({
+      field: price, expected: exp,
+      captures: pages((i) => ({
+        requests: [],
+        ld: [{ '@type': 'Product', offers: { price: `${P[i]}.00`, lowPrice: `${P[i]}.00`, highPrice: `${P[i]}.00` } }],
+        meta: { 'og:price:amount': String(P[i]), 'product:price:amount': String(P[i]), 'twitter:data1': String(P[i]) },
+      })),
+      candidates: [ld('offers.price'), ld('offers.lowPrice'), ld('offers.highPrice'), meta('og:price:amount'), meta('product:price:amount'), meta('twitter:data1')],
+    }, deps);
+    expect(ids(r.certified)).toEqual(['json-ld offers.price', 'meta twitter:data1', 'json-ld offers.lowPrice', 'meta og:price:amount']);
+    expect(readsOneSource(r.certified)).toBe(false);
+  });
+
+  it('one response and nothing else: its two best paths', async () => {
+    const r = await certify({ field: price, expected: exp, captures: pages(() => ({ ld: [] })), candidates: SIBLINGS }, deps);
+    expect(ids(r.certified)).toEqual(['api price', 'api priceExclTax']);
+    expect(readsOneSource(r.certified)).toBe(true);
+  });
+
+  it('XPaths only: up to five kept in rank order, as today (controller ruling: the page\'s HTML is not capped)', async () => {
+    const caps = pages((i) => ({ requests: [], ld: [], html: `${P[i]}.00` }));
+    const r = await certify({ field: price, expected: exp, captures: caps, candidates: [xp('//*[@id="t"]'), xp('//h1'), xp('//div/h1'), xp('//h2'), xp('//div/h2'), xp('//main//h1')] }, htmlXPaths);
+    expect(ids(r.certified)).toEqual(['xpath //h1', 'xpath //h2', 'xpath //div/h1', 'xpath //div/h2', 'xpath //main//h1']);
+    expect(readsOneSource(r.certified)).toBe(false);
+  });
+
+  it('XPaths beside one API response: the XPaths are not capped, the response still is', async () => {
+    const caps = pages((i) => ({ ld: [], html: `${P[i]}.00` }));
+    const r = await certify({ field: price, expected: exp, captures: caps, candidates: [...SIBLINGS, xp('//h1'), xp('//h2'), xp('//div/h1')] }, htmlXPaths);
+    expect(ids(r.certified)).toEqual(['api price', 'xpath //h1', 'api priceExclTax', 'xpath //h2', 'xpath //div/h1']);
+  });
+
+  it('a [page] path still comes before its fixed-index twin, which takes its source\'s second place', async () => {
+    const V = I.map((u) => `${u}?size=M`);
+    const caps = Object.fromEntries(V.map((u, i) => [u, page(i, {
+      url: u,
+      requests: [req(`https://www.ikea.com/my/en/products/${i + 1}.json`, { variants: [{ size: 'S', price: 1 }, { size: 'M', price: P[i] }] })],
+    })]));
+    const e = Object.fromEntries(V.map((u, i) => [u, String(P[i])]));
+    const r = await certify({ field: price, expected: e, captures: caps, candidates: [api('variants[1].price'), ld('offers.price'), api('variants[page].price')] }, deps);
+    expect(ids(r.certified)).toEqual(['api variants[page].price', 'json-ld offers.price', 'api variants[1].price']);
+    expect(r.certified[0]!.container).toBe(PIP1);
+    expect(r.certified[2]!.container).toBe(PIP1);
+  });
+
+  it('confirmed paths beyond two from one response are all kept, first', async () => {
+    const confirmed = [{ source: 'api' as const, path: 'priceNumeral' }, { source: 'api' as const, path: 'priceExclTax' }, { source: 'api' as const, path: 'revampPrice.integer' }];
+    const r = await certify({ field: price, expected: exp, captures: pages(), confirmed, candidates: [...SIBLINGS, ld('offers.price')] }, deps);
+    expect(ids(r.certified)).toEqual(['api priceExclTax', 'api priceNumeral', 'api revampPrice.integer', 'json-ld offers.price']);
+  });
+
+  it('a candidate\'s stale container is replaced on API paths and dropped on others', async () => {
+    const r = await certify({
+      field: price, expected: exp, captures: pages(),
+      candidates: [{ ...api('price'), container: 'https://stale.example/x' }, { ...ld('offers.price'), container: 'https://stale.example/y' }],
+    }, deps);
+    expect(r.certified[0]!.container).toBe(PIP1);
+    expect('container' in r.certified[1]!).toBe(false);
   });
 });
