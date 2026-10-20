@@ -1,6 +1,6 @@
 // The listing walk must find the product links the finder finds.
 //
-// Allbirds, 2026-10-08: "Find products" (the finder, `largestProductGroup`)
+// Allbirds, 2026-10-08: "Find products" (the finder, `findProductGroup`)
 // saw 150 product links on /collections/mens; the Extract tab's Sample, which
 // plans with `planRun`, walked the same page and planned 1 — the extraction
 // chain's AI row selector matched a single stray `<li>`, and nothing checked
@@ -11,14 +11,28 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { IBrowser, CrawlOptions, CrawlPage, PageCapture, ScrollOptions } from '@robot/browser';
 import { planRun } from './plan-run.js';
-import { largestProductGroup, LISTING_ANCHORS_SCRIPT, reconcileWithProductGroup } from './product-link-group.js';
+import { findProductGroup, reconcileWithProductGroup, type ListingLinks, type ProductGroup } from './product-link-group.js';
 import type { ExtractionOutcome } from '../extraction-orchestrator.js';
 
 const FIXTURE = JSON.parse(
   readFileSync(new URL('./__fixtures__/allbirds-mens-listing-anchors.json', import.meta.url), 'utf8'),
 ) as { url: string; anchors: Array<{ href: string; text: string }> };
 const LISTING = FIXTURE.url;
-const GROUP = largestProductGroup(FIXTURE.anchors, LISTING);
+/**
+ * The fixture predates the card features (2026-10-08: href and text only). This file is about the
+ * walk's cross-check, not about telling a card from a menu — `product-link-rule.test.ts` does that
+ * on 13 live harvests — so every `/products/` link is given one card level (an image and a price)
+ * and every other link none.
+ */
+const FIXTURE_LINKS: ListingLinks = {
+  anchors: FIXTURE.anchors.map((a) => ({
+    ...a,
+    levels: [/\/products\//.test(a.href) ? { d: 1, img: true, price: true, len: 40 } : { d: 1, img: false, price: false, len: a.text.length }],
+  })),
+  itemList: [],
+};
+const PRODUCT_GROUP = findProductGroup(FIXTURE_LINKS, LISTING)!;
+const GROUP = PRODUCT_GROUP.urls;
 const FIRST = 'https://www.allbirds.com/products/mens-runner-nz-slip-on-mushroom';
 const PROOF_PAGES = [
   FIRST,
@@ -26,20 +40,21 @@ const PROOF_PAGES = [
   'https://www.allbirds.com/products/mens-tree-runner-nz-medium-grey',
 ];
 
-const CAPTURE = {
+const capture = (annotation: unknown) => ({
   url: LISTING, html: '<html><body>allbirds listing</body></html>', markdown: '', screenshot: Buffer.alloc(0),
   screenshotTiles: [], verdict: { kind: 'ok', status: 200 }, title: 'Mens', timestamp: 0,
   structuredData: { ldJson: [], nextData: null, initialState: null, meta: {} }, interceptedRequests: [],
-} as unknown as PageCapture;
+  ...(annotation === undefined ? {} : { annotation }),
+} as unknown as PageCapture);
 
+/** Serves the listing's capture with its link harvest as the `annotate` value (spec 2026-10-20: read in the live page). */
 class FakeBrowser implements IBrowser {
+  /** `undefined`: a capture with no harvest at all (no default here — `new FakeBrowser(undefined)` must mean that). */
+  constructor(private readonly annotation: unknown) {}
   async launch(): Promise<void> {}
-  async capture(): Promise<PageCapture> { return CAPTURE; }
+  async capture(): Promise<PageCapture> { return capture(this.annotation); }
   async evaluate<T>(): Promise<T> { throw new Error('not used'); }
-  async setContentEvaluate<T>(_html: string, script: string): Promise<T> {
-    if (script === LISTING_ANCHORS_SCRIPT) return FIXTURE.anchors as T;
-    throw new Error('unexpected script');
-  }
+  async setContentEvaluate<T>(): Promise<T> { throw new Error('the walk reads the capture\'s own harvest, never the HTML offline'); }
   async close(): Promise<void> {}
   async *crawl(_url: string, _options: CrawlOptions): AsyncGenerator<CrawlPage> {}
   async *scrollPages(_startUrl: string, _options: ScrollOptions): AsyncGenerator<CrawlPage> {}
@@ -78,6 +93,7 @@ type PlanOpts = {
   maxItems?: number;
   strategy?: 'direct' | 'search';
   schema?: Array<{ name: string; type: string; origin?: 'listing' | 'detail' }>;
+  annotation?: unknown;
 };
 
 const plan = (rows: Array<Record<string, unknown>>, opts: PlanOpts = {}) => planRun(
@@ -88,7 +104,7 @@ const plan = (rows: Array<Record<string, unknown>>, opts: PlanOpts = {}) => plan
     ...(opts.knownDetailUrls ? { knownDetailUrls: opts.knownDetailUrls } : {}),
   },
   {
-    browser: new FakeBrowser(), agent: null,
+    browser: new FakeBrowser('annotation' in opts ? opts.annotation : FIXTURE_LINKS), agent: null,
     acquireLock: async () => () => {}, lookupCache: async () => null, savePagination: async () => {},
     extract: async () => outcomeWithRows(rows),
   },
@@ -162,44 +178,50 @@ describe('planRun: the listing walk agrees with the finder (Allbirds /collection
     expect(details(outcome)).toEqual(reversed);
     expect(outcome.warnings.some((w) => w.includes('planned from the page'))).toBe(false);
   });
+
+  it('a capture without a harvest leaves the extraction\'s rows alone (no products, no warning)', async () => {
+    for (const annotation of [undefined, null, 'garbage', { anchors: 'x' }]) {
+      const outcome = await plan([{ detail_url: FIRST }], { annotation });
+      expect(details(outcome)).toEqual([FIRST]);
+      expect(outcome.warnings.some((w) => w.includes('planned from the page'))).toBe(false);
+    }
+  });
 });
 
-describe('largestProductGroup — fragments (spec 2026-10-14 §8)', () => {
-  // Handles of 12+ characters: `productPathTemplate` collapses them to one shape; a one-letter handle is its own group.
+describe('the walk and one product per path (spec 2026-10-20 §3.4)', () => {
   const L = 'https://s.example/collections/all';
-  it('a key=value fragment survives on the item address; a plain fragment is stripped; grouping is unchanged', () => {
-    const anchors = [
-      { href: 'https://s.example/products/alpha-runner-shoe#sku=a-blue', text: 'A' },
-      { href: 'https://s.example/products/bravo-runner-shoe#reviews', text: 'B' },
-      { href: 'https://s.example/products/charlie-runner-shoe', text: 'C' },
-      { href: 'https://s.example/products/charlie-runner-shoe#sku=c-red', text: 'C red' },
-    ];
-    expect(largestProductGroup(anchors, L)).toEqual([
-      'https://s.example/products/alpha-runner-shoe#sku=a-blue',
-      'https://s.example/products/bravo-runner-shoe',
-      'https://s.example/products/charlie-runner-shoe',
-      'https://s.example/products/charlie-runner-shoe#sku=c-red',
-    ]);
-  });
-  it('a text fragment or a hashbang route is stripped, even with an = in it', () => {
-    const anchors = [
-      { href: 'https://s.example/products/alpha-runner-shoe#:~:text=Free%20shipping', text: 'A' },
-      { href: 'https://s.example/products/bravo-runner-shoe#!/x?id=3', text: 'B' },
-      { href: 'https://s.example/products/charlie-runner-shoe#size=M&color=red', text: 'C' },
-    ];
-    expect(largestProductGroup(anchors, L)).toEqual([
-      'https://s.example/products/alpha-runner-shoe',
-      'https://s.example/products/bravo-runner-shoe',
-      'https://s.example/products/charlie-runner-shoe#size=M&color=red',
-    ]);
-  });
-  it('reconciling rows against the group keeps a key=value fragment on the row url too, so the row is not counted missed', () => {
-    const group = ['https://s.example/products/alpha-runner-shoe#sku=a-blue', 'https://s.example/products/bravo-runner-shoe', 'https://s.example/products/charlie-runner-shoe'];
+  const G: ProductGroup = {
+    shape: 's.example/products/*',
+    urls: ['https://s.example/products/alpha-runner-shoe#sku=a-blue', 'https://s.example/products/bravo-runner-shoe', 'https://s.example/products/charlie-runner-shoe'],
+    carded: 3,
+  };
+  it('a key=value fragment stays on the row url, a plain one is stripped, and the row is not counted missed', () => {
     const rows = [{ url: '/products/alpha-runner-shoe#sku=a-blue', title: 'A' }, { url: '/products/bravo-runner-shoe#reviews', title: 'B' }];
-    const r = reconcileWithProductGroup({ rows, urlField: 'url', group, listingUrl: L });
-    expect(r).toEqual({
+    expect(reconcileWithProductGroup({ rows, urlField: 'url', group: G, listingUrl: L })).toEqual({
       rows: [{ url: 'https://s.example/products/alpha-runner-shoe#sku=a-blue', title: 'A' }, { url: 'https://s.example/products/bravo-runner-shoe', title: 'B' }, { url: 'https://s.example/products/charlie-runner-shoe' }],
       added: 1,
     });
+  });
+  it('rows for two variants of one product both stay, in the product\'s place; the product is not added again', () => {
+    const rows = [{ url: '/products/alpha-runner-shoe', title: 'A' }, { url: '/products/bravo-runner-shoe?color=red', title: 'B red' }, { url: '/products/bravo-runner-shoe?color=blue', title: 'B blue' }];
+    expect(reconcileWithProductGroup({ rows, urlField: 'url', group: G, listingUrl: L })).toEqual({
+      rows: [
+        { url: 'https://s.example/products/alpha-runner-shoe', title: 'A' },
+        { url: 'https://s.example/products/bravo-runner-shoe?color=red', title: 'B red' },
+        { url: 'https://s.example/products/bravo-runner-shoe?color=blue', title: 'B blue' },
+        { url: 'https://s.example/products/charlie-runner-shoe' },
+      ],
+      added: 1,
+    });
+  });
+  it('a merged group (`*/product/*`) is corroborated by a proof page of any seller; an ItemList group by a url of a member\'s shape', () => {
+    const merged: ProductGroup = { shape: 's.example/*/product/*', urls: ['https://s.example/oakhouse/product/oak-chair', 'https://s.example/fernly/product/pine-stool'], carded: 2 };
+    expect(reconcileWithProductGroup({ rows: [], urlField: 'url', group: merged, listingUrl: L, directListing: true, knownDetailUrls: ['https://s.example/marlow/product/ash-table'] })?.added).toBe(2);
+    const listOnly: ProductGroup = { shape: null, urls: ['https://s.example/item/x-1', 'https://s.example/item/y-2', 'https://s.example/item/z-3'], carded: 3 };
+    expect(reconcileWithProductGroup({ rows: [{ url: '/item/x-1' }], urlField: 'url', group: listOnly, listingUrl: L })?.added).toBe(2);
+    expect(reconcileWithProductGroup({ rows: [{ url: '/pages/about' }], urlField: 'url', group: listOnly, listingUrl: L })).toBeNull();
+  });
+  it('no group is no change', () => {
+    expect(reconcileWithProductGroup({ rows: [{ url: '/p/a' }], urlField: 'url', group: null, listingUrl: L })).toBeNull();
   });
 });

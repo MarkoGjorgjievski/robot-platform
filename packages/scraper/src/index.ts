@@ -34,7 +34,13 @@ export { partitionSchemaByOrigin } from './crawl/partition-schema.js';
 export type { OriginField, FieldOrigin } from './crawl/partition-schema.js';
 export { mergeRow } from './crawl/merge-row.js';
 export { DETAIL_URL_FIELD } from './crawl/enumerate-detail-urls.js';
-export { largestProductGroup, productPathTemplate, reconcileWithProductGroup, LISTING_ANCHORS_SCRIPT, type ListingAnchor } from './crawl/product-link-group.js';
+export {
+  findProductGroup, asListingLinks, productKey, productPathShape, urlShape, fitsShape, onCard, reconcileWithProductGroup,
+  PRICE_PATTERN, LISTING_LINKS_SCRIPT,
+  type CardLevel, type ListingAnchor, type ListingItem, type ListingLinks, type ProductGroup, type ReconciledRows,
+  // The old rule, until @robot/api moves over (plan 2026-10-20, Task 4).
+  largestProductGroup, productPathTemplate, LISTING_ANCHORS_SCRIPT,
+} from './crawl/product-link-group.js';
 export { buildCataloguePrompt, parseCatalogueResponse, discoverCandidateCatalogue, type CatalogueEvidence } from './catalogue-discovery.js';
 export * from './verify/index.js';
 export { shapeOf, addressPattern, type Shape } from './verify/shape.js';
