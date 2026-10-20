@@ -85,7 +85,16 @@ export const COVERAGE_STALLED = 'The check took too long and stopped. It runs ag
 /** A listing with no products (spec 2026-10-20 §3.6): the check samples nothing and says so. */
 export const NO_PRODUCTS_ON_LISTING = 'No products found on the listing page, so no more products were checked.';
 
-export function stageLine(status: 'running' | 'done' | 'failed', results: CoverageResults | null, fieldsWithEmpties: number, error: string | null): string | null {
+/** The done line when every field with empties is answered "Not on this product" by a proof page of that shape (spec 2026-10-20 §3.8). */
+export const ALL_ANSWERED = 'every field was found, except where a proof page says "Not on this product".';
+
+/**
+ * The verify bar's coverage stage line. `fieldsWithEmpties` counts only the open fields — an
+ * `answered` one (spec 2026-10-20 §3.8) is not empty in any way the customer can act on, so it is
+ * never sent to "see the row"; `answeredFields` counts those, so a check whose only empties are
+ * answered says so instead of "every field was found".
+ */
+export function stageLine(status: 'running' | 'done' | 'failed', results: CoverageResults | null, fieldsWithEmpties: number, error: string | null, answeredFields = 0): string | null {
   if (status === 'failed') return error;
   if (status === 'running') {
     // Before the listing is read there is nothing to count yet: nothing is shown.
@@ -101,7 +110,8 @@ export function stageLine(status: 'running' | 'done' | 'failed', results: Covera
   if (read === 0) return `Checked ${n} more ${products} from the listing: none could be read.`;
   if (fieldsWithEmpties === 0) {
     const unread = n - read;
-    return `Checked ${n} more ${products} from the listing: every field was found on all of them.${unread > 0 ? ` (${unread} could not be read)` : ''}`;
+    const found = answeredFields > 0 ? ALL_ANSWERED : 'every field was found on all of them.';
+    return `Checked ${n} more ${products} from the listing: ${found}${unread > 0 ? ` (${unread} could not be read)` : ''}`;
   }
   const fields = fieldsWithEmpties === 1 ? '1 field was' : `${fieldsWithEmpties} fields were`;
   return `${fields} empty on some of the ${read} sampled ${read === 1 ? 'product' : 'products'} — see the ${fieldsWithEmpties === 1 ? 'row' : 'rows'}.`;

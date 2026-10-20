@@ -249,8 +249,9 @@ export async function latestCoverageCheck(sourceId: string): Promise<LatestCover
   const results = (row.results as CoverageResults | null) ?? null;
   const status = row.status as 'running' | 'done' | 'failed';
   const fields: FieldCoverage[] = status === 'done' && results ? summariseCoverage(results, keys, absentShapes) : [];
+  const answered = fields.filter((x) => x.answered).length;
   return {
     id: row.id, status, results, error: row.error, createdAt: row.createdAt, fields,
-    stage: stageLine(status, results, fields.length, row.error === 'superseded' ? null : row.error === 'stalled' ? COVERAGE_STALLED : row.error),
+    stage: stageLine(status, results, fields.length - answered, row.error === 'superseded' ? null : row.error === 'stalled' ? COVERAGE_STALLED : row.error, answered),
   };
 }
