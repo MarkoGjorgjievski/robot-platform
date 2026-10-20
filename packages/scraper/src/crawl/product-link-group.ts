@@ -17,10 +17,13 @@
 //   ranked the same way, counts from 6 distinct product keys — a price-less
 //   grid still finds its products; a handful of category tiles stays nothing,
 //   and so do image tiles in navigation (a mega-menu's tiles have images).
-// - One-segment merge (§3.3): at least 3 shapes with carded keys that differ in
-//   one literal segment (`/{seller}/product/*`) are one group.
-// - One product, one path (§3.4): the key is host + path; the first address
-//   seen is the one offered; swatch links and "+2" are not product links.
+// - One-segment merge (§3.3): shapes with carded keys that differ in one literal
+//   segment (`/{seller}/product/*`) are one group when at least 3 of them carry
+//   2+ carded keys each and the merged shape keeps a literal path segment
+//   (never `*/*`).
+// - One product, one path (§3.4): the key is host + path (+ the id-like query
+//   params when the path's last segment is literal: `/product?id=7`); the first
+//   address seen is the one offered; swatch links and "+2" are not product links.
 // - JSON-LD ItemList (§3.5): 3+ same-site items are a group of their own.
 // - Zero is an answer (§3.6): no carded group (priced, else image) and no
 //   ItemList group → null.
@@ -66,20 +69,28 @@ export const CARD_MAX_LINKS = 3;
 export const CARD_MAX_TEXT = 800;
 /** Spec §3.3, as measured (`rule.mjs`): shapes that differ in one literal segment merge when at least this many carry carded keys. */
 export const MERGE_MIN_SHAPES = 3;
+/** A merge qualifies on shapes carrying at least this many carded keys each: a card's one link to a sale or a brand page never counts. */
+export const MERGE_MIN_CARDED = 2;
 /** Spec §3.5: an ItemList is a group from this many distinct same-site items. */
 export const ITEM_LIST_MIN = 3;
 /** Spec §5.2: with no priced-card group, an image-card group counts from this many distinct product keys on image cards. */
 export const IMAGE_CARD_MIN = 6;
 
-const CURRENCY = String.raw`(?:[$€£¥₹₩₽₺₪฿₫₱]|(?<![A-Za-z])(?:US\$|AU\$|CA\$|NZ\$|HK\$|S\$|R\$|USD|EUR|GBP|JPY|CNY|INR|AUD|CAD|NZD|CHF|SEK|NOK|DKK|PLN|CZK|HUF|MYR|SGD|HKD|AED|SAR|ZAR|BRL|MXN|TRY|RM|Rs|kr|zł|Kč|Ft|lei)(?![A-Za-z]))`;
+/** Currency codes in capitals: also a price when glued to a lowercase word ("sierra rugRM810.00", inline spans in `innerText`). */
+const UPPER_CODES = String.raw`US\$|AU\$|CA\$|NZ\$|HK\$|S\$|R\$|USD|EUR|GBP|JPY|CNY|INR|AUD|CAD|NZD|CHF|SEK|NOK|DKK|PLN|CZK|HUF|MYR|SGD|HKD|AED|SAR|ZAR|BRL|MXN|TRY|RM`;
+/** Codes in their own case: the Indian rupee's `Rs`/`Rs.` (never a bare `R`), the Nordic `kr`, the złoty, koruna, forint, leu. */
+const OTHER_CODES = String.raw`Rs\.?|kr|zł|Kč|Ft|lei`;
+const CURRENCY = `(?:[$€£¥₹₩₽₺₪฿₫₱]|(?:(?<![A-Za-z])(?:${UPPER_CODES}|${OTHER_CODES})|(?<=[a-z])(?:${UPPER_CODES}))(?![A-Za-z]))`;
 const AMOUNT = String.raw`(?:\d{1,3}(?:[.,\s\u00a0\u202f']\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)`;
 /**
  * Spec §3.2: a number with a currency symbol or code next to it, either side,
  * in any common locale format (`$1,234.50`, `1.234,50 €`, `RM810.00`, `MYR 620`,
- * `£25`, `₹1,299`, `¥3,980`, `199 kr`, `CHF 49.90`). A code counts only when no
- * letter touches it, so "Europe" or "Kraków" is not a price.
+ * `£25`, `₹1,299`, `¥3,980`, `199 kr`, `CHF 49.90`, `Rs. 1,299`). Codes are case-sensitive
+ * (no 'i' flag: "Try 2 colours", "6 ft sofa", "Sek 5" are not prices) and count only when no
+ * letter touches them ("Europe", "Kraków") — except a capitals code right after a lowercase
+ * letter, a name and its price glued together in `innerText` ("sierra rugRM810.00").
  */
-export const PRICE_PATTERN = new RegExp(`${CURRENCY}\\s?${AMOUNT}|${AMOUNT}\\s?${CURRENCY}`, 'i');
+export const PRICE_PATTERN = new RegExp(`${CURRENCY}\\s?${AMOUNT}|${AMOUNT}\\s?${CURRENCY}`);
 
 const bareHost = (h: string): string => h.toLowerCase().replace(/^www\./, '');
 const trimSlash = (p: string): string => p.replace(/\/+$/, '');
@@ -105,12 +116,29 @@ export function urlShape(url: string): string | null {
   } catch { return null; }
 }
 
-/** Spec §3.4: a product's key — host (without `www.`) + path, trailing slash trimmed, query and fragment dropped. */
+/** Spec §3.4 (amended): query parameters that name a product — `id`, `pid`, `sku`, `item`, `product`, `code`, `route`, or a name ending in `id`/`Id`/`ID` (`product_id`, `itemId`). */
+export const ID_PARAM = /^(?:id|pid|sku|item|product|code|route)$|(?:id|Id|ID)$/;
+
+/**
+ * Spec §3.4: host (without `www.`) + path, trailing slash trimmed. When the path's last segment is
+ * literal in its shape (`/product`, `/item.php`, `/index.php`) or there is no path, the query names
+ * the product: its id-like parameters (`ID_PARAM`) are appended, sorted. A slug path (`*` last)
+ * drops the whole query — `?color=red`, `?variant=…` are copies of one product.
+ */
+function keyOf(u: URL): string {
+  const host = bareHost(u.hostname);
+  const path = trimSlash(u.pathname);
+  if (path !== '' && segmentShape(path.slice(path.lastIndexOf('/') + 1)).includes('*')) return host + path;
+  const ids = [...u.searchParams].filter(([n]) => ID_PARAM.test(n)).map(([n, v]) => `${n}=${v}`).sort();
+  return ids.length > 0 ? `${host}${path}?${ids.join('&')}` : host + path;
+}
+
+/** Spec §3.4: a product's key (`keyOf`) — query and fragment dropped, except id-like params on a literal path; null for a non-http(s) URL. */
 export function productKey(url: string): string | null {
   try {
     const u = new URL(url);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-    return bareHost(u.hostname) + trimSlash(u.pathname);
+    return keyOf(u);
   } catch { return null; }
 }
 
@@ -123,16 +151,20 @@ export function fitsShape(shape: string, url: string): boolean {
   return a.length === b.length && a.every((s, i) => s === b[i] || (i > 0 && s === '*'));
 }
 
-/** Spec §3.2: one level within reach holds at most 3 link paths, under 800 characters, an image and a price. */
-export function onCard(levels: CardLevel[] | undefined): boolean {
+/** Spec §3.2: one level within reach holds at most 3 link paths, under 800 characters, an image — and a price, when `requirePrice`. */
+function cardAt(levels: CardLevel[] | undefined, requirePrice: boolean): boolean {
   return (levels ?? []).slice(0, CARD_MAX_LEVELS)
-    .some((l) => l.d <= CARD_MAX_LINKS && l.len < CARD_MAX_TEXT && l.img && l.price);
+    .some((l) => l.d <= CARD_MAX_LINKS && l.len < CARD_MAX_TEXT && l.img && (l.price || !requirePrice));
+}
+
+/** Spec §3.2: the link is on a product card (an image and a price). */
+export function onCard(levels: CardLevel[] | undefined): boolean {
+  return cardAt(levels, true);
 }
 
 /** Spec §5.2, the fallback when a page has no priced cards: a card as in `onCard`, with no price required. */
 export function onImageCard(levels: CardLevel[] | undefined): boolean {
-  return (levels ?? []).slice(0, CARD_MAX_LEVELS)
-    .some((l) => l.d <= CARD_MAX_LINKS && l.len < CARD_MAX_TEXT && l.img);
+  return cardAt(levels, false);
 }
 
 /** The page script's value, checked: anything malformed reads as a page with no links. */
@@ -154,14 +186,14 @@ type Resolved = { href: string; key: string; shape: string };
 function resolver(listingUrl: string): (href: string) => Resolved | null {
   const base = new URL(listingUrl);
   const host = bareHost(base.hostname);
-  const self = host + trimSlash(base.pathname);
+  const self = keyOf(base);
   return (href) => {
     let u: URL;
     try { u = new URL(href, listingUrl); } catch { return null; }
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || bareHost(u.hostname) !== host) return null;
-    const path = trimSlash(u.pathname);
-    const key = host + path;
-    if (path === '' || key === self) return null;
+    // The listing itself and the bare root, by full key: `/?product=oak` is a product, `/?page=2` is the root.
+    const key = keyOf(u);
+    if (key === host || key === self) return null;
     // Spec 2026-10-14 §8: a fragment whose every part is key=value names a variant and stays on the address.
     if (!isKeyValueFragment(u.hash)) u.hash = '';
     return { href: u.href, key, shape: host + productPathShape(u.pathname) };
@@ -189,8 +221,11 @@ function cardGroup(
     if (isCard(a.levels)) g.carded.add(r.key);
   });
 
-  // §3.3: shapes with carded keys that differ in one literal segment, three or more of them, are one
-  // group (with the shape that already has `*` there, if the page has one).
+  // §3.3: shapes with carded keys that differ in one literal segment are one group (with the shape
+  // that already has `*` there, if the page has one) when three or more of them carry 2+ carded keys
+  // each — a card's single link to a sale or a brand page never makes a "shape" — and never into a
+  // shape with no literal path segment left (`*/product/*` merges; `*/*` would be any two-segment
+  // link). Once a merge qualifies, a member with one carded key joins it (a seller showing one product).
   const parent = new Map<string, string>();
   const root = (s: string): string => { let x = s; while (parent.get(x) !== x) x = parent.get(x)!; return x; };
   const holes = new Map<string, string[]>();
@@ -200,11 +235,12 @@ function cardGroup(
     segs.forEach((seg, i) => {
       if (i === 0 || seg === '' || seg.startsWith('*')) return;
       const hole = segs.map((x, j) => (j === i ? '*' : x)).join('/');
+      if (!hole.split('/').slice(1).some((x) => x !== '' && !x.includes('*'))) return;
       (holes.get(hole) ?? holes.set(hole, []).get(hole)!).push(shape);
     });
   }
   for (const [hole, members] of holes) {
-    if (members.length < MERGE_MIN_SHAPES) continue;
+    if (members.filter((m) => byShape.get(m)!.carded.size >= MERGE_MIN_CARDED).length < MERGE_MIN_SHAPES) continue;
     const all = byShape.has(hole) ? [...members, hole] : members;
     for (const s of all) if (!parent.has(s)) parent.set(s, s);
     for (const s of all.slice(1)) parent.set(root(s), root(all[0]!));
@@ -293,7 +329,21 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
   const PRICE = new RegExp(${JSON.stringify(PRICE_PATTERN.source)}, ${JSON.stringify(PRICE_PATTERN.flags)});
   const UP = ${CARD_MAX_LEVELS - 1};
   const MAX_LINKS = ${CARD_MAX_LINKS};
-  const pathOf = (href) => { try { const u = new URL(href, location.href); return u.host + u.pathname.replace(/\/+$/, ''); } catch (e) { return href.split(/[?#]/)[0] || null; } };
+  const ID = new RegExp(${JSON.stringify(ID_PARAM.source)});
+  // The product key's own rule (keyOf): a literal last segment keeps its id-like query params, so a
+  // grid of /product?id=N links is that many link paths, not one.
+  const slug = (seg) => { const m = /^(.*?)(\.[a-z]{2,5})$/i.exec(seg); const stem = m ? m[1] : seg; return /[\d_-]/.test(stem) || stem.length >= 12; };
+  const pathOf = (href) => {
+    try {
+      const u = new URL(href, location.href);
+      const p = u.pathname.replace(/\/+$/, '');
+      if (p !== '' && slug(p.slice(p.lastIndexOf('/') + 1))) return u.host + p;
+      const ids = [];
+      u.searchParams.forEach((v, n) => { if (ID.test(n)) ids.push(n + '=' + v); });
+      ids.sort();
+      return u.host + p + (ids.length ? '?' + ids.join('&') : '');
+    } catch (e) { return href.split(/[?#]/)[0] || null; }
+  };
   const memo = new Map();
   const level = (el) => {
     const hit = memo.get(el);

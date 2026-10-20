@@ -136,6 +136,16 @@ describe('PRICE_PATTERN (§3.2)', () => {
       expect(PRICE_PATTERN.test(s), s).toBe(false);
     }
   });
+  it('reads Rs. before a number, and an uppercase code glued to a name ("sierra rugRM810.00", inline spans in innerText)', () => {
+    for (const s of ['Rs. 1,299', 'Rs.499', 'Rs 499', 'sierra rugRM810.00', 'oak chairMYR 620', 'teeUSD 20', 'teeUS$ 20']) {
+      expect(PRICE_PATTERN.test(s), s).toBe(true);
+    }
+  });
+  it('codes are case-sensitive: words that merely look like a code in another case are not prices', () => {
+    for (const s of ['Try 2 colours', '6 ft sofa', 'rm 2', 'Sek 5', '12 rs', 'R 50', 'R50', 'eur 5', 'usd 5', 'BRUSD 5', 'Chf 5']) {
+      expect(PRICE_PATTERN.test(s), s).toBe(false);
+    }
+  });
 });
 
 describe('productKey and onCard', () => {
@@ -143,6 +153,17 @@ describe('productKey and onCard', () => {
     expect(productKey('https://www.shop.example/p/oak-chair/?color=red#sku=1')).toBe('shop.example/p/oak-chair');
     expect(productKey('https://shop.example/p/oak-chair')).toBe('shop.example/p/oak-chair');
     expect(productKey('javascript:void(0)')).toBeNull();
+  });
+  it('a literal last segment (or no path) keeps its id-like query params, sorted; a slug path drops the query (§3.4 amended)', () => {
+    expect(productKey('https://shop.example/product?id=12&color=red')).toBe('shop.example/product?id=12');
+    expect(productKey('https://shop.example/item.php?id=7')).toBe('shop.example/item.php?id=7');
+    expect(productKey('https://shop.example/index.php?route=product/product&product_id=5&path=20'))
+      .toBe('shop.example/index.php?product_id=5&route=product/product');
+    expect(productKey('https://www.shop.example/?product=oak-chair&utm_source=x')).toBe('shop.example?product=oak-chair');
+    expect(productKey('https://shop.example/catalog?pid=3&sku=A1&itemId=9&code=x&item=4&page=2'))
+      .toBe('shop.example/catalog?code=x&item=4&itemId=9&pid=3&sku=A1');
+    expect(productKey('https://shop.example/products/oak-chair?id=12')).toBe('shop.example/products/oak-chair');
+    expect(productKey('https://shop.example/product?color=red')).toBe('shop.example/product');
   });
   it('a card is a level with at most 3 link paths, under 800 characters, an image and a price — within 7 levels', () => {
     expect(onCard(CARD)).toBe(true);
@@ -235,8 +256,43 @@ describe('findProductGroup (§3.2–§3.6)', () => {
     expect(three.urls).toHaveLength(6);
     const two = findProductGroup(links(sellers(['oakhouse', 'fernly'])), L)!;
     expect(two.urls).toHaveLength(2);
+    // A seller showing one product joins a merge three sellers with two each qualify (noths: 7 of 17 sellers);
+    // three sellers showing one product each do not qualify one.
+    const plusOne = findProductGroup(links([...sellers(['oakhouse', 'fernly', 'marlow']), carded('/tindle/product/ash-table')]), L)!;
+    expect(plusOne.urls).toHaveLength(7);
+    const singles = findProductGroup(links(['oakhouse', 'fernly', 'marlow'].map((s) => carded(`/${s}/product/oak-chair`))), L)!;
+    expect(singles.urls).toHaveLength(1);
     const menu = findProductGroup(links([...['a', 'b', 'c'].map((s) => plain(`/${s}/product/x-1`)), carded('/products/p-1')]), L)!;
     expect(menu.shape).toBe('shop.example/products/*');
+  });
+  it('a merge needs a literal segment in its shape and 2+ carded products per member: cards linking a sale and a brand are not three "shapes" (§3.3)', () => {
+    const cards = Array.from({ length: 10 }, (_, i) => [carded(`/products/chair-${i}`), carded('/collections/sale-items'), carded('/brands/acme-co')]).flat();
+    const menu = Array.from({ length: 30 }, (_, i) => plain(`/collections/cat-${i}`));
+    const g = findProductGroup(links([...menu, ...cards]), L)!;
+    expect(g.shape).toBe('shop.example/products/*');
+    expect(paths(g.urls)).toEqual(Array.from({ length: 10 }, (_, i) => `/products/chair-${i}`));
+    // Nothing merges into `*/*` even when every member has carded products.
+    const loose = findProductGroup(links(['alpha', 'bravo', 'charlie'].flatMap((s) => [carded(`/${s}/oak-chair`), carded(`/${s}/pine-stool`)])), L)!;
+    expect(loose.shape).not.toBe('shop.example/*/*');
+    expect(loose.urls).toHaveLength(2);
+  });
+  describe('products named by a query id (§3.4 amended): 12 products each, the listing itself left out', () => {
+    const twelve = (href: (i: number) => string) => Array.from({ length: 12 }, (_, i) => carded(href(i + 1)));
+    const CASES: Array<[string, string, (i: number) => string, string]> = [
+      ['/product?id=N', 'https://shop.example/catalog?category=5', (i) => `/product?id=${i}`, 'shop.example/product'],
+      ['/item.php?id=N', 'https://shop.example/list.php?cat=3', (i) => `/item.php?id=${i}`, 'shop.example/item.php'],
+      ['OpenCart', 'https://shop.example/index.php?route=product/category&path=20', (i) => `/index.php?route=product/product&product_id=${i}`, 'shop.example/index.php'],
+      ['/?product=slug', 'https://shop.example/?category=sofas', (i) => `/?product=oak-chair-${i}`, 'shop.example/'],
+    ];
+    for (const [name, listing, href, shape] of CASES) {
+      it(name, () => {
+        const self = new URL(listing);
+        const g = findProductGroup(links([carded(self.pathname + self.search), carded(`${self.pathname + self.search}&page=2`), ...twelve(href)]), listing)!;
+        expect(g.shape).toBe(shape);
+        expect(paths(g.urls)).toEqual(Array.from({ length: 12 }, (_, i) => href(i + 1)));
+        expect(g.carded).toBe(12);
+      });
+    }
   });
   it('ranks by products on cards, not by raw links', () => {
     const many = Array.from({ length: 30 }, (_, i) => plain(`/products/menu-item-${i}`));
