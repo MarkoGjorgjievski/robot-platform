@@ -116,8 +116,8 @@ export function urlShape(url: string): string | null {
   } catch { return null; }
 }
 
-/** Spec §3.4 (amended): query parameters that name a product — `id`, `pid`, `sku`, `item`, `product`, `code`, `route`, or a name ending in `id`/`Id`/`ID` (`product_id`, `itemId`). */
-export const ID_PARAM = /^(?:id|pid|sku|item|product|code|route)$|(?:id|Id|ID)$/;
+/** Spec §3.4 (amended): query parameters that name a product — `id`, `pid`, `sku`, `item`, `product`, `code`, `route`, or a name ending in `_id`/`-id`/`Id`/`ID` (`product_id`, `itemId`); never a word that merely ends in "id" (`paid`, `grid`). */
+export const ID_PARAM = /^(?:id|pid|sku|item|product|code|route)$|[_-]id$|[a-z](?:Id|ID)$/;
 
 /**
  * Spec §3.4: host (without `www.`) + path, trailing slash trimmed. When the path's last segment is
