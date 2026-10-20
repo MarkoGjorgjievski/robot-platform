@@ -31,6 +31,8 @@ export function BadgeView({ badge }: { badge: Badge }) {
       );
     case 'fails':
       return <span className="shrink-0 text-sm text-fail">{failsText(badge.products)}</span>;
+    case 'unverified':
+      return <span className="shrink-0 text-sm text-fail">{badge.text}</span>;
     case 'changed':
       return <span className="shrink-0 text-sm text-muted-foreground">changed since verified</span>;
     case 'checking':

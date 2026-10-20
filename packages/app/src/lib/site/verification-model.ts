@@ -8,6 +8,7 @@ import { FIELD_TYPES, type FieldType } from '../fields-view';
 // that package safe for a browser bundle (it imports nothing but a type).
 import { afterLabel, labelled, normalize, valuesEqual } from '@robot/scraper/normalize';
 import type { PageVariantLike } from './verification-view';
+import { AI_UNAVAILABLE_BADGE, NOT_VERIFIED_BADGE, notCheckedText } from './verify-messages';
 
 export { FIELD_TYPES };
 export type { FieldType };
@@ -31,7 +32,8 @@ export type Suggestion = { captureId: string; value: string; boxes: number[]; or
 /** key → url → suggestion (client-side only; never saved). */
 export type Suggestions = Record<string, Record<string, Suggestion>>;
 export type Segment = 'empty' | 'suggested' | 'answered' | 'failed';
-export type Badge = { kind: 'verified' } | { kind: 'fails'; products: number[] } | { kind: 'changed' } | { kind: 'checking' } | null;
+/** `unverified` (spec 2026-10-20 §3.5.3): a failed field with no failing product to name says why, instead of a blank Status. */
+export type Badge = { kind: 'verified' } | { kind: 'fails'; products: number[] } | { kind: 'unverified'; text: string } | { kind: 'changed' } | { kind: 'checking' } | null;
 
 /** The structured sources a saved path may come from; a page-search (`xpath`) suggestion is never one. */
 const STRUCTURED = ['api', 'json-ld', 'meta'] as const;
@@ -45,7 +47,7 @@ const sameVia = (a: Via | undefined, b: Via | undefined) => !!a && !!b && a.sour
  * `defaultOnly`: the field passed on its default alone, no path certified (spec 2026-10-13 §4).
  * `notOnWebsite`: the field is not on this website at all — absent on every product (spec 2026-10-17 §2).
  */
-type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; notOnWebsite?: true; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured'; path?: { source?: string; path: string } }> }>;
+type VerificationResultsLike = Record<string, { certified: unknown[]; defaultOnly?: true; notOnWebsite?: true; failReason?: 'ai_unavailable'; cells: Record<string, { status: 'pass' | 'fail' | 'not_captured'; path?: { source?: string; path: string } }> }>;
 
 /** What `boardFrom` reads back — mirrors `@robot/scraper`'s `VerificationSet`
  * (not imported: that module graph reaches Playwright/the database/the
@@ -769,14 +771,19 @@ export function segment(board: Board, s: Suggestions, key: string, url: string, 
  * never current, but it has not changed since — its verdict is "fails on
  * product n", and only an edit makes it "changed since verified".
  */
-export function badge(args: { key: string; results: VerificationResultsLike | null; unchangedKeys: string[]; running: boolean; cards: Card[] }): Badge {
+export function badge(args: { key: string; results: VerificationResultsLike | null; unchangedKeys: string[]; running: boolean; cards: Card[]; blocked?: Record<string, string> }): Badge {
   if (args.running) return { kind: 'checking' };
   const fv = args.results?.[args.key];
   if (!fv) return null;
   if (!args.unchangedKeys.includes(args.key)) return { kind: 'changed' };
   if (fv.certified.length > 0 || fv.defaultOnly === true || passedNotOnWebsite(fv)) return { kind: 'verified' };
   const products = args.cards.flatMap((c, i) => (fv.cells[c.url]?.status === 'fail' ? [i + 1] : []));
-  return products.length > 0 ? { kind: 'fails', products } : null;
+  if (products.length > 0) return { kind: 'fails', products };
+  // Spec 2026-10-20 §3.5.3: a failed field never shows a blank Status.
+  if (fv.failReason === 'ai_unavailable') return { kind: 'unverified', text: AI_UNAVAILABLE_BADGE };
+  const i = args.cards.findIndex((c) => fv.cells[c.url]?.status === 'not_captured');
+  if (i >= 0) return { kind: 'unverified', text: notCheckedText(i + 1, args.blocked?.[args.cards[i]!.url]) };
+  return { kind: 'unverified', text: NOT_VERIFIED_BADGE };
 }
 
 /**
