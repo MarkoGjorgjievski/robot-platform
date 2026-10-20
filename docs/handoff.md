@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Verify never fails silently (2026-10-20)](#verify-never-fails-silently-2026-10-20).** Every refused, failed or stalled Verify and every failed screenshot now ends with one customer sentence in view, a failed run keeps the last results on screen, and one field's AI failure no longer fails the run. Merged 2026-10-20 after the full gate on the branch (route smoke 27 of 27).
+**Newest: [The finder reads product links (2026-10-20)](#the-finder-reads-product-links-2026-10-20).** "Find products" and the coverage check now offer products — no menus, tiles, policy pages or colour copies — and a page with no grid says so; live-checked on the 13 campaign listings. Merged 2026-10-20 after the full gate.
+
+**Before it: [Verify never fails silently (2026-10-20)](#verify-never-fails-silently-2026-10-20).** Every refused, failed or stalled Verify and every failed screenshot now ends with one customer sentence in view, a failed run keeps the last results on screen, and one field's AI failure no longer fails the run. Merged 2026-10-20 after the full gate on the branch (route smoke 27 of 27).
 
 **Before it: [Verify dead ends (2026-10-17)](#verify-dead-ends-2026-10-17).** Seven dead ends from campaign 2 that stopped an honest customer at Verify are fixed: a field the website lacks entirely now passes as "not on this website"; a default stops a products-four-to-six suggestion from blocking; a shop's name can certify as the brand; a page found in a different place on each product reads green, not "Several places match"; a mark reads the way the page shows it, label stripped; a rounded number matches more precise page data; the cost estimate is per proof page and staff-only, and a customer sees no money anywhere in the app. Eight tasks implemented and reviewed on `feat/verify-dead-ends`, fix rounds on Tasks 3, 6, 7 and 8; the whole-branch review found one Critical and two Important problems, fixed in one wave; merged into `main` 2026-10-19 (fast-forward). Route smoke on `main`: 26 of 26 (`762a763`), run against an isolated keyless pair with Jev off, since shadow is on in `.env`.
 
@@ -100,6 +102,39 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## The finder reads product links (2026-10-20)
+
+Spec `docs/superpowers/specs/2026-10-20-finder-links-design.md`, plan
+`docs/superpowers/plans/2026-10-20-finder-links.md`, evidence and live check
+`docs/testing/results/2026-10-20-finder-links/`. Queue item 2, run under the standing approval.
+
+**What a customer gets.** "Find products" offers products, not menus, category tiles, policy pages,
+a language link or one product in several colours. A listing with no product grid says "No products
+found on this page." The finder loads more of a lazy listing, bounded. The coverage check samples
+only products, never a proof page under any query, says when a listing has none, and stops
+re-offering "Use as proof page" for a field a same-shape proof page already answered.
+
+**Why it was wrong.** One rule grouped a page's links by URL shape and took the biggest group. It
+split one product shape into many small groups (ordinary slug words stayed literal), counted every
+`?color=` copy as a product, and never said "none". The new rule (`findProductGroup`): a product
+link sits on a card with an image and a price; one product is one path; shapes are per segment; a
+JSON-LD ItemList counts. The walk keeps its own row selector; the rule is its cross-check.
+
+**How it was proven.** Live check on the 13 campaign listings (`live-check.md`, old vs new): all 11
+real listings offer their products (bombas 27 on cards, burrow 25, lacoste 13, notonthehighstreet
+60, ruggable 47, skullcandy 41, thomann and puma more than before because loading reaches further),
+ikea's blog and ridge offer none, and no menu or policy link anywhere. Reviews: Task 2 had its own
+(query-id shops collapsed to one product; a merge could pull in a menu; currency codes matched
+"Try 2 colours"); the whole-branch review found two Important (script paths like
+`product_info.php?products_id=N` still collapsed; a quadratic walk took 26 s on a big listing) — all
+fixed and re-reviewed. Gate: browser 302, scraper 1210, api 1058, app 960 tests, tsc clean; route
+smoke 27 of 27.
+
+**Known limits.** The "already answered" rule is per shape, and most shops have one product shape.
+A price-less grid whose images load late can read as no products. Colours that are separate product
+pages (gymshark) stay separate. The route smoke's first sign-in test runs close to its 5 s limit
+(passed alone in 4.3 s) — a timing flake to widen.
 
 ## Verify never fails silently (2026-10-20)
 

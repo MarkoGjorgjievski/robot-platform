@@ -8,6 +8,20 @@ item "The product finder and the coverage check read the right links"), together
 the per-link harvests and `rule.mjs`, the proposed rule run offline on them), and read in the code
 on `main` @ `f78d817`.
 
+**Status:** implemented on `feat/finder-links` (seven tasks plus the gate). Rulings that amend
+this text (ledger): §3.3 merges when three or more carded shapes differ in one segment; §3.4 keeps
+id-like query parameters when the path's last segment is literal or a script (`.php`, `.aspx`…), so
+`/product?id=N` stays N products; a page with no priced cards falls back to an image-card group of
+six or more (navigation links excluded) before "no products"; "load more" labels in eight
+languages, loading capped near ten seconds. Reviews: Task 2 (query-id keys, a merge that could pull
+in a menu, case-sensitive currency codes, glued prices), and a whole-branch review on the most
+capable model (two Important: slug-named script paths still collapsed; a quadratic swatch walk,
+26 s on a big listing) — all fixed and re-reviewed. Gate on the branch: browser 302, scraper 1210,
+api 1058, app 960 tests, tsc clean in all four; route smoke 27 of 27; the free live check on the 13
+listings (`live-check.md`): every listing offers products, ikea's blog and ridge offer none, no menu
+or policy links anywhere. Known limits: §3.8 is coarse (one shape per shop); a price-less grid
+whose images load late can read as no products; gymshark's colours stay separate products.
+
 ## 1. Why
 
 A customer gives a listing page; "Find products" offers product pages from it, the coverage check
