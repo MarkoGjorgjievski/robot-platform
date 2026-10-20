@@ -19,7 +19,8 @@ import { sourceInOrg, captureInOrg } from '../auth/scope.js';
 import { planSource } from '../crawl/plan-source.js';
 import { withBrowserSession } from '../browser-session.js';
 import { httpUrl } from '../verify/http-url.js';
-import { bindingInput, prepareBinding, bindingProblems, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
+import { bindingInput, prepareBinding, bindingProblemList, host, markInput, confirmedPathInput } from '../verify/binding-input.js';
+import { refuseVerify, refusalProblems } from '../verify/verify-refusal.js';
 import { contractFields, contractAxes, bindingFor, type VariantSetup } from '../contract.js';
 import { entryFieldsFor } from '../verify/variant-fields.js';
 import { describeListingPage, unreadListingPage, LISTING_ANCHORS_SCRIPT, type ListingAnchor, type ListingPageCheck } from '../verify/find-product-pages.js';
@@ -1109,23 +1110,20 @@ export const sourcesRouter = router({
       }
       const hash = sourceDefinitionHash(source);
       if (!hash) {
-        throw new TRPCError({
-          code: 'PRECONDITION_FAILED',
-          message: `Source ${input.sourceId} has no schema definition to verify`,
-        });
+        throw refuseVerify([{ reason: 'no_fields' }], [`Source ${input.sourceId} has no schema definition to verify`]);
       }
 
       // Draft saves (the Verification tab's autosave) can leave cells blank, so Verify checks the record itself.
       const set = source.verificationSet as VerificationSet | null;
       const defs = (source.schemaDefinition ?? []) as SchemaDefinitionField[];
       if (set) {
-        const problems = bindingProblems({
+        const problems = bindingProblemList({
           urls: set.urls, ...(set.listing_url ? { listingUrl: set.listing_url } : {}),
           descriptions: Object.fromEntries(defs.map((d) => [d.key, d.description])),
           expected: set.expected, ...(set.marks ? { marks: set.marks } : {}),
           ...(set.absent ? { absent: set.absent } : {}), ...(set.defaults ? { defaults: set.defaults } : {}),
         }, contractFields(source.dataset?.schema));
-        if (problems.length) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: problems.join('\n') });
+        if (problems.length) throw refuseVerify(refusalProblems(problems), problems.map((p) => p.text));
 
         // Variants (spec 2026-10-01): a variants-only run (`onlyKeys: []`) checks nothing but the
         // answers, so it needs one for every product, even "No variants on this product". A run that
@@ -1134,7 +1132,7 @@ export const sourcesRouter = router({
         if (input.onlyKeys?.length === 0
           && variantsRequired(source.dataset?.variantMode, source.variantSetup as VariantSetup | null) === 'yes'
           && set.urls.some((u) => !set.variants?.[u])) {
-          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Confirm the variants of every product first' });
+          throw refuseVerify([{ reason: 'variants' }], [], 'Confirm the variants of every product first');
         }
       }
 

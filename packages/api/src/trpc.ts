@@ -1,8 +1,9 @@
-import { initTRPC, TRPCError } from '@trpc/server';
+import { initTRPC, TRPCError, type TRPCDefaultErrorShape } from '@trpc/server';
 import superjson from 'superjson';
 import type { Database, MembershipRole, UserTheme } from '@robot/db';
 import { STAFF_BLOCKED_MESSAGE, STAFF_SESSION_ENDED_MESSAGE, isRefusedAfterStaffExpiry, isStaffBlocked } from './auth/staff-guard.js';
 import { beforeStaffMutation, logStaffMutation } from './auth/staff-actions.js';
+import { VerifyRefusal } from './verify/verify-refusal.js';
 
 export type SessionInfo = {
   token: string;
@@ -23,8 +24,17 @@ export type Context = {
   clearCookie?: (name: string) => void;
 };
 
+/**
+ * Every error's shape is tRPC's default plus `data.verifyProblems`: a refused Verify's structured
+ * problems (spec 2026-10-20 §3.2), null on every other error. The app writes the sentence from it.
+ */
+export function errorFormatter({ shape, error }: { shape: TRPCDefaultErrorShape; error: TRPCError }) {
+  return { ...shape, data: { ...shape.data, verifyProblems: error.cause instanceof VerifyRefusal ? error.cause.problems : null } };
+}
+
 const t = initTRPC.context<Context>().create({
   transformer: superjson,
+  errorFormatter,
 });
 
 export const router = t.router;

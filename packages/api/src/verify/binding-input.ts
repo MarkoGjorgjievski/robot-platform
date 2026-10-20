@@ -35,38 +35,46 @@ export type BindingInput = z.infer<typeof bindingInput>;
 /** Shared with `sources.setListingPages`/`setProductUrls` (task 3 fix round 1): the same-host comparison must use the same lowercasing everywhere. */
 export const host = (u: string) => new URL(u).hostname.toLowerCase();
 
-export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { sourceId?: string }, contract: ContractField[], opts: { draft?: boolean } = {}): string[] {
+/**
+ * One binding problem: the sentence saves return and the server logs (`text`, unchanged), and what a
+ * refused Verify needs to write it in customer words (spec 2026-10-20 §3.2): `field` is the field's
+ * name, never its key; `product` is the page's 1-based position among the proof pages.
+ */
+export type BindingProblem = { text: string; reason: 'blank' | 'too_few_values' | 'other'; field?: string; product?: number };
+
+export function bindingProblemList(input: Omit<BindingInput, 'sourceId'> & { sourceId?: string }, contract: ContractField[], opts: { draft?: boolean } = {}): BindingProblem[] {
   const draft = opts.draft ?? input.draft ?? false;
-  const problems: string[] = [];
+  const problems: BindingProblem[] = [];
+  const other = (text: string): void => { problems.push({ text, reason: 'other' }); };
   const hosts = new Set(input.urls.map(host));
   if (input.listingUrl) hosts.add(host(input.listingUrl));
-  if (hosts.size > 1) problems.push('All URLs must be on the same website');
-  if (new Set(input.urls.map((u) => normalize('url', u))).size !== input.urls.length) problems.push('URLs must be different pages');
+  if (hosts.size > 1) other('All URLs must be on the same website');
+  if (new Set(input.urls.map((u) => normalize('url', u))).size !== input.urls.length) other('URLs must be different pages');
   for (const f of contract) {
-    if (!draft && !(input.descriptions[f.key] ?? '').trim()) problems.push(`${f.name}: say where it is on this website`);
+    if (!draft && !(input.descriptions[f.key] ?? '').trim()) other(`${f.name}: say where it is on this website`);
     const cells = input.expected[f.key] ?? {};
     const absent = input.absent?.[f.key] ?? {};
     const def = (input.defaults?.[f.key] ?? '').trim();
     if (def) {
       const err = validateExpected(f.type, def);
-      if (err) problems.push(`${f.name}: default — ${err}`);
+      if (err) other(`${f.name}: default — ${err}`);
       // A default would fill the very cell the customer said is empty (spec 2026-10-13 §3).
-      if (Object.keys(absent).length > 0) problems.push(`${f.name}: a default and "not on this product" cannot both be set`);
+      if (Object.keys(absent).length > 0) other(`${f.name}: a default and "not on this product" cannot both be set`);
     }
     input.urls.forEach((url, i) => {
       const value = cells[url] ?? '';
-      if (absent[url] && value.trim() !== '') { problems.push(`${f.name} @ ${url}: a value and "not on this product" cannot both be set`); return; }
+      if (absent[url] && value.trim() !== '') { other(`${f.name} @ ${url}: a value and "not on this product" cannot both be set`); return; }
       if (absent[url]) return;                                         // a checked page where the answer is nothing
       // Pages four to six: a blank cell means "not checked here" (spec 2026-09-17 §4).
       // A draft save (Verification tab autosave) can leave any cell blank — Verify checks completeness itself.
       // A field with a default: a blank cell on any page is a default cell (spec 2026-10-13 §3).
       if ((draft || i >= VERIFY_URL_MIN || def) && value.trim() === '') return;
       const err = validateExpected(f.type, value);
-      if (err) problems.push(`${f.name} @ ${url}: ${err}`);
+      if (err) problems.push({ text: `${f.name} @ ${url}: ${err}`, reason: value.trim() === '' ? 'blank' : 'other', field: f.name, product: i + 1 });
     });
     for (const url of input.urls) {
       // A mark on a checked-absent page isn't a problem — "not on this product" drops the mark (spec 2026-10-10 §B1), it doesn't need one.
-      if (input.marks?.[f.key]?.[url] && !absent[url] && (cells[url] ?? '').trim() === '') problems.push(`${f.name} @ ${url}: a marked element needs its value`);
+      if (input.marks?.[f.key]?.[url] && !absent[url] && (cells[url] ?? '').trim() === '') other(`${f.name} @ ${url}: a marked element needs its value`);
     }
     if (!draft) {
       // A field marked "not on this product" anywhere must still have a value on at least two
@@ -75,15 +83,20 @@ export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { source
       const absentCount = input.urls.filter((url) => absent[url]).length;
       // Spec 2026-10-17 §2: absent on products one to three with no value anywhere is "not on this website".
       const notOnWebsite = withValue === 0 && input.urls.slice(0, VERIFY_URL_MIN).every((url) => absent[url]);
-      if (absentCount > 0 && withValue < 2 && !notOnWebsite) problems.push(`${f.name}: needs a value on at least two products, or "not on this product" on every one`);
+      if (absentCount > 0 && withValue < 2 && !notOnWebsite) problems.push({ text: `${f.name}: needs a value on at least two products, or "not on this product" on every one`, reason: 'too_few_values', field: f.name });
     }
   }
   if (!draft) {
     input.urls.slice(VERIFY_URL_MIN).forEach((url) => {
-      if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '' && !input.absent?.[f.key]?.[url])) problems.push(`${url}: type at least one expected value on this page, or remove it`);
+      if (contract.every((f) => (input.expected[f.key]?.[url] ?? '').trim() === '' && !input.absent?.[f.key]?.[url])) other(`${url}: type at least one expected value on this page, or remove it`);
     });
   }
   return problems;
+}
+
+/** The problems' texts, exactly as before (saves return them joined; spec 2026-10-20 leaves saves as they are). */
+export function bindingProblems(input: Omit<BindingInput, 'sourceId'> & { sourceId?: string }, contract: ContractField[], opts: { draft?: boolean } = {}): string[] {
+  return bindingProblemList(input, contract, opts).map((p) => p.text);
 }
 
 /** Throws BAD_REQUEST with the problem list; otherwise the binding rows and the verification set. */

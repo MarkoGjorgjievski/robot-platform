@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bindingInput, bindingProblems, prepareBinding } from './binding-input.js';
+import { bindingInput, bindingProblems, bindingProblemList, prepareBinding } from './binding-input.js';
 import type { ContractField } from '../contract.js';
 
 const U = ['https://shop.example/p/1', 'https://shop.example/p/2', 'https://shop.example/p/3'];
@@ -180,5 +180,24 @@ describe('D3 and a field not on this website (spec 2026-10-17 §2)', () => {
     const [a, b, c] = ok.urls;
     const input = { ...ok, expected: { ...ok.expected, [key]: { [a!]: (ok.expected as Record<string, Record<string, string>>)[key]![a!]!, [b!]: '', [c!]: '' } }, absent: { [key]: { [b!]: true as const, [c!]: true as const } } };
     expect(bindingProblems(input, contract)).toContain(`${name}: needs a value on at least two products, or "not on this product" on every one`);
+  });
+});
+
+describe('bindingProblemList (spec 2026-10-20 §3.2)', () => {
+  it('names a blank required cell by field name and product number, and its text is unchanged', () => {
+    const list = bindingProblemList({ ...ok, expected: { ...ok.expected, title: { [U[0]!]: 'a', [U[1]!]: 'b', [U[2]!]: '' } } }, contract);
+    expect(list).toEqual([{ text: 'Title @ https://shop.example/p/3: Expected value is required', reason: 'blank', field: 'Title', product: 3 }]);
+  });
+  it('an invalid value is "other", with its field and product', () => {
+    const list = bindingProblemList({ ...ok, expected: { ...ok.expected, price: { [U[0]!]: 'call us', [U[1]!]: '2', [U[2]!]: '3' } } }, contract);
+    expect(list).toEqual([{ text: 'Price @ https://shop.example/p/1: Not a money amount', reason: 'other', field: 'Price', product: 1 }]);
+  });
+  it('too few values is its own reason', () => {
+    const list = bindingProblemList({ ...ok, expected: { ...ok.expected, price: { [U[0]!]: '1' } }, absent: { price: { [U[1]!]: true, [U[2]!]: true } } }, contract);
+    expect(list).toEqual([{ text: 'Price: needs a value on at least two products, or "not on this product" on every one', reason: 'too_few_values', field: 'Price' }]);
+  });
+  it('bindingProblems is the list of texts', () => {
+    const input = { ...ok, descriptions: { price: 'green' }, expected: { ...ok.expected, title: { [U[0]!]: '', [U[1]!]: 'b', [U[2]!]: 'c' } } };
+    expect(bindingProblems(input, contract)).toEqual(bindingProblemList(input, contract).map((p) => p.text));
   });
 });
