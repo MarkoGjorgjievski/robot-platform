@@ -397,7 +397,13 @@ async function certifyCandidates(input: CertifyInput, deps: CertifyDeps): Promis
       // show: `found` is optional on a fail cell, so it is left out rather than stringified.
       const hereDisplay = displayValue(here);
       const foundField = hereDisplay !== null ? { found: hereDisplay } : {};
-      if (empty) cells[url] = { status: 'fail', reason: 'not_found', ...(nearMisses.length ? { nearMisses } : {}) };
+      if (empty) {
+        // Spec 2026-10-20 §3.4 (ridge, product 4): the majority path reads nothing here, but another
+        // candidate reads the right value on this very page. Only the cell's reason changes; what
+        // certifies is decided above and does not move (§5.5).
+        const elsewhere = candidates.some((c) => c !== twoOfThree && isProven(c, url));
+        cells[url] = { status: 'fail', reason: elsewhere ? 'elsewhere' : 'not_found', ...(nearMisses.length ? { nearMisses } : {}) };
+      }
       else if (normalize(field.type, here, ctx) === null) cells[url] = { status: 'fail', reason: 'type_mismatch', ...foundField, ...(nearMisses.length ? { nearMisses } : {}) };
       else cells[url] = { status: 'fail', reason: 'different_value', ...foundField, ...(nearMisses.length ? { nearMisses } : {}) };
       continue;
