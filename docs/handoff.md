@@ -35,7 +35,9 @@ type: project
 
 **Jev with images, measured (2026-10-15, `docs/testing/results/2026-10-15-jev-images/report.md`, $0.0463):** Jev 1.14 read the hard cases from screenshots — Ruggable's 6'x9' sale price out of 20–26 candidates (3/3, p 1.00), "Gymshark" over the tagline (3/3), Colourpop's heading over the shade name (9/9), Skullcandy's out-of-stock colour (3/3), batch C's real errors (10/10); 33 of 38 cases right every time, no answer flipped across three asks. On 295 ordinary values it agreed with the judge 81%, caught 8 of 8 real errors still on the page, and called 44 of 255 correct values wrong (28 of them descriptions outside the crop). Billing: an image placed once in `state` is billed once per call (~3,787 tokens for 1440×1000, ≈$0.00016) and each extra question adds ~45 tokens; referencing the image in each question bills a copy per reference. ~0.6 s per call. CLI `packages/api/src/jev-images-run.ts` (`@typesafe-ai/sdk` is a dev dependency of `@robot/api`; run `pnpm install` before using it on `main`). Next: a spec for an ambiguity step at Verify (one Choice per ambiguous field, screenshot in state) and a revised per-row check that sees the field's own crop.
 
-**Newest: [Verify dead ends (2026-10-17)](#verify-dead-ends-2026-10-17).** Seven dead ends from campaign 2 that stopped an honest customer at Verify are fixed: a field the website lacks entirely now passes as "not on this website"; a default stops a products-four-to-six suggestion from blocking; a shop's name can certify as the brand; a page found in a different place on each product reads green, not "Several places match"; a mark reads the way the page shows it, label stripped; a rounded number matches more precise page data; the cost estimate is per proof page and staff-only, and a customer sees no money anywhere in the app. Eight tasks implemented and reviewed on `feat/verify-dead-ends`, fix rounds on Tasks 3, 6, 7 and 8; the whole-branch review found one Critical and two Important problems, fixed in one wave; merged into `main` 2026-10-19 (fast-forward). Route smoke on `main`: 26 of 26 (`762a763`), run against an isolated keyless pair with Jev off, since shadow is on in `.env`.
+**Newest: [Verify never fails silently (2026-10-20)](#verify-never-fails-silently-2026-10-20).** Every refused, failed or stalled Verify and every failed screenshot now ends with one customer sentence in view, a failed run keeps the last results on screen, and one field's AI failure no longer fails the run. Merged 2026-10-20 after the full gate on the branch (route smoke 27 of 27).
+
+**Before it: [Verify dead ends (2026-10-17)](#verify-dead-ends-2026-10-17).** Seven dead ends from campaign 2 that stopped an honest customer at Verify are fixed: a field the website lacks entirely now passes as "not on this website"; a default stops a products-four-to-six suggestion from blocking; a shop's name can certify as the brand; a page found in a different place on each product reads green, not "Several places match"; a mark reads the way the page shows it, label stripped; a rounded number matches more precise page data; the cost estimate is per proof page and staff-only, and a customer sees no money anywhere in the app. Eight tasks implemented and reviewed on `feat/verify-dead-ends`, fix rounds on Tasks 3, 6, 7 and 8; the whole-branch review found one Critical and two Important problems, fixed in one wave; merged into `main` 2026-10-19 (fast-forward). Route smoke on `main`: 26 of 26 (`762a763`), run against an isolated keyless pair with Jev off, since shadow is on in `.env`.
 
 **Before it: [Jev at Verify, in shadow (2026-10-16)](#jev-at-verify-in-shadow-2026-10-16).** After a proof-page capture, a background Jev reading now picks among our own candidates for each ambiguous text/money/number field and reads which variant the page shows — stored, shown where it differs, never applied. Six tasks implemented and reviewed on `feat/jev-at-verify`, fix rounds on Tasks 1, 3 and 5; the whole-branch review, the merge, the route smoke and the live check are still to come — see the plan's status.
 
@@ -98,6 +100,39 @@ not approved designs. Marko's testing of the MVP flow on 2026-09-11 came back ha
 non-urgent UX tweaks are still to be named. A third note, `docs/superpowers/specs/2026-09-17-typesafe-evaluation-note.md`, records TypeSafe (small typed-judgment models, ~100x cheaper than Claude per call) as a possible later improvement for second-layout discovery and per-row checks: assessed, not a priority, nothing built.
 
 **Do not** start another fix-and-dogfood cycle on extraction quality (see *What NOT to redo*), reintroduce uppercase labels or cards outside dialogs and the websites list, or run parallel implementer agents in this checkout without explicit-path commits (the shared index bit twice in phase 5).
+
+## Verify never fails silently (2026-10-20)
+
+Spec `docs/superpowers/specs/2026-10-20-verify-silent-failures-design.md`, plan
+`docs/superpowers/plans/2026-10-20-verify-silent-failures.md`. The first item run under the standing
+approval (`CLAUDE.md`, "Autonomous runs"; queue `docs/queue.md`).
+
+**What a customer gets.** Every refused, failed or stalled Verify, and every failed proof-page
+screenshot, ends with one sentence in view: in the Verify bar beside the button, or on the card,
+cell or row it concerns. The old bottom-of-page error block is gone.
+- A refusal names the field and the product number: "Rating on product 3 needs a value, or "Not on
+  this product". Nothing was checked." Never an address, a field key or the server's own text.
+- One field's AI failure fails that field only: "We couldn't finish checking Brand this time. Verify
+  again — nothing else changed." Every other field, capture and cost stays (skullcandy's case).
+- A run that stops says "Verify stopped before it finished. Your last results are kept — try again.",
+  and the table keeps the last completed run's verdicts instead of going blank.
+- A value found in another place on one product reads `elsewhere` with its own hint, not "not found"
+  (ridge's description); the selected-cell bar now shows the cell's hint.
+- A page Verify could not capture says why on its card, cells and badge; a failed field never has a
+  blank Status; cards never say "stalled" or show a raw error, and never sit on "taking screenshot…".
+
+**How it was proven.** Seven tasks; Task 3 (the api error shape) had its own review, the rest were
+read by the controller, and a whole-branch review on the most capable model covered all of them. It
+found one Important problem — a redirected proof page showed its full address — fixed in `d865300`.
+Gate on the branch: app 956, api 1044, scraper 1135 tests, tsc clean; route smoke 27 of 27 on an
+isolated keyless pair, including the new test (a failed run, an `elsewhere` cell and a refusal each
+show one sentence, and the table keeps its verdicts).
+
+**Left open (review Minors).** Refusals the app cannot name still read "Verify could not start. Try
+again…" (an invalid value the app's own gate normally catches first); a refusal because a staff
+session ended reads the same (the staff banner still updates); a card's "Not checked on product n"
+stays until the next Verify even after a fresh screenshot; the capture-verdict sentences still name a
+host and an HTTP code (in `docs/queue.md`, Needs Marko).
 
 ## Captures without overlays (2026-10-19)
 
