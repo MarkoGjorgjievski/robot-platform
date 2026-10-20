@@ -37,4 +37,19 @@ describe('sampleListing (spec 2026-10-10 §A2, D1)', () => {
   it('two addresses of one product are one sample, the first kept', () => {
     expect(sampleListing(['https://s.example/p/1?color=red', 'https://s.example/p/1?color=blue', 'https://s.example/p/2'], [])).toEqual(['https://s.example/p/1?color=red', 'https://s.example/p/2']);
   });
+  describe('products named by a query id on a script named like a slug, or an upper-case id (final review I1)', () => {
+    const SHAPES: Array<[string, (i: number) => string]> = [
+      ['/product_info.php?products_id=N', (i) => `https://s.example/product_info.php?products_id=${i}`],
+      ['/ProductDetails.aspx?ProductID=N', (i) => `https://s.example/ProductDetails.aspx?ProductID=${i}`],
+      ['/shop/product-detail.php?id=N', (i) => `https://s.example/shop/product-detail.php?id=${i}`],
+      ['/item?ID=N', (i) => `https://s.example/item?ID=${i}`],
+    ];
+    for (const [name, url] of SHAPES) {
+      it(`${name}: all 12 are sampled but the proof page`, () => {
+        const listed = Array.from({ length: 12 }, (_, i) => url(i + 1));
+        expect(sampleListing(listed, [])).toEqual(listed);
+        expect(sampleListing(listed, [url(5)])).toEqual(listed.filter((u) => u !== url(5)));
+      });
+    }
+  });
 });

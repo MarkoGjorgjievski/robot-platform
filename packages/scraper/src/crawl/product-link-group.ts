@@ -22,7 +22,8 @@
 //   2+ carded keys each and the merged shape keeps a literal path segment
 //   (never `*/*`).
 // - One product, one path (§3.4): the key is host + path (+ the id-like query
-//   params when the path's last segment is literal: `/product?id=7`); the first
+//   params when the path's last segment is literal or a server script:
+//   `/product?id=7`, `/product_info.php?products_id=7`); the first
 //   address seen is the one offered; swatch links and "+2" are not product links.
 // - JSON-LD ItemList (§3.5): 3+ same-site items are a group of their own.
 // - Zero is an answer (§3.6): no carded group (priced, else image) and no
@@ -116,20 +117,35 @@ export function urlShape(url: string): string | null {
   } catch { return null; }
 }
 
-/** Spec §3.4 (amended): query parameters that name a product — `id`, `pid`, `sku`, `item`, `product`, `code`, `route`, or a name ending in `_id`/`-id`/`Id`/`ID` (`product_id`, `itemId`); never a word that merely ends in "id" (`paid`, `grid`). */
-export const ID_PARAM = /^(?:id|pid|sku|item|product|code|route)$|[_-]id$|[a-z](?:Id|ID)$/;
+/**
+ * Spec §3.4 (amended): id-like query parameter names, in any case — `id`, `pid`, `sku`, `item`,
+ * `product`, `code`, `route`; a name ending in `_id`/`-id` (`products_id`) or starting `id_`/`id-`
+ * (`id_product`); and the whole-word compounds `productid`, `itemid`, `articleid`, `goodsid`,
+ * `prodid` (`ProductID`, `PRODUCTID`). Never a word that merely ends in "id" (`paid`, `grid`, `valid`).
+ */
+export const ID_PARAM_NAME = /^(?:id|pid|sku|item|product|code|route)$|[_-]id$|^id[_-]|^(?:products?|items?|articles?|goods|prod)id$/i;
+/** Spec §3.4 (amended): a camelCase id, case-sensitive — `Id`/`ID` right after a lowercase letter (`itemId`, `productID`, `CategoryID`), never `paid`. */
+export const ID_PARAM_CAMEL = /[a-z](?:Id|ID)$/;
+/** Does this query parameter name a product (`ID_PARAM_NAME` or `ID_PARAM_CAMEL`)? */
+export function isIdParam(name: string): boolean {
+  return ID_PARAM_NAME.test(name) || ID_PARAM_CAMEL.test(name);
+}
+/** A server script as the last segment (`product_info.php`, `ProductDetails.aspx`): its query names the page, whatever the script is called. */
+export const SCRIPT_SEGMENT = /\.(?:php|aspx?|jsp|cfm|cgi|pl)$/i;
 
 /**
  * Spec §3.4: host (without `www.`) + path, trailing slash trimmed. When the path's last segment is
- * literal in its shape (`/product`, `/item.php`, `/index.php`) or there is no path, the query names
- * the product: its id-like parameters (`ID_PARAM`) are appended, sorted. A slug path (`*` last)
- * drops the whole query — `?color=red`, `?variant=…` are copies of one product.
+ * literal in its shape (`/product`, `/item.php`, `/index.php`), is a server script whatever its name
+ * (`/product_info.php`, `/ProductDetails.aspx` — `SCRIPT_SEGMENT`), or there is no path, the query
+ * names the product: its id-like parameters (`isIdParam`) are appended, sorted. Any other slug path
+ * (`*` last) drops the whole query — `?color=red`, `?variant=…` are copies of one product.
  */
 function keyOf(u: URL): string {
   const host = bareHost(u.hostname);
   const path = trimSlash(u.pathname);
-  if (path !== '' && segmentShape(path.slice(path.lastIndexOf('/') + 1)).includes('*')) return host + path;
-  const ids = [...u.searchParams].filter(([n]) => ID_PARAM.test(n)).map(([n, v]) => `${n}=${v}`).sort();
+  const last = path.slice(path.lastIndexOf('/') + 1);
+  if (path !== '' && segmentShape(last).includes('*') && !SCRIPT_SEGMENT.test(last)) return host + path;
+  const ids = [...u.searchParams].filter(([n]) => isIdParam(n)).map(([n, v]) => `${n}=${v}`).sort();
   return ids.length > 0 ? `${host}${path}?${ids.join('&')}` : host + path;
 }
 
@@ -329,17 +345,20 @@ export const LISTING_LINKS_SCRIPT = String.raw`(() => {
   const PRICE = new RegExp(${JSON.stringify(PRICE_PATTERN.source)}, ${JSON.stringify(PRICE_PATTERN.flags)});
   const UP = ${CARD_MAX_LEVELS - 1};
   const MAX_LINKS = ${CARD_MAX_LINKS};
-  const ID = new RegExp(${JSON.stringify(ID_PARAM.source)});
-  // The product key's own rule (keyOf): a literal last segment keeps its id-like query params, so a
-  // grid of /product?id=N links is that many link paths, not one.
-  const slug = (seg) => { const m = /^(.*?)(\.[a-z]{2,5})$/i.exec(seg); const stem = m ? m[1] : seg; return /[\d_-]/.test(stem) || stem.length >= 12; };
+  const ID_NAME = new RegExp(${JSON.stringify(ID_PARAM_NAME.source)}, ${JSON.stringify(ID_PARAM_NAME.flags)});
+  const ID_CAMEL = new RegExp(${JSON.stringify(ID_PARAM_CAMEL.source)}, ${JSON.stringify(ID_PARAM_CAMEL.flags)});
+  const SCRIPT = new RegExp(${JSON.stringify(SCRIPT_SEGMENT.source)}, ${JSON.stringify(SCRIPT_SEGMENT.flags)});
+  // The product key's own rule (keyOf): a literal last segment, or a server script whatever its
+  // name, keeps its id-like query params, so a grid of /product?id=N or /product_info.php?products_id=N
+  // links is that many link paths, not one.
+  const slug = (seg) => { const m = /^(.*?)(\.[a-z]{2,5})$/i.exec(seg); const stem = m ? m[1] : seg; return (/[\d_-]/.test(stem) || stem.length >= 12) && !SCRIPT.test(seg); };
   const pathOf = (href) => {
     try {
       const u = new URL(href, location.href);
       const p = u.pathname.replace(/\/+$/, '');
       if (p !== '' && slug(p.slice(p.lastIndexOf('/') + 1))) return u.host + p;
       const ids = [];
-      u.searchParams.forEach((v, n) => { if (ID.test(n)) ids.push(n + '=' + v); });
+      u.searchParams.forEach((v, n) => { if (ID_NAME.test(n) || ID_CAMEL.test(n)) ids.push(n + '=' + v); });
       ids.sort();
       return u.host + p + (ids.length ? '?' + ids.join('&') : '');
     } catch (e) { return href.split(/[?#]/)[0] || null; }
