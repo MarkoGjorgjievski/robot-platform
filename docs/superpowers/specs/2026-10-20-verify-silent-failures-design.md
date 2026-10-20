@@ -7,6 +7,16 @@ per-site notes `docs/testing/results/campaign-2026-10-11/skims.md`, `skullcandy.
 left open by spec 2026-10-17 §11. Every cause below was traced in the code on `main` @ `7971bf8`;
 the ridge case was reproduced with the real `certify`.
 
+**Status:** implemented on `feat/verify-silent-failures` (seven tasks; Tasks 1, 2, 5 and 6 reviewed by the
+controller, 3 by a reviewer, all covered by a whole-branch review on the most capable model). The
+whole-branch review found one Important problem — a redirected proof page showed its full address
+("Not checked on product 2 — redirected to https://…") — fixed in `d865300`; its Minors are left
+(see the handoff). Merge gate on the branch: app 956, api 1044, scraper 1135 tests and tsc clean;
+route smoke 27 of 27 against an isolated keyless pair. **Deviations:** a refusal sentence prefers a
+problem that names a field over `other`; a stalled coverage check reads "The check took too long and
+stopped. It runs again after your next Verify." (no button to run it again); the capture-verdict
+sentences that name a host and an HTTP code are unchanged (a question for Marko in `docs/queue.md`).
+
 ## 1. Why
 
 A customer who clicks Verify and gets nothing back cannot do anything. Campaign 2 hit three such
