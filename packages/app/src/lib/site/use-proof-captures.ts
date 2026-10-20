@@ -6,28 +6,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData } from '@tanstack/react-query';
 import { trpc, API_URL } from '../trpc';
-import type { Box } from './verification-model';
+import { proofCaptureState, type ProofCapture } from './proof-capture-state';
 
-export type ProofCapture = {
-  captureId: string;
-  status: 'starting' | 'capturing' | 'captured' | 'failed';
-  error?: string;
-  /** A failed capture's verdict (spec 2026-10-09 §A1/§A2): `refused` / `challenge` name the row's words. Absent for other failures. */
-  verdict?: { kind: string };
-  tiles: string[];
-  boxes: Box[];
-  pageHeight: number;
-  capturedHeight: number;
-  /** The captured page's `<title>`, when it reported one and this capture landed. */
-  title?: string;
-};
-
-const EMPTY_CAPTURE: Pick<ProofCapture, 'tiles' | 'boxes' | 'pageHeight' | 'capturedHeight'> = {
-  tiles: [],
-  boxes: [],
-  pageHeight: 0,
-  capturedHeight: 0,
-};
+export type { ProofCapture } from './proof-capture-state';
 
 /**
  * A tile's stored path is relative (`/captures/…png`); the api-server, not
@@ -138,32 +119,13 @@ export function useProofCaptures(
 
   const byUrl: Record<string, ProofCapture | undefined> = {};
   for (const url of urls) {
-    const startError = startErrors[url];
-    if (startError) {
-      byUrl[url] = { captureId: '', status: 'failed', error: startError, ...EMPTY_CAPTURE };
-      continue;
-    }
-    const id = captureIds[url];
-    if (!id) {
-      byUrl[url] = { captureId: '', status: 'starting', ...EMPTY_CAPTURE };
-      continue;
-    }
-    const data = pollById.get(id)?.data;
-    if (!data) {
-      byUrl[url] = { captureId: id, status: 'starting', ...EMPTY_CAPTURE };
-      continue;
-    }
-    byUrl[url] = {
+    const id = captureIds[url] ?? null;
+    const poll = id ? pollById.get(id) : undefined;
+    byUrl[url] = proofCaptureState({
+      ...(url in startErrors ? { startError: startErrors[url]! } : {}),
       captureId: id,
-      status: data.status,
-      ...(data.error ? { error: data.error } : {}),
-      ...(data.verdict ? { verdict: { kind: data.verdict.kind } } : {}),
-      ...(data.title ? { title: data.title } : {}),
-      tiles: data.tiles,
-      boxes: data.boxes,
-      pageHeight: data.pageHeight,
-      capturedHeight: data.capturedHeight,
-    };
+      ...(poll ? { poll: { data: poll.data, isError: poll.isError } } : {}),
+    });
   }
 
   function retry(url: string) {
