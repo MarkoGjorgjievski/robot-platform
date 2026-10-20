@@ -13,6 +13,12 @@ reason and goes on to the next.
 
 ## Needs Marko
 
+- **Re-verify the one-source websites?** Both Ikea websites (Acne / Ikea, Competitor prices / Ikea)
+  keep their five same-response Price paths until their next Verify. Re-verifying changes customer
+  data: staff do it, or prompt the customer? (2026-10-20, one-source backups.)
+- **Cap XPath backups too?** The one-source cap (two paths per source) leaves the page's HTML out,
+  so XPath-only websites keep up to five XPath paths as before. Cap them as one source, or keep the
+  exemption? (2026-10-20.)
 - **Capture-failure sentences show the host and an HTTP code** — e.g. "…refused the browser (HTTP
   403…)" (honest verdicts, 2026-10-09). Customer copy should not name internals; reword them?
   (Found while planning silent failures, 2026-10-20; that branch keeps them unchanged.)
