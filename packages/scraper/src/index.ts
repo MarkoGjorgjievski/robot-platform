@@ -41,6 +41,7 @@ export {
   // The old rule, until @robot/api moves over (plan 2026-10-20, Task 4).
   largestProductGroup, productPathTemplate, LISTING_ANCHORS_SCRIPT,
 } from './crawl/product-link-group.js';
+export { readListingPage, LISTING_LOAD_ROUNDS, LISTING_LOAD_ENOUGH } from './crawl/read-listing.js';
 export { buildCataloguePrompt, parseCatalogueResponse, discoverCandidateCatalogue, type CatalogueEvidence } from './catalogue-discovery.js';
 export * from './verify/index.js';
 export { shapeOf, addressPattern, type Shape } from './verify/shape.js';
