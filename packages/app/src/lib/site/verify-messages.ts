@@ -96,9 +96,15 @@ export function aiUnavailableHint(field: string): string {
 /** Library text, a stack, an internal word, or something too long to be a sentence of ours. */
 const RAW = /\b(?:Error|Exception)\b|Timeout \d+ms|\bpage\.\w+|net::ERR_|browserType|Target (?:page|closed)|\n|\s at /;
 
+/** A redirect's stored reason ("redirected to https://…", which drift reads as is) in customer words: never an address (spec §5.4). */
+export const PAGE_REDIRECTED = 'the address opened a different page';
+const URL_IN_TEXT = /https?:\/\//i;
+const REDIRECTED = /^redirected to /i;
+
 function readableReason(reason: string | undefined): string {
   const r = (reason ?? '').trim().replace(/\.+$/, '');
-  if (!r || r === 'not captured' || r === 'stalled' || r.length > 240 || RAW.test(r)) return PAGE_NOT_READ;
+  if (REDIRECTED.test(r)) return PAGE_REDIRECTED;
+  if (!r || r === 'not captured' || r === 'stalled' || r.length > 240 || RAW.test(r) || URL_IN_TEXT.test(r)) return PAGE_NOT_READ;
   return r;
 }
 
@@ -110,7 +116,10 @@ export function notCheckedText(product: number, reason: string | undefined): str
 /** A proof-page capture's stored error as a card shows it (spec §3.5.5): "stalled" in words; a verdict sentence as it is. */
 export function captureErrorText(error: string | undefined): string | undefined {
   if (error === undefined) return undefined;
-  return error === 'stalled' ? SCREENSHOT_TOO_LONG : error;
+  if (error === 'stalled') return SCREENSHOT_TOO_LONG;
+  // A stored verdict sentence shows as it is; a redirect, or anything holding an address, is reworded (spec §5.4).
+  if (REDIRECTED.test(error.trim())) return 'The address opened a different page. Check the link, or use another product.';
+  return URL_IN_TEXT.test(error) ? `The screenshot could not be taken — ${PAGE_NOT_READ}.` : error;
 }
 
 /** Verify's stage line (`runVerification`'s onProgress stages) in customer words; the raw stage names a key and "AI". */
