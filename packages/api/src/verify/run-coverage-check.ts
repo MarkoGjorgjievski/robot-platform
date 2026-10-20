@@ -10,8 +10,8 @@ import { and, desc, eq } from 'drizzle-orm';
 import { db, coverageChecks, sources } from '@robot/db';
 import { CaptureError, verdictSentence } from '@robot/browser';
 import {
-  backoffAnswer, CaptureProblemError, largestProductGroup, LISTING_ANCHORS_SCRIPT, reportVerdict, runVerifiedExtraction, shapeOf,
-  type ListingAnchor, type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField,
+  backoffAnswer, CaptureProblemError, findProductGroup, readListingPage, reportVerdict, runVerifiedExtraction, shapeOf,
+  type SchemaDefinitionField, type Shape, type VerificationSet, type VerifiedField,
 } from '@robot/scraper';
 import { withBrowserSession } from '../browser-session.js';
 import { safeErrorMessage } from '../crawl/plan-source.js';
@@ -36,9 +36,9 @@ export type CoverageDeps = {
 };
 
 /**
- * The listing's product group, read with the finder's own capture and
- * grouping (`sources.checkListingPage`); a non-ok verdict, or no document at
- * all, is the sentence instead. A host still backing off is answered from the
+ * The listing's products, read the way "Find products" reads them
+ * (`readListingPage` + `findProductGroup`, spec 2026-10-20); a non-ok
+ * verdict, or no document at all, is the sentence instead. A host still backing off is answered from the
  * backoff, with no browser.
  */
 async function defaultListing(url: string): Promise<{ productUrls: string[]; verdictMessage: string | null }> {
@@ -48,11 +48,10 @@ async function defaultListing(url: string): Promise<{ productUrls: string[]; ver
   try {
     // Inside the proof-page capture slots, like every page the check reads: never a fourth Chromium (spec A3).
     return await captureSlots(() => withBrowserSession(async (browser) => {
-      const capture = await browser.capture(url, { waitUntil: 'networkidle', interceptNetworkRequests: false });
+      const { capture, links } = await readListingPage(browser, url, { load: true });
       reportVerdict(hostname, capture.verdict);
       if (capture.verdict.kind !== 'ok') return { productUrls: [], verdictMessage: verdictSentence(capture.verdict, url) };
-      const anchors = await browser.setContentEvaluate<ListingAnchor[]>(capture.html, LISTING_ANCHORS_SCRIPT);
-      return { productUrls: largestProductGroup(anchors, url), verdictMessage: null };
+      return { productUrls: findProductGroup(links, url)?.urls ?? [], verdictMessage: null };
     }));
   } catch (err) {
     if (!(err instanceof CaptureError)) throw err;

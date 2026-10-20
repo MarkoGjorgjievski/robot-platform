@@ -34,14 +34,11 @@ function expectZodValidationError(err: unknown): asserts err is TRPCError {
 }
 
 describe('sources.checkListingPage', () => {
-  it('captures the listing page (no AI) and reports product link count, sample, and pagerSeen', async () => {
+  it('captures the listing page (no AI, loading more, the links read in the page) and reports product count, sample, and pagerSeen', async () => {
     const html = '<html><head><link rel="next" href="?page=2"></head><body></body></html>';
-    const anchors = Array.from({ length: 12 }, (_, i) => ({ href: `/p/air-${i}-123456789012`, text: `Air ${i}` }));
-    const captureMock = vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 } });
-    const setContentEvaluateMock = vi.fn().mockResolvedValue(anchors);
-    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: captureMock, setContentEvaluate: setContentEvaluateMock }),
-    );
+    const anchors = Array.from({ length: 12 }, (_, i) => ({ href: `/p/air-${i}-123456789012`, text: `Air ${i}`, levels: [{ d: 1, img: true, price: true, len: 30 }] }));
+    const captureMock = vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } });
+    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) => fn({ capture: captureMock }));
 
     const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing.example.com/c/shoes' });
 
@@ -51,18 +48,29 @@ describe('sources.checkListingPage', () => {
     expect(result.verdict).toEqual({ kind: 'ok', status: 200 });
     expect(result.message).toBeNull();
     expect(withBrowserSessionMock).toHaveBeenCalledTimes(1);
-    expect(captureMock).toHaveBeenCalledWith('https://test-check-listing.example.com/c/shoes', expect.objectContaining({ interceptNetworkRequests: false }));
-    expect(setContentEvaluateMock).toHaveBeenCalledWith(html, expect.any(String));
+    expect(captureMock).toHaveBeenCalledWith('https://test-check-listing.example.com/c/shoes', expect.objectContaining({
+      interceptNetworkRequests: false, timeout: 20_000, annotate: expect.any(String),
+      loadMore: expect.objectContaining({ rounds: 3, enough: 60 }),
+    }));
+  });
+
+  it('a page with no product cards counts no products', async () => {
+    const anchors = [{ href: '/pages/terms', text: 'Terms' }, { href: '/collections/sofas', text: 'Sofas', levels: [{ d: 1, img: true, price: false, len: 5 }] }];
+    withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
+      fn({ capture: vi.fn().mockResolvedValue({ html: '<html></html>', verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } }) }),
+    );
+    const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-none.example.com/c/x' });
+    expect(result).toMatchObject({ productLinks: 0, sample: [], products: [], message: null });
   });
 
   it('reports pagerSeen false when the captured page has no pagination markup', async () => {
     const html = '<html><body>no pager</body></html>';
     const anchors = [
-      { href: '/p/air-1-123456789012', text: 'Air 1' },
-      { href: '/p/air-2-123456789013', text: 'Air 2' },
+      { href: '/p/air-1-123456789012', text: 'Air 1', levels: [{ d: 1, img: true, price: true, len: 30 }] },
+      { href: '/p/air-2-123456789013', text: 'Air 2', levels: [{ d: 1, img: true, price: true, len: 30 }] },
     ];
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 } }), setContentEvaluate: vi.fn().mockResolvedValue(anchors) }),
+      fn({ capture: vi.fn().mockResolvedValue({ html, verdict: { kind: 'ok', status: 200 }, annotation: { anchors, itemList: [] } }) }),
     );
 
     const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-nopager.example.com/c/shoes' });
@@ -71,10 +79,9 @@ describe('sources.checkListingPage', () => {
     expect(result.pagerSeen).toBe(false);
   });
 
-  it('a challenge page counts no links, skips the anchor harvest, and says why', async () => {
-    const setContentEvaluateMock = vi.fn();
+  it('a challenge page counts no links and says why', async () => {
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockResolvedValue({ html: '<html>captcha</html>', verdict: { kind: 'challenge', status: 403, vendor: 'datadome' } }), setContentEvaluate: setContentEvaluateMock }),
+      fn({ capture: vi.fn().mockResolvedValue({ html: '<html>captcha</html>', verdict: { kind: 'challenge', status: 403, vendor: 'datadome' }, annotation: { anchors: [{ href: '/p/1-2', text: 'x', levels: [{ d: 1, img: true, price: true, len: 3 }] }], itemList: [] } }) }),
     );
 
     const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-wall.example.com/c/shoes' });
@@ -82,12 +89,11 @@ describe('sources.checkListingPage', () => {
     expect(result.productLinks).toBe(0);
     expect(result.verdict.kind).toBe('challenge');
     expect(result.message).toBe("test-check-listing-wall.example.com asked for a human check (CAPTCHA). Wait a few minutes and try again; pasting product pages won't help, they are behind the same check.");
-    expect(setContentEvaluateMock).not.toHaveBeenCalled();
   });
 
   it('no document at all (a CaptureError) is an answer, not a thrown error', async () => {
     withBrowserSessionMock.mockImplementation(async (fn: (browser: unknown) => Promise<unknown>) =>
-      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('unreachable', 'https://test-check-listing-down.example.com/c/shoes', 'net::ERR_NAME_NOT_RESOLVED')), setContentEvaluate: vi.fn() }),
+      fn({ capture: vi.fn().mockRejectedValue(new CaptureError('unreachable', 'https://test-check-listing-down.example.com/c/shoes', 'net::ERR_NAME_NOT_RESOLVED')) }),
     );
 
     const result = await caller.sources.checkListingPage({ listingUrl: 'https://test-check-listing-down.example.com/c/shoes' });
