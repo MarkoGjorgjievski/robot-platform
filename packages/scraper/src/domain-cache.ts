@@ -1155,9 +1155,19 @@ export async function saveVerifiedPaths(domain: string, pageType: string, byConc
       // it here, at the only place that adds to it, keeping the best
       // MAX_CERTIFIED_PATHS by the same order `lookupVerifiedPaths` serves
       // them in. Paths belonging to any other source are untouched.
+      //
+      // Final review (one-source, 2026-10-20): the paths this Verify certified
+      // are the current certification, so they always stay; the cap ranks only
+      // the older ones, for the places left. Ranking them all by hit rate
+      // dropped a newly certified backup (Ikea: five API siblings at 100 %
+      // pushed out the new JSON-LD path, so every Verify searched again) and
+      // could drop the certified first path once it had missed. An operator's
+      // pin also always stays (nothing automatic removes a pin).
       const verified = set.paths.filter((p) => p.source === 'verified');
       if (verified.length > MAX_CERTIFIED_PATHS) {
-        const keep = new Set([...verified].sort(compareVerified).slice(0, MAX_CERTIFIED_PATHS));
+        const current = verified.filter((p) => p.pinned || paths.some((c) => sameVerified(p, c)));
+        const older = verified.filter((p) => !current.includes(p)).sort(compareVerified);
+        const keep = new Set([...current, ...older.slice(0, Math.max(0, MAX_CERTIFIED_PATHS - current.length))]);
         set.paths = set.paths.filter((p) => p.source !== 'verified' || keep.has(p));
       }
       fieldPaths[concept] = set;
